@@ -1,31 +1,64 @@
-# PreToolUse hook (Agent), scoped to the issue-worker subagent's frontmatter: blocks spawning any
-# subagent other than the ones the issue-worker is allowed to delegate to.
+# PreToolUse hook (Agent), wired in the frontmatter of every agent that may delegate and, with
+# -Agent orchestrator, in the project .claude/settings.json: blocks spawning any subagent type outside the
+# caller's allowlist (#1181).
 #
-# .claude/agents/issue-worker.md, Protocol: an issue-worker only spawns `ci-diagnoser`, `mechanical-fixer`
-# or `Explore` (read-only research); it never spawns another `issue-worker` (which could recurse
-# indefinitely and bypass the orchestrator's per-issue worktree/brief control) or a general-purpose agent
-# (which has no protocol constraints at all). This hook enforces that allowlist mechanically so a worker
-# cannot spawn a disallowed subagent even if its brief, a nested agent, or a skill it loaded asks it to.
+#   orchestrator      issue-worker, mechanical-fixer, docs-writer, docs-reviewer, adversarial-reviewer,
+#                     ci-diagnoser, pr-watcher, Explore, Plan, claude-code-guide, general-purpose
+#   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer
+#   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore
+#   mechanical-fixer  ci-diagnoser, Explore
 #
-# Inspected: the `subagent_type` field of the Agent tool call. Missing or empty means the default
-# `general-purpose` agent, which is blocked. Exit code 2 blocks the call and shows stderr to Claude; any
-# failure of the hook itself allows the call (fail open).
+# The orchestrator (the main session) spawns the specialists and the read-only research agents. It may spawn
+# general-purpose for research: whether that agent only reads cannot be enforced here, but
+# guard-orchestrator-writes.ps1 treats every subagent other than issue-worker, mechanical-fixer and
+# docs-writer like the main session, so a general-purpose agent cannot edit src/ or tests/ either. Any other
+# type (claude, statusline-setup, plugin agents, ...) is blocked.
+# No worker spawns another issue-worker (which could recurse and bypass the orchestrator's per-issue worktree
+# and brief) or a general-purpose agent (which has no protocol constraints at all). The `tools:` line of each
+# agent lists the same types as `Agent(...)`, but Claude Code ignores that list inside a subagent definition
+# (it applies only to a main thread started with `claude --agent`), so this hook is the enforcement.
+#
+# The caller is the hook input's agent_type when it has an allowlist (set for tool calls inside a subagent);
+# otherwise the -Agent argument of the command (the frontmatter's agent, or orchestrator in settings.json, so
+# an ungoverned subagent gets the orchestrator's list). A caller without an allowlist is not restricted.
+# agent_id/agent_type are present for a subagent's own tool call and absent for the main session's
+# (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md); an absent
+# agent_type falls back to -Agent below, which is how the main session's own PreToolUse Agent call (wired with
+# -Agent orchestrator in settings.json) is told apart from a subagent's.
+# Inspected: the `subagent_type` of the Agent tool call; missing or empty means the default `general-purpose`
+# agent. Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
+# (fail open).
+
+param([string]$Agent)
 
 $ErrorActionPreference = 'Stop'
 
 try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
-    $subagentType = [string]$payload.tool_input.subagent_type
-    $allowed = @('ci-diagnoser', 'mechanical-fixer', 'Explore')
+    $allowlists = @{
+        'orchestrator'     = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose')
+        'issue-worker'     = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer')
+        'docs-writer'      = @('mechanical-fixer', 'docs-reviewer', 'Explore')
+        'mechanical-fixer' = @('ci-diagnoser', 'Explore')
+    }
 
+    $caller = [string]$payload.agent_type
+    if ([string]::IsNullOrWhiteSpace($caller) -or -not $allowlists.ContainsKey($caller)) { $caller = $Agent }
+    if ([string]::IsNullOrWhiteSpace($caller) -or -not $allowlists.ContainsKey($caller)) { exit 0 }
+    $allowed = $allowlists[$caller]
+    $definition = if ($caller -eq 'orchestrator') { '.claude/agents/README.md, Delegation' } else { ".claude/agents/$caller.md" }
+    $instead = if ($caller -eq 'orchestrator') { 'Use the specialist that owns the step.' } else { 'Report the step to the orchestrator instead.' }
+
+    $subagentType = [string]$payload.tool_input.subagent_type
     if ([string]::IsNullOrWhiteSpace($subagentType)) {
-        [Console]::Error.WriteLine("Blocked: an issue-worker never spawns a general-purpose agent (empty/missing subagent_type). Allowed subagent types: $($allowed -join ', ') (see .claude/agents/issue-worker.md, Protocol). Report the step to the orchestrator instead.")
+        if ($allowed -ccontains 'general-purpose') { exit 0 }
+        [Console]::Error.WriteLine("Blocked: a $caller never spawns a general-purpose agent (empty/missing subagent_type). Allowed subagent types: $($allowed -join ', ') (see $definition; #1181). $instead")
         exit 2
     }
 
     if ($allowed -cnotcontains $subagentType) {
-        [Console]::Error.WriteLine("Blocked: an issue-worker may only spawn these subagent types: $($allowed -join ', ') (see .claude/agents/issue-worker.md, Protocol). '$subagentType' is not one of them. Report the step to the orchestrator instead.")
+        [Console]::Error.WriteLine("Blocked: a $caller may only spawn these subagent types: $($allowed -join ', ') (see $definition; #1181). '$subagentType' is not one of them. $instead")
         exit 2
     }
 

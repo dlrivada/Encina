@@ -7,7 +7,7 @@ description: Open a GitHub issue in dlrivada/Encina in the house format - the ri
 
 Every identified problem is either fixed now or recorded as an issue before moving on (CLAUDE.md, When to Create Issues). The `check-issue-template` hook blocks `gh issue create` calls that break the format below.
 
-Main session (orchestrator) only; an `issue-worker` reports instead of running this skill.
+Main session (orchestrator) only. An `issue-worker` or `docs-writer` does not run this skill; it writes each follow-up as an issue file and lists the paths in its report (§5).
 
 ## 1. Pick the template
 
@@ -50,3 +50,28 @@ gh issue create --repo dlrivada/Encina --title "[DEBT] <specific title>" --body-
 
 - Link the issue from the PR or document that produced it.
 - Mention every issue opened in the final summary to the maintainer.
+
+## 5. From a worker's issue file
+
+Workers write follow-ups to `<worktree>/artifacts/issues/<slug>.md` (git-ignored). The file is the body from §2 preceded by a header block:
+
+```text
+<!-- issue
+title: [DEBT] Specific title with the template prefix
+labels: technical-debt, area-x
+milestone: <milestone, or empty>
+-->
+## Type
+...
+```
+
+Read only the header, strip it into a scratchpad body file, and create the issue with the title and labels typed literally, so the `check-issue-template` hook can validate them (it skips titles and body paths held in variables):
+
+```powershell
+Get-Content '<worktree>\artifacts\issues\<slug>.md' -TotalCount 5
+$lines = Get-Content '<worktree>\artifacts\issues\<slug>.md'
+$lines | Select-Object -Skip ([array]::IndexOf($lines, '-->') + 1) | Set-Content '<scratchpad>\<slug>.md'
+gh issue create --repo dlrivada/Encina --title "<title>" --body-file '<scratchpad>\<slug>.md' --label "<labels>" --milestone "<milestone>"
+```
+
+Leave out `--milestone` when the header leaves it empty; §3 still decides the milestone when the worker could not. If the hook blocks the call, the worker's body is wrong: fix the file or send it back, never loosen the check.

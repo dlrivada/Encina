@@ -1,14 +1,14 @@
 # Claude Code agent definitions
 
-Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost, shown in the table below: free local AI for bulk mechanical work, Haiku for polling, Sonnet for bounded execution and diagnosis, Opus for adversarial judgement, and the main session's model only for specifying, deciding and the final gate (task-routing rationale: `docs/engineering/ai-task-routing.md`).
+Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost, shown in the table below: free local AI for drafts, classification and summaries, Haiku for polling and already-decided edits, Sonnet for bounded execution, diagnosis and review, Opus only when a brief or a review request states why, and the main session's model only for specifying, deciding and the final gate (task-routing rationale: `docs/engineering/ai-task-routing.md`).
 
 | Agent | Model / effort | Role | Writes? |
 |---|---|---|---|
 | `pr-watcher` | Haiku 4.5 / low | Watches a PR and reports each failed check, bot review and the merge as they happen. Superseded for routine watching by `tools/ai/watch-pr-events.ps1` run as a background monitor, which costs no model tokens; keep the agent for PRs whose events need judgement to triage | No |
 | `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
-| `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
-| `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
-| `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
+| `mechanical-fixer` | Haiku 4.5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
+| `adversarial-reviewer` | Sonnet 5 / high (Opus only for security, personal-data or design-changing PRs, passed by the orchestrator) | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
+| `issue-worker` | Sonnet 5 / medium (Opus only when the brief says why: unknown root cause or design-heavy task) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
 | `docs-writer` | Sonnet 5 / medium | Writes or restructures one documentation page or issue under the `encina-docs` skill: one Diátaxis quadrant per page, identifiers verified in `src/`, cited figures, links and lint checked | Yes (in its worktree, never pushes) |
 | `docs-reviewer` | Sonnet 5 / medium | Read-only review of documentation pages against the `encina-docs` checklist: quadrant, real API, no hand-typed figures, ADR/SPEC links, provider coverage, links and lint | No |
 
@@ -17,32 +17,37 @@ Conventions shared by all agents:
 - Tooling per `CLAUDE.md`: PowerShell or direct CLI calls, never python or bash constructs.
 - Agents never commit to `main` and never open or close issues or PRs on their own; those actions stay with the main session or the maintainer (`AI-DEVELOPMENT-MODEL.md` §4, INV-006 of SPEC-000).
 - Event-driven watching is preferred over report-at-the-end: the watcher sends a message on every event, and for pure polling the main session uses a scripted monitor that costs no model tokens at all.
-- Every spawn records its token usage in the completion notice; the main session adds it to the per-task ledger alongside the local AI's `artifacts/local-ai/ledger.csv`.
+- Every spawn records its token usage in the completion notice. Each `issue-worker` and `docs-writer` run appends one line to `artifacts/agent-usage/ledger.csv` in its worktree (`timestampUtc,agent,task,model,subagentTokens,notes`), next to the local AI's `artifacts/local-ai/ledger.csv`, so the savings of delegation and model choice can be measured.
 
 When to spawn which, from the experience of the first sessions:
 
-- `mechanical-fixer` for any change that is already decided (formatting, exclusions, thread replies with given text, renames), so the main session does not spend its tokens executing it.
+- `issue-worker` on Sonnet by default. The orchestrator passes `model: opus` only when its brief states the reason (the root cause is unknown, or the task is design-heavy), because a closed brief rarely needs Opus and Opus costs several times more.
+
+- `mechanical-fixer` for any change that is already decided (formatting, exclusions, renames, table and figure updates), so the main session does not spend its tokens executing it. It never pushes, comments or opens anything: publishing, review-thread replies included, stays with the orchestrator.
 - `ci-diagnoser` when a failed job's cause is not visible in the first error lines.
-- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited).
+- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited). An `issue-worker` whose change touches production code also runs it on its own diff before reporting and fixes the blockers and majors, so the PR opens without them; this does not replace the orchestrator's PR-level review when CodeRabbit is rate limited. It runs on Sonnet; the orchestrator passes `model: opus` only for a PR that touches security or personal data or changes a design, and says which in the prompt.
 
 The equivalent definitions for the free local model (opencode) live in `.opencode/agents/`, for the roles that have one.
 
 ## Delegation (mandatory)
 
-The main session orchestrates: it writes a closed brief per issue, runs one `issue-worker` per issue in its own worktree (two to four at a time), reviews each diff, pushes, opens the PR and runs `adversarial-reviewer`. Every step goes to the specialist that owns it, at every level; a worker that cannot spawn agents lists the steps that should have been delegated so the orchestrator dispatches them.
+The main session orchestrates: it writes a closed brief per issue (`worker-brief` skill), runs one `issue-worker` or `docs-writer` per issue in its own worktree (two to four at a time), reviews each diff, pushes, opens the PR and runs `adversarial-reviewer`. It does not edit `src/` or `tests/` itself. Every step goes to the specialist that owns it, at every level and however small; doing a specialist's step yourself is not allowed. The maintainer confirmed this on 2026-09-23 (#1181) and rejected a proposal to make delegation proportional: the cost of a spawn is trivial next to the quality a specialist brings. This table is the single statement of who owns what; the agent definitions repeat the rows that concern them. When a spawn fails, the agent lists the steps that should have been delegated so the orchestrator dispatches them.
 
-| Step | Specialist |
-|---|---|
-| Implement one issue from a brief | `issue-worker` |
-| Root-cause a failing job or test not obvious from the first errors | `ci-diagnoser` |
-| Already-decided mechanical edits (docs, tables, renames, format, thread replies) | `mechanical-fixer` |
-| Review a PR or a specification, and every PR merged without CodeRabbit | `adversarial-reviewer` |
-| Write or restructure a documentation page (documentation milestone issues, package READMEs) | `docs-writer` |
-| Review a documentation PR or a page before it is published | `docs-reviewer` |
-| Bulk drafts, classification, summaries | local model (`local-ai-task` skill) |
-| Watching PRs and runs | token-free scripts (`tools/ai/watch-pr-events.ps1`) |
+| Step | Specialist | Spawned by |
+|---|---|---|
+| Implement one issue from a brief | `issue-worker` | orchestrator |
+| Root-cause a failing job or test not obvious from the first errors | `ci-diagnoser` | orchestrator, `issue-worker`, `mechanical-fixer` |
+| Already-decided mechanical edits (renames, format, tables), and every changelog fragment, `PublicAPI.*.txt` line and coverage-manifest entry an `issue-worker` needs | `mechanical-fixer` | orchestrator, `issue-worker`, `docs-writer` |
+| Review a PR or a specification, every PR merged without CodeRabbit, and an `issue-worker`'s own diff when it touches production code | `adversarial-reviewer` | orchestrator, `issue-worker` |
+| Write or restructure documentation: `docs/**/*.md` except `docs/plans/**` and the images those pages show, root and package READMEs, `CONTRIBUTING.md` (the site's code and data under `docs/`, such as `*.js`, `*.html`, `*.json` and `_config.yml`, are code: an `issue-worker` changes them) | `docs-writer` | orchestrator, `issue-worker` |
+| Review documentation: a documentation PR, and a `docs-writer`'s pages before it reports | `docs-reviewer` | orchestrator, `docs-writer` |
+| Read-only research across many files | `Explore` | anyone |
+| Bulk drafts, classification, summaries, and the first draft of every follow-up issue file a worker writes (the worker checks and fixes the draft; when the local model is not running the worker writes the file and says so) | local model (`local-ai-task` skill) | anyone |
+| Watching PRs and runs | token-free scripts (`tools/ai/watch-pr-events.ps1`) | orchestrator |
 
-Shared hot spots stay with the orchestrator: workflows, and anything two open PRs would both edit. Changelog entries go to `changelog.d/` fragments.
+Shared hot spots stay with the orchestrator: workflows, and anything two open PRs would both edit. Changelog entries go to `changelog.d/` fragments. A rebase conflict in `src/` or `tests/` is resolved by an `issue-worker` briefed through the `worker-brief` skill: the orchestrator does not edit those folders, so it hands the conflicted worktree to a worker, which resolves the conflicts, continues the rebase, verifies and reports.
+
+The hooks below enforce part of this table: who may spawn whom, which paths each writing agent may edit, that the specialists an `issue-worker` or `docs-writer` diff requires were spawned before it stops, that the orchestrator, and any subagent other than the three writing agents, does not edit `src/` or `tests/`, and which subagent types the orchestrator may spawn. What they do not see is listed under "Limits".
 
 ## Skills
 
@@ -54,15 +59,43 @@ Procedures the main session loads on demand, in `.claude/skills/<name>/SKILL.md`
 | `open-issue` | Open an issue with the template prefix and the template's headers verbatim |
 | `implementation-plan` | Plan a `[FEATURE]` with `docs/engineering/prompts/implementation-plan-prompt.md` before coding |
 | `local-ai-task` | Delegate a bounded task to the local model with a brief, a ledger line and a review |
+| `worker-brief` | Write a worker's brief: the fixed protocol part copied as is (worktree, absolute paths and worktree-anchored verification commands, Edit tool only, no publishing, changelog fragment, verification by kind of change, self-review, delegation, report with issue files, model choice), what differs for a `docs-writer`, plus the task's goal, scope, decisions and acceptance |
 | `encina-docs` | House rules for documentation: Diátaxis quadrants (`diataxis.md` in the skill folder), where each kind of page lives, front matter, cited figures, verification and the review checklist |
 
 ## Hooks
 
-Wired in `.claude/settings.json` as `PreToolUse` hooks on the `Bash` and `PowerShell` tools. Each reads the tool call from stdin and exits 2 to block it, with the reason shown to the session:
+Project hooks are wired in `.claude/settings.json`. They run for the main session and, per Claude Code, for every subagent's tool calls too. Each reads the hook input from stdin and exits 2 to block the call, with the reason shown to the session:
 
-| Hook | Blocks |
-|---|---|
-| `.claude/hooks/block-ai-attribution.ps1` | `git commit` and `gh pr create/edit/merge` whose message, body or message file carries AI attribution (co-author trailers naming an AI, "generated with" lines) |
-| `.claude/hooks/check-issue-template.ps1` | `gh issue create` whose title lacks a template prefix, or whose body misses or reorders the template's `##` headers. It reads the templates at run time and allows calls whose title or body it cannot resolve, and issues on other repositories |
+| Hook | Event | Blocks |
+|---|---|---|
+| `.claude/hooks/block-ai-attribution.ps1` | PreToolUse `Bash`, `PowerShell` | `git commit` and `gh pr create/edit/merge` whose message, body or message file carries AI attribution (co-author trailers naming an AI, "generated with" lines) |
+| `.claude/hooks/check-issue-template.ps1` | PreToolUse `Bash`, `PowerShell` | `gh issue create` whose title lacks a template prefix, or whose body misses or reorders the template's `##` headers. It reads the templates at run time and allows calls whose title or body it cannot resolve, and issues on other repositories |
+| `.claude/hooks/guard-orchestrator-writes.ps1` | PreToolUse `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash`, `PowerShell` | for the main session and every subagent other than `issue-worker`, `mechanical-fixer` and `docs-writer` (told apart by the hook input's `agent_type`): file-tool edits and resolvable shell writes under `src/` or `tests/` of the main checkout or any worktree (including `Invoke-WebRequest`/`Invoke-RestMethod -OutFile`, `Start-Process` redirections, and `Expand-Archive` into those folders or a checkout root), `git checkout <rev> -- <paths>` and `git restore` whose pathspecs reach them, and `git apply`/`git am` whose patch touches them or cannot be read, with "The orchestrator does not edit src/ or tests/; brief an issue-worker (worker-brief skill)". Specifications, plans, `.claude`, memory and scratch files stay open to the orchestrator |
+| `.claude/hooks/block-worker-spawn.ps1 -Agent orchestrator` | PreToolUse `Agent`, `Task` | a spawn, by the main session or by an ungoverned subagent, of a type outside `issue-worker`, `mechanical-fixer`, `docs-writer`, `docs-reviewer`, `adversarial-reviewer`, `ci-diagnoser`, `pr-watcher`, `Explore`, `Plan`, `claude-code-guide`, `general-purpose`. `general-purpose` stays allowed for research; that it only reads is not enforced, but `guard-orchestrator-writes` keeps it out of `src/` and `tests/`. Inside a governed agent, that agent's own allowlist applies (table below) |
 
-Both hooks read only the arguments of the `git` / `gh` statement itself, through the quote-aware tokenizer in `.claude/hooks/_command-text.ps1`, and let the call through if the hook itself fails. `pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1` runs their regression suite; run it after changing a hook.
+The first two read only the arguments of the `git` / `gh` statement itself, through the quote-aware tokenizer in `.claude/hooks/_command-text.ps1`. Every shell hook, here and below, also parses the command text given to `pwsh`/`powershell -Command` (or `-c`, `-CommandWithArgs`, or the first argument of `powershell.exe`) and the script given to `bash`/`sh -c` as statements of that shell, and decodes Bash ANSI-C strings (`$'...'`).
+
+Agent-scoped hooks are wired in the `hooks:` frontmatter of the agents that need them, so they apply only while that agent runs (a `Stop` hook there runs as `SubagentStop`):
+
+| Hook | Agents | Blocks |
+|---|---|---|
+| `.claude/hooks/block-worker-publish.ps1` | `issue-worker`, `mechanical-fixer`, `docs-writer`, `docs-reviewer` | `git push` and any git subcommand off the local allowlist, git aliases, `gh pr`/`gh issue` writes, mutating `gh api` calls |
+| `.claude/hooks/block-worker-spawn.ps1 -Agent <name>` | `issue-worker`, `docs-writer`, `mechanical-fixer` | spawning a subagent type outside the agent's allowlist: `issue-worker` → `ci-diagnoser`, `mechanical-fixer`, `Explore`, `adversarial-reviewer`, `docs-writer`; `docs-writer` → `mechanical-fixer`, `docs-reviewer`, `Explore`; `mechanical-fixer` → `ci-diagnoser`, `Explore`. The `Agent(...)` list in each `tools:` line documents the same set, but Claude Code ignores it inside a subagent, so the hook is the enforcement |
+| `.claude/hooks/enforce-path-ownership.ps1 -Agent <name>` | `issue-worker`, `docs-writer` | Write/Edit calls on paths another specialist owns: an `issue-worker` on documentation (`docs/**/*.md` and the images those pages show, READMEs, `CONTRIBUTING.md` → `docs-writer`; `docs/plans/**` excepted; the site's code and data under `docs/`, such as `*.js`, `*.html`, `*.json` and `_config.yml`, are code and stay with it) or on `changelog.d/**`, `**/PublicAPI.*.txt`, `.github/coverage-manifest/**` (→ `mechanical-fixer`); a `docs-writer` on anything outside its allowlist: documentation, `README.md` and `CONTRIBUTING.md` anywhere (`.github/**` included), `changelog.d/**` and `artifacts/**`, never `.claude/**` (→ `mechanical-fixer` or the report). The message names the specialist to spawn |
+| `.claude/hooks/require-specialists.ps1 -Agent <name>` | `issue-worker`, `docs-writer` (`Stop`) | stopping before the specialists the worktree's diff requires were spawned successfully (read from the agent's own transcript; a spawn whose tool_result is an error, or that has none, does not count): `issue-worker` production code, including the site's code and data under `docs/` → `adversarial-reviewer`, documentation → `docs-writer`, changelog/PublicAPI/manifests → `mechanical-fixer`; `docs-writer` documentation → `docs-reviewer`. The worktree is the agent's cwd when it is under `.claude\worktrees\`, else the first worktree named in the text of its user messages (the brief and later corrections, not tool output) that exists and has changes. It answers `{"decision":"block"}` with the list and the reason, once: when the agent stops again (`stop_hook_active`) it lets it stop |
+| `.claude/hooks/block-main-checkout-writes.ps1` | `issue-worker`, `mechanical-fixer`, `docs-writer` | Write/Edit/NotebookEdit paths and the shell writes it can resolve (`Set-Content`, `Add-Content`, `Out-File`, `Tee-Object`, `New-Item`, `Copy-Item`/`Move-Item` destination with PowerShell parameter binding, `[IO.File]` writes, copies and moves, `[IO.StreamWriter]::new`, `Invoke-WebRequest`/`Invoke-RestMethod -OutFile`, `Start-Process -RedirectStandardOutput`/`-RedirectStandardError`, the `Expand-Archive` destination, `>`/`>>`, Bash `cp`/`mv`/`touch`/`tee`, and git commands that change the working tree) aimed at the main checkout instead of a worktree, following `cd`/`Set-Location`/`Push-Location`/`Pop-Location`, `~`, `$env:X` and `$HOME`; a target it cannot resolve from a main-checkout cwd gets a warning, not a block. And content writes to repo source files (`.cs`, `.csproj`, `.props`, `.targets`, `.sln`/`.slnx`, `.json`, `.yml`/`.yaml`, `.md`, `.txt`, `.sql`, `.ps1`/`.psm1`/`.psd1`, `.sh`, `.editorconfig`, `.xml`, `.config`, `.resx`, `.razor`, `.cshtml`), which go through the Edit tool: denied when the target resolves inside the project outside `artifacts/`, or when a variable target is written by a command that uses `-replace`/`.Replace(`/`[regex]::Replace` and names a repository source path (#1181) |
+| `.claude/hooks/block-prohibited-commands.ps1` | every agent in this folder | the executables `CLAUDE.md` prohibits (`python`, `grep`, `sed`, `awk`, `head`, `tail`, `wc`, `xargs`, `curl`, `cut`, `paste`, `shuf`, `unzip`, `basename`, `xxd`, `dd`, `bash -c`/`sh -c`, `pwsh`/`powershell -EncodedCommand` (whose text no hook can read); in Bash also `find`, `cat`, `ls`, `sort`, `tee`), Bash `for`/`while`/`until`/`if`/`case`/`select`, `test`/`[`/`[[` conditions, `$( ... )` and backtick substitution and `<( )`/`>( )` process substitution; comments and PowerShell hashtable keys are not commands; the message names the PowerShell or tool equivalent (#1181) |
+
+Every hook lets the call through if the hook itself fails (fail open). `pwsh -NoProfile -File <checkout>\.claude\hooks\tests\Test-Hooks.ps1` runs their regression suite; run it after changing a hook.
+
+### Limits
+
+What the hooks do not enforce, so the agent definitions still say it in words:
+
+- Shell writes the analysis cannot resolve (a target held in a variable other than `$env:X`/`$HOME`, a subexpression, a `cmd /c`, deletions, `Rename-Item`) pass both `block-main-checkout-writes` and `guard-orchestrator-writes`. Only `block-main-checkout-writes` warns, and only about an unresolved target written from a main-checkout cwd; `guard-orchestrator-writes` does not warn. A directory change inside a `pwsh -Command` or `bash -c` wrapper is followed as if it ran in the outer shell. A `dotnet run <file>.cs` / `pwsh`/`powershell -File <file>.ps1` bypass is partially closed (#1181): both hooks now read the named script's own text and act when it both references a guarded path (`src/`/`tests/` for `guard-orchestrator-writes`, the same tokens while the statement runs from the main checkout for `block-main-checkout-writes`) and contains a file-write API (`Test-ScriptHasWriteApi`/`Test-ScriptReferencesPath` in `_write-targets.ps1`); an unresolved or unreadable script is denied for the main session and any ungoverned subagent, but allowed for a worker. This is a text heuristic, not an execution of the script, so a script that builds its write target from a computed string (not a literal `src`/`tests` mention) still passes; a program the analysis does not know at all (a compiled tool, a `cmd /c` script) still passes too.
+- `guard-orchestrator-writes` sees git only through the pathspecs of `git checkout`/`git restore` and the patches of `git apply`/`git am`: `git merge`, `rebase`, `cherry-pick`, `pull`, `stash pop` and `reset --hard` can still change `src/` and `tests/` from the main session. That is deliberate, since the orchestrator rebases and merges branches; conflicts there go to a worker (Delegation).
+- `block-worker-spawn -Agent orchestrator` allows `general-purpose` for research. Whether it only reads is not enforced; `guard-orchestrator-writes` treats it like the main session, so it cannot edit `src/` or `tests/` either.
+- `enforce-path-ownership` sees the file tools only. A shell copy or move into `docs/` or `changelog.d/` passes it; the content-write rule of `block-main-checkout-writes` still blocks `Set-Content`-style writes to those `.md`/`.txt` files, and `require-specialists` still asks for the specialist at stop time.
+- `require-specialists` checks that a specialist was spawned, not what it did, and asks once per stop: an agent that stops again after the reminder is let through. It reads the diff since the branch left `main`, so on a branch stacked on another branch it also counts that branch's files.
+- A frontmatter hook runs only while its own agent is active (a frontmatter `Stop` hook runs as `SubagentStop`; [hooks reference](https://code.claude.com/docs/en/hooks.md), [sub-agents reference](https://code.claude.com/docs/en/sub-agents.md)); the per-agent hooks also take the agent from the hook input's `agent_type` when present, so an inherited hook applies the right agent's rule regardless.
+- How deep subagents can nest below the main session is not verified ([#1190](https://github.com/dlrivada/Encina/issues/1190)). If Claude Code limits the depth, a `mechanical-fixer` spawned by a `docs-writer` spawned by an `issue-worker` may not be able to spawn further; an agent whose spawn fails lists the steps it could not delegate in its report.

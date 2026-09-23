@@ -13,6 +13,8 @@ hooks:
       hooks:
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-publish.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
 ---
 
 You review documentation of the `dlrivada/Encina` repository. You do not fix anything and you do not push. The rules you enforce are in `.claude/skills/encina-docs/SKILL.md` (§6 is the checklist) and its `diataxis.md`; read both before the review.
