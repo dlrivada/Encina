@@ -72,6 +72,11 @@ public static class ServiceCollectionExtensions
         // Register TimeProvider for consistent timestamps across all MongoDB components
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so audit/tenant-aware components can
+        // resolve the current context even when the host only wires Encina.MongoDB, without the
+        // core mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register MongoDB client if not already registered
         services.TryAddSingleton<IMongoClient>(sp =>
             new MongoClient(options.ConnectionString));
@@ -196,6 +201,11 @@ public static class ServiceCollectionExtensions
 
         services.Configure(configure);
         services.AddSingleton(mongoClient);
+
+        // Register the ambient request context accessor so audit/tenant-aware components can
+        // resolve the current context even when the host only wires Encina.MongoDB, without the
+        // core mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
         // Register stores based on configuration
         if (options.UseOutbox)

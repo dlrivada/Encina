@@ -2,13 +2,12 @@ using System.Data;
 using Encina.Messaging;
 using Encina.Messaging.Sagas.LowCeremony;
 using Microsoft.Extensions.DependencyInjection;
-
-using AdoSqlServer = Encina.ADO.SqlServer.ServiceCollectionExtensions;
-using AdoPostgreSql = Encina.ADO.PostgreSQL.ServiceCollectionExtensions;
 using AdoMySql = Encina.ADO.MySQL.ServiceCollectionExtensions;
-using DapperSqlServer = Encina.Dapper.SqlServer.ServiceCollectionExtensions;
-using DapperPostgreSql = Encina.Dapper.PostgreSQL.ServiceCollectionExtensions;
+using AdoPostgreSql = Encina.ADO.PostgreSQL.ServiceCollectionExtensions;
+using AdoSqlServer = Encina.ADO.SqlServer.ServiceCollectionExtensions;
 using DapperMySql = Encina.Dapper.MySQL.ServiceCollectionExtensions;
+using DapperPostgreSql = Encina.Dapper.PostgreSQL.ServiceCollectionExtensions;
+using DapperSqlServer = Encina.Dapper.SqlServer.ServiceCollectionExtensions;
 
 namespace Encina.UnitTests.Messaging.Sagas;
 

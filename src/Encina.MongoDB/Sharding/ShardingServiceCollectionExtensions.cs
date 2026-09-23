@@ -109,6 +109,11 @@ public static class ShardingServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so the sharded repository can resolve
+        // the current context even when the host only wires this sharding extension, without the
+        // core mediator's AddEncina() or AddEncinaMongoDB (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         var collectionName = options.GetEffectiveCollectionName();
         var idSelector = options.IdProperty!;
 

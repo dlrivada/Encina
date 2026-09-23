@@ -82,6 +82,11 @@ public static class ShardingServiceCollectionExtensions
         services.TryAddSingleton<IEntityMapping<TEntity, TId>>(mapping);
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so the sharded repository can resolve
+        // the current context even when the host only wires this sharding extension, without the
+        // core mediator's AddEncina() or AddMessagingServices (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         services.TryAddScoped<IShardedQueryExecutor>(sp =>
         {
             var topology = sp.GetRequiredService<ShardTopology>();
