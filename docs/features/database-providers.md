@@ -26,7 +26,7 @@ This page is for a developer who already picked a data-access family (see [About
 Every family also exposes a repository/unit-of-work opt-in, independent of the messaging patterns:
 
 - ADO.NET / SQL Server and PostgreSQL: `services.AddEncinaUnitOfWork()` registers `IUnitOfWork` as `UnitOfWorkADO`.
-- ADO.NET / MySQL: `UnitOfWorkADO` exists in `src/Encina.ADO.MySQL/UnitOfWork/UnitOfWorkADO.cs`, but `Encina.ADO.MySQL/ServiceCollectionExtensions.cs` has no `AddEncinaUnitOfWork` method to register it — the other two ADO.NET databases have one. This looks like a gap rather than a deliberate omission; no tracking issue was found for it during this page's verification.
+- ADO.NET / MySQL: `Encina.ADO.MySQL` defines `UnitOfWorkADO` in `src/Encina.ADO.MySQL/UnitOfWork/UnitOfWorkADO.cs`, but its `ServiceCollectionExtensions.cs` has no `AddEncinaUnitOfWork` method to register it, so there is no registration method — the other two ADO.NET databases have one. Tracking issue: [#1260](https://github.com/dlrivada/Encina/issues/1260).
 - Dapper (all three databases): `services.AddEncinaUnitOfWork()` registers `IUnitOfWork` as `UnitOfWorkDapper`.
 - EF Core: `services.AddEncinaUnitOfWork<TDbContext>(...)` registers `IUnitOfWork` as `UnitOfWorkEF`.
 - MongoDB: `services.AddEncinaUnitOfWork()` registers `IUnitOfWork` as `UnitOfWorkMongoDB`.
@@ -65,7 +65,7 @@ Verified against the parameterised SQL in each provider's stores (`Outbox/Outbox
 | Boolean comparison (soft delete filter) | `[IsDeleted] = 0` | `"IsDeleted" = false` | `` `IsDeleted` = 0 `` |
 | GUID column read | `reader.GetGuid(...)` against a native `UNIQUEIDENTIFIER` | `reader.GetGuid(...)` against a native `uuid` | `reader.GetGuid(...)`; MySQL has no native GUID type, so the driver's GUID mapping applies to whatever column type the schema uses |
 
-The `Scripts/*.sql` files inside `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL` (for example `Scripts/001_CreateOutboxMessagesTable.sql`) still contain SQL Server syntax (`[dbo].[OutboxMessages]`, `UNIQUEIDENTIFIER`, `NVARCHAR(MAX)`, a trailing `GO`) copied from the SQL Server package rather than PostgreSQL or MySQL DDL. This table's GUID and identifier-quoting facts come from the C# store code and the migration-history DDL instead, which do use the correct dialect per database; the stale `Scripts/` files are a documentation/consistency gap, not something this page can silently fix.
+The `Scripts/*.sql` files inside `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL` (for example `Scripts/001_CreateOutboxMessagesTable.sql`) still contain SQL Server syntax (`[dbo].[OutboxMessages]`, `UNIQUEIDENTIFIER`, `NVARCHAR(MAX)`, a trailing `GO`) copied from the SQL Server package rather than PostgreSQL or MySQL DDL. This table's GUID and identifier-quoting facts come from the C# store code and the migration-history DDL instead, which do use the correct dialect per database. Tracking issue: [#1261](https://github.com/dlrivada/Encina/issues/1261).
 
 ## See also
 
