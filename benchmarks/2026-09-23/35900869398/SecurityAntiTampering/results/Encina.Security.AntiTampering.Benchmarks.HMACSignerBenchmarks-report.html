@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.AntiTampering.Benchmarks.HMACSignerBenchmarks-20260923-194053</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Sign_SHA256_MediumPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.131 &mu;s</td><td>0.0285 &mu;s</td><td>0.0149 &mu;s</td><td>1.16</td><td>0.01</td><td>0.0191</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.145 &mu;s</td><td>0.0306 &mu;s</td><td>0.0182 &mu;s</td><td>1.17</td><td>0.02</td><td>0.0191</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3.198 &mu;s</td><td>0.1923 &mu;s</td><td>0.1272 &mu;s</td><td>1.19</td><td>0.05</td><td>0.0229</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>35.501 &mu;s</td><td>0.4131 &mu;s</td><td>0.2732 &mu;s</td><td>13.17</td><td>0.18</td><td>-</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>2.697 &mu;s</td><td>0.0501 &mu;s</td><td>0.0332 &mu;s</td><td>1.00</td><td>0.02</td><td>0.0191</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5.685 &mu;s</td><td>0.1299 &mu;s</td><td>0.0679 &mu;s</td><td>2.11</td><td>0.03</td><td>0.0381</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>2.983 &mu;s</td><td>0.0622 &mu;s</td><td>0.0412 &mu;s</td><td>1.11</td><td>0.02</td><td>0.0191</td><td>1.81 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA256_MediumPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.157 &mu;s</td><td>0.4520 &mu;s</td><td>0.0248 &mu;s</td><td>1.18</td><td>0.01</td><td>0.0191</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.167 &mu;s</td><td>1.5796 &mu;s</td><td>0.0866 &mu;s</td><td>1.18</td><td>0.03</td><td>0.0191</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.310 &mu;s</td><td>2.4918 &mu;s</td><td>0.1366 &mu;s</td><td>1.24</td><td>0.04</td><td>0.0229</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>ShortRun</td><td>3</td><td>1</td><td>37.796 &mu;s</td><td>35.4907 &mu;s</td><td>1.9454 &mu;s</td><td>14.11</td><td>0.63</td><td>-</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>2.678 &mu;s</td><td>0.2808 &mu;s</td><td>0.0154 &mu;s</td><td>1.00</td><td>0.01</td><td>0.0191</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>ShortRun</td><td>3</td><td>1</td><td>5.802 &mu;s</td><td>5.1630 &mu;s</td><td>0.2830 &mu;s</td><td>2.17</td><td>0.09</td><td>0.0381</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>ShortRun</td><td>3</td><td>1</td><td>3.001 &mu;s</td><td>3.0771 &mu;s</td><td>0.1687 &mu;s</td><td>1.12</td><td>0.05</td><td>0.0191</td><td>1.81 KB</td><td>1.03</td>
+</tr></tbody></table>
+</body>
+</html>

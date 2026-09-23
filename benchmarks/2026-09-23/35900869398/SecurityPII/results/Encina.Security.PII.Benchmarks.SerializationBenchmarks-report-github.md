@@ -1,0 +1,33 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | Mean        | Error       | StdDev    | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------:|------------:|----------:|------:|--------:|-------:|----------:|------------:|
+| Serialize_Small          | Job-YFEFPZ | 10             | Default     |    315.7 ns |     0.65 ns |   0.43 ns |  1.00 |    0.00 | 0.0067 |     112 B |        1.00 |
+| Serialize_Medium         | Job-YFEFPZ | 10             | Default     |    752.2 ns |     2.16 ns |   1.13 ns |  2.38 |    0.00 | 0.0229 |     392 B |        3.50 |
+| Serialize_Large          | Job-YFEFPZ | 10             | Default     |  1,710.4 ns |    26.70 ns |  17.66 ns |  5.42 |    0.05 | 0.2251 |    3784 B |       33.79 |
+| SerializeRoundtrip_Small | Job-YFEFPZ | 10             | Default     |    681.9 ns |     1.47 ns |   0.77 ns |  2.16 |    0.00 | 0.0134 |     232 B |        2.07 |
+| SerializeRoundtrip_Large | Job-YFEFPZ | 10             | Default     |  3,947.4 ns |    81.19 ns |  53.70 ns | 12.50 |    0.16 | 0.4578 |    7688 B |       68.64 |
+| ParseAndModify_Small     | Job-YFEFPZ | 10             | Default     |  1,250.5 ns |     5.29 ns |   3.50 ns |  3.96 |    0.01 | 0.0496 |     840 B |        7.50 |
+| MaskObject_Small         | Job-YFEFPZ | 10             | Default     |  3,125.2 ns |    14.62 ns |   9.67 ns |  9.90 |    0.03 | 0.1030 |    1752 B |       15.64 |
+| MaskObject_Medium        | Job-YFEFPZ | 10             | Default     |  9,584.7 ns |    65.77 ns |  43.50 ns | 30.36 |    0.14 | 0.3815 |    6504 B |       58.07 |
+| MaskObject_Large         | Job-YFEFPZ | 10             | Default     | 16,994.7 ns |   194.83 ns | 128.87 ns | 53.84 |    0.40 | 1.0681 |   18312 B |      163.50 |
+|                          |            |                |             |             |             |           |       |         |        |           |             |
+| Serialize_Small          | ShortRun   | 3              | 1           |    318.9 ns |    17.42 ns |   0.95 ns |  1.00 |    0.00 | 0.0067 |     112 B |        1.00 |
+| Serialize_Medium         | ShortRun   | 3              | 1           |    747.6 ns |     8.58 ns |   0.47 ns |  2.34 |    0.01 | 0.0229 |     392 B |        3.50 |
+| Serialize_Large          | ShortRun   | 3              | 1           |  1,727.9 ns |   372.74 ns |  20.43 ns |  5.42 |    0.06 | 0.2251 |    3784 B |       33.79 |
+| SerializeRoundtrip_Small | ShortRun   | 3              | 1           |    723.3 ns |    24.57 ns |   1.35 ns |  2.27 |    0.01 | 0.0134 |     232 B |        2.07 |
+| SerializeRoundtrip_Large | ShortRun   | 3              | 1           |  3,819.9 ns | 1,596.64 ns |  87.52 ns | 11.98 |    0.24 | 0.4578 |    7688 B |       68.64 |
+| ParseAndModify_Small     | ShortRun   | 3              | 1           |  1,259.9 ns |   112.03 ns |   6.14 ns |  3.95 |    0.02 | 0.0496 |     840 B |        7.50 |
+| MaskObject_Small         | ShortRun   | 3              | 1           |  3,120.3 ns |   144.20 ns |   7.90 ns |  9.78 |    0.03 | 0.1030 |    1752 B |       15.64 |
+| MaskObject_Medium        | ShortRun   | 3              | 1           |  9,425.7 ns | 1,101.03 ns |  60.35 ns | 29.56 |    0.18 | 0.3815 |    6504 B |       58.07 |
+| MaskObject_Large         | ShortRun   | 3              | 1           | 17,487.5 ns |   743.39 ns |  40.75 ns | 54.83 |    0.18 | 1.0681 |   18312 B |      163.50 |
