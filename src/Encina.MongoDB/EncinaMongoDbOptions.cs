@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Encina.Messaging.Health;
+using Encina.Messaging.Inbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.MongoDB.Modules;
@@ -195,6 +196,11 @@ public sealed class EncinaMongoDbOptions
     /// Only used when <see cref="UseModuleIsolation"/> is <c>true</c>.
     /// </remarks>
     public MongoDbModuleIsolationOptions ModuleIsolationOptions { get; } = new();
+
+    /// <summary>
+    /// Gets the inbox options.
+    /// </summary>
+    public InboxOptions InboxOptions { get; } = new();
 
     /// <summary>
     /// Gets or sets the saga options.

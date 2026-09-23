@@ -6,6 +6,7 @@ using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Serialization;
 using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
 using Encina.Security.Audit;
@@ -140,6 +141,102 @@ public sealed class ServiceCollectionExtensionsExtendedTests
 
         services.ShouldContain(sd => sd.ServiceType == typeof(IInboxStore));
         services.ShouldContain(sd => sd.ServiceType == typeof(IInboxMessageFactory));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseInboxTrue_RegistersInboxOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseInbox = true;
+        });
+
+        services.ShouldContain(sd => sd.ServiceType == typeof(InboxOptions));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseInboxTrue_ResolvesInboxOrchestrator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IMessageSerializer, JsonMessageSerializer>();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseInbox = true;
+        });
+
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = sp.CreateScope();
+
+        var orchestrator = scope.ServiceProvider.GetRequiredService<InboxOrchestrator>();
+
+        orchestrator.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseInboxTrue_ConfiguredInboxOptionsReachesResolvedInstance()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseInbox = true;
+            opts.InboxOptions.MaxRetries = 7;
+        });
+
+        using var sp = services.BuildServiceProvider();
+
+        var resolved = sp.GetRequiredService<InboxOptions>();
+
+        resolved.MaxRetries.ShouldBe(7);
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_WithClient_UseInboxTrue_RegistersInboxOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var client = Substitute.For<IMongoClient>();
+
+        services.AddEncinaMongoDB(client, opts =>
+        {
+            opts.DatabaseName = "test";
+            opts.UseInbox = true;
+        });
+
+        services.ShouldContain(sd => sd.ServiceType == typeof(InboxOptions));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_WithClient_UseInboxTrue_ResolvesInboxOrchestrator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IMessageSerializer, JsonMessageSerializer>();
+        var client = Substitute.For<IMongoClient>();
+
+        services.AddEncinaMongoDB(client, opts =>
+        {
+            opts.DatabaseName = "test";
+            opts.UseInbox = true;
+        });
+
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = sp.CreateScope();
+
+        var orchestrator = scope.ServiceProvider.GetRequiredService<InboxOrchestrator>();
+
+        orchestrator.ShouldNotBeNull();
     }
 
     #endregion
