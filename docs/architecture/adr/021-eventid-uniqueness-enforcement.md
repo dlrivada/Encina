@@ -41,12 +41,13 @@ Automated enforcement via architecture tests:
 
 - **Location**: `src/Encina.Testing.Architecture/EventIdUniquenessRule.cs`
 - **Validations**:
-  - `AssertEveryLoggerMessageHasEventId()` — Every `[LoggerMessage]` declares an explicit EventId `[LoggerMessage]` methods share an EventId, whether in the same assembly or in different ones
+  - `AssertEveryLoggerMessageHasEventId()` — Every `[LoggerMessage]` declares an explicit EventId
+  - `AssertEventIdsAreGloballyUnique()` — No two `[LoggerMessage]` methods share an EventId, whether in the same assembly or in different ones
   - `AssertEventIdsWithinRegisteredRanges()` — Every EventId falls within one of the ranges mapped to its assembly (a package may own several)
   - `AssertNoRangeOverlaps()` — No two registered ranges overlap
   - `GenerateAllocationReport()` — Human-readable allocation table with usage statistics
 - **Solution-wide test**: `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` loads every shipped `Encina*` assembly from the test output and applies the three validations. Its `AssemblyRanges` field is the assembly → range-name map; a package that starts logging must be added there, and the test fails when a `src/` package with `[LoggerMessage]` methods is not scanned.
-- **Scope**: `[LoggerMessage]` attributes, reflected from the compiled assemblies, plus `LoggerMessage.Define(..., new EventId(n), ...)` allocations, found by scanning `src/<Package>/**/*.cs` for `new EventId(<literal>` outside comments (#1125). Both are checked for uniqueness and for falling inside the ranges registered for their package.
+- **Scope**: `[LoggerMessage]` attributes, reflected from the compiled assemblies, plus `LoggerMessage.Define` EventIds (#1125): it scans `src/<Package>/**/*.cs` for literal `new EventId(<n>, ...)` allocations (lines starting with `//` are skipped) and requires one per `LoggerMessage.Define` call. Both are checked for uniqueness and for falling inside the ranges registered for their package.
 
 ### 3. Range Allocation Policy
 
@@ -87,7 +88,7 @@ Automated enforcement via architecture tests:
 
 - **Collisions are impossible** when the workflow is followed — architecture tests catch violations
 - **Self-documenting** — `EventIdRanges.cs` is the single source of truth, readable by humans and code
-- **Scalable** — supports 40+ packages with room for growth (9500-9999 reserved)
+- **Scalable** — supports 40+ packages with room for growth (9700-9999 reserved)
 - **Automated** — no manual auditing needed; tests enforce compliance
 
 ### Negative

@@ -1289,7 +1289,7 @@ The `EventIdUniquenessRule` class in `Encina.Testing.Architecture` provides:
 | `AssertNoRangeOverlaps()` | No two registered ranges overlap |
 | `GenerateAllocationReport()` | Human-readable allocation table |
 
-`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` applies these rules to every shipped `Encina*` assembly. When a package starts logging, register its range **and** add the assembly to that test's `AssemblyRanges` map; the test fails otherwise. The same test also scans `src/**/*.cs` for `new EventId(<literal>)` allocations made through `LoggerMessage.Define`, so those EventIds are uniqueness- and range-checked too (#1125).
+`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` applies these rules to every shipped `Encina*` assembly. When a package starts logging, register its range **and** add the assembly to that test's `AssemblyRanges` map; the test fails otherwise. The same test also covers `LoggerMessage.Define` EventIds: it scans `src/<Package>/**/*.cs` for literal `new EventId(<n>, ...)` allocations (lines starting with `//` are skipped) and requires one per `LoggerMessage.Define` call, so those EventIds are uniqueness- and range-checked too (#1125).
 
 ### Code Analysis
 
