@@ -13,7 +13,7 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
 1. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
 2. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
-3. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why: the root cause is unknown, or the task is design-heavy. Write the reason into the brief.
+3. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
 4. List what the worker must not touch: the shared hot spots of the moment (always `.github/workflows/*`; anything another open PR edits).
 
 ## 2. Fixed part (copy it)
@@ -46,7 +46,10 @@ Rules:
 - Report: files changed; verification commands and output; self-review result; delegation (what went to whom);
   follow-ups as issue files in <wt>/artifacts/issues/<slug>.md (template headers verbatim, header block per
   your agent definition, first draft by the local model), listed by path; token usage of every nested spawn
-  and each line of <wt>/artifacts/local-ai/ledger.csv, verbatim.
+  (subagent_tokens from its completion notice) and each line of <wt>/artifacts/local-ai/ledger.csv, verbatim.
+- Usage ledger, as your last step: append one line to <wt>/artifacts/agent-usage/ledger.csv with Add-Content
+  (create the folder and the header timestampUtc,agent,task,model,subagentTokens,notes when missing): UTC
+  time, your agent name, issue-<n>, your model, the sum of your nested spawns' tokens, a short quoted note.
 ```
 
 ### What applies to a docs-writer

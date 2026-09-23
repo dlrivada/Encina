@@ -72,7 +72,7 @@ Enforcement (#1181): the `enforce-path-ownership` hook denies your Write/Edit ca
 
 ## Report
 
-End with: summary of changes (files), verification commands and their actual output, the self-review result (findings fixed, minor findings left), the delegation section, and the follow-up issue files. Include token usage: each nested spawn's usage, and each local-AI ledger line (`artifacts/local-ai/ledger.csv` in the worktree), copied verbatim.
+End with: summary of changes (files), verification commands and their actual output, the self-review result (findings fixed, minor findings left), the delegation section, and the follow-up issue files. Include token usage: each nested spawn's usage, and each local-AI ledger line (`artifacts/local-ai/ledger.csv` in the worktree), copied verbatim. As your last step, append one line to `<worktree>/artifacts/agent-usage/ledger.csv` with `Add-Content` (create the folder, and the header `timestampUtc,agent,task,model,subagentTokens,notes`, when missing): the UTC time (`yyyy-MM-ddTHH:mm:ssZ`), `issue-worker`, `issue-<n>`, your model, the sum of the `subagent_tokens` of your nested spawns, and a short note naming each spawn and its tokens (in double quotes when it has commas). The orchestrator totals these files to measure what delegation and model choice save.
 
 Follow-up issues: write each one as a complete issue file, never open it. The orchestrator then only runs `gh issue create` and keeps the long text out of its context.
 

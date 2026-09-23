@@ -1,13 +1,13 @@
 # Claude Code agent definitions
 
-Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost, shown in the table below: free local AI for bulk mechanical work, Haiku for polling, Sonnet for bounded execution and diagnosis, Opus for adversarial judgement, and the main session's model only for specifying, deciding and the final gate (task-routing rationale: `docs/engineering/ai-task-routing.md`).
+Subagents the main Claude Code session can spawn for this repository, each pinned to the cheapest model and effort that does the job. The model tiers are chosen for cost, shown in the table below: free local AI for drafts, classification and summaries, Haiku for polling and already-decided edits, Sonnet for bounded execution, diagnosis and review, Opus only when a brief or a review request states why, and the main session's model only for specifying, deciding and the final gate (task-routing rationale: `docs/engineering/ai-task-routing.md`).
 
 | Agent | Model / effort | Role | Writes? |
 |---|---|---|---|
 | `pr-watcher` | Haiku 4.5 / low | Watches a PR and reports each failed check, bot review and the merge as they happen. Superseded for routine watching by `tools/ai/watch-pr-events.ps1` run as a background monitor, which costs no model tokens; keep the agent for PRs whose events need judgement to triage | No |
 | `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
-| `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
-| `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
+| `mechanical-fixer` | Haiku 4.5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
+| `adversarial-reviewer` | Sonnet 5 / high (Opus only for security, personal-data or design-changing PRs, passed by the orchestrator) | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
 | `issue-worker` | Sonnet 5 / medium (Opus only when the brief says why: unknown root cause or design-heavy task) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
 | `docs-writer` | Sonnet 5 / medium | Writes or restructures one documentation page or issue under the `encina-docs` skill: one Diátaxis quadrant per page, identifiers verified in `src/`, cited figures, links and lint checked | Yes (in its worktree, never pushes) |
 | `docs-reviewer` | Sonnet 5 / medium | Read-only review of documentation pages against the `encina-docs` checklist: quadrant, real API, no hand-typed figures, ADR/SPEC links, provider coverage, links and lint | No |
@@ -17,7 +17,7 @@ Conventions shared by all agents:
 - Tooling per `CLAUDE.md`: PowerShell or direct CLI calls, never python or bash constructs.
 - Agents never commit to `main` and never open or close issues or PRs on their own; those actions stay with the main session or the maintainer (`AI-DEVELOPMENT-MODEL.md` §4, INV-006 of SPEC-000).
 - Event-driven watching is preferred over report-at-the-end: the watcher sends a message on every event, and for pure polling the main session uses a scripted monitor that costs no model tokens at all.
-- Every spawn records its token usage in the completion notice; the main session adds it to the per-task ledger alongside the local AI's `artifacts/local-ai/ledger.csv`.
+- Every spawn records its token usage in the completion notice. Each `issue-worker` and `docs-writer` run appends one line to `artifacts/agent-usage/ledger.csv` in its worktree (`timestampUtc,agent,task,model,subagentTokens,notes`), next to the local AI's `artifacts/local-ai/ledger.csv`, so the savings of delegation and model choice can be measured.
 
 When to spawn which, from the experience of the first sessions:
 
@@ -25,7 +25,7 @@ When to spawn which, from the experience of the first sessions:
 
 - `mechanical-fixer` for any change that is already decided (formatting, exclusions, renames, table and figure updates), so the main session does not spend its tokens executing it. It never pushes, comments or opens anything: publishing, review-thread replies included, stays with the orchestrator.
 - `ci-diagnoser` when a failed job's cause is not visible in the first error lines.
-- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited). An `issue-worker` whose change touches production code also runs it on its own diff before reporting and fixes the blockers and majors, so the PR opens without them; this does not replace the orchestrator's PR-level review when CodeRabbit is rate limited.
+- `adversarial-reviewer` for every PR that touches gates, CI workflows or `.github/scripts`, and for any PR that merged without a CodeRabbit review (for example when CodeRabbit was rate limited). An `issue-worker` whose change touches production code also runs it on its own diff before reporting and fixes the blockers and majors, so the PR opens without them; this does not replace the orchestrator's PR-level review when CodeRabbit is rate limited. It runs on Sonnet; the orchestrator passes `model: opus` only for a PR that touches security or personal data or changes a design, and says which in the prompt.
 
 The equivalent definitions for the free local model (opencode) live in `.opencode/agents/`, for the roles that have one.
 

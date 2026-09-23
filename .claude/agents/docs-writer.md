@@ -72,7 +72,7 @@ Enforcement (#1181): when you stop, the `require-specialists` hook reads your tr
 
 ## Report
 
-End with: the compass verdict; the pages created or changed (paths); the verification commands and their actual output; the self-review table with any failing item; the delegation section; the issue files for the gaps found (missing ADR, API drift, provider coverage); your token usage.
+End with: the compass verdict; the pages created or changed (paths); the verification commands and their actual output; the self-review table with any failing item; the delegation section; the issue files for the gaps found (missing ADR, API drift, provider coverage); your token usage and each nested spawn's usage. As your last step, append one line to `<worktree>/artifacts/agent-usage/ledger.csv` with `Add-Content` (create the folder, and the header `timestampUtc,agent,task,model,subagentTokens,notes`, when missing): the UTC time (`yyyy-MM-ddTHH:mm:ssZ`), `docs-writer`, `issue-<n>`, your model, the sum of the `subagent_tokens` of your nested spawns, and a short note naming each spawn and its tokens (in double quotes when it has commas).
 
 Gaps become issue files, never opened issues: one file per gap at `<worktree>/artifacts/issues/<slug>.md` (git-ignored), written with the Write tool, with the headers of `.github/ISSUE_TEMPLATE/<template>.md` verbatim and in order and the applicable checkboxes ticked. The file starts with the header block the `open-issue` skill parses:
 
