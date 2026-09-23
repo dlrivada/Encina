@@ -152,7 +152,9 @@ $cases = @(
     @($publish, 'PowerShell', 'git worktree list', 0, 'git worktree list is allowed'),
     @($publish, 'PowerShell', 'git -C "dir x" log', 0, 'git -C quoted dir log is allowed'),
     @($publish, 'PowerShell', 'gh api -X GET repos/o/r/pulls -f state=open', 0, 'gh api explicit GET with fields is allowed'),
-    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed')
+    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed'),
+    @($publish, 'PowerShell', 'git clone https://github.com/dlrivada/Encina.git C:\temp\x', 0, 'git clone is allowed'),
+    @($publish, 'PowerShell', 'git -C D:\x clone ../repo target', 0, 'git -C dir clone is allowed')
 )
 
 # subagent_type, expected, label
