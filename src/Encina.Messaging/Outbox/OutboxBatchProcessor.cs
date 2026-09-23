@@ -1,4 +1,3 @@
-using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -23,6 +22,20 @@ namespace Encina.Messaging.Outbox;
 /// When the failure brings the retry count to <see cref="OutboxOptions.MaxRetries"/>, the message
 /// is recorded with no next retry, logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/>
 /// and counted with the <c>exhausted</c> outcome; the stores never fetch it again.
+/// </para>
+/// <para>
+/// Every store call is checked. When <see cref="IOutboxStore.MarkAsProcessedAsync"/> or
+/// <see cref="IOutboxStore.MarkAsFailedAsync"/> returns <c>Left</c>, the message is logged with EventId
+/// 2961 and counted as a store error, never as delivered or exhausted.
+/// </para>
+/// <para>
+/// Cancellation is not a delivery failure. When the cycle's token is cancelled, or the dispatcher
+/// returns <see cref="EncinaErrorCodes.NotificationCancelled"/>, the batch stops (EventId 2962) without
+/// marking the interrupted message failed, so no retry is consumed.
+/// </para>
+/// <para>
+/// Metrics are not recorded here: the caller records the returned <see cref="OutboxBatchResult"/>
+/// once it knows whether the batch was saved.
 /// </para>
 /// </remarks>
 internal sealed class OutboxBatchProcessor
@@ -86,6 +99,7 @@ internal sealed class OutboxBatchProcessor
         var succeeded = 0;
         var failed = 0;
         var exhausted = 0;
+        var storeErrors = 0;
 
         foreach (var message in messages)
         {
@@ -95,15 +109,22 @@ internal sealed class OutboxBatchProcessor
             }
 
             var outcome = await ProcessMessageAsync(message, publish, cancellationToken).ConfigureAwait(false);
-            OutboxProcessorMetrics.Instance.RecordOutcome(outcome);
+            if (outcome == MessageOutcome.Cancelled)
+            {
+                MessagingLog.OutboxBatchCancelled(_logger, message.Id);
+                break;
+            }
 
             switch (outcome)
             {
-                case OutboxProcessorMetrics.OutcomeSuccess:
+                case MessageOutcome.Success:
                     succeeded++;
                     break;
-                case OutboxProcessorMetrics.OutcomeExhausted:
+                case MessageOutcome.Exhausted:
                     exhausted++;
+                    break;
+                case MessageOutcome.StoreError:
+                    storeErrors++;
                     break;
                 default:
                     failed++;
@@ -111,10 +132,21 @@ internal sealed class OutboxBatchProcessor
             }
         }
 
-        return new OutboxBatchResult(succeeded, failed, exhausted);
+        return new OutboxBatchResult(succeeded, failed, exhausted, storeErrors);
     }
 
-    private async Task<string> ProcessMessageAsync(
+    /// <summary>
+    /// Returns <see langword="true"/> when a failed delivery is a cancellation rather than a delivery
+    /// failure: the cycle's token was cancelled, or the dispatcher reported
+    /// <see cref="EncinaErrorCodes.NotificationCancelled"/>.
+    /// </summary>
+    private static bool IsCancellation(EncinaError error, CancellationToken cancellationToken)
+        => cancellationToken.IsCancellationRequested
+           || error.GetCode().Match(
+               Some: code => string.Equals(code, EncinaErrorCodes.NotificationCancelled, StringComparison.Ordinal),
+               None: () => false);
+
+    private async Task<MessageOutcome> ProcessMessageAsync(
         IOutboxMessage message,
         Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> publish,
         CancellationToken cancellationToken)
@@ -145,6 +177,11 @@ internal sealed class OutboxBatchProcessor
             if (publishResult.IsLeft)
             {
                 var error = publishResult.LeftToArray()[0];
+                if (IsCancellation(error, cancellationToken))
+                {
+                    return MessageOutcome.Cancelled;
+                }
+
                 return await FailAsync(
                     message,
                     error.Message,
@@ -152,9 +189,19 @@ internal sealed class OutboxBatchProcessor
                     cancellationToken).ConfigureAwait(false);
             }
 
-            await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            var marked = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            if (marked.IsLeft)
+            {
+                return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsProcessedAsync), message, marked);
+            }
+
             MessagingLog.ProcessedOutboxMessage(_logger, message.Id, message.NotificationType);
-            return OutboxProcessorMetrics.OutcomeSuccess;
+            return MessageOutcome.Success;
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
+            // Stopping the host is not a delivery failure: the message keeps its retry budget.
+            return MessageOutcome.Cancelled;
         }
         catch (Exception ex)
         {
@@ -162,7 +209,7 @@ internal sealed class OutboxBatchProcessor
         }
     }
 
-    private async Task<string> FailAsync(
+    private async Task<MessageOutcome> FailAsync(
         IOutboxMessage message,
         string errorMessage,
         Exception? exception,
@@ -172,8 +219,12 @@ internal sealed class OutboxBatchProcessor
 
         if (retryCount >= _options.MaxRetries)
         {
-            await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc: null, cancellationToken)
+            var exhaustedMark = await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc: null, cancellationToken)
                 .ConfigureAwait(false);
+            if (exhaustedMark.IsLeft)
+            {
+                return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, exhaustedMark);
+            }
 
             MessagingLog.OutboxMessageRetriesExhausted(
                 _logger,
@@ -184,7 +235,7 @@ internal sealed class OutboxBatchProcessor
                 OutboxErrorCodes.MaxRetriesExceeded,
                 errorMessage);
 
-            return OutboxProcessorMetrics.OutcomeExhausted;
+            return MessageOutcome.Exhausted;
         }
 
         var delay = OutboxRetryBackoff.ComputeDelay(
@@ -193,10 +244,14 @@ internal sealed class OutboxBatchProcessor
             _options.MaxRetryDelay,
             _options.RetryJitterRatio,
             _jitterSource());
-        var nextRetryAtUtc = _timeProvider.GetUtcNow().UtcDateTime.Add(delay);
+        var nextRetryAtUtc = AddSaturating(_timeProvider.GetUtcNow().UtcDateTime, delay);
 
-        await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc, cancellationToken)
+        var failedMark = await _store.MarkAsFailedAsync(message.Id, errorMessage, nextRetryAtUtc, cancellationToken)
             .ConfigureAwait(false);
+        if (failedMark.IsLeft)
+        {
+            return OutcomeNotRecorded(nameof(IOutboxStore.MarkAsFailedAsync), message, failedMark);
+        }
 
         MessagingLog.FailedToProcessOutboxMessage(
             _logger,
@@ -207,7 +262,33 @@ internal sealed class OutboxBatchProcessor
             _options.MaxRetries,
             nextRetryAtUtc);
 
-        return OutboxProcessorMetrics.OutcomeFailure;
+        return MessageOutcome.Failure;
+    }
+
+    private MessageOutcome OutcomeNotRecorded(string operation, IOutboxMessage message, Either<EncinaError, Unit> result)
+    {
+        var error = result.LeftToArray()[0];
+        MessagingLog.OutboxMessageOutcomeNotRecorded(_logger, operation, message.Id, error.Message);
+        return MessageOutcome.StoreError;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="delay"/> to <paramref name="nowUtc"/>, saturating at <see cref="DateTime.MaxValue"/>
+    /// instead of throwing when a very large <see cref="OutboxOptions.MaxRetryDelay"/> would overflow.
+    /// </summary>
+    internal static DateTime AddSaturating(DateTime nowUtc, TimeSpan delay)
+    {
+        var maxUtc = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+        return delay >= maxUtc - nowUtc ? maxUtc : nowUtc.Add(delay);
+    }
+
+    private enum MessageOutcome
+    {
+        Success,
+        Failure,
+        Exhausted,
+        StoreError,
+        Cancelled
     }
 }
 
@@ -216,9 +297,17 @@ internal sealed class OutboxBatchProcessor
 /// </summary>
 /// <param name="Succeeded">Messages delivered and marked processed.</param>
 /// <param name="Failed">Messages that failed and were scheduled for a retry.</param>
-/// <param name="Exhausted">Messages whose failure used up their retries.</param>
-internal readonly record struct OutboxBatchResult(int Succeeded, int Failed, int Exhausted)
+/// <param name="Exhausted">Messages whose failure used up their retries and whose exhausted state was recorded.</param>
+/// <param name="StoreErrors">
+/// Messages whose outcome the store failed to record (<see cref="IOutboxStore.MarkAsProcessedAsync"/> or
+/// <see cref="IOutboxStore.MarkAsFailedAsync"/> returned <c>Left</c>); they keep their previous state.
+/// </param>
+/// <remarks>A message interrupted by cancellation is not counted in any outcome.</remarks>
+internal readonly record struct OutboxBatchResult(int Succeeded, int Failed, int Exhausted, int StoreErrors)
 {
     /// <summary>Gets the number of messages handled in the cycle.</summary>
-    public int Total => Succeeded + Failed + Exhausted;
+    public int Total => Succeeded + Failed + Exhausted + StoreErrors;
+
+    /// <summary>Gets the number of messages that were not delivered or whose outcome was not recorded.</summary>
+    public int NotDelivered => Failed + Exhausted + StoreErrors;
 }

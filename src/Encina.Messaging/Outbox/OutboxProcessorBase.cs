@@ -1,3 +1,4 @@
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +27,16 @@ namespace Encina.Messaging.Outbox;
 /// <item><description>When the failure uses up <see cref="OutboxOptions.MaxRetries"/>, the message is
 /// logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/> (EventId 2958) and counted in
 /// <c>encina.outbox.processor.messages_total{outcome="exhausted"}</c>.</description></item>
+/// <item><description>A cancellation (the host stopping, or <see cref="EncinaErrorCodes.NotificationCancelled"/>
+/// from the dispatcher) stops the batch without marking the interrupted message failed.</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// After the batch, the outcomes are committed with <see cref="IOutboxStore.SaveChangesAsync"/>. When the
+/// save returns <c>Left</c>, nothing was persisted: the processor logs EventId 2960 instead of the batch
+/// summary (2833) and counts every message of the batch as
+/// <c>encina.outbox.processor.messages_total{outcome="unsaved"}</c>; the messages are delivered again in a
+/// later cycle. The per-outcome counts are recorded only for a batch that was saved.
 /// </para>
 /// </remarks>
 public abstract class OutboxProcessorBase : BackgroundService
@@ -45,6 +55,9 @@ public abstract class OutboxProcessorBase : BackgroundService
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="serviceProvider"/>, <paramref name="logger"/> or <paramref name="options"/> is null.
     /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <see cref="OutboxOptions.MaxRetryDelay"/> is less than <see cref="OutboxOptions.BaseRetryDelay"/>.
+    /// </exception>
     protected OutboxProcessorBase(
         IServiceProvider serviceProvider,
         ILogger logger,
@@ -54,6 +67,7 @@ public abstract class OutboxProcessorBase : BackgroundService
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
+        options.Validate(nameof(options));
 
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -127,9 +141,19 @@ public abstract class OutboxProcessorBase : BackgroundService
             return;
         }
 
-        await store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        // The outcomes are saved even when the host is stopping: they describe deliveries that
+        // already happened, and dropping them would redeliver those messages.
+        var saveResult = await store.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+        {
+            var error = saveResult.LeftToArray()[0];
+            OutboxProcessorMetrics.Instance.RecordUnsavedBatch(result);
+            MessagingLog.OutboxBatchSaveFailed(_logger, result.Total, error.Message);
+            return;
+        }
 
-        MessagingLog.ProcessedOutboxMessages(_logger, result.Total, result.Succeeded, result.Failed + result.Exhausted);
+        OutboxProcessorMetrics.Instance.RecordBatch(result);
+        MessagingLog.ProcessedOutboxMessages(_logger, result.Total, result.Succeeded, result.NotDelivered);
     }
 
     private static ValueTask<Either<EncinaError, Unit>> PublishAsync(

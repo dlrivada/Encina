@@ -75,4 +75,28 @@ public class OutboxRetryBackoffGuardTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetryDelay = TimeSpan.FromTicks(-1));
     }
+
+    [Fact]
+    public void OutboxOptions_MaxRetriesBelowOne_Throws()
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetries = 0);
+    }
+
+    [Fact]
+    public void OutboxOptions_BatchSizeBelowOne_Throws()
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.BatchSize = 0);
+    }
+
+    [Fact]
+    public void OutboxOptions_ZeroBaseRetryDelay_Throws()
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.BaseRetryDelay = TimeSpan.Zero);
+    }
 }

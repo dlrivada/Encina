@@ -19,13 +19,37 @@ public sealed class OutboxOptions
     /// Gets or sets the maximum number of messages to process in a single batch.
     /// </summary>
     /// <value>Default: 100</value>
-    public int BatchSize { get; set; } = 100;
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is less than 1.</exception>
+    public int BatchSize
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            field = value;
+        }
+    } = 100;
 
     /// <summary>
-    /// Gets or sets the maximum number of retries for failed messages.
+    /// Gets or sets the maximum number of delivery attempts for a message, the first one included.
     /// </summary>
+    /// <remarks>
+    /// A message is fetched while its <see cref="IOutboxMessage.RetryCount"/> (the number of failed
+    /// attempts) is less than <c>MaxRetries</c>. The failure that brings the count to <c>MaxRetries</c>
+    /// exhausts the message: it is not fetched again until it is requeued. With the default of 3, a
+    /// message is attempted at most 3 times.
+    /// </remarks>
     /// <value>Default: 3</value>
-    public int MaxRetries { get; set; } = 3;
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is less than 1.</exception>
+    public int MaxRetries
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            field = value;
+        }
+    } = 3;
 
     /// <summary>
     /// Gets or sets the base delay for exponential backoff retry strategy.
@@ -36,13 +60,31 @@ public sealed class OutboxOptions
     /// <see cref="RetryJitterRatio"/>, where <c>RetryCount</c> is the number of failures
     /// recorded before the current one (see <see cref="OutboxRetryBackoff"/>).
     /// </value>
-    public TimeSpan BaseRetryDelay { get; set; } = TimeSpan.FromSeconds(5);
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is zero or negative.</exception>
+    /// <remarks>
+    /// It must not exceed <see cref="MaxRetryDelay"/>; the outbox processor and
+    /// <see cref="OutboxOrchestrator"/> reject such options when they are created.
+    /// </remarks>
+    public TimeSpan BaseRetryDelay
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            field = value;
+        }
+    } = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Gets or sets the upper bound of the retry delay, whatever the retry count.
     /// </summary>
     /// <value>Default: 10 minutes.</value>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is negative.</exception>
+    /// <remarks>
+    /// It must be greater than or equal to <see cref="BaseRetryDelay"/>; the outbox processor and
+    /// <see cref="OutboxOrchestrator"/> reject such options when they are created. A retry time beyond
+    /// <see cref="DateTime.MaxValue"/> is saturated to <see cref="DateTime.MaxValue"/>.
+    /// </remarks>
     public TimeSpan MaxRetryDelay
     {
         get;
@@ -85,4 +127,22 @@ public sealed class OutboxOptions
     /// </remarks>
     /// <value>Default: true</value>
     public bool EnableProcessor { get; set; } = true;
+
+    /// <summary>
+    /// Validates the rules that involve more than one property, which the setters cannot check
+    /// because the properties may be assigned in any order.
+    /// </summary>
+    /// <param name="paramName">The name of the parameter that received these options.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <see cref="MaxRetryDelay"/> is less than <see cref="BaseRetryDelay"/>.
+    /// </exception>
+    internal void Validate(string paramName)
+    {
+        if (MaxRetryDelay < BaseRetryDelay)
+        {
+            throw new ArgumentException(
+                $"{nameof(OutboxOptions)}.{nameof(MaxRetryDelay)} ({MaxRetryDelay}) must be greater than or equal to {nameof(BaseRetryDelay)} ({BaseRetryDelay}).",
+                paramName);
+        }
+    }
 }

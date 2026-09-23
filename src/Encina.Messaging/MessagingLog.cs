@@ -265,4 +265,46 @@ public static partial class MessagingLog
         ILogger logger,
         int requeuedCount,
         string requeueScope);
+
+    // =========================================================================
+    // Outbox Processor, store results and cancellation (EventIds 2960-2962)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when the outbox store fails to save the outcomes of a processed batch, so none of them
+    /// was persisted and the messages will be fetched again.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 2960,
+        Level = LogLevel.Error,
+        Message = "Failed to save the outcomes of {MessageCount} outbox messages; they will be delivered again ({ErrorMessage})")]
+    public static partial void OutboxBatchSaveFailed(
+        ILogger logger,
+        int messageCount,
+        string errorMessage);
+
+    /// <summary>
+    /// Logs when the outbox store fails to record the outcome of one message.
+    /// </summary>
+    /// <remarks><paramref name="operation"/> is <c>MarkAsProcessedAsync</c> or <c>MarkAsFailedAsync</c>.</remarks>
+    [LoggerMessage(
+        EventId = 2961,
+        Level = LogLevel.Error,
+        Message = "Outbox store failed to record {Operation} for message {MessageId}: {ErrorMessage}")]
+    public static partial void OutboxMessageOutcomeNotRecorded(
+        ILogger logger,
+        string operation,
+        Guid messageId,
+        string errorMessage);
+
+    /// <summary>
+    /// Logs when cancellation stops an outbox batch; the interrupted message keeps its retry budget.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 2962,
+        Level = LogLevel.Information,
+        Message = "Outbox batch stopped by cancellation at message {MessageId}; it was not marked failed")]
+    public static partial void OutboxBatchCancelled(
+        ILogger logger,
+        Guid messageId);
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
@@ -274,10 +275,14 @@ public sealed class OutboxStoreADO : IOutboxStore
                 return await ExecuteNonQueryAsync(command, cancellationToken);
             }
 
+            // The identifiers are sent in chunks; one transaction makes the whole requeue all-or-nothing.
+            using var transaction = await BeginTransactionAsync(_connection, cancellationToken);
+
             var requeued = 0;
             foreach (var chunk in messageIds.Distinct().Chunk(RequeueIdBatchSize))
             {
                 using var command = _connection.CreateCommand();
+                command.Transaction = transaction;
                 var idParameters = new string[chunk.Length];
                 for (var i = 0; i < chunk.Length; i++)
                 {
@@ -289,6 +294,8 @@ public sealed class OutboxStoreADO : IOutboxStore
                 AddParameter(command, "@MaxRetries", maxRetries);
                 requeued += await ExecuteNonQueryAsync(command, cancellationToken);
             }
+
+            await CommitAsync(transaction, cancellationToken);
 
             return requeued;
         }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
@@ -307,6 +314,27 @@ public sealed class OutboxStoreADO : IOutboxStore
         parameter.ParameterName = name;
         parameter.Value = value ?? DBNull.Value;
         command.Parameters.Add(parameter);
+    }
+
+    private static async Task<IDbTransaction> BeginTransactionAsync(IDbConnection connection, CancellationToken cancellationToken)
+    {
+        if (connection is DbConnection dbConnection)
+        {
+            return await dbConnection.BeginTransactionAsync(cancellationToken);
+        }
+
+        return connection.BeginTransaction();
+    }
+
+    private static async Task CommitAsync(IDbTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction is DbTransaction dbTransaction)
+        {
+            await dbTransaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        transaction.Commit();
     }
 
     private static Task OpenConnectionAsync(CancellationToken cancellationToken)

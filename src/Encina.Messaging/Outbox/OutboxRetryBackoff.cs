@@ -63,7 +63,13 @@ public static class OutboxRetryBackoff
         var cappedTicks = Math.Min(exponentialTicks, maxDelay.Ticks);
         var jitteredTicks = cappedTicks * (1 - (jitterRatio * jitterSample));
 
-        // Rounding cannot exceed the cap: the capped value is a whole number of ticks.
+        // A double cannot represent every tick count exactly (TimeSpan.MaxValue rounds up past
+        // long.MaxValue), so a value at or above the cap returns the cap itself.
+        if (jitteredTicks >= maxDelay.Ticks)
+        {
+            return maxDelay;
+        }
+
         return TimeSpan.FromTicks((long)Math.Round(jitteredTicks));
     }
 }

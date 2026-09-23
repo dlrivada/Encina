@@ -19,7 +19,7 @@ public sealed class OutboxExhaustionPropertyTests
     public bool Property_EfStore_PendingPlusExhaustedEqualsUnprocessed(byte[] retryCounts, bool[] processedFlags, byte maxRetriesSeed)
     {
         var messages = Messages(retryCounts, processedFlags);
-        var maxRetries = maxRetriesSeed % 6;
+        var maxRetries = MaxRetries(maxRetriesSeed);
         using var context = CreateContext(messages);
         var store = new OutboxStoreEF(context);
 
@@ -30,7 +30,7 @@ public sealed class OutboxExhaustionPropertyTests
     public bool Property_EfStore_RequeueAllLeavesNothingExhausted(byte[] retryCounts, bool[] processedFlags, byte maxRetriesSeed)
     {
         var messages = Messages(retryCounts, processedFlags);
-        var maxRetries = maxRetriesSeed % 6;
+        var maxRetries = MaxRetries(maxRetriesSeed);
         using var context = CreateContext(messages);
         var store = new OutboxStoreEF(context);
 
@@ -43,7 +43,7 @@ public sealed class OutboxExhaustionPropertyTests
         var messages = Messages(retryCounts, processedFlags);
         var store = CreateFakeStore(messages);
 
-        return CountsPartitionUnprocessed(store, messages, maxRetriesSeed % 6);
+        return CountsPartitionUnprocessed(store, messages, MaxRetries(maxRetriesSeed));
     }
 
     [Property(MaxTest = 50)]
@@ -52,8 +52,12 @@ public sealed class OutboxExhaustionPropertyTests
         var messages = Messages(retryCounts, processedFlags);
         var store = CreateFakeStore(messages);
 
-        return RequeueAllRestoresPending(store, messages, maxRetriesSeed % 6);
+        return RequeueAllRestoresPending(store, messages, MaxRetries(maxRetriesSeed));
     }
+
+    // OutboxOptions.MaxRetries is the number of delivery attempts and is at least 1, so the stores are
+    // only ever queried with limits from 1 upwards.
+    private static int MaxRetries(byte seed) => (seed % 5) + 1;
 
     private static bool CountsPartitionUnprocessed(IOutboxStore store, IReadOnlyList<(int RetryCount, bool Processed)> messages, int maxRetries)
     {
@@ -76,10 +80,9 @@ public sealed class OutboxExhaustionPropertyTests
         var exhaustedAfter = Count(store.GetExhaustedCountAsync(maxRetries));
         var pendingAfter = Count(store.GetPendingCountAsync(maxRetries));
 
-        // With a retry limit of 0 every unprocessed message is exhausted, and a reset count of 0 is still >= 0.
-        return maxRetries == 0
-            ? requeued == exhaustedBefore && exhaustedAfter == exhaustedBefore
-            : requeued == exhaustedBefore && exhaustedAfter == 0 && pendingAfter == messages.Count(m => !m.Processed);
+        return requeued == exhaustedBefore
+            && exhaustedAfter == 0
+            && pendingAfter == messages.Count(m => !m.Processed);
     }
 
     private static int Count(Task<Either<EncinaError, int>> task)

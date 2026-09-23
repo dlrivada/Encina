@@ -54,7 +54,8 @@ public sealed class OutboxProcessorLeftResultTests : IDisposable
             ProcessingInterval = TimeSpan.FromMilliseconds(20),
             BatchSize = 10,
             MaxRetries = 3,
-            BaseRetryDelay = TimeSpan.FromHours(1)
+            BaseRetryDelay = TimeSpan.FromHours(1),
+            MaxRetryDelay = TimeSpan.FromHours(1)
         };
 
         // Act

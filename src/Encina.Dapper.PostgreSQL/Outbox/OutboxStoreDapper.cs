@@ -48,7 +48,7 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 VALUES
                 (@Id, @NotificationType, @Content, @CreatedAtUtc, @ProcessedAtUtc, @ErrorMessage, @RetryCount, @NextRetryAtUtc)";
 
-            await _connection.ExecuteAsync(sql, message);
+            await _connection.ExecuteAsync(new CommandDefinition(sql, message, cancellationToken: cancellationToken));
         }, "outbox.add_failed").ConfigureAwait(false);
     }
 
@@ -74,8 +74,10 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 LIMIT @BatchSize";
 
             var messages = await _connection.QueryAsync<OutboxMessage>(
-                sql,
-                new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc });
+                new CommandDefinition(
+                    sql,
+                    new { BatchSize = batchSize, MaxRetries = maxRetries, NowUtc = nowUtc },
+                    cancellationToken: cancellationToken));
 
             return (IEnumerable<IOutboxMessage>)messages.Cast<IOutboxMessage>().ToList();
         }, "outbox.get_pending_failed").ConfigureAwait(false);
@@ -96,7 +98,8 @@ public sealed class OutboxStoreDapper : IOutboxStore
                     errormessage = NULL
                 WHERE id = @MessageId";
 
-            await _connection.ExecuteAsync(sql, new { MessageId = messageId, NowUtc = nowUtc });
+            await _connection.ExecuteAsync(
+                new CommandDefinition(sql, new { MessageId = messageId, NowUtc = nowUtc }, cancellationToken: cancellationToken));
         }, "outbox.mark_processed_failed").ConfigureAwait(false);
     }
 
@@ -121,13 +124,15 @@ public sealed class OutboxStoreDapper : IOutboxStore
                 WHERE id = @MessageId";
 
             await _connection.ExecuteAsync(
-                sql,
-                new
-                {
-                    MessageId = messageId,
-                    ErrorMessage = errorMessage,
-                    NextRetryAtUtc = nextRetryAtUtc
-                });
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        MessageId = messageId,
+                        ErrorMessage = errorMessage,
+                        NextRetryAtUtc = nextRetryAtUtc
+                    },
+                    cancellationToken: cancellationToken));
         }, "outbox.mark_failed_failed").ConfigureAwait(false);
     }
 

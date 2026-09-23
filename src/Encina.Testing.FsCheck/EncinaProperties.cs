@@ -228,17 +228,18 @@ public static class EncinaProperties
     }
 
     /// <summary>
-    /// Verifies that dead lettering logic is consistent with retry count.
+    /// Verifies that dead lettering logic is consistent with retry count and processed state:
+    /// a processed message is never dead-lettered.
     /// </summary>
     /// <param name="message">The message to test.</param>
-    /// <param name="maxRetries">The maximum number of retries.</param>
+    /// <param name="maxRetries">The maximum number of delivery attempts.</param>
     /// <returns>A property that passes if dead letter state is consistent.</returns>
     public static Property OutboxDeadLetterIsConsistent(IOutboxMessage message, PositiveInt maxRetries)
     {
-        var expectedDeadLetter = message.RetryCount >= maxRetries.Get;
+        var expectedDeadLetter = message.RetryCount >= maxRetries.Get && !message.IsProcessed;
         return (message.IsDeadLettered(maxRetries.Get) == expectedDeadLetter)
             .ToProperty()
-            .Label("IsDeadLettered should match RetryCount >= MaxRetries");
+            .Label("IsDeadLettered should match RetryCount >= MaxRetries && !IsProcessed");
     }
 
     /// <summary>

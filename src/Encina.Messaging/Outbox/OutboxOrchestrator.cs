@@ -44,6 +44,9 @@ public sealed class OutboxOrchestrator
     /// <param name="messageFactory">Factory to create outbox messages.</param>
     /// <param name="messageSerializer">The message serializer for payload serialization/deserialization.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <see cref="OutboxOptions.MaxRetryDelay"/> is less than <see cref="OutboxOptions.BaseRetryDelay"/>.
+    /// </exception>
     public OutboxOrchestrator(
         IOutboxStore store,
         OutboxOptions options,
@@ -57,6 +60,7 @@ public sealed class OutboxOrchestrator
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(messageSerializer);
+        options.Validate(nameof(options));
 
         _store = store;
         _options = options;
@@ -116,8 +120,14 @@ public sealed class OutboxOrchestrator
     /// it is recorded with no next retry and logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/>.
     /// </para>
     /// <para>
+    /// A <c>Left</c> from <see cref="IOutboxStore.MarkAsProcessedAsync"/> or <see cref="IOutboxStore.MarkAsFailedAsync"/>
+    /// is logged (EventId 2961) and the message is not counted as processed. A cancellation (the token, or
+    /// <see cref="EncinaErrorCodes.NotificationCancelled"/> from the callback) stops the batch without marking
+    /// the interrupted message failed.
+    /// </para>
+    /// <para>
     /// This method does not call <see cref="IOutboxStore.SaveChangesAsync"/>; the caller commits the
-    /// batch, as <see cref="OutboxProcessorBase"/> does.
+    /// batch, as <see cref="OutboxProcessorBase"/> does, and must check the result of that call.
     /// </para>
     /// </remarks>
     public async Task<Either<EncinaError, int>> ProcessPendingMessagesAsync(
@@ -128,6 +138,7 @@ public sealed class OutboxOrchestrator
 
         var batchProcessor = new OutboxBatchProcessor(_store, _options, _logger, _messageSerializer, _timeProvider);
         var result = await batchProcessor.ProcessAsync(publishCallback, cancellationToken).ConfigureAwait(false);
+        result.IfRight(r => OutboxProcessorMetrics.Instance.RecordBatch(r));
 
         return result.Map(r => r.Succeeded);
     }

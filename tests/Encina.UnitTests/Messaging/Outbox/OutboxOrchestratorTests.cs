@@ -120,6 +120,25 @@ public sealed class OutboxOrchestratorTests
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe(expectedParamName);
     }
 
+    [Fact]
+    public void Constructor_MaxRetryDelayBelowBaseRetryDelay_ThrowsArgumentException()
+    {
+        var options = new OutboxOptions
+        {
+            BaseRetryDelay = TimeSpan.FromMinutes(20),
+            MaxRetryDelay = TimeSpan.FromMinutes(10)
+        };
+
+        var act = () => new OutboxOrchestrator(
+            Substitute.For<IOutboxStore>(),
+            options,
+            Substitute.For<ILogger<OutboxOrchestrator>>(),
+            Substitute.For<IOutboxMessageFactory>(),
+            new JsonMessageSerializer());
+
+        act.ShouldThrow<ArgumentException>().ParamName.ShouldBe("options");
+    }
+
     #endregion
 
     #region AddAsync Tests

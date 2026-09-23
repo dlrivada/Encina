@@ -100,4 +100,78 @@ public sealed class OutboxRetryBackoffTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetryDelay = TimeSpan.FromSeconds(-1));
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void OutboxOptions_MaxRetries_RejectsValuesBelowOne(int maxRetries)
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.MaxRetries = maxRetries);
+        options.MaxRetries.ShouldBe(3);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void OutboxOptions_BatchSize_RejectsValuesBelowOne(int batchSize)
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.BatchSize = batchSize);
+        options.BatchSize.ShouldBe(100);
+    }
+
+    [Fact]
+    public void OutboxOptions_BaseRetryDelay_RejectsZeroAndNegativeValues()
+    {
+        var options = new OutboxOptions();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => options.BaseRetryDelay = TimeSpan.Zero);
+        Should.Throw<ArgumentOutOfRangeException>(() => options.BaseRetryDelay = TimeSpan.FromSeconds(-1));
+        options.BaseRetryDelay.ShouldBe(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void OutboxOptions_MinimumValidValues_AreAccepted()
+    {
+        var options = new OutboxOptions
+        {
+            MaxRetries = 1,
+            BatchSize = 1,
+            BaseRetryDelay = TimeSpan.FromTicks(1),
+            MaxRetryDelay = TimeSpan.FromTicks(1)
+        };
+
+        options.MaxRetries.ShouldBe(1);
+        options.BatchSize.ShouldBe(1);
+        Should.NotThrow(() => options.Validate(nameof(options)));
+    }
+
+    [Fact]
+    public void OutboxOptions_Validate_RejectsMaxRetryDelayBelowBaseRetryDelay()
+    {
+        var options = new OutboxOptions
+        {
+            BaseRetryDelay = TimeSpan.FromMinutes(20),
+            MaxRetryDelay = TimeSpan.FromMinutes(10)
+        };
+
+        var exception = Should.Throw<ArgumentException>(() => options.Validate("options"));
+        exception.ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void ComputeDelay_MaxRetryDelayIsTimeSpanMaxValue_ReturnsTheCapWithoutOverflow()
+    {
+        var delay = OutboxRetryBackoff.ComputeDelay(
+            retryCount: 100,
+            baseDelay: TimeSpan.FromSeconds(5),
+            maxDelay: TimeSpan.MaxValue,
+            jitterRatio: 0,
+            jitterSample: 0);
+
+        delay.ShouldBe(TimeSpan.MaxValue);
+    }
 }
