@@ -51,11 +51,18 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
 
             result.Match(
                 Right: _ => Log.RequestJobCompleted(_logger, typeof(TRequest).Name),
-                Left: error => Log.RequestJobFailed(_logger, typeof(TRequest).Name, error.Message));
+                Left: error =>
+                {
+                    Log.RequestJobFailed(_logger, typeof(TRequest).Name, error.Message);
+
+                    // Throw so Hangfire records the job as failed and applies its retry policy,
+                    // instead of returning the Left as a normal (non-exceptional) result.
+                    throw new EncinaJobFailedException(error);
+                });
 
             return result;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not EncinaJobFailedException)
         {
             Log.RequestJobException(_logger, ex, typeof(TRequest).Name);
 

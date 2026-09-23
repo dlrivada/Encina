@@ -41,7 +41,7 @@ public class HangfireRequestJobAdapterTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithFailedRequest_ReturnsLeft()
+    public async Task ExecuteAsync_WithFailedRequest_ThrowsEncinaJobFailedException()
     {
         // Arrange
         var request = new TestRequest("test-data");
@@ -50,10 +50,14 @@ public class HangfireRequestJobAdapterTests
             .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
-        var result = await _adapter.ExecuteAsync(request);
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+            _adapter.ExecuteAsync(request));
 
         // Assert
-        result.ShouldBeError(e => e.Message.ShouldBe("Test error message"));
+        // A Left result must surface as a thrown exception (mirroring QuartzRequestJob's
+        // JobExecutionException) so Hangfire marks the job Failed and retries it.
+        exception.ErrorCode.ShouldBe("test.error");
+        exception.Message.ShouldContain("Test error message");
     }
 
     [Fact]
@@ -102,7 +106,8 @@ public class HangfireRequestJobAdapterTests
             .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
-        await _adapter.ExecuteAsync(request);
+        // ExecuteAsync now throws EncinaJobFailedException on Left, after logging the failure.
+        await Should.ThrowAsync<EncinaJobFailedException>(() => _adapter.ExecuteAsync(request));
 
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()

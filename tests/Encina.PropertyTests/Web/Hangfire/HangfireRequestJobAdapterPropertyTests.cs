@@ -45,9 +45,10 @@ public sealed class HangfireRequestJobAdapterPropertyTests
     }
 
     [Fact]
-    public async Task Property_EncinaError_AlwaysReturnsLeft()
+    public async Task Property_EncinaError_AlwaysThrowsEncinaJobFailedException()
     {
-        // Property: When Encina returns Left, adapter ALWAYS returns Left
+        // Property: When Encina returns Left, adapter ALWAYS throws EncinaJobFailedException,
+        // so Hangfire marks the job as failed and retries it, instead of recording success.
 
         var testCases = new[]
         {
@@ -68,13 +69,11 @@ public sealed class HangfireRequestJobAdapterPropertyTests
                 .Returns(Left<EncinaError, string>(expectedError));
 
             // Act
-            var result = await adapter.ExecuteAsync(request);
+            var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+                adapter.ExecuteAsync(request));
 
             // Assert
-            result.ShouldBeError();
-            result.Match(
-                Left: actual => actual.ShouldBe(expectedError),
-                Right: _ => throw new InvalidOperationException("Expected Left"));
+            exception.Message.ShouldContain(expectedError.Message);
         }
     }
 

@@ -37,7 +37,7 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
     }
 
     [Fact]
-    public async Task Integration_ErrorFromHandler_ShouldReturnLeft()
+    public async Task Integration_ErrorFromHandler_ShouldThrowEncinaJobFailedException()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -52,11 +52,12 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var request = new TestRequest("error-test");
 
         // Act
-        var result = await adapter.ExecuteAsync(request);
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+            adapter.ExecuteAsync(request));
 
         // Assert
-        var error = result.ShouldBeError();
-        error.Message.ShouldBe("Handler error");
+        // Hangfire only marks a job Failed (and retries it) when the job method throws.
+        exception.Message.ShouldContain("Handler error");
     }
 
     [Fact]
@@ -75,11 +76,11 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Act
-        var result = await adapter.ExecuteAsync(new TestRequest("cancel-test"), cts.Token);
-
-        // Assert
-        result.ShouldBeError();
+        // Act & Assert
+        // The handler reports cancellation as a domain-level Left, which now surfaces as a
+        // thrown EncinaJobFailedException so Hangfire marks the job Failed.
+        await Should.ThrowAsync<EncinaJobFailedException>(() =>
+            adapter.ExecuteAsync(new TestRequest("cancel-test"), cts.Token));
     }
 }
 

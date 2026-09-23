@@ -29,4 +29,7 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 4006, Level = LogLevel.Error, Message = "Unhandled exception in Hangfire notification job for {NotificationType}")]
     public static partial void NotificationJobException(ILogger logger, Exception exception, string notificationType);
+
+    [LoggerMessage(EventId = 4007, Level = LogLevel.Error, Message = "Hangfire notification job failed for {NotificationType}: {ErrorMessage}")]
+    public static partial void NotificationJobFailed(ILogger logger, string notificationType, string errorMessage);
 }

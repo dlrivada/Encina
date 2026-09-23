@@ -41,6 +41,39 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
     }
 
     [Fact]
+    public async Task Property_EncinaError_AlwaysThrowsEncinaJobFailedException()
+    {
+        // Property: When Encina returns Left, adapter ALWAYS throws EncinaJobFailedException,
+        // so Hangfire marks the job as failed and retries it, instead of silently succeeding.
+
+        var testCases = new[]
+        {
+            EncinaErrors.Create("error1", "Error 1"),
+            EncinaErrors.Create("error2", "Error 2"),
+            EncinaErrors.Create("error3", "Error 3"),
+        };
+
+        foreach (var expectedError in testCases)
+        {
+            // Arrange
+            var Encina = Substitute.For<IEncina>();
+            var logger = Substitute.For<ILogger<HangfireNotificationJobAdapter<TestNotification>>>();
+            var adapter = new HangfireNotificationJobAdapter<TestNotification>(Encina, logger);
+            var notification = new TestNotification("test");
+
+            Encina.Publish(notification, Arg.Any<CancellationToken>())
+                .Returns(Left<EncinaError, Unit>(expectedError));
+
+            // Act
+            var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
+                adapter.PublishAsync(notification));
+
+            // Assert
+            exception.Message.ShouldContain(expectedError.Message);
+        }
+    }
+
+    [Fact]
     public async Task Property_Idempotency_SameNotificationSameOutcome()
     {
         // Property: Same notification ALWAYS produces same outcome

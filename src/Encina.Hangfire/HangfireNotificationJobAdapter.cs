@@ -44,12 +44,21 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         {
             Log.PublishingNotificationJob(_logger, typeof(TNotification).Name);
 
-            await _encina.Publish(notification, cancellationToken)
+            var result = await _encina.Publish(notification, cancellationToken)
                 .ConfigureAwait(false);
 
-            Log.NotificationJobCompleted(_logger, typeof(TNotification).Name);
+            result.Match(
+                Right: _ => Log.NotificationJobCompleted(_logger, typeof(TNotification).Name),
+                Left: error =>
+                {
+                    Log.NotificationJobFailed(_logger, typeof(TNotification).Name, error.Message);
+
+                    // Throw so Hangfire records the job as failed and applies its retry policy,
+                    // instead of silently discarding the Left result.
+                    throw new EncinaJobFailedException(error);
+                });
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not EncinaJobFailedException)
         {
             Log.NotificationJobException(_logger, ex, typeof(TNotification).Name);
 
