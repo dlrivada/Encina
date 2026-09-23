@@ -61,10 +61,21 @@ public sealed class RetentionValidationPipelineBehaviorGuardTests
     [Fact]
     public void Constructor_NullTimeProvider_DefaultsToSystemClock()
     {
-        var act = () => new RetentionValidationPipelineBehavior<TestRequest, TestResponse>(
+        var sut = new RetentionValidationPipelineBehavior<TestRequest, TestResponse>(
             _recordService, _policyService, _options, _logger, timeProvider: null);
 
-        Should.NotThrow(act);
+        sut.Clock.ShouldBeSameAs(TimeProvider.System);
+    }
+
+    [Fact]
+    public void Constructor_ExplicitTimeProvider_IsUsed()
+    {
+        var clock = Substitute.For<TimeProvider>();
+
+        var sut = new RetentionValidationPipelineBehavior<TestRequest, TestResponse>(
+            _recordService, _policyService, _options, _logger, clock);
+
+        sut.Clock.ShouldBeSameAs(clock);
     }
 
     // Test types for guard tests

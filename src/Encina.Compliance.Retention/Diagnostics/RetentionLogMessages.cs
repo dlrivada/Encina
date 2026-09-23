@@ -171,11 +171,11 @@ internal static partial class RetentionLogMessages
         Message = "No expired retention records found. Enforcement cycle complete")]
     internal static partial void RetentionNoExpiredRecords(this ILogger logger);
 
-    /// <summary>IDataErasureExecutor not registered — degraded mode.</summary>
+    /// <summary>IDataErasureExecutor not registered — expired records cannot be erased; logged once per enforcement cycle.</summary>
     [LoggerMessage(
         EventId = 8519,
         Level = LogLevel.Warning,
-        Message = "IDataErasureExecutor is not registered. Retention enforcement operates in degraded mode (records marked deleted but no physical erasure)")]
+        Message = "IDataErasureExecutor is not registered. Expired retention records are left expired, not erased and not marked deleted; they are counted as failed until an executor is registered")]
     internal static partial void RetentionErasureExecutorMissing(this ILogger logger);
 
     // ========================================================================
@@ -368,13 +368,6 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Error,
         Message = "Exception during data erasure. EntityId={EntityId}")]
     internal static partial void RetentionErasureException(this ILogger logger, string entityId, Exception exception);
-
-    /// <summary>No erasure executor registered — marking as deleted without physical erasure.</summary>
-    [LoggerMessage(
-        EventId = 8559,
-        Level = LogLevel.Debug,
-        Message = "No erasure executor registered, marking as deleted without physical erasure. EntityId={EntityId}")]
-    internal static partial void RetentionNoErasureExecutor(this ILogger logger, string entityId);
 
     // ========================================================================
     // Audit trail log messages (8560-8569)

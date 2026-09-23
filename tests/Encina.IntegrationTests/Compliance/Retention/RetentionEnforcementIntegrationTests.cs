@@ -28,7 +28,7 @@ namespace Encina.IntegrationTests.Compliance.Retention;
 /// <summary>
 /// End-to-end enforcement cycle against Marten on PostgreSQL (#1142, #1143, #1146): a tracked record
 /// whose retention period has elapsed goes <c>Active → Expired → Deleted</c>, its entity is erased
-/// exactly once, and later cycles leave it alone.
+/// exactly once, and later cycles leave it alone; a held record is not erased until its hold is released.
 /// </summary>
 /// <remarks>
 /// The store is shared by the whole Marten collection, so every assertion is scoped to the entity
@@ -161,6 +161,48 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
         await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         _erasureExecutor.CallsFor(entityId).ShouldBe(2);
+        (await LoadStatusAsync(provider, recordId)).ShouldBe((RetentionStatus.Deleted, RetentionStatus.Deleted));
+    }
+
+    [Fact]
+    public async Task Cycle_HeldRecord_IsNotErased_AndAfterReleaseGoesExpiredThenDeleted()
+    {
+        await using var provider = BuildServiceProvider();
+        var entityId = $"litigant-{Guid.NewGuid():N}";
+        var recordId = await TrackAsync(provider, entityId, TimeSpan.FromDays(1));
+        var sut = CreateEnforcementService(provider);
+
+        Guid holdId;
+        using (var scope = provider.CreateScope())
+        {
+            var legalHoldService = scope.ServiceProvider.GetRequiredService<ILegalHoldService>();
+            var placed = await legalHoldService.PlaceHoldAsync(entityId, "Pending litigation", "legal-officer");
+            holdId = placed.Match(id => id, error => throw new InvalidOperationException($"PlaceHold failed: {error.Message}"));
+        }
+
+        (await LoadStatusAsync(provider, recordId)).ShouldBe((RetentionStatus.UnderLegalHold, RetentionStatus.UnderLegalHold));
+
+        // Past the retention period but held: nothing is erased and the record stays held
+        _timeProvider.Advance(TimeSpan.FromDays(2));
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        _erasureExecutor.CallsFor(entityId).ShouldBe(0);
+        (await LoadStatusAsync(provider, recordId)).ShouldBe((RetentionStatus.UnderLegalHold, RetentionStatus.UnderLegalHold));
+
+        // Releasing the hold after the expiry returns the record to Expired, not Active
+        using (var scope = provider.CreateScope())
+        {
+            var legalHoldService = scope.ServiceProvider.GetRequiredService<ILegalHoldService>();
+            var lifted = await legalHoldService.LiftHoldAsync(holdId, "legal-officer");
+            lifted.IsRight.ShouldBeTrue();
+        }
+
+        (await LoadStatusAsync(provider, recordId)).ShouldBe((RetentionStatus.Expired, RetentionStatus.Expired));
+
+        // Next cycle: the released record is erased once and reaches Deleted
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        _erasureExecutor.CallsFor(entityId).ShouldBe(1);
         (await LoadStatusAsync(provider, recordId)).ShouldBe((RetentionStatus.Deleted, RetentionStatus.Deleted));
     }
 

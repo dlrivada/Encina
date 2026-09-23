@@ -45,8 +45,18 @@ public sealed class RetentionEnforcementServiceGuardTests
     [Fact]
     public void Constructor_NullTimeProvider_DefaultsToSystemClock()
     {
-        var act = () => new RetentionEnforcementService(_scopeFactory, _options, _logger, timeProvider: null);
+        var sut = new RetentionEnforcementService(_scopeFactory, _options, _logger, timeProvider: null);
 
-        Should.NotThrow(act);
+        sut.Clock.ShouldBeSameAs(TimeProvider.System);
+    }
+
+    [Fact]
+    public void Constructor_ExplicitTimeProvider_IsUsed()
+    {
+        var clock = Substitute.For<TimeProvider>();
+
+        var sut = new RetentionEnforcementService(_scopeFactory, _options, _logger, clock);
+
+        sut.Clock.ShouldBeSameAs(clock);
     }
 }

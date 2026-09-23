@@ -111,6 +111,12 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>
+    /// The clock in use: the injected <see cref="TimeProvider"/>, or <see cref="TimeProvider.System"/>
+    /// when none was supplied. Internal so that tests can verify the default.
+    /// </summary>
+    internal TimeProvider Clock => _timeProvider;
+
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, TResponse>> Handle(
         TRequest request,

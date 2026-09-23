@@ -395,7 +395,7 @@ Each enforcement cycle:
 
 1. Queries `IRetentionRecordService.GetExpiredRecordsAsync`: `Active` records past their expiry, plus `Expired` records left over by an earlier cycle whose erasure or deletion failed
 2. For each record, checks `ILegalHoldService.HasActiveHoldsAsync`. A held entity is marked `UnderLegalHold` and not erased. If the hold status cannot be determined, the record is skipped, logged and counted as failed (fail closed) and retried on the next cycle
-3. Otherwise moves the record `Active → Expired`, erases the entity through `IDataErasureExecutor` (when registered) and, only after a successful erasure, moves it `Expired → Deleted`. Any failed step is logged and counted in `retention.records.failed.total`, never as a deletion; the record stays `Expired` and the next cycle retries it. `Deleted` records are never selected again, so an entity is not erased twice
+3. Otherwise moves the record `Active → Expired`, re-checks `HasActiveHoldsAsync` right before erasing (a hold found now marks the record `UnderLegalHold` and nothing is erased; a failed lookup fails closed), erases the entity through `IDataErasureExecutor` and, only after a successful erasure, moves it `Expired → Deleted`. Any failed step is logged and counted in `retention.records.failed.total`, never as a deletion; the record stays `Expired` and the next cycle retries it. An exception inside one record's processing, including a cancellation that does not come from the service's own stopping token (for example an HTTP timeout during erasure), fails that record only and the cycle continues. `Deleted` records are never selected again, so an entity is not erased twice. If no `IDataErasureExecutor` is registered, nothing is erased and no record reaches `Deleted`: the record stays `Expired`, is counted as failed and a warning (EventId 8519) is logged once per cycle
 4. Checks for data expiring within the `AlertBeforeExpirationDays` window and publishes `DataExpiringNotification`, using the injected `TimeProvider` for the current time
 
 ### Manual Enforcement
@@ -687,9 +687,9 @@ result.Match(
 
 ## Integration with DataSubjectRights
 
-The `DefaultRetentionEnforcer` uses `IDataErasureExecutor` from `Encina.Compliance.DataSubjectRights` to perform physical data deletion during enforcement cycles. This enables unified deletion through the same erasure infrastructure used by DSR erasure requests (Article 17).
+The `RetentionEnforcementService` uses `IDataErasureExecutor` from `Encina.Compliance.DataSubjectRights` to perform physical data deletion during enforcement cycles. This enables unified deletion through the same erasure infrastructure used by DSR erasure requests (Article 17).
 
-If `IDataErasureExecutor` is not registered, the enforcer operates in degraded mode: retention records are marked as `Deleted` but no physical erasure occurs. A warning is logged at EventId 8519.
+If `IDataErasureExecutor` is not registered, the enforcer never records a deletion it did not perform: expired records are moved to `Expired`, left there without erasure and counted as failed (`retention.records.failed.total`), and a warning is logged at EventId 8519 once per enforcement cycle. They are erased and marked `Deleted` on the first cycle after an executor is registered.
 
 To enable full integration:
 
@@ -714,7 +714,7 @@ services.AddEncinaRetention(options =>
 4. **Track the audit trail** -- keep `TrackAuditTrail = true` in production for accountability evidence during regulatory audits (Article 5(2))
 5. **Start with `Warn` mode, switch to `Block` when ready** -- `Warn` mode lets you observe retention tracking without breaking existing workflows; switch to `Block` once all policies are defined
 6. **Define explicit policies for every data category** -- avoid relying on `DefaultRetentionPeriod` in production; per Article 5(1)(e), controllers should establish explicit retention periods
-7. **Register `IDataErasureExecutor` for physical deletion** -- without DSR integration, the enforcer only marks records as deleted without physical erasure
+7. **Register `IDataErasureExecutor` for physical deletion** -- without DSR integration the enforcer cannot erase anything: expired records stay `Expired` and are counted as failed until an executor is registered
 8. **Monitor the health check** -- enable `AddHealthCheck = true` and configure alerts for degraded status to catch missing stores early
 9. **Use `TimeProvider` for testable time-based logic** -- the pipeline behavior and enforcement service accept `TimeProvider` for deterministic testing
 
@@ -807,10 +807,10 @@ Yes. All service registrations use `TryAdd`, so existing registrations are prese
 Individual enforcement cycle failures are logged but never crash the host. The service continues running and attempts enforcement again on the next cycle. This ensures that transient errors do not disrupt the entire retention system.
 
 **Q: How does the enforcer handle records under legal hold?**
-The `DefaultRetentionEnforcer` checks `ILegalHoldStore.IsUnderHoldAsync` for each expired record before deletion. Records under active legal hold are skipped and their status is updated to `UnderLegalHold`. They will be re-evaluated in subsequent enforcement cycles after the hold is released.
+The `RetentionEnforcementService` checks `ILegalHoldService.HasActiveHoldsAsync` for each expired record before marking it expired and again right before erasing it. Records under active legal hold are not erased and their status is updated to `UnderLegalHold`; if the hold status cannot be determined, the record is skipped and counted as failed (fail closed). Held records are re-evaluated in subsequent enforcement cycles after the hold is released.
 
 **Q: Can I use the retention module without the DSR module?**
-Yes. If `IDataErasureExecutor` is not registered, the enforcer operates in degraded mode: retention records are marked as `Deleted` but no physical data erasure occurs. A warning is logged indicating that DSR integration is not configured.
+Yes, for tracking, policies and legal holds. Without a registered `IDataErasureExecutor` the enforcer does not erase data and never marks a record `Deleted`: expired records stay `Expired`, are counted as failed and a warning (EventId 8519) is logged once per enforcement cycle. Register `IDataErasureExecutor` (for example through `AddEncinaDataSubjectRights()`) to complete the lifecycle.
 
 **Q: How are retention policies auto-registered from attributes?**
 When `AutoRegisterFromAttributes` is `true`, the `RetentionAutoRegistrationHostedService` scans the configured assemblies for types and properties decorated with `[RetentionPeriod]`. For each discovered `DataCategory` without an existing policy, a new `RetentionPolicy` is created in the store at startup.

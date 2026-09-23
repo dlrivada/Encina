@@ -29,6 +29,7 @@ public sealed class RetentionEnforcementServiceTests
     private const int TransitionFailedEventId = 8587;
     private const int ErasureIncompleteEventId = 8588;
     private const int ErasureFailedEventId = 8557;
+    private const int ErasureExecutorMissingEventId = 8519;
 
     private static readonly DateTimeOffset Now = new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
@@ -204,18 +205,23 @@ public sealed class RetentionEnforcementServiceTests
     }
 
     [Fact]
-    public async Task Cycle_NoErasureExecutor_MarksExpiredAndDeleted()
+    public async Task Cycle_NoErasureExecutor_LeavesRecordsExpired_CountsAsFailed_WarnsOncePerCycle()
     {
-        var record = Record("entity-degraded");
-        GivenExpiredRecords(record);
+        var first = Record("entity-no-executor-1");
+        var second = Record("entity-no-executor-2");
+        GivenExpiredRecords(first, second);
         GivenNoHolds();
         GivenTransitionsSucceed();
 
         await CreateSut(withErasureExecutor: false).ExecuteEnforcementCycleAsync(CancellationToken.None);
 
-        await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
-        await _recordService.Received(1).MarkDeletedAsync(record.Id, Arg.Any<CancellationToken>());
-        LastCycleCounts().ShouldBe((1, 0, 0));
+        await _recordService.Received(1).MarkExpiredAsync(first.Id, Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkExpiredAsync(second.Id, Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 2, 0));
+        var warnings = _logger.Collector.GetSnapshot().Where(r => r.Id.Id == ErasureExecutorMissingEventId).ToList();
+        warnings.Count.ShouldBe(1);
+        warnings[0].Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
     }
 
     [Fact]
@@ -457,6 +463,119 @@ public sealed class RetentionEnforcementServiceTests
 
         await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
         LastCycleCounts().ShouldBe((0, 1, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_HoldLookupThrows_FailsClosed_DoesNotErase_CountsAsFailed()
+    {
+        var record = Record("entity-hold-throws");
+        GivenExpiredRecords(record);
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _legalHoldService.HasActiveHoldsAsync("entity-hold-throws", Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, bool>>>(_ => throw new InvalidOperationException("legal hold store down"));
+#pragma warning restore CA2012
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _recordService.DidNotReceive().MarkExpiredAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 1, 0));
+        LogCount(LegalHoldCheckFailedEventId).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cycle_HoldPlacedAfterFirstCheck_RecheckBeforeErasure_HoldsRecord_DoesNotErase()
+    {
+        var record = Record("entity-hold-race");
+        GivenExpiredRecords(record);
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+        _legalHoldService.HasActiveHoldsAsync("entity-hold-race", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, bool>(false), Right<EncinaError, bool>(true));
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _legalHoldService.Received(2).HasActiveHoldsAsync("entity-hold-race", Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
+        await _recordService.Received(1).HoldRecordAsync(record.Id, Guid.Empty, Arg.Any<CancellationToken>());
+        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 0, 1));
+    }
+
+    [Fact]
+    public async Task Cycle_HoldRecheckReturnsLeft_FailsClosed_DoesNotErase_CountsAsFailed()
+    {
+        var record = Record("entity-recheck-unknown");
+        GivenExpiredRecords(record);
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+        _legalHoldService.HasActiveHoldsAsync("entity-recheck-unknown", Arg.Any<CancellationToken>())
+            .Returns(
+                Right<EncinaError, bool>(false),
+                Left<EncinaError, bool>(EncinaError.New("legal hold store unavailable")));
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _recordService.Received(1).MarkExpiredAsync(record.Id, Arg.Any<CancellationToken>());
+        await _erasureExecutor.DidNotReceive().EraseAsync(Arg.Any<string>(), Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 1, 0));
+        LogCount(LegalHoldCheckFailedEventId).ShouldBe(1);
+    }
+
+    // ========================================================================
+    // Cancellation
+    // ========================================================================
+
+    [Fact]
+    public async Task Cycle_ForeignCancellationDuringErasure_CountsRecordAsFailed_AndContinuesWithNextRecord()
+    {
+        var timedOut = Record("entity-timeout");
+        var healthy = Record("entity-after-timeout");
+        GivenExpiredRecords(timedOut, healthy);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _erasureExecutor.EraseAsync("entity-timeout", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, ErasureResult>>>(_ => throw new TaskCanceledException("HTTP request timed out"));
+#pragma warning restore CA2012
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _recordService.DidNotReceive().MarkDeletedAsync(timedOut.Id, Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(healthy.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((1, 1, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_OwnCancellationDuringErasure_StopsCycle_WithoutProcessingNextRecord()
+    {
+        var first = Record("entity-cancelled");
+        var second = Record("entity-not-reached");
+        GivenExpiredRecords(first, second);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+        using var cts = new CancellationTokenSource();
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _erasureExecutor.EraseAsync("entity-cancelled", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, ErasureResult>>>(_ =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            });
+#pragma warning restore CA2012
+
+        await CreateSut().ExecuteEnforcementCycleAsync(cts.Token);
+
+        await _erasureExecutor.DidNotReceive().EraseAsync("entity-not-reached", Arg.Any<ErasureScope>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LogCount(CycleCompletedEventId).ShouldBe(0);
     }
 
     // ========================================================================
