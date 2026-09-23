@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Serialization;
 
 using LanguageExt;
 
@@ -35,7 +36,7 @@ public sealed class SchedulerOrchestratorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(null!, options, logger, messageFactory, retryPolicy));
+            new SchedulerOrchestrator(null!, options, logger, messageFactory, retryPolicy, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -49,7 +50,7 @@ public sealed class SchedulerOrchestratorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, null!, logger, messageFactory, retryPolicy));
+            new SchedulerOrchestrator(store, null!, logger, messageFactory, retryPolicy, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -63,7 +64,7 @@ public sealed class SchedulerOrchestratorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, options, null!, messageFactory, retryPolicy));
+            new SchedulerOrchestrator(store, options, null!, messageFactory, retryPolicy, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public sealed class SchedulerOrchestratorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, options, logger, null!, retryPolicy));
+            new SchedulerOrchestrator(store, options, logger, null!, retryPolicy, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public sealed class SchedulerOrchestratorTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new SchedulerOrchestrator(store, options, logger, messageFactory, null!));
+            new SchedulerOrchestrator(store, options, logger, messageFactory, null!, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -116,7 +117,7 @@ public sealed class SchedulerOrchestratorTests
         var cronParser = Substitute.For<ICronParser>();
 
         // Act
-        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, retryPolicy, cronParser);
+        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, retryPolicy, new JsonMessageSerializer(), cronParser);
 
         // Assert
         orchestrator.ShouldNotBeNull();
@@ -728,7 +729,7 @@ public sealed class SchedulerOrchestratorTests
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
         var retryPolicy = CreateDefaultRetryPolicy(options);
 
-        return new SchedulerOrchestrator(store, options ?? new SchedulingOptions(), logger, messageFactory, retryPolicy);
+        return new SchedulerOrchestrator(store, options ?? new SchedulingOptions(), logger, messageFactory, retryPolicy, new JsonMessageSerializer());
     }
 
     private static SchedulerOrchestrator CreateOrchestratorWithCronParser()
@@ -739,7 +740,7 @@ public sealed class SchedulerOrchestratorTests
         var retryPolicy = CreateDefaultRetryPolicy();
         var cronParser = Substitute.For<ICronParser>();
 
-        return new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, cronParser);
+        return new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, new JsonMessageSerializer(), cronParser);
     }
 
     private static (SchedulerOrchestrator Orchestrator, IScheduledMessageStore Store, IScheduledMessageFactory MessageFactory) CreateOrchestratorWithDependencies()
@@ -749,7 +750,7 @@ public sealed class SchedulerOrchestratorTests
         var logger = NullLogger<SchedulerOrchestrator>.Instance;
         var retryPolicy = CreateDefaultRetryPolicy();
 
-        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy);
+        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, new JsonMessageSerializer());
 
         return (orchestrator, store, messageFactory);
     }
@@ -762,7 +763,7 @@ public sealed class SchedulerOrchestratorTests
         var retryPolicy = CreateDefaultRetryPolicy();
         var cronParser = Substitute.For<ICronParser>();
 
-        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, cronParser);
+        var orchestrator = new SchedulerOrchestrator(store, new SchedulingOptions(), logger, messageFactory, retryPolicy, new JsonMessageSerializer(), cronParser);
 
         return (orchestrator, store, messageFactory, cronParser);
     }

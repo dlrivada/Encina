@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -32,11 +32,7 @@ public sealed class SagaOrchestrator
     private readonly ILogger<SagaOrchestrator> _logger;
     private readonly ISagaStateFactory _stateFactory;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SagaOrchestrator"/> class.
@@ -45,23 +41,30 @@ public sealed class SagaOrchestrator
     /// <param name="options">The saga options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="stateFactory">Factory to create saga state.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist saga data, so that decorators such as
+    /// <c>EncryptingMessageSerializer</c> apply to saga state too.
+    /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public SagaOrchestrator(
         ISagaStore store,
         SagaOptions options,
         ILogger<SagaOrchestrator> logger,
         ISagaStateFactory stateFactory,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(stateFactory);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _options = options;
         _logger = logger;
         _stateFactory = stateFactory;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -101,7 +104,7 @@ public sealed class SagaOrchestrator
 
         var sagaId = Guid.NewGuid();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var serializedData = JsonSerializer.Serialize(data, JsonOptions);
+        var serializedData = _messageSerializer.Serialize(data);
 
         var effectiveTimeout = timeout ?? _options.DefaultSagaTimeout;
         var timeoutAtUtc = effectiveTimeout.HasValue ? now.Add(effectiveTimeout.Value) : (DateTime?)null;
@@ -164,7 +167,7 @@ public sealed class SagaOrchestrator
             return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Saga is not running (status: {state.Status})");
         }
 
-        var data = JsonSerializer.Deserialize<TSagaData>(state.Data, JsonOptions);
+        var data = _messageSerializer.Deserialize<TSagaData>(state.Data);
         if (data == null)
         {
             return EncinaErrors.Create(SagaErrorCodes.DeserializationFailed, "Failed to deserialize saga data");
@@ -173,7 +176,7 @@ public sealed class SagaOrchestrator
         if (updateData != null)
         {
             data = updateData(data);
-            state.Data = JsonSerializer.Serialize(data, JsonOptions);
+            state.Data = _messageSerializer.Serialize(data);
         }
 
         state.CurrentStep++;
@@ -382,7 +385,7 @@ public sealed class SagaOrchestrator
 
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
-        var data = JsonSerializer.Deserialize<TSagaData>(state.Data, JsonOptions);
+        var data = _messageSerializer.Deserialize<TSagaData>(state.Data);
         if (data == null)
         {
             return None;

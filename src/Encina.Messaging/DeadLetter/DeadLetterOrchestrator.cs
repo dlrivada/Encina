@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -41,12 +41,7 @@ public sealed class DeadLetterOrchestrator
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
     private readonly TimeProvider _timeProvider;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterOrchestrator"/> class.
@@ -55,23 +50,30 @@ public sealed class DeadLetterOrchestrator
     /// <param name="messageFactory">The message factory.</param>
     /// <param name="options">The DLQ options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist the failed request payload, so that decorators
+    /// such as <c>EncryptingMessageSerializer</c> apply to dead-lettered content too.
+    /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public DeadLetterOrchestrator(
         IDeadLetterStore store,
         IDeadLetterMessageFactory messageFactory,
         DeadLetterOptions options,
         ILogger<DeadLetterOrchestrator> logger,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _messageFactory = messageFactory;
         _options = options;
         _logger = logger;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -94,7 +96,7 @@ public sealed class DeadLetterOrchestrator
         ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
 
         var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
-        var requestContent = JsonSerializer.Serialize(request, JsonOptions);
+        var requestContent = _messageSerializer.Serialize(request);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
             ? now.Add(_options.RetentionPeriod.Value)

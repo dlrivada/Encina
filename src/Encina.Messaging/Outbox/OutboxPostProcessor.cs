@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using System.Reflection;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -18,11 +20,12 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     private readonly IOutboxMessageFactory _messageFactory;
     private readonly ILogger<OutboxPostProcessor<TRequest, TResponse>> _logger;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
+
+    private static readonly MethodInfo SerializeMethodDefinition =
+        typeof(IMessageSerializer).GetMethod(nameof(IMessageSerializer.Serialize))!;
+
+    private static readonly ConcurrentDictionary<Type, MethodInfo> SerializeMethodCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxPostProcessor{TRequest, TResponse}"/> class.
@@ -30,21 +33,30 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
     /// <param name="outboxStore">The outbox store for persisting notifications.</param>
     /// <param name="messageFactory">The factory for creating outbox messages.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to convert notifications to their persisted representation.
+    /// Serializing through this abstraction (rather than calling <c>JsonSerializer</c> directly)
+    /// ensures that decorators such as <c>EncryptingMessageSerializer</c> from
+    /// <c>Encina.Messaging.Encryption</c> apply to outbox payloads too.
+    /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when any required parameter is null.</exception>
     public OutboxPostProcessor(
         IOutboxStore outboxStore,
         IOutboxMessageFactory messageFactory,
         ILogger<OutboxPostProcessor<TRequest, TResponse>> logger,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(outboxStore);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _outboxStore = outboxStore;
         _messageFactory = messageFactory;
         _logger = logger;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -75,7 +87,18 @@ public sealed class OutboxPostProcessor<TRequest, TResponse> : IRequestPostProce
                         ?? notification.GetType().FullName
                         ?? notification.GetType().Name;
 
-                    var content = JsonSerializer.Serialize(notification, notification.GetType(), JsonOptions);
+                    // Serialize using the notification's runtime type (not the declared
+                    // INotification interface) so that all of its properties are captured,
+                    // matching the previous JsonSerializer.Serialize(obj, obj.GetType()) behavior,
+                    // and so that EncryptingMessageSerializer can read the [EncryptedMessage]
+                    // attribute off the concrete type. IMessageSerializer.Serialize<T> is generic,
+                    // so the closed method for the runtime type is built once via reflection
+                    // (a `dynamic` call here does NOT infer T from the runtime type reliably
+                    // across all interface implementations, so reflection is used instead).
+                    var serializeMethod = SerializeMethodCache.GetOrAdd(
+                        notification.GetType(),
+                        static t => SerializeMethodDefinition.MakeGenericMethod(t));
+                    var content = (string)serializeMethod.Invoke(_messageSerializer, [notification])!;
 
                     var outboxMessage = _messageFactory.Create(
                         Guid.NewGuid(),

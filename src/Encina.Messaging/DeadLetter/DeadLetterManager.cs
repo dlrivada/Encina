@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +13,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private readonly DeadLetterOrchestrator _orchestrator;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DeadLetterManager> _logger;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterManager"/> class.
@@ -26,21 +22,28 @@ public sealed class DeadLetterManager : IDeadLetterManager
     /// <param name="orchestrator">The orchestrator.</param>
     /// <param name="serviceProvider">The service provider for resolving IEncina.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to read back the persisted request payload, matching
+    /// whatever serializer (plain or encrypting) wrote it.
+    /// </param>
     public DeadLetterManager(
         IDeadLetterStore store,
         DeadLetterOrchestrator orchestrator,
         IServiceProvider serviceProvider,
-        ILogger<DeadLetterManager> logger)
+        ILogger<DeadLetterManager> logger,
+        IMessageSerializer messageSerializer)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(orchestrator);
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _orchestrator = orchestrator;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _messageSerializer = messageSerializer;
     }
 
     /// <inheritdoc />
@@ -84,7 +87,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
                 return EncinaError.New(error);
             }
 
-            var request = JsonSerializer.Deserialize(message.RequestContent, requestType, JsonOptions);
+            var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
             if (request is null)
             {
                 var error = $"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content";

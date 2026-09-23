@@ -1,12 +1,23 @@
+using System.Collections.Immutable;
+
+using Encina.Messaging.Encryption;
+using Encina.Messaging.Encryption.Abstractions;
+using Encina.Messaging.Encryption.Attributes;
+using Encina.Messaging.Encryption.Model;
+using Encina.Messaging.Encryption.Serialization;
 using Encina.Messaging.Outbox;
+using Encina.Messaging.Serialization;
 
 using LanguageExt;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
 using Shouldly;
+
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Pipeline;
 
@@ -40,6 +51,21 @@ public sealed class OutboxPostProcessorTests
         public string Message { get; init; } = string.Empty;
     }
 
+    [EncryptedMessage]
+    private sealed record EncryptedTestNotification : INotification
+    {
+        public string SensitiveData { get; init; } = string.Empty;
+    }
+
+    private sealed record TestRequestWithEncryptedNotifications : IRequest<TestResponse>, IHasNotifications
+    {
+        private readonly List<INotification> _notifications = [];
+
+        public void AddNotification(INotification notification) => _notifications.Add(notification);
+
+        public IEnumerable<INotification> GetNotifications() => _notifications;
+    }
+
     #region Constructor
 
     [Fact]
@@ -48,10 +74,11 @@ public sealed class OutboxPostProcessorTests
         // Arrange
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
         var logger = NullLogger<OutboxPostProcessor<TestRequest, TestResponse>>.Instance;
+        var messageSerializer = Substitute.For<IMessageSerializer>();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new OutboxPostProcessor<TestRequest, TestResponse>(null!, messageFactory, logger));
+            new OutboxPostProcessor<TestRequest, TestResponse>(null!, messageFactory, logger, messageSerializer));
     }
 
     [Fact]
@@ -60,10 +87,11 @@ public sealed class OutboxPostProcessorTests
         // Arrange
         var store = Substitute.For<IOutboxStore>();
         var logger = NullLogger<OutboxPostProcessor<TestRequest, TestResponse>>.Instance;
+        var messageSerializer = Substitute.For<IMessageSerializer>();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new OutboxPostProcessor<TestRequest, TestResponse>(store, null!, logger));
+            new OutboxPostProcessor<TestRequest, TestResponse>(store, null!, logger, messageSerializer));
     }
 
     [Fact]
@@ -72,10 +100,24 @@ public sealed class OutboxPostProcessorTests
         // Arrange
         var store = Substitute.For<IOutboxStore>();
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
+        var messageSerializer = Substitute.For<IMessageSerializer>();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new OutboxPostProcessor<TestRequest, TestResponse>(store, messageFactory, null!));
+            new OutboxPostProcessor<TestRequest, TestResponse>(store, messageFactory, null!, messageSerializer));
+    }
+
+    [Fact]
+    public void Constructor_WithNullMessageSerializer_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = Substitute.For<IOutboxStore>();
+        var messageFactory = Substitute.For<IOutboxMessageFactory>();
+        var logger = NullLogger<OutboxPostProcessor<TestRequest, TestResponse>>.Instance;
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new OutboxPostProcessor<TestRequest, TestResponse>(store, messageFactory, logger, null!));
     }
 
     [Fact]
@@ -85,9 +127,10 @@ public sealed class OutboxPostProcessorTests
         var store = Substitute.For<IOutboxStore>();
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
         var logger = NullLogger<OutboxPostProcessor<TestRequest, TestResponse>>.Instance;
+        var messageSerializer = Substitute.For<IMessageSerializer>();
 
         // Act
-        var processor = new OutboxPostProcessor<TestRequest, TestResponse>(store, messageFactory, logger);
+        var processor = new OutboxPostProcessor<TestRequest, TestResponse>(store, messageFactory, logger, messageSerializer);
 
         // Assert
         processor.ShouldNotBeNull();
@@ -262,16 +305,111 @@ public sealed class OutboxPostProcessorTests
 
     #endregion
 
+    #region Process - Encryption
+
+    [Fact]
+    public async Task Process_WithEncryptionRegisteredAndEncryptedMessage_StoresEncryptedContentAndRoundTrips()
+    {
+        // Arrange
+        EncryptedMessageAttributeCache.ClearCache();
+        try
+        {
+            var innerSerializer = new JsonMessageSerializer();
+            var provider = new PassthroughMessageEncryptionProvider();
+            var options = Options.Create(new MessageEncryptionOptions { Enabled = true });
+            var encryptingSerializer = new EncryptingMessageSerializer(
+                innerSerializer,
+                provider,
+                options,
+                NullLogger<EncryptingMessageSerializer>.Instance);
+
+            var (processor, store, messageFactory) = CreateProcessor<TestRequestWithEncryptedNotifications>(encryptingSerializer);
+            var request = new TestRequestWithEncryptedNotifications();
+            request.AddNotification(new EncryptedTestNotification { SensitiveData = "patient-diagnosis-42" });
+
+            var context = CreateContext();
+            var response = Either<EncinaError, TestResponse>.Right(new TestResponse());
+
+            string? capturedContent = null;
+            messageFactory.Create(
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Do<string>(c => capturedContent = c),
+                Arg.Any<DateTime>())
+                .Returns(Substitute.For<IOutboxMessage>());
+
+            // Act
+            await processor.Process(request, context, response, CancellationToken.None);
+
+            // Assert: the stored content is the encrypted envelope, not plain JSON
+            capturedContent.ShouldNotBeNull();
+            capturedContent.ShouldStartWith("ENC:v1:");
+            capturedContent.ShouldNotContain("patient-diagnosis-42");
+
+            // Assert: it round-trips back to the original value through the same serializer
+            var roundTripped = encryptingSerializer.Deserialize<EncryptedTestNotification>(capturedContent!);
+            roundTripped.ShouldNotBeNull();
+            roundTripped!.SensitiveData.ShouldBe("patient-diagnosis-42");
+        }
+        finally
+        {
+            EncryptedMessageAttributeCache.ClearCache();
+        }
+    }
+
+    /// <summary>
+    /// Test double that "encrypts" by tagging the plaintext bytes verbatim as ciphertext,
+    /// and "decrypts" by returning them unchanged. This is enough to verify that
+    /// <see cref="OutboxPostProcessor{TRequest, TResponse}"/> serializes through
+    /// <see cref="IMessageSerializer"/> (so the encryption decorator is invoked at all)
+    /// without depending on a real cryptographic provider.
+    /// </summary>
+    private sealed class PassthroughMessageEncryptionProvider : IMessageEncryptionProvider
+    {
+        public ValueTask<Either<EncinaError, EncryptedPayload>> EncryptAsync(
+            ReadOnlyMemory<byte> plaintext,
+            MessageEncryptionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var payload = new EncryptedPayload
+            {
+                Ciphertext = ImmutableArray.Create(plaintext.Span.ToArray()),
+                KeyId = context.KeyId ?? "test-key",
+                Algorithm = "test-passthrough",
+                Nonce = ImmutableArray.Create<byte>(1, 2, 3),
+                Tag = ImmutableArray.Create<byte>(4, 5, 6),
+                Version = 1
+            };
+
+            return new ValueTask<Either<EncinaError, EncryptedPayload>>(Right<EncinaError, EncryptedPayload>(payload));
+        }
+
+        public ValueTask<Either<EncinaError, ImmutableArray<byte>>> DecryptAsync(
+            EncryptedPayload payload,
+            MessageEncryptionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<Either<EncinaError, ImmutableArray<byte>>>(
+                Right<EncinaError, ImmutableArray<byte>>(payload.Ciphertext));
+        }
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static (OutboxPostProcessor<TRequest, TestResponse> Processor, IOutboxStore Store, IOutboxMessageFactory Factory)
-        CreateProcessor<TRequest>() where TRequest : IRequest<TestResponse>
+        CreateProcessor<TRequest>(IMessageSerializer? messageSerializer = null) where TRequest : IRequest<TestResponse>
     {
         var store = Substitute.For<IOutboxStore>();
         var messageFactory = Substitute.For<IOutboxMessageFactory>();
         var logger = NullLogger<OutboxPostProcessor<TRequest, TestResponse>>.Instance;
 
-        var processor = new OutboxPostProcessor<TRequest, TestResponse>(store, messageFactory, logger);
+        var processor = new OutboxPostProcessor<TRequest, TestResponse>(
+            store,
+            messageFactory,
+            logger,
+            messageSerializer ?? new JsonMessageSerializer());
 
         return (processor, store, messageFactory);
     }

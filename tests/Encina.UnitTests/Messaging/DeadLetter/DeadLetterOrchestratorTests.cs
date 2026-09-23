@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Serialization;
 using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ public sealed class DeadLetterOrchestratorTests
     private readonly IDeadLetterMessageFactory _messageFactory;
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
+    private readonly IMessageSerializer _messageSerializer;
     private readonly DeadLetterOrchestrator _orchestrator;
 
     public DeadLetterOrchestratorTests()
@@ -33,8 +35,9 @@ public sealed class DeadLetterOrchestratorTests
             EnableAutomaticCleanup = true
         };
         _logger = Substitute.For<ILogger<DeadLetterOrchestrator>>();
+        _messageSerializer = new JsonMessageSerializer();
 
-        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger);
+        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, _messageSerializer);
     }
 
     #region Constructor Tests
@@ -42,7 +45,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger);
+        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("store");
     }
@@ -50,7 +53,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger);
+        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageFactory");
     }
@@ -58,7 +61,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("options");
     }
@@ -66,9 +69,17 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, null!);
+
+        act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion
@@ -162,7 +173,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -191,7 +202,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -447,3 +458,4 @@ internal sealed class TestDeadLetterMessage : IDeadLetterMessage
     public bool IsReplayed => ReplayedAtUtc.HasValue;
     public bool IsExpired => ExpiresAtUtc.HasValue && ExpiresAtUtc.Value <= NowProvider();
 }
+

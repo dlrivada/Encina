@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -35,11 +35,7 @@ public sealed class SchedulerOrchestrator
     private readonly IScheduledMessageRetryPolicy _retryPolicy;
     private readonly ICronParser? _cronParser;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulerOrchestrator"/> class.
@@ -54,13 +50,17 @@ public sealed class SchedulerOrchestrator
     /// <see cref="ExponentialBackoffRetryPolicy"/>; users can swap in their own
     /// implementation by registering it before <c>AddEncina*()</c>.
     /// </param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist the scheduled request payload, so that
+    /// decorators such as <c>EncryptingMessageSerializer</c> apply to it too.
+    /// </param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any required dependency (<paramref name="store"/>,
     /// <paramref name="options"/>, <paramref name="logger"/>,
-    /// <paramref name="messageFactory"/>, or <paramref name="retryPolicy"/>) is
-    /// <see langword="null"/>.
+    /// <paramref name="messageFactory"/>, <paramref name="retryPolicy"/>, or
+    /// <paramref name="messageSerializer"/>) is <see langword="null"/>.
     /// </exception>
     public SchedulerOrchestrator(
         IScheduledMessageStore store,
@@ -68,6 +68,7 @@ public sealed class SchedulerOrchestrator
         ILogger<SchedulerOrchestrator> logger,
         IScheduledMessageFactory messageFactory,
         IScheduledMessageRetryPolicy retryPolicy,
+        IMessageSerializer messageSerializer,
         ICronParser? cronParser = null,
         TimeProvider? timeProvider = null)
     {
@@ -76,12 +77,14 @@ public sealed class SchedulerOrchestrator
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(retryPolicy);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
         _retryPolicy = retryPolicy;
+        _messageSerializer = messageSerializer;
         _cronParser = cronParser;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -113,7 +116,7 @@ public sealed class SchedulerOrchestrator
             ?? typeof(TRequest).FullName
             ?? typeof(TRequest).Name;
 
-        var content = JsonSerializer.Serialize(request, JsonOptions);
+        var content = _messageSerializer.Serialize(request);
 
         var message = _messageFactory.Create(
             Guid.NewGuid(),
@@ -198,7 +201,7 @@ public sealed class SchedulerOrchestrator
                     ?? typeof(TRequest).FullName
                     ?? typeof(TRequest).Name;
 
-                var content = JsonSerializer.Serialize(request, JsonOptions);
+                var content = _messageSerializer.Serialize(request);
 
                 var message = _messageFactory.Create(
                     Guid.NewGuid(),
@@ -313,7 +316,7 @@ public sealed class SchedulerOrchestrator
                     continue;
                 }
 
-                var request = JsonSerializer.Deserialize(message.Content, requestType, JsonOptions);
+                var request = _messageSerializer.Deserialize(message.Content, requestType);
                 if (request == null)
                 {
                     Log.DeserializationFailed(_logger, message.Id, message.RequestType);

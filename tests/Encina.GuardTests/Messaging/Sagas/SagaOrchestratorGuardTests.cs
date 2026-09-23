@@ -1,4 +1,5 @@
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Serialization;
 using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Sagas;
@@ -12,43 +13,51 @@ public class SagaOrchestratorGuardTests
     private readonly SagaOptions _options = new();
     private readonly ILogger<SagaOrchestrator> _logger = NullLogger<SagaOrchestrator>.Instance;
     private readonly ISagaStateFactory _stateFactory = Substitute.For<ISagaStateFactory>();
+    private readonly IMessageSerializer _messageSerializer = new JsonMessageSerializer();
 
-    private SagaOrchestrator CreateSut() => new(_store, _options, _logger, _stateFactory);
+    private SagaOrchestrator CreateSut() => new(_store, _options, _logger, _stateFactory, _messageSerializer);
 
     #region Constructor Guards
 
     [Fact]
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new SagaOrchestrator(null!, _options, _logger, _stateFactory);
+        var act = () => new SagaOrchestrator(null!, _options, _logger, _stateFactory, _messageSerializer);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new SagaOrchestrator(_store, null!, _logger, _stateFactory);
+        var act = () => new SagaOrchestrator(_store, null!, _logger, _stateFactory, _messageSerializer);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new SagaOrchestrator(_store, _options, null!, _stateFactory);
+        var act = () => new SagaOrchestrator(_store, _options, null!, _stateFactory, _messageSerializer);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullStateFactory_ThrowsArgumentNullException()
     {
-        var act = () => new SagaOrchestrator(_store, _options, _logger, null!);
+        var act = () => new SagaOrchestrator(_store, _options, _logger, null!, _messageSerializer);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("stateFactory");
+    }
+
+    [Fact]
+    public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        var act = () => new SagaOrchestrator(_store, _options, _logger, _stateFactory, null!);
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
-        var act = () => new SagaOrchestrator(_store, _options, _logger, _stateFactory, timeProvider: null);
+        var act = () => new SagaOrchestrator(_store, _options, _logger, _stateFactory, _messageSerializer, timeProvider: null);
         Should.NotThrow(act);
     }
 

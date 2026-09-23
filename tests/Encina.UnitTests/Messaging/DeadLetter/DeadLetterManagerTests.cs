@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Serialization;
 using Encina.Testing.Shouldly;
 
 using LanguageExt;
@@ -32,7 +33,7 @@ public sealed class DeadLetterManagerTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DeadLetterManager(null!, orchestrator, serviceProvider, logger));
+            new DeadLetterManager(null!, orchestrator, serviceProvider, logger, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public sealed class DeadLetterManagerTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DeadLetterManager(store, null!, serviceProvider, logger));
+            new DeadLetterManager(store, null!, serviceProvider, logger, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -58,7 +59,7 @@ public sealed class DeadLetterManagerTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DeadLetterManager(store, orchestrator, null!, logger));
+            new DeadLetterManager(store, orchestrator, null!, logger, new JsonMessageSerializer()));
     }
 
     [Fact]
@@ -71,7 +72,21 @@ public sealed class DeadLetterManagerTests
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DeadLetterManager(store, orchestrator, serviceProvider, null!));
+            new DeadLetterManager(store, orchestrator, serviceProvider, null!, new JsonMessageSerializer()));
+    }
+
+    [Fact]
+    public void Constructor_WithNullMessageSerializer_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = Substitute.For<IDeadLetterStore>();
+        var orchestrator = CreateOrchestrator();
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        var logger = NullLogger<DeadLetterManager>.Instance;
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new DeadLetterManager(store, orchestrator, serviceProvider, logger, null!));
     }
 
     [Fact]
@@ -502,7 +517,7 @@ public sealed class DeadLetterManagerTests
         var serviceProvider = Substitute.For<IServiceProvider>();
         var logger = NullLogger<DeadLetterManager>.Instance;
 
-        var manager = new DeadLetterManager(store, orchestrator, serviceProvider, logger);
+        var manager = new DeadLetterManager(store, orchestrator, serviceProvider, logger, new JsonMessageSerializer());
 
         return (manager, store, orchestrator, serviceProvider);
     }
@@ -514,7 +529,7 @@ public sealed class DeadLetterManagerTests
         var options = new DeadLetterOptions();
         var logger = NullLogger<DeadLetterOrchestrator>.Instance;
 
-        return new DeadLetterOrchestrator(store, messageFactory, options, logger);
+        return new DeadLetterOrchestrator(store, messageFactory, options, logger, new JsonMessageSerializer());
     }
 
     private static IDeadLetterMessage CreateMockMessage(
