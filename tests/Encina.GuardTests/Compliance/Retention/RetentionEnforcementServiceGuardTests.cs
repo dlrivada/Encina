@@ -41,4 +41,12 @@ public sealed class RetentionEnforcementServiceGuardTests
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
+
+    [Fact]
+    public void Constructor_NullTimeProvider_DefaultsToSystemClock()
+    {
+        var act = () => new RetentionEnforcementService(_scopeFactory, _options, _logger, timeProvider: null);
+
+        Should.NotThrow(act);
+    }
 }

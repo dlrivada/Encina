@@ -393,9 +393,10 @@ Service Start → First cycle immediately → Wait for timer tick → Next cycle
 
 Each enforcement cycle:
 
-1. Checks for data expiring within the `AlertBeforeExpirationDays` window and publishes `DataExpiringNotification`
-2. Calls `IRetentionEnforcer.EnforceRetentionAsync` to process expired records
-3. The enforcer queries expired records, checks legal holds, delegates deletion, and updates statuses
+1. Queries `IRetentionRecordService.GetExpiredRecordsAsync`: `Active` records past their expiry, plus `Expired` records left over by an earlier cycle whose erasure or deletion failed
+2. For each record, checks `ILegalHoldService.HasActiveHoldsAsync`. A held entity is marked `UnderLegalHold` and not erased. If the hold status cannot be determined, the record is skipped, logged and counted as failed (fail closed) and retried on the next cycle
+3. Otherwise moves the record `Active → Expired`, erases the entity through `IDataErasureExecutor` (when registered) and, only after a successful erasure, moves it `Expired → Deleted`. Any failed step is logged and counted in `retention.records.failed.total`, never as a deletion; the record stays `Expired` and the next cycle retries it. `Deleted` records are never selected again, so an entity is not erased twice
+4. Checks for data expiring within the `AlertBeforeExpirationDays` window and publishes `DataExpiringNotification`, using the injected `TimeProvider` for the current time
 
 ### Manual Enforcement
 

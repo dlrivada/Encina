@@ -237,12 +237,8 @@ public class RetentionRecordAggregateTests
     [Fact]
     public void Release_HeldRecord_WhenNotExpired_ShouldRestoreActiveStatus()
     {
-        // Arrange — hold is placed before expiration; ExpiresAtUtc is far in the future
-        // so Apply resolves to Active when DateTimeOffset.UtcNow < ExpiresAtUtc.
-        var futureExpiry = DateTimeOffset.UtcNow.AddYears(10);
-        var record = RetentionRecordAggregate.Track(
-            DefaultId, "customer-42", "customer-data", DefaultPolicyId,
-            DefaultRetentionPeriod, futureExpiry, Now);
+        // Arrange — hold placed and released before the expiry
+        var record = CreateTrackedRecord();
         record.Hold(DefaultHoldId, Now.AddDays(10));
 
         // Act
@@ -250,6 +246,60 @@ public class RetentionRecordAggregateTests
 
         // Assert
         record.Status.ShouldBe(RetentionStatus.Active);
+    }
+
+    [Fact]
+    public void Release_HeldRecord_WhenReleasedAfterExpiry_ShouldResolveToExpired()
+    {
+        // Arrange — hold placed while active, released after the expiry (Now + 365 days)
+        var record = CreateTrackedRecord();
+        record.Hold(DefaultHoldId, Now.AddDays(10));
+
+        // Act
+        record.Release(DefaultHoldId, Now.AddDays(400));
+
+        // Assert
+        record.Status.ShouldBe(RetentionStatus.Expired);
+    }
+
+    [Fact]
+    public void Release_HeldRecord_WhenReleasedExactlyAtExpiry_ShouldResolveToExpired()
+    {
+        // Arrange
+        var record = CreateTrackedRecord();
+        record.Hold(DefaultHoldId, Now.AddDays(10));
+
+        // Act
+        record.Release(DefaultHoldId, Now.Add(DefaultRetentionPeriod));
+
+        // Assert
+        record.Status.ShouldBe(RetentionStatus.Expired);
+    }
+
+    [Fact]
+    public void Release_ReplayingTheStream_ResolvesTheSameStatusRegardlessOfTheWallClock()
+    {
+        // Arrange — a release recorded before the expiry. Before #1146 the replayed status
+        // depended on DateTimeOffset.UtcNow and flipped to Expired once the wall clock passed
+        // ExpiresAtUtc; the event's own timestamp now decides it.
+        var expiresAt = Now.AddDays(-30);
+        var history = new object[]
+        {
+            new RetentionRecordTracked(DefaultId, "customer-42", "customer-data", DefaultPolicyId,
+                TimeSpan.FromDays(30), expiresAt, Now.AddDays(-60), null, null),
+            new RetentionRecordHeld(DefaultId, "customer-42", DefaultHoldId, Now.AddDays(-50)),
+            new RetentionRecordReleased(DefaultId, "customer-42", DefaultHoldId, Now.AddDays(-40))
+        };
+
+        // Act
+        var first = new RetentionRecordAggregate();
+        first.LoadFromHistory(history);
+        var second = new RetentionRecordAggregate();
+        second.LoadFromHistory(history);
+
+        // Assert — released 10 days before the expiry, so Active on every replay
+        first.Status.ShouldBe(RetentionStatus.Active);
+        second.Status.ShouldBe(first.Status);
     }
 
     [Fact]
@@ -445,14 +495,13 @@ public class RetentionRecordAggregateTests
     /// <summary>
     /// Creates a record that was held and then released. After release the Apply method sets
     /// status to <see cref="RetentionStatus.Expired"/> or <see cref="RetentionStatus.Active"/>
-    /// based on <c>DateTimeOffset.UtcNow >= ExpiresAtUtc</c>. Since the record was already
-    /// expired before the hold was placed, <c>ExpiresAtUtc</c> is in the past relative to
-    /// wall-clock time, so status resolves to <see cref="RetentionStatus.Expired"/>.
+    /// by comparing the release timestamp with <c>ExpiresAtUtc</c>. The release happens after
+    /// the expiry, so status resolves to <see cref="RetentionStatus.Expired"/>.
     /// </summary>
     private static RetentionRecordAggregate CreateReleasedRecord()
     {
-        // Use a past expiry so that after release Apply resolves to Expired.
-        var pastExpiry = DateTimeOffset.UtcNow.AddDays(-1);
+        // Expiry before the release timestamp so that Apply resolves to Expired.
+        var pastExpiry = Now.AddDays(-1);
         var record = RetentionRecordAggregate.Track(
             DefaultId, "customer-42", "customer-data", DefaultPolicyId,
             DefaultRetentionPeriod, pastExpiry, Now.AddDays(-400));

@@ -184,13 +184,16 @@ public interface IRetentionRecordService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves active retention records that have exceeded their expiration time.
+    /// Retrieves the retention records that the enforcement service must process: records whose
+    /// retention period has elapsed and whose data has not been deleted yet.
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>
-    /// A read-only list of retention record read models where the status is
-    /// <see cref="RetentionStatus.Active"/> and <see cref="RetentionRecordReadModel.ExpiresAtUtc"/>
-    /// is in the past. These records are eligible for deletion by the enforcement service.
+    /// A read-only list of retention record read models that are either
+    /// <see cref="RetentionStatus.Active"/> with <see cref="RetentionRecordReadModel.ExpiresAtUtc"/>
+    /// in the past (not processed yet), or <see cref="RetentionStatus.Expired"/> (processed by an
+    /// earlier cycle whose erasure or deletion did not complete, and therefore due for a retry).
+    /// Records under legal hold and deleted records are never returned.
     /// </returns>
     ValueTask<Either<EncinaError, IReadOnlyList<RetentionRecordReadModel>>> GetExpiredRecordsAsync(
         CancellationToken cancellationToken = default);

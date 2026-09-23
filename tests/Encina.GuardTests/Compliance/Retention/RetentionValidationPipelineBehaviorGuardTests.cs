@@ -58,6 +58,15 @@ public sealed class RetentionValidationPipelineBehaviorGuardTests
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
+    [Fact]
+    public void Constructor_NullTimeProvider_DefaultsToSystemClock()
+    {
+        var act = () => new RetentionValidationPipelineBehavior<TestRequest, TestResponse>(
+            _recordService, _policyService, _options, _logger, timeProvider: null);
+
+        Should.NotThrow(act);
+    }
+
     // Test types for guard tests
     public sealed record TestRequest : IRequest<TestResponse>;
     public sealed record TestResponse;

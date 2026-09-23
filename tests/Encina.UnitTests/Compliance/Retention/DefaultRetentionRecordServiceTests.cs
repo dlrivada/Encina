@@ -1,6 +1,7 @@
 using Encina.Caching;
 using Encina.Compliance.Retention;
 using Encina.Compliance.Retention.Aggregates;
+using Encina.Compliance.Retention.Events;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
 using Encina.Compliance.Retention.Services;
@@ -306,6 +307,93 @@ public sealed class DefaultRetentionRecordServiceTests
 
         result.IsLeft.ShouldBeTrue();
         result.Match(_ => { }, error => error.Message.ShouldContain("not found"));
+    }
+
+    [Fact]
+    public async Task ReleaseRecordAsync_ReleasedBeforeExpiry_RestoresActiveUsingTimeProvider()
+    {
+        var recordId = Guid.NewGuid();
+        var legalHoldId = Guid.NewGuid();
+        var now = _timeProvider.GetUtcNow();
+        var aggregate = RetentionRecordAggregate.Track(
+            recordId, "entity-before", "cat", Guid.NewGuid(),
+            TimeSpan.FromDays(30), now.AddDays(10), now.AddDays(-20));
+        aggregate.Hold(legalHoldId, now.AddDays(-5));
+        SetupLoadAndSave(recordId, aggregate);
+
+        var result = await _sut.ReleaseRecordAsync(recordId, legalHoldId);
+
+        result.IsRight.ShouldBeTrue();
+        aggregate.Status.ShouldBe(RetentionStatus.Active);
+        aggregate.UncommittedEvents.OfType<RetentionRecordReleased>()
+            .Last().OccurredAtUtc.ShouldBe(now);
+    }
+
+    [Fact]
+    public async Task ReleaseRecordAsync_ReleasedAfterExpiry_ResolvesExpiredUsingTimeProvider()
+    {
+        var recordId = Guid.NewGuid();
+        var legalHoldId = Guid.NewGuid();
+        var now = _timeProvider.GetUtcNow();
+        var aggregate = RetentionRecordAggregate.Track(
+            recordId, "entity-after", "cat", Guid.NewGuid(),
+            TimeSpan.FromDays(30), now.AddDays(10), now.AddDays(-20));
+        aggregate.Hold(legalHoldId, now.AddDays(-5));
+        SetupLoadAndSave(recordId, aggregate);
+
+        // Move the fake clock past the expiry before releasing
+        _timeProvider.Advance(TimeSpan.FromDays(11));
+
+        var result = await _sut.ReleaseRecordAsync(recordId, legalHoldId);
+
+        result.IsRight.ShouldBeTrue();
+        aggregate.Status.ShouldBe(RetentionStatus.Expired);
+    }
+
+    private void SetupLoadAndSave(Guid recordId, RetentionRecordAggregate aggregate)
+    {
+        _repository
+            .LoadAsync(recordId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, RetentionRecordAggregate>(aggregate));
+        _repository
+            .SaveAsync(Arg.Any<RetentionRecordAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+    }
+
+    #endregion
+
+    // ========================================================================
+    // GetExpiredRecordsAsync tests
+    // ========================================================================
+
+    #region GetExpiredRecordsAsync
+
+    [Fact]
+    public async Task GetExpiredRecordsAsync_ReturnsActivePastExpiryAndExpired_ExcludesOthers()
+    {
+        var now = _timeProvider.GetUtcNow();
+        var activePast = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.Active, ExpiresAtUtc = now.AddDays(-1) };
+        var activeAtExpiry = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.Active, ExpiresAtUtc = now };
+        var activeFuture = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.Active, ExpiresAtUtc = now.AddDays(1) };
+        var expired = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.Expired, ExpiresAtUtc = now.AddDays(-5) };
+        var held = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.UnderLegalHold, ExpiresAtUtc = now.AddDays(-5) };
+        var deleted = new RetentionRecordReadModel { Id = Guid.NewGuid(), Status = RetentionStatus.Deleted, ExpiresAtUtc = now.AddDays(-5) };
+        var all = new List<RetentionRecordReadModel> { activePast, activeAtExpiry, activeFuture, expired, held, deleted };
+
+        // Apply the service's query to an in-memory source so the predicate itself is exercised
+        _readModelRepository
+            .QueryAsync(Arg.Any<Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var query = call.Arg<Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>>();
+                IReadOnlyList<RetentionRecordReadModel> matched = query(all.AsQueryable()).ToList();
+                return Task.FromResult(Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(matched));
+            });
+
+        var result = await _sut.GetExpiredRecordsAsync();
+
+        var records = result.Match(r => r, _ => throw new InvalidOperationException("Expected Right"));
+        records.Select(r => r.Id).ShouldBe([activePast.Id, activeAtExpiry.Id, expired.Id], ignoreOrder: true);
     }
 
     #endregion

@@ -97,7 +97,10 @@ public sealed record RetentionRecordHeld(
 /// <para>
 /// If no other active legal holds remain on this entity, the record returns to its previous
 /// status (<c>Active</c> if not yet expired, <c>Expired</c> if past the deadline). The
-/// enforcement service will re-evaluate the record during its next sweep.
+/// decision is taken by comparing <paramref name="OccurredAtUtc"/> with the record's expiry, so
+/// replaying the event is deterministic; the service stamps <paramref name="OccurredAtUtc"/> from
+/// its <see cref="TimeProvider"/>. The enforcement service will re-evaluate the record during its
+/// next sweep.
 /// </para>
 /// <para>
 /// This event is raised as part of the cross-aggregate coordination when
