@@ -105,4 +105,4 @@ The first line is the success track from `Send(new Greet("World"))`. The second 
 
 ## Next steps
 
-Browse the [features overview](../features/index.md) to see the pipeline behaviours, messaging patterns and providers you can add next.
+Read [About the request pipeline](../architecture/request-pipeline.md) to see what happened between `Send` and the result you just printed, then [How to write a pipeline behavior](../guides/how-to-write-a-pipeline-behavior.md) to add your own cross-cutting logic. Browse the [features overview](../features/index.md) to see the messaging patterns and providers you can add next.
