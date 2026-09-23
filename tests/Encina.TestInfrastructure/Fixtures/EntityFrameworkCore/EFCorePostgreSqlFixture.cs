@@ -34,7 +34,7 @@ public sealed class EFCorePostgreSqlFixture : IEFCoreFixture
     public async Task EnsureSchemaCreatedAsync<TContext>() where TContext : DbContext
     {
         await using var context = CreateDbContext<TContext>();
-        await context.Database.EnsureCreatedAsync();
+        await EFCoreSchema.CreateTablesAsync(context);
     }
 
     /// <inheritdoc />

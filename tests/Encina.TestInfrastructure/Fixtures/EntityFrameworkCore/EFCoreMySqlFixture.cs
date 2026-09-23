@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Xunit;
 
 namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 
@@ -9,7 +10,8 @@ namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 /// <remarks>
 /// <para>
 /// <b>IMPORTANT:</b> This fixture requires Pomelo.EntityFrameworkCore.MySql v10.0.0 or later,
-/// which is not yet released. Until then, MySQL EF Core tests will throw NotSupportedException.
+/// which is not yet released. Until then, MySQL EF Core tests are skipped (Assert.Skip) until
+/// Pomelo supports EF Core 10.
 /// </para>
 /// <para>
 /// Track progress: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019
@@ -48,8 +50,9 @@ public sealed class EFCoreMySqlFixture : IEFCoreFixture
     /// <inheritdoc />
     public Task EnsureSchemaCreatedAsync<TContext>() where TContext : DbContext
     {
-        throw new NotSupportedException(
-            "MySQL EF Core fixture requires Pomelo.EntityFrameworkCore.MySql v10.0.0 which is not yet released.");
+        // Skipped, not failed: the rest of the EF Core MySQL suite skips the same way until Pomelo ships EF Core 10.
+        Assert.Skip("MySQL EF Core support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible). See: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019");
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
