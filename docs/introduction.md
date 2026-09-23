@@ -39,7 +39,7 @@ Three decisions explain why the pipeline is built this way, and each is recorded
 
 - [ADR-001: Railway Oriented Programming for Error Handling](architecture/adr/001-railway-oriented-programming.md) is the original decision to use `Either<EncinaError, T>` instead of exceptions for expected failures.
 - [ADR-004: Decision to NOT Implement `EncinaResult<T>`](architecture/adr/004-reject-mediator-result.md) explains why Encina exposes LanguageExt's `Either` directly instead of wrapping it in a friendlier-looking type.
-- [ADR-006: Pure Railway Oriented Programming — Fail-Fast Exception Handling](architecture/adr/006-pure-rop-exception-handling.md) explains why an exception thrown inside a handler or behavior is treated as a bug and is allowed to crash the process, rather than being caught and converted to a `Left`.
+- [ADR-006: Pure Railway Oriented Programming — Fail-Fast Exception Handling](architecture/adr/006-pure-rop-exception-handling.md) explains why an exception thrown inside a handler or behavior is treated as a bug and is left to propagate out of `Send`/`Publish`, rather than being caught and converted to a `Left`.
 
 ## Opt-in design
 
@@ -70,10 +70,9 @@ flowchart TD
     D -- Not sure yet --> F[Try the quickstart tutorial\nbefore deciding]
 ```
 
-Encina fits a team that wants explicit error types in the handler signature and is willing to adopt `Either` for that; it also fits a team that would otherwise build outbox, inbox or saga infrastructure by hand, since those patterns ship as opt-in packages instead. It does not fit a team that wants to keep throwing exceptions for expected failures inside handlers: [ADR-006](architecture/adr/006-pure-rop-exception-handling.md) makes that a fail-fast crash by design, not a supported pattern.
+Encina fits a team that wants explicit error types in the handler signature and is willing to adopt `Either` for that; it also fits a team that would otherwise build outbox, inbox or saga infrastructure by hand, since those patterns ship as opt-in packages instead. It does not fit a team that wants to keep throwing exceptions for expected failures inside handlers: `IEncina.Send` and `Publish` catch only `OperationCanceledException` and convert it to `Left<EncinaError>`; any other exception thrown by a handler, behavior or processor propagates out of the call uncaught, and whether that crashes the process depends on the caller and host, not on Encina. [ADR-006](architecture/adr/006-pure-rop-exception-handling.md) records why the pipeline was changed from catching every exception to this fail-fast design.
 
 ## Next steps
 
-- [Quickstart tutorial](tutorials/quickstart.md) walks through installing Encina and sending your first request.
 - [Architecture Decision Records](architecture/adr/index.md) record every design choice referenced above, and the ones that came after it.
 - [Features](features/index.md) indexes the reference documentation for outbox, inbox, sagas, scheduling and every other opt-in capability.
