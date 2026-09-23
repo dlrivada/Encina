@@ -60,7 +60,7 @@ public sealed class DomainEventDispatcherOptions
     /// <remarks>
     /// <para>
     /// When <see langword="true"/> (default), only domain events that implement
-    /// <see cref="INotification"/> are dispatched through <see cref="IEncina.Publish{TNotification}"/>.
+    /// <see cref="INotification"/> are dispatched through <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// Events that don't implement the interface are skipped with a warning.
     /// </para>
     /// <para>

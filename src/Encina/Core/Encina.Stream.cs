@@ -7,9 +7,25 @@ namespace Encina;
 public sealed partial class Encina
 {
     /// <inheritdoc />
-    public async IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(
+    public IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(
         IStreamRequest<TItem> request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
+        => StreamCore(request, explicitContext: null, cancellationToken);
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(
+        IStreamRequest<TItem> request,
+        IRequestContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return StreamCore(request, context, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<Either<EncinaError, TItem>> StreamCore<TItem>(
+        IStreamRequest<TItem> request,
+        IRequestContext? explicitContext,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (!EncinaRequestGuards.TryValidateStreamRequest<TItem>(request, out var error))
         {
@@ -18,7 +34,16 @@ public sealed partial class Encina
             yield break;
         }
 
-        await foreach (var item in StreamDispatcher.ExecuteAsync(this, request, cancellationToken).ConfigureAwait(false))
+        // Resolved at the first MoveNextAsync, on the consumer's execution context, so the ambient
+        // context of the caller that enumerates the stream is the one that seeds the pipeline.
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext);
+        var items = AmbientRequestContext.Flow(
+            StreamDispatcher.ExecuteAsync(this, request, context, cancellationToken),
+            _requestContextAccessor,
+            context,
+            cancellationToken);
+
+        await foreach (var item in items.ConfigureAwait(false))
         {
             yield return item;
         }

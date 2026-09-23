@@ -37,8 +37,14 @@ public sealed partial class Encina
     {
         // Cache for request kind determination to avoid repeated IsAssignableFrom calls
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, string> RequestKindCache = new();
-        public static async Task<Either<EncinaError, TResponse>> ExecuteAsync<TResponse>(Encina Encina, IRequest<TResponse> request, CancellationToken cancellationToken)
+        public static async Task<Either<EncinaError, TResponse>> ExecuteAsync<TResponse>(Encina Encina, IRequest<TResponse> request, IRequestContext context, CancellationToken cancellationToken)
         {
+            // --- AMBIENT CONTEXT ---
+            // The request's context is the ambient one for the whole dispatch (handler resolution,
+            // behaviors, handler, nested sends, EF Core interceptors) and the previous value is
+            // restored afterwards, so it never leaks into unrelated calls.
+            using var ambient = AmbientRequestContext.Enter(Encina._requestContextAccessor, context);
+
             // --- SETUP PHASE ---
             // Create a fresh DI scope for this request to ensure proper lifetime management
             // and isolation from other concurrent requests
@@ -106,7 +112,7 @@ public sealed partial class Encina
                 // 3. The actual request handler
                 // 4. Post-processors (in order of registration)
                 // The dispatcher.Handle method delegates to RequestHandlerWrapper which uses PipelineBuilder
-                var outcomeObject = await dispatcher.Handle(Encina, request, handler, serviceProvider, cancellationToken).ConfigureAwait(false);
+                var outcomeObject = await dispatcher.Handle(Encina, request, handler, context, serviceProvider, cancellationToken).ConfigureAwait(false);
                 var outcome = (Either<EncinaError, TResponse>)outcomeObject;
 
                 Encina.LogSendOutcome(requestType, handler.GetType(), outcome);

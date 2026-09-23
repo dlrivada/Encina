@@ -206,7 +206,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
         try
         {
             // Use reflection to call the appropriate Send method
-            var sendMethod = typeof(IEncina).GetMethod(nameof(IEncina.Send));
+            var sendMethod = typeof(IEncina).GetMethods()
+                .FirstOrDefault(m => m.Name == nameof(IEncina.Send) && m.GetParameters().Length == 2);
             if (sendMethod is null)
             {
                 return new DispatchResult(false, "Send method not found on IEncina");

@@ -123,7 +123,7 @@ Encina.ServiceCollectionExtensions
 Encina.Encina
 Encina.Encina.Publish<TNotification>(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Encina.Send<TResponse>(Encina.IRequest<TResponse>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
-Encina.Encina.Encina(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Encina.Encina!>? logger = null, Microsoft.Extensions.Options.IOptions<Encina.NotificationDispatchOptions!>? notificationOptions = null) -> void
+Encina.Encina.Encina(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Encina.Encina!>? logger = null, Microsoft.Extensions.Options.IOptions<Encina.NotificationDispatchOptions!>? notificationOptions = null, Encina.IRequestContextAccessor? requestContextAccessor = null) -> void
 Encina.Encina.Stream<TItem>(Encina.IStreamRequest<TItem>! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, TItem>>!
 Encina.StreamHandlerCallback<TItem>
 Encina.EncinaConfiguration
@@ -1954,3 +1954,16 @@ static readonly Encina.Diagnostics.EventIdRanges.SecuritySecretsHashiCorpVault -
 static readonly Encina.Diagnostics.EventIdRanges.SecuritySecretsGoogleCloudSecretManager -> (int Min, int Max)
 static readonly Encina.Diagnostics.EventIdRanges.OpenTelemetry -> (int Min, int Max)
 static Encina.EncinaErrorExtensions.GetCause(this Encina.EncinaError error) -> LanguageExt.Option<System.Exception!>
+Encina.IEncina.Send<TResponse>(Encina.IRequest<TResponse>! request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.IEncina.Publish<TNotification>(TNotification notification, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.IEncina.Stream<TItem>(Encina.IStreamRequest<TItem>! request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, TItem>>!
+Encina.Encina.Send<TResponse>(Encina.IRequest<TResponse>! request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
+Encina.Encina.Publish<TNotification>(TNotification notification, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
+Encina.Encina.Stream<TItem>(Encina.IStreamRequest<TItem>! request, Encina.IRequestContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<LanguageExt.Either<Encina.EncinaError, TItem>>!
+Encina.IRequestContextAccessor
+Encina.IRequestContextAccessor.RequestContext.get -> Encina.IRequestContext?
+Encina.IRequestContextAccessor.RequestContext.set -> void
+Encina.RequestContextAccessor
+Encina.RequestContextAccessor.RequestContext.get -> Encina.IRequestContext?
+Encina.RequestContextAccessor.RequestContext.set -> void
+Encina.RequestContextAccessor.RequestContextAccessor() -> void

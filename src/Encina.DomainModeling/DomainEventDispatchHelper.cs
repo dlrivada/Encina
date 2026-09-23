@@ -62,7 +62,7 @@ public sealed class DomainEventDispatchHelper
     }
 
     /// <summary>
-    /// Dispatches all collected domain events through <see cref="IEncina.Publish{TNotification}"/>.
+    /// Dispatches all collected domain events through <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
@@ -75,7 +75,7 @@ public sealed class DomainEventDispatchHelper
     /// <list type="number">
     /// <item><description>Collects all events from tracked aggregates</description></item>
     /// <item><description>Filters to events implementing <see cref="INotification"/></description></item>
-    /// <item><description>Publishes each event via <see cref="IEncina.Publish{TNotification}"/></description></item>
+    /// <item><description>Publishes each event via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/></description></item>
     /// <item><description>If ALL succeed, clears events from aggregates</description></item>
     /// <item><description>If ANY fail, returns aggregated error without clearing</description></item>
     /// </list>

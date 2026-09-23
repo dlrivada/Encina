@@ -26,6 +26,8 @@ namespace Encina;
 ///     Right: reservation => Encina.Publish(new ReservationCreatedNotification(reservation), cancellationToken));
 /// </code>
 /// </example>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
+    Justification = "Pre-1.0: the explicit-context overloads mirror the ambient ones; the context parameter is required, so calls never become ambiguous.")]
 public interface IEncina
 {
     /// <summary>
@@ -35,7 +37,31 @@ public interface IEncina
     /// <param name="request">Request to process.</param>
     /// <param name="cancellationToken">Optional token to cancel the operation.</param>
     /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
+    /// <remarks>
+    /// The pipeline's <see cref="IRequestContext"/> is the ambient one held by
+    /// <see cref="IRequestContextAccessor"/> (filled, for example, by <c>EncinaContextMiddleware</c>
+    /// for an HTTP request). When there is none, a fresh context is created with a correlation id
+    /// taken from <see cref="System.Diagnostics.Activity.Current"/>.
+    /// </remarks>
     ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a request with an explicit <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <typeparam name="TResponse">Response type returned by the handler.</typeparam>
+    /// <param name="request">Request to process.</param>
+    /// <param name="context">
+    /// Context the pipeline runs with. It takes precedence over the ambient context and becomes
+    /// the ambient context for the duration of the call, so nested requests see it too.
+    /// </param>
+    /// <param name="cancellationToken">Optional token to cancel the operation.</param>
+    /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
+    /// <remarks>
+    /// Use this overload from entry points that have no ambient context: background jobs,
+    /// webhooks, outbox or scheduled-message dispatch.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <c>null</c>.</exception>
+    ValueTask<Either<EncinaError, TResponse>> Send<TResponse>(IRequest<TResponse> request, IRequestContext context, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Publishes a notification that may be handled by zero or more handlers.
@@ -43,7 +69,25 @@ public interface IEncina
     /// <typeparam name="TNotification">Notification type being distributed.</typeparam>
     /// <param name="notification">Instance to propagate.</param>
     /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
+    /// <remarks>
+    /// Handlers observe the ambient context through <see cref="IRequestContextAccessor"/>; when
+    /// there is none, a fresh context is created for the dispatch.
+    /// </remarks>
     ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+        where TNotification : INotification;
+
+    /// <summary>
+    /// Publishes a notification with an explicit <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <typeparam name="TNotification">Notification type being distributed.</typeparam>
+    /// <param name="notification">Instance to propagate.</param>
+    /// <param name="context">
+    /// Context the handlers run with. It takes precedence over the ambient context and is the
+    /// ambient context for the duration of the dispatch.
+    /// </param>
+    /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <c>null</c>.</exception>
+    ValueTask<Either<EncinaError, Unit>> Publish<TNotification>(TNotification notification, IRequestContext context, CancellationToken cancellationToken = default)
         where TNotification : INotification;
 
     /// <summary>
@@ -80,4 +124,21 @@ public interface IEncina
     /// </code>
     /// </example>
     IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(IStreamRequest<TItem> request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a streaming request with an explicit <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <typeparam name="TItem">Type of each item yielded by the stream.</typeparam>
+    /// <param name="request">Stream request to process.</param>
+    /// <param name="context">
+    /// Context the stream pipeline runs with. It takes precedence over the ambient context and is
+    /// the ambient context while the stream is enumerated.
+    /// </param>
+    /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
+    /// <returns>
+    /// Async enumerable of <c>Either&lt;EncinaError, TItem&gt;</c>, where each element
+    /// represents either an error (Left) or a successful item (Right).
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <c>null</c>.</exception>
+    IAsyncEnumerable<Either<EncinaError, TItem>> Stream<TItem>(IStreamRequest<TItem> request, IRequestContext context, CancellationToken cancellationToken = default);
 }

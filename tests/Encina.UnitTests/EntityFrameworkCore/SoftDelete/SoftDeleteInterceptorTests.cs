@@ -33,7 +33,8 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         bool trackDeletedAt = true,
         bool trackDeletedBy = true,
         bool logSoftDeletes = false,
-        IRequestContext? requestContext = null)
+        IRequestContext? requestContext = null,
+        bool registerAccessor = false)
     {
         var interceptorOptions = new SoftDeleteInterceptorOptions
         {
@@ -47,6 +48,10 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         if (requestContext is not null)
         {
             services.AddSingleton(requestContext);
+        }
+        if (registerAccessor)
+        {
+            services.AddSingleton<IRequestContextAccessor, RequestContextAccessor>();
         }
         var sp = services.BuildServiceProvider();
 
@@ -178,6 +183,39 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         deletedOrder.DeletedBy.ShouldBe("user-123");
     }
 
+    [Fact]
+    public async Task SaveChangesAsync_WhenEntityDeleted_WithAmbientRequestContext_ShouldSetDeletedBy()
+    {
+        // Arrange - no IRequestContext registration; the user comes from the ambient accessor
+        // that IEncina.Send (or EncinaContextMiddleware) fills (issue #1147).
+        var options = CreateDbContextOptions(registerAccessor: true);
+        await using var context = new SoftDeleteTestDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var orderId = Guid.NewGuid();
+        var order = new TestSoftDeletableOrder
+        {
+            Id = orderId,
+            CustomerName = "Test Customer",
+            Total = 100m
+        };
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        new RequestContextAccessor().RequestContext = RequestContext.CreateForTest(userId: "ambient-user");
+
+        // Act
+        context.Orders.Remove(order);
+        await context.SaveChangesAsync();
+
+        // Assert
+        var deletedOrder = await context.Orders
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        deletedOrder.ShouldNotBeNull();
+        deletedOrder.DeletedBy.ShouldBe("ambient-user");
+    }
     [Fact]
     public async Task SaveChangesAsync_WhenInterceptorDisabled_ShouldPerformHardDelete()
     {

@@ -9,8 +9,10 @@ namespace Encina.AspNetCore;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This middleware extracts ambient context information from the HTTP request and makes it available
-/// to Encina handlers through <see cref="IRequestContext"/>.
+/// This middleware extracts ambient context information from the HTTP request and stores it on the
+/// core <see cref="IRequestContextAccessor"/>. <c>IEncina.Send</c>, <c>Publish</c> and <c>Stream</c> seed
+/// the pipeline's <see cref="IRequestContext"/> from that accessor, so every behavior and handler
+/// invoked during the HTTP request receives this context.
 /// </para>
 /// <para>
 /// Extracted information:

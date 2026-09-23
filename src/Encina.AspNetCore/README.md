@@ -10,7 +10,7 @@ ASP.NET Core integration for Encina with Railway Oriented Programming support. T
 - ✅ **Request Context Enrichment** - Automatic extraction of CorrelationId, UserId, TenantId, and IdempotencyKey from HttpContext
 - ✅ **Authorization Pipeline Behavior** - CQRS-aware declarative authorization with `[Authorize]`, `[ResourceAuthorize]`, and auto-applied default policies
 - ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `EncinaError` to standardized HTTP responses
-- ✅ **Thread-Safe Context Access** - AsyncLocal-based `IRequestContextAccessor` for safe context propagation
+- ✅ **Thread-Safe Context Access** - fills the AsyncLocal-based `IRequestContextAccessor` from `Encina` core, which `IEncina.Send`/`Publish`/`Stream` use to seed the `IRequestContext` every pipeline behavior receives
 - ✅ **Distributed Tracing** - Automatic correlation ID propagation and Activity integration
 - ✅ **.NET 10 Compatible** - Built with latest ASP.NET Core APIs
 

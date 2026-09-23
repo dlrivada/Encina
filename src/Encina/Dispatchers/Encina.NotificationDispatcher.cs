@@ -33,9 +33,15 @@ public sealed partial class Encina
     /// </remarks>
     private static class NotificationDispatcher
     {
-        public static async Task<Either<EncinaError, Unit>> ExecuteAsync<TNotification>(Encina Encina, TNotification notification, CancellationToken cancellationToken)
+        public static async Task<Either<EncinaError, Unit>> ExecuteAsync<TNotification>(Encina Encina, TNotification notification, IRequestContext context, CancellationToken cancellationToken)
             where TNotification : INotification
         {
+            // --- AMBIENT CONTEXT ---
+            // Notification handlers receive no IRequestContext parameter; they (and any request they
+            // send) observe the dispatch's context through IRequestContextAccessor. The previous
+            // value is restored afterwards.
+            using var ambient = AmbientRequestContext.Enter(Encina._requestContextAccessor, context);
+
             // --- SETUP PHASE ---
             // Create scope for handler resolution
             using var scope = Encina._scopeFactory.CreateScope();

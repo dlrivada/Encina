@@ -1,11 +1,10 @@
-using Encina.AspNetCore;
 using Encina.Testing;
 using Shouldly;
 using Xunit;
 
 #pragma warning disable S2925 // "Thread.Sleep" should not be used in tests - Required for thread synchronization simulation in non-async threads
 
-namespace Encina.UnitTests.AspNetCore;
+namespace Encina.UnitTests.Core;
 
 public class RequestContextAccessorTests
 {

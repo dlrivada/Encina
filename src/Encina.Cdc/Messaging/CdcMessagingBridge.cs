@@ -6,7 +6,7 @@ namespace Encina.Cdc.Messaging;
 
 /// <summary>
 /// CDC event interceptor that publishes captured changes as
-/// <see cref="CdcChangeNotification"/> via <see cref="IEncina.Publish{TNotification}"/>.
+/// <see cref="CdcChangeNotification"/> via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
 /// </summary>
 /// <remarks>
 /// <para>

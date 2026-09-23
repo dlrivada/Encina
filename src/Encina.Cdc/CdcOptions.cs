@@ -51,7 +51,7 @@ public sealed class CdcOptions
     /// <summary>
     /// Gets or sets whether to enable the CDC-to-messaging bridge.
     /// When enabled, captured change events are published as <see cref="INotification"/>
-    /// via <see cref="IEncina.Publish{TNotification}"/>.
+    /// via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>.
     /// Default is <c>false</c>.
     /// </summary>
     public bool UseMessagingBridge { get; set; }

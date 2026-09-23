@@ -5,7 +5,7 @@ namespace Encina.Messaging.Scheduling;
 /// <summary>
 /// Dispatches a deserialized scheduled message request through <see cref="IEncina"/>,
 /// selecting the correct generic overload
-/// (<see cref="IEncina.Send{TResponse}"/> or <see cref="IEncina.Publish{TNotification}"/>)
+/// (<see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/> or <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/>)
 /// based on the runtime <see cref="Type"/> of the request.
 /// </summary>
 /// <remarks>
@@ -51,8 +51,8 @@ public interface IScheduledMessageDispatcher
     /// The deserialized request instance. Must be assignable to <paramref name="requestType"/>.
     /// </param>
     /// <param name="cancellationToken">
-    /// Cancellation token propagated to the underlying <see cref="IEncina.Send{TResponse}"/>
-    /// or <see cref="IEncina.Publish{TNotification}"/> call. This allows host shutdown to
+    /// Cancellation token propagated to the underlying <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, CancellationToken)"/>
+    /// or <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/> call. This allows host shutdown to
     /// promptly abort in-flight dispatch operations.
     /// </param>
     /// <returns>

@@ -12,7 +12,7 @@ namespace Encina.Security;
 /// <para>
 /// Implementation uses <see cref="AsyncLocal{T}"/> to ensure context flows
 /// correctly across async operations within the same request scope, similar to
-/// how <c>IRequestContextAccessor</c> works in <c>Encina.AspNetCore</c>.
+/// how <see cref="IRequestContextAccessor"/> works in <c>Encina</c> core.
 /// </para>
 /// </remarks>
 public interface ISecurityContextAccessor
