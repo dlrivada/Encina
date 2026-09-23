@@ -19,9 +19,15 @@
 #     there or is the root of a checkout;
 #   - `git checkout [<rev>] -- <paths>` / `git checkout <rev> <paths>` and `git restore` (other than --staged
 #     alone) whose pathspecs resolve there or to a checkout root;
-#   - `git apply` / `git am` whose patch names a file there, or whose patch cannot be read (stdin, a variable).
+#   - `git apply` / `git am` whose patch names a file there, or whose patch cannot be read (stdin, a variable);
+#   - `dotnet run <file>.cs` / `dotnet run --file <file>.cs` / `pwsh`/`powershell -File <file>.ps1`: the hook
+#     reads the named script's own text and denies when it both references src/ or tests/ and contains a
+#     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath); a script path the
+#     hook cannot resolve, or cannot read, is denied too, since it cannot rule out a write there (#1181; this
+#     only partially closes the gap, since it is a text heuristic, not an execution of the script).
 # The commands of a `pwsh -Command` / `bash -c` wrapper are analysed like the others.
-# Not seen: targets that depend on a variable, deletions, and writes by other programs (dotnet, scripts).
+# Not seen: targets that depend on a variable, deletions, and writes by other programs (dotnet run of a script
+# that is not itself a bare or `--file` .cs argument, compiled tools, ...).
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
 # (fail open).
 
@@ -33,6 +39,8 @@ try {
     . (Join-Path $PSScriptRoot '_write-targets.ps1')
 
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    # agent_id/agent_type: present (agent_type names the caller) for a subagent's own tool call, absent for the
+    # main session's (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md).
     $governed = @('issue-worker', 'mechanical-fixer', 'docs-writer')
     if (-not [string]::IsNullOrWhiteSpace([string]$payload.agent_id) -and $governed -ccontains [string]$payload.agent_type) { exit 0 }
     $who = if ([string]::IsNullOrWhiteSpace([string]$payload.agent_id)) { 'The orchestrator' } else { "A $([string]$payload.agent_type) subagent (not a governed writing agent)" }
@@ -92,6 +100,18 @@ try {
                     if (Test-Guarded $full) { Write-Block "'git $($g.Verb)' applies $patch, which changes $relative" }
                 }
             }
+        }
+    }
+
+    # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: read the script's own text, since the analysis above
+    # only sees the invoking statement, not what the launched script does (#1181).
+    foreach ($s in $scan.Scripts) {
+        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve, so it cannot rule out writes to src/ or tests/; pass its literal path" }
+        $text = $null
+        try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { }
+        if ($null -eq $text) { Write-Block "runs '$($s.Full)' ($($s.Kind)), which the hook could not read, so it cannot rule out writes to src/ or tests/" }
+        if ((Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
+            Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files"
         }
     }
     exit 0

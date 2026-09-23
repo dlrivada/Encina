@@ -228,6 +228,16 @@ function ConvertTo-Msys([string]$Path) { '/' + $Path.Substring(0, 1).ToLowerInva
 $msysMain = ConvertTo-Msys $main
 $msysWt = ConvertTo-Msys $wt
 
+# Scripts for the `dotnet run <file>.cs` / `pwsh -File <file>.ps1` bypass cases (#1181): the hook reads these
+# files' own text, so their content (not the invoking command) is what the tests exercise.
+$scriptWritesSrc = Join-Path $work 'script-writes-src.cs'
+$scriptWritesDocs = Join-Path $work 'script-writes-docs.cs'
+$scriptWritesTestsPs1 = Join-Path $work 'script-writes-tests.ps1'
+$scriptMissing = Join-Path $work 'script-missing.cs'
+Set-Content $scriptWritesSrc 'File.WriteAllText("src/x.cs", "y");'
+Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
+Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
+
 # tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)[, environment overrides[, stdout regex]]]
 $warned = 'additionalContext'
 $writeCases = @(
@@ -287,6 +297,14 @@ $writeCases = @(
     @('PowerShell', @{ command = "[IO.File]::WriteAllText('$wt\src\x.cs', `$c)" }, $wt, 2, '[IO.File] write to a .cs in a worktree'),
     @('PowerShell', @{ command = "'x' | Out-File '$wt\Directory.Build.props'" }, $wt, 2, 'Out-File on a .props'),
     @('PowerShell', @{ command = "Get-ChildItem '$wt\src' -Filter *.cs | ForEach-Object { (Get-Content `$_.FullName -Raw) -replace 'a','b' | Set-Content `$_.FullName }" }, $wt, 2, '-replace loop over *.cs with a variable target'),
+
+    # M4: the `dotnet run <file>.cs` / `pwsh -File <file>.ps1` bypass (#1181).
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 2, 'dotnet run of a script that writes src/ from the main checkout'),
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $wt, 0, 'dotnet run of the same script from a worktree'),
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesDocs'" }, $main, 0, 'dotnet run of a script that writes docs/ only'),
+    @('PowerShell', @{ command = "dotnet run --file '$scriptWritesSrc'" }, $main, 2, 'dotnet run --file of a script that writes src/'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, 2, 'pwsh -File of a script that writes tests/'),
+    @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, 0, 'dotnet run of a script the hook cannot read: allowed for a worker'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
@@ -572,7 +590,14 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' '$wt\tests\data'" }, $main, $null, 2, 'main session: Expand-Archive positional into tests'),
     @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$wt\docs\data'" }, $main, $null, 0, 'main session: Expand-Archive into docs'),
     @('PowerShell', @{ command = "Start-Process dotnet -ArgumentList build -RedirectStandardOutput '$wt\src\out.txt'" }, $main, $null, 2, 'main session: Start-Process redirect into src'),
-    @('PowerShell', @{ command = "Start-Process dotnet -RedirectStandardError '$wt\artifacts\err.txt'" }, $main, $null, 0, 'main session: Start-Process redirect into artifacts')
+    @('PowerShell', @{ command = "Start-Process dotnet -RedirectStandardError '$wt\artifacts\err.txt'" }, $main, $null, 0, 'main session: Start-Process redirect into artifacts'),
+    # M4: the `dotnet run <file>.cs` / `pwsh -File <file>.ps1` bypass (#1181).
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, $null, 2, 'main session: dotnet run of a script that writes src/'),
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesDocs'" }, $main, $null, 0, 'main session: dotnet run of a script that writes docs/ only'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: pwsh -File of a script that writes tests/'),
+    @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, $null, 2, 'main session: dotnet run of a script the hook cannot read: denied'),
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 2, 'general-purpose subagent: dotnet run of a script that writes src/', 'general-purpose'),
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
@@ -587,7 +612,8 @@ $briefNamingGone = "Issue #1. Worktree $(Join-Path $gateMain '.claude\worktrees\
 $briefNamingEmpty = "Issue #1. Worktree $gateEmpty, branch feature."
 
 # agent (-Agent), committed files, uncommitted files, spawned subagent types, payload overrides, outcome
-# (block | allow | warn), label[, regex the block reason must match]
+# (block | allow | warn), label[, regex the block reason must match]. overrides.agent_type = '-' omits
+# agent_id/agent_type entirely, simulating a plain Stop input (hooks.md; see require-specialists.ps1).
 $gateCases = @(
     @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{}, 'block', 'production code without adversarial-reviewer', 'adversarial-reviewer'),
     @('issue-worker', @('src/Encina/X.cs'), @(), @('adversarial-reviewer'), @{}, 'allow', 'production code with adversarial-reviewer'),
@@ -607,6 +633,7 @@ $gateCases = @(
     @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain; brief = $briefNamingWorktree }, 'block', 'cwd is the main checkout: worktree from the brief', 'adversarial-reviewer'),
     @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain }, 'warn', 'cwd is the main checkout and the brief names no worktree'),
     @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ agent_type = 'mechanical-fixer' }, 'allow', 'hook inherited by another agent'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ agent_type = '-' }, 'allow', 'plain Stop input has no agent fields: not this agent stopping'),
     @('docs-writer', @('docs/en/guide.md'), @(), @(), @{}, 'block', 'docs-writer without docs-reviewer', 'docs-reviewer'),
     @('docs-writer', @('docs/en/guide.md'), @(), @('docs-reviewer', 'mechanical-fixer'), @{}, 'allow', 'docs-writer with docs-reviewer'),
     @('docs-writer', @('src/Encina/README.md'), @(), @(), @{}, 'block', 'package README without docs-reviewer', 'docs-reviewer'),
@@ -760,13 +787,19 @@ try {
             $brief = if ($overrides.brief) { $overrides.brief } else { 'Issue #1. Implement the brief.' }
             $toolName = if ($overrides.tool) { $overrides.tool } else { 'Agent' }
             if (-not $overrides.missing) { Write-Transcript $agentTranscript $spawns $brief $toolName $overrides.messages $overrides.toolOutput }
+            # agent_type = '-' simulates a plain Stop input (the main session stopping): per
+            # https://code.claude.com/docs/en/hooks.md, that input has no agent fields at all, unlike
+            # SubagentStop, which always carries agent_id/agent_type.
+            $noAgentFields = $overrides.agent_type -eq '-'
             $payload = [ordered]@{
-                hook_event_name  = 'SubagentStop'
+                hook_event_name  = $(if ($noAgentFields) { 'Stop' } else { 'SubagentStop' })
                 stop_hook_active = [bool]$overrides.stop_hook_active
-                agent_id         = 'g1agent'
-                agent_type       = $(if ($overrides.agent_type) { $overrides.agent_type } else { $hookAgent })
                 cwd              = $(if ($overrides.cwd) { $overrides.cwd } else { $gateWt })
                 transcript_path  = $sessionFile
+            }
+            if (-not $noAgentFields) {
+                $payload.agent_id = 'g1agent'
+                $payload.agent_type = $(if ($overrides.agent_type) { $overrides.agent_type } else { $hookAgent })
             }
             if (-not $overrides.derived) { $payload.agent_transcript_path = $agentTranscript }
             $pattern = switch ($outcome) {

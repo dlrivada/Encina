@@ -21,6 +21,10 @@
 # The caller is the hook input's agent_type when it has an allowlist (set for tool calls inside a subagent);
 # otherwise the -Agent argument of the command (the frontmatter's agent, or orchestrator in settings.json, so
 # an ungoverned subagent gets the orchestrator's list). A caller without an allowlist is not restricted.
+# agent_id/agent_type are present for a subagent's own tool call and absent for the main session's
+# (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md); an absent
+# agent_type falls back to -Agent below, which is how the main session's own PreToolUse Agent call (wired with
+# -Agent orchestrator in settings.json) is told apart from a subagent's.
 # Inspected: the `subagent_type` of the Agent tool call; missing or empty means the default `general-purpose`
 # agent. Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
 # (fail open).

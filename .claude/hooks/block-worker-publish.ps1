@@ -1,7 +1,9 @@
 # PreToolUse hook (Bash|PowerShell), scoped to the frontmatter of the writing and reviewing subagents
 # (issue-worker, mechanical-fixer, docs-writer, docs-reviewer): blocks publish-side git/gh actions. The
-# messages name the agent from the hook input's agent_type. The commands of a `pwsh -Command` / `bash -c`
-# wrapper are inspected too (_command-text.ps1).
+# messages name the agent from the hook input's agent_type, present for a subagent's own tool call
+# (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md); this hook only
+# runs scoped to one of these agents, so it is used solely to word the message, not to gate behaviour. The
+# commands of a `pwsh -Command` / `bash -c` wrapper are inspected too (_command-text.ps1).
 #
 # .claude/agents/issue-worker.md, Protocol: an issue-worker commits locally in its own worktree but never
 # pushes, never opens/edits/merges/comments on/reviews/closes/readies a pull request, never creates/edits/

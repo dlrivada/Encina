@@ -33,6 +33,11 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
     if ([string]$payload.tool_name -notin 'Write', 'Edit', 'MultiEdit', 'NotebookEdit') { exit 0 }
 
+    # agent_id/agent_type: present for a subagent's own tool call, absent for the main session's
+    # (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md). A missing
+    # $caller falls back to -Agent (this frontmatter hook's own agent); a different, non-empty $caller (a
+    # nested agent that inherited the hook) is a mismatch: that agent has its own hooks, so the call is let
+    # through here.
     $caller = [string]$payload.agent_type
     if ([string]::IsNullOrWhiteSpace($Agent)) { $Agent = $caller }
     elseif (-not [string]::IsNullOrWhiteSpace($caller) -and $caller -ne $Agent) { exit 0 }

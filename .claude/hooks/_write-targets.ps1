@@ -24,8 +24,16 @@
 # other than --staged alone) and, for `git apply` / `git am`, Patches (the patch files) and PatchUnresolved
 # (the patch comes from stdin or a path that cannot be resolved).
 #
-# Not seen: writes by programs that the analysis does not know (dotnet, scripts), Remove-Item / rm
-# (deletions), Rename-Item, and redirections attached to a word (x>f).
+# Not seen: writes by programs that the analysis does not know (dotnet, scripts other than the `dotnet run` /
+# `pwsh -File` case below), Remove-Item / rm (deletions), Rename-Item, and redirections attached to a word
+# (x>f).
+#
+# Scripts: `dotnet run <file>.cs` / `dotnet run --file <file>.cs` and `pwsh`/`powershell -File <file>.ps1`
+# name a script the statement's own write-target analysis cannot see into (#1181; ADR/hooks docs note this as
+# a bypass: `Get-WrappedCommand` in _command-text.ps1 does not read a `pwsh -File` script either). Each match
+# becomes a Scripts entry (Full, Raw, Kind); the caller reads the file's own text and decides, since only it
+# knows which path is guarded (src/tests for the orchestrator, the main checkout root for a worker) and how
+# to react when the path cannot be resolved or the file cannot be read.
 
 $script:ValueParameters = @(
     '-value', '-encoding', '-itemtype', '-type', '-name', '-stream', '-filter', '-include', '-exclude', '-width',
@@ -128,6 +136,21 @@ function Expand-KnownVariables([string]$Value, [bool]$Bash, [string]$Base) {
     return $out
 }
 
+# Whether a script's own source text writes files: the file-write APIs a `dotnet run <file>.cs` /
+# `pwsh -File <file>.ps1` script could use to bypass the shell-level write-target analysis (#1181).
+$script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replace)\s*\(|\b(New-Object\s+)?(System\.IO\.)?(Stream|File)Writer\b|\bnew\s+(System\.IO\.)?FileStream\s*\([^)]*FileAccess\.(Write|ReadWrite)|(?im)^\s*(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item)\b|\bNew-Item\b[^\r\n]*-Value\b|(?m)^[^#\r\n]*[^><]>>?(?!=|&)\S'
+
+# Whether a script's own source text mentions any of the given guarded-path tokens (case-insensitive literal
+# match; a crude but conservative signal, since the script is not tokenised the way a shell statement is).
+function Test-ScriptReferencesPath([string]$Text, [string[]]$Tokens) {
+    foreach ($t in $Tokens) { if ($Text.IndexOf($t, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+    return $false
+}
+
+function Test-ScriptHasWriteApi([string]$Text) {
+    return $Text -match $script:ScriptWriteApiPattern
+}
+
 # Absolute path of a target token, or $null when it cannot be computed.
 function Resolve-TargetPath($Token, [string]$Base, [bool]$Bash) {
     if ($null -eq $Token -or $Token.Subexpression) { return $null }
@@ -204,14 +227,16 @@ function Get-GitPathspecs($Tokens, [int]$From, [string]$Verb) {
 }
 
 # Returns Writes (Content, Target token, Base, Full, What, Directory), Git (Verb, Dir, Paths, Patches,
-# PatchUnresolved) and Mentions (Full, Explicit) of every path-like token, which the source-edit rule uses to
-# tell whether a command names repository files.
+# PatchUnresolved), Mentions (Full, Explicit) of every path-like token, which the source-edit rule uses to
+# tell whether a command names repository files, and Scripts (Full, Raw, Kind) for each `dotnet run <file>.cs`
+# / `pwsh -File <file>.ps1` invocation found.
 function Get-ShellWrites {
     param([string]$Command, [switch]$Bash, [string]$Cwd)
 
     $writes = [System.Collections.Generic.List[object]]::new()
     $git = [System.Collections.Generic.List[object]]::new()
     $mentions = [System.Collections.Generic.List[object]]::new()
+    $scripts = [System.Collections.Generic.List[object]]::new()
     $stack = [System.Collections.Generic.Stack[object]]::new()
     $current = $Cwd
 
@@ -289,6 +314,25 @@ function Get-ShellWrites {
             if ($name -in 'touch', 'tee') { foreach ($o in $operands) { Add-Write ($name -eq 'tee') $o $current $name $Bash } }
             elseif ($operands.Count -ge 2) { Add-Write $false $operands[-1] $current $name $Bash }
         }
+        elseif ($name -eq 'dotnet') {
+            $rest = @($tokens | Select-Object -Skip ($k + 1))
+            if ($rest.Count -gt 0 -and -not $rest[0].Quoted -and $rest[0].Value -ieq 'run') {
+                $fileToken = $null
+                for ($i = 1; $i -lt $rest.Count; $i++) {
+                    $t = $rest[$i]
+                    if (-not $t.Quoted -and $t.Value -eq '--') { break }
+                    if (-not $t.Quoted -and $t.Value -in '--file', '-f') { if ($i + 1 -lt $rest.Count) { $fileToken = $rest[$i + 1] }; break }
+                    if (-not $t.Quoted -and $t.Value.StartsWith('-')) { continue }
+                    if ($t.Value -match '\.cs$') { $fileToken = $t; break }
+                    break
+                }
+                if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'dotnet run' }) }
+            }
+        }
+        elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
+            $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file')
+            if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File' }) }
+        }
         elseif ($name -eq 'git') {
             $dir = $current
             $j = $k + 1
@@ -355,5 +399,5 @@ function Get-ShellWrites {
         }
     }
 
-    return [pscustomobject]@{ Writes = $writes; Git = $git; Mentions = $mentions; FinalDirectory = $current }
+    return [pscustomobject]@{ Writes = $writes; Git = $git; Mentions = $mentions; Scripts = $scripts; FinalDirectory = $current }
 }

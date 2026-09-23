@@ -14,6 +14,14 @@
 #      checkout. A target that depends on a variable or a subexpression cannot be resolved: the call is
 #      allowed, and when it runs from the main checkout the hook adds a warning to Claude's context
 #      (hookSpecificOutput.additionalContext) and to the user (systemMessage).
+#    - `dotnet run <file>.cs` / `pwsh`/`powershell -File <file>.ps1`: the hook reads the named script's own
+#      text and denies when it both references src/ or tests/ and contains a file-write API
+#      (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath) while the statement runs from
+#      the main checkout — the same #1159 vector (a relative path resolving against the process directory),
+#      reached through a launched script instead of an inline command. A script path the hook cannot resolve,
+#      or cannot read, is allowed for a worker (it already writes only in its own worktree by protocol; a
+#      false block on every unreadable script would cost more than it catches). This only partially closes the
+#      gap, since it is a text heuristic, not an execution of the script (#1181).
 #    When $CLAUDE_PROJECT_DIR is itself a worktree, the main checkout is the part before \.claude\worktrees\.
 #
 # 2. Edit tool only for source files. Repo files with a source extension ($SourceExtensions below) are never
@@ -93,6 +101,18 @@ try {
         if (Test-MainCheckout $g.Dir $layout) {
             [Console]::Error.WriteLine("Blocked: 'git $($g.Verb)' would change the main checkout ($($g.Dir)), not a worktree. Run it in your own worktree with 'git -C <worktree absolute path> $($g.Verb) ...' (see .claude/agents/issue-worker.md, Protocol; #1181).")
             exit 2
+        }
+    }
+
+    # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: a script path the hook cannot resolve or read is
+    # allowed for a worker (see the header comment); only a script the hook can read, that writes src/ or
+    # tests/, while the statement runs from the main checkout, is the #1159 vector this closes.
+    foreach ($s in $scan.Scripts) {
+        if ($null -eq $s.Full -or -not (Test-MainCheckout $cwd $layout)) { continue }
+        $text = $null
+        try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { continue }
+        if ((Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
+            Write-MainCheckoutBlock "'$($s.Kind)' of '$($s.Full)', which references src/ or tests/ and writes files, while this command" $cwd
         }
     }
 

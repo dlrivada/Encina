@@ -1,5 +1,7 @@
-# Stop hook in the frontmatter of issue-worker and docs-writer (Claude Code runs it as SubagentStop), with
-# -Agent <name>: before the agent stops, checks that it spawned the specialists its diff requires (#1181).
+# Stop hook in the frontmatter of issue-worker and docs-writer (Claude Code runs it as SubagentStop, and a
+# SubagentStop input always carries agent_id/agent_type: https://code.claude.com/docs/en/hooks.md,
+# https://code.claude.com/docs/en/sub-agents.md), with -Agent <name>: before the agent stops, checks that it
+# spawned the specialists its diff requires (#1181).
 #
 #   issue-worker  production code changed (src/** other than .md, docs/** site code and data, .github/scripts/**,
 #                 .claude/hooks/**) -> adversarial-reviewer (self-review, issue-worker.md Method step 2)
@@ -41,9 +43,14 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
     if ($payload.stop_hook_active -eq $true) { exit 0 }
 
+    # agent_id/agent_type: a SubagentStop input always carries both; a plain Stop input (the main session
+    # stopping) carries neither (https://code.claude.com/docs/en/hooks.md). Since -Agent names the specific
+    # subagent this frontmatter hook belongs to, an empty $caller (a plain Stop, or a field genuinely absent)
+    # is a mismatch just like a different agent_type is: neither is this agent's own stop, so the check is
+    # skipped rather than assumed to apply.
     $caller = [string]$payload.agent_type
     if ([string]::IsNullOrWhiteSpace($Agent)) { $Agent = $caller }
-    elseif (-not [string]::IsNullOrWhiteSpace($caller) -and $caller -ne $Agent) { exit 0 }
+    elseif ($caller -ne $Agent) { exit 0 }
     if ($Agent -notin 'issue-worker', 'docs-writer') { exit 0 }
 
     # 1. The agent's own transcript.
