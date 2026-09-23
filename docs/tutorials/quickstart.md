@@ -105,4 +105,4 @@ The first line is the success track from `Send(new Greet("World"))`. The second 
 
 ## Next steps
 
-Now that you can send one command, learn how validation and other cross-cutting concerns attach to that same pipeline in [Design Patterns Guide](../architecture/patterns-guide.md), which shows how `IPipelineBehavior<TRequest, TResponse>` wraps a handler like `GreetHandler` for logging and validation. There is no dedicated how-to guide for the validation pipeline yet; this is a documentation gap worth its own issue.
+Browse the [features overview](../features/index.md) to see the pipeline behaviours, messaging patterns and providers you can add next.
