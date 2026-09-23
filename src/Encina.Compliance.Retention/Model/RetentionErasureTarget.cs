@@ -6,11 +6,17 @@ namespace Encina.Compliance.Retention.Model;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A retention record is keyed by <see cref="EntityId"/> and <see cref="DataCategory"/>, so one entity can
+/// A retention record carries an <see cref="EntityId"/> and a <see cref="DataCategory"/>, so one entity can
 /// be tracked by several records with different retention periods (for example a patient's contact data
 /// kept for one year and their clinical record kept for five). When one of those records expires, only
 /// the data of that record's category may be erased; the data of the other categories is still within its
 /// retention period and must be left untouched.
+/// </para>
+/// <para>
+/// One entity can also have several records in the same category (one per tracking call, for example one
+/// per clinical episode). The enforcement service asks for the erasure only once none of them is still
+/// retained, so the target stands for all of them: the whole category for the entity, within
+/// <see cref="TenantId"/> and <see cref="ModuleId"/>.
 /// </para>
 /// <para>
 /// <see cref="EntityId"/> is the identifier of the tracked entity (the value captured by
@@ -47,6 +53,10 @@ public sealed record RetentionErasureTarget
     /// <summary>
     /// The tenant the record belongs to, or <c>null</c> when multi-tenancy is not used.
     /// </summary>
+    /// <remarks>
+    /// The eraser must scope the erasure to this tenant explicitly (the enforcement service has no ambient
+    /// tenant) and return <c>Left</c> when it cannot. See <see cref="Abstractions.IRetentionDataEraser"/>.
+    /// </remarks>
     public string? TenantId { get; init; }
 
     /// <summary>

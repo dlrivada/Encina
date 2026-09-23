@@ -350,6 +350,46 @@ public sealed class DefaultRetentionRecordServiceTests
         aggregate.Status.ShouldBe(RetentionStatus.Expired);
     }
 
+    [Fact]
+    public async Task ReleaseRecordAsync_RecordAlreadyReleased_ReturnsRight_WithoutWriting()
+    {
+        // The caller selected the record from a stale read model: the aggregate is no longer held.
+        var recordId = Guid.NewGuid();
+        var legalHoldId = Guid.NewGuid();
+        var now = _timeProvider.GetUtcNow();
+        var aggregate = RetentionRecordAggregate.Track(
+            recordId, "entity-released", "cat", Guid.NewGuid(),
+            TimeSpan.FromDays(30), now.AddDays(10), now.AddDays(-20));
+        aggregate.Hold(legalHoldId, now.AddDays(-5));
+        aggregate.Release(legalHoldId, now.AddDays(-1));
+        var eventsBefore = aggregate.UncommittedEvents.Count;
+        SetupLoadAndSave(recordId, aggregate);
+
+        var result = await _sut.ReleaseRecordAsync(recordId, legalHoldId);
+
+        result.IsRight.ShouldBeTrue();
+        aggregate.UncommittedEvents.Count.ShouldBe(eventsBefore);
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<RetentionRecordAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReleaseRecordAsync_RecordAlreadyDeleted_ReturnsRight_WithoutWriting()
+    {
+        var recordId = Guid.NewGuid();
+        var now = _timeProvider.GetUtcNow();
+        var aggregate = RetentionRecordAggregate.Track(
+            recordId, "entity-deleted", "cat", Guid.NewGuid(),
+            TimeSpan.FromDays(30), now.AddDays(-1), now.AddDays(-31));
+        aggregate.MarkExpired(now.AddHours(-2));
+        aggregate.MarkDeleted(now.AddHours(-1));
+        SetupLoadAndSave(recordId, aggregate);
+
+        var result = await _sut.ReleaseRecordAsync(recordId, Guid.NewGuid());
+
+        result.IsRight.ShouldBeTrue();
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<RetentionRecordAggregate>(), Arg.Any<CancellationToken>());
+    }
+
     private void SetupLoadAndSave(Guid recordId, RetentionRecordAggregate aggregate)
     {
         _repository

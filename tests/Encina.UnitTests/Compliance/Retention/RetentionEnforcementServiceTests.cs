@@ -28,6 +28,8 @@ public sealed class RetentionEnforcementServiceTests
     private const int TransitionFailedEventId = 8587;
     private const int ErasureFailedEventId = 8557;
     private const int DataEraserMissingEventId = 8519;
+    private const int ErasureDeferredEventId = 8591;
+    private const int SiblingCheckFailedEventId = 8592;
 
     private static readonly DateTimeOffset Now = new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
@@ -36,6 +38,13 @@ public sealed class RetentionEnforcementServiceTests
     private readonly IRetentionDataEraser _dataEraser = Substitute.For<IRetentionDataEraser>();
     private readonly FakeLogger<RetentionEnforcementService> _logger = new();
     private readonly FakeTimeProvider _timeProvider = new(Now);
+
+    public RetentionEnforcementServiceTests()
+    {
+        // By default an entity has no other record of the same category (the sibling lookup finds nothing).
+        _recordService.GetRecordsByEntityAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(System.Array.Empty<RetentionRecordReadModel>()));
+    }
 
     private IServiceScopeFactory CreateScopeFactory(bool withDataEraser = true, IEncina? encina = null)
     {
@@ -111,7 +120,27 @@ public sealed class RetentionEnforcementServiceTests
             int.Parse(completed.GetStructuredStateValue("RecordsUnderHold")!, System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    private int LastCycleDeferred() =>
+        int.Parse(
+            _logger.Collector.GetSnapshot().Last(r => r.Id.Id == CycleCompletedEventId).GetStructuredStateValue("RecordsDeferred")!,
+            System.Globalization.CultureInfo.InvariantCulture);
+
     private int LogCount(int eventId) => _logger.Collector.GetSnapshot().Count(r => r.Id.Id == eventId);
+
+    private void GivenEntityRecords(string entityId, params RetentionRecordReadModel[] records) =>
+        _recordService.GetRecordsByEntityAsync(entityId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(records));
+
+    private static RetentionRecordReadModel Episode(
+        string entityId, RetentionStatus status, DateTimeOffset expiresAtUtc, string? tenantId = "tenant-1") => new()
+    {
+        Id = Guid.NewGuid(),
+        EntityId = entityId,
+        DataCategory = "clinical-record",
+        ExpiresAtUtc = expiresAtUtc,
+        Status = status,
+        TenantId = tenantId
+    };
 
     // ========================================================================
     // Hosted-service behaviour
@@ -462,6 +491,184 @@ public sealed class RetentionEnforcementServiceTests
 
         await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
         await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    // ========================================================================
+    // Sibling records of the same entity and category (#1185 review)
+    // ========================================================================
+
+    [Fact]
+    public async Task Cycle_SiblingOfSameCategoryStillActive_DefersErasure_RecordStaysExpired()
+    {
+        // Episode 1 expired; episode 2 of the same patient and category is retained for years more.
+        var episode1 = Episode("patient-1", RetentionStatus.Active, Now.AddDays(-1));
+        var episode2 = Episode("patient-1", RetentionStatus.Active, Now.AddYears(3));
+        GivenExpiredRecords(episode1);
+        GivenEntityRecords("patient-1", episode1, episode2);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _recordService.Received(1).MarkExpiredAsync(episode1.Id, Arg.Any<CancellationToken>());
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 0, 0));
+        LastCycleDeferred().ShouldBe(1);
+        var deferred = _logger.Collector.GetSnapshot().Single(r => r.Id.Id == ErasureDeferredEventId);
+        deferred.GetStructuredStateValue("RetainedSiblings").ShouldBe("1");
+    }
+
+    [Fact]
+    public async Task Cycle_SiblingUnderLegalHold_DefersErasure()
+    {
+        // A sibling still shown under legal hold (for example a release that has not completed) keeps the
+        // category: fail closed.
+        var expired = Episode("patient-2", RetentionStatus.Expired, Now.AddDays(-10));
+        var held = Episode("patient-2", RetentionStatus.UnderLegalHold, Now.AddDays(-5));
+        GivenExpiredRecords(expired);
+        GivenEntityRecords("patient-2", expired, held);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleDeferred().ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Cycle_LastSiblingExpires_ErasesCategoryOnce_AndMarksEverySiblingDeleted(bool deferredEpisodeFirst)
+    {
+        // Episode 1 was deferred in an earlier cycle and is Expired; episode 2 has just expired.
+        var episode1 = Episode("patient-3", RetentionStatus.Expired, Now.AddYears(-3));
+        var episode2 = Episode("patient-3", RetentionStatus.Active, Now.AddDays(-1));
+        GivenExpiredRecords(deferredEpisodeFirst ? [episode1, episode2] : [episode2, episode1]);
+        GivenEntityRecords("patient-3", episode1, episode2);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.EntityId == "patient-3" && t.DataCategory == "clinical-record" && t.TenantId == "tenant-1"),
+            Arg.Any<CancellationToken>());
+        await _dataEraser.Received(1).EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkExpiredAsync(episode2.Id, Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkExpiredAsync(episode1.Id, Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(episode1.Id, Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(episode2.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((2, 0, 0));
+        LastCycleDeferred().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Cycle_SameCategoryRecordOfAnotherTenant_DoesNotDeferErasure()
+    {
+        var expired = Episode("patient-4", RetentionStatus.Active, Now.AddDays(-1), tenantId: "tenant-1");
+        var otherTenant = Episode("patient-4", RetentionStatus.Active, Now.AddYears(5), tenantId: "tenant-2");
+        GivenExpiredRecords(expired);
+        GivenEntityRecords("patient-4", expired, otherTenant);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.RecordId == expired.Id && t.TenantId == "tenant-1"),
+            Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(expired.Id, Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(otherTenant.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((1, 0, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_ActiveRecordOfAnotherCategory_DoesNotDeferErasure()
+    {
+        var contact = Episode("patient-5", RetentionStatus.Active, Now.AddDays(-1));
+        contact.DataCategory = "patient-contact";
+        var clinical = Episode("patient-5", RetentionStatus.Active, Now.AddYears(5));
+        GivenExpiredRecords(contact);
+        GivenEntityRecords("patient-5", contact, clinical);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(
+            Arg.Is<RetentionErasureTarget>(t => t.DataCategory == "patient-contact"),
+            Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(clinical.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((1, 0, 0));
+    }
+
+    [Fact]
+    public async Task Cycle_SiblingLookupReturnsLeft_FailsClosed_DoesNotErase()
+    {
+        var record = Episode("patient-6", RetentionStatus.Expired, Now.AddDays(-1));
+        GivenExpiredRecords(record);
+        _recordService.GetRecordsByEntityAsync("patient-6", Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(EncinaError.New("read model store down")));
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        await _recordService.DidNotReceive().MarkDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 1, 0));
+        LogCount(SiblingCheckFailedEventId).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cycle_SiblingLookupThrows_FailsClosed_DoesNotErase()
+    {
+        var record = Episode("patient-7", RetentionStatus.Expired, Now.AddDays(-1));
+        GivenExpiredRecords(record);
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _recordService.GetRecordsByEntityAsync("patient-7", Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<RetentionRecordReadModel>>>>(
+                _ => throw new InvalidOperationException("read model store down"));
+#pragma warning restore CA2012
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.DidNotReceive().EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((0, 1, 0));
+        LogCount(SiblingCheckFailedEventId).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cycle_SiblingCannotBeMarkedDeleted_RecordIsStillDeleted_SiblingIsNotCounted()
+    {
+        var episode1 = Episode("patient-8", RetentionStatus.Expired, Now.AddYears(-3));
+        var episode2 = Episode("patient-8", RetentionStatus.Expired, Now.AddDays(-1));
+        GivenExpiredRecords(episode2);
+        GivenEntityRecords("patient-8", episode1, episode2);
+        GivenNoHolds();
+        GivenTransitionsSucceed();
+        GivenErasureSucceeds();
+        _recordService.MarkDeletedAsync(episode1.Id, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaError.New("event store down")));
+
+        await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        await _dataEraser.Received(1).EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>());
+        await _recordService.Received(1).MarkDeletedAsync(episode2.Id, Arg.Any<CancellationToken>());
+        LastCycleCounts().ShouldBe((1, 0, 0));
+        LogCount(TransitionFailedEventId).ShouldBe(1);
     }
 
     // ========================================================================

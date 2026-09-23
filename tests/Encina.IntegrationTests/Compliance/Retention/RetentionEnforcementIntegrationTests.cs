@@ -92,11 +92,16 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
             _timeProvider);
 
     private static async Task<Guid> TrackAsync(
-        IServiceProvider provider, string entityId, TimeSpan retentionPeriod, string dataCategory = "enforcement-it")
+        IServiceProvider provider,
+        string entityId,
+        TimeSpan retentionPeriod,
+        string dataCategory = "enforcement-it",
+        string? tenantId = null)
     {
         using var scope = provider.CreateScope();
         var recordService = scope.ServiceProvider.GetRequiredService<IRetentionRecordService>();
-        var tracked = await recordService.TrackEntityAsync(entityId, dataCategory, Guid.NewGuid(), retentionPeriod);
+        var tracked = await recordService.TrackEntityAsync(
+            entityId, dataCategory, Guid.NewGuid(), retentionPeriod, tenantId: tenantId);
         return tracked.Match(id => id, error => throw new InvalidOperationException($"Track failed: {error.Message}"));
     }
 
@@ -254,6 +259,73 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Cycle_TwoEpisodesOfTheSameCategory_ErasesNothingUntilTheLastExpires_ThenErasesOnce()
+    {
+        // #1185 review: one patient, two clinical episodes tracked in the same category. Episode 1
+        // expires in year 5, episode 2 in year 8. Erasing the category in year 5 would destroy episode
+        // 2's data, which must be kept until year 8.
+        await using var provider = BuildServiceProvider();
+        var entityId = $"patient-{Guid.NewGuid():N}";
+        _dataEraser.Store(entityId, "clinical-record");
+        var episode1 = await TrackAsync(provider, entityId, TimeSpan.FromDays(5 * 365), "clinical-record", "clinic-1");
+        var episode2 = await TrackAsync(provider, entityId, TimeSpan.FromDays(8 * 365), "clinical-record", "clinic-1");
+        var sut = CreateEnforcementService(provider);
+
+        // Year 5: episode 1 expires but episode 2 still retains the category — nothing is erased,
+        // episode 1 stays Expired (no DataDeleted event), episode 2 stays Active.
+        _timeProvider.Advance(TimeSpan.FromDays(5 * 365 + 1));
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        _dataEraser.CallsFor(entityId).ShouldBe(0);
+        _dataEraser.Holds(entityId, "clinical-record").ShouldBeTrue();
+        (await LoadStatusAsync(provider, episode1)).ShouldBe((RetentionStatus.Expired, RetentionStatus.Expired));
+        (await LoadStatusAsync(provider, episode2)).ShouldBe((RetentionStatus.Active, RetentionStatus.Active));
+
+        // Year 6: still deferred.
+        _timeProvider.Advance(TimeSpan.FromDays(365));
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+        _dataEraser.CallsFor(entityId).ShouldBe(0);
+
+        // Year 8: episode 2 expires — the category is erased once and both records reach Deleted.
+        _timeProvider.Advance(TimeSpan.FromDays(2 * 365));
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        _dataEraser.CallsFor(entityId).ShouldBe(1);
+        _dataEraser.Holds(entityId, "clinical-record").ShouldBeFalse();
+        (await LoadStatusAsync(provider, episode1)).ShouldBe((RetentionStatus.Deleted, RetentionStatus.Deleted));
+        (await LoadStatusAsync(provider, episode2)).ShouldBe((RetentionStatus.Deleted, RetentionStatus.Deleted));
+
+        // Later cycles erase nothing more.
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+        _dataEraser.CallsFor(entityId).ShouldBe(1);
+
+        // The audit trail is honest: exactly one DataDeleted event per record, none before year 8.
+        await using var session = _fixture.Store!.LightweightSession();
+        (await session.Events.FetchStreamAsync(episode1)).Count(e => e.Data is DataDeleted).ShouldBe(1);
+        (await session.Events.FetchStreamAsync(episode2)).Count(e => e.Data is DataDeleted).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Cycle_SameEntityAndCategoryInAnotherTenant_DoesNotDeferErasure()
+    {
+        // Entity identifiers are only unique within a tenant: a retained record of another tenant does
+        // not hold back the erasure of this tenant's expired record.
+        await using var provider = BuildServiceProvider();
+        var entityId = $"patient-{Guid.NewGuid():N}";
+        var tenantA = await TrackAsync(provider, entityId, TimeSpan.FromDays(1), "clinical-record", "clinic-a");
+        var tenantB = await TrackAsync(provider, entityId, TimeSpan.FromDays(5 * 365), "clinical-record", "clinic-b");
+        var sut = CreateEnforcementService(provider);
+
+        _timeProvider.Advance(TimeSpan.FromDays(2));
+        await sut.ExecuteEnforcementCycleAsync(CancellationToken.None);
+
+        _dataEraser.CallsFor(entityId).ShouldBe(1);
+        _dataEraser.TenantsErasedFor(entityId).ShouldBe(["clinic-a"]);
+        (await LoadStatusAsync(provider, tenantA)).ShouldBe((RetentionStatus.Deleted, RetentionStatus.Deleted));
+        (await LoadStatusAsync(provider, tenantB)).ShouldBe((RetentionStatus.Active, RetentionStatus.Active));
+    }
+
+    [Fact]
     public async Task LiftHold_WhileAnotherHoldRemains_KeepsRecordHeld_UntilTheLastHoldIsLifted()
     {
         // #1161: lifting one of two holds must not release the entity's records.
@@ -297,6 +369,17 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
         await using var session = _fixture.Store!.LightweightSession();
         var holdEvents = await session.Events.FetchStreamAsync(holdId);
         holdEvents.Count(e => e.Data is LegalHoldLifted).ShouldBe(1);
+
+        // A release requested from a stale read model (the record is no longer held) succeeds without
+        // writing a second release event.
+        using (var scope = provider.CreateScope())
+        {
+            var recordService = scope.ServiceProvider.GetRequiredService<IRetentionRecordService>();
+            (await recordService.ReleaseRecordAsync(recordId, holdId)).IsRight.ShouldBeTrue();
+        }
+
+        var recordEvents = await session.Events.FetchStreamAsync(recordId);
+        recordEvents.Count(e => e.Data is RetentionRecordReleased released && released.LegalHoldId == holdId).ShouldBe(1);
     }
 
     /// <summary>
@@ -309,6 +392,10 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
         private readonly ConcurrentDictionary<string, bool> _failNext = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<(string EntityId, string DataCategory), bool> _data = new();
         private readonly ConcurrentQueue<(string EntityId, string DataCategory)> _erased = new();
+        private readonly ConcurrentQueue<(string EntityId, string? TenantId)> _erasedTenants = new();
+
+        public string?[] TenantsErasedFor(string entityId) =>
+            [.. _erasedTenants.Where(e => e.EntityId == entityId).Select(e => e.TenantId)];
 
         public int CallsFor(string entityId) => _calls.TryGetValue(entityId, out var count) ? count : 0;
 
@@ -335,6 +422,7 @@ public sealed class RetentionEnforcementIntegrationTests : IAsyncLifetime
 
             _data.TryRemove((target.EntityId, target.DataCategory), out _);
             _erased.Enqueue((target.EntityId, target.DataCategory));
+            _erasedTenants.Enqueue((target.EntityId, target.TenantId));
             return ValueTask.FromResult(Right<EncinaError, Unit>(unit));
         }
     }

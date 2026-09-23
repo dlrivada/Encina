@@ -109,7 +109,14 @@ public interface ILegalHoldService
     /// <para>
     /// Calling this method again for a hold that is already lifted does not lift it twice: it retries the
     /// release of the entity's records that are still held and returns <c>Right</c> once they are all
-    /// released.
+    /// released. A record that an earlier call already released (even if a stale read model still lists it as
+    /// held) counts as released. Every released record's <c>RetentionRecordReleased</c> event carries
+    /// <paramref name="holdId"/>.
+    /// </para>
+    /// <para>
+    /// <paramref name="releasedByUserId"/> is required on every call, including retries: an empty or
+    /// whitespace value returns a <see cref="RetentionErrors.InvalidParameterCode"/> error and nothing is
+    /// lifted or released.
     /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> LiftHoldAsync(

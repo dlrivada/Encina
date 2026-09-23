@@ -183,7 +183,6 @@ var expiring = await enforcer.GetExpiringDataAsync(TimeSpan.FromDays(30), cancel
 | `retention.record_already_exists` | A retention record already exists for the entity |
 | `retention.hold_not_found` | No legal hold found with the given identifier |
 | `retention.hold_already_active` | An active legal hold already exists for the entity |
-| `retention.hold_already_released` | The legal hold has already been released |
 | `retention.enforcement_failed` | The retention enforcement cycle failed |
 | `retention.deletion_failed` | Data deletion failed during enforcement |
 | `retention.store_error` | Retention persistence store operation failed |
@@ -259,17 +258,16 @@ services.AddEncinaRetention(options =>
 
 The health check (`encina-retention`) verifies:
 - `RetentionOptions` are configured
-- `IRetentionRecordStore` is resolvable
-- `IRetentionPolicyStore` is resolvable
-- `IRetentionEnforcer` is resolvable
-- `ILegalHoldStore` is resolvable (optional, Degraded if missing)
-- `IRetentionAuditStore` is resolvable when `TrackAuditTrail` is enabled
+- `IRetentionRecordService` is resolvable
+- `IRetentionPolicyService` is resolvable
+- `ILegalHoldService` is resolvable (optional, Degraded if missing)
+- An `IRetentionDataEraser` is registered when `EnableAutomaticEnforcement` is on (Degraded if missing, because expired data would never be erased)
 
 Tags: `encina`, `gdpr`, `retention`, `compliance`, `ready`
 
 ## Erasing Expired Data
 
-A retention record is keyed by an entity and a data category, so one entity can have several records with different periods (for example a patient's contact data kept for one year and the clinical record kept for five). When a record expires, `RetentionEnforcementService` calls `IRetentionDataEraser.EraseAsync` with a `RetentionErasureTarget` (record id, entity id, data category, expiry, tenant and module) and marks the record `Deleted` only after it returns `Right`. The eraser must erase that category of data for that entity and nothing else; the entity's other categories are still within their own periods. The application implements it, because only the application knows where each category of data lives:
+Each retention record carries an entity and a data category, so one entity can have several records with different periods (for example a patient's contact data kept for one year and the clinical record kept for five). When a record expires, `RetentionEnforcementService` calls `IRetentionDataEraser.EraseAsync` with a `RetentionErasureTarget` (record id, entity id, data category, expiry, tenant and module) and marks the record `Deleted` only after it returns `Right`. The eraser must erase that category of data for that entity and nothing else; the entity's other categories are still within their own periods. The application implements it, because only the application knows where each category of data lives:
 
 ```csharp
 public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
@@ -298,6 +296,10 @@ services.AddScoped<IRetentionDataEraser, PatientDataEraser>();
 
 Return `Left` when any of the data could not be erased: the record stays `Expired` and the next cycle retries it, so the eraser must be idempotent.
 
+Scope the erasure by `target.TenantId` (and `target.ModuleId` when modules are isolated): the enforcement service runs in a background scope with no ambient tenant, so tenant query filters do not apply on their own. Return `Left`, never `Right`, when the tenant scope cannot be established. `RetentionValidationPipelineBehavior` records the request's tenant and module on each record.
+
+One entity can also have several records in the same category (one per tracking call, for example one per clinical episode). While another record of the same entity, category, tenant and module is still retained (`Active` within its period, or `UnderLegalHold`), an expired record stays `Expired` and nothing is erased (EventId 8591); when the last one expires, the category is erased once and all of them are marked `Deleted`.
+
 If no `IRetentionDataEraser` is registered, the enforcer erases nothing and never marks a record deleted: expired records stay `Expired`, are counted as failed and a warning (EventId 8519) is logged once per enforcement cycle.
 
 ### Why not the data subject rights erasure executor
@@ -310,7 +312,9 @@ If no `IRetentionDataEraser` is registered, the enforcer erases nothing and neve
 
 - If whether another hold remains cannot be determined, no record is released (fail closed) and the call returns `retention.hold_release_incomplete` (EventId 8589).
 - If some records cannot be released, the others still are; the call returns `retention.hold_release_incomplete` with the failed record ids in the error details under `failedRecordIds` (EventId 8588 per record).
-- Calling `LiftHoldAsync` again for the same hold does not lift it twice: it retries the release of the records still held (EventId 8590) and returns `Right` once they are all released.
+- Calling `LiftHoldAsync` again for the same hold does not lift it twice: it retries the release of the records still held (EventId 8590, with the id of the user who retried) and returns `Right` once they are all released.
+- A record already released counts as released even if a stale read model still lists it as held (`ReleaseRecordAsync` is idempotent, EventId 8593).
+- An empty `releasedByUserId` is rejected with `retention.invalid_parameter` on every call, retries included.
 
 Records that are not released stay `UnderLegalHold`, so the enforcement cycle never erases them.
 

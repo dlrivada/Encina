@@ -127,8 +127,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8512,
         Level = LogLevel.Information,
-        Message = "Retention enforcement cycle completed. RecordsDeleted={RecordsDeleted}, RecordsFailed={RecordsFailed}, RecordsUnderHold={RecordsUnderHold}")]
-    internal static partial void RetentionEnforcementCycleCompleted(this ILogger logger, int recordsDeleted, int recordsFailed, int recordsUnderHold);
+        Message = "Retention enforcement cycle completed. RecordsDeleted={RecordsDeleted}, RecordsFailed={RecordsFailed}, RecordsUnderHold={RecordsUnderHold}, RecordsDeferred={RecordsDeferred}")]
+    internal static partial void RetentionEnforcementCycleCompleted(this ILogger logger, int recordsDeleted, int recordsFailed, int recordsUnderHold, int recordsDeferred);
 
     /// <summary>Retention enforcement cycle failed.</summary>
     [LoggerMessage(
@@ -603,11 +603,46 @@ internal static partial class RetentionLogMessages
 
     /// <summary>
     /// <c>LiftHoldAsync</c> was called for a hold that is already lifted — only the release of the entity's
-    /// held records is retried.
+    /// held records is retried. The user id records who retried (an identifier only, no other personal data).
     /// </summary>
     [LoggerMessage(
         EventId = 8590,
         Level = LogLevel.Information,
-        Message = "Legal hold already lifted; retrying the release of the entity's held retention records. HoldId={HoldId}, EntityId={EntityId}")]
-    internal static partial void LegalHoldReleaseRetried(this ILogger logger, Guid holdId, string entityId);
+        Message = "Legal hold already lifted; retrying the release of the entity's held retention records. HoldId={HoldId}, EntityId={EntityId}, RetriedByUserId={RetriedByUserId}")]
+    internal static partial void LegalHoldReleaseRetried(this ILogger logger, Guid holdId, string entityId, string retriedByUserId);
+
+    // ========================================================================
+    // Sibling records of the same category (8591-8593)
+    // ========================================================================
+
+    /// <summary>
+    /// An expired record was not erased because another record of the same entity, data category, tenant and
+    /// module is still retained (active or under legal hold). The record stays <c>Expired</c> and is erased,
+    /// together with its siblings, when the last of them expires.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8591,
+        Level = LogLevel.Information,
+        Message = "Retention erasure deferred: other records of the same entity and data category are still retained. RecordId={RecordId}, EntityId={EntityId}, DataCategory={DataCategory}, RetainedSiblings={RetainedSiblings}")]
+    internal static partial void RetentionErasureDeferred(this ILogger logger, Guid recordId, string entityId, string dataCategory, int retainedSiblings);
+
+    /// <summary>
+    /// The sibling records of an expired record could not be read — nothing is erased (fail closed) and the
+    /// record is retried on the next cycle.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8592,
+        Level = LogLevel.Warning,
+        Message = "Sibling retention records could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
+    internal static partial void RetentionSiblingCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorMessage);
+
+    /// <summary>
+    /// <c>ReleaseRecordAsync</c> found the record no longer under legal hold (an earlier release completed or the
+    /// read model that selected it was stale) — the release is treated as already done.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8593,
+        Level = LogLevel.Debug,
+        Message = "Retention record is not under legal hold; release already done. RecordId={RecordId}, Status={Status}")]
+    internal static partial void RetentionRecordAlreadyReleased(this ILogger logger, Guid recordId, Model.RetentionStatus status);
 }

@@ -224,6 +224,70 @@ public class RetentionValidationPipelineBehaviorContractTests
 
     #endregion
 
+    #region Tenant And Module Scope
+
+    /// <summary>
+    /// Contract: the tracked record carries the tenant and module of the request, because the
+    /// enforcement service later erases in a background scope with no ambient tenant.
+    /// </summary>
+    [Fact]
+    public async Task Handle_TracksRecordWithTheRequestTenantAndModule()
+    {
+        var options = new RetentionOptions { EnforcementMode = RetentionEnforcementMode.Block };
+        var sut = CreateBehavior<DecoratedCommand, DecoratedResponse>(options);
+        var context = Substitute.For<IRequestContext>();
+        context.TenantId.Returns("tenant-a");
+        context.Metadata.Returns(new Dictionary<string, object?> { ["Encina.ModuleName"] = "clinical" });
+
+        _recordService.TrackEntityAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Guid>(Guid.NewGuid()));
+
+        var result = await sut.Handle(
+            new DecoratedCommand(),
+            context,
+            () => new ValueTask<Either<EncinaError, DecoratedResponse>>(
+                Right<EncinaError, DecoratedResponse>(new DecoratedResponse { Id = "patient-1" })),
+            CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        await _recordService.Received(1).TrackEntityAsync(
+            "patient-1", "test-category", Guid.Empty, TimeSpan.FromDays(365),
+            "tenant-a", "clinical", Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Contract: without a tenant or module in the request context, the record is tracked unscoped.
+    /// </summary>
+    [Fact]
+    public async Task Handle_NoTenantOrModuleInContext_TracksUnscopedRecord()
+    {
+        var options = new RetentionOptions { EnforcementMode = RetentionEnforcementMode.Block };
+        var sut = CreateBehavior<DecoratedCommand, DecoratedResponse>(options);
+        var context = Substitute.For<IRequestContext>();
+        context.TenantId.Returns((string?)null);
+        context.Metadata.Returns(new Dictionary<string, object?>());
+
+        _recordService.TrackEntityAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<TimeSpan>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Guid>(Guid.NewGuid()));
+
+        await sut.Handle(
+            new DecoratedCommand(),
+            context,
+            () => new ValueTask<Either<EncinaError, DecoratedResponse>>(
+                Right<EncinaError, DecoratedResponse>(new DecoratedResponse { Id = "patient-2" })),
+            CancellationToken.None);
+
+        await _recordService.Received(1).TrackEntityAsync(
+            "patient-2", "test-category", Guid.Empty, TimeSpan.FromDays(365),
+            null, null, Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
     #region Warn Mode With Exception
 
     /// <summary>

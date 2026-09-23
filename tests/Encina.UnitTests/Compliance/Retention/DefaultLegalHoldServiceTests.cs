@@ -323,6 +323,53 @@ public sealed class DefaultLegalHoldServiceTests
         await _retentionRecordService.Received(1).ReleaseRecordAsync(stillHeld.Id, holdId, Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task LiftHoldAsync_MissingReleasedByUserId_ReturnsInvalidParameter_LiftsAndReleasesNothing(string? releasedByUserId)
+    {
+        var holdId = Guid.NewGuid();
+        GivenHoldLoads(CreateLiftedHoldAggregate(holdId, "customer-42"));
+        GivenNoOtherActiveHolds();
+        GivenHeldRecords(CreateRecordReadModel(Guid.NewGuid(), "customer-42"));
+        GivenReleaseSucceeds();
+
+        var result = await _sut.LiftHoldAsync(holdId, releasedByUserId!);
+
+        result.Match(_ => string.Empty, e => e.GetCode().Match(c => c, () => string.Empty))
+            .ShouldBe(RetentionErrors.InvalidParameterCode);
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<LegalHoldAggregate>(), Arg.Any<CancellationToken>());
+        await _retentionRecordService.DidNotReceive()
+            .ReleaseRecordAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LiftHoldAsync_AlreadyLifted_LogsTheRetryingUser_AndReleasesWithTheLiftedHoldId()
+    {
+        var holdId = Guid.NewGuid();
+        var stillHeld = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        GivenHoldLoads(CreateLiftedHoldAggregate(holdId, "customer-42"));
+        GivenNoOtherActiveHolds();
+        GivenHeldRecords(stillHeld);
+        GivenReleaseSucceeds();
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<DefaultLegalHoldService>();
+        var sut = new DefaultLegalHoldService(
+            _repository, _readModelRepository, _recordReadModelRepository, _retentionRecordService,
+            _cache, _timeProvider, logger);
+
+        var result = await sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-2");
+
+        result.IsRight.ShouldBeTrue();
+        var retried = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 8590);
+        retried.GetStructuredStateValue("RetriedByUserId").ShouldBe("legal-counsel-2");
+        retried.GetStructuredStateValue("HoldId").ShouldBe(holdId.ToString());
+        await _retentionRecordService.Received(1).ReleaseRecordAsync(stillHeld.Id, holdId, Arg.Any<CancellationToken>());
+        await _retentionRecordService.DidNotReceive()
+            .ReleaseRecordAsync(Arg.Any<Guid>(), Arg.Is<Guid>(id => id != holdId), Arg.Any<CancellationToken>());
+    }
+
     // ------------------------------------------------------------------------
     // Release failures (#1161)
     // ------------------------------------------------------------------------
@@ -338,9 +385,11 @@ public sealed class DefaultLegalHoldServiceTests
         GivenNoOtherActiveHolds();
         GivenHeldRecords(released, failing);
         GivenReleaseSucceeds();
+        // A genuine failure (a record already released is not one: ReleaseRecordAsync is idempotent and
+        // returns Right for it, see DefaultRetentionRecordServiceTests).
         _retentionRecordService
             .ReleaseRecordAsync(failing.Id, holdId, Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Unit>(RetentionErrors.InvalidStateTransition(failing.Id, "Release")));
+            .Returns(Left<EncinaError, Unit>(EncinaError.New("event store down")));
 
         var result = await _sut.LiftHoldAsync(holdId, releasedByUserId: "legal-counsel-1");
 

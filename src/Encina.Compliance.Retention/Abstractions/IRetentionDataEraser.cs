@@ -10,9 +10,9 @@ namespace Encina.Compliance.Retention.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="RetentionEnforcementService"/> calls this port once per expired record that is not under a
-/// legal hold, and marks the record <see cref="RetentionStatus.Deleted"/> only after it returns
-/// <c>Right</c>. The application implements it because only the application knows where the data of a
+/// <see cref="RetentionEnforcementService"/> calls this port for an expired record that is not under a
+/// legal hold and whose category is no longer retained by another record of the same entity (see below), and
+/// marks the record <see cref="RetentionStatus.Deleted"/> only after it returns <c>Right</c>. The application implements it because only the application knows where the data of a
 /// retention category lives and how it must be removed (row deletion, field nullification,
 /// anonymization, crypto-shredding, a call to another service).
 /// </para>
@@ -26,7 +26,22 @@ namespace Encina.Compliance.Retention.Abstractions;
 /// stays <see cref="RetentionStatus.Expired"/> and is retried on the next enforcement cycle.</description></item>
 /// <item><description>Be idempotent: a retry may ask again for data that an earlier call already erased
 /// (for example when marking the record deleted failed after a successful erasure).</description></item>
+/// <item><description>Scope the erasure by <see cref="RetentionErasureTarget.TenantId"/> (and by
+/// <see cref="RetentionErasureTarget.ModuleId"/> when the application isolates modules). The enforcement
+/// service runs in a background scope with no ambient tenant, so tenant query filters, a tenant-resolved
+/// connection or <c>ITenantContext</c> do not apply by themselves: the implementation must establish the
+/// target's tenant scope explicitly. Entity identifiers are only unique within a tenant.</description></item>
+/// <item><description>Return <c>Left</c>, never <c>Right</c>, when it cannot establish that tenant scope (for
+/// example the tenant is unknown or its store cannot be resolved), so that nothing is erased in the wrong
+/// tenant and the record is retried.</description></item>
 /// </list>
+/// </para>
+/// <para>
+/// An entity can have several retention records in the same category (one per tracking call, for example one
+/// per clinical episode). The enforcement service calls this port only when no other record of the same
+/// entity, category, tenant and module is still retained, calls it once, and marks all those records deleted
+/// together; until then the expired records stay <see cref="RetentionStatus.Expired"/>. So one call erases the
+/// whole category for the entity, and implementations do not need to track individual records.
 /// </para>
 /// <para>
 /// Retention records are keyed by entity and retention category, which is why this port exists instead of
@@ -47,17 +62,26 @@ namespace Encina.Compliance.Retention.Abstractions;
 ///     public async ValueTask&lt;Either&lt;EncinaError, Unit&gt;&gt; EraseAsync(
 ///         RetentionErasureTarget target, CancellationToken cancellationToken = default)
 ///     {
+///         // A multi-tenant application: there is no ambient tenant in the background enforcement
+///         // scope, so scope every statement to target.TenantId, or refuse when it is missing.
+///         if (string.IsNullOrEmpty(target.TenantId))
+///         {
+///             return EncinaError.New($"Retention record '{target.RecordId}' has no tenant; refusing to erase.");
+///         }
+///
 ///         switch (target.DataCategory)
 ///         {
 ///             case "patient-contact":
 ///                 await db.PatientContacts
-///                     .Where(c =&gt; c.PatientId == target.EntityId)
+///                     .IgnoreQueryFilters()
+///                     .Where(c =&gt; c.TenantId == target.TenantId &amp;&amp; c.PatientId == target.EntityId)
 ///                     .ExecuteDeleteAsync(cancellationToken);
 ///                 return Unit.Default;
 ///
 ///             case "clinical-record":
 ///                 await db.ClinicalNotes
-///                     .Where(n =&gt; n.PatientId == target.EntityId)
+///                     .IgnoreQueryFilters()
+///                     .Where(n =&gt; n.TenantId == target.TenantId &amp;&amp; n.PatientId == target.EntityId)
 ///                     .ExecuteDeleteAsync(cancellationToken);
 ///                 return Unit.Default;
 ///

@@ -215,6 +215,14 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
                 {
+                    // Idempotent: the aggregate (not a possibly stale read model) says the record is no
+                    // longer held, so an earlier release completed. Nothing to do.
+                    if (aggregate.Status != RetentionStatus.UnderLegalHold)
+                    {
+                        _logger.RetentionRecordAlreadyReleased(recordId, aggregate.Status);
+                        return Unit.Default;
+                    }
+
                     var occurredAtUtc = _timeProvider.GetUtcNow();
                     aggregate.Release(legalHoldId, occurredAtUtc);
                     var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);

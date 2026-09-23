@@ -135,6 +135,14 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
     {
         _logger.LogDebug("Lifting legal hold '{HoldId}'", holdId);
 
+        // Validated before anything else, including on a retry of an already lifted hold, so that every
+        // lift and every retried release is attributable to a user.
+        if (string.IsNullOrWhiteSpace(releasedByUserId))
+        {
+            return RetentionErrors.InvalidParameter(
+                nameof(releasedByUserId), "The user lifting a legal hold must be identified.");
+        }
+
         try
         {
             var loadResult = await _repository.LoadAsync(holdId, cancellationToken);
@@ -164,11 +172,13 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
             else
             {
                 // The hold was lifted by an earlier call whose record release did not complete:
-                // lifting it again only retries the release of the records still held.
-                _logger.LegalHoldReleaseRetried(holdId, aggregate.EntityId);
+                // lifting it again only retries the release of the records still held. The hold's own
+                // LegalHoldLifted event keeps the user who lifted it; the retry is attributed in the log.
+                _logger.LegalHoldReleaseRetried(holdId, aggregate.EntityId, releasedByUserId);
             }
 
             // Cross-aggregate coordination: release the entity's records if no other active hold remains.
+            // Each RetentionRecordReleased event carries holdId, the hold being lifted.
             // Any failure is returned, never swallowed, so that the caller can retry.
             return await ReleaseRecordsAsync(aggregate.EntityId, holdId, cancellationToken);
         }
@@ -359,6 +369,11 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
     /// Every record is attempted even when an earlier one fails. The records that could not be released
     /// stay <c>UnderLegalHold</c> (so they are not erased) and are listed in the returned
     /// <see cref="RetentionErrors.HoldReleaseIncompleteCode"/> error; lifting the same hold again retries them.
+    /// </para>
+    /// <para>
+    /// A record that the read model still shows as held but whose aggregate was already released (projection
+    /// lag, or a release that completed after the read) counts as released:
+    /// <see cref="IRetentionRecordService.ReleaseRecordAsync"/> is idempotent.
     /// </para>
     /// </remarks>
     private async ValueTask<Either<EncinaError, Unit>> ReleaseRecordsAsync(
