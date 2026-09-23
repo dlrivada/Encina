@@ -107,6 +107,11 @@ $cases = @(
     @($attribution, 'PowerShell', "git commit -m `"fix: x`" # $trailer", 0, 'trailer only in a PowerShell comment'),
     @($attribution, 'PowerShell', "git commit -m `"fix: x #1`" -m `"$trailer`"", 2, '# inside a quoted message is not a comment'),
     @($attribution, 'Bash', "git commit -m `"`$(cat <<'EOF'`nfix: x`n# heading`n`n$trailer`nEOF`n)`"", 2, '# line inside a heredoc is not a comment'),
+    # M2: shell wrappers; m8: Bash ANSI-C strings.
+    @($attribution, 'PowerShell', "pwsh -NoProfile -Command `"git commit -m 'fix: x' -m '$trailer'`"", 2, 'commit inside pwsh -Command'),
+    @($attribution, 'Bash', "bash -c `"git commit -m 'fix: x' -m '$trailer'`"", 2, 'commit inside bash -c'),
+    @($attribution, 'Bash', "git commit -m `$'fix: x\n\n$trailer'", 2, 'trailer in a Bash ANSI-C message'),
+    @($attribution, 'Bash', "git commit -m `$'fix: it\'s done\n\nPlain body.'", 0, 'clean Bash ANSI-C message with an escaped quote'),
 
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md', 0, 'DEBT complete'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-missing.md', 2, 'DEBT missing Root Cause'),
@@ -141,6 +146,7 @@ $cases = @(
     @($issue, 'PowerShell', "gh iss``ue create --title `"No prefix`" --body-file debt-ok.md", 2, 'backtick-escaped verb'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-infostring.md', 0, 'backtick in fence info string is not a fence'),
     @($issue, 'PowerShell', 'not json', 0, 'malformed payload'),
+    @($issue, 'PowerShell', "pwsh -c `"gh issue create --title 'No prefix' --body-file debt-ok.md`"", 2, 'issue create inside pwsh -c'),
 
     @($publish, 'PowerShell', 'git push', 2, 'git push'),
     @($publish, 'PowerShell', 'git -C dir push origin x', 2, 'git -C dir push'),
@@ -164,7 +170,11 @@ $cases = @(
     @($publish, 'PowerShell', 'gh api -X GET repos/o/r/pulls -f state=open', 0, 'gh api explicit GET with fields is allowed'),
     @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed'),
     @($publish, 'PowerShell', 'git clone https://github.com/dlrivada/Encina.git C:\temp\x', 0, 'git clone is allowed'),
-    @($publish, 'PowerShell', 'git -C D:\x clone ../repo target', 0, 'git -C dir clone is allowed')
+    @($publish, 'PowerShell', 'git -C D:\x clone ../repo target', 0, 'git -C dir clone is allowed'),
+    @($publish, 'PowerShell', 'pwsh -NoProfile -Command "git push origin x"', 2, 'git push inside pwsh -Command'),
+    @($publish, 'PowerShell', 'powershell -c "git -C x push"', 2, 'git push inside powershell -c'),
+    @($publish, 'Bash', "bash -lc 'git push'", 2, 'git push inside bash -lc'),
+    @($publish, 'PowerShell', 'pwsh -Command "git status"', 0, 'git status inside pwsh -Command is allowed')
 )
 
 # -Agent argument, payload agent_type, subagent_type, expected, label
@@ -193,7 +203,21 @@ $spawnCases = @(
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
-    @('pr-watcher', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted')
+    @('pr-watcher', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted'),
+    # M1: the orchestrator's allowlist (settings.json, -Agent orchestrator).
+    @('orchestrator', $null, 'issue-worker', 0, 'orchestrator: issue-worker is allowed'),
+    @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
+    @('orchestrator', $null, 'pr-watcher', 0, 'orchestrator: pr-watcher is allowed'),
+    @('orchestrator', $null, 'Plan', 0, 'orchestrator: Plan is allowed'),
+    @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
+    @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
+    @('orchestrator', $null, $null, 0, 'orchestrator: missing subagent_type is general-purpose, allowed'),
+    @('orchestrator', $null, 'claude', 2, 'orchestrator: claude is blocked'),
+    @('orchestrator', $null, 'statusline-setup', 2, 'orchestrator: statusline-setup is blocked'),
+    @('orchestrator', $null, 'searchfit-seo:seo-auditor:AGENT', 2, 'orchestrator: plugin agent is blocked'),
+    @('orchestrator', 'general-purpose', 'claude', 2, 'ungoverned subagent gets the orchestrator allowlist'),
+    @('orchestrator', 'general-purpose', 'Explore', 0, 'ungoverned subagent: Explore is allowed'),
+    @('orchestrator', 'issue-worker', 'general-purpose', 2, 'project hook in an issue-worker applies its own allowlist')
 )
 
 # block-main-checkout-writes.ps1 runs against a fake project: $main is the main checkout, $wt a worktree.
@@ -323,7 +347,27 @@ $writeCases = @(
     @('PowerShell', @{ command = 'Set-Content $p x' }, $wt, 0, 'variable target from a worktree does not warn', $null, $null, '^$'),
 
     # A7: hashtable keys are not commands (see also $commandCases).
-    @('PowerShell', @{ command = "@{ head = 'x'; tail = 'y' } | ConvertTo-Json" }, $main, 0, 'hashtable keys')
+    @('PowerShell', @{ command = "@{ head = 'x'; tail = 'y' } | ConvertTo-Json" }, $main, 0, 'hashtable keys'),
+
+    # M2: the command of a pwsh / powershell / bash wrapper is analysed in its own shell.
+    @('PowerShell', @{ command = "pwsh -Command `"(Get-Content $wt\src\a.cs) -replace 'a','b' | Set-Content $wt\src\a.cs`"" }, $wt, 2, '#1159 vector inside pwsh -Command'),
+    @('Bash', @{ command = "pwsh -Command `"(Get-Content $msysWt/src/a.cs) -replace 'a','b' | Set-Content $msysWt/src/a.cs`"" }, $wt, 2, '#1159 vector inside pwsh -Command from Bash'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -ExecutionPolicy Bypass -c `"Set-Content '$wt\docs\x.md' y`"" }, $wt, 2, 'pwsh -c after options that take values'),
+    @('PowerShell', @{ command = 'powershell -NoProfile -Command "Set-Content notes.log x"' }, $main, 2, 'powershell -Command writes to the main checkout'),
+    @('PowerShell', @{ command = 'powershell "Set-Content notes.log x"' }, $main, 2, 'powershell positional command writes to the main checkout'),
+    @('PowerShell', @{ command = 'pwsh -co "git commit -m x"' }, $main, 2, 'git commit inside pwsh -co (prefix of -Command)'),
+    @('PowerShell', @{ command = "Set-Location '$wt'; pwsh -c `"Set-Content notes.log x`"" }, $main, 0, 'directory change before the wrapper applies to it'),
+    @('PowerShell', @{ command = 'pwsh -NoProfile -File tools\x.ps1' }, $main, 0, 'pwsh -File is a script, not a command'),
+    @('Bash', @{ command = "bash -lc 'echo x > notes.log'" }, $main, 2, 'bash -lc redirection into the main checkout'),
+    @('PowerShell', @{ command = "sh -c 'cp /c/tmp/a.txt notes.txt'" }, $main, 2, 'sh -c cp from the PowerShell tool'),
+    # m8: Bash ANSI-C strings.
+    @('Bash', @{ command = "echo x > `$'$msysWt/src/x.cs'" }, $wt, 2, 'Bash > to an ANSI-C quoted .cs'),
+    @('Bash', @{ command = "printf `$'it\'s' > notes.log" }, $main, 2, 'ANSI-C escaped quote does not hide the redirection'),
+    # m2: more write kinds.
+    @('PowerShell', @{ command = "Invoke-WebRequest https://example.com/x -OutFile '$wt\src\x.cs'" }, $wt, 2, 'Invoke-WebRequest -OutFile to a .cs'),
+    @('PowerShell', @{ command = 'iwr https://example.com/x -OutFile notes.log' }, $main, 2, 'iwr -OutFile into the main checkout'),
+    @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$main\x'" }, $wt, 2, 'Expand-Archive into the main checkout'),
+    @('PowerShell', @{ command = "Start-Process dotnet -RedirectStandardOutput notes.log" }, $main, 2, 'Start-Process -RedirectStandardOutput into the main checkout')
 )
 
 # tool, command, expected, label (block-prohibited-commands.ps1)
@@ -397,7 +441,22 @@ $commandCases = @(
     @('Bash', 'git log > >(cat)', 2, 'Bash process substitution >( )'),
     @('Bash', "git log --format='<(x)'", 0, '<( inside single quotes'),
     @('Bash', 'git commit -m "see <(x)"', 0, '<( inside double quotes'),
-    @('PowerShell', 'test-path x', 0, 'test is not special in PowerShell')
+    @('PowerShell', 'test-path x', 0, 'test is not special in PowerShell'),
+    # M2: wrappers are analysed in their own shell; encoded commands are blocked.
+    @('PowerShell', 'pwsh -Command "Get-Content x | grep foo"', 2, 'grep inside pwsh -Command'),
+    @('Bash', 'pwsh -c "Get-Content x | Select-Object -First 3"', 0, 'PowerShell inside pwsh -c from Bash'),
+    @('Bash', 'pwsh -c "cat x; ls"', 0, 'cat and ls inside pwsh -c are PowerShell aliases'),
+    @('PowerShell', "powershell -NoProfile -Command `"Get-ChildItem | sort Name`"", 0, 'sort inside powershell -Command is Sort-Object'),
+    @('PowerShell', 'pwsh -EncodedCommand ZQBjAGgAbwAgAHgA', 2, 'pwsh -EncodedCommand'),
+    @('PowerShell', 'powershell -NoProfile -enc ZQBjAGgAbwA=', 2, 'powershell -enc'),
+    @('Bash', 'pwsh -ec ZQBjAGgAbwA=', 2, 'pwsh -ec from Bash'),
+    @('PowerShell', 'pwsh -e ZQBjAGgAbwA=', 2, 'pwsh -e'),
+    @('PowerShell', 'pwsh -ExecutionPolicy Bypass -File x.ps1', 0, 'pwsh -ExecutionPolicy is not -EncodedCommand'),
+    @('PowerShell', "pwsh -c `"Write-Output 'for x in y'`"", 0, 'for inside a PowerShell string of a wrapper'),
+    # m8: Bash ANSI-C strings.
+    @('Bash', "echo `$'it\'s'; grep x y", 2, 'ANSI-C escaped quote does not hide the next statement'),
+    @('Bash', "echo `$'a\'`$(b)'", 0, '$( inside an ANSI-C string is not a substitution'),
+    @('Bash', "echo `$'x' | cat", 2, 'cat after an ANSI-C string')
 )
 
 # A2 documentation: the extension list of block-main-checkout-writes.ps1 must match issue-worker.md.
@@ -432,10 +491,34 @@ $ownershipCases = @(
     @('docs-writer', 'Write', "$wt\tests\Encina.UnitTests\X.cs", $wt, 2, 'docs-writer: test file'),
     @('docs-writer', 'Edit', "$wt\.github\workflows\ci.yml", $wt, 2, 'docs-writer: workflow'),
     @('mechanical-fixer', 'Edit', "$wt\changelog.d\1181-x.fixed.md", $wt, 0, 'mechanical-fixer: not restricted'),
-    @($null, 'Edit', "$wt\docs\x.md", $wt, 0, 'no agent known: not restricted')
+    @($null, 'Edit', "$wt\docs\x.md", $wt, 0, 'no agent known: not restricted'),
+    # M3: docs/** code and data are code, prose and images are documentation.
+    @('issue-worker', 'Edit', "$wt\docs\coverage\app.js", $wt, 0, 'issue-worker: dashboard .js under docs is code'),
+    @('issue-worker', 'Edit', "$wt\docs\_config.yml", $wt, 0, 'issue-worker: docs/_config.yml is code'),
+    @('issue-worker', 'Edit', "$wt\docs\mutations\index.html", $wt, 0, 'issue-worker: dashboard .html is code'),
+    @('issue-worker', 'Edit', "$wt\docs\coverage\data\latest.json", $wt, 0, 'issue-worker: dashboard data .json is code'),
+    @('issue-worker', 'Write', "$wt\docs\images\flow.png", $wt, 2, 'issue-worker: an image a docs page shows'),
+    @('issue-worker', 'Edit', "$wt\docs\en\guide.markdown", $wt, 2, 'issue-worker: .markdown page'),
+    # m4: docs-writer allowlist.
+    @('docs-writer', 'Edit', "$wt\docs\_config.yml", $wt, 2, 'docs-writer: docs/_config.yml'),
+    @('docs-writer', 'Edit', "$wt\docs\coverage\app.js", $wt, 2, 'docs-writer: dashboard .js'),
+    @('docs-writer', 'Write', "$wt\docs\images\flow.png", $wt, 0, 'docs-writer: an image for a page'),
+    @('docs-writer', 'Edit', "$wt\.github\workflows\README.md", $wt, 0, 'docs-writer: a README under .github'),
+    @('docs-writer', 'Edit', "$wt\tests\Encina.UnitTests\README.md", $wt, 0, 'docs-writer: a README under tests'),
+    @('docs-writer', 'Edit', "$wt\.claude\agents\README.md", $wt, 2, 'docs-writer: .claude README'),
+    @('docs-writer', 'Edit', "$wt\.claude\skills\encina-docs\SKILL.md", $wt, 2, 'docs-writer: a skill'),
+    @('docs-writer', 'Edit', "$wt\Directory.Build.props", $wt, 2, 'docs-writer: build file'),
+    @('docs-writer', 'Edit', "$wt\docs\plans\x-implementation-plan-1.md", $wt, 2, 'docs-writer: a plan belongs to the issue-worker'),
+    @('docs-writer', 'Write', "$wt\artifacts\issues\gap.md", $wt, 0, 'docs-writer: its issue files under artifacts'),
+    @('docs-writer', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'docs-writer: CLAUDE.md')
 )
 
-# tool, tool_input, cwd, agent_id, expected, label
+$srcPatch = Join-Path $work 'src.patch'
+$docsPatch = Join-Path $work 'docs.patch'
+Set-Content $srcPatch "diff --git a/src/x.cs b/src/x.cs`n--- a/src/x.cs`n+++ b/src/x.cs`n@@ -1 +1 @@`n-a`n+b"
+Set-Content $docsPatch "diff --git a/docs/x.md b/docs/x.md`n--- a/docs/x.md`n+++ b/docs/x.md`n@@ -1 +1 @@`n-a`n+b"
+
+# tool, tool_input, cwd, agent_id, expected, label[, agent_type (default issue-worker; '-' omits it)]
 $orchestratorCases = @(
     @('Write', @{ file_path = "$main\src\Encina\X.cs" }, $main, $null, 2, 'main session: src in the main checkout'),
     @('Edit', @{ file_path = "$wt\tests\Encina.UnitTests\X.cs" }, $main, $null, 2, 'main session: tests in a worktree'),
@@ -453,7 +536,43 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "git -C '$wt' commit -m x" }, $main, $null, 0, 'main session: git is allowed'),
     @('PowerShell', @{ command = 'Set-Content $p x' }, $main, $null, 0, 'main session: variable target is not resolved'),
     @('PowerShell', @{ command = "Set-Content '$wt\src\x.cs' y" }, $main, 'a1b2', 0, 'subagent: shell write allowed'),
-    @('PowerShell', @{ command = 'not json' }, $main, $null, 0, 'malformed payload')
+    @('PowerShell', @{ command = 'not json' }, $main, $null, 0, 'malformed payload'),
+    # M1: only the governed writing agents are exempt.
+    @('Write', @{ file_path = "$wt\src\Encina\X.cs" }, $main, 'a1b2', 2, 'general-purpose subagent: src', 'general-purpose'),
+    @('Edit', @{ file_path = "$wt\tests\X.cs" }, $main, 'a1b2', 2, 'Plan subagent: tests', 'Plan'),
+    @('Edit', @{ file_path = "$wt\src\X.cs" }, $main, 'a1b2', 2, 'claude subagent: src', 'claude'),
+    @('Edit', @{ file_path = "$wt\src\X.cs" }, $main, 'a1b2', 2, 'subagent without agent_type: src', '-'),
+    @('Edit', @{ file_path = "$wt\src\X.cs" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt', 'mechanical-fixer'),
+    @('Edit', @{ file_path = "$wt\src\Encina\README.md" }, $main, 'a1b2', 0, 'docs-writer: exempt', 'docs-writer'),
+    @('PowerShell', @{ command = "Set-Content '$wt\src\x.cs' y" }, $main, 'a1b2', 2, 'general-purpose subagent: shell write into src', 'general-purpose'),
+    @('Write', @{ file_path = "$wt\docs\x.md" }, $main, 'a1b2', 0, 'general-purpose subagent: docs are not guarded', 'general-purpose'),
+    # M2: wrappers.
+    @('PowerShell', @{ command = "pwsh -Command `"(Get-Content $wt\src\a.cs) -replace 'a','b' | Set-Content $wt\src\a.cs`"" }, $main, $null, 2, 'main session: #1159 vector inside pwsh -Command'),
+    @('Bash', @{ command = "pwsh -c `"Set-Content $msysWt/src/x.cs y`"" }, $main, $null, 2, 'main session: pwsh -c from Bash'),
+    @('PowerShell', @{ command = "bash -c 'echo x > $msysWt/tests/x.cs'" }, $main, $null, 2, 'main session: bash -c redirection into tests'),
+    # m2: git writes into src/ and tests/.
+    @('PowerShell', @{ command = "git -C '$wt' checkout origin/main -- src/x.cs" }, $main, $null, 2, 'main session: git checkout <rev> -- src path'),
+    @('PowerShell', @{ command = "git -C '$wt' checkout origin/main tests/x.cs" }, $main, $null, 2, 'main session: git checkout <rev> tests path'),
+    @('PowerShell', @{ command = "git -C '$wt' checkout HEAD -- ." }, $main, $null, 2, 'main session: git checkout -- . at the checkout root'),
+    @('PowerShell', @{ command = "git -C '$wt' checkout HEAD -- docs/x.md" }, $main, $null, 0, 'main session: git checkout -- docs path'),
+    @('PowerShell', @{ command = "git -C '$wt' checkout -b feature origin/main" }, $main, $null, 0, 'main session: git checkout -b'),
+    @('PowerShell', @{ command = "git -C '$wt' checkout main" }, $main, $null, 0, 'main session: git checkout <branch>'),
+    @('PowerShell', @{ command = "git -C '$wt' restore --source=HEAD~1 src/x.cs" }, $main, $null, 2, 'main session: git restore --source src path'),
+    @('PowerShell', @{ command = "git -C '$wt' restore -s HEAD~1 -- tests" }, $main, $null, 2, 'main session: git restore -s -- tests'),
+    @('PowerShell', @{ command = "git -C '$wt' restore --staged src/x.cs" }, $main, $null, 0, 'main session: git restore --staged only touches the index'),
+    @('PowerShell', @{ command = "git -C '$wt' restore -SW src/x.cs" }, $main, $null, 2, 'main session: git restore -SW also writes the working tree'),
+    @('PowerShell', @{ command = "git -C '$wt' apply '$srcPatch'" }, $main, $null, 2, 'main session: git apply of a patch that changes src'),
+    @('PowerShell', @{ command = "git -C '$wt' apply '$docsPatch'" }, $main, $null, 0, 'main session: git apply of a docs patch'),
+    @('PowerShell', @{ command = "Get-Content x.patch | git -C '$wt' apply" }, $main, $null, 2, 'main session: git apply from stdin'),
+    @('PowerShell', @{ command = "git -C '$wt' am '$srcPatch'" }, $main, $null, 2, 'main session: git am of a patch that changes src'),
+    @('PowerShell', @{ command = "git -C '$wt' rebase origin/main" }, $main, $null, 0, 'main session: git rebase is allowed'),
+    @('PowerShell', @{ command = "Invoke-WebRequest https://example.com/x -OutFile '$wt\src\x.cs'" }, $main, $null, 2, 'main session: Invoke-WebRequest -OutFile into src'),
+    @('PowerShell', @{ command = "Invoke-RestMethod https://example.com/x -OutFile '$outside\x.json'" }, $main, $null, 0, 'main session: Invoke-RestMethod -OutFile outside'),
+    @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$wt'" }, $main, $null, 2, 'main session: Expand-Archive into a checkout root'),
+    @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' '$wt\tests\data'" }, $main, $null, 2, 'main session: Expand-Archive positional into tests'),
+    @('PowerShell', @{ command = "Expand-Archive '$outside\a.zip' -DestinationPath '$wt\docs\data'" }, $main, $null, 0, 'main session: Expand-Archive into docs'),
+    @('PowerShell', @{ command = "Start-Process dotnet -ArgumentList build -RedirectStandardOutput '$wt\src\out.txt'" }, $main, $null, 2, 'main session: Start-Process redirect into src'),
+    @('PowerShell', @{ command = "Start-Process dotnet -RedirectStandardError '$wt\artifacts\err.txt'" }, $main, $null, 0, 'main session: Start-Process redirect into artifacts')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
@@ -463,6 +582,9 @@ $sessionDir = Join-Path $work 'transcripts'
 $sessionFile = Join-Path $sessionDir 'session.jsonl'
 $agentTranscript = Join-Path $sessionDir 'session\subagents\agent-g1agent.jsonl'
 $briefNamingWorktree = "Issue #1. Worktree $gateWt, branch feature, base origin/main."
+$gateEmpty = Join-Path $gateMain '.claude\worktrees\g0'
+$briefNamingGone = "Issue #1. Worktree $(Join-Path $gateMain '.claude\worktrees\gone'), branch feature."
+$briefNamingEmpty = "Issue #1. Worktree $gateEmpty, branch feature."
 
 # agent (-Agent), committed files, uncommitted files, spawned subagent types, payload overrides, outcome
 # (block | allow | warn), label[, regex the block reason must match]
@@ -488,7 +610,20 @@ $gateCases = @(
     @('docs-writer', @('docs/en/guide.md'), @(), @(), @{}, 'block', 'docs-writer without docs-reviewer', 'docs-reviewer'),
     @('docs-writer', @('docs/en/guide.md'), @(), @('docs-reviewer', 'mechanical-fixer'), @{}, 'allow', 'docs-writer with docs-reviewer'),
     @('docs-writer', @('src/Encina/README.md'), @(), @(), @{}, 'block', 'package README without docs-reviewer', 'docs-reviewer'),
-    @('docs-writer', @('changelog.d/1-x.changed.md'), @(), @(), @{}, 'allow', 'docs-writer changelog fragment needs no specialist')
+    @('docs-writer', @('changelog.d/1-x.changed.md'), @(), @(), @{}, 'allow', 'docs-writer changelog fragment needs no specialist'),
+    # m1: only spawns whose tool_result is not an error count.
+    @('issue-worker', @('src/Encina/X.cs'), @(), @('adversarial-reviewer!'), @{}, 'block', 'denied spawn (error tool_result) does not count', 'adversarial-reviewer'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @('adversarial-reviewer?'), @{}, 'block', 'spawn without a tool_result does not count', 'adversarial-reviewer'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @('adversarial-reviewer!', 'adversarial-reviewer'), @{}, 'allow', 'a denied spawn retried successfully counts'),
+    # M3: docs/** site code is production code; images are documentation.
+    @('issue-worker', @('docs/coverage/app.js'), @(), @(), @{}, 'block', 'dashboard code under docs needs adversarial-reviewer', 'adversarial-reviewer'),
+    @('issue-worker', @('docs/_config.yml'), @(), @('adversarial-reviewer'), @{}, 'allow', 'docs/_config.yml with adversarial-reviewer'),
+    @('docs-writer', @('docs/images/flow.png'), @(), @(), @{}, 'block', 'docs-writer image needs docs-reviewer', 'docs-reviewer'),
+    # m5: worktree detection from the user messages.
+    @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain; brief = $briefNamingGone; messages = @("Correction: the worktree is $gateWt.") }, 'block', 'worktree from a later user message when the brief names a missing one', 'adversarial-reviewer'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain; brief = $briefNamingEmpty; messages = @("Also see $gateWt.") }, 'block', 'the named worktree with changes wins over one without', 'adversarial-reviewer'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain; toolOutput = "$gateWt  abc123 [feature]" }, 'warn', 'a worktree named only in tool output is ignored'),
+    @('issue-worker', @('src/Encina/X.cs'), @(), @(), @{ cwd = $gateMain; brief = $briefNamingGone }, 'warn', 'the only named worktree does not exist')
 )
 
 $script:failed = 0
@@ -522,12 +657,27 @@ function Write-GateFile([string]$Relative) {
     Set-Content -Path $path -Value 'x'
 }
 
-function Write-Transcript([string]$Path, [string[]]$Spawns, [string]$Brief, [string]$ToolName) {
+# A spawn written as 'type!' gets an error tool_result (a denied spawn), 'type?' gets no tool_result at all.
+# $Messages are later user text messages; $ToolOutput is a tool_result text (not a user message).
+function Write-Transcript([string]$Path, [string[]]$Spawns, [string]$Brief, [string]$ToolName, [string[]]$Messages, [string]$ToolOutput) {
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add((@{ type = 'user'; message = @{ role = 'user'; content = $Brief } } | ConvertTo-Json -Compress -Depth 10))
-    foreach ($s in $Spawns) {
-        $lines.Add((@{ type = 'assistant'; message = @{ role = 'assistant'; content = @(@{ type = 'tool_use'; id = 'toolu_1'; name = $ToolName; input = @{ subagent_type = $s; prompt = 'x' } }) } } | ConvertTo-Json -Compress -Depth 10))
+    if ($ToolOutput) {
+        $lines.Add((@{ type = 'assistant'; message = @{ role = 'assistant'; content = @(@{ type = 'tool_use'; id = 'toolu_out'; name = 'PowerShell'; input = @{ command = 'git worktree list' } }) } } | ConvertTo-Json -Compress -Depth 10))
+        $lines.Add((@{ type = 'user'; message = @{ role = 'user'; content = @(@{ type = 'tool_result'; tool_use_id = 'toolu_out'; content = $ToolOutput }) } } | ConvertTo-Json -Compress -Depth 10))
     }
+    $n = 0
+    foreach ($s in $Spawns) {
+        $n++
+        $id = "toolu_spawn$n"
+        $type = $s.TrimEnd('!', '?')
+        $lines.Add((@{ type = 'assistant'; message = @{ role = 'assistant'; content = @(@{ type = 'tool_use'; id = $id; name = $ToolName; input = @{ subagent_type = $type; prompt = 'x' } }) } } | ConvertTo-Json -Compress -Depth 10))
+        if ($s.EndsWith('?')) { continue }
+        $result = @{ type = 'tool_result'; tool_use_id = $id; content = 'done' }
+        if ($s.EndsWith('!')) { $result.is_error = $true; $result.content = 'Blocked by hook' }
+        $lines.Add((@{ type = 'user'; message = @{ role = 'user'; content = @($result) } } | ConvertTo-Json -Compress -Depth 10))
+    }
+    foreach ($m in $Messages) { $lines.Add((@{ type = 'user'; message = @{ role = 'user'; content = @(@{ type = 'text'; text = $m }) } } | ConvertTo-Json -Compress -Depth 10)) }
     New-Item -ItemType Directory -Force (Split-Path -Parent $Path) | Out-Null
     Set-Content -Path $Path -Value $lines
 }
@@ -579,9 +729,12 @@ try {
     Invoke-HookCase $ownership 'not json' 0 'malformed payload' 'issue-worker'
 
     foreach ($case in $orchestratorCases) {
-        $tool, $toolInput, $caseCwd, $agentId, $expected, $label = $case
+        $tool, $toolInput, $caseCwd, $agentId, $expected, $label, $agentType = $case
         $payload = @{ tool_name = $tool; cwd = $caseCwd; tool_input = $toolInput }
-        if ($agentId) { $payload.agent_id = $agentId; $payload.agent_type = 'issue-worker' }
+        if ($agentId) {
+            $payload.agent_id = $agentId
+            if ($agentType -ne '-') { $payload.agent_type = $(if ($agentType) { $agentType } else { 'issue-worker' }) }
+        }
         $json = if ($toolInput.command -eq 'not json') { 'not json' } else { $payload | ConvertTo-Json -Compress }
         Invoke-HookCase $orchestrator $json $expected $label
     }
@@ -590,6 +743,7 @@ try {
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $env:CLAUDE_PROJECT_DIR = $gateMain
         New-Item -ItemType Directory -Force $gateWt | Out-Null
+        New-Item -ItemType Directory -Force $gateEmpty | Out-Null
         Invoke-Git init -q -b main
         Invoke-Git commit -q --allow-empty -m base
         Invoke-Git update-ref refs/remotes/origin/main HEAD
@@ -605,7 +759,7 @@ try {
             if (Test-Path $sessionDir) { Remove-Item -Recurse -Force $sessionDir }
             $brief = if ($overrides.brief) { $overrides.brief } else { 'Issue #1. Implement the brief.' }
             $toolName = if ($overrides.tool) { $overrides.tool } else { 'Agent' }
-            if (-not $overrides.missing) { Write-Transcript $agentTranscript $spawns $brief $toolName }
+            if (-not $overrides.missing) { Write-Transcript $agentTranscript $spawns $brief $toolName $overrides.messages $overrides.toolOutput }
             $payload = [ordered]@{
                 hook_event_name  = 'SubagentStop'
                 stop_hook_active = [bool]$overrides.stop_hook_active
@@ -628,6 +782,45 @@ try {
         'SKIP require-specialists.ps1: git is not on PATH'
     }
     $env:CLAUDE_PROJECT_DIR = $repo
+
+    # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
+    function Test-Wiring([string]$Label, [string[]]$Problems) {
+        $script:total++
+        if ($Problems.Count -gt 0) { $script:failed++; "FAIL $Label`: $($Problems -join '; ')" } else { "PASS $Label" }
+    }
+    foreach ($file in (Get-ChildItem (Join-Path $repo '.claude\agents') -Filter *.md | Where-Object Name -ne 'README.md')) {
+        $lines = Get-Content $file.FullName
+        $problems = [System.Collections.Generic.List[string]]::new()
+        $end = if ($lines[0] -eq '---') { [Array]::IndexOf($lines, '---', 1) } else { -1 }
+        if ($end -lt 1) { Test-Wiring "frontmatter of $($file.Name)" @('no --- block'); continue }
+        $front = $lines[1..($end - 1)]
+        if ($front -match "`t") { $problems.Add('tab in frontmatter') }
+        $keys = @{}
+        foreach ($l in $front) { if ($l -match '^(?<k>[A-Za-z]+):\s*(?<v>.*)$') { $keys[$Matches.k] = $Matches.v } elseif ($l -notmatch '^\s+\S|^\s*$') { $problems.Add("unexpected line '$l'") } }
+        if ($keys.name -ne $file.BaseName) { $problems.Add("name '$($keys.name)' differs from the file name") }
+        if ($keys.model -notin 'haiku', 'sonnet', 'opus', 'inherit') { $problems.Add("model '$($keys.model)'") }
+        foreach ($l in ($front -match 'command:')) {
+            $m = [regex]::Match($l, '\.claude/hooks/(?<h>[\w-]+\.ps1)"(?:\s+-Agent\s+(?<a>[\w-]+))?')
+            if (-not $m.Success) { $problems.Add("hook command not recognised: $l"); continue }
+            if (-not (Test-Path (Join-Path $hooks $m.Groups['h'].Value))) { $problems.Add("missing hook $($m.Groups['h'].Value)") }
+            if ($m.Groups['a'].Success -and $m.Groups['a'].Value -ne $file.BaseName) { $problems.Add("-Agent $($m.Groups['a'].Value) in $($file.Name)") }
+        }
+        if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
+        Test-Wiring "frontmatter of $($file.Name)" $problems
+    }
+    $settingsProblems = [System.Collections.Generic.List[string]]::new()
+    try {
+        $settings = Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json
+        $commands = @($settings.hooks.PreToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.command })
+        foreach ($c in $commands) {
+            $m = [regex]::Match($c, '\.claude/hooks/(?<h>[\w-]+\.ps1)')
+            if (-not $m.Success -or -not (Test-Path (Join-Path $hooks $m.Groups['h'].Value))) { $settingsProblems.Add("missing hook in '$c'") }
+        }
+        $agentHook = @($settings.hooks.PreToolUse | Where-Object { 'Agent' -match "^($($_.matcher))$" } | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'block-worker-spawn\.ps1" -Agent orchestrator' })
+        if ($agentHook.Count -eq 0) { $settingsProblems.Add('no Agent hook with block-worker-spawn -Agent orchestrator') }
+    }
+    catch { $settingsProblems.Add("settings.json is not valid JSON: $($_.Exception.Message)") }
+    Test-Wiring 'settings.json wiring' $settingsProblems
 
     # A2: every extension the source-file rule covers is named in issue-worker.md.
     $undocumented = @($hookExtensions | Where-Object { $_ -and $workerDefinition -notmatch "\.$([regex]::Escape($_))\b" })

@@ -11,11 +11,21 @@
 #   [IO.File]::Write*/Append*/Create*/OpenWrite (first argument), [IO.File]::Copy/Move/Replace (second
 #   argument) and [IO.StreamWriter]::new (first argument); a relative path there resolves against the tool
 #   call's cwd, where the process runs, not against Set-Location.
+#   Invoke-WebRequest / Invoke-RestMethod -OutFile, Start-Process -RedirectStandardOutput /
+#   -RedirectStandardError (content writes), and Expand-Archive -DestinationPath (the second positional, or
+#   the current directory when omitted; a Directory write, whose files are not known).
 # A target that uses only $env:NAME, $HOME, $PWD (PowerShell) or $NAME (Bash, from the environment) is
 # resolved; a target that depends on any other variable or on a subexpression stays unresolved (Full = $null).
+# The statements of a `pwsh -Command "..."` or `bash -c '...'` wrapper are analysed in their own shell (see
+# _command-text.ps1); a directory change inside the wrapper is followed as if it ran in the outer shell.
 #
-# Not seen: writes by programs that the analysis does not know (dotnet, git apply outside the git verbs
-# listed, scripts), Remove-Item / rm (deletions), Rename-Item, and redirections attached to a word (x>f).
+# Git: every git command that changes a working tree or the index (Verb, Dir), with Paths (the full paths of
+# the pathspecs of `git checkout [<rev>] -- <paths>` / `git checkout <rev> <paths>` and of `git restore`
+# other than --staged alone) and, for `git apply` / `git am`, Patches (the patch files) and PatchUnresolved
+# (the patch comes from stdin or a path that cannot be resolved).
+#
+# Not seen: writes by programs that the analysis does not know (dotnet, scripts), Remove-Item / rm
+# (deletions), Rename-Item, and redirections attached to a word (x>f).
 
 $script:ValueParameters = @(
     '-value', '-encoding', '-itemtype', '-type', '-name', '-stream', '-filter', '-include', '-exclude', '-width',
@@ -59,6 +69,26 @@ function Get-BoundArgument($Tokens, [int]$From, [object[]]$Positions, [int]$Want
     for ($s = 0; $s -lt $Positions.Count; $s++) {
         if ($named.ContainsKey($s)) { if ($s -eq $Want) { return $named[$s] }; continue }
         if ($p -lt $positional.Count) { if ($s -eq $Want) { return $positional[$p] }; $p++ }
+    }
+    return $null
+}
+
+# The value token of a named-only parameter (-Name value, -Name:value, or a prefix of five letters or more).
+function Get-NamedArgument($Tokens, [int]$From, [string[]]$Names) {
+    for ($i = $From; $i -lt $Tokens.Count; $i++) {
+        $t = $Tokens[$i]
+        if ($t.Quoted -or -not $t.Value.StartsWith('-')) { continue }
+        $name = $t.Value.ToLowerInvariant()
+        $inline = $null
+        $colon = $name.IndexOf(':')
+        if ($colon -gt 0) { $inline = New-CommandToken $t.Value.Substring($colon + 1) $t.Quoted $t.Dynamic $t.Subexpression $t.Bash; $name = $name.Substring(0, $colon) }
+        foreach ($n in $Names) {
+            if ($name -eq $n -or ($name.Length -ge 5 -and $n.StartsWith($name))) {
+                if ($null -ne $inline) { return $inline }
+                if ($i + 1 -lt $Tokens.Count) { return $Tokens[$i + 1] }
+                return $null
+            }
+        }
     }
     return $null
 }
@@ -139,8 +169,43 @@ function ConvertTo-ArgumentToken([string]$Argument) {
     return New-CommandToken $Argument $false $true ($Argument -match '[(\[]')
 }
 
-# Returns Writes (Content, Target token, Base, Full, What), Git (Verb, Dir) and Mentions (Full, Explicit) of
-# every path-like token, which the source-edit rule uses to tell whether a command names repository files.
+# The pathspecs of `git checkout` / `git restore` (tokens after the verb at $From) that write the working
+# tree, as tokens; empty when the command only switches branches or only touches the index.
+function Get-GitPathspecs($Tokens, [int]$From, [string]$Verb) {
+    $arguments = @($Tokens | Select-Object -Skip $From)
+    $dashDash = -1
+    for ($i = 0; $i -lt $arguments.Count; $i++) { if (-not $arguments[$i].Quoted -and $arguments[$i].Value -eq '--') { $dashDash = $i; break } }
+    $valueOptions = if ($Verb -eq 'restore') { @('-s', '--source', '--pathspec-from-file') } else { @('-b', '-B', '--orphan', '--conflict', '--pathspec-from-file') }
+    $operands = [System.Collections.Generic.List[object]]::new()
+    $flags = [System.Collections.Generic.List[string]]::new()
+    $end = if ($dashDash -ge 0) { $dashDash } else { $arguments.Count }
+    for ($i = 0; $i -lt $end; $i++) {
+        $a = $arguments[$i]
+        if (-not $a.Quoted -and $a.Value.StartsWith('-') -and $a.Value.Length -gt 1) {
+            $flags.Add($a.Value)
+            if ($valueOptions -ccontains $a.Value) { $i++ }
+            continue
+        }
+        $operands.Add($a)
+    }
+    $after = @(if ($dashDash -ge 0) { $arguments | Select-Object -Skip ($dashDash + 1) })
+
+    if ($Verb -eq 'restore') {
+        $staged = @($flags | Where-Object { $_ -ceq '--staged' -or $_ -cmatch '^-[A-Za-z]*S' }).Count -gt 0
+        $worktree = @($flags | Where-Object { $_ -ceq '--worktree' -or $_ -cmatch '^-[A-Za-z]*W' }).Count -gt 0
+        if ($staged -and -not $worktree) { return , @() }
+        return , @(@($operands) + @($after))
+    }
+    # checkout: `-- <paths>` restores paths; without `--`, `<rev> <paths>` does, `<branch>` alone switches.
+    if (@($flags | Where-Object { $_ -in '-b', '-B', '--orphan' }).Count -gt 0) { return , @() }
+    if ($dashDash -ge 0) { return , @($after) }
+    if ($operands.Count -ge 2) { return , @($operands | Select-Object -Skip 1) }
+    return , @()
+}
+
+# Returns Writes (Content, Target token, Base, Full, What, Directory), Git (Verb, Dir, Paths, Patches,
+# PatchUnresolved) and Mentions (Full, Explicit) of every path-like token, which the source-edit rule uses to
+# tell whether a command names repository files.
 function Get-ShellWrites {
     param([string]$Command, [switch]$Bash, [string]$Cwd)
 
@@ -150,12 +215,14 @@ function Get-ShellWrites {
     $stack = [System.Collections.Generic.Stack[object]]::new()
     $current = $Cwd
 
-    function Add-Write([bool]$Content, $Target, [string]$Base, [string]$What) {
+    function Add-Write([bool]$Content, $Target, [string]$Base, [string]$What, [bool]$IsBash, [bool]$Directory = $false) {
         if ($null -eq $Target) { return }
-        $writes.Add([pscustomobject]@{ Content = $Content; Target = $Target; Base = $Base; Full = (Resolve-TargetPath $Target $Base $Bash); What = $What })
+        $writes.Add([pscustomobject]@{ Content = $Content; Target = $Target; Base = $Base; Full = (Resolve-TargetPath $Target $Base $IsBash); What = $What; Directory = $Directory })
     }
 
     foreach ($tokens in (Split-CommandStatements -Text $Command -Bash:$Bash)) {
+        # The shell of this statement (a wrapper's statements run in the wrapper's shell).
+        $Bash = [bool]$tokens[0].Bash
         $k = Resolve-Executable $tokens
         $name = if ($k -ge 0 -and -not $tokens[$k].Dynamic) { (Get-ExecutableName $tokens[$k].Value) } else { '' }
 
@@ -187,10 +254,10 @@ function Get-ShellWrites {
 
         $pathAliases = @('-path', '-literalpath', '-lp', '-pspath')
         if (-not $Bash -and $name -in 'set-content', 'add-content', 'ac') {
-            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-value')) 0) $current $name
+            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-value')) 0) $current $name $Bash
         }
         elseif (-not $Bash -and $name -in 'out-file', 'tee-object', 'tee') {
-            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @(, (@('-filepath') + $pathAliases)) 0) $current $name
+            Add-Write $true (Get-BoundArgument $tokens ($k + 1) @(, (@('-filepath') + $pathAliases)) 0) $current $name $Bash
         }
         elseif (-not $Bash -and $name -in 'new-item', 'ni') {
             $target = Get-BoundArgument $tokens ($k + 1) @(, $pathAliases) 0
@@ -199,15 +266,28 @@ function Get-ShellWrites {
                 $dir = if ($null -eq $target) { New-CommandToken '.' $false $false } else { $target }
                 $target = New-CommandToken ([IO.Path]::Combine($dir.Value, $leaf.Value)) $false ($dir.Dynamic -or $leaf.Dynamic) ($dir.Subexpression -or $leaf.Subexpression)
             }
-            Add-Write (Test-NamedArgument $tokens ($k + 1) @('-value')) $target $current $name
+            Add-Write (Test-NamedArgument $tokens ($k + 1) @('-value')) $target $current $name $Bash
         }
         elseif (-not $Bash -and $name -in 'copy-item', 'move-item', 'cpi', 'mi', 'copy', 'move', 'cp', 'mv') {
-            Add-Write $false (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-destination')) 1) $current $name
+            Add-Write $false (Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-destination')) 1) $current $name $Bash
+        }
+        elseif (-not $Bash -and $name -in 'invoke-webrequest', 'iwr', 'invoke-restmethod', 'irm') {
+            Add-Write $true (Get-NamedArgument $tokens ($k + 1) @('-outfile')) $current $name $Bash
+        }
+        elseif (-not $Bash -and $name -in 'start-process', 'saps', 'start') {
+            foreach ($stream in '-redirectstandardoutput', '-redirectstandarderror') {
+                Add-Write $true (Get-NamedArgument $tokens ($k + 1) @($stream)) $current "$name $stream" $Bash
+            }
+        }
+        elseif (-not $Bash -and $name -eq 'expand-archive') {
+            $destination = Get-BoundArgument $tokens ($k + 1) @($pathAliases, @('-destinationpath')) 1
+            if ($null -eq $destination) { $destination = New-CommandToken '.' $false $false }
+            Add-Write $false $destination $current $name $Bash $true
         }
         elseif ($Bash -and $name -in 'cp', 'mv', 'touch', 'tee') {
             $operands = @($tokens | Select-Object -Skip ($k + 1) | Where-Object { $_.Quoted -or -not $_.Value.StartsWith('-') })
-            if ($name -in 'touch', 'tee') { foreach ($o in $operands) { Add-Write ($name -eq 'tee') $o $current $name } }
-            elseif ($operands.Count -ge 2) { Add-Write $false $operands[-1] $current $name }
+            if ($name -in 'touch', 'tee') { foreach ($o in $operands) { Add-Write ($name -eq 'tee') $o $current $name $Bash } }
+            elseif ($operands.Count -ge 2) { Add-Write $false $operands[-1] $current $name $Bash }
         }
         elseif ($name -eq 'git') {
             $dir = $current
@@ -220,7 +300,30 @@ function Get-ShellWrites {
             }
             $verb = if ($j -lt $tokens.Count) { $tokens[$j].Value } else { $null }
             $readOnlyStash = $verb -eq 'stash' -and $j + 1 -lt $tokens.Count -and $tokens[$j + 1].Value -in 'list', 'show'
-            if ($script:GitMutatingVerbs -ccontains $verb -and -not $readOnlyStash) { $git.Add([pscustomobject]@{ Verb = $verb; Dir = $dir }) }
+            if ($script:GitMutatingVerbs -ccontains $verb -and -not $readOnlyStash) {
+                $paths = [System.Collections.Generic.List[string]]::new()
+                $patches = [System.Collections.Generic.List[string]]::new()
+                $patchUnresolved = $false
+                if ($verb -in 'checkout', 'restore') {
+                    foreach ($p in (Get-GitPathspecs $tokens ($j + 1) $verb)) {
+                        $full = Resolve-TargetPath $p $dir $Bash
+                        # A pathspec that cannot be resolved (a variable, a :(magic) pathspec) counts as the whole checkout.
+                        if ($null -eq $full -or $p.Value.StartsWith(':')) { $full = $dir }
+                        if ($null -ne $full) { $paths.Add($full) }
+                    }
+                }
+                elseif ($verb -in 'apply', 'am') {
+                    foreach ($a in @($tokens | Select-Object -Skip ($j + 1))) {
+                        if (-not $a.Quoted -and $a.Value.StartsWith('-')) { continue }
+                        $full = Resolve-TargetPath $a $dir $Bash
+                        $isFile = $false
+                        if ($null -ne $full) { try { $isFile = Test-Path -LiteralPath $full -PathType Leaf } catch { } }
+                        if ($isFile) { $patches.Add($full) } else { $patchUnresolved = $true }
+                    }
+                    if ($patches.Count -eq 0) { $patchUnresolved = $true }
+                }
+                $git.Add([pscustomobject]@{ Verb = $verb; Dir = $dir; Paths = $paths; Patches = $patches; PatchUnresolved = $patchUnresolved })
+            }
         }
 
         foreach ($t in $tokens) {
@@ -234,7 +337,7 @@ function Get-ShellWrites {
                 if ($io.Groups['type'].Value -ieq 'StreamWriter') { if ($method -ieq 'new') { $index = 0 } }
                 elseif ($method -match '^(Write|Append|Create|OpenWrite)') { $index = 0 }
                 elseif ($method -in 'Copy', 'Move', 'Replace') { $index = 1 }
-                if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" }
+                if ($index -ge 0 -and $index -lt $arguments.Count) { Add-Write ($method -notin 'Copy', 'Move', 'Replace') (ConvertTo-ArgumentToken $arguments[$index]) $Cwd "[IO.$($io.Groups['type'].Value)]::$method" $Bash }
                 continue
             }
             # > file, >> file, 2> file, *> file (not 2>&1, > $null, > /dev/null, > nul).
@@ -246,7 +349,7 @@ function Get-ShellWrites {
                     if ($index + 1 -lt $tokens.Count) { $tokens[$index + 1] } else { $null }
                 }
                 if ($null -ne $target -and -not $target.Value.StartsWith('&') -and $target.Value -notin '$null', '/dev/null', 'nul') {
-                    Add-Write $true $target $current 'redirection'
+                    Add-Write $true $target $current 'redirection' $Bash
                 }
             }
         }

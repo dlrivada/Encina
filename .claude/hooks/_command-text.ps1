@@ -9,9 +9,42 @@
 # marked Dynamic: its Value holds the literal text, which may still contain the words the hooks look for.
 # A token that contains a subexpression is also marked Subexpression: its value cannot be computed at all,
 # while a token that only uses variables may still be resolved by a hook that knows them ($env:X, $HOME).
+# Bash ANSI-C strings ($'a\nb') are decoded into a quoted, literal token.
+#
+# Shell wrappers are analysed too (#1181): the command text given to `pwsh` / `powershell` with -Command (-c,
+# any unambiguous prefix, -CommandWithArgs / -cwa, or the first positional argument of powershell.exe) and the
+# script given to `bash` / `sh` / `zsh` / `dash` with -c (alone or in a cluster such as -lc) is parsed as
+# statements of that shell and inserted right after the wrapper statement. Every token carries Bash, the
+# shell of its own statement, which may differ from the tool's shell. `pwsh -EncodedCommand` (-e, -ec, -en...)
+# cannot be read; Get-WrappedCommand reports it as Encoded so a hook can block it. `pwsh -File` and a Bash
+# script file are not read.
 
-function New-CommandToken([string]$Value, [bool]$Quoted, [bool]$Dynamic, [bool]$Subexpression = $false) {
-    [pscustomobject]@{ Value = $Value; Quoted = $Quoted; Dynamic = $Dynamic; Subexpression = $Subexpression }
+function New-CommandToken([string]$Value, [bool]$Quoted, [bool]$Dynamic, [bool]$Subexpression = $false, [bool]$Bash = $false) {
+    [pscustomobject]@{ Value = $Value; Quoted = $Quoted; Dynamic = $Dynamic; Subexpression = $Subexpression; Bash = $Bash }
+}
+
+# Decodes the Bash ANSI-C string that starts with $' at $Start. Returns Value and End (the index past the
+# closing quote).
+function Read-AnsiCString([string]$Text, [int]$Start) {
+    $sb = [System.Text.StringBuilder]::new()
+    $n = $Text.Length
+    $j = $Start + 2
+    while ($j -lt $n -and $Text[$j] -ne "'") {
+        if ($Text[$j] -ne '\' -or $j + 1 -ge $n) { [void]$sb.Append($Text[$j]); $j++; continue }
+        $e = $Text[$j + 1]
+        $simple = @{ [char]'n' = "`n"; [char]'t' = "`t"; [char]'r' = "`r"; [char]'a' = [string][char]7; [char]'b' = [string][char]8; [char]'e' = [string][char]27; [char]'E' = [string][char]27; [char]'f' = [string][char]12; [char]'v' = [string][char]11; [char]'\' = '\'; [char]"'" = "'"; [char]'"' = '"'; [char]'?' = '?' }
+        if ($simple.ContainsKey($e)) { [void]$sb.Append($simple[$e]); $j += 2; continue }
+        $hex = [regex]::Match($Text.Substring($j), '^\\(?:x(?<h>[0-9A-Fa-f]{1,2})|u(?<h>[0-9A-Fa-f]{1,4})|U(?<h>[0-9A-Fa-f]{1,8})|(?<o>[0-7]{1,3}))')
+        if ($hex.Success) {
+            $code = if ($hex.Groups['o'].Success) { [Convert]::ToInt32($hex.Groups['o'].Value, 8) } else { [Convert]::ToInt32($hex.Groups['h'].Value, 16) }
+            try { [void]$sb.Append([char]::ConvertFromUtf32($code)) } catch { }
+            $j += $hex.Length
+            continue
+        }
+        [void]$sb.Append('\').Append($e)
+        $j += 2
+    }
+    return [pscustomobject]@{ Value = $sb.ToString(); End = [Math]::Min($j + 1, $n) }
 }
 
 # Removes comments outside quotes, here-strings and heredocs: `#` at the start of a word up to the end of the
@@ -43,6 +76,13 @@ function Remove-CommandComments {
                 $i = $end
                 continue
             }
+        }
+
+        if ($Bash -and $c -eq '$' -and $i + 1 -lt $n -and $Text[$i + 1] -eq "'") {
+            $end = (Read-AnsiCString $Text $i).End
+            [void]$sb.Append($Text, $i, $end - $i)
+            $i = $end
+            continue
         }
 
         if ($c -eq "'") {
@@ -188,6 +228,15 @@ function Split-CommandStatements {
                 continue
             }
 
+            # Bash ANSI-C string: $'...' with backslash escapes, literal.
+            if ($Bash -and $c -eq '$' -and $i + 1 -lt $n -and $Text[$i + 1] -eq "'") {
+                $ansi = Read-AnsiCString $Text $i
+                [void]$sb.Append($ansi.Value)
+                $quoted = $true
+                $i = $ansi.End
+                continue
+            }
+
             if ($c -eq "'") {
                 $j = $i + 1
                 while ($j -lt $n) {
@@ -250,10 +299,24 @@ function Split-CommandStatements {
             [void]$sb.Append($c)
             $i++
         }
-        $current.Add((New-CommandToken $sb.ToString() $quoted $dynamic $subexpression))
+        $current.Add((New-CommandToken $sb.ToString() $quoted $dynamic $subexpression $Bash.IsPresent))
     }
 
     if ($current.Count -gt 0) { $statements.Add($current) }
+
+    # Commands given to a shell wrapper run too: `pwsh -Command "..."`, `bash -c '...'`. Their statements
+    # follow the wrapper statement, so a directory change before the wrapper applies to them.
+    if ($Depth -lt 4) {
+        $expanded = [System.Collections.Generic.List[object]]::new()
+        foreach ($s in $statements) {
+            $expanded.Add($s)
+            $wrapped = Get-WrappedCommand $s
+            if ($null -eq $wrapped -or $wrapped.Encoded -or [string]::IsNullOrWhiteSpace($wrapped.Text)) { continue }
+            $innerText = Remove-CommandComments -Text $wrapped.Text -Bash:$wrapped.Bash
+            foreach ($x in (Split-CommandStatements -Text $innerText -Bash:$wrapped.Bash -Depth ($Depth + 1))) { $expanded.Add($x) }
+        }
+        $statements = $expanded
+    }
 
     # Commands inside subexpressions run too: `$r = (gh issue create ...)`, `"$(git commit ...)"`.
     if ($Depth -lt 4) {
@@ -286,6 +349,66 @@ function Resolve-Executable($Tokens) {
 function Get-ExecutableName([string]$Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
     try { return [IO.Path]::GetFileNameWithoutExtension($Value.Replace('\', '/').Split('/')[-1]).ToLowerInvariant() } catch { return '' }
+}
+
+function Test-ParameterPrefix([string]$Name, [string]$Full, [int]$MinLength) {
+    return $Name.Length -ge $MinLength -and $Full.StartsWith($Name)
+}
+
+# The command a shell wrapper runs: Text (the command or script text), Bash (its shell) and Encoded (a
+# `pwsh -EncodedCommand` whose text cannot be read). $null when the statement is not a wrapper, runs a script
+# file (`pwsh -File x.ps1`, `bash x.sh`) or reads the command from stdin (`pwsh -Command -`).
+function Get-WrappedCommand($Tokens) {
+    $k = Resolve-Executable $Tokens
+    if ($k -lt 0 -or $Tokens[$k].Dynamic) { return $null }
+    $name = Get-ExecutableName $Tokens[$k].Value
+
+    if ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
+        $valueOptions = @('executionpolicy', 'workingdirectory', 'outputformat', 'inputformat', 'windowstyle', 'configurationname', 'configurationfile', 'settingsfile', 'custompipename')
+        for ($j = $k + 1; $j -lt $Tokens.Count; $j++) {
+            $t = $Tokens[$j]
+            $m = [regex]::Match($t.Value, '^(?:--?|/)(?<n>[A-Za-z]+)(?::(?<inline>.*))?$')
+            if ($t.Quoted -or -not $m.Success) {
+                # powershell.exe runs its first positional argument as a command; pwsh runs it as a script file.
+                if ($name -ne 'powershell' -or $t.Value -eq '-') { return $null }
+                return [pscustomobject]@{ Text = (@($Tokens | Select-Object -Skip $j | ForEach-Object { $_.Value }) -join ' '); Bash = $false; Encoded = $false }
+            }
+            $n = $m.Groups['n'].Value.ToLowerInvariant()
+            $inline = if ($m.Groups['inline'].Success) { $m.Groups['inline'].Value } else { $null }
+            if ($n -in 'e', 'ec' -or (Test-ParameterPrefix $n 'encodedcommand' 2)) { return [pscustomobject]@{ Text = $null; Bash = $false; Encoded = $true } }
+            if ($n -eq 'cwa' -or (Test-ParameterPrefix $n 'commandwithargs' 8)) {
+                $text = if ($null -ne $inline) { $inline } elseif ($j + 1 -lt $Tokens.Count) { $Tokens[$j + 1].Value } else { $null }
+                if ($text -eq '-') { return $null }
+                return [pscustomobject]@{ Text = $text; Bash = $false; Encoded = $false }
+            }
+            if ($n -eq 'c' -or (Test-ParameterPrefix $n 'command' 2)) {
+                $rest = @($Tokens | Select-Object -Skip ($j + 1) | ForEach-Object { $_.Value })
+                if ($null -ne $inline) { $rest = @($inline) + $rest }
+                if ($rest.Count -eq 0 -or $rest[0] -eq '-') { return $null }
+                return [pscustomobject]@{ Text = ($rest -join ' '); Bash = $false; Encoded = $false }
+            }
+            if ($n -eq 'f' -or (Test-ParameterPrefix $n 'file' 2)) { return $null }
+            $takesValue = $n -in 'ex', 'ep', 'wd', 'o', 'of', 'if', 'inp', 'w', 'config', 'settings' -or @($valueOptions | Where-Object { Test-ParameterPrefix $n $_ 3 }).Count -gt 0
+            if ($takesValue -and $null -eq $inline) { $j++ }
+        }
+        return $null
+    }
+
+    if ($name -in 'bash', 'sh', 'zsh', 'dash') {
+        $command = $false
+        for ($j = $k + 1; $j -lt $Tokens.Count; $j++) {
+            $t = $Tokens[$j]
+            if (-not $t.Quoted -and $t.Value -ne '--' -and $t.Value -match '^[-+]') {
+                if ($t.Value -cmatch '^-[A-Za-z]*c[A-Za-z]*$') { $command = $true }
+                if ($t.Value -in '-o', '+o', '-O', '+O', '--rcfile', '--init-file') { $j++ }
+                continue
+            }
+            if ($t.Value -eq '--') { continue }
+            if ($command) { return [pscustomobject]@{ Text = $t.Value; Bash = $true; Encoded = $false } }
+            return $null
+        }
+    }
+    return $null
 }
 
 # If the statement runs `<program> <verb...>`, returns the index of the token after the verbs; otherwise -1.

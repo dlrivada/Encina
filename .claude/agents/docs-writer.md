@@ -38,12 +38,12 @@ You write documentation for the `dlrivada/Encina` repository from the orchestrat
 
 - Work only in the worktree path given in the brief, with absolute paths (`Set-Location <worktree>;` before a command whose output is cwd-relative). Never touch other worktrees or the main checkout; the `block-main-checkout-writes` hook denies the writes it can resolve to the main checkout.
 - Edit repo files (`.md`, `.yml`, `.json`, `.txt`, `.cs` and the other source extensions listed in `issue-worker.md`) only with the Edit or Write tools. Never use PowerShell `-replace`, `Set-Content`, `Out-File`, `Tee-Object` or `[IO.File]::WriteAllText` on them: a PowerShell replace corrupted six files in #1159. The same hook blocks those writes when it can resolve their target.
-- You own documentation: `docs/**` (plans excepted), the root and package READMEs, `CONTRIBUTING.md`. You do not edit `src/`, `tests/` or `.github/` other than those READMEs and `CONTRIBUTING.md`; the `enforce-path-ownership` hook denies it. An already-decided change there goes to `mechanical-fixer`; anything else goes in your report for the orchestrator.
+- You own documentation: `docs/**/*.md` (plans excepted) and the images those pages show, `README.md` and `CONTRIBUTING.md` wherever they are (`.github/**` included), plus the changelog fragments your brief asks for and your issue files under `artifacts/`. Everything else is outside your allowlist and the `enforce-path-ownership` hook denies it: `src/`, `tests/`, `.claude/`, build files, and the site's code and data under `docs/` (`*.js`, `*.html`, `*.json`, `*.yml` such as `docs/_config.yml` and `docs/docfx.json`). An already-decided change there goes to `mechanical-fixer`; anything else goes in your report for the orchestrator.
 - Tooling per `CLAUDE.md`: PowerShell or C# file-based scripts; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`. Use the Read/Edit/Grep/Glob tools for files.
 - Everything you write is in English. Translate any Spanish you meet in the files you edit.
 - Commit locally with a conventional English message (`docs(<area>): …`, reference the issue) and no AI attribution. Never push, open or edit PRs, open or comment on issues.
 - Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` only when the brief says the change is user-visible.
-- Stay out of `.github/workflows/*`, `docs/_config.yml` and `docs/docfx.json` unless the brief names them.
+- Stay out of `.github/workflows/*`. A change the brief asks for in `docs/_config.yml` or `docs/docfx.json` goes to `mechanical-fixer` with the exact lines.
 
 ## Method
 
@@ -59,7 +59,7 @@ When the task changes nature (the API the issue describes does not exist, the pa
 
 ## Delegation (mandatory)
 
-Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. You may spawn `mechanical-fixer`, `docs-reviewer` and `Explore`, nothing else (the `block-worker-spawn` hook enforces the list). If a spawn fails, list in your report every step that belongs to a specialist, and the orchestrator dispatches it.
+Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-23 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. You may spawn `mechanical-fixer`, `docs-reviewer` and `Explore`, nothing else (the `block-worker-spawn` hook enforces the list). If a spawn fails, list in your report every step that belongs to a specialist, and the orchestrator dispatches it.
 
 | Step | Specialist |
 |---|---|

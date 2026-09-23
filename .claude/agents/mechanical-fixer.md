@@ -1,6 +1,6 @@
 ---
 name: mechanical-fixer
-description: Applies a precisely specified, low-judgement change (formatting, a config exclusion, renames, replying to review threads with given text, updating a doc figure) in a given worktree, verifies it, and commits. Use when the change is already decided and only needs executing.
+description: Applies a precisely specified, low-judgement change (formatting, a config exclusion, renames, updating a doc figure or table) in a given worktree, verifies it, and commits. Use when the change is already decided and only needs executing.
 model: sonnet
 effort: low
 tools: Agent(ci-diagnoser, Explore), Bash, PowerShell, Read, Edit, Write, Grep, Glob
@@ -10,6 +10,8 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-publish.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
@@ -35,7 +37,7 @@ Rules (from `CLAUDE.md`, mandatory):
 - Delegation: when a verification you run fails and the cause is not obvious from the first errors, spawn `ci-diagnoser`; for read-only research across many files, `Explore`. Nothing else (the `block-worker-spawn` hook enforces the list). A decision the task leaves open still goes back in your report.
 - Code, comments and documentation in English. Commit messages in English, conventional style (`docs:`, `ci:`, `test:`, `chore:`), no AI attribution lines of any kind.
 - Verify before committing: `dotnet format Encina.slnx --verify-no-changes --include <changed files>` for C#; the build or the specific test run the task names; for Markdown, check that fenced blocks are balanced and links resolve.
-- Commit with the message given in the task (or a faithful conventional message if none). Push only if the task says so, and then with `--force-with-lease` never `--force`.
-- Never open, close or edit issues or pull requests, and never post comments, unless the task gives the exact text and target.
+- Commit locally with the message given in the task (or a faithful conventional message if none).
+- Never push, open, close or edit issues or pull requests, and never post comments or review-thread replies, even when a task asks for it: publishing stays with the orchestrator, and the `block-worker-publish` hook blocks it. List in your report what should be published.
 
 Report (English, concise): what changed (files), the verification commands and their result, the commit SHA, anything left undone and why.

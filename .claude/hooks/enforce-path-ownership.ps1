@@ -2,12 +2,16 @@
 # -Agent <name>: a file belongs to the specialist that owns its kind, and the other agents delegate it
 # (#1181; categories in _repo-paths.ps1, Get-PathCategory).
 #
-#   issue-worker  may not edit documentation (docs/** except docs/plans/**, the root README.md, package
-#                 READMEs and other .md under src/, CONTRIBUTING.md): spawn docs-writer.
+#   issue-worker  may not edit documentation (docs/**/*.md except docs/plans/**, the images docs pages show, the
+#                 root README.md, package READMEs and other .md under src/, CONTRIBUTING.md): spawn docs-writer.
+#                 The site's code and data under docs/ (*.js, *.html, *.json, *.yml, ...) are code: the
+#                 issue-worker edits them and self-reviews them with adversarial-reviewer.
 #                 may not edit changelog.d/**, **/PublicAPI.*.txt, .github/coverage-manifest/**: spawn
 #                 mechanical-fixer with the exact lines.
-#   docs-writer   may not edit src/**, tests/** or .github/** other than documentation (package READMEs,
-#                 CONTRIBUTING.md): spawn mechanical-fixer for an already-decided edit, otherwise report it.
+#   docs-writer   allowlist: documentation, README.md and CONTRIBUTING.md anywhere (.github/**/README.md
+#                 included), changelog.d/** (fragments the brief asks for) and artifacts/** (its issue files);
+#                 never .claude/**. Everything else (src/, tests/, build files, docs/ site code and data) is
+#                 denied: spawn mechanical-fixer for an already-decided edit, otherwise report it.
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -59,8 +63,13 @@ try {
         }
     }
     elseif ($Agent -eq 'docs-writer') {
-        if ($category -ne 'docs' -and $relative -match '^(src|tests|\.github)(/|$)') {
-            [Console]::Error.WriteLine("Blocked: docs-writer does not edit '$relative': src/, tests/ and .github/ belong to the issue-worker, except package READMEs and CONTRIBUTING.md (#1181; .claude/agents/docs-writer.md, Delegation). Spawn mechanical-fixer for an already-decided edit; otherwise list the change in your report for the orchestrator.")
+        $allowed = $relative -notmatch '^\.claude(/|$)' -and (
+            $category -in 'docs', 'changelog' -or
+            $relative -match '(^|/)README\.md$' -or
+            $relative -match '(^|/)CONTRIBUTING\.md$' -or
+            $relative -match '^artifacts/')
+        if (-not $allowed) {
+            [Console]::Error.WriteLine("Blocked: docs-writer edits only documentation (docs/**/*.md and the images they show, READMEs, CONTRIBUTING.md), changelog fragments and its artifacts/ files; '$relative' is not one of them (#1181; .claude/agents/docs-writer.md, Delegation). Code, tests, .claude/, build files and the site's code and data under docs/ (*.js, *.html, *.json, *.yml such as docs/_config.yml) belong to others: spawn mechanical-fixer for an already-decided edit; otherwise list the change in your report for the orchestrator.")
             exit 2
         }
     }

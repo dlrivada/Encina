@@ -77,8 +77,11 @@ function Get-RepoLocation([string]$Full, $Layout) {
 #   changelog  changelog.d/**
 #   publicapi  **/PublicAPI.*.txt
 #   manifest   .github/coverage-manifest/**
-#   docs       docs/** (other than plans), **/CONTRIBUTING.md, the root README.md, src/**/*.md (package READMEs)
-#   code       src/** (other than .md), .github/scripts/**, .claude/hooks/**   (production code and tooling)
+#   docs       prose: docs/**/*.md and *.markdown (other than plans) with the images they show (.png, .jpg,
+#              .jpeg, .gif, .svg, .webp), **/CONTRIBUTING.md, the root README.md, src/**/*.md (package READMEs)
+#   code       src/** (other than .md), the rest of docs/** (dashboard and site code and data: *.js, *.html,
+#              *.css, *.json, *.yml such as docs/_config.yml, *.cs, ...), .github/scripts/**, .claude/hooks/**
+#              (production code and tooling)
 #   test       tests/**
 #   github     .github/** (other than the above)
 #   other      everything else (.claude/agents, .claude/skills, root config files, ...)
@@ -88,8 +91,8 @@ function Get-PathCategory([string]$Relative) {
     if ($r -match '^changelog\.d/') { return 'changelog' }
     if ($r -match '(^|/)PublicAPI\.[^/]*\.txt$') { return 'publicapi' }
     if ($r -match '^\.github/coverage-manifest/') { return 'manifest' }
-    if ($r -match '^docs/' -or $r -match '(^|/)CONTRIBUTING\.md$' -or $r -match '^README\.md$' -or $r -match '^src/.*\.md$') { return 'docs' }
-    if ($r -match '^src/' -or $r -match '^\.github/scripts/' -or $r -match '^\.claude/hooks/') { return 'code' }
+    if ($r -match '^docs/.*\.(md|markdown|png|jpe?g|gif|svg|webp)$' -or $r -match '(^|/)CONTRIBUTING\.md$' -or $r -match '^README\.md$' -or $r -match '^src/.*\.md$') { return 'docs' }
+    if ($r -match '^(src|docs)/' -or $r -match '^\.github/scripts/' -or $r -match '^\.claude/hooks/') { return 'code' }
     if ($r -match '^tests/') { return 'test' }
     if ($r -match '^\.github/') { return 'github' }
     return 'other'

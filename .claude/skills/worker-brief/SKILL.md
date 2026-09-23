@@ -7,7 +7,7 @@ description: Write the brief for an issue-worker or docs-writer - the fixed prot
 
 The orchestrator writes only the variable part; the fixed part below is copied as is, with the `<...>` slots filled. Keep the brief closed: every design decision the worker needs is made here, or the worker stops and reports.
 
-The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrator-writes` hook in `.claude/settings.json` denies it in the main checkout and in every worktree): any change there goes through a brief.
+The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrator-writes` hook in `.claude/settings.json` denies the edits it can see, in the main checkout and in every worktree): any change there goes through a brief, and so does resolving a rebase conflict there (the worker resolves the conflicts in the worktree, continues the rebase, verifies and reports).
 
 ## 1. Before writing
 
@@ -55,8 +55,8 @@ The fixed part is the same for both agents; for a `docs-writer` read it with the
 
 | Rule | issue-worker | docs-writer |
 |---|---|---|
-| Owns | everything except documentation, changelog fragments, PublicAPI files and coverage manifests | `docs/**` (not `docs/plans/**`), root and package READMEs, `CONTRIBUTING.md`; may add its own changelog fragment |
-| Must not edit | documentation (→ `docs-writer`), changelog/PublicAPI/manifests (→ `mechanical-fixer`) | `src/`, `tests/`, `.github/` other than READMEs/`CONTRIBUTING.md` (→ `mechanical-fixer` if decided, else report) |
+| Owns | everything except documentation, changelog fragments, PublicAPI files and coverage manifests (the site's code and data under `docs/` included) | `docs/**/*.md` (not `docs/plans/**`) and the images those pages show, `README.md` and `CONTRIBUTING.md` anywhere, its own changelog fragment, its `artifacts/` issue files |
+| Must not edit | documentation (→ `docs-writer`), changelog/PublicAPI/manifests (→ `mechanical-fixer`) | anything outside its allowlist: `src/`, `tests/`, `.claude/`, build files, the site's code and data under `docs/` (→ `mechanical-fixer` if decided, else report) |
 | May spawn | `ci-diagnoser`, `mechanical-fixer`, `Explore`, `adversarial-reviewer`, `docs-writer` | `mechanical-fixer`, `docs-reviewer`, `Explore` |
 | Self-review | `adversarial-reviewer` when production code changed | `docs-reviewer` when documentation changed |
 | Verification (§3) | the row for the kind of change | the Documentation row |

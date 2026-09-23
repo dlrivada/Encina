@@ -1,5 +1,7 @@
-# PreToolUse hook (Bash|PowerShell), scoped to the issue-worker subagent's frontmatter: blocks publish-side
-# git/gh actions.
+# PreToolUse hook (Bash|PowerShell), scoped to the frontmatter of the writing and reviewing subagents
+# (issue-worker, mechanical-fixer, docs-writer, docs-reviewer): blocks publish-side git/gh actions. The
+# messages name the agent from the hook input's agent_type. The commands of a `pwsh -Command` / `bash -c`
+# wrapper are inspected too (_command-text.ps1).
 #
 # .claude/agents/issue-worker.md, Protocol: an issue-worker commits locally in its own worktree but never
 # pushes, never opens/edits/merges/comments on/reviews/closes/readies a pull request, never creates/edits/
@@ -22,6 +24,7 @@ try {
     . (Join-Path $PSScriptRoot '_command-text.ps1')
 
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $who = if ([string]::IsNullOrWhiteSpace([string]$payload.agent_type)) { 'a worker agent' } else { "a $([string]$payload.agent_type)" }
     $command = [string]$payload.tool_input.command
     if ([string]::IsNullOrWhiteSpace($command)) { exit 0 }
     if ($command -notmatch '\bgit\b|\bgh\b') { exit 0 }
@@ -64,7 +67,7 @@ try {
             }
 
             if ($definesAlias) {
-                [Console]::Error.WriteLine("Blocked: an issue-worker never defines a git alias (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
+                [Console]::Error.WriteLine("Blocked: $who never defines a git alias (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
                 exit 2
             }
 
@@ -74,7 +77,7 @@ try {
                 for ($m = $j + 1; $m -lt $tokens.Count; $m++) {
                     if ($tokens[$m].Value.StartsWith('-')) { continue }
                     if (-not $tokens[$m].Dynamic -and $tokens[$m].Value -match '^alias\.') {
-                        [Console]::Error.WriteLine("Blocked: an issue-worker never defines a git alias with 'git config' (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
+                        [Console]::Error.WriteLine("Blocked: $who never defines a git alias with 'git config' (see .claude/agents/issue-worker.md, Protocol). An alias could stand in for a blocked subcommand such as 'push'; the orchestrator handles publishing.")
                         exit 2
                     }
                     break
@@ -82,7 +85,7 @@ try {
             }
 
             if ($null -ne $verb -and $allowedGitSubcommands -cnotcontains $verb) {
-                [Console]::Error.WriteLine("Blocked: an issue-worker may only run these git subcommands: $($allowedGitSubcommands -join ', ') (see .claude/agents/issue-worker.md, Protocol). '$verb' is not one of them (push, send-pack and http-push publish the repository; the orchestrator handles that).")
+                [Console]::Error.WriteLine("Blocked: $who may only run these git subcommands: $($allowedGitSubcommands -join ', ') (see .claude/agents/issue-worker.md, Protocol). '$verb' is not one of them (push, send-pack and http-push publish the repository; the orchestrator handles that).")
                 exit 2
             }
         }
@@ -90,7 +93,7 @@ try {
         # gh pr create|edit|merge|comment|review|close|ready
         foreach ($verb in $prVerbs) {
             if ((Find-Invocation $tokens 'gh' @('pr', $verb)) -ge 0) {
-                [Console]::Error.WriteLine("Blocked: an issue-worker never runs 'gh pr $verb' (see .claude/agents/issue-worker.md, Protocol). Report to the orchestrator, which runs the pr-cycle skill.")
+                [Console]::Error.WriteLine("Blocked: $who never runs 'gh pr $verb' (see .claude/agents/issue-worker.md, Protocol). Report to the orchestrator, which runs the pr-cycle skill.")
                 exit 2
             }
         }
@@ -98,7 +101,7 @@ try {
         # gh issue create|edit|comment|close|reopen
         foreach ($verb in $issueVerbs) {
             if ((Find-Invocation $tokens 'gh' @('issue', $verb)) -ge 0) {
-                [Console]::Error.WriteLine("Blocked: an issue-worker never runs 'gh issue $verb' (see .claude/agents/issue-worker.md, Protocol). Describe the follow-up in the report instead; the orchestrator opens it.")
+                [Console]::Error.WriteLine("Blocked: $who never runs 'gh issue $verb' (see .claude/agents/issue-worker.md, Protocol). Describe the follow-up in the report instead; the orchestrator opens it.")
                 exit 2
             }
         }
@@ -113,11 +116,11 @@ try {
                 if (-not $m.Dynamic) { $explicitMethod = $m.Value.ToUpperInvariant() }
             }
             if ($explicitMethod -in 'POST', 'PATCH', 'PUT', 'DELETE') {
-                [Console]::Error.WriteLine("Blocked: an issue-worker never calls 'gh api' with a mutating method ($explicitMethod) (see .claude/agents/issue-worker.md, Protocol). Report the needed API call to the orchestrator instead.")
+                [Console]::Error.WriteLine("Blocked: $who never calls 'gh api' with a mutating method ($explicitMethod) (see .claude/agents/issue-worker.md, Protocol). Report the needed API call to the orchestrator instead.")
                 exit 2
             }
             if ($explicitMethod -ne 'GET' -and (Test-OptionPresent $options $apiDataOptions)) {
-                [Console]::Error.WriteLine("Blocked: an issue-worker never calls 'gh api' with data fields and no explicit GET method (gh defaults to POST) (see .claude/agents/issue-worker.md, Protocol). Report the needed API call to the orchestrator instead.")
+                [Console]::Error.WriteLine("Blocked: $who never calls 'gh api' with data fields and no explicit GET method (gh defaults to POST) (see .claude/agents/issue-worker.md, Protocol). Report the needed API call to the orchestrator instead.")
                 exit 2
             }
         }

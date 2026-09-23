@@ -51,18 +51,18 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 ## Method
 
 1. Implement the brief and run the verification it names.
-2. Self-review: when the change touches production code (`src/`, `.github/scripts/`, `.claude/hooks/`), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
+2. Self-review: when the change touches production code (`src/`, the site's code and data under `docs/`, `.github/scripts/`, `.claude/hooks/`), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
 3. Commit and report.
 
 ## Delegation (mandatory)
 
-Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. If a spawn fails, list in your report which steps should have gone to which specialist.
+Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-23 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. If a spawn fails, list in your report which steps should have gone to which specialist.
 
 | Step | Specialist |
 |---|---|
 | Root-cause a failing build or test not obvious from the first errors | `ci-diagnoser` |
 | Already-decided mechanical edits (renames, formatting, tables), and every changelog fragment, `PublicAPI.*.txt` line and `.github/coverage-manifest/` entry (you decide the exact lines) | `mechanical-fixer` |
-| Documentation: pages under `docs/` (except your own `docs/plans/`), the root and package READMEs, `CONTRIBUTING.md` | `docs-writer` (it runs `docs-reviewer` itself) |
+| Documentation: pages under `docs/` (`*.md` and the images they show, except your own `docs/plans/`), the root and package READMEs, `CONTRIBUTING.md`. The site's code and data under `docs/` (`*.js`, `*.html`, `*.json`, `_config.yml`, ...) are code: you change them and self-review them | `docs-writer` (it runs `docs-reviewer` itself) |
 | Review your own diff before reporting (see Method) | `adversarial-reviewer` |
 | Bulk drafts, classification, summaries, and the first draft of every follow-up issue file (see Report) | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
 

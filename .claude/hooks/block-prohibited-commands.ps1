@@ -10,9 +10,13 @@
 # `test -f x && ...`); $( ... ) and backtick command substitution outside single quotes; and <( ... ) / >( ... )
 # process substitution outside quotes.
 #
+# Blocked in both tools: `pwsh` / `powershell -EncodedCommand` (-e, -ec, -en...), whose text no hook can read.
+#
 # Only the program a statement runs is checked (through the tokenizer in _command-text.ps1), so `git grep`,
 # `Select-String`, a word inside a string, a comment, a PowerShell hashtable key (`@{ head = 1 }`) or `--jq`
-# filters pass. Bash pipes are not blocked.
+# filters pass. Bash pipes are not blocked. The command text of a `pwsh -Command "..."` wrapper is checked as
+# PowerShell statements and the script of `bash -c '...'` as Bash statements, whatever the tool's shell.
+# ANSI-C strings ($'...') are Bash quotes, so their content is not a substitution.
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
 # (fail open).
 
@@ -59,19 +63,27 @@ try {
     }
 
     foreach ($tokens in (Split-CommandStatements -Text $command -Bash:$bash)) {
-        if ($bash -and -not $tokens[0].Quoted -and $tokens[0].Value -in 'for', 'while', 'until', 'if', 'case', 'select') {
+        # The shell of this statement: a `pwsh -Command` or `bash -c` wrapper runs its text in its own shell.
+        $statementBash = [bool]$tokens[0].Bash
+        if ($statementBash -and -not $tokens[0].Quoted -and $tokens[0].Value -in 'for', 'while', 'until', 'if', 'case', 'select') {
             Write-Block "the Bash construct '$($tokens[0].Value)'" 'the PowerShell tool (foreach / ForEach-Object, if (...) { }, switch)'
+        }
+
+        $wrapped = Get-WrappedCommand $tokens
+        if ($null -ne $wrapped -and $wrapped.Encoded) {
+            [Console]::Error.WriteLine("Blocked: 'pwsh -EncodedCommand' hides the command from every hook (#1181). Run the command itself with the PowerShell tool, or put it in a script file under artifacts/ and run it with -File.")
+            exit 2
         }
 
         $k = Resolve-Executable $tokens
         if ($k -lt 0 -or $tokens[$k].Dynamic) { continue }
         $name = Get-ExecutableName $tokens[$k].Value
-        if ($bash -and -not $tokens[$k].Quoted -and $tokens[$k].Value -in 'test', '[', '[[') {
+        if ($statementBash -and -not $tokens[$k].Quoted -and $tokens[$k].Value -in 'test', '[', '[[') {
             Write-Block "the Bash condition '$($tokens[$k].Value)'" 'the PowerShell tool (if (Test-Path ...) { })'
         }
 
         if ($equivalents.ContainsKey($name)) { Write-Block "'$name'" $equivalents[$name] }
-        if ($bash -and $bashOnly.ContainsKey($name)) { Write-Block "'$name' in Bash" $bashOnly[$name] }
+        if ($statementBash -and $bashOnly.ContainsKey($name)) { Write-Block "'$name' in Bash" $bashOnly[$name] }
         if ($name -in 'bash', 'sh' -and @($tokens | Select-Object -Skip ($k + 1) | Where-Object { -not $_.Quoted -and $_.Value -ceq '-c' }).Count -gt 0) {
             Write-Block "an inline shell script ('$name -c')" 'the PowerShell tool or a C# file-based script'
         }
@@ -88,6 +100,7 @@ try {
             $next = if ($i + 1 -lt $text.Length) { $text[$i + 1] } else { [char]0 }
             if ($single) { if ($c -eq "'") { $single = $false }; continue }
             if ($c -eq '\') { $i++; continue }
+            if (-not $double -and $c -eq '$' -and $next -eq "'") { $i = (Read-AnsiCString $text $i).End - 1; continue }
             if ($c -eq "'" -and -not $double) { $single = $true; continue }
             if ($c -eq '"') { $double = -not $double; continue }
             if ($c -eq '$' -and $next -eq '(') {
