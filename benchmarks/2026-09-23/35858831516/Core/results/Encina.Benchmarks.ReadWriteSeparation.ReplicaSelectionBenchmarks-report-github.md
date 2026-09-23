@@ -1,0 +1,22 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+
+```
+| Method                                    | Job        | IterationCount | LaunchCount | WarmupCount | Mean       | Error      | StdDev    | Median     | Ratio | RatioSD | Rank | Gen0   | Allocated | Alloc Ratio |
+|------------------------------------------ |----------- |--------------- |------------ |------------ |-----------:|-----------:|----------:|-----------:|------:|--------:|-----:|-------:|----------:|------------:|
+| &#39;LeastConnections.AcquireReplica (lease)&#39; | DefaultJob | Default        | Default     | Default     | 200.702 ns |  4.0563 ns | 6.3152 ns | 197.587 ns | 21.81 |    0.68 |    3 | 0.0002 |      32 B |          NA |
+| LeastConnections.SelectReplica            | DefaultJob | Default        | Default     | Default     | 171.263 ns |  3.3685 ns | 5.3428 ns | 168.517 ns | 18.61 |    0.58 |    3 | 0.0002 |      32 B |          NA |
+| Random.SelectReplica                      | DefaultJob | Default        | Default     | Default     |   9.709 ns |  0.0738 ns | 0.0616 ns |   9.676 ns |  1.06 |    0.01 |    2 |      - |         - |          NA |
+| RoundRobin.SelectReplica                  | DefaultJob | Default        | Default     | Default     |   9.203 ns |  0.0445 ns | 0.0394 ns |   9.189 ns |  1.00 |    0.01 |    1 |      - |         - |          NA |
+|                                           |            |                |             |             |            |            |           |            |       |         |      |        |           |             |
+| &#39;LeastConnections.AcquireReplica (lease)&#39; | ShortRun   | 3              | 1           | 3           | 198.687 ns | 48.3942 ns | 2.6526 ns | 197.229 ns | 22.89 |    0.51 |    2 | 0.0002 |      32 B |          NA |
+| LeastConnections.SelectReplica            | ShortRun   | 3              | 1           | 3           | 174.084 ns |  5.5201 ns | 0.3026 ns | 173.912 ns | 20.06 |    0.38 |    2 | 0.0002 |      32 B |          NA |
+| Random.SelectReplica                      | ShortRun   | 3              | 1           | 3           |   9.278 ns |  0.2099 ns | 0.0115 ns |   9.277 ns |  1.07 |    0.02 |    1 |      - |         - |          NA |
+| RoundRobin.SelectReplica                  | ShortRun   | 3              | 1           | 3           |   8.682 ns |  3.5228 ns | 0.1931 ns |   8.622 ns |  1.00 |    0.03 |    1 |      - |         - |          NA |
