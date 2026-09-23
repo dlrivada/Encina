@@ -1522,6 +1522,7 @@ Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será 
 | File | Purpose |
 |------|---------|
 | `CHANGELOG.md` | Track released changes (follows Keep a Changelog format) |
+| `changelog.d/` | Pending changelog entries, one fragment file per change, merged into `CHANGELOG.md` at release time (see `changelog.d/README.md`) |
 | `ROADMAP.md` | High-level roadmap and planned features |
 | `docs/releases/vX.Y.Z/` | Version-based release documentation |
 | `docs/architecture/adr/*.md` | Architecture Decision Records |
@@ -1529,10 +1530,10 @@ Nunca dejaremos sin resolver o anotar un problema identificado. Lo normal será 
 
 ### When Updating Documentation
 
-- **After completing a feature** → Update `CHANGELOG.md` (Unreleased section)
+- **After completing a feature** → Add a fragment under `changelog.d/<issue>-<slug>.<section>.md` (never edit `CHANGELOG.md`'s `[Unreleased]` section by hand — every PR appending there conflicted with every other PR doing the same)
 - **After major implementation phase** → Update `docs/releases/vX.Y.Z/README.md`
 - **After architectural decisions** → Create ADR in `docs/architecture/adr/`
-- **After releasing** → Move Unreleased to version section in `CHANGELOG.md`
+- **After releasing** → Run `dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title]` to fold the accumulated fragments into a new dated `CHANGELOG.md` section and delete the folded fragment files (maintainer only)
 
 ### DO NOT Track Issues Here
 

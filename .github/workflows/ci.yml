@@ -511,12 +511,42 @@ jobs:
             --manifest-dir .github/coverage-manifest \
             --src-root src
 
+  # Every fragment under changelog.d/ must have a valid name, section and entry content
+  # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
+  # unreleased-unchanged check below the base commit to diff against.
+  changelog-fragments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Check changelog fragments
+        run: dotnet run .github/scripts/changelog-fragments.cs -- --check
+
+      # A release branch is expected to fold fragments into CHANGELOG.md's Unreleased section as
+      # part of cutting the release, so it is exempt; every other PR must add a changelog.d/
+      # fragment instead of hand-editing Unreleased, which is exactly what caused the merge
+      # conflicts this tooling exists to avoid (#1097).
+      - name: Check Unreleased section is unchanged
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release/')
+        run: dotnet run .github/scripts/changelog-fragments.cs -- --check-unreleased-unchanged ${{ github.event.pull_request.base.sha }} --head ${{ github.event.pull_request.head.sha }}
+
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations, changelog-fragments]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

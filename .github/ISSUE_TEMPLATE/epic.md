@@ -65,7 +65,7 @@ Why is this epic needed? What business or technical value does it deliver?
 - [ ] Tests passing (coverage ≥85%)
 - [ ] Zero build warnings
 - [ ] Documentation updated
-- [ ] CHANGELOG.md updated
+- [ ] Changelog fragment(s) added under `changelog.d/` (see `changelog.d/README.md`)
 
 ## Milestone
 

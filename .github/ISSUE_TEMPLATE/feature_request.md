@@ -189,7 +189,7 @@ What documentation artifacts are needed?
 - [ ] Configuration guide in `docs/`
 - [ ] ADR in `docs/architecture/adr/` (for architectural decisions)
 - [ ] Scaling/usage guidance
-- [ ] CHANGELOG.md update
+- [ ] Changelog fragment under `changelog.d/` (see `changelog.d/README.md`)
 - [ ] ROADMAP.md update (if applicable)
 
 ## Related Issues

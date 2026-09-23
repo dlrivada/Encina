@@ -13,6 +13,15 @@
 .gitignore text eol=lf
 .editorconfig text eol=lf
 
+# PublicAPI.Unshipped.txt is an append-only list during active development; a local merge or
+# rebase that touches it on both sides should union the additions instead of conflicting (#1097).
+# PublicAPI.Shipped.txt is NOT unioned: it is the historical record of released APIs, and a union
+# merge could silently resurrect a line one side deliberately removed. If that ever happens,
+# RS0017 (symbol declared but not found) or RS0025 (duplicate entry) from
+# Microsoft.CodeAnalysis.PublicApiAnalyzers catches it, since .editorconfig treats analyzer
+# diagnostics as build errors.
+**/PublicAPI.Unshipped.txt merge=union
+
 # Denote all files that are truly binary and should not be modified
 *.png binary
 *.jpg binary

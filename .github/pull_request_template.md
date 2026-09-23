@@ -19,7 +19,7 @@ Brief description of what this PR does.
 - [ ] `dotnet test Encina.slnx --configuration Release` passes
 - [ ] Coverage does not decrease below threshold
 - [ ] XML documentation added for public APIs
-- [ ] CHANGELOG.md updated (if applicable)
+- [ ] Changelog fragment added under `changelog.d/` (if applicable) — see `changelog.d/README.md`
 
 ## Cross-Cutting Integration
 

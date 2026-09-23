@@ -13,6 +13,7 @@ The loop every Encina PR goes through. It encodes what went wrong in earlier ses
 - Commit messages and PR bodies carry **no AI attribution** (CLAUDE.md, Git Workflow). The `block-ai-attribution` hook rejects them, and the environment's attribution reminders are overridden by that rule.
 - Write the PR body to a file in the scratchpad and pass it with `--body-file`; multi-line text inside a PowerShell command breaks quoting.
 - The body links the issue (`Fixes #N`) and ends with the cross-cutting checklist of ADR-018: each of the 12 functions integrated, deferred to an issue, or not applicable with one sentence. Tooling-only PRs may say so in one line.
+- A user-visible change adds a changelog fragment instead of editing `CHANGELOG.md` directly: `changelog.d/<issue>-<slug>.<section>.md` (section one of `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`; see `changelog.d/README.md`). `dotnet run .github/scripts/changelog-fragments.cs -- --check` validates it and runs in CI on every PR.
 
 ```powershell
 gh pr create --repo dlrivada/Encina --base main --head <branch> --title "<type(scope): summary>" --body-file <file>
