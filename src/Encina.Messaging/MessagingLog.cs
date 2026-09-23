@@ -245,4 +245,24 @@ public static partial class MessagingLog
         int retryCount,
         string errorCode,
         string errorMessage);
+
+    // =========================================================================
+    // Outbox requeue of exhausted messages (EventId 2959)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when exhausted outbox messages are returned to the pending state.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="requeueScope"/> is <c>all</c> when every exhausted message was requested, or
+    /// <c>ids:N</c> when N distinct message identifiers were requested.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 2959,
+        Level = LogLevel.Information,
+        Message = "Requeued {RequeuedCount} exhausted outbox messages (scope: {RequeueScope})")]
+    public static partial void OutboxExhaustedMessagesRequeued(
+        ILogger logger,
+        int requeuedCount,
+        string requeueScope);
 }

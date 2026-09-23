@@ -672,7 +672,7 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
 
     #endregion
 
-    #region Retry and exhaustion (#1151, #1150)
+    #region Retry, exhaustion and requeue (#1151, #1150)
 
     /// <summary>
     /// A publish callback that returns <c>Left</c> schedules a retry instead of marking the message processed.
@@ -687,6 +687,27 @@ public sealed class OutboxStoreADOTests : IAsyncLifetime
     [Fact]
     public Task ProcessPendingMessages_FailureUsingUpRetries_IsNoLongerFetched()
         => OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(_store, new OutboxMessageFactory());
+
+    /// <summary>
+    /// Pending and exhausted counts split unprocessed messages by the retry limit and ignore processed ones.
+    /// </summary>
+    [Fact]
+    public Task GetPendingAndExhaustedCounts_SeparatePendingFromExhaustedMessages()
+        => OutboxRetryScenarios.CountsSeparatePendingFromExhaustedAsync(_store, new OutboxMessageFactory());
+
+    /// <summary>
+    /// Requeuing by identifier resets only the requested exhausted message.
+    /// </summary>
+    [Fact]
+    public Task RequeueExhausted_ById_ReturnsOnlyThatMessageToPending()
+        => OutboxRetryScenarios.RequeueExhaustedByIdAsync(_store, new OutboxMessageFactory());
+
+    /// <summary>
+    /// Requeuing everything resets every exhausted message and leaves processed ones alone.
+    /// </summary>
+    [Fact]
+    public Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
+        => OutboxRetryScenarios.RequeueAllExhaustedAsync(_store, new OutboxMessageFactory());
 
     #endregion
 }

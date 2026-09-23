@@ -68,6 +68,100 @@ internal static class OutboxRetryScenarios
         message.IsDeadLettered(2).ShouldBeTrue();
     }
 
+    /// <summary>
+    /// The pending count includes messages scheduled for a later retry, the exhausted count includes the
+    /// messages whose retries are used up, and neither includes processed messages (#1150).
+    /// </summary>
+    public static async Task CountsSeparatePendingFromExhaustedAsync(IOutboxStore store, IOutboxMessageFactory factory)
+    {
+        const int maxRetries = 2;
+        var pendingBefore = (await store.GetPendingCountAsync(maxRetries)).ShouldBeRight();
+        var exhaustedBefore = (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight();
+
+        await AddMessageAsync(store, factory);
+        var scheduledId = await AddMessageAsync(store, factory);
+        await FailAsync(store, scheduledId, times: 1, nextRetryAtUtc: DateTime.UtcNow.AddHours(1));
+        var exhaustedId = await AddMessageAsync(store, factory);
+        await FailAsync(store, exhaustedId, times: maxRetries);
+        var processedId = await AddMessageAsync(store, factory);
+        await FailAsync(store, processedId, times: maxRetries);
+        (await store.MarkAsProcessedAsync(processedId)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
+
+        (await store.GetPendingCountAsync(maxRetries)).ShouldBeRight().ShouldBe(pendingBefore + 2);
+        (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight().ShouldBe(exhaustedBefore + 1);
+
+        // A higher retry limit turns the exhausted message back into a pending one.
+        (await store.GetExhaustedCountAsync(maxRetries + 1)).ShouldBeRight().ShouldBe(exhaustedBefore);
+    }
+
+    /// <summary>
+    /// Requeuing by identifier resets only the requested exhausted message, which the store then fetches
+    /// again with a fresh retry budget (#1150).
+    /// </summary>
+    public static async Task RequeueExhaustedByIdAsync(IOutboxStore store, IOutboxMessageFactory factory)
+    {
+        const int maxRetries = 2;
+        var requestedId = await AddMessageAsync(store, factory);
+        var otherId = await AddMessageAsync(store, factory);
+        var pendingId = await AddMessageAsync(store, factory);
+        await FailAsync(store, requestedId, times: maxRetries);
+        await FailAsync(store, otherId, times: maxRetries);
+        var exhaustedBefore = (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight();
+
+        var orchestrator = CreateOrchestrator(store, factory, maxRetries);
+        var requeued = (await orchestrator.RequeueExhaustedAsync([requestedId, pendingId, Guid.NewGuid()])).ShouldBeRight();
+
+        requeued.ShouldBe(1);
+        (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight().ShouldBe(exhaustedBefore - 1);
+
+        var fetched = (await store.GetPendingMessagesAsync(100, maxRetries)).ShouldBeRight().ToList();
+        var message = fetched.Single(m => m.Id == requestedId);
+        message.RetryCount.ShouldBe(0);
+        message.NextRetryAtUtc.ShouldBeNull();
+        message.ErrorMessage.ShouldBeNull();
+        message.ProcessedAtUtc.ShouldBeNull();
+        fetched.ShouldNotContain(m => m.Id == otherId);
+    }
+
+    /// <summary>
+    /// Requeuing everything resets every exhausted message and leaves processed messages alone (#1150).
+    /// </summary>
+    public static async Task RequeueAllExhaustedAsync(IOutboxStore store, IOutboxMessageFactory factory)
+    {
+        const int maxRetries = 2;
+        var firstId = await AddMessageAsync(store, factory);
+        var secondId = await AddMessageAsync(store, factory);
+        var processedId = await AddMessageAsync(store, factory);
+        await FailAsync(store, firstId, times: maxRetries);
+        await FailAsync(store, secondId, times: maxRetries);
+        await FailAsync(store, processedId, times: maxRetries);
+        (await store.MarkAsProcessedAsync(processedId)).ShouldBeRight();
+        (await store.SaveChangesAsync()).ShouldBeRight();
+        var exhaustedBefore = (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight();
+        exhaustedBefore.ShouldBeGreaterThanOrEqualTo(2);
+
+        var orchestrator = CreateOrchestrator(store, factory, maxRetries);
+        var requeued = (await orchestrator.RequeueExhaustedAsync()).ShouldBeRight();
+
+        requeued.ShouldBe(exhaustedBefore);
+        (await store.GetExhaustedCountAsync(maxRetries)).ShouldBeRight().ShouldBe(0);
+
+        var fetched = (await store.GetPendingMessagesAsync(100, maxRetries)).ShouldBeRight().ToList();
+        fetched.ShouldContain(m => m.Id == firstId && m.RetryCount == 0);
+        fetched.ShouldContain(m => m.Id == secondId && m.RetryCount == 0);
+        fetched.ShouldNotContain(m => m.Id == processedId);
+    }
+
+    private static async Task FailAsync(IOutboxStore store, Guid messageId, int times, DateTime? nextRetryAtUtc = null)
+    {
+        for (var attempt = 0; attempt < times; attempt++)
+        {
+            (await store.MarkAsFailedAsync(messageId, HandlerErrorMessage, nextRetryAtUtc)).ShouldBeRight();
+            (await store.SaveChangesAsync()).ShouldBeRight();
+        }
+    }
+
     private static async Task<Guid> AddMessageAsync(IOutboxStore store, IOutboxMessageFactory factory)
     {
         var message = factory.Create(

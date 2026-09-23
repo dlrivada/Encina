@@ -399,9 +399,12 @@ public sealed class HealthCheckBuilderExtensionsTests
         // Arrange
         var services = new ServiceCollection();
         var outboxStore = Substitute.For<IOutboxStore>();
-        outboxStore.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Array.Empty<IOutboxMessage>())));
+        outboxStore.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Either<EncinaError, int>.Right(0)));
+        outboxStore.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Either<EncinaError, int>.Right(0)));
         services.AddSingleton(outboxStore);
+        services.AddSingleton(new OutboxOptions { MaxRetries = 9 });
         var builder = services.AddHealthChecks();
         var options = new OutboxHealthCheckOptions { PendingMessageWarningThreshold = 100 };
 
@@ -420,7 +423,8 @@ public sealed class HealthCheckBuilderExtensionsTests
         // Execute health check and verify options through result data
         var context = new HealthCheckContext { Registration = registration };
         var result = await adapter.CheckHealthAsync(context);
-        result.Data["warning_threshold"].ShouldBe(100);
+        result.Data["pending_warning_threshold"].ShouldBe(100);
+        result.Data["max_retries"].ShouldBe(9);
     }
 
     [Fact]

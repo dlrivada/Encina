@@ -110,7 +110,8 @@ public static class HealthCheckBuilderExtensions
             sp =>
             {
                 var store = sp.GetRequiredService<IOutboxStore>();
-                return new EncinaHealthCheckAdapter(new OutboxHealthCheck(store, options));
+                var outboxOptions = sp.GetService<OutboxOptions>() ?? new OutboxOptions();
+                return new EncinaHealthCheckAdapter(new OutboxHealthCheck(store, outboxOptions, options));
             },
             failureStatus,
             allTags));

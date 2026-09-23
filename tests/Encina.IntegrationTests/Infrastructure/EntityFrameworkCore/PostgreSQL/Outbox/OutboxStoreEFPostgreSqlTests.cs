@@ -190,4 +190,25 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
         await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
         await OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
+
+    [Fact]
+    public async Task GetPendingAndExhaustedCounts_SeparatePendingFromExhaustedMessages()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.CountsSeparatePendingFromExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_ById_ReturnsOnlyThatMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.RequeueExhaustedByIdAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.RequeueAllExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Encina.Messaging;
 using Encina.Messaging.Outbox;
 using LanguageExt;
@@ -187,6 +188,97 @@ public sealed class OutboxStoreADO : IOutboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE processedatutc IS NULL
+                  AND retrycount < @MaxRetries";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@MaxRetries", maxRetries);
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            return Convert.ToInt32(await ExecuteScalarAsync(command, cancellationToken), CultureInfo.InvariantCulture);
+        }, "outbox.get_pending_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE processedatutc IS NULL
+                  AND retrycount >= @MaxRetries";
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = sql;
+            AddParameter(command, "@MaxRetries", maxRetries);
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            return Convert.ToInt32(await ExecuteScalarAsync(command, cancellationToken), CultureInfo.InvariantCulture);
+        }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        if (messageIds is { Count: 0 })
+            return 0;
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET retrycount = 0,
+                    nextretryatutc = NULL,
+                    errormessage = NULL
+                WHERE processedatutc IS NULL
+                  AND retrycount >= @MaxRetries";
+
+            using var command = _connection.CreateCommand();
+
+            if (messageIds is not null)
+                sql += " AND id = ANY(@Ids)";
+
+            command.CommandText = sql;
+            AddParameter(command, "@MaxRetries", maxRetries);
+
+            if (messageIds is not null)
+                AddParameter(command, "@Ids", messageIds.Distinct().ToArray());
+
+            if (_connection.State != ConnectionState.Open)
+                await OpenConnectionAsync(cancellationToken);
+
+            return await ExecuteNonQueryAsync(command, cancellationToken);
+        }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // ADO.NET executes SQL immediately, no need for SaveChanges
@@ -222,6 +314,14 @@ public sealed class OutboxStoreADO : IOutboxStore
             return await sqlCommand.ExecuteNonQueryAsync(cancellationToken);
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken);
+    }
+
+    private static async Task<object?> ExecuteScalarAsync(IDbCommand command, CancellationToken cancellationToken)
+    {
+        if (command is NpgsqlCommand sqlCommand)
+            return await sqlCommand.ExecuteScalarAsync(cancellationToken);
+
+        return await Task.Run(command.ExecuteScalar, cancellationToken);
     }
 
     private static async Task<bool> ReadAsync(IDataReader reader, CancellationToken cancellationToken)

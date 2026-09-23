@@ -12,6 +12,12 @@ namespace Encina.Dapper.MySQL.Outbox;
 /// </summary>
 public sealed class OutboxStoreDapper : IOutboxStore
 {
+    /// <summary>
+    /// Maximum number of message identifiers sent in one requeue statement, which keeps
+    /// each statement's parameter list small.
+    /// </summary>
+    private const int RequeueIdBatchSize = 1000;
+
     private readonly IDbConnection _connection;
     private readonly string _tableName;
     private readonly TimeProvider _timeProvider;
@@ -127,6 +133,87 @@ public sealed class OutboxStoreDapper : IOutboxStore
                     NextRetryAtUtc = nextRetryAtUtc
                 });
         }, "outbox.mark_failed_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE ProcessedAtUtc IS NULL
+                  AND RetryCount < @MaxRetries";
+
+            return (int)await _connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+        }, "outbox.get_pending_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE ProcessedAtUtc IS NULL
+                  AND RetryCount >= @MaxRetries";
+
+            return (int)await _connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+        }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        if (messageIds is { Count: 0 })
+            return 0;
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var baseSql = $@"
+                UPDATE {_tableName}
+                SET RetryCount = 0,
+                    NextRetryAtUtc = NULL,
+                    ErrorMessage = NULL
+                WHERE ProcessedAtUtc IS NULL
+                  AND RetryCount >= @MaxRetries";
+
+            if (messageIds is null)
+            {
+                return await _connection.ExecuteAsync(
+                    new CommandDefinition(baseSql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+            }
+
+            var requeued = 0;
+            foreach (var chunk in messageIds.Distinct().Chunk(RequeueIdBatchSize))
+            {
+                requeued += await _connection.ExecuteAsync(
+                    new CommandDefinition(
+                        $"{baseSql} AND Id IN @Ids",
+                        new { MaxRetries = maxRetries, Ids = chunk },
+                        cancellationToken: cancellationToken));
+            }
+
+            return requeued;
+        }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc />

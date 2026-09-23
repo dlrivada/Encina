@@ -50,5 +50,5 @@ public sealed class OutboxMessage : IOutboxMessage
     public bool IsProcessed => ProcessedAtUtc.HasValue;
 
     /// <inheritdoc />
-    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries;
+    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;
 }

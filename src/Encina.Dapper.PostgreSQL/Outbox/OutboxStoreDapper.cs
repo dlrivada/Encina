@@ -132,6 +132,78 @@ public sealed class OutboxStoreDapper : IOutboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE processedatutc IS NULL
+                  AND retrycount < @MaxRetries";
+
+            return (int)await _connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+        }, "outbox.get_pending_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                SELECT COUNT(*)
+                FROM {_tableName}
+                WHERE processedatutc IS NULL
+                  AND retrycount >= @MaxRetries";
+
+            return (int)await _connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(sql, new { MaxRetries = maxRetries }, cancellationToken: cancellationToken));
+        }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        if (messageIds is { Count: 0 })
+            return 0;
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var sql = $@"
+                UPDATE {_tableName}
+                SET retrycount = 0,
+                    nextretryatutc = NULL,
+                    errormessage = NULL
+                WHERE processedatutc IS NULL
+                  AND retrycount >= @MaxRetries";
+
+            if (messageIds is not null)
+                sql += " AND id = ANY(@Ids)";
+
+            return await _connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new { MaxRetries = maxRetries, Ids = messageIds?.Distinct().ToArray() },
+                    cancellationToken: cancellationToken));
+        }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Dapper executes SQL immediately, no need for SaveChanges

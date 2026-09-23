@@ -185,7 +185,7 @@ Encina.Messaging.Health.IEncinaHealthCheck.Tags.get -> System.Collections.Generi
 Encina.Messaging.Health.InboxHealthCheck
 Encina.Messaging.Health.InboxHealthCheck.InboxHealthCheck(Encina.Messaging.Inbox.IInboxStore! store) -> void
 Encina.Messaging.Health.OutboxHealthCheck
-Encina.Messaging.Health.OutboxHealthCheck.OutboxHealthCheck(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Health.OutboxHealthCheckOptions? options = null) -> void
+Encina.Messaging.Health.OutboxHealthCheck.OutboxHealthCheck(Encina.Messaging.Outbox.IOutboxStore! store, Encina.Messaging.Outbox.OutboxOptions! outboxOptions, Encina.Messaging.Health.OutboxHealthCheckOptions? options = null) -> void
 Encina.Messaging.Health.OutboxHealthCheckOptions
 Encina.Messaging.Health.OutboxHealthCheckOptions.OutboxHealthCheckOptions() -> void
 Encina.Messaging.Health.OutboxHealthCheckOptions.PendingMessageCriticalThreshold.get -> int
@@ -818,3 +818,14 @@ Encina.Messaging.Outbox.OutboxProcessorBase.OutboxProcessorBase(System.IServiceP
 Encina.Messaging.Outbox.OutboxProcessorBase.TimeProvider.get -> System.TimeProvider!
 override sealed Encina.Messaging.Outbox.OutboxProcessorBase.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 virtual Encina.Messaging.Outbox.OutboxProcessorBase.ResolveOutboxStore(System.IServiceProvider! scopedServices) -> Encina.Messaging.Outbox.IOutboxStore!
+Encina.Messaging.Health.OutboxHealthCheckOptions.ExhaustedMessageCriticalThreshold.get -> int
+Encina.Messaging.Health.OutboxHealthCheckOptions.ExhaustedMessageCriticalThreshold.set -> void
+Encina.Messaging.Health.OutboxHealthCheckOptions.ExhaustedMessageWarningThreshold.get -> int
+Encina.Messaging.Health.OutboxHealthCheckOptions.ExhaustedMessageWarningThreshold.set -> void
+Encina.Messaging.Outbox.IOutboxStore.GetExhaustedCountAsync(int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Messaging.Outbox.IOutboxStore.GetPendingCountAsync(int maxRetries, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Messaging.Outbox.IOutboxStore.RequeueExhaustedAsync(int maxRetries, System.Collections.Generic.IReadOnlyCollection<System.Guid>? messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Messaging.Outbox.OutboxOrchestrator.GetExhaustedCountAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Messaging.Outbox.OutboxOrchestrator.RequeueExhaustedAsync(System.Collections.Generic.IEnumerable<System.Guid>! messageIds, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+Encina.Messaging.Outbox.OutboxOrchestrator.RequeueExhaustedAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, int>>!
+static Encina.Messaging.MessagingLog.OutboxExhaustedMessagesRequeued(Microsoft.Extensions.Logging.ILogger! logger, int requeuedCount, string! requeueScope) -> void

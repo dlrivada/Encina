@@ -158,11 +158,11 @@ public class OutboxOrchestratorGuardTests
     #region GetPendingCountAsync Error Propagation
 
     [Fact]
-    public async Task GetPendingCountAsync_StoreGetFails_ReturnsError()
+    public async Task GetPendingCountAsync_StoreCountFails_ReturnsError()
     {
         var expectedError = EncinaError.New("store failure");
-        _store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Either<EncinaError, IEnumerable<IOutboxMessage>>.Left(expectedError));
+        _store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, int>.Left(expectedError));
 
         var sut = CreateSut();
         var result = await sut.GetPendingCountAsync();
@@ -173,15 +173,62 @@ public class OutboxOrchestratorGuardTests
     [Fact]
     public async Task GetPendingCountAsync_EmptyStore_ReturnsZero()
     {
-        _store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(
-                Enumerable.Empty<IOutboxMessage>()));
+        _store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, int>.Right(0));
 
         var sut = CreateSut();
         var result = await sut.GetPendingCountAsync();
 
         result.IsRight.ShouldBeTrue();
         result.Match(Right: count => count, Left: _ => -1).ShouldBe(0);
+    }
+
+    #endregion
+
+    #region GetExhaustedCountAsync / RequeueExhaustedAsync Guards
+
+    [Fact]
+    public async Task GetExhaustedCountAsync_StoreCountFails_ReturnsError()
+    {
+        _store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, int>.Left(EncinaError.New("store failure")));
+
+        var result = await CreateSut().GetExhaustedCountAsync();
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_NullMessageIds_ThrowsArgumentNullException()
+    {
+        var sut = CreateSut();
+        var act = () => sut.RequeueExhaustedAsync(null!);
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("messageIds");
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_StoreRequeueFails_ReturnsErrorWithoutSaving()
+    {
+        _store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, int>.Left(EncinaError.New("store failure")));
+
+        var result = await CreateSut().RequeueExhaustedAsync();
+
+        result.IsLeft.ShouldBeTrue();
+        await _store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_SaveFails_ReturnsError()
+    {
+        _store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, int>.Right(2));
+        _store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, LanguageExt.Unit>.Left(EncinaError.New("save failure")));
+
+        var result = await CreateSut().RequeueExhaustedAsync([Guid.NewGuid()]);
+
+        result.IsLeft.ShouldBeTrue();
     }
 
     #endregion

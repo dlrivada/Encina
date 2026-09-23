@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -131,18 +133,99 @@ public sealed class OutboxOrchestrator
     }
 
     /// <summary>
-    /// Gets the count of pending messages.
+    /// Gets the number of messages waiting to be delivered: not processed and with retries left under
+    /// <see cref="OutboxOptions.MaxRetries"/>, whether due now or scheduled for a later retry.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The count of pending messages, or an error.</returns>
-    public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
-    {
-        var messagesResult = await _store.GetPendingMessagesAsync(
-            int.MaxValue,
-            _options.MaxRetries,
-            cancellationToken).ConfigureAwait(false);
+    public Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
+        => _store.GetPendingCountAsync(_options.MaxRetries, cancellationToken);
 
-        return messagesResult.Map(messages => messages.Count());
+    /// <summary>
+    /// Gets the number of messages whose retries are exhausted under <see cref="OutboxOptions.MaxRetries"/>.
+    /// </summary>
+    /// <remarks>
+    /// Exhausted messages stay in the outbox, unprocessed, and are not delivered again until they are
+    /// requeued with <see cref="RequeueExhaustedAsync(CancellationToken)"/>. The count is also published by
+    /// the <c>encina.outbox.messages_exhausted</c> gauge.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The count of exhausted messages, or an error.</returns>
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _store.GetExhaustedCountAsync(_options.MaxRetries, cancellationToken).ConfigureAwait(false);
+        result.IfRight(count => OutboxProcessorMetrics.Instance.SetExhaustedCount(count));
+        return result;
+    }
+
+    /// <summary>
+    /// Returns every exhausted message to the pending state, so that the processor delivers it again
+    /// with a fresh retry budget.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of messages requeued, or an error.</returns>
+    /// <remarks>
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// counted by <c>encina.outbox.messages_requeued_total</c>.
+    /// </remarks>
+    public Task<Either<EncinaError, int>> RequeueExhaustedAsync(CancellationToken cancellationToken = default)
+        => RequeueExhaustedCoreAsync(null, cancellationToken);
+
+    /// <summary>
+    /// Returns the given exhausted messages to the pending state, so that the processor delivers them again
+    /// with a fresh retry budget.
+    /// </summary>
+    /// <param name="messageIds">
+    /// The identifiers of the messages to requeue. Identifiers of messages that are not exhausted
+    /// (pending, processed or unknown) are ignored.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of messages requeued, or an error.</returns>
+    /// <remarks>
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// counted by <c>encina.outbox.messages_requeued_total</c>.
+    /// </remarks>
+    public Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        IEnumerable<Guid> messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        var ids = messageIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return Task.FromResult<Either<EncinaError, int>>(0);
+        }
+
+        return RequeueExhaustedCoreAsync(ids, cancellationToken);
+    }
+
+    private async Task<Either<EncinaError, int>> RequeueExhaustedCoreAsync(
+        Guid[]? messageIds,
+        CancellationToken cancellationToken)
+    {
+        var requeueResult = await _store.RequeueExhaustedAsync(_options.MaxRetries, messageIds, cancellationToken)
+            .ConfigureAwait(false);
+        if (requeueResult.IsLeft)
+        {
+            return requeueResult;
+        }
+
+        var requeued = requeueResult.RightToArray()[0];
+
+        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+        {
+            return saveResult.LeftToArray()[0];
+        }
+
+        MessagingLog.OutboxExhaustedMessagesRequeued(
+            _logger,
+            requeued,
+            messageIds is null ? "all" : string.Create(CultureInfo.InvariantCulture, $"ids:{messageIds.Length}"));
+        OutboxProcessorMetrics.Instance.RecordRequeued(requeued);
+
+        return requeued;
     }
 }
 

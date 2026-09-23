@@ -196,4 +196,28 @@ public sealed class OutboxStoreEFSqlServerTests : IAsyncLifetime
         await context.Database.EnsureCreatedAsync();
         await OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
+
+    [Fact]
+    public async Task GetPendingAndExhaustedCounts_SeparatePendingFromExhaustedMessages()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.CountsSeparatePendingFromExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_ById_ReturnsOnlyThatMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.RequeueExhaustedByIdAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.RequeueAllExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
 }
