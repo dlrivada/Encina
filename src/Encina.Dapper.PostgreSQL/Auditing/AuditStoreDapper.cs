@@ -19,7 +19,7 @@ namespace Encina.Dapper.PostgreSQL.Auditing;
 /// <list type="bullet">
 /// <item><description>Double-quote identifier quoting (e.g., "EntityType")</description></item>
 /// <item><description>Native UUID support for Id column</description></item>
-/// <item><description>TIMESTAMPTZ for timezone-aware timestamps</description></item>
+/// <item><description>TIMESTAMP for <c>TimestampUtc</c>; TIMESTAMPTZ for the timezone-aware <c>StartedAtUtc</c>/<c>CompletedAtUtc</c> columns</description></item>
 /// <item><description>LIMIT/OFFSET for pagination</description></item>
 /// </list>
 /// </para>

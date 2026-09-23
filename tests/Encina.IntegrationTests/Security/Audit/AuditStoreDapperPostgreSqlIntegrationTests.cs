@@ -211,6 +211,42 @@ public class AuditStoreDapperPostgreSqlIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetByUserAsync_WithFromOnly_ShouldReturnEntriesAfterFrom()
+    {
+        await ClearDataAsync();
+        var oldEntry = CreateTestEntry(userId: "user-1", timestampUtc: DateTime.UtcNow.AddDays(-10));
+        var recentEntry = CreateTestEntry(userId: "user-1", timestampUtc: DateTime.UtcNow.AddDays(-1));
+        await _store.RecordAsync(oldEntry);
+        await _store.RecordAsync(recentEntry);
+
+        var result = await _store.GetByUserAsync("user-1", DateTime.UtcNow.AddDays(-5), null);
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(entries =>
+        {
+            entries.ShouldHaveSingleItem();
+            entries[0].Id.ShouldBe(recentEntry.Id);
+        });
+    }
+
+    [Fact]
+    public async Task GetByUserAsync_WithToOnly_ShouldReturnEntriesBeforeTo()
+    {
+        await ClearDataAsync();
+        var oldEntry = CreateTestEntry(userId: "user-1", timestampUtc: DateTime.UtcNow.AddDays(-10));
+        var recentEntry = CreateTestEntry(userId: "user-1", timestampUtc: DateTime.UtcNow.AddDays(-1));
+        await _store.RecordAsync(oldEntry);
+        await _store.RecordAsync(recentEntry);
+
+        var result = await _store.GetByUserAsync("user-1", null, DateTime.UtcNow.AddDays(-5));
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(entries =>
+        {
+            entries.ShouldHaveSingleItem();
+            entries[0].Id.ShouldBe(oldEntry.Id);
+        });
+    }
+
+    [Fact]
     public async Task GetByCorrelationIdAsync_ShouldReturnEntries()
     {
         await ClearDataAsync();
