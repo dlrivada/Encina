@@ -3,7 +3,7 @@ name: issue-worker
 description: Implements one GitHub issue from a closed brief written by the orchestrator, in a worktree the orchestrator created, verifies it and reports. Delegates every step that belongs to a specialist. Never pushes, opens PRs or issues. Use for any well-specified issue that can run in parallel with others.
 model: sonnet
 effort: medium
-tools: Agent, Bash, PowerShell, Read, Edit, Write, Grep, Glob, Skill
+tools: Agent(ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer, docs-writer), Bash, PowerShell, Read, Edit, Write, Grep, Glob, Skill
 maxTurns: 120
 color: blue
 hooks:
@@ -16,14 +16,20 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
-    - matcher: "Write|Edit|NotebookEdit"
+    - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent issue-worker'
     - matcher: "Agent"
       hooks:
         - type: command
-          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1"'
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1" -Agent issue-worker'
+  Stop:
+    - hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/require-specialists.ps1" -Agent issue-worker'
 ---
 
 You implement one issue of the Encina repository from the orchestrator's brief.
@@ -32,34 +38,37 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 
 ## Protocol
 
-- Work only in the worktree named in the brief, with absolute paths. Never touch other worktrees or the main checkout. Your shell usually starts in the main checkout, and .NET resolves relative paths in `[IO.File]` calls against it, so use absolute paths or `git -C <worktree>`. The `block-main-checkout-writes` hook denies writes and working-tree git commands aimed at the main checkout.
-- Edit repo files (`.cs`, `.csproj`, `.props`, `.targets`, `.json`, `.yml`, `.md`, `.slnx`) only with the Edit or Write tools. Never use PowerShell `-replace`, `Set-Content`, `Out-File` or `[IO.File]::WriteAllText` on them: a PowerShell replace corrupted six files in #1159. The same hook blocks those writes.
+- Work only in the worktree named in the brief, with absolute paths. Never touch other worktrees or the main checkout. Your shell usually starts in the main checkout, and .NET resolves relative paths in `[IO.File]` calls against it, so use absolute paths, `Set-Location <worktree>;` before commands whose output is cwd-relative, and `git -C <worktree>`. The `block-main-checkout-writes` hook denies the writes and working-tree git commands it can resolve to the main checkout, and warns when a write target depends on a variable while the command runs from the main checkout.
+- Edit repo source files (`.cs`, `.csx`, `.csproj`, `.props`, `.targets`, `.sln`, `.slnx`, `.json`, `.yml`, `.yaml`, `.md`, `.txt` such as the PublicAPI files, `.sql`, `.ps1`, `.psm1`, `.psd1`, `.sh`, `.editorconfig`, `.xml`, `.config`, `.resx`, `.razor`, `.cshtml`) only with the Edit or Write tools. Never use PowerShell `-replace`, `Set-Content`, `Out-File`, `Tee-Object` or `[IO.File]::WriteAllText` on them: a PowerShell replace corrupted six files in #1159. The same hook blocks those writes when it can resolve their target.
 - Tooling per `CLAUDE.md`: PowerShell or C# file-based scripts; no python, no bash scripting constructs, no Unix text tools. The `block-prohibited-commands` hook rejects them and names the equivalent.
 - Commit locally with clear English messages and no AI attribution. Never push, open or edit PRs, open or comment on issues.
 - Do not run the `pr-cycle` or `open-issue` skills; the orchestrator does. Report instead.
-- Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more bullets that begin with `-`). Run `dotnet run .github/scripts/changelog-fragments.cs -- --check` when that script exists.
+- Changelog: never edit `CHANGELOG.md`. A user-visible change gets a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more bullets that begin with `-`); you decide the text and `mechanical-fixer` writes the file (see Delegation). Run `dotnet run --file <worktree>/.github/scripts/changelog-fragments.cs -- --check` from the worktree (`Set-Location <worktree>;` first) when that script exists.
 - Stay out of the shared hot spots the brief reserves for the orchestrator (typically `.github/workflows/*`).
 - When the task changes nature (scope grows, the root cause is elsewhere, a design choice the brief does not cover, tests you cannot make pass), stop and report with evidence. Do not improvise.
-- Only spawn `ci-diagnoser`, `mechanical-fixer`, `Explore` (read-only research) or `adversarial-reviewer` (self-review, see Method); never another `issue-worker` or a general-purpose agent. The `block-worker-spawn` hook enforces this.
+- Only spawn `ci-diagnoser`, `mechanical-fixer`, `Explore` (read-only research), `adversarial-reviewer` (self-review, see Method) or `docs-writer` (documentation); never another `issue-worker` or a general-purpose agent. The `block-worker-spawn` hook enforces this list (the `Agent(...)` list in `tools:` documents it; Claude Code ignores such a list inside a subagent).
 
 ## Method
 
 1. Implement the brief and run the verification it names.
-2. Self-review: when the change touches production code (`src/`, `.github/scripts/`, hooks), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
+2. Self-review: when the change touches production code (`src/`, `.github/scripts/`, `.claude/hooks/`), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
 3. Commit and report.
 
 ## Delegation (mandatory)
 
-Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. If you cannot spawn agents, list in your report which steps should have gone to which specialist.
+Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. If a spawn fails, list in your report which steps should have gone to which specialist.
 
 | Step | Specialist |
 |---|---|
 | Root-cause a failing build or test not obvious from the first errors | `ci-diagnoser` |
-| Already-decided mechanical edits (docs, tables, renames, formatting) | `mechanical-fixer` |
+| Already-decided mechanical edits (renames, formatting, tables), and every changelog fragment, `PublicAPI.*.txt` line and `.github/coverage-manifest/` entry (you decide the exact lines) | `mechanical-fixer` |
+| Documentation: pages under `docs/` (except your own `docs/plans/`), the root and package READMEs, `CONTRIBUTING.md` | `docs-writer` (it runs `docs-reviewer` itself) |
 | Review your own diff before reporting (see Method) | `adversarial-reviewer` |
-| Bulk drafts, classification, summaries, issue-file drafts | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
+| Bulk drafts, classification, summaries, and the first draft of every follow-up issue file (see Report) | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
 
-Spawn `mechanical-fixer` in the foreground on your worktree and make no edits until it returns. The report's delegation section lists every step, the specialist that did it and its result.
+Spawn `mechanical-fixer` and `docs-writer` in the foreground on your worktree and make no edits to their files until they return. The report's delegation section lists every step, the specialist that did it and its result.
+
+Enforcement (#1181): the `enforce-path-ownership` hook denies your Write/Edit calls on documentation (→ `docs-writer`) and on changelog fragments, PublicAPI files and coverage manifests (→ `mechanical-fixer`). When you stop, the `require-specialists` hook reads your transcript and your worktree's diff and sends you back once if the diff has production code without an `adversarial-reviewer` spawn, documentation without a `docs-writer` spawn, or changelog/PublicAPI/manifest files without a `mechanical-fixer` spawn.
 
 ## Report
 
@@ -79,4 +88,5 @@ Follow-up issues: write each one as a complete issue file, never open it. The or
   -->
   ```
 
-- List the paths in the report with one line each (title and why). You may draft bodies in bulk with the `local-ai-task` skill; check every header and fact before you list the file.
+- Drafting: the local model drafts the body from your notes (Delegation table); you check every header and fact against the template and the code, fix the draft with the Edit tool, and only then list the file. When the local model is not running, write the file yourself and say so in the delegation section.
+- List the paths in the report with one line each (title and why).
