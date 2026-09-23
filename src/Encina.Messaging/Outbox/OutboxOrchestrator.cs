@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -42,6 +44,9 @@ public sealed class OutboxOrchestrator
     /// <param name="messageFactory">Factory to create outbox messages.</param>
     /// <param name="messageSerializer">The message serializer for payload serialization/deserialization.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <see cref="OutboxOptions.MaxRetryDelay"/> is less than <see cref="OutboxOptions.BaseRetryDelay"/>.
+    /// </exception>
     public OutboxOrchestrator(
         IOutboxStore store,
         OutboxOptions options,
@@ -55,6 +60,7 @@ public sealed class OutboxOrchestrator
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(messageSerializer);
+        options.Validate(nameof(options));
 
         _store = store;
         _options = options;
@@ -98,94 +104,139 @@ public sealed class OutboxOrchestrator
     }
 
     /// <summary>
-    /// Processes pending messages from the outbox.
+    /// Processes one batch of pending messages from the outbox.
     /// </summary>
-    /// <param name="publishCallback">The callback to publish each message.</param>
+    /// <param name="publishCallback">
+    /// Publishes each deserialized notification. It returns <c>Right</c> when the delivery succeeded
+    /// and <c>Left</c> when it failed; a <c>Left</c> is handled exactly like a thrown exception.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of messages processed successfully, or an error.</returns>
+    /// <remarks>
+    /// <para>
+    /// A message is marked processed only when the callback returns <c>Right</c>. Otherwise it is marked
+    /// failed, with the next retry computed by <see cref="OutboxRetryBackoff"/> from its current
+    /// <see cref="IOutboxMessage.RetryCount"/>; when the failure uses up <see cref="OutboxOptions.MaxRetries"/>
+    /// it is recorded with no next retry and logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/>.
+    /// </para>
+    /// <para>
+    /// A <c>Left</c> from <see cref="IOutboxStore.MarkAsProcessedAsync"/> or <see cref="IOutboxStore.MarkAsFailedAsync"/>
+    /// is logged (EventId 2961) and the message is not counted as processed. A cancellation (the token, or
+    /// <see cref="EncinaErrorCodes.NotificationCancelled"/> from the callback) stops the batch without marking
+    /// the interrupted message failed.
+    /// </para>
+    /// <para>
+    /// This method does not call <see cref="IOutboxStore.SaveChangesAsync"/>; the caller commits the
+    /// batch, as <see cref="OutboxProcessorBase"/> does, and must check the result of that call.
+    /// </para>
+    /// </remarks>
     public async Task<Either<EncinaError, int>> ProcessPendingMessagesAsync(
-        Func<IOutboxMessage, Type, object, Task> publishCallback,
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> publishCallback,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(publishCallback);
 
-        var messagesResult = await _store.GetPendingMessagesAsync(
-            _options.BatchSize,
-            _options.MaxRetries,
-            cancellationToken).ConfigureAwait(false);
+        var batchProcessor = new OutboxBatchProcessor(_store, _options, _logger, _messageSerializer, _timeProvider);
+        var result = await batchProcessor.ProcessAsync(publishCallback, cancellationToken).ConfigureAwait(false);
+        result.IfRight(r => OutboxProcessorMetrics.Instance.RecordBatch(r));
 
-        if (messagesResult.IsLeft)
-            return messagesResult.LeftToArray()[0];
-
-        var messages = messagesResult.Match(Right: m => m, Left: _ => Enumerable.Empty<IOutboxMessage>());
-        var processedCount = 0;
-
-        foreach (var message in messages)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            try
-            {
-                var notificationType = Type.GetType(message.NotificationType);
-                if (notificationType == null)
-                {
-                    Log.UnknownNotificationType(_logger, message.Id, message.NotificationType);
-                    await MarkAsFailedAsync(message.Id, $"Unknown notification type: {message.NotificationType}", cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                var notification = _messageSerializer.Deserialize(message.Content, notificationType);
-                if (notification == null)
-                {
-                    Log.DeserializationFailed(_logger, message.Id, message.NotificationType);
-                    await MarkAsFailedAsync(message.Id, "Failed to deserialize notification", cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                await publishCallback(message, notificationType, notification).ConfigureAwait(false);
-
-                await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-                processedCount++;
-
-                Log.MessageProcessed(_logger, message.Id);
-            }
-            catch (Exception ex)
-            {
-                Log.ProcessingFailed(_logger, ex, message.Id);
-                await MarkAsFailedAsync(message.Id, ex.Message, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        return processedCount;
+        return result.Map(r => r.Succeeded);
     }
 
     /// <summary>
-    /// Gets the count of pending messages.
+    /// Gets the number of messages waiting to be delivered: not processed and with retries left under
+    /// <see cref="OutboxOptions.MaxRetries"/>, whether due now or scheduled for a later retry.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The count of pending messages, or an error.</returns>
-    public async Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
-    {
-        var messagesResult = await _store.GetPendingMessagesAsync(
-            int.MaxValue,
-            _options.MaxRetries,
-            cancellationToken).ConfigureAwait(false);
+    public Task<Either<EncinaError, int>> GetPendingCountAsync(CancellationToken cancellationToken = default)
+        => _store.GetPendingCountAsync(_options.MaxRetries, cancellationToken);
 
-        return messagesResult.Map(messages => messages.Count());
+    /// <summary>
+    /// Gets the number of messages whose retries are exhausted under <see cref="OutboxOptions.MaxRetries"/>.
+    /// </summary>
+    /// <remarks>
+    /// Exhausted messages stay in the outbox, unprocessed, and are not delivered again until they are
+    /// requeued with <see cref="RequeueExhaustedAsync(CancellationToken)"/>. The count is also published by
+    /// the <c>encina.outbox.messages_exhausted</c> gauge.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The count of exhausted messages, or an error.</returns>
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _store.GetExhaustedCountAsync(_options.MaxRetries, cancellationToken).ConfigureAwait(false);
+        result.IfRight(count => OutboxProcessorMetrics.Instance.SetExhaustedCount(count));
+        return result;
     }
 
-    private async Task MarkAsFailedAsync(Guid messageId, string errorMessage, CancellationToken cancellationToken)
+    /// <summary>
+    /// Returns every exhausted message to the pending state, so that the processor delivers it again
+    /// with a fresh retry budget.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of messages requeued, or an error.</returns>
+    /// <remarks>
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// counted by <c>encina.outbox.messages_requeued_total</c>.
+    /// </remarks>
+    public Task<Either<EncinaError, int>> RequeueExhaustedAsync(CancellationToken cancellationToken = default)
+        => RequeueExhaustedCoreAsync(null, cancellationToken);
+
+    /// <summary>
+    /// Returns the given exhausted messages to the pending state, so that the processor delivers them again
+    /// with a fresh retry budget.
+    /// </summary>
+    /// <param name="messageIds">
+    /// The identifiers of the messages to requeue. Identifiers of messages that are not exhausted
+    /// (pending, processed or unknown) are ignored.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of messages requeued, or an error.</returns>
+    /// <remarks>
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// counted by <c>encina.outbox.messages_requeued_total</c>.
+    /// </remarks>
+    public Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        IEnumerable<Guid> messageIds,
+        CancellationToken cancellationToken = default)
     {
-        var nextRetryAt = CalculateNextRetryTime();
-        await _store.MarkAsFailedAsync(messageId, errorMessage, nextRetryAt, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(messageIds);
+
+        var ids = messageIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return Task.FromResult<Either<EncinaError, int>>(0);
+        }
+
+        return RequeueExhaustedCoreAsync(ids, cancellationToken);
     }
 
-    private DateTime CalculateNextRetryTime()
+    private async Task<Either<EncinaError, int>> RequeueExhaustedCoreAsync(
+        Guid[]? messageIds,
+        CancellationToken cancellationToken)
     {
-        // Exponential backoff: BaseRetryDelay * 2^retryCount
-        // Since we don't have the current retry count here, use base delay
-        return _timeProvider.GetUtcNow().UtcDateTime.Add(_options.BaseRetryDelay);
+        var requeueResult = await _store.RequeueExhaustedAsync(_options.MaxRetries, messageIds, cancellationToken)
+            .ConfigureAwait(false);
+        if (requeueResult.IsLeft)
+        {
+            return requeueResult;
+        }
+
+        var requeued = requeueResult.RightToArray()[0];
+
+        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+        {
+            return saveResult.LeftToArray()[0];
+        }
+
+        MessagingLog.OutboxExhaustedMessagesRequeued(
+            _logger,
+            requeued,
+            messageIds is null ? "all" : string.Create(CultureInfo.InvariantCulture, $"ids:{messageIds.Length}"));
+        OutboxProcessorMetrics.Instance.RecordRequeued(requeued);
+
+        return requeued;
     }
 }
 
@@ -255,27 +306,6 @@ internal static partial class Log
         Message = "Message {MessageId} added to outbox (type: {NotificationType})")]
     public static partial void MessageAddedToOutbox(ILogger logger, Guid messageId, string notificationType);
 
-    [LoggerMessage(
-        EventId = 2838,
-        Level = LogLevel.Debug,
-        Message = "Message {MessageId} processed successfully")]
-    public static partial void MessageProcessed(ILogger logger, Guid messageId);
-
-    [LoggerMessage(
-        EventId = 2839,
-        Level = LogLevel.Warning,
-        Message = "Unknown notification type for message {MessageId}: {NotificationType}")]
-    public static partial void UnknownNotificationType(ILogger logger, Guid messageId, string notificationType);
-
-    [LoggerMessage(
-        EventId = 2840,
-        Level = LogLevel.Warning,
-        Message = "Failed to deserialize message {MessageId} of type {NotificationType}")]
-    public static partial void DeserializationFailed(ILogger logger, Guid messageId, string notificationType);
-
-    [LoggerMessage(
-        EventId = 2841,
-        Level = LogLevel.Error,
-        Message = "Failed to process message {MessageId}")]
-    public static partial void ProcessingFailed(ILogger logger, Exception ex, Guid messageId);
+    // EventIds 2838-2841 (per-message processing) were retired when message processing moved to
+    // OutboxBatchProcessor, which logs through MessagingLog (2830-2832, 2958).
 }

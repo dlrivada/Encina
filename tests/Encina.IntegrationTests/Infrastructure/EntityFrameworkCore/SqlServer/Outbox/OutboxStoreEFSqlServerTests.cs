@@ -1,4 +1,5 @@
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.IntegrationTests.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using LanguageExt;
@@ -178,5 +179,45 @@ public sealed class OutboxStoreEFSqlServerTests : IAsyncLifetime
             var stored = await verifyContext.Set<OutboxMessage>().FindAsync(id);
             stored.ShouldNotBeNull();
         }
+    }
+
+    [Fact]
+    public async Task ProcessPendingMessages_PublishReturnsLeft_SchedulesRetryInsteadOfMarkingProcessed()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.LeftResultSchedulesRetryAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task ProcessPendingMessages_FailureUsingUpRetries_IsNoLongerFetched()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task GetPendingAndExhaustedCounts_SeparatePendingFromExhaustedMessages()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.CountsSeparatePendingFromExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_ById_ReturnsOnlyThatMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.RequeueExhaustedByIdAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
+    {
+        await using var context = _fixture.CreateDbContext<TestEFDbContext>();
+        await context.Database.EnsureCreatedAsync();
+        await OutboxRetryScenarios.RequeueAllExhaustedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
 }

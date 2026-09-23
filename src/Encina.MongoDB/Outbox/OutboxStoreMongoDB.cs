@@ -145,9 +145,77 @@ public sealed class OutboxStoreMongoDB : IOutboxStore
     }
 
     /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var filter = Builders<OutboxMessage>.Filter.And(
+                Builders<OutboxMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
+                Builders<OutboxMessage>.Filter.Lt(m => m.RetryCount, maxRetries));
+
+            var count = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return checked((int)count);
+        }, "outbox.get_pending_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var count = await _collection.CountDocumentsAsync(ExhaustedFilter(maxRetries), cancellationToken: cancellationToken).ConfigureAwait(false);
+            return checked((int)count);
+        }, "outbox.get_exhausted_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        if (messageIds is { Count: 0 })
+            return 0;
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var filter = ExhaustedFilter(maxRetries);
+            if (messageIds is not null)
+            {
+                filter = Builders<OutboxMessage>.Filter.And(
+                    filter,
+                    Builders<OutboxMessage>.Filter.In(m => m.Id, messageIds.Distinct()));
+            }
+
+            var update = Builders<OutboxMessage>.Update
+                .Set(m => m.RetryCount, 0)
+                .Set(m => m.NextRetryAtUtc, null)
+                .Set(m => m.ErrorMessage, null);
+
+            var result = await _collection.UpdateManyAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return checked((int)result.ModifiedCount);
+        }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // MongoDB operations are immediately persisted, no SaveChanges needed
         return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
+
+    private static FilterDefinition<OutboxMessage> ExhaustedFilter(int maxRetries)
+        => Builders<OutboxMessage>.Filter.And(
+            Builders<OutboxMessage>.Filter.Eq(m => m.ProcessedAtUtc, null),
+            Builders<OutboxMessage>.Filter.Gte(m => m.RetryCount, maxRetries));
 }

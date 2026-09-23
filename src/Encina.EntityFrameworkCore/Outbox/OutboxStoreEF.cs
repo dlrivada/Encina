@@ -20,6 +20,12 @@ namespace Encina.EntityFrameworkCore.Outbox;
 /// </remarks>
 public sealed class OutboxStoreEF : IOutboxStore
 {
+    /// <summary>
+    /// Maximum number of message identifiers sent in one requeue query, well below the
+    /// 2,100-parameter limit of SQL Server.
+    /// </summary>
+    private const int RequeueIdBatchSize = 1000;
+
     private readonly DbContext _dbContext;
     private readonly TimeProvider _timeProvider;
 
@@ -113,6 +119,79 @@ public sealed class OutboxStoreEF : IOutboxStore
             message.RetryCount++;
             message.NextRetryAtUtc = nextRetryAtUtc;
         }, "outbox.mark_failed_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+            await _dbContext.Set<OutboxMessage>()
+                .CountAsync(m => m.ProcessedAtUtc == null && m.RetryCount < maxRetries, cancellationToken),
+            "outbox.get_pending_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        return await EitherHelpers.TryAsync(async () =>
+            await _dbContext.Set<OutboxMessage>()
+                .CountAsync(m => m.ProcessedAtUtc == null && m.RetryCount >= maxRetries, cancellationToken),
+            "outbox.get_exhausted_count_failed").ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The requeued messages are loaded and changed on the tracked context, like the other state changes of
+    /// this store, so the change is persisted by <see cref="SaveChangesAsync"/> within the caller's unit of work.
+    /// </remarks>
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        if (messageIds is { Count: 0 })
+            return 0;
+
+        return await EitherHelpers.TryAsync(async () =>
+        {
+            var exhausted = _dbContext.Set<OutboxMessage>()
+                .Where(m => m.ProcessedAtUtc == null && m.RetryCount >= maxRetries);
+
+            var messages = new List<OutboxMessage>();
+            if (messageIds is null)
+            {
+                messages.AddRange(await exhausted.ToListAsync(cancellationToken));
+            }
+            else
+            {
+                foreach (var chunk in messageIds.Distinct().Chunk(RequeueIdBatchSize))
+                {
+                    // A List<Guid> keeps Contains bound to the instance method; with C# 14 an array would bind
+                    // to the span-based MemoryExtensions.Contains inside the expression tree.
+                    var ids = chunk.ToList();
+                    messages.AddRange(await exhausted.Where(m => ids.Contains(m.Id)).ToListAsync(cancellationToken));
+                }
+            }
+
+            foreach (var message in messages)
+            {
+                message.RetryCount = 0;
+                message.NextRetryAtUtc = null;
+                message.ErrorMessage = null;
+            }
+
+            return messages.Count;
+        }, "outbox.requeue_exhausted_failed").ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

@@ -158,6 +158,51 @@ public sealed class FakeOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, int>> GetPendingCountAsync(int maxRetries, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        var count = _messages.Values.Count(m => m.ProcessedAtUtc is null && m.RetryCount < maxRetries);
+        return Task.FromResult<Either<EncinaError, int>>(count);
+    }
+
+    /// <inheritdoc />
+    public Task<Either<EncinaError, int>> GetExhaustedCountAsync(int maxRetries, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        var count = _messages.Values.Count(m => IsExhausted(m, maxRetries));
+        return Task.FromResult<Either<EncinaError, int>>(count);
+    }
+
+    /// <inheritdoc />
+    public Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
+
+        var requested = messageIds?.ToHashSet();
+        var requeued = 0;
+
+        foreach (var message in _messages.Values)
+        {
+            if (!IsExhausted(message, maxRetries) || (requested is not null && !requested.Contains(message.Id)))
+            {
+                continue;
+            }
+
+            message.RetryCount = 0;
+            message.NextRetryAtUtc = null;
+            message.ErrorMessage = null;
+            requeued++;
+        }
+
+        return Task.FromResult<Either<EncinaError, int>>(requeued);
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCallCount++;
@@ -231,4 +276,8 @@ public sealed class FakeOutboxStore : IOutboxStore
             return _addedMessages.Any(m => m.NotificationType == typeof(TNotification).FullName);
         }
     }
+
+    // Same predicate as the database stores: not processed and no retries left.
+    private static bool IsExhausted(FakeOutboxMessage message, int maxRetries)
+        => message.ProcessedAtUtc is null && message.RetryCount >= maxRetries;
 }

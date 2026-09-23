@@ -10,7 +10,7 @@ namespace Encina.OpenTelemetry.MessagingStores;
 /// <remarks>
 /// <para>
 /// Wraps the inner store and creates <see cref="Activity"/> spans for state-changing operations
-/// (add, get pending, mark processed, mark failed). All activity creation is guarded by
+/// (add, get pending, mark processed, mark failed, requeue exhausted). The count queries are passed through. All activity creation is guarded by
 /// <see cref="ActivitySource.HasListeners()"/> for zero-cost when no trace collector is configured.
 /// </para>
 /// <para>
@@ -89,6 +89,27 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
+    public Task<Either<EncinaError, int>> GetPendingCountAsync(int maxRetries, CancellationToken cancellationToken = default)
+        => _inner.GetPendingCountAsync(maxRetries, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<Either<EncinaError, int>> GetExhaustedCountAsync(int maxRetries, CancellationToken cancellationToken = default)
+        => _inner.GetExhaustedCountAsync(maxRetries, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        using var activity = StartRequeueExhausted(messageIds?.Count);
+        var result = await _inner.RequeueExhaustedAsync(maxRetries, messageIds, cancellationToken).ConfigureAwait(false);
+        result.IfRight(count => CompleteRequeue(activity, count));
+        result.IfLeft(err => Failed(activity, err.Message));
+        return result;
+    }
+
+    /// <inheritdoc />
     public Task<Either<EncinaError, Unit>> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _inner.SaveChangesAsync(cancellationToken);
 
@@ -141,6 +162,34 @@ internal sealed class InstrumentedOutboxStore : IOutboxStore
         var activity = Source.StartActivity("encina.outbox.mark_failed", ActivityKind.Internal);
         activity?.SetTag("outbox.message_id", messageId);
         return activity;
+    }
+
+    private static Activity? StartRequeueExhausted(int? requestedCount)
+    {
+        if (!Source.HasListeners())
+        {
+            return null;
+        }
+
+        var activity = Source.StartActivity("encina.outbox.requeue_exhausted", ActivityKind.Internal);
+        activity?.SetTag("outbox.requeue_scope", requestedCount is null ? "all" : "ids");
+        if (requestedCount is not null)
+        {
+            activity?.SetTag("outbox.requested_count", requestedCount.Value);
+        }
+
+        return activity;
+    }
+
+    private static void CompleteRequeue(Activity? activity, int requeuedCount)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag("outbox.requeued_count", requeuedCount);
+        activity.SetStatus(ActivityStatusCode.Ok);
     }
 
     private static void Complete(Activity? activity)

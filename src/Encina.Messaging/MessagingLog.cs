@@ -166,15 +166,16 @@ public static partial class MessagingLog
         Guid messageId,
         string notificationType);
 
-    /// <summary>Logs when an outbox message fails to process.</summary>
+    /// <summary>Logs when an outbox message fails to process and a retry is scheduled.</summary>
     [LoggerMessage(
         EventId = 2832,
         Level = LogLevel.Warning,
-        Message = "Failed to process outbox message {MessageId}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
+        Message = "Failed to process outbox message {MessageId}: {ErrorMessage}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
     public static partial void FailedToProcessOutboxMessage(
         ILogger logger,
-        Exception exception,
+        Exception? exception,
         Guid messageId,
+        string errorMessage,
         int retryCount,
         int maxRetries,
         DateTime? nextRetry);
@@ -223,4 +224,87 @@ public static partial class MessagingLog
         ILogger logger,
         string requestType,
         string? correlationId);
+
+    // =========================================================================
+    // Outbox Processor, exhausted retries (EventId 2958)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when a failure uses up the retries of an outbox message, so it will not be fetched again.
+    /// </summary>
+    /// <remarks>The <paramref name="errorCode"/> is <c>outbox.max_retries_exceeded</c>.</remarks>
+    [LoggerMessage(
+        EventId = 2958,
+        Level = LogLevel.Error,
+        Message = "Outbox message {MessageId} of type {NotificationType} failed {RetryCount} times and will not be retried ({ErrorCode}). Last error: {ErrorMessage}")]
+    public static partial void OutboxMessageRetriesExhausted(
+        ILogger logger,
+        Exception? exception,
+        Guid messageId,
+        string notificationType,
+        int retryCount,
+        string errorCode,
+        string errorMessage);
+
+    // =========================================================================
+    // Outbox requeue of exhausted messages (EventId 2959)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when exhausted outbox messages are returned to the pending state.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="requeueScope"/> is <c>all</c> when every exhausted message was requested, or
+    /// <c>ids:N</c> when N distinct message identifiers were requested.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 2959,
+        Level = LogLevel.Information,
+        Message = "Requeued {RequeuedCount} exhausted outbox messages (scope: {RequeueScope})")]
+    public static partial void OutboxExhaustedMessagesRequeued(
+        ILogger logger,
+        int requeuedCount,
+        string requeueScope);
+
+    // =========================================================================
+    // Outbox Processor, store results and cancellation (EventIds 2960-2962)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when the outbox store fails to save the outcomes of a processed batch, so none of them
+    /// was persisted and the messages will be fetched again.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 2960,
+        Level = LogLevel.Error,
+        Message = "Failed to save the outcomes of {MessageCount} outbox messages; they will be delivered again ({ErrorMessage})")]
+    public static partial void OutboxBatchSaveFailed(
+        ILogger logger,
+        int messageCount,
+        string errorMessage);
+
+    /// <summary>
+    /// Logs when the outbox store fails to record the outcome of one message.
+    /// </summary>
+    /// <remarks><paramref name="operation"/> is <c>MarkAsProcessedAsync</c> or <c>MarkAsFailedAsync</c>.</remarks>
+    [LoggerMessage(
+        EventId = 2961,
+        Level = LogLevel.Error,
+        Message = "Outbox store failed to record {Operation} for message {MessageId}: {ErrorMessage}")]
+    public static partial void OutboxMessageOutcomeNotRecorded(
+        ILogger logger,
+        string operation,
+        Guid messageId,
+        string errorMessage);
+
+    /// <summary>
+    /// Logs when cancellation stops an outbox batch; the interrupted message keeps its retry budget.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 2962,
+        Level = LogLevel.Information,
+        Message = "Outbox batch stopped by cancellation at message {MessageId}; it was not marked failed")]
+    public static partial void OutboxBatchCancelled(
+        ILogger logger,
+        Guid messageId);
 }

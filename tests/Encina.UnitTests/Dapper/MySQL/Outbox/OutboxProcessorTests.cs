@@ -321,7 +321,7 @@ public sealed class OutboxProcessorTests
         // Assert
         await store.Received().MarkAsFailedAsync(
             messageId,
-            Arg.Is<string>(s => s.Contains("Failed to deserialize notification")),
+            Arg.Is<string>(s => s.Contains("Unknown notification type")),
             Arg.Any<DateTime?>(),
             Arg.Any<CancellationToken>());
     }

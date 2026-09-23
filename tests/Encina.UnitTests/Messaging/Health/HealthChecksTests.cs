@@ -30,10 +30,10 @@ public sealed class HealthChecksTests
     {
         // Arrange
         var store = Substitute.For<IOutboxStore>();
-        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Database connection failed"));
 
-        var healthCheck = new OutboxHealthCheck(store);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
@@ -53,10 +53,10 @@ public sealed class HealthChecksTests
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new OperationCanceledException(cts.Token));
 
-        var healthCheck = new OutboxHealthCheck(store);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
         var result = await healthCheck.CheckHealthAsync(cts.Token);
@@ -72,7 +72,7 @@ public sealed class HealthChecksTests
     {
         // Arrange
         var store = Substitute.For<IOutboxStore>();
-        var healthCheck = new OutboxHealthCheck(store);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act & Assert
         healthCheck.Tags.ShouldContain("encina");
@@ -83,7 +83,7 @@ public sealed class HealthChecksTests
     {
         // Arrange
         var store = Substitute.For<IOutboxStore>();
-        var healthCheck = new OutboxHealthCheck(store);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act & Assert
         healthCheck.Name.ShouldBe("encina-outbox");
@@ -97,18 +97,15 @@ public sealed class HealthChecksTests
     public void OutboxHealthCheck_WithNullStore_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new OutboxHealthCheck(null!));
+        Should.Throw<ArgumentNullException>(() => new OutboxHealthCheck(null!, new OutboxOptions()));
     }
 
     [Fact]
     public async Task OutboxHealthCheck_WhenHealthy_ReturnsHealthy()
     {
         // Arrange
-        var store = Substitute.For<IOutboxStore>();
-        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(System.Array.Empty<IOutboxMessage>().AsEnumerable()));
-
-        var healthCheck = new OutboxHealthCheck(store);
+        var store = CreateOutboxStore(pending: 0, exhausted: 0);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
@@ -117,52 +114,174 @@ public sealed class HealthChecksTests
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain("healthy");
+        result.Data["pending_count"].ShouldBe(0);
+        result.Data["exhausted_count"].ShouldBe(0);
     }
 
     [Fact]
-    public async Task OutboxHealthCheck_WhenExceedsWarningThreshold_ReturnsDegraded()
+    public async Task OutboxHealthCheck_QueriesCountsWithConfiguredMaxRetries()
     {
         // Arrange
-        var store = Substitute.For<IOutboxStore>();
-        var messages = Enumerable.Range(0, 100).Select(_ => Substitute.For<IOutboxMessage>());
-        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages));
+        var store = CreateOutboxStore(pending: 0, exhausted: 0);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions { MaxRetries = 7 });
 
-        var options = new OutboxHealthCheckOptions
-        {
-            PendingMessageWarningThreshold = 50,
-            PendingMessageCriticalThreshold = 200
-        };
-        var healthCheck = new OutboxHealthCheck(store, options);
+        // Act
+        await healthCheck.CheckHealthAsync();
+
+        // Assert
+        await store.Received(1).GetPendingCountAsync(7, Arg.Any<CancellationToken>());
+        await store.Received(1).GetExhaustedCountAsync(7, Arg.Any<CancellationToken>());
+        await store.DidNotReceive().GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WhenPendingExceedsWarningThreshold_ReturnsDegraded()
+    {
+        // Arrange - a real count above the defaults, which the old batch-of-one sample could never reach
+        var store = CreateOutboxStore(pending: 150, exhausted: 0);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("150 pending messages");
     }
 
     [Fact]
-    public async Task OutboxHealthCheck_WhenExceedsCriticalThreshold_ReturnsUnhealthy()
+    public async Task OutboxHealthCheck_WhenPendingExceedsCriticalThreshold_ReturnsUnhealthy()
     {
         // Arrange
-        var store = Substitute.For<IOutboxStore>();
-        var messages = Enumerable.Range(0, 200).Select(_ => Substitute.For<IOutboxMessage>());
-        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages));
-
+        var store = CreateOutboxStore(pending: 200, exhausted: 0);
         var options = new OutboxHealthCheckOptions
         {
             PendingMessageWarningThreshold = 50,
             PendingMessageCriticalThreshold = 100
         };
-        var healthCheck = new OutboxHealthCheck(store, options);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions(), options);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WithOneExhaustedMessage_ReturnsDegradedByDefault()
+    {
+        // Arrange
+        var store = CreateOutboxStore(pending: 0, exhausted: 1);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("1 messages with exhausted retries");
+        result.Data["exhausted_count"].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WhenExhaustedExceedsCriticalThreshold_ReturnsUnhealthy()
+    {
+        // Arrange
+        var store = CreateOutboxStore(pending: 0, exhausted: 5);
+        var options = new OutboxHealthCheckOptions
+        {
+            ExhaustedMessageWarningThreshold = 2,
+            ExhaustedMessageCriticalThreshold = 5
+        };
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions(), options);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_ReportsTheWorseOfPendingAndExhaustedStatus()
+    {
+        // Arrange - pending is only degraded, exhausted is critical
+        var store = CreateOutboxStore(pending: 150, exhausted: 100);
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("150 pending messages");
+        result.Description!.ShouldContain("100 messages with exhausted retries");
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WhenExhaustedThresholdsDisabled_IgnoresExhaustedMessages()
+    {
+        // Arrange
+        var store = CreateOutboxStore(pending: 0, exhausted: 10);
+        var options = new OutboxHealthCheckOptions
+        {
+            ExhaustedMessageWarningThreshold = int.MaxValue,
+            ExhaustedMessageCriticalThreshold = int.MaxValue
+        };
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions(), options);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Healthy);
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WhenPendingCountFails_ReturnsUnhealthy()
+    {
+        // Arrange
+        var store = Substitute.For<IOutboxStore>();
+        store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_pending_count_failed", "pending count failed")));
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("pending count failed");
+    }
+
+    [Fact]
+    public async Task OutboxHealthCheck_WhenExhaustedCountFails_ReturnsUnhealthy()
+    {
+        // Arrange
+        var store = Substitute.For<IOutboxStore>();
+        store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
+        store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_exhausted_count_failed", "exhausted count failed")));
+        var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("exhausted count failed");
+    }
+
+    private static IOutboxStore CreateOutboxStore(int pending, int exhausted)
+    {
+        var store = Substitute.For<IOutboxStore>();
+        store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(pending));
+        store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(exhausted));
+        return store;
     }
 
     #endregion

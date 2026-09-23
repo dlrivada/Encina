@@ -43,4 +43,12 @@ public sealed class OutboxMessageTests
 
         message.IsDeadLettered(maxRetries: 3).ShouldBeFalse();
     }
+
+    [Fact]
+    public void IsDeadLettered_WhenProcessed_ReturnsFalse()
+    {
+        var message = new OutboxMessage { RetryCount = 3, ProcessedAtUtc = DateTime.UtcNow };
+
+        message.IsDeadLettered(maxRetries: 3).ShouldBeFalse();
+    }
 }

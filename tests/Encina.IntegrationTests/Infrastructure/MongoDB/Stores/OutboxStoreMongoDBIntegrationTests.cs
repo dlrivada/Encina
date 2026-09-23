@@ -1,3 +1,4 @@
+using Encina.IntegrationTests.Messaging.Outbox;
 using Encina.MongoDB;
 using Encina.MongoDB.Outbox;
 using Encina.TestInfrastructure.Fixtures;
@@ -387,6 +388,26 @@ public sealed class OutboxStoreMongoDBIntegrationTests : IAsyncLifetime
             stored.ShouldNotBeNull();
         }
     }
+
+    [Fact]
+    public Task ProcessPendingMessages_PublishReturnsLeft_SchedulesRetryInsteadOfMarkingProcessed()
+        => OutboxRetryScenarios.LeftResultSchedulesRetryAsync(CreateStore(), new OutboxMessageFactory());
+
+    [Fact]
+    public Task ProcessPendingMessages_FailureUsingUpRetries_IsNoLongerFetched()
+        => OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(CreateStore(), new OutboxMessageFactory());
+
+    [Fact]
+    public Task GetPendingAndExhaustedCounts_SeparatePendingFromExhaustedMessages()
+        => OutboxRetryScenarios.CountsSeparatePendingFromExhaustedAsync(CreateStore(), new OutboxMessageFactory());
+
+    [Fact]
+    public Task RequeueExhausted_ById_ReturnsOnlyThatMessageToPending()
+        => OutboxRetryScenarios.RequeueExhaustedByIdAsync(CreateStore(), new OutboxMessageFactory());
+
+    [Fact]
+    public Task RequeueExhausted_All_ReturnsEveryExhaustedMessageToPending()
+        => OutboxRetryScenarios.RequeueAllExhaustedAsync(CreateStore(), new OutboxMessageFactory());
 
     private OutboxStoreMongoDB CreateStore()
     {

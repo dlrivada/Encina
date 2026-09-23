@@ -194,9 +194,17 @@ public class HealthChecksGuardTests
     [Fact]
     public void OutboxHealthCheck_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new OutboxHealthCheck(null!);
+        var act = () => new OutboxHealthCheck(null!, new OutboxOptions());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
+    }
+
+    [Fact]
+    public void OutboxHealthCheck_NullOutboxOptions_ThrowsArgumentNullException()
+    {
+        var act = () => new OutboxHealthCheck(Substitute.For<IOutboxStore>(), null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("outboxOptions");
     }
 
     #endregion

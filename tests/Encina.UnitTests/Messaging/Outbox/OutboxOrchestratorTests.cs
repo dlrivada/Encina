@@ -1,6 +1,8 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Serialization;
+using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -118,6 +120,25 @@ public sealed class OutboxOrchestratorTests
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe(expectedParamName);
     }
 
+    [Fact]
+    public void Constructor_MaxRetryDelayBelowBaseRetryDelay_ThrowsArgumentException()
+    {
+        var options = new OutboxOptions
+        {
+            BaseRetryDelay = TimeSpan.FromMinutes(20),
+            MaxRetryDelay = TimeSpan.FromMinutes(10)
+        };
+
+        var act = () => new OutboxOrchestrator(
+            Substitute.For<IOutboxStore>(),
+            options,
+            Substitute.For<ILogger<OutboxOrchestrator>>(),
+            Substitute.For<IOutboxMessageFactory>(),
+            new JsonMessageSerializer());
+
+        act.ShouldThrow<ArgumentException>().ParamName.ShouldBe("options");
+    }
+
     #endregion
 
     #region AddAsync Tests
@@ -180,7 +201,7 @@ public sealed class OutboxOrchestratorTests
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
-            (msg, type, obj) => Task.CompletedTask);
+            (msg, type, obj) => Delivered());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -203,10 +224,10 @@ public sealed class OutboxOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
         var publishedMessages = new List<object>();
-        Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = (msg, type, obj) =>
         {
             publishedMessages.Add(obj);
-            return Task.CompletedTask;
+            return Delivered();
         };
 
         // Act
@@ -234,7 +255,7 @@ public sealed class OutboxOrchestratorTests
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
-            (msg, type, obj) => Task.CompletedTask);
+            (msg, type, obj) => Delivered());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -261,8 +282,8 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
-        Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
-            Task.FromException(new InvalidOperationException("Publish failed"));
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = (msg, type, obj) =>
+            ValueTask.FromException<Either<EncinaError, Unit>>(new InvalidOperationException("Publish failed"));
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(callback);
@@ -309,14 +330,14 @@ public sealed class OutboxOrchestratorTests
         using var cts = new CancellationTokenSource();
         var processedCount = 0;
 
-        Func<IOutboxMessage, Type, object, Task> callback = async (msg, type, obj) =>
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = async (msg, type, obj) =>
         {
             processedCount++;
             if (processedCount == 1)
             {
                 await cts.CancelAsync();
             }
-            await Task.CompletedTask;
+            return Unit.Default;
         };
 
         // Act
@@ -332,53 +353,232 @@ public sealed class OutboxOrchestratorTests
     #region GetPendingCountAsync Tests
 
     [Fact]
-    public async Task GetPendingCountAsync_NoMessages_ReturnsZero()
+    public async Task GetPendingCountAsync_UsesStoreCountWithMaxRetries()
     {
         // Arrange
         var fixture = CreateTestFixture();
-        fixture.Store.GetPendingMessagesAsync(
-            Arg.Any<int>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(Enumerable.Empty<IOutboxMessage>()));
+        fixture.Store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(1234));
 
         // Act
         var result = await fixture.Orchestrator.GetPendingCountAsync();
 
-        // Assert
-        result.IsRight.ShouldBeTrue();
-        result.RightAsEnumerable().First().ShouldBe(0);
+        // Assert - an exact count, not the size of a fetched batch
+        result.ShouldBeRight().ShouldBe(1234);
+        await fixture.Store.Received(1).GetPendingCountAsync(fixture.Options.MaxRetries, Arg.Any<CancellationToken>());
+        await fixture.Store.DidNotReceive().GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task GetPendingCountAsync_WithMessages_ReturnsCount()
+    public async Task GetPendingCountAsync_StoreFails_ReturnsLeft()
     {
         // Arrange
         var fixture = CreateTestFixture();
-        var messages = new[]
-        {
-            CreateTestOutboxMessage(Guid.NewGuid()),
-            CreateTestOutboxMessage(Guid.NewGuid()),
-            CreateTestOutboxMessage(Guid.NewGuid())
-        };
-
-        fixture.Store.GetPendingMessagesAsync(
-            Arg.Any<int>(),
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(messages.AsEnumerable()));
+        fixture.Store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_pending_count_failed", "boom")));
 
         // Act
         var result = await fixture.Orchestrator.GetPendingCountAsync();
 
         // Assert
-        result.IsRight.ShouldBeTrue();
-        result.RightAsEnumerable().First().ShouldBe(3);
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region GetExhaustedCountAsync Tests
+
+    [Fact]
+    public async Task GetExhaustedCountAsync_UsesStoreCountWithMaxRetries()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(4));
+
+        // Act
+        var result = await fixture.Orchestrator.GetExhaustedCountAsync();
+
+        // Assert
+        result.ShouldBeRight().ShouldBe(4);
+        await fixture.Store.Received(1).GetExhaustedCountAsync(fixture.Options.MaxRetries, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetExhaustedCountAsync_StoreFails_ReturnsLeft()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_exhausted_count_failed", "boom")));
+
+        // Act
+        var result = await fixture.Orchestrator.GetExhaustedCountAsync();
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region RequeueExhaustedAsync Tests
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_All_RequeuesEveryExhaustedMessageAndSaves()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(3));
+        fixture.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await fixture.Orchestrator.RequeueExhaustedAsync();
+
+        // Assert
+        result.ShouldBeRight().ShouldBe(3);
+        await fixture.Store.Received(1).RequeueExhaustedAsync(fixture.Options.MaxRetries, null, Arg.Any<CancellationToken>());
+        await fixture.Store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_ByIds_PassesDistinctNonEmptyIds()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        IReadOnlyCollection<Guid>? passedIds = null;
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Do<IReadOnlyCollection<Guid>?>(ids => passedIds = ids), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(2));
+        fixture.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await fixture.Orchestrator.RequeueExhaustedAsync([id1, id2, id1, Guid.Empty]);
+
+        // Assert
+        result.ShouldBeRight().ShouldBe(2);
+        passedIds.ShouldNotBeNull();
+        passedIds.ShouldBe([id1, id2], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_NoUsableIds_ReturnsZeroWithoutCallingStore()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+
+        // Act
+        var result = await fixture.Orchestrator.RequeueExhaustedAsync([Guid.Empty]);
+
+        // Assert
+        result.ShouldBeRight().ShouldBe(0);
+        await fixture.Store.DidNotReceive().RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>());
+        await fixture.Store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_StoreFails_ReturnsLeftWithoutSaving()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.requeue_exhausted_failed", "boom")));
+
+        // Act
+        var result = await fixture.Orchestrator.RequeueExhaustedAsync();
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await fixture.Store.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_SaveFails_ReturnsLeft()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(1));
+        fixture.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("outbox.save_failed", "save failed")));
+
+        // Act
+        var result = await fixture.Orchestrator.RequeueExhaustedAsync();
+
+        // Assert
+        result.ShouldBeLeft().Message.ShouldContain("save failed");
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_Success_LogsWithEventId2959()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(2));
+        fixture.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        await fixture.Orchestrator.RequeueExhaustedAsync();
+
+        // Assert
+        fixture.Logger.Received(1).Log(
+            LogLevel.Information,
+            Arg.Is<EventId>(e => e.Id == 2959),
+            Arg.Any<Arg.AnyType>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<Arg.AnyType, Exception?, string>>());
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_Success_RecordsRequeuedMetric()
+    {
+        // Arrange
+        var fixture = CreateTestFixture();
+        fixture.Store.RequeueExhaustedAsync(Arg.Any<int>(), Arg.Any<IReadOnlyCollection<Guid>?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(7));
+        fixture.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        var measurements = new List<long>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == "Encina" && instrument.Name == "encina.outbox.messages_requeued_total")
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) =>
+        {
+            lock (measurements)
+            {
+                measurements.Add(value);
+            }
+        });
+        listener.Start();
+
+        // Act
+        await fixture.Orchestrator.RequeueExhaustedAsync();
+
+        // Assert
+        lock (measurements)
+        {
+            measurements.ShouldContain(7);
+        }
     }
 
     #endregion
 
     #region Helpers
+
+    private static ValueTask<Either<EncinaError, Unit>> Delivered()
+        => ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
     private static TestOutboxMessage CreateTestOutboxMessage(
         Guid id,

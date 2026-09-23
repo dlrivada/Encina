@@ -306,4 +306,73 @@ public sealed class FakeOutboxStoreTests
         // Assert
         store.ShouldNotBeNull();
     }
+
+    [Fact]
+    public async Task GetPendingAndExhaustedCounts_SplitUnprocessedMessagesByRetryLimit()
+    {
+        // Arrange
+        await AddAsync(retryCount: 0);
+        await AddAsync(retryCount: 2);
+        await AddAsync(retryCount: 3);
+        await AddAsync(retryCount: 3, processed: true);
+
+        // Act
+        var pending = await _sut.GetPendingCountAsync(3);
+        var exhausted = await _sut.GetExhaustedCountAsync(3);
+
+        // Assert
+        pending.Match(Right: c => c, Left: _ => -1).ShouldBe(2);
+        exhausted.Match(Right: c => c, Left: _ => -1).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_All_ResetsExhaustedMessages()
+    {
+        // Arrange
+        var exhaustedId = await AddAsync(retryCount: 5);
+        var processedId = await AddAsync(retryCount: 5, processed: true);
+
+        // Act
+        var result = await _sut.RequeueExhaustedAsync(3, null);
+
+        // Assert
+        result.Match(Right: c => c, Left: _ => -1).ShouldBe(1);
+        var message = _sut.GetMessage(exhaustedId)!;
+        message.RetryCount.ShouldBe(0);
+        message.NextRetryAtUtc.ShouldBeNull();
+        message.ErrorMessage.ShouldBeNull();
+        _sut.GetMessage(processedId)!.RetryCount.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task RequeueExhaustedAsync_ByIds_ResetsOnlyRequestedMessages()
+    {
+        // Arrange
+        var requested = await AddAsync(retryCount: 3);
+        var other = await AddAsync(retryCount: 3);
+
+        // Act
+        var result = await _sut.RequeueExhaustedAsync(3, [requested]);
+
+        // Assert
+        result.Match(Right: c => c, Left: _ => -1).ShouldBe(1);
+        _sut.GetMessage(requested)!.RetryCount.ShouldBe(0);
+        _sut.GetMessage(other)!.RetryCount.ShouldBe(3);
+    }
+
+    private async Task<Guid> AddAsync(int retryCount, bool processed = false)
+    {
+        var message = new FakeOutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            NotificationType = "TestNotification",
+            Content = "{}",
+            RetryCount = retryCount,
+            ErrorMessage = processed ? null : "failed",
+            ProcessedAtUtc = processed ? DateTime.UtcNow : null
+        };
+
+        (await _sut.AddAsync(message)).IsRight.ShouldBeTrue();
+        return message.Id;
+    }
 }

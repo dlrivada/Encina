@@ -58,33 +58,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 3025, Level = LogLevel.Debug, Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
     public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, string correlationId);
 
-    // Outbox Processor (30-39)
-    [LoggerMessage(EventId = 3026, Level = LogLevel.Information, Message = "Outbox Processor starting (Interval: {Interval}, BatchSize: {BatchSize}, MaxRetries: {MaxRetries})")]
-    public static partial void OutboxProcessorStarting(ILogger logger, TimeSpan interval, int batchSize, int maxRetries);
-
-    [LoggerMessage(EventId = 3027, Level = LogLevel.Error, Message = "Error processing outbox messages")]
-    public static partial void ErrorProcessingOutboxMessages(ILogger logger, Exception exception);
-
-    [LoggerMessage(EventId = 3028, Level = LogLevel.Information, Message = "Outbox Processor stopping")]
-    public static partial void OutboxProcessorStopping(ILogger logger);
-
-    [LoggerMessage(EventId = 3029, Level = LogLevel.Debug, Message = "Processing {Count} pending outbox messages")]
-    public static partial void ProcessingPendingOutboxMessages(ILogger logger, int count);
-
-    [LoggerMessage(EventId = 3030, Level = LogLevel.Error, Message = "Cannot find type {NotificationType} for outbox message {MessageId}")]
-    public static partial void TypeNotFound(ILogger logger, string notificationType, Guid messageId);
-
-    [LoggerMessage(EventId = 3031, Level = LogLevel.Error, Message = "Failed to deserialize notification for outbox message {MessageId}")]
-    public static partial void DeserializationFailed(ILogger logger, Guid messageId);
-
-    [LoggerMessage(EventId = 3032, Level = LogLevel.Debug, Message = "Published notification {NotificationType} from outbox message {MessageId}")]
-    public static partial void PublishedNotification(ILogger logger, string notificationType, Guid messageId);
-
-    [LoggerMessage(EventId = 3033, Level = LogLevel.Error, Message = "Error processing outbox message {MessageId}")]
-    public static partial void ErrorProcessingOutboxMessage(ILogger logger, Exception exception, Guid messageId);
-
-    [LoggerMessage(EventId = 3034, Level = LogLevel.Information, Message = "Processed {TotalCount} outbox messages (Success: {SuccessCount}, Failed: {FailureCount})")]
-    public static partial void ProcessedOutboxMessages(ILogger logger, int totalCount, int successCount, int failureCount);
+    // Outbox Processor: EventIds 3026-3034 were retired when the EF Core processor moved onto
+    // Encina.Messaging.Outbox.OutboxProcessorBase, which logs through MessagingLog (2827-2833, 2958).
 
     // Module Isolation (40-49)
     [LoggerMessage(EventId = 3035, Level = LogLevel.Error, Message = "Module isolation violation detected: Module '{ModuleName}' attempted to access unauthorized schemas [{UnauthorizedSchemas}]. Allowed schemas: [{AllowedSchemas}]")]

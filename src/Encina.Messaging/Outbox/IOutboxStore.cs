@@ -65,6 +65,61 @@ public interface IOutboxStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Counts the messages that are waiting to be delivered: not processed and with retries left
+    /// (<c>RetryCount &lt; maxRetries</c>), whether they are due now or scheduled for a later retry.
+    /// </summary>
+    /// <param name="maxRetries">The retry limit (<see cref="OutboxOptions.MaxRetries"/>).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Right(count) on success; Left(error) on infrastructure failure.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is negative.</exception>
+    Task<Either<EncinaError, int>> GetPendingCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts the messages whose retries are exhausted: not processed and with
+    /// <c>RetryCount &gt;= maxRetries</c>, the state <see cref="IOutboxMessage.IsDeadLettered"/> describes.
+    /// </summary>
+    /// <remarks>
+    /// Exhausted messages stay in the outbox table and are never fetched again by
+    /// <see cref="GetPendingMessagesAsync"/> until they are requeued with <see cref="RequeueExhaustedAsync"/>.
+    /// </remarks>
+    /// <param name="maxRetries">The retry limit (<see cref="OutboxOptions.MaxRetries"/>).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Right(count) on success; Left(error) on infrastructure failure.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is negative.</exception>
+    Task<Either<EncinaError, int>> GetExhaustedCountAsync(
+        int maxRetries,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns exhausted messages to the pending state so that the processor delivers them again:
+    /// <c>RetryCount</c> is reset to 0 and <c>NextRetryAtUtc</c> and <c>ErrorMessage</c> are cleared.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only exhausted messages (not processed, <c>RetryCount &gt;= maxRetries</c>) are affected; an identifier
+    /// of a message that is pending, processed or unknown is ignored.
+    /// </para>
+    /// <para>
+    /// Stores with a unit of work (EF Core) record the change on their context, and it is persisted by
+    /// <see cref="SaveChangesAsync"/>; the other stores apply it immediately.
+    /// </para>
+    /// </remarks>
+    /// <param name="maxRetries">The retry limit (<see cref="OutboxOptions.MaxRetries"/>).</param>
+    /// <param name="messageIds">
+    /// The identifiers of the messages to requeue, or <see langword="null"/> to requeue every exhausted message.
+    /// An empty collection requeues nothing.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Right(number of messages requeued) on success; Left(error) on infrastructure failure.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is negative.</exception>
+    Task<Either<EncinaError, int>> RequeueExhaustedAsync(
+        int maxRetries,
+        IReadOnlyCollection<Guid>? messageIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Saves all pending changes (for stores that support it like EF Core).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
