@@ -60,6 +60,20 @@ High volume + low error cost → local AI candidate. Low volume + high error cos
 | **VERIFIER** — final gate before merging anything non-trivial | 🔴 Claude | `ENCINA-1.0-RECONCILIATION.md` §19 names "false confidence from metrics" as a risk; the last word on correctness must not come from a model tier that sometimes skips parts of an instruction. |
 | **ADVERSARIAL REVIEWER** | 🔴 Claude | The most demanding reasoning task in the pipeline. |
 
+### Claude subagent tiers
+
+The table above routes *roles* between the local model and Claude. Within the Claude side, the main session further delegates to Claude Code subagents, each pinned to the cheapest model and effort that does its job. This is the Claude Code subagent tier table, kept verbatim in sync with `.claude/agents/README.md`:
+
+| Agent | Model / effort | Role | Writes? |
+|---|---|---|---|
+| `pr-watcher` | Haiku 4.5 / low | Watches a PR and reports each failed check, bot review and the merge as they happen. Superseded for routine watching by `tools/ai/watch-pr-events.ps1` run as a background monitor, which costs no model tokens; keep the agent for PRs whose events need judgement to triage | No |
+| `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
+| `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
+| `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
+| `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
+
+Decided mechanical edits go to the local model (`local-ai-task` skill) when they are bulk/low-risk drafts, and to `mechanical-fixer` when they must be applied and verified in a worktree.
+
 ---
 
 ## 5. Concrete use cases already identified

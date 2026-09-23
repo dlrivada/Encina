@@ -7,6 +7,8 @@ description: Drive an Encina pull request from push to merge - open it, request 
 
 The loop every Encina PR goes through. It encodes what went wrong in earlier sessions, so follow it rather than improvising.
 
+Main session (orchestrator) only; an `issue-worker` reports instead of running this skill.
+
 ## 1. Open
 
 - Work in a worktree under `.claude/worktrees/<name>` on a branch that is not `main`.
