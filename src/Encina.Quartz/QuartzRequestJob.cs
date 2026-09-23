@@ -95,7 +95,10 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
             {
                 Log.RequestJobCompleted(_logger, context.JobDetail.Key, requestType);
 
-                // Store result in JobDataMap for retrieval
+                // Store result in JobDataMap for retrieval. Not persisted by Quartz's default
+                // RAMJobStore, but applications using AdoJobStore or a custom listener may
+                // persist it outside Encina's retention/erasure controls; see the tracked
+                // follow-up in artifacts/issues/quartz-job-result-persistence.md.
                 context.Result = response;
             },
             Left: error => throw ToException(error, context, requestType));
@@ -110,7 +113,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         }
 
         var classification = JobFailure.Classify(error, _errorClassifier);
-        Log.RequestJobFailed(_logger, context.JobDetail.Key, requestType, error.GetCode().IfNone("encina.unknown"), classification.ToString(), error.Message);
+        Log.RequestJobFailed(_logger, context.JobDetail.Key, requestType, error.GetCode().IfNone("encina.unknown"));
         return JobFailure.Failed(error, classification);
     }
 }

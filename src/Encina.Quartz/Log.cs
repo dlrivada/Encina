@@ -18,8 +18,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 4052, Level = LogLevel.Information, Message = "Quartz job {JobKey} completed successfully for request {RequestType}")]
     public static partial void RequestJobCompleted(ILogger logger, JobKey jobKey, string requestType);
 
-    [LoggerMessage(EventId = 4053, Level = LogLevel.Error, Message = "Quartz job {JobKey} failed for request {RequestType} with error code {ErrorCode} ({Classification}): {ErrorMessage}")]
-    public static partial void RequestJobFailed(ILogger logger, JobKey jobKey, string requestType, string errorCode, string classification, string errorMessage);
+    [LoggerMessage(EventId = 4053, Level = LogLevel.Error, Message = "Quartz job {JobKey} failed for request {RequestType} with error code {ErrorCode}")]
+    public static partial void RequestJobFailed(ILogger logger, JobKey jobKey, string requestType, string errorCode);
 
     [LoggerMessage(EventId = 4054, Level = LogLevel.Error, Message = "Unhandled exception in Quartz job {JobKey} for request {RequestType}")]
     public static partial void RequestJobException(ILogger logger, Exception exception, JobKey jobKey, string requestType);
@@ -37,8 +37,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 4058, Level = LogLevel.Error, Message = "Unhandled exception in Quartz notification job {JobKey} for {NotificationType}")]
     public static partial void NotificationJobException(ILogger logger, Exception exception, JobKey jobKey, string notificationType);
 
-    [LoggerMessage(EventId = 4059, Level = LogLevel.Error, Message = "Quartz notification job {JobKey} failed for {NotificationType} with error code {ErrorCode} ({Classification}): {ErrorMessage}")]
-    public static partial void NotificationJobFailed(ILogger logger, JobKey jobKey, string notificationType, string errorCode, string classification, string errorMessage);
+    [LoggerMessage(EventId = 4059, Level = LogLevel.Error, Message = "Quartz notification job {JobKey} failed for {NotificationType} with error code {ErrorCode}")]
+    public static partial void NotificationJobFailed(ILogger logger, JobKey jobKey, string notificationType, string errorCode);
 
     // Cancellation
     [LoggerMessage(EventId = 4060, Level = LogLevel.Warning, Message = "Quartz job {JobKey} for request {RequestType} was cancelled")]

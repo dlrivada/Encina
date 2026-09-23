@@ -29,7 +29,7 @@ public class HangfireRequestJobAdapterTests
             .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
-        var result = await _adapter.ExecuteAsync(request);
+        var result = await _adapter.ExecuteAndReturnResultAsync(request);
 
         // Assert
         result.ShouldBe(expectedResponse);
@@ -114,6 +114,42 @@ public class HangfireRequestJobAdapterTests
             .FirstOrDefault(r => r.Message.Contains("failed"));
         logEntry.ShouldNotBeNull();
         logEntry!.Level.ShouldBe(LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OnFailure_LogsErrorCodeOnlyNotErrorMessage()
+    {
+        // Arrange: the failure message may contain personal data (e.g. a subject id from
+        // ConsentErrors/DSRErrors); the log line must carry only the error code (#1173).
+        var request = new TestRequest("test-data");
+        var error = EncinaErrors.Create("test.error", "Failure for subject 'patient-123'");
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
+
+        // Act
+        await _adapter.ExecuteAsync(request);
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("failed"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("test.error");
+        logEntry.Message.ShouldNotContain("patient-123");
+        logEntry.Message.ShouldNotContain("Failure for subject");
+    }
+
+    [Fact]
+    public void ExecuteAsync_DefaultEntryPoint_ReturnTypeDoesNotExposeResponse()
+    {
+        // The default enqueue entry point must not persist the handler's response in
+        // Hangfire storage (#1173): its return type is plain Task, not
+        // Task<Either<EncinaError, TResponse>>, so Hangfire's job storage has nothing to
+        // serialize. ExecuteAndReturnResultAsync is the explicit, documented opt-in.
+        var method = typeof(HangfireRequestJobAdapter<TestRequest, TestResponse>)
+            .GetMethod(nameof(HangfireRequestJobAdapter<TestRequest, TestResponse>.ExecuteAsync));
+
+        method.ShouldNotBeNull();
+        method!.ReturnType.ShouldBe(typeof(Task));
     }
 
     [Fact]

@@ -75,6 +75,29 @@ public class QuartzRequestJobTests
     }
 
     [Fact]
+    public async Task Execute_WithFailedRequest_LogsErrorCodeOnlyNotErrorMessage()
+    {
+        // Arrange: the failure message may contain personal data (e.g. a subject id from
+        // ConsentErrors/DSRErrors); the log line must carry only the error code (#1173).
+        var request = _requestFaker.WithData("test-data").Generate();
+        var error = EncinaErrors.Create("test.error", "Failure for subject 'patient-123'");
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
+
+        // Act
+        await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("failed"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("test.error");
+        logEntry.Message.ShouldNotContain("patient-123");
+        logEntry.Message.ShouldNotContain("Failure for subject");
+    }
+
+    [Fact]
     public async Task Execute_WithMissingRequest_ThrowsJobExecutionException()
     {
         // Arrange - Don't add request to JobDataMap
