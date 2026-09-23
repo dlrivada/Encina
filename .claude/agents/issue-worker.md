@@ -14,6 +14,8 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-publish.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
     - matcher: "Write|Edit|NotebookEdit"
       hooks:
         - type: command
@@ -32,7 +34,7 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 
 - Work only in the worktree named in the brief, with absolute paths. Never touch other worktrees or the main checkout. Your shell usually starts in the main checkout, and .NET resolves relative paths in `[IO.File]` calls against it, so use absolute paths or `git -C <worktree>`. The `block-main-checkout-writes` hook denies writes and working-tree git commands aimed at the main checkout.
 - Edit repo files (`.cs`, `.csproj`, `.props`, `.targets`, `.json`, `.yml`, `.md`, `.slnx`) only with the Edit or Write tools. Never use PowerShell `-replace`, `Set-Content`, `Out-File` or `[IO.File]::WriteAllText` on them: a PowerShell replace corrupted six files in #1159. The same hook blocks those writes.
-- Tooling per `CLAUDE.md`: PowerShell or C# file-based scripts; no python, no bash scripting constructs.
+- Tooling per `CLAUDE.md`: PowerShell or C# file-based scripts; no python, no bash scripting constructs, no Unix text tools. The `block-prohibited-commands` hook rejects them and names the equivalent.
 - Commit locally with clear English messages and no AI attribution. Never push, open or edit PRs, open or comment on issues.
 - Do not run the `pr-cycle` or `open-issue` skills; the orchestrator does. Report instead.
 - Changelog: never edit `CHANGELOG.md`; add a fragment in `changelog.d/` (`<issue>-<slug>.<section>.md`, one of the six sections `added | changed | deprecated | removed | fixed | security`, one or more bullets that begin with `-`). Run `dotnet run .github/scripts/changelog-fragments.cs -- --check` when that script exists.

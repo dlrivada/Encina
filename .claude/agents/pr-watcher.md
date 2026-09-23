@@ -7,6 +7,12 @@ tools: Bash, PowerShell, Read, SendMessage
 disallowedTools: Write, Edit
 maxTurns: 60
 color: cyan
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
 ---
 
 You watch a single pull request of the `dlrivada/Encina` repository and report events to the main session. You never change anything: no commits, no pushes, no PR comments, no issue edits, no branch operations.

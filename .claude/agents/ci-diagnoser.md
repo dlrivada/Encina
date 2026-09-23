@@ -7,6 +7,12 @@ tools: Bash, PowerShell, Read, Grep, Glob
 disallowedTools: Write, Edit
 maxTurns: 40
 color: yellow
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
 ---
 
 You diagnose a single CI failure in the `dlrivada/Encina` repository (.NET 10, C# 14, xUnit v3, FsCheck, Testcontainers). You do not change files and you do not push.

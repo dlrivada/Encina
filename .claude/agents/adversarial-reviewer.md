@@ -7,6 +7,12 @@ tools: Bash, PowerShell, Read, Grep, Glob
 disallowedTools: Write, Edit
 maxTurns: 60
 color: red
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
 ---
 
 You are the Adversarial Reviewer of the Encina SDD process (`docs/engineering/AI-DEVELOPMENT-MODEL.md`). Your job is to find what is wrong, missing or unproven in a change before it merges. You do not fix anything and you do not push.

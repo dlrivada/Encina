@@ -11,6 +11,7 @@ $issue = Join-Path $hooks 'check-issue-template.ps1'
 $publish = Join-Path $hooks 'block-worker-publish.ps1'
 $spawn = Join-Path $hooks 'block-worker-spawn.ps1'
 $mainCheckout = Join-Path $hooks 'block-main-checkout-writes.ps1'
+$prohibited = Join-Path $hooks 'block-prohibited-commands.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -247,6 +248,55 @@ $writeCases = @(
     @('Bash', @{ command = "echo x >> $msysWt/src/x.cs" }, $wt, 2, 'Bash >> to a .cs')
 )
 
+# tool, command, expected, label (block-prohibited-commands.ps1)
+$commandCases = @(
+    @('PowerShell', 'grep -r foo src', 2, 'grep'),
+    @('PowerShell', 'python script.py', 2, 'python'),
+    @('PowerShell', 'python3 -c "print(1)"', 2, 'python3'),
+    @('PowerShell', "& 'C:\Python312\python.exe' x.py", 2, 'full path to python.exe'),
+    @('PowerShell', 'curl.exe -s https://example.com', 2, 'curl.exe'),
+    @('PowerShell', 'Get-Content a.txt | head -n 5', 2, 'head after a pipe'),
+    @('PowerShell', 'Get-Content a.txt | tail -n 5', 2, 'tail after a pipe'),
+    @('PowerShell', "Write-Output (sed 's/a/b/' x)", 2, 'sed inside a subexpression'),
+    @('PowerShell', '$n = wc -l x', 2, 'wc in an assignment'),
+    @('PowerShell', 'Get-ChildItem | xargs echo', 2, 'xargs'),
+    @('PowerShell', "awk '{print `$1}' x", 2, 'awk'),
+    @('PowerShell', 'unzip a.zip', 2, 'unzip'),
+    @('PowerShell', 'bash -c "echo hi"', 2, 'bash -c'),
+    @('PowerShell', 'Get-Content a.txt | Select-Object -First 5', 0, 'Select-Object -First'),
+    @('PowerShell', 'git grep foo', 0, 'git grep'),
+    @('PowerShell', "Select-String -Path x -Pattern 'grep'", 0, 'grep as a pattern'),
+    @('PowerShell', "gh pr view 5 --json title --jq '.title'", 0, 'gh --jq'),
+    @('PowerShell', 'Get-ChildItem | sort Name', 0, 'sort is Sort-Object in PowerShell'),
+    @('PowerShell', 'cat a.txt; ls; tee -FilePath x', 0, 'cat, ls and tee are cmdlet aliases in PowerShell'),
+    @('PowerShell', 'find "x" a.txt', 0, 'find is find.exe in PowerShell'),
+    @('PowerShell', 'git commit -m "use grep and sed"', 0, 'words inside a commit message'),
+    @('PowerShell', 'for ($i = 0; $i -lt 3; $i++) { $i }', 0, 'PowerShell for loop'),
+    @('PowerShell', 'if (Test-Path x) { "y" }', 0, 'PowerShell if'),
+    @('PowerShell', 'dotnet run x.cs -- --head 3', 0, 'head as an argument'),
+    @('PowerShell', 'Write-Output "$(Get-Date)"', 0, 'PowerShell $( ) subexpression'),
+    @('Bash', 'grep foo x', 2, 'Bash grep'),
+    @('Bash', "find . -name '*.cs'", 2, 'Bash find'),
+    @('Bash', 'cat a.txt', 2, 'Bash cat'),
+    @('Bash', 'ls -la', 2, 'Bash ls'),
+    @('Bash', 'git log --oneline | sort', 2, 'Bash sort'),
+    @('Bash', 'echo x | tee out.txt', 2, 'Bash tee'),
+    @('Bash', 'for f in *.cs; do echo $f; done', 2, 'Bash for loop'),
+    @('Bash', 'if [ -f x ]; then echo y; fi', 2, 'Bash if'),
+    @('Bash', 'while true; do sleep 1; done', 2, 'Bash while loop'),
+    @('Bash', 'x=$(git rev-parse HEAD)', 2, 'Bash $( ) substitution'),
+    @('Bash', "git commit -m `"`$(git log -1 --format=%s)`"", 2, 'Bash $( ) inside double quotes'),
+    @('Bash', 'env python x.py', 2, 'python through env'),
+    @('Bash', "sh -c 'echo hi'", 2, 'sh -c'),
+    @('Bash', '"curl" https://example.com', 2, 'quoted curl'),
+    @('Bash', "echo '`$(not a subshell)'", 0, '$( inside single quotes'),
+    @('Bash', 'git status', 0, 'Bash git status'),
+    @('Bash', 'dotnet build Encina.slnx', 0, 'Bash dotnet build'),
+    @('Bash', 'echo "grep is text"', 0, 'grep inside a string'),
+    @('Bash', "git log --format='%H' -1", 0, 'Bash git log'),
+    @('Bash', 'not json', 0, 'malformed payload')
+)
+
 $failed = 0
 Push-Location $work
 try {
@@ -286,6 +336,17 @@ try {
     }
     $env:CLAUDE_PROJECT_DIR = $repo
 
+    foreach ($case in $commandCases) {
+        $tool, $command, $expected, $label = $case
+        $json = if ($command -eq 'not json') { 'not json' } else { @{ tool_name = $tool; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress }
+        $stderr = $json | pwsh -NoProfile -File $prohibited 2>&1
+        $code = $LASTEXITCODE
+        $ok = $code -eq $expected
+        if (-not $ok) { $failed++ }
+        "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $prohibited), $label
+        if (-not $ok -and $stderr) { "      $stderr" }
+    }
+
     $malformedStderr = 'not json' | pwsh -NoProfile -File $spawn 2>&1
     $malformedCode = $LASTEXITCODE
     $malformedOk = $malformedCode -eq 0
@@ -298,6 +359,6 @@ finally {
     Remove-Item -Recurse -Force $work
 }
 
-$totalCases = $cases.Count + $spawnCases.Count + $writeCases.Count + 1
+$totalCases = $cases.Count + $spawnCases.Count + $writeCases.Count + $commandCases.Count + 1
 "{0} cases, {1} failed" -f $totalCases, $failed
 exit ([int]($failed -gt 0))
