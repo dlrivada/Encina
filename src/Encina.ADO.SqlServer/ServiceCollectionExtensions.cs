@@ -404,10 +404,10 @@ public static class ServiceCollectionExtensions
     /// services.AddEncinaADO(connectionString, config => { });
     ///
     /// // Register entity mappings
-    /// services.AddEncinaRepository&lt;Order, Guid&gt;(mapping =&gt;
-    ///     mapping.ToTable("Orders")
-    ///            .HasId(o =&gt; o.Id)
-    ///            .MapProperty(o =&gt; o.CustomerId));
+    /// services.AddEncinaRepository&lt;Account, Guid&gt;(mapping =&gt;
+    ///     mapping.ToTable("Accounts")
+    ///            .HasId(a =&gt; a.Id)
+    ///            .MapProperty(a =&gt; a.Balance));
     ///
     /// // Add Unit of Work
     /// services.AddEncinaUnitOfWork();
@@ -415,12 +415,26 @@ public static class ServiceCollectionExtensions
     /// // Usage in handler
     /// public class TransferHandler(IUnitOfWork unitOfWork)
     /// {
-    ///     public async Task HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     public async Task&lt;Either&lt;EncinaError, Unit&gt;&gt; HandleAsync(TransferCommand cmd, CancellationToken ct)
     ///     {
-    ///         await unitOfWork.BeginTransactionAsync(ct);
+    ///         var beginResult = await unitOfWork.BeginTransactionAsync(ct);
+    ///         if (beginResult.IsLeft) return beginResult;
+    ///
     ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
-    ///         // ... operations ...
-    ///         await unitOfWork.CommitAsync(ct);
+    ///         var source = await accounts.GetByIdAsync(cmd.SourceId, ct);
+    ///         var target = await accounts.GetByIdAsync(cmd.TargetId, ct);
+    ///
+    ///         source.Debit(cmd.Amount);
+    ///         target.Credit(cmd.Amount);
+    ///
+    ///         var saveResult = await unitOfWork.SaveChangesAsync(ct);
+    ///         if (saveResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return saveResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         return await unitOfWork.CommitAsync(ct);
     ///     }
     /// }
     /// </code>
