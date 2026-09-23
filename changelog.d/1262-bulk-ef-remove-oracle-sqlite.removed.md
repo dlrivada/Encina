@@ -1,0 +1,1 @@
+- `BulkOperationsEF<TEntity>` no longer dispatches to Oracle or SQLite bulk-operation implementations; both providers are out of scope for Encina 1.0 (ADR-009, ADR-024). `BulkOperationsEFOracle<TEntity>` and `BulkOperationsEFSqlite<TEntity>` were removed. The unsupported-provider error now lists only SQL Server, PostgreSQL and MySQL.
