@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
@@ -217,6 +218,13 @@ public sealed class ReadAuditStoreEF : IReadAuditStore
         }
         catch (DbUpdateException ex)
         {
+            return Left<EncinaError, int>(
+                ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
+        }
+        catch (DbException ex)
+        {
+            // ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
+            // so the provider's own DbException (e.g. a missing table or a constraint violation) surfaces here (#1128).
             return Left<EncinaError, int>(
                 ReadAuditErrors.PurgeFailed(StoreExceptionMessages.Describe(ex), ex));
         }

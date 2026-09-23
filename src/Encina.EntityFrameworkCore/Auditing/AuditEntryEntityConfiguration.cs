@@ -8,8 +8,8 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This configuration is provider-agnostic and supports SQLite, SQL Server,
-/// PostgreSQL, and MySQL through EF Core's database provider abstraction.
+/// This configuration is provider-agnostic and supports SQL Server, PostgreSQL, and MySQL
+/// through EF Core's database provider abstraction.
 /// </para>
 /// <para>
 /// <b>Indexes</b> optimized for common audit query patterns:
@@ -19,8 +19,8 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// <item><description>Index on Outcome for filtering by operation result</description></item>
 /// <item><description>Filtered index on UserId for user activity tracking</description></item>
 /// <item><description>Filtered index on TenantId for multi-tenant queries</description></item>
-/// <item><description>Filtered index on CorrelationId for request tracing</description></item>
-/// <item><description>Filtered index on Action for action-based filtering</description></item>
+/// <item><description>Index on CorrelationId for request tracing</description></item>
+/// <item><description>Index on Action for action-based filtering</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -125,11 +125,11 @@ public sealed class AuditEntryEntityConfiguration : IEntityTypeConfiguration<Aud
             .HasFilter(IndexFilters.IsNotNull(nameof(AuditEntryEntity.TenantId)))
             .HasDatabaseName("IX_SecurityAuditEntries_TenantId");
 
-        // Filtered index on CorrelationId for request correlation tracking
+        // Index on CorrelationId for request correlation tracking
         builder.HasIndex(x => x.CorrelationId)
             .HasDatabaseName("IX_SecurityAuditEntries_CorrelationId");
 
-        // Filtered index on Action for action-based filtering
+        // Index on Action for action-based filtering
         builder.HasIndex(x => x.Action)
             .HasDatabaseName("IX_SecurityAuditEntries_Action");
     }

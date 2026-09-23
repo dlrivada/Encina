@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using Encina.Security.Audit;
 using LanguageExt;
@@ -308,6 +309,12 @@ public sealed class AuditStoreEF : IAuditStore
         }
         catch (DbUpdateException ex)
         {
+            return Left<EncinaError, int>(StoreError("PurgeEntries", "Failed to purge audit entries", ex));
+        }
+        catch (DbException ex)
+        {
+            // ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
+            // so the provider's own DbException (e.g. a missing table or a constraint violation) surfaces here (#1128).
             return Left<EncinaError, int>(StoreError("PurgeEntries", "Failed to purge audit entries", ex));
         }
         catch (OperationCanceledException)
