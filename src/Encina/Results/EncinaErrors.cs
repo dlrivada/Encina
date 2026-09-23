@@ -109,6 +109,26 @@ public static class EncinaErrorExtensions
     }
 
     /// <summary>
+    /// Gets the exception that caused the error, if any.
+    /// </summary>
+    /// <param name="error">The Encina error.</param>
+    /// <returns>
+    /// The causing exception, or <c>None</c> when the error was created without one. Unlike
+    /// <see cref="EncinaError.Exception"/>, this never returns the internal carrier that
+    /// <see cref="EncinaErrors.Create"/> uses to hold the code and details, whose message is the
+    /// error message itself.
+    /// </returns>
+    /// <remarks>
+    /// Use it when rethrowing an error as an exception (for example in a background-job adapter):
+    /// passing <see cref="EncinaError.Exception"/> as the inner exception would copy
+    /// <see cref="EncinaError.Message"/>, which may contain personal data, into the exception chain.
+    /// </remarks>
+    public static Option<Exception> GetCause(this EncinaError error)
+    {
+        return error.Exception.Filter(ex => ex is not EncinaException);
+    }
+
+    /// <summary>
     /// Gets the error details dictionary from the Encina error.
     /// </summary>
     /// <param name="error">The Encina error.</param>

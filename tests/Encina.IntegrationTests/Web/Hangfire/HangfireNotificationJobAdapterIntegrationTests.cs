@@ -57,7 +57,8 @@ public sealed class HangfireNotificationJobAdapterIntegrationTests
         var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
             adapter.PublishAsync(notification));
 
-        exception.Message.ShouldContain("Handler error");
+        exception.ErrorCode.ShouldNotBeNullOrWhiteSpace();
+        exception.Message.ShouldNotContain("Handler error");
     }
 
     [Fact]

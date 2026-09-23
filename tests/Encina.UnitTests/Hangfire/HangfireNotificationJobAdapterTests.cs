@@ -96,7 +96,7 @@ public class HangfireNotificationJobAdapterTests
         // A Left result from Publish must surface as a thrown exception so Hangfire marks the
         // job Failed and retries it.
         exception.ErrorCode.ShouldBe("test.error");
-        exception.Message.ShouldContain("Handler rejected the notification");
+        exception.Message.ShouldNotContain("Handler rejected the notification");
     }
 
     [Fact]

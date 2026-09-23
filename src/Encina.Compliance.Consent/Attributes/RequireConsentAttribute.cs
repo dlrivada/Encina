@@ -72,7 +72,18 @@ public sealed class RequireConsentAttribute : Attribute
     /// <c>IRequestContext.UserId</c>.
     /// </para>
     /// <para>
-    /// The property must be a public readable property that returns a <see cref="string"/>.
+    /// The property must be a public readable instance property whose type is a supported subject
+    /// identifier: <see cref="string"/>, <see cref="Guid"/>, an integer type, a strongly-typed id that
+    /// implements <see cref="IFormattable"/>, or a wrapper (record struct, record class or struct) that
+    /// exposes a public <c>Value</c> property of one of those primitive types. The value is converted to
+    /// a culture-invariant string (<see cref="Guid"/> uses the <c>"D"</c> format).
+    /// </para>
+    /// <para>
+    /// A <c>null</c> value, <see cref="Guid.Empty"/> or an empty string means the subject is missing and
+    /// the request fails closed with a missing-consent error; it never falls back to
+    /// <c>IRequestContext.UserId</c>. Numeric <c>0</c> is a valid identifier. A property of any other
+    /// type is a configuration error and throws <see cref="InvalidOperationException"/>. If no property
+    /// with this name exists, the behavior falls back to <c>IRequestContext.UserId</c>.
     /// </para>
     /// </remarks>
     /// <example>"CustomerId", "UserId", "SubjectId"</example>

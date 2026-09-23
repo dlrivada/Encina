@@ -67,7 +67,11 @@ public class QuartzRequestJobTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
-        exception.Message.ShouldBe("Test error message");
+        exception.Message.ShouldContain("test.error");
+        exception.Message.ShouldNotContain("Test error message");
+        exception.RefireImmediately.ShouldBeFalse();
+        exception.Data[EncinaJobFailureData.ErrorCodeKey].ShouldBe("test.error");
+        exception.Data[EncinaJobFailureData.ErrorClassificationKey].ShouldBe("Transient");
     }
 
     [Fact]

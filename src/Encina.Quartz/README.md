@@ -303,6 +303,35 @@ services.AddEncinaQuartz(quartz =>
 });
 ```
 
+### Failure Semantics
+
+`QuartzRequestJob` and `QuartzNotificationJob` fail the job whenever the handler returns a `Left` result:
+
+| Handler outcome | What the job throws |
+|-----------------|---------------------|
+| `Right` | nothing (a request's response is stored in `context.Result`) |
+| Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while `context.CancellationToken` is cancelled, e.g. scheduler shutdown | `OperationCanceledException` |
+| Any other failure | `JobExecutionException` with `RefireImmediately = false` |
+
+Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Messaging.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
+
+- `jobException.Data[EncinaJobFailureData.ErrorCodeKey]` is the Encina error code.
+- `jobException.Data[EncinaJobFailureData.ErrorClassificationKey]` is `"Permanent"` (validation, missing consent, active processing restriction, ... — retrying cannot succeed) or `"Transient"` (timeouts, unavailable dependencies and unclassified failures).
+
+```csharp
+public Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? jobException, CancellationToken cancellationToken)
+{
+    if (jobException?.Data[EncinaJobFailureData.ErrorClassificationKey] is "Transient")
+    {
+        // e.g. reschedule the job with a back-off trigger
+    }
+
+    return Task.CompletedTask;
+}
+```
+
+The exception message contains only the error code and the classification, never `EncinaError.Message`, which may carry personal data such as a data-subject id; the full message is written to the application log. The exception that caused the error, if any, is the `InnerException`.
+
 ### Pausing and Resuming Jobs
 
 Control job execution dynamically:

@@ -12,9 +12,9 @@ namespace Encina.PropertyTests.Web.Hangfire;
 public sealed class HangfireRequestJobAdapterPropertyTests
 {
     [Fact]
-    public async Task Property_SuccessfulExecution_AlwaysReturnsRight()
+    public async Task Property_SuccessfulExecution_AlwaysReturnsTheResponse()
     {
-        // Property: When Encina returns Right, adapter ALWAYS returns Right
+        // Property: When Encina returns Right, adapter ALWAYS returns the response
 
         var testCases = new[]
         {
@@ -37,10 +37,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
             var result = await adapter.ExecuteAsync(request);
 
             // Assert
-            result.ShouldBeSuccess();
-            result.Match(
-                Left: _ => throw new InvalidOperationException("Expected Right"),
-                Right: actual => actual.ShouldBe(expectedResult));
+            result.ShouldBe(expectedResult);
         }
     }
 
@@ -72,8 +69,10 @@ public sealed class HangfireRequestJobAdapterPropertyTests
             var exception = await Should.ThrowAsync<EncinaJobFailedException>(() =>
                 adapter.ExecuteAsync(request));
 
-            // Assert
-            exception.Message.ShouldContain(expectedError.Message);
+            // Assert - the code identifies the failure; the error message is never copied into the
+            // exception, because Hangfire persists exception messages
+            exception.ErrorCode.ShouldBe(expectedError.GetCode().IfNone(string.Empty));
+            exception.Message.ShouldNotContain(expectedError.Message);
         }
     }
 
@@ -98,21 +97,9 @@ public sealed class HangfireRequestJobAdapterPropertyTests
         var result3 = await adapter.ExecuteAsync(request);
 
         // Assert - All results identical
-        result1.IsRight.ShouldBe(result2.IsRight);
-        result2.IsRight.ShouldBe(result3.IsRight);
-
-        var allMatch = result1.Match(Right: r1 =>
-            result2.Match(Right: r2 =>
-                result3.Match(Right: r3 =>
-                {
-                    r1.ShouldBe(r2);
-                    r2.ShouldBe(r3);
-                    return true;
-                }, Left: _ => false),
-                Left: _ => false),
-            Left: _ => false);
-
-        allMatch.ShouldBeTrue();
+        result1.ShouldBe(expectedResult);
+        result2.ShouldBe(result1);
+        result3.ShouldBe(result2);
     }
 
     [Fact]
@@ -135,7 +122,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
         await Task.WhenAll(tasks);
 
         // Assert - All calls succeed
-        tasks.Select(t => t.Result).AllShouldBeSuccess();
+        tasks.Select(t => t.Result).ShouldAllBe(result => result == "success");
     }
 
     [Fact]

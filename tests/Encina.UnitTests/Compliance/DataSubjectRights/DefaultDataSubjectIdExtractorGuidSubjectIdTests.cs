@@ -93,8 +93,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
     }
 
     /// <summary>
-    /// A matching property of a type that cannot be converted to a stable identifier (no
-    /// <see cref="IFormattable"/>, no custom <see cref="object.ToString()"/>) is a configuration
+    /// A matching property of a type that is not a supported subject identifier is a configuration
     /// error, not a silent fallback to the caller.
     /// </summary>
     [Fact]
@@ -107,7 +106,43 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
         Should.Throw<InvalidOperationException>(() => _sut.ExtractSubjectId(request, context));
     }
 
+    /// <summary>
+    /// A strongly-typed id (record struct wrapping a <see cref="Guid"/>) is unwrapped through its
+    /// <c>Value</c> property instead of using the compiler-generated <c>ToString()</c>.
+    /// </summary>
+    [Fact]
+    public void ExtractSubjectId_WithRecordStructSubjectId_ShouldUnwrapValue()
+    {
+        var patientId = Guid.NewGuid();
+        var request = new RequestWithStronglyTypedSubjectId(new PatientId(patientId));
+        var context = Substitute.For<IRequestContext>();
+        context.UserId.Returns("professional-42");
+
+        var result = _sut.ExtractSubjectId(request, context);
+
+        result.ShouldBe(patientId.ToString("D"));
+    }
+
+    /// <summary>
+    /// Numeric <c>0</c> is a valid subject id, not a missing subject.
+    /// </summary>
+    [Fact]
+    public void ExtractSubjectId_WithZeroNumericSubjectId_ShouldReturnZero()
+    {
+        var request = new RequestWithNumericSubjectId(0);
+        var context = Substitute.For<IRequestContext>();
+        context.UserId.Returns("professional-42");
+
+        _sut.ExtractSubjectId(request, context).ShouldBe("0");
+    }
+
     private sealed record RequestWithNullableGuidSubjectId(Guid? SubjectId);
 
     private sealed record RequestWithUnconvertibleSubjectId(object SubjectId);
+
+    private readonly record struct PatientId(Guid Value);
+
+    private sealed record RequestWithStronglyTypedSubjectId(PatientId SubjectId);
+
+    private sealed record RequestWithNumericSubjectId(long SubjectId);
 }

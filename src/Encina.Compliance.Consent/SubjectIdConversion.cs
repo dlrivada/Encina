@@ -1,80 +1,173 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 
 namespace Encina.Compliance.Consent;
 
 /// <summary>
-/// Converts a resolved subject-id property value to a stable, invariant string identifier.
+/// Converts the value of a resolved subject-id property to a stable, culture-invariant string.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A subject-id property is not always a <see cref="string"/> — <see cref="Guid"/> and numeric
-/// ids are common (e.g. <c>PatientId</c>). This helper accepts any of those shapes, plus any type
-/// that implements <see cref="IFormattable"/> or overrides <see cref="object.ToString()"/> (a
-/// strongly-typed id wrapper), and converts the value using culture-invariant formatting.
+/// Supported id shapes:
+/// </para>
+/// <list type="bullet">
+/// <item><description><see cref="string"/> — used as is.</description></item>
+/// <item><description><see cref="Guid"/> — formatted with the <c>"D"</c> format.</description></item>
+/// <item><description>Integer types (<see cref="sbyte"/>, <see cref="byte"/>, <see cref="short"/>,
+/// <see cref="ushort"/>, <see cref="int"/>, <see cref="uint"/>, <see cref="long"/>, <see cref="ulong"/>,
+/// <see cref="Int128"/>, <see cref="UInt128"/>) — formatted with the invariant culture. <c>0</c> is a
+/// valid id, not a missing subject.</description></item>
+/// <item><description>Strongly-typed ids declared outside the base class library that implement
+/// <see cref="IFormattable"/> (or <see cref="ISpanFormattable"/>) — formatted with
+/// <c>ToString(null, CultureInfo.InvariantCulture)</c>.</description></item>
+/// <item><description>Strongly-typed id wrappers (record struct, record class or plain struct/class)
+/// that expose a public instance <c>Value</c> property of one of the primitive types above — the
+/// <c>Value</c> is unwrapped and converted. The compiler-generated record <c>ToString()</c>
+/// (<c>PatientId { Value = ... }</c>) and <see cref="ValueType.ToString()"/> (the type name) are
+/// never used.</description></item>
+/// </list>
+/// <para>
+/// <c>null</c>, <see cref="Guid.Empty"/>, and an empty or whitespace string (including when unwrapped
+/// from a <c>Value</c> property) mean "subject missing" and return <c>null</c>. Any other type — for
+/// example <see cref="double"/>, <see cref="DateTime"/>, an enum, or a wrapper without a supported
+/// <c>Value</c> property — is a configuration error and throws <see cref="InvalidOperationException"/>
+/// rather than silently producing an unstable identifier or falling back to the authenticated caller.
 /// </para>
 /// <para>
-/// A property whose value is <c>null</c> is treated as a missing subject (returns <c>null</c>),
-/// not as a reason to fall back to the authenticated caller. A property whose type cannot be
-/// converted at all (no <see cref="IFormattable"/> implementation and no <see cref="object.ToString()"/>
-/// override) is a configuration error and throws rather than silently falling back.
-/// </para>
-/// <para>
-/// This is intentionally a small, package-local helper rather than a shared abstraction:
-/// <c>Encina.Compliance.Consent</c>, <c>Encina.Compliance.DataSubjectRights</c>, and
-/// <c>Encina.Compliance.GDPR</c> do not share an internal assembly, so the same handful of lines
-/// is duplicated per package instead of adding a cross-package dependency purely for this helper
-/// (project history: #1149).
+/// <c>Encina.Compliance.DataSubjectRights</c> and <c>Encina.Compliance.Consent</c> share no internal
+/// assembly, so this helper exists as two identical copies (one per package, in the package's root
+/// namespace). A unit test asserts that both copies behave identically on the same inputs; change
+/// them together (project history: #1149).
 /// </para>
 /// </remarks>
 internal static class SubjectIdConversion
 {
+    private static readonly System.Collections.Generic.HashSet<Type> IntegerTypes =
+    [
+        typeof(sbyte),
+        typeof(byte),
+        typeof(short),
+        typeof(ushort),
+        typeof(int),
+        typeof(uint),
+        typeof(long),
+        typeof(ulong),
+        typeof(Int128),
+        typeof(UInt128)
+    ];
+
+    private static readonly ConcurrentDictionary<Type, PropertyInfo?> ValuePropertyCache = new();
+
     /// <summary>
     /// Converts the value of a resolved subject-id property to its invariant string form.
     /// </summary>
     /// <param name="value">The value read from the subject-id property.</param>
     /// <param name="property">The property the value was read from, used for the error message.</param>
     /// <returns>
-    /// The invariant string form of <paramref name="value"/>, or <c>null</c> if the value is
-    /// <c>null</c> or an empty/whitespace string.
+    /// The invariant string form of <paramref name="value"/>, or <c>null</c> when the subject is
+    /// missing (<c>null</c>, <see cref="Guid.Empty"/>, or an empty/whitespace string).
     /// </returns>
     /// <exception cref="InvalidOperationException">
-    /// <paramref name="value"/> is not <c>null</c> but its type cannot be converted to a stable
-    /// subject identifier (not a <see cref="string"/>, <see cref="Guid"/>, <see cref="IFormattable"/>,
-    /// or a type overriding <see cref="object.ToString()"/>).
+    /// <paramref name="value"/> is not <c>null</c> but its type is not a supported subject-id shape.
     /// </exception>
     public static string? ToInvariantString(object? value, PropertyInfo property)
     {
-        switch (value)
+        ArgumentNullException.ThrowIfNull(property);
+
+        if (value is null)
         {
-            case null:
-                return null;
+            return null;
+        }
 
-            case string stringValue:
-                return string.IsNullOrWhiteSpace(stringValue) ? null : stringValue;
+        if (TryConvertPrimitive(value, out var primitive))
+        {
+            return primitive;
+        }
 
-            case Guid guidValue:
-                return guidValue == Guid.Empty ? null : guidValue.ToString();
+        var type = value.GetType();
 
-            case IFormattable formattable:
+        // Enums and every other base-class-library type (double, decimal, DateTime, TimeSpan, ...)
+        // implement IFormattable but are not identifiers.
+        if (!type.IsEnum && type.Assembly != typeof(object).Assembly)
+        {
+            if (value is IFormattable formattable)
+            {
                 return formattable.ToString(null, CultureInfo.InvariantCulture);
+            }
 
-            default:
-                if (HasCustomToString(value.GetType()))
+            var valueProperty = ValuePropertyCache.GetOrAdd(type, ResolveValueProperty);
+            if (valueProperty is not null)
+            {
+                var inner = valueProperty.GetValue(value);
+                if (inner is null)
                 {
-                    return value.ToString();
+                    return null;
                 }
 
-                throw new InvalidOperationException(
-                    $"Subject-id property '{property.DeclaringType?.Name}.{property.Name}' has type " +
-                    $"'{value.GetType().Name}', which cannot be converted to a stable subject identifier. " +
-                    "Supported types are string, Guid, numeric types, IFormattable, or a type overriding ToString().");
+                if (TryConvertPrimitive(inner, out var unwrapped))
+                {
+                    return unwrapped;
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Subject-id property '{property.DeclaringType?.Name}.{property.Name}' has type '{type.Name}', " +
+            "which is not a supported subject identifier. Supported types are string, Guid, integer types, " +
+            "strongly-typed ids implementing IFormattable, and wrappers exposing a public 'Value' property of " +
+            "one of those primitive types.");
+    }
+
+    private static bool TryConvertPrimitive(object value, out string? result)
+    {
+        switch (value)
+        {
+            case string stringValue:
+                result = string.IsNullOrWhiteSpace(stringValue) ? null : stringValue;
+                return true;
+
+            case Guid guidValue:
+                result = guidValue == Guid.Empty ? null : guidValue.ToString("D", CultureInfo.InvariantCulture);
+                return true;
+
+            case IFormattable formattable when IntegerTypes.Contains(value.GetType()):
+                result = formattable.ToString(null, CultureInfo.InvariantCulture);
+                return true;
+
+            default:
+                result = null;
+                return false;
         }
     }
 
-    private static bool HasCustomToString(Type type)
+    private static PropertyInfo? ResolveValueProperty(Type type)
     {
-        var toStringMethod = type.GetMethod(nameof(ToString), Type.EmptyTypes);
-        return toStringMethod is not null && toStringMethod.DeclaringType != typeof(object);
+        PropertyInfo? match = null;
+
+        foreach (var candidate in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (candidate.Name != "Value" || candidate.GetIndexParameters().Length != 0 || candidate.GetMethod is null)
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                // More than one public 'Value' property (e.g. a hidden base member) is ambiguous.
+                return null;
+            }
+
+            match = candidate;
+        }
+
+        if (match is null)
+        {
+            return null;
+        }
+
+        var valueType = Nullable.GetUnderlyingType(match.PropertyType) ?? match.PropertyType;
+        var supported = valueType == typeof(string) || valueType == typeof(Guid) || IntegerTypes.Contains(valueType);
+        return supported ? match : null;
     }
 }

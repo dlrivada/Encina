@@ -19,14 +19,19 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </list>
 /// </para>
 /// <para>
-/// A matching property is accepted regardless of its CLR type: <see cref="string"/>,
-/// <see cref="Guid"/>, numeric ids, and any type implementing <see cref="IFormattable"/> or
-/// overriding <see cref="object.ToString()"/> (a strongly-typed id wrapper) are all converted to
-/// a stable, culture-invariant string. The fallback to <see cref="IRequestContext.UserId"/> only
-/// happens when <em>no</em> matching property exists at all — a matching property whose value is
-/// <c>null</c> is treated as a missing subject (returns <c>null</c>), and a matching property of
-/// an unconvertible type is a configuration error (throws) rather than a silent fallback to the
-/// authenticated caller (project history: #1149).
+/// A matching property's value is converted to a stable, culture-invariant string. Supported
+/// shapes are <see cref="string"/>, <see cref="Guid"/> (<c>"D"</c> format), integer types, strongly-typed
+/// ids that implement <see cref="IFormattable"/>, and wrappers (record struct, record class or struct)
+/// exposing a public <c>Value</c> property of one of those primitive types, which is unwrapped.
+/// </para>
+/// <para>
+/// The fallback to <see cref="IRequestContext.UserId"/> only happens when <em>no</em> matching
+/// property exists at all. A matching property whose value is <c>null</c>, <see cref="Guid.Empty"/>
+/// or an empty string is a missing subject (returns <c>null</c>); numeric <c>0</c> is a valid id.
+/// A matching property of an unsupported type (for example <see cref="double"/>, an enum, or a
+/// wrapper without a supported <c>Value</c>) is a configuration error and throws
+/// <see cref="InvalidOperationException"/> rather than silently falling back to the authenticated
+/// caller (project history: #1149).
 /// </para>
 /// <para>
 /// Property lookups are cached per request type using a <see cref="ConcurrentDictionary{TKey,TValue}"/>

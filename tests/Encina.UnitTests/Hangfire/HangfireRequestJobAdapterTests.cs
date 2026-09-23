@@ -1,5 +1,4 @@
 using Encina.Hangfire;
-using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -21,7 +20,7 @@ public class HangfireRequestJobAdapterTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithSuccessfulRequest_ReturnsRight()
+    public async Task ExecuteAsync_WithSuccessfulRequest_ReturnsResponse()
     {
         // Arrange
         var request = new TestRequest("test-data");
@@ -33,7 +32,7 @@ public class HangfireRequestJobAdapterTests
         var result = await _adapter.ExecuteAsync(request);
 
         // Assert
-        result.ShouldBeSuccess().ShouldBe(expectedResponse);
+        result.ShouldBe(expectedResponse);
 
         await _encina.Received(1).Send(
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
@@ -57,7 +56,8 @@ public class HangfireRequestJobAdapterTests
         // A Left result must surface as a thrown exception (mirroring QuartzRequestJob's
         // JobExecutionException) so Hangfire marks the job Failed and retries it.
         exception.ErrorCode.ShouldBe("test.error");
-        exception.Message.ShouldContain("Test error message");
+        exception.Message.ShouldContain("test.error");
+        exception.Message.ShouldNotContain("Test error message");
     }
 
     [Fact]

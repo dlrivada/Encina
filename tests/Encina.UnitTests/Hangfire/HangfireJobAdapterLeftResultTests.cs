@@ -1,4 +1,5 @@
 using Encina.Hangfire;
+using Encina.Messaging.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -9,64 +10,180 @@ using static LanguageExt.Prelude;
 namespace Encina.UnitTests.Hangfire;
 
 /// <summary>
-/// Regression tests for #1152: neither Hangfire job adapter used to throw when the underlying
-/// handler reported a domain failure via <c>Either&lt;EncinaError, T&gt;.Left</c>, so Hangfire
-/// always recorded the job as succeeded and never retried it - unlike
-/// <c>Encina.Quartz.QuartzRequestJob</c> (src/Encina.Quartz/QuartzRequestJob.cs, ~lines 66-72),
-/// which explicitly throws a <c>JobExecutionException</c> on <c>Left</c> to trigger Quartz's
-/// retry mechanism. Both adapters now throw <see cref="EncinaJobFailedException"/> on <c>Left</c>.
+/// Failure semantics of the Hangfire job adapters (#1152, #1159 review): a handler <c>Left</c>
+/// must throw so Hangfire records the job as failed. Cancellation surfaces as
+/// <see cref="OperationCanceledException"/>, permanent failures as
+/// <see cref="EncinaJobPermanentFailureException"/>, and everything else as
+/// <see cref="EncinaJobFailedException"/>. The exception never carries <see cref="EncinaError.Message"/>,
+/// because Hangfire persists exception messages and the error message may contain personal data.
 /// </summary>
 public sealed class HangfireJobAdapterLeftResultTests
 {
-    /// <summary>
-    /// <see cref="HangfireRequestJobAdapter{TRequest,TResponse}.ExecuteAsync"/> must throw when the
-    /// handler returns <c>Left</c>, so Hangfire marks the job Failed and retries it.
-    /// </summary>
+    private const string SensitiveMessage = "Consent missing for subject 'patient-7f3a'";
+
+    // ─── Request adapter ───
+
     [Fact]
-    public async Task ExecuteAsync_WhenHandlerReturnsLeft_ShouldThrow_SoHangfireRetries()
+    public async Task ExecuteAsync_TransientLeft_ThrowsEncinaJobFailedException()
     {
-        // Arrange
-        var encina = Substitute.For<IEncina>();
-        var error = EncinaErrors.Create("test.error", "Handler rejected the request");
-        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, SpikeResponse>(error));
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("store.timeout", "Store timed out")));
 
-        var logger = NullLogger<HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>>.Instance;
-        var adapter = new HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>(encina, logger);
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
 
-        // Act
-        var exception = await Record.ExceptionAsync(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
-
-        // Assert
-        exception.ShouldNotBeNull();
-        exception.ShouldBeOfType<EncinaJobFailedException>();
-        ((EncinaJobFailedException)exception).ErrorCode.ShouldBe("test.error");
+        exception.ErrorCode.ShouldBe("store.timeout");
     }
 
-    /// <summary>
-    /// <see cref="HangfireNotificationJobAdapter{TNotification}.PublishAsync"/> must inspect the
-    /// <see cref="Either{EncinaError, Unit}"/> returned by <c>IEncina.Publish</c> and throw on
-    /// <c>Left</c>, so Hangfire marks the job Failed and retries it.
-    /// </summary>
     [Fact]
-    public async Task PublishAsync_WhenHandlerReturnsLeft_ShouldThrow_SoHangfireRetries()
+    public async Task ExecuteAsync_UnclassifiedLeft_IsTreatedAsTransient()
     {
-        // Arrange
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("test.error", "Handler rejected the request")));
+
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        exception.ErrorCode.ShouldBe("test.error");
+    }
+
+    [Theory]
+    [InlineData("encina.validation.failed")]
+    [InlineData("consent.missing")]
+    [InlineData("dsr.restriction_active")]
+    [InlineData("encina.request.handler_missing")]
+    public async Task ExecuteAsync_PermanentLeft_ThrowsEncinaJobPermanentFailureException(string code)
+    {
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create(code, SensitiveMessage)));
+
+        var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        exception.ErrorCode.ShouldBe(code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Left_ExceptionDoesNotLeakTheErrorMessage()
+    {
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("consent.missing", SensitiveMessage)));
+
+        var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        exception.Message.ShouldContain("consent.missing");
+        exception.Message.ShouldNotContain("patient-7f3a");
+        exception.ToString().ShouldNotContain("patient-7f3a");
+        exception.Data.Count.ShouldBe(1);
+        exception.Data[EncinaJobPermanentFailureException.ErrorCodeDataKey].ShouldBe("consent.missing");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LeftWithException_PassesItAsInnerException()
+    {
+        var cause = new TimeoutException("db timeout");
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("store.failure", "Store failed", cause)));
+
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        exception.InnerException.ShouldBeSameAs(cause);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelledLeft_WithCancelledToken_ThrowsOperationCanceledException()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var cause = new OperationCanceledException(cts.Token);
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(
+            EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, "The SpikeRequest request was cancelled.", cause)));
+
+        var exception = await Should.ThrowAsync<OperationCanceledException>(() => adapter.ExecuteAsync(new SpikeRequest("payload"), cts.Token));
+
+        exception.CancellationToken.ShouldBe(cts.Token);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelledLeft_WithoutCancelledToken_IsAFailure()
+    {
+        var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(
+            EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, "cancelled by the handler")));
+
+        await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UsesTheInjectedErrorClassifier()
+    {
+        var classifier = Substitute.For<IErrorClassifier>();
+        classifier.Classify(Arg.Any<EncinaError>(), Arg.Any<Exception?>()).Returns(ErrorClassification.Permanent);
         var encina = Substitute.For<IEncina>();
-        var error = EncinaErrors.Create("test.error", "Handler rejected the notification");
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("custom.domain_rule", "rule broken")));
+        var adapter = new HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>(
+            encina, NullLogger<HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>>.Instance, classifier);
+
+        await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        classifier.Received(1).Classify(Arg.Any<EncinaError>(), Arg.Any<Exception?>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Right_ReturnsTheResponse()
+    {
+        var response = new SpikeResponse("ok");
+        var adapter = CreateRequestAdapter(Right<EncinaError, SpikeResponse>(response));
+
+        var result = await adapter.ExecuteAsync(new SpikeRequest("payload"));
+
+        result.ShouldBe(response);
+    }
+
+    // ─── Notification adapter ───
+
+    [Fact]
+    public async Task PublishAsync_TransientLeft_ThrowsEncinaJobFailedException()
+    {
+        var adapter = CreateNotificationAdapter(EncinaErrors.Create("test.error", "Handler rejected the notification"));
+
+        var exception = await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.PublishAsync(new SpikeNotification("payload")));
+
+        exception.ErrorCode.ShouldBe("test.error");
+    }
+
+    [Fact]
+    public async Task PublishAsync_PermanentLeft_ThrowsEncinaJobPermanentFailureException()
+    {
+        var adapter = CreateNotificationAdapter(EncinaErrors.Create("consent.withdrawn", SensitiveMessage));
+
+        var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.PublishAsync(new SpikeNotification("payload")));
+
+        exception.ErrorCode.ShouldBe("consent.withdrawn");
+        exception.Message.ShouldNotContain("patient-7f3a");
+    }
+
+    [Fact]
+    public async Task PublishAsync_CancelledLeft_WithCancelledToken_ThrowsOperationCanceledException()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var adapter = CreateNotificationAdapter(EncinaErrors.Create(EncinaErrorCodes.NotificationCancelled, "cancelled"));
+
+        var exception = await Should.ThrowAsync<OperationCanceledException>(() => adapter.PublishAsync(new SpikeNotification("payload"), cts.Token));
+
+        exception.CancellationToken.ShouldBe(cts.Token);
+    }
+
+    // ─── Helpers ───
+
+    private static HangfireRequestJobAdapter<SpikeRequest, SpikeResponse> CreateRequestAdapter(Either<EncinaError, SpikeResponse> outcome)
+    {
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>()).Returns(outcome);
+        return new HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>(
+            encina, NullLogger<HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>>.Instance);
+    }
+
+    private static HangfireNotificationJobAdapter<SpikeNotification> CreateNotificationAdapter(EncinaError error)
+    {
+        var encina = Substitute.For<IEncina>();
         encina.Publish(Arg.Any<SpikeNotification>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
-
-        var logger = NullLogger<HangfireNotificationJobAdapter<SpikeNotification>>.Instance;
-        var adapter = new HangfireNotificationJobAdapter<SpikeNotification>(encina, logger);
-
-        // Act
-        var exception = await Record.ExceptionAsync(() => adapter.PublishAsync(new SpikeNotification("payload")));
-
-        // Assert
-        exception.ShouldNotBeNull();
-        exception.ShouldBeOfType<EncinaJobFailedException>();
-        ((EncinaJobFailedException)exception).ErrorCode.ShouldBe("test.error");
+        return new HangfireNotificationJobAdapter<SpikeNotification>(
+            encina, NullLogger<HangfireNotificationJobAdapter<SpikeNotification>>.Instance);
     }
 
     public sealed record SpikeRequest(string Payload) : IRequest<SpikeResponse>;

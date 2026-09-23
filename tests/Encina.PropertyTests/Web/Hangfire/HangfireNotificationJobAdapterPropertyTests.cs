@@ -69,7 +69,8 @@ public sealed class HangfireNotificationJobAdapterPropertyTests
                 adapter.PublishAsync(notification));
 
             // Assert
-            exception.Message.ShouldContain(expectedError.Message);
+            exception.ErrorCode.ShouldBe(expectedError.GetCode().IfNone(string.Empty));
+            exception.Message.ShouldNotContain(expectedError.Message);
         }
     }
 

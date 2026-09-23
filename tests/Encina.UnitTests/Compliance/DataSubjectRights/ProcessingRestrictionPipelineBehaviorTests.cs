@@ -52,6 +52,20 @@ public class ProcessingRestrictionPipelineBehaviorTests
     [RestrictProcessing(SubjectIdProperty = nameof(CustomerId))]
     private sealed record WhitespaceIdCommand(string CustomerId) : IRequest<Unit>;
 
+    [RestrictProcessing(SubjectIdProperty = nameof(PatientId))]
+    private sealed record GuidIdCommand(Guid PatientId) : IRequest<Unit>;
+
+    private readonly record struct PatientId(Guid Value);
+
+    [RestrictProcessing(SubjectIdProperty = nameof(Patient))]
+    private sealed record StronglyTypedIdCommand(PatientId Patient) : IRequest<Unit>;
+
+    [RestrictProcessing(SubjectIdProperty = nameof(Score))]
+    private sealed record UnsupportedIdCommand(double Score) : IRequest<Unit>;
+
+    [RestrictProcessing]
+    private sealed record ExtractorOnlyRestrictedCommand(string Payload) : IRequest<Unit>;
+
     // ================================================================
     // Shared setup
     // ================================================================
@@ -73,11 +87,13 @@ public class ProcessingRestrictionPipelineBehaviorTests
     }
 
     private ProcessingRestrictionPipelineBehavior<TRequest, Unit> CreateBehavior<TRequest>(
-        DSREnforcementMode mode = DSREnforcementMode.Block) where TRequest : IRequest<Unit>
+        DSREnforcementMode mode = DSREnforcementMode.Block,
+        bool failClosedOnMissingSubjectId = true) where TRequest : IRequest<Unit>
     {
         var options = Options.Create(new DataSubjectRightsOptions
         {
-            RestrictionEnforcementMode = mode
+            RestrictionEnforcementMode = mode,
+            FailClosedOnMissingSubjectId = failClosedOnMissingSubjectId
         });
 
         return new ProcessingRestrictionPipelineBehavior<TRequest, Unit>(
@@ -165,11 +181,9 @@ public class ProcessingRestrictionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_SubjectIdPropertyNonString_ShouldFallbackToExtractor()
+    public async Task Handle_SubjectIdPropertyInteger_ShouldCheckTheConvertedValue()
     {
-        _extractor.ExtractSubjectId(Arg.Any<NonStringPropertyCommand>(), Arg.Any<IRequestContext>())
-            .Returns("extracted-subject");
-        _dsrService.HasActiveRestrictionAsync("extracted-subject", Arg.Any<CancellationToken>())
+        _dsrService.HasActiveRestrictionAsync("42", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, bool>(false));
 
         var behavior = CreateBehavior<NonStringPropertyCommand>();
@@ -179,16 +193,15 @@ public class ProcessingRestrictionPipelineBehaviorTests
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
         result.IsRight.ShouldBeTrue();
-        _extractor.Received(1).ExtractSubjectId(command, _context);
+        await _dsrService.Received(1).HasActiveRestrictionAsync("42", Arg.Any<CancellationToken>());
+        _extractor.DidNotReceive().ExtractSubjectId(Arg.Any<NonStringPropertyCommand>(), Arg.Any<IRequestContext>());
     }
 
     [Fact]
-    public async Task Handle_SubjectIdPropertyWhitespace_ShouldFallbackToExtractor()
+    public async Task Handle_SubjectIdPropertyWhitespace_BlockMode_ShouldFailClosed_NotFallBackToExtractor()
     {
         _extractor.ExtractSubjectId(Arg.Any<WhitespaceIdCommand>(), Arg.Any<IRequestContext>())
-            .Returns("extracted-subject");
-        _dsrService.HasActiveRestrictionAsync("extracted-subject", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, bool>(false));
+            .Returns("the-caller");
 
         var behavior = CreateBehavior<WhitespaceIdCommand>();
         var command = new WhitespaceIdCommand("   ");
@@ -196,8 +209,117 @@ public class ProcessingRestrictionPipelineBehaviorTests
 
         var result = await behavior.Handle(command, _context, next, CancellationToken.None);
 
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.SubjectIdMissingCode));
+        _nextStepCalled.ShouldBeFalse();
+        _extractor.DidNotReceive().ExtractSubjectId(Arg.Any<WhitespaceIdCommand>(), Arg.Any<IRequestContext>());
+        await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    // ================================================================
+    // Subject ID conversion on the explicit SubjectIdProperty path (#1149)
+    // ================================================================
+
+    [Fact]
+    public async Task Handle_GuidSubjectIdProperty_ShouldCheckTheGuidInDFormat()
+    {
+        var patientId = Guid.NewGuid();
+        _dsrService.HasActiveRestrictionAsync(patientId.ToString("D"), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, bool>(true));
+
+        var behavior = CreateBehavior<GuidIdCommand>();
+        var next = NextStep();
+
+        var result = await behavior.Handle(new GuidIdCommand(patientId), _context, next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.RestrictionActiveCode));
+        _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_RecordStructSubjectIdProperty_ShouldUnwrapValue()
+    {
+        var patientId = Guid.NewGuid();
+        _dsrService.HasActiveRestrictionAsync(patientId.ToString("D"), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, bool>(false));
+
+        var behavior = CreateBehavior<StronglyTypedIdCommand>();
+        var next = NextStep();
+
+        var result = await behavior.Handle(new StronglyTypedIdCommand(new PatientId(patientId)), _context, next, CancellationToken.None);
+
         result.IsRight.ShouldBeTrue();
-        _extractor.Received(1).ExtractSubjectId(command, _context);
+        await _dsrService.Received(1).HasActiveRestrictionAsync(patientId.ToString("D"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_UnsupportedSubjectIdPropertyType_ShouldThrowConfigurationError()
+    {
+        var behavior = CreateBehavior<UnsupportedIdCommand>();
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await behavior.Handle(new UnsupportedIdCommand(1.5), _context, NextStep(), CancellationToken.None));
+
+        await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    // ================================================================
+    // Missing subject on [RestrictProcessing] requests fails closed
+    // ================================================================
+
+    [Fact]
+    public async Task Handle_RestrictProcessing_EmptyGuidSubject_BlockMode_ShouldReturnSubjectIdMissing()
+    {
+        var behavior = CreateBehavior<GuidIdCommand>(DSREnforcementMode.Block);
+        var next = NextStep();
+
+        var result = await behavior.Handle(new GuidIdCommand(Guid.Empty), _context, next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.SubjectIdMissingCode));
+        _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_RestrictProcessing_NoSubjectFromExtractor_BlockMode_ShouldReturnSubjectIdMissing()
+    {
+        _extractor.ExtractSubjectId(Arg.Any<ExtractorOnlyRestrictedCommand>(), Arg.Any<IRequestContext>())
+            .Returns((string?)null);
+
+        var behavior = CreateBehavior<ExtractorOnlyRestrictedCommand>(DSREnforcementMode.Block);
+        var next = NextStep();
+
+        var result = await behavior.Handle(new ExtractorOnlyRestrictedCommand("payload"), _context, next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.SubjectIdMissingCode));
+        _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_RestrictProcessing_MissingSubject_WarnMode_ShouldCallNext()
+    {
+        var behavior = CreateBehavior<GuidIdCommand>(DSREnforcementMode.Warn);
+        var next = NextStep();
+
+        var result = await behavior.Handle(new GuidIdCommand(Guid.Empty), _context, next, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
+        await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_RestrictProcessing_MissingSubject_FailClosedDisabled_ShouldSkipAndCallNext()
+    {
+        var behavior = CreateBehavior<GuidIdCommand>(DSREnforcementMode.Block, failClosedOnMissingSubjectId: false);
+        var next = NextStep();
+
+        var result = await behavior.Handle(new GuidIdCommand(Guid.Empty), _context, next, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        _nextStepCalled.ShouldBeTrue();
     }
 
     [Fact]

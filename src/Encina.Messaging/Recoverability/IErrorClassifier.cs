@@ -65,8 +65,18 @@ public enum ErrorClassification
 /// <item><description><see cref="InvalidOperationException"/></description></item>
 /// <item><description><see cref="NotSupportedException"/></description></item>
 /// <item><description><see cref="UnauthorizedAccessException"/></description></item>
-/// <item><description>Error codes containing "validation", "not_found", "unauthorized", "forbidden"</description></item>
+/// <item><description>Error codes or messages containing "validation", "not_found", "unauthorized", "forbidden", "invalid", "bad_request"</description></item>
+/// <item><description>Error codes (not messages) containing "missing", "mismatch", "authorization",
+/// "consent.expired", "withdrawn", "reconsent", "restriction_active", "not_verified", "rejected" or
+/// "exemption" — for example <c>encina.handler.missing</c>, <c>consent.missing</c> or
+/// <c>dsr.restriction_active</c></description></item>
 /// </list>
+/// </para>
+/// <para>
+/// Evaluation order: the exception passed in, then <see cref="EncinaError.Exception"/>, then the error
+/// code (<see cref="EncinaErrorExtensions.GetCode(EncinaError)"/>), then the error message. Anything
+/// not matched is <see cref="ErrorClassification.Unknown"/> (treated as transient). Codes containing
+/// "ratelimit" are also transient.
 /// </para>
 /// </remarks>
 public sealed class DefaultErrorClassifier : IErrorClassifier
@@ -94,6 +104,28 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         "overload"
     ];
 
+    // Matched against the error code only (never the free-text message, where these words are too
+    // common): outcomes a retry cannot change, such as a missing handler, missing or withdrawn
+    // consent, an active processing restriction, or a denied authorization.
+    private static readonly string[] PermanentCodeOnlyPatterns =
+    [
+        "missing",
+        "mismatch",
+        "authorization",
+        "consent.expired",
+        "withdrawn",
+        "reconsent",
+        "restriction_active",
+        "not_verified",
+        "rejected",
+        "exemption"
+    ];
+
+    private static readonly string[] TransientCodeOnlyPatterns =
+    [
+        "ratelimit"
+    ];
+
     /// <inheritdoc />
     public ErrorClassification Classify(EncinaError encinaError, Exception? exception)
     {
@@ -118,8 +150,51 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             }
         }
 
-        // Then, check the error message for patterns
+        // Then, check the error code for patterns
+        var code = encinaError.GetCode().IfNone(string.Empty);
+        var codeClassification = ClassifyErrorCode(code);
+        if (codeClassification != ErrorClassification.Unknown)
+        {
+            return codeClassification;
+        }
+
+        // Finally, check the error message for patterns
         return ClassifyErrorMessage(encinaError.Message);
+    }
+
+    private static ErrorClassification ClassifyErrorCode(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            return ErrorClassification.Unknown;
+        }
+
+        var lowerCode = code.ToLowerInvariant();
+
+        if (ContainsAny(lowerCode, PermanentErrorCodePatterns) || ContainsAny(lowerCode, PermanentCodeOnlyPatterns))
+        {
+            return ErrorClassification.Permanent;
+        }
+
+        if (ContainsAny(lowerCode, TransientErrorCodePatterns) || ContainsAny(lowerCode, TransientCodeOnlyPatterns))
+        {
+            return ErrorClassification.Transient;
+        }
+
+        return ErrorClassification.Unknown;
+    }
+
+    private static bool ContainsAny(string value, string[] patterns)
+    {
+        foreach (var pattern in patterns)
+        {
+            if (value.Contains(pattern, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ErrorClassification ClassifyException(Exception exception)

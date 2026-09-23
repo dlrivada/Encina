@@ -1,10 +1,10 @@
 #nullable enable
 Encina.Quartz.QuartzNotificationJob<TNotification>
 Encina.Quartz.QuartzNotificationJob<TNotification>.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
-Encina.Quartz.QuartzNotificationJob<TNotification>.QuartzNotificationJob(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Quartz.QuartzNotificationJob<TNotification>!>! logger) -> void
+Encina.Quartz.QuartzNotificationJob<TNotification>.QuartzNotificationJob(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Quartz.QuartzNotificationJob<TNotification>!>! logger, Encina.Messaging.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Quartz.QuartzRequestJob<TRequest, TResponse>
 Encina.Quartz.QuartzRequestJob<TRequest, TResponse>.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
-Encina.Quartz.QuartzRequestJob<TRequest, TResponse>.QuartzRequestJob(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Quartz.QuartzRequestJob<TRequest, TResponse>!>! logger) -> void
+Encina.Quartz.QuartzRequestJob<TRequest, TResponse>.QuartzRequestJob(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Quartz.QuartzRequestJob<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Quartz.ServiceCollectionExtensions
 static Encina.Quartz.ServiceCollectionExtensions.AddNotificationJob<TNotification>(this Quartz.IServiceCollectionQuartzConfigurator! configurator, TNotification notification, System.Action<Quartz.ITriggerConfigurator!>! configureTrigger, Quartz.JobKey? jobKey = null) -> Quartz.IServiceCollectionQuartzConfigurator!
 static Encina.Quartz.ServiceCollectionExtensions.AddRequestJob<TRequest, TResponse>(this Quartz.IServiceCollectionQuartzConfigurator! configurator, TRequest request, System.Action<Quartz.ITriggerConfigurator!>! configureTrigger, Quartz.JobKey? jobKey = null) -> Quartz.IServiceCollectionQuartzConfigurator!
@@ -17,3 +17,6 @@ Encina.Quartz.Health.QuartzHealthCheck.QuartzHealthCheck(System.IServiceProvider
 const Encina.Quartz.Health.QuartzHealthCheck.DefaultName = "encina-quartz" -> string!
 static Encina.Quartz.ServiceCollectionExtensions.ScheduleNotification<TNotification>(this Quartz.IScheduler! scheduler, TNotification notification, Quartz.ITrigger! trigger, Quartz.JobKey? jobKey = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Quartz.TriggerKey!>!
 static Encina.Quartz.ServiceCollectionExtensions.ScheduleRequest<TRequest, TResponse>(this Quartz.IScheduler! scheduler, TRequest request, Quartz.ITrigger! trigger, Quartz.JobKey? jobKey = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Quartz.TriggerKey!>!
+Encina.Quartz.EncinaJobFailureData
+const Encina.Quartz.EncinaJobFailureData.ErrorCodeKey = "Encina.ErrorCode" -> string!
+const Encina.Quartz.EncinaJobFailureData.ErrorClassificationKey = "Encina.ErrorClassification" -> string!

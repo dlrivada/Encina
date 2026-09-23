@@ -359,6 +359,59 @@ public sealed class DefaultErrorClassifierTests
 
     #endregion
 
+    #region Error-code classification
+
+    [Theory]
+    [InlineData("encina.validation.failed")]
+    [InlineData("encina.handler.missing")]
+    [InlineData("encina.request.handler_missing")]
+    [InlineData("encina.request.handler_type_mismatch")]
+    [InlineData("encina.authorization.policy_failed")]
+    [InlineData("consent.missing")]
+    [InlineData("consent.expired")]
+    [InlineData("consent.withdrawn")]
+    [InlineData("consent.requires_reconsent")]
+    [InlineData("dsr.restriction_active")]
+    [InlineData("dsr.subject_id_missing")]
+    [InlineData("dsr.identity_not_verified")]
+    public void Classify_PermanentErrorCode_ReturnsPermanent(string code)
+    {
+        // The message deliberately contains a transient word: the code decides first.
+        var error = EncinaErrors.Create(code, "Please retry later");
+
+        _classifier.Classify(error, null).ShouldBe(ErrorClassification.Permanent);
+    }
+
+    [Theory]
+    [InlineData("encina.timeout")]
+    [InlineData("encina.ratelimit.exceeded")]
+    [InlineData("consent.event_history_unavailable")]
+    public void Classify_TransientErrorCode_ReturnsTransient(string code)
+    {
+        var error = EncinaErrors.Create(code, "Something happened");
+
+        _classifier.Classify(error, null).ShouldBe(ErrorClassification.Transient);
+    }
+
+    [Fact]
+    public void Classify_CodeOnlyPattern_IsNotMatchedAgainstTheMessage()
+    {
+        // "missing" is a permanent pattern for codes only; a free-text message with it stays unknown.
+        var error = EncinaErrors.Create("test.error", "Some value is missing");
+
+        _classifier.Classify(error, null).ShouldBe(ErrorClassification.Unknown);
+    }
+
+    [Fact]
+    public void Classify_ExceptionTakesPrecedenceOverCode()
+    {
+        var error = EncinaErrors.Create("consent.missing", "Consent missing");
+
+        _classifier.Classify(error, new TimeoutException()).ShouldBe(ErrorClassification.Transient);
+    }
+
+    #endregion
+
     private sealed class CustomTestException : Exception
     {
     }

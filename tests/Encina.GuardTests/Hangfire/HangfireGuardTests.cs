@@ -113,6 +113,39 @@ public sealed class HangfireGuardTests
         options.ProviderHealthCheck.ShouldNotBeNull();
     }
 
+    // ─── EncinaAutomaticRetry ───
+
+    [Fact]
+    public void UseEncinaAutomaticRetry_NullFilters_Throws()
+    {
+        var ex = Should.Throw<ArgumentNullException>(() =>
+            EncinaAutomaticRetry.UseEncinaAutomaticRetry(null!));
+        ex.ParamName.ShouldBe("filters");
+    }
+
+    [Fact]
+    public void EncinaAutomaticRetry_Create_NegativeAttempts_Throws()
+    {
+        var ex = Should.Throw<ArgumentOutOfRangeException>(() => EncinaAutomaticRetry.Create(-1));
+        ex.ParamName.ShouldBe("attempts");
+    }
+
+    [Fact]
+    public void UseEncinaAutomaticRetry_NegativeAttempts_Throws()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new global::Hangfire.Common.JobFilterCollection().UseEncinaAutomaticRetry(-1));
+    }
+
+    [Fact]
+    public void RequestAdapter_NullErrorClassifier_UsesDefault()
+    {
+        var encina = Substitute.For<IEncina>();
+        var sut = new HangfireRequestJobAdapter<TestRequest, TestResponse>(encina,
+            NullLogger<HangfireRequestJobAdapter<TestRequest, TestResponse>>.Instance, errorClassifier: null);
+        sut.ShouldNotBeNull();
+    }
+
     // ─── Test types ───
 
     public sealed record TestNotification : INotification;

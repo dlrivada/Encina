@@ -6,11 +6,11 @@ Encina.Hangfire.EncinaJobFailedException.EncinaJobFailedException(string! messag
 Encina.Hangfire.EncinaJobFailedException.EncinaJobFailedException(string! message, System.Exception! innerException) -> void
 Encina.Hangfire.EncinaJobFailedException.ErrorCode.get -> string!
 Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>
-Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>.HangfireNotificationJobAdapter(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>!>! logger) -> void
+Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>.HangfireNotificationJobAdapter(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>!>! logger, Encina.Messaging.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Hangfire.HangfireNotificationJobAdapter<TNotification>.PublishAsync(TNotification notification, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>
-Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>.ExecuteAsync(TRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, TResponse>>!
-Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>.HangfireRequestJobAdapter(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>!>! logger) -> void
+Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>.ExecuteAsync(TRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<TResponse>!
+Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>.HangfireRequestJobAdapter(Encina.IEncina! encina, Microsoft.Extensions.Logging.ILogger<Encina.Hangfire.HangfireRequestJobAdapter<TRequest, TResponse>!>! logger, Encina.Messaging.Recoverability.IErrorClassifier? errorClassifier = null) -> void
 Encina.Hangfire.ServiceCollectionExtensions
 static Encina.Hangfire.ServiceCollectionExtensions.AddOrUpdateRecurringNotification<TNotification>(this Hangfire.IRecurringJobManager! manager, string! recurringJobId, TNotification notification, string! cronExpression, Hangfire.RecurringJobOptions? options = null) -> void
 static Encina.Hangfire.ServiceCollectionExtensions.AddOrUpdateRecurringRequest<TRequest, TResponse>(this Hangfire.IRecurringJobManager! manager, string! recurringJobId, TRequest request, string! cronExpression, Hangfire.RecurringJobOptions? options = null) -> void
@@ -27,3 +27,15 @@ static Encina.Hangfire.ServiceCollectionExtensions.ScheduleNotificationAt<TNotif
 static Encina.Hangfire.ServiceCollectionExtensions.ScheduleNotificationWithDelay<TNotification>(this Hangfire.IBackgroundJobClient! client, TNotification notification, System.TimeSpan delay) -> string!
 static Encina.Hangfire.ServiceCollectionExtensions.ScheduleRequestAt<TRequest, TResponse>(this Hangfire.IBackgroundJobClient! client, TRequest request, System.DateTimeOffset enqueueAt) -> string!
 static Encina.Hangfire.ServiceCollectionExtensions.ScheduleRequestWithDelay<TRequest, TResponse>(this Hangfire.IBackgroundJobClient! client, TRequest request, System.TimeSpan delay) -> string!
+const Encina.Hangfire.EncinaJobFailedException.ErrorCodeDataKey = "Encina.ErrorCode" -> string!
+Encina.Hangfire.EncinaJobPermanentFailureException
+Encina.Hangfire.EncinaJobPermanentFailureException.EncinaJobPermanentFailureException() -> void
+Encina.Hangfire.EncinaJobPermanentFailureException.EncinaJobPermanentFailureException(Encina.EncinaError error) -> void
+Encina.Hangfire.EncinaJobPermanentFailureException.EncinaJobPermanentFailureException(string! message) -> void
+Encina.Hangfire.EncinaJobPermanentFailureException.EncinaJobPermanentFailureException(string! message, System.Exception! innerException) -> void
+Encina.Hangfire.EncinaJobPermanentFailureException.ErrorCode.get -> string!
+const Encina.Hangfire.EncinaJobPermanentFailureException.ErrorCodeDataKey = "Encina.ErrorCode" -> string!
+Encina.Hangfire.EncinaAutomaticRetry
+static Encina.Hangfire.EncinaAutomaticRetry.Create(int attempts = 10) -> Hangfire.AutomaticRetryAttribute!
+static Encina.Hangfire.EncinaAutomaticRetry.UseEncinaAutomaticRetry(this Hangfire.Common.JobFilterCollection! filters, int attempts = 10) -> Hangfire.Common.JobFilterCollection!
+const Encina.Hangfire.EncinaAutomaticRetry.DefaultAttempts = 10 -> int
