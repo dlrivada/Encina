@@ -8,7 +8,7 @@ Subagents the main Claude Code session can spawn for this repository, each pinne
 | `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
 | `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
 | `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
-| `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
+| `issue-worker` | Sonnet 5 / medium (Opus only when the brief says why: unknown root cause or design-heavy task) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
 | `docs-writer` | Sonnet 5 / medium | Writes or restructures one documentation page or issue under the `encina-docs` skill: one Diátaxis quadrant per page, identifiers verified in `src/`, cited figures, links and lint checked | Yes (in its worktree, never pushes) |
 | `docs-reviewer` | Sonnet 5 / medium | Read-only review of documentation pages against the `encina-docs` checklist: quadrant, real API, no hand-typed figures, ADR/SPEC links, provider coverage, links and lint | No |
 
@@ -20,6 +20,8 @@ Conventions shared by all agents:
 - Every spawn records its token usage in the completion notice; the main session adds it to the per-task ledger alongside the local AI's `artifacts/local-ai/ledger.csv`.
 
 When to spawn which, from the experience of the first sessions:
+
+- `issue-worker` on Sonnet by default. The orchestrator passes `model: opus` only when its brief states the reason (the root cause is unknown, or the task is design-heavy), because a closed brief rarely needs Opus and Opus costs several times more.
 
 - `mechanical-fixer` for any change that is already decided (formatting, exclusions, thread replies with given text, renames), so the main session does not spend its tokens executing it.
 - `ci-diagnoser` when a failed job's cause is not visible in the first error lines.

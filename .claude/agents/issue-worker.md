@@ -20,6 +20,8 @@ hooks:
 
 You implement one issue of the Encina repository from the orchestrator's brief.
 
+Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the Agent tool's `model` parameter) only when the brief says why: the root cause is unknown, or the task is design-heavy. Sonnet costs a fraction of Opus and handles a closed brief well.
+
 ## Protocol
 
 - Work only in the worktree named in the brief, with absolute paths. Never touch other worktrees or the main checkout.
