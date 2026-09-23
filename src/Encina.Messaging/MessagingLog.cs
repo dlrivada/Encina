@@ -166,15 +166,16 @@ public static partial class MessagingLog
         Guid messageId,
         string notificationType);
 
-    /// <summary>Logs when an outbox message fails to process.</summary>
+    /// <summary>Logs when an outbox message fails to process and a retry is scheduled.</summary>
     [LoggerMessage(
         EventId = 2832,
         Level = LogLevel.Warning,
-        Message = "Failed to process outbox message {MessageId}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
+        Message = "Failed to process outbox message {MessageId}: {ErrorMessage}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
     public static partial void FailedToProcessOutboxMessage(
         ILogger logger,
-        Exception exception,
+        Exception? exception,
         Guid messageId,
+        string errorMessage,
         int retryCount,
         int maxRetries,
         DateTime? nextRetry);
@@ -223,4 +224,25 @@ public static partial class MessagingLog
         ILogger logger,
         string requestType,
         string? correlationId);
+
+    // =========================================================================
+    // Outbox Processor, exhausted retries (EventId 2958)
+    // =========================================================================
+
+    /// <summary>
+    /// Logs when a failure uses up the retries of an outbox message, so it will not be fetched again.
+    /// </summary>
+    /// <remarks>The <paramref name="errorCode"/> is <c>outbox.max_retries_exceeded</c>.</remarks>
+    [LoggerMessage(
+        EventId = 2958,
+        Level = LogLevel.Error,
+        Message = "Outbox message {MessageId} of type {NotificationType} failed {RetryCount} times and will not be retried ({ErrorCode}). Last error: {ErrorMessage}")]
+    public static partial void OutboxMessageRetriesExhausted(
+        ILogger logger,
+        Exception? exception,
+        Guid messageId,
+        string notificationType,
+        int retryCount,
+        string errorCode,
+        string errorMessage);
 }

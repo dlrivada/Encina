@@ -134,7 +134,7 @@ public class OutboxOrchestratorGuardTests
             .Returns(Either<EncinaError, IEnumerable<IOutboxMessage>>.Left(expectedError));
 
         var sut = CreateSut();
-        var result = await sut.ProcessPendingMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await sut.ProcessPendingMessagesAsync((_, _, _) => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
 
         result.IsLeft.ShouldBeTrue();
     }
@@ -147,7 +147,7 @@ public class OutboxOrchestratorGuardTests
                 Enumerable.Empty<IOutboxMessage>()));
 
         var sut = CreateSut();
-        var result = await sut.ProcessPendingMessagesAsync((_, _, _) => Task.CompletedTask);
+        var result = await sut.ProcessPendingMessagesAsync((_, _, _) => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default)));
 
         result.IsRight.ShouldBeTrue();
         result.Match(Right: count => count, Left: _ => -1).ShouldBe(0);

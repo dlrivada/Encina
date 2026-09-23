@@ -180,7 +180,7 @@ public sealed class OutboxOrchestratorTests
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
-            (msg, type, obj) => Task.CompletedTask);
+            (msg, type, obj) => Delivered());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -203,10 +203,10 @@ public sealed class OutboxOrchestratorTests
             .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
         var publishedMessages = new List<object>();
-        Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = (msg, type, obj) =>
         {
             publishedMessages.Add(obj);
-            return Task.CompletedTask;
+            return Delivered();
         };
 
         // Act
@@ -234,7 +234,7 @@ public sealed class OutboxOrchestratorTests
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(
-            (msg, type, obj) => Task.CompletedTask);
+            (msg, type, obj) => Delivered());
 
         // Assert
         result.IsRight.ShouldBeTrue();
@@ -261,8 +261,8 @@ public sealed class OutboxOrchestratorTests
             Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IOutboxMessage>>(new List<IOutboxMessage> { message }));
 
-        Func<IOutboxMessage, Type, object, Task> callback = (msg, type, obj) =>
-            Task.FromException(new InvalidOperationException("Publish failed"));
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = (msg, type, obj) =>
+            ValueTask.FromException<Either<EncinaError, Unit>>(new InvalidOperationException("Publish failed"));
 
         // Act
         var result = await fixture.Orchestrator.ProcessPendingMessagesAsync(callback);
@@ -309,14 +309,14 @@ public sealed class OutboxOrchestratorTests
         using var cts = new CancellationTokenSource();
         var processedCount = 0;
 
-        Func<IOutboxMessage, Type, object, Task> callback = async (msg, type, obj) =>
+        Func<IOutboxMessage, Type, object, ValueTask<Either<EncinaError, Unit>>> callback = async (msg, type, obj) =>
         {
             processedCount++;
             if (processedCount == 1)
             {
                 await cts.CancelAsync();
             }
-            await Task.CompletedTask;
+            return Unit.Default;
         };
 
         // Act
@@ -379,6 +379,9 @@ public sealed class OutboxOrchestratorTests
     #endregion
 
     #region Helpers
+
+    private static ValueTask<Either<EncinaError, Unit>> Delivered()
+        => ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
 
     private static TestOutboxMessage CreateTestOutboxMessage(
         Guid id,

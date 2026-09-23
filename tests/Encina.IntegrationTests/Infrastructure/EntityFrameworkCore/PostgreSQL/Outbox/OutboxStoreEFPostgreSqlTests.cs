@@ -1,4 +1,5 @@
 using Encina.EntityFrameworkCore.Outbox;
+using Encina.IntegrationTests.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 using LanguageExt;
@@ -174,5 +175,19 @@ public sealed class OutboxStoreEFPostgreSqlTests : IAsyncLifetime
             var stored = await verifyContext.Set<OutboxMessage>().FindAsync(id);
             stored.ShouldNotBeNull();
         }
+    }
+
+    [Fact]
+    public async Task ProcessPendingMessages_PublishReturnsLeft_SchedulesRetryInsteadOfMarkingProcessed()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.LeftResultSchedulesRetryAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
+    }
+
+    [Fact]
+    public async Task ProcessPendingMessages_FailureUsingUpRetries_IsNoLongerFetched()
+    {
+        await using var context = _fixture.CreateDbContext<TestPostgreSqlDbContext>();
+        await OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(new OutboxStoreEF(context), new OutboxMessageFactory());
     }
 }

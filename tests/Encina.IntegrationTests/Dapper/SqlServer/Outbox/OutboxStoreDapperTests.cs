@@ -1,5 +1,6 @@
 using Dapper;
 using Encina.Dapper.SqlServer.Outbox;
+using Encina.IntegrationTests.Messaging.Outbox;
 using Encina.Messaging.Outbox;
 using Encina.TestInfrastructure.Extensions;
 using Encina.TestInfrastructure.Fixtures;
@@ -669,5 +670,22 @@ public sealed class OutboxStoreDapperTests : IAsyncLifetime
     }
 
     #endregion
-}
 
+    #region Retry and exhaustion (#1151, #1150)
+
+    /// <summary>
+    /// A publish callback that returns <c>Left</c> schedules a retry instead of marking the message processed.
+    /// </summary>
+    [Fact]
+    public Task ProcessPendingMessages_PublishReturnsLeft_SchedulesRetryInsteadOfMarkingProcessed()
+        => OutboxRetryScenarios.LeftResultSchedulesRetryAsync(_store, new OutboxMessageFactory());
+
+    /// <summary>
+    /// The failure that uses up the retries leaves the message unprocessed, without a next retry and no longer fetched.
+    /// </summary>
+    [Fact]
+    public Task ProcessPendingMessages_FailureUsingUpRetries_IsNoLongerFetched()
+        => OutboxRetryScenarios.ExhaustedMessageIsNoLongerFetchedAsync(_store, new OutboxMessageFactory());
+
+    #endregion
+}
