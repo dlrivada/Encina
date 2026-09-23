@@ -8,6 +8,7 @@ $hooks = Split-Path -Parent $PSScriptRoot
 $repo = Split-Path -Parent (Split-Path -Parent $hooks)
 $attribution = Join-Path $hooks 'block-ai-attribution.ps1'
 $issue = Join-Path $hooks 'check-issue-template.ps1'
+$publish = Join-Path $hooks 'block-worker-publish.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -128,7 +129,18 @@ $cases = @(
     @($issue, 'PowerShell', '$r = (gh issue create --title "No prefix" --body-file debt-ok.md)', 2, 'assignment of a subexpression'),
     @($issue, 'PowerShell', "gh iss``ue create --title `"No prefix`" --body-file debt-ok.md", 2, 'backtick-escaped verb'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-infostring.md', 0, 'backtick in fence info string is not a fence'),
-    @($issue, 'PowerShell', 'not json', 0, 'malformed payload')
+    @($issue, 'PowerShell', 'not json', 0, 'malformed payload'),
+
+    @($publish, 'PowerShell', 'git push', 2, 'git push'),
+    @($publish, 'PowerShell', 'git -C dir push origin x', 2, 'git -C dir push'),
+    @($publish, 'PowerShell', 'gh pr create --title t --body-file msg-ok.txt', 2, 'gh pr create'),
+    @($publish, 'PowerShell', 'gh issue comment 5 -b x', 2, 'gh issue comment'),
+    @($publish, 'PowerShell', 'gh api -X POST repos/o/r/issues', 2, 'gh api -X POST'),
+    @($publish, 'PowerShell', 'git commit -m x', 0, 'git commit is allowed'),
+    @($publish, 'PowerShell', 'gh pr view 5', 0, 'gh pr view is allowed'),
+    @($publish, 'PowerShell', 'gh issue view 5', 0, 'gh issue view is allowed'),
+    @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api GET is allowed'),
+    @($publish, 'PowerShell', 'git log', 0, 'git log is allowed')
 )
 
 $failed = 0
