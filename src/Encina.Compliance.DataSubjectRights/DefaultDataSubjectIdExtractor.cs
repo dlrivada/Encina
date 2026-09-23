@@ -19,6 +19,16 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </list>
 /// </para>
 /// <para>
+/// A matching property is accepted regardless of its CLR type: <see cref="string"/>,
+/// <see cref="Guid"/>, numeric ids, and any type implementing <see cref="IFormattable"/> or
+/// overriding <see cref="object.ToString()"/> (a strongly-typed id wrapper) are all converted to
+/// a stable, culture-invariant string. The fallback to <see cref="IRequestContext.UserId"/> only
+/// happens when <em>no</em> matching property exists at all — a matching property whose value is
+/// <c>null</c> is treated as a missing subject (returns <c>null</c>), and a matching property of
+/// an unconvertible type is a configuration error (throws) rather than a silent fallback to the
+/// authenticated caller (project history: #1149).
+/// </para>
+/// <para>
 /// Property lookups are cached per request type using a <see cref="ConcurrentDictionary{TKey,TValue}"/>
 /// to avoid repeated reflection in hot paths.
 /// </para>
@@ -37,16 +47,16 @@ public sealed class DefaultDataSubjectIdExtractor : IDataSubjectIdExtractor
         var requestType = typeof(TRequest);
         var property = PropertyCache.GetOrAdd(requestType, ResolveProperty);
 
-        if (property is not null)
+        // No matching property at all — fall back to the authenticated caller.
+        if (property is null)
         {
-            var value = property.GetValue(request);
-            if (value is string stringValue && !string.IsNullOrWhiteSpace(stringValue))
-            {
-                return stringValue;
-            }
+            return context.UserId;
         }
 
-        return context.UserId;
+        // A matching property was found: convert its value (or treat null/unconvertible
+        // types per SubjectIdConversion's contract) instead of falling back to context.UserId.
+        var value = property.GetValue(request);
+        return SubjectIdConversion.ToInvariantString(value, property);
     }
 
     private static PropertyInfo? ResolveProperty(Type requestType)
@@ -56,7 +66,7 @@ public sealed class DefaultDataSubjectIdExtractor : IDataSubjectIdExtractor
         if (restrictAttribute?.SubjectIdProperty is { Length: > 0 } propertyName)
         {
             var specified = requestType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-            if (specified is not null && specified.PropertyType == typeof(string))
+            if (specified is not null)
             {
                 return specified;
             }
@@ -64,14 +74,14 @@ public sealed class DefaultDataSubjectIdExtractor : IDataSubjectIdExtractor
 
         // Priority 2: Look for SubjectId property
         var subjectIdProp = requestType.GetProperty("SubjectId", BindingFlags.Public | BindingFlags.Instance);
-        if (subjectIdProp is not null && subjectIdProp.PropertyType == typeof(string))
+        if (subjectIdProp is not null)
         {
             return subjectIdProp;
         }
 
         // Priority 3: Look for UserId property
         var userIdProp = requestType.GetProperty("UserId", BindingFlags.Public | BindingFlags.Instance);
-        if (userIdProp is not null && userIdProp.PropertyType == typeof(string))
+        if (userIdProp is not null)
         {
             return userIdProp;
         }

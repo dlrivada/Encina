@@ -196,7 +196,12 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
         RequireConsentAttribute attribute,
         IRequestContext context)
     {
-        // If SubjectIdProperty is specified, use cached reflection
+        // If SubjectIdProperty is specified, use cached reflection. A matching property is
+        // accepted regardless of its CLR type (string, Guid, numeric ids, IFormattable, or a
+        // strongly-typed id overriding ToString()) and converted to an invariant string. Only
+        // when no matching property exists at all do we fall back to context.UserId — a matching
+        // property whose value is null is a missing subject, not a reason to use the caller's id
+        // (project history: #1149).
         if (attribute.SubjectIdProperty is not null)
         {
             var cacheKey = (requestType, attribute.SubjectIdProperty);
@@ -205,7 +210,7 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
 
             if (property is not null)
             {
-                return property.GetValue(request) as string;
+                return SubjectIdConversion.ToInvariantString(property.GetValue(request), property);
             }
         }
 

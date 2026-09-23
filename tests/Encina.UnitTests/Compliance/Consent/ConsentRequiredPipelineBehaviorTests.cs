@@ -17,6 +17,7 @@ public class ConsentRequiredPipelineBehaviorTests
     private readonly ILogger<ConsentRequiredPipelineBehavior<SampleConsentRequest, Unit>> _loggerConsent;
     private readonly ILogger<ConsentRequiredPipelineBehavior<SampleNoConsentRequest, Unit>> _loggerNoConsent;
     private readonly ILogger<ConsentRequiredPipelineBehavior<SampleCustomSubjectRequest, Unit>> _loggerCustom;
+    private readonly ILogger<ConsentRequiredPipelineBehavior<SampleGuidSubjectRequest, Unit>> _loggerGuidSubject;
 
     public ConsentRequiredPipelineBehaviorTests()
     {
@@ -24,6 +25,7 @@ public class ConsentRequiredPipelineBehaviorTests
         _loggerConsent = Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleConsentRequest, Unit>>>();
         _loggerNoConsent = Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleNoConsentRequest, Unit>>>();
         _loggerCustom = Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleCustomSubjectRequest, Unit>>>();
+        _loggerGuidSubject = Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleGuidSubjectRequest, Unit>>>();
 
         // Default: validator returns valid
 #pragma warning disable CA2012
@@ -138,6 +140,28 @@ public class ConsentRequiredPipelineBehaviorTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_SubjectIdFromGuidProperty_ShouldUseThePatientNotTheCaller()
+    {
+        // Arrange (#1149): a Guid-typed subject-id property used to be ignored by
+        // `property.GetValue(request) as string`, which returns null for a non-string id.
+        var behavior = CreateGuidSubjectBehavior();
+        var patientId = Guid.NewGuid();
+        var request = new SampleGuidSubjectRequest(patientId);
+        var context = RequestContext.CreateForTest(userId: "professional-42");
+
+        // Act
+        var result = await behavior.Handle(
+            request, context, NextGuidSubject(Unit.Default), CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+#pragma warning disable CA2012
+        await _validator.Received(1)
+            .ValidateAsync(patientId.ToString(), Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
+#pragma warning restore CA2012
     }
 
     #endregion
@@ -324,6 +348,9 @@ public class ConsentRequiredPipelineBehaviorTests
     private static RequestHandlerCallback<Unit> NextCustomError(Unit value) =>
         () => ValueTask.FromResult<Either<EncinaError, Unit>>(value);
 
+    private static RequestHandlerCallback<Unit> NextGuidSubject(Unit value) =>
+        () => ValueTask.FromResult<Either<EncinaError, Unit>>(value);
+
     private ConsentRequiredPipelineBehavior<SampleConsentRequest, Unit> CreateConsentBehavior(
         Action<ConsentOptions>? configure = null)
     {
@@ -353,6 +380,16 @@ public class ConsentRequiredPipelineBehaviorTests
             _validator, Options.Create(options), _loggerCustom);
     }
 
+    private ConsentRequiredPipelineBehavior<SampleGuidSubjectRequest, Unit> CreateGuidSubjectBehavior(
+        Action<ConsentOptions>? configure = null)
+    {
+        var options = new ConsentOptions();
+        options.DefinePurpose(ConsentPurposes.Marketing);
+        configure?.Invoke(options);
+        return new ConsentRequiredPipelineBehavior<SampleGuidSubjectRequest, Unit>(
+            _validator, Options.Create(options), _loggerGuidSubject);
+    }
+
     private ConsentRequiredPipelineBehavior<SampleCustomErrorRequest, Unit> CreateCustomErrorBehavior(
         Action<ConsentOptions>? configure = null)
     {
@@ -374,6 +411,9 @@ public sealed record SampleConsentRequest(string UserId) : ICommand<Unit>;
 
 [RequireConsent(ConsentPurposes.Analytics, SubjectIdProperty = "CustomerId")]
 public sealed record SampleCustomSubjectRequest(string CustomerId) : ICommand<Unit>;
+
+[RequireConsent(ConsentPurposes.Marketing, SubjectIdProperty = "PatientId")]
+public sealed record SampleGuidSubjectRequest(Guid PatientId) : ICommand<Unit>;
 
 [RequireConsent(ConsentPurposes.Marketing, ErrorMessage = "Marketing consent required")]
 public sealed record SampleCustomErrorRequest(string UserId) : ICommand<Unit>;
