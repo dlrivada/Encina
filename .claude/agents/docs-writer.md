@@ -48,7 +48,7 @@ When the task changes nature (the API the issue describes does not exist, the pa
 
 ## Delegation (mandatory)
 
-Hand each step to the specialist that owns it; if you cannot spawn agents, list in your report which steps should have gone to which specialist.
+Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. You cannot spawn agents, so list in your report every step that belongs to a specialist, and the orchestrator dispatches it.
 
 | Step | Specialist |
 |---|---|

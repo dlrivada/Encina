@@ -792,6 +792,7 @@ A review of the 2026-09-22/24 sessions (about 20 PRs and 40 issues run by an orc
 6. **Issue bodies from workers.** Workers write each follow-up as a complete issue file in the template format under `artifacts/issues/` and list the paths; the orchestrator creates the issue from the file through the `open-issue` skill, so long issue texts stay out of its context.
 7. **`worker-brief` skill.** The fixed part of every brief (worktree and absolute paths, no publishing, changelog fragments, verification, self-review, delegation, report format, model choice) lives in `.claude/skills/worker-brief/SKILL.md`; the orchestrator writes only the goal, scope, decisions and acceptance.
 8. **Prohibited commands.** Workers used some of the Unix commands `CLAUDE.md` prohibits without anyone noticing. The `block-prohibited-commands` hook, wired into every agent, now rejects them (and Bash loops, conditionals and `$( ... )`) and names the PowerShell or tool equivalent.
+9. **Delegation stays mandatory.** The review proposed making delegation proportional (inline edits for small steps, because a `mechanical-fixer` start costs about 90–110k tokens). The maintainer rejected it on 2026-09-24: every step that belongs to a specialist goes to that specialist, at every level and however small, because the cost of a spawn is trivial next to the quality the specialist brings. Hooks that enforce the rule are left to a follow-up.
 
 ---
 

@@ -31,14 +31,14 @@ The equivalent definitions for the free local model (opencode) live in `.opencod
 
 ## Delegation (mandatory)
 
-The main session orchestrates: it writes a closed brief per issue, runs one `issue-worker` per issue in its own worktree (two to four at a time), reviews each diff, pushes, opens the PR and runs `adversarial-reviewer`. Every step goes to the specialist that owns it, at every level; a worker that cannot spawn agents lists the steps that should have been delegated so the orchestrator dispatches them.
+The main session orchestrates: it writes a closed brief per issue, runs one `issue-worker` per issue in its own worktree (two to four at a time), reviews each diff, pushes, opens the PR and runs `adversarial-reviewer`. Every step goes to the specialist that owns it, at every level and however small; doing a specialist's step yourself is not allowed. The maintainer confirmed this on 2026-09-24 (#1181) and rejected a proposal to make delegation proportional: the cost of a spawn is trivial next to the quality a specialist brings. A worker that cannot spawn agents lists the steps that should have been delegated so the orchestrator dispatches them.
 
 | Step | Specialist |
 |---|---|
 | Implement one issue from a brief | `issue-worker` |
 | Root-cause a failing job or test not obvious from the first errors | `ci-diagnoser` |
 | Already-decided mechanical edits (docs, tables, renames, format, thread replies) | `mechanical-fixer` |
-| Review a PR or a specification, and every PR merged without CodeRabbit | `adversarial-reviewer` |
+| Review a PR or a specification, every PR merged without CodeRabbit, and a worker's own diff before it reports | `adversarial-reviewer` |
 | Write or restructure a documentation page (documentation milestone issues, package READMEs) | `docs-writer` |
 | Review a documentation PR or a page before it is published | `docs-reviewer` |
 | Bulk drafts, classification, summaries | local model (`local-ai-task` skill) |

@@ -50,15 +50,16 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 
 ## Delegation (mandatory)
 
-Hand each step to the specialist that owns it; if you cannot spawn agents, list in your report which steps should have gone to which specialist.
+Hand each step to the specialist that owns it, however small. Doing a specialist's step yourself is not allowed: the maintainer decided on 2026-09-24 (#1181) that the cost of a spawn is trivial next to the quality a specialist brings. If you cannot spawn agents, list in your report which steps should have gone to which specialist.
 
 | Step | Specialist |
 |---|---|
 | Root-cause a failing build or test not obvious from the first errors | `ci-diagnoser` |
 | Already-decided mechanical edits (docs, tables, renames, formatting) | `mechanical-fixer` |
-| Bulk drafts, classification, summaries | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
+| Review your own diff before reporting (see Method) | `adversarial-reviewer` |
+| Bulk drafts, classification, summaries, issue-file drafts | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
 
-Spawn `mechanical-fixer` in the foreground on your worktree and make no edits until it returns.
+Spawn `mechanical-fixer` in the foreground on your worktree and make no edits until it returns. The report's delegation section lists every step, the specialist that did it and its result.
 
 ## Report
 
