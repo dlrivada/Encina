@@ -270,6 +270,12 @@ Tags: `encina`, `gdpr`, `retention`, `compliance`, `ready`
 Each retention record carries an entity and a data category, so one entity can have several records with different periods (for example a patient's contact data kept for one year and the clinical record kept for five). When a record expires, `RetentionEnforcementService` calls `IRetentionDataEraser.EraseAsync` with a `RetentionErasureTarget` (record id, entity id, data category, expiry, tenant and module) and marks the record `Deleted` only after it returns `Right`. The eraser must erase that category of data for that entity and nothing else; the entity's other categories are still within their own periods. The application implements it, because only the application knows where each category of data lives:
 
 ```csharp
+// Program.cs
+services.AddScoped<IRetentionDataEraser, PatientDataEraser>();
+```
+
+```csharp
+// PatientDataEraser.cs
 public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
 {
     public async ValueTask<Either<EncinaError, Unit>> EraseAsync(
@@ -303,8 +309,6 @@ public sealed class PatientDataEraser(AppDbContext db) : IRetentionDataEraser
         }
     }
 }
-
-services.AddScoped<IRetentionDataEraser, PatientDataEraser>();
 ```
 
 Return `Left` when any of the data could not be erased: the record stays `Expired` and the next cycle retries it, so the eraser must be idempotent.
