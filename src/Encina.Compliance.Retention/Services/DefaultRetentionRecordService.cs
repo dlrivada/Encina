@@ -415,10 +415,13 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         {
             var now = _timeProvider.GetUtcNow();
 
+            // Active records past their expiry have not been processed yet; Expired records were
+            // marked by an earlier enforcement cycle whose erasure or deletion did not complete,
+            // so they are returned again for a retry.
             return await _readModelRepository.QueryAsync(
                 q => q.Where(r =>
-                    r.Status == RetentionStatus.Active
-                    && r.ExpiresAtUtc <= now),
+                    (r.Status == RetentionStatus.Active && r.ExpiresAtUtc <= now)
+                    || r.Status == RetentionStatus.Expired),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

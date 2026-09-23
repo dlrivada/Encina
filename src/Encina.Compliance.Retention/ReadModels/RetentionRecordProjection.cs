@@ -116,7 +116,8 @@ public sealed class RetentionRecordProjection :
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Recalculates the status based on the current time relative to <see cref="RetentionRecordReadModel.ExpiresAtUtc"/>:
+    /// Recalculates the status from the release timestamp carried by the event
+    /// (<see cref="RetentionRecordReleased.OccurredAtUtc"/>) relative to <see cref="RetentionRecordReadModel.ExpiresAtUtc"/>:
     /// if the expiration has passed, the record transitions to <see cref="RetentionStatus.Expired"/>;
     /// otherwise, it returns to <see cref="RetentionStatus.Active"/>.
     /// </para>

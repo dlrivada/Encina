@@ -179,8 +179,10 @@ public sealed class RetentionRecordAggregate : AggregateBase
     /// <remarks>
     /// <para>
     /// If no other active holds remain, the record returns to its previous position in the
-    /// lifecycle (<see cref="RetentionStatus.Active"/> or <see cref="RetentionStatus.Expired"/>
-    /// depending on <see cref="ExpiresAtUtc"/>). The enforcement service will re-evaluate
+    /// lifecycle: <see cref="RetentionStatus.Expired"/> when <paramref name="occurredAtUtc"/> is at or
+    /// after <see cref="ExpiresAtUtc"/>, <see cref="RetentionStatus.Active"/> otherwise. The status is
+    /// derived from the release timestamp recorded on the event, not from the current time, so
+    /// replaying the stream always yields the same state. The enforcement service will re-evaluate
     /// the record during its next sweep.
     /// </para>
     /// <para>
@@ -291,7 +293,10 @@ public sealed class RetentionRecordAggregate : AggregateBase
                 break;
 
             case RetentionRecordReleased e:
-                Status = DateTimeOffset.UtcNow >= ExpiresAtUtc
+                // Evaluated against the release timestamp carried by the event (computed by the
+                // service from TimeProvider), never the wall clock, so replaying the stream is
+                // deterministic.
+                Status = e.OccurredAtUtc >= ExpiresAtUtc
                     ? RetentionStatus.Expired
                     : RetentionStatus.Active;
                 LegalHoldId = null;

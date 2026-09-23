@@ -24,6 +24,7 @@ namespace Encina.Compliance.Retention.Diagnostics;
 /// <item><term>8550-8559</term><description>Retention policy</description></item>
 /// <item><term>8560-8569</term><description>Audit trail</description></item>
 /// <item><term>8570-8585</term><description>Event-sourced services</description></item>
+/// <item><term>8586-8599</term><description>Enforcement lifecycle outcomes</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -170,11 +171,11 @@ internal static partial class RetentionLogMessages
         Message = "No expired retention records found. Enforcement cycle complete")]
     internal static partial void RetentionNoExpiredRecords(this ILogger logger);
 
-    /// <summary>IDataErasureExecutor not registered — degraded mode.</summary>
+    /// <summary>IDataErasureExecutor not registered — expired records cannot be erased; logged once per enforcement cycle.</summary>
     [LoggerMessage(
         EventId = 8519,
         Level = LogLevel.Warning,
-        Message = "IDataErasureExecutor is not registered. Retention enforcement operates in degraded mode (records marked deleted but no physical erasure)")]
+        Message = "IDataErasureExecutor is not registered. Expired retention records are left expired, not erased and not marked deleted; they are counted as failed until an executor is registered")]
     internal static partial void RetentionErasureExecutorMissing(this ILogger logger);
 
     // ========================================================================
@@ -368,13 +369,6 @@ internal static partial class RetentionLogMessages
         Message = "Exception during data erasure. EntityId={EntityId}")]
     internal static partial void RetentionErasureException(this ILogger logger, string entityId, Exception exception);
 
-    /// <summary>No erasure executor registered — marking as deleted without physical erasure.</summary>
-    [LoggerMessage(
-        EventId = 8559,
-        Level = LogLevel.Debug,
-        Message = "No erasure executor registered, marking as deleted without physical erasure. EntityId={EntityId}")]
-    internal static partial void RetentionNoErasureExecutor(this ILogger logger, string entityId);
-
     // ========================================================================
     // Audit trail log messages (8560-8569)
     // ========================================================================
@@ -564,4 +558,29 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Debug,
         Message = "Retention cache invalidated. CacheKey={CacheKey}")]
     internal static partial void RetentionCacheInvalidated(this ILogger logger, string cacheKey);
+
+    // ========================================================================
+    // Enforcement lifecycle outcome log messages (8586-8599)
+    // ========================================================================
+
+    /// <summary>Legal hold status could not be determined — the record is skipped (fail closed) and retried next cycle.</summary>
+    [LoggerMessage(
+        EventId = 8586,
+        Level = LogLevel.Warning,
+        Message = "Legal hold status could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
+    internal static partial void RetentionLegalHoldCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorMessage);
+
+    /// <summary>A retention record state transition failed during enforcement — the record is counted as failed.</summary>
+    [LoggerMessage(
+        EventId = 8587,
+        Level = LogLevel.Warning,
+        Message = "Retention record state transition failed during enforcement. RecordId={RecordId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
+    internal static partial void RetentionEnforcementTransitionFailed(this ILogger logger, Guid recordId, string operation, string errorMessage);
+
+    /// <summary>Data erasure completed with failed fields — the record is not marked deleted and is retried next cycle.</summary>
+    [LoggerMessage(
+        EventId = 8588,
+        Level = LogLevel.Warning,
+        Message = "Data erasure incomplete; record not marked deleted. EntityId={EntityId}, FieldsFailed={FieldsFailed}")]
+    internal static partial void RetentionErasureIncomplete(this ILogger logger, string entityId, int fieldsFailed);
 }

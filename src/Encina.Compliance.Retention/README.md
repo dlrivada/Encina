@@ -285,7 +285,7 @@ services.AddEncinaRetention(options =>
 });
 ```
 
-If `IDataErasureExecutor` is not registered, the enforcer operates in degraded mode: records are marked as deleted but no physical erasure occurs. A warning is logged indicating DSR integration is not configured.
+If `IDataErasureExecutor` is not registered, the enforcer erases nothing and never marks a record deleted: expired records stay `Expired`, are counted as failed and a warning (EventId 8519) is logged once per enforcement cycle.
 
 ## Testing
 

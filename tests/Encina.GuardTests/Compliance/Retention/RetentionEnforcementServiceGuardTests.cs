@@ -41,4 +41,22 @@ public sealed class RetentionEnforcementServiceGuardTests
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
+
+    [Fact]
+    public void Constructor_NullTimeProvider_DefaultsToSystemClock()
+    {
+        var sut = new RetentionEnforcementService(_scopeFactory, _options, _logger, timeProvider: null);
+
+        sut.Clock.ShouldBeSameAs(TimeProvider.System);
+    }
+
+    [Fact]
+    public void Constructor_ExplicitTimeProvider_IsUsed()
+    {
+        var clock = Substitute.For<TimeProvider>();
+
+        var sut = new RetentionEnforcementService(_scopeFactory, _options, _logger, clock);
+
+        sut.Clock.ShouldBeSameAs(clock);
+    }
 }

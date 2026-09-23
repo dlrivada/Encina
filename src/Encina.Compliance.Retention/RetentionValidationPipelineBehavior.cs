@@ -80,6 +80,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
     private readonly IRetentionPolicyService _policyService;
     private readonly RetentionOptions _options;
     private readonly ILogger<RetentionValidationPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RetentionValidationPipelineBehavior{TRequest, TResponse}"/> class.
@@ -88,11 +89,15 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
     /// <param name="policyService">Service for resolving retention periods from policies.</param>
     /// <param name="options">Retention configuration options controlling enforcement mode.</param>
     /// <param name="logger">Logger for structured retention pipeline logging.</param>
+    /// <param name="timeProvider">
+    /// Source of the current time for the logged expiry. Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
     public RetentionValidationPipelineBehavior(
         IRetentionRecordService recordService,
         IRetentionPolicyService policyService,
         IOptions<RetentionOptions> options,
-        ILogger<RetentionValidationPipelineBehavior<TRequest, TResponse>> logger)
+        ILogger<RetentionValidationPipelineBehavior<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(recordService);
         ArgumentNullException.ThrowIfNull(policyService);
@@ -103,7 +108,14 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         _policyService = policyService;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    /// <summary>
+    /// The clock in use: the injected <see cref="TimeProvider"/>, or <see cref="TimeProvider.System"/>
+    /// when none was supplied. Internal so that tests can verify the default.
+    /// </summary>
+    internal TimeProvider Clock => _timeProvider;
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, TResponse>> Handle(
@@ -263,7 +275,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         return trackResult.Match(
             Right: _ =>
             {
-                _logger.RetentionRecordCreated(entityId, dataCategory, DateTimeOffset.UtcNow + retentionPeriod, retentionPeriod);
+                _logger.RetentionRecordCreated(entityId, dataCategory, _timeProvider.GetUtcNow() + retentionPeriod, retentionPeriod);
                 RetentionDiagnostics.RecordsCreatedTotal.Add(1,
                     new KeyValuePair<string, object?>(RetentionDiagnostics.TagDataCategory, dataCategory));
                 return Right<EncinaError, Unit>(unit);

@@ -5,6 +5,8 @@ using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 
+using LanguageExt;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,9 +25,15 @@ namespace Encina.Compliance.Retention;
 /// <list type="number">
 /// <item><description>Create a new <see cref="IServiceScope"/> to resolve scoped dependencies.</description></item>
 /// <item><description>Resolve <see cref="IRetentionRecordService"/> and <see cref="ILegalHoldService"/> from the scoped service provider.</description></item>
-/// <item><description>Query for expired records via <see cref="IRetentionRecordService.GetExpiredRecordsAsync"/>.</description></item>
-/// <item><description>For each record, check legal holds via <see cref="ILegalHoldService.HasActiveHoldsAsync"/>.</description></item>
-/// <item><description>For non-held records, delegate deletion to <see cref="IDataErasureExecutor"/> (if registered) and mark as deleted.</description></item>
+/// <item><description>Query for expired records via <see cref="IRetentionRecordService.GetExpiredRecordsAsync"/>
+/// (active records past their expiry, and expired records left over by an earlier failed cycle).</description></item>
+/// <item><description>For each record, check legal holds via <see cref="ILegalHoldService.HasActiveHoldsAsync"/>.
+/// If the hold status cannot be determined, the record is skipped, logged and counted as failed (fail closed).</description></item>
+/// <item><description>For non-held records, mark the record expired, re-check legal holds, delegate erasure to
+/// <see cref="IDataErasureExecutor"/> and, only after a successful erasure, mark it deleted.
+/// Any failed step is logged and counted as failed, never as deleted, and the record is retried on the next cycle.
+/// Without a registered <see cref="IDataErasureExecutor"/> nothing is erased: records stay expired, are counted
+/// as failed and a warning is logged once per cycle.</description></item>
 /// <item><description>Publish <see cref="DataExpiringNotification"/> events for upcoming expirations.</description></item>
 /// </list>
 /// </para>
@@ -53,6 +61,7 @@ public sealed class RetentionEnforcementService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly RetentionOptions _options;
     private readonly ILogger<RetentionEnforcementService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RetentionEnforcementService"/> class.
@@ -60,10 +69,14 @@ public sealed class RetentionEnforcementService : BackgroundService
     /// <param name="scopeFactory">Factory for creating service scopes to resolve scoped dependencies.</param>
     /// <param name="options">Retention configuration options controlling enforcement behavior.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
+    /// <param name="timeProvider">
+    /// Source of the current time for the expiry alert window. Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
     public RetentionEnforcementService(
         IServiceScopeFactory scopeFactory,
         IOptions<RetentionOptions> options,
-        ILogger<RetentionEnforcementService> logger)
+        ILogger<RetentionEnforcementService> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -72,7 +85,14 @@ public sealed class RetentionEnforcementService : BackgroundService
         _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    /// <summary>
+    /// The clock in use: the injected <see cref="TimeProvider"/>, or <see cref="TimeProvider.System"/>
+    /// when none was supplied. Internal so that tests can verify the default.
+    /// </summary>
+    internal TimeProvider Clock => _timeProvider;
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -96,7 +116,12 @@ public sealed class RetentionEnforcementService : BackgroundService
         }
     }
 
-    private async Task ExecuteEnforcementCycleAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs a single enforcement cycle. Internal so that tests can drive one cycle deterministically
+    /// instead of waiting on the periodic timer.
+    /// </summary>
+    /// <param name="cancellationToken">Token that stops the cycle.</param>
+    internal async Task ExecuteEnforcementCycleAsync(CancellationToken cancellationToken)
     {
         var startTimestamp = Stopwatch.GetTimestamp();
         using var activity = RetentionDiagnostics.StartEnforcementCycle();
@@ -143,49 +168,47 @@ public sealed class RetentionEnforcementService : BackgroundService
             var recordsDeleted = 0;
             var recordsFailed = 0;
             var recordsUnderHold = 0;
+            var erasureExecutorMissingLogged = false;
 
             foreach (var record in expiredRecords)
             {
+                RecordOutcome outcome;
+
                 try
                 {
-                    // Check for active legal holds
-                    var hasHoldsResult = await legalHoldService
-                        .HasActiveHoldsAsync(record.EntityId, cancellationToken)
+                    outcome = await ProcessRecordAsync(
+                        record, recordService, legalHoldService, erasureExecutor, cancellationToken)
                         .ConfigureAwait(false);
-
-                    var hasHolds = hasHoldsResult.Match(Right: h => h, Left: _ => false);
-
-                    if (hasHolds)
-                    {
-                        // Mark as held — the record service will transition status
-                        await recordService.HoldRecordAsync(record.Id, Guid.Empty, cancellationToken)
-                            .ConfigureAwait(false);
-                        recordsUnderHold++;
-                        continue;
-                    }
-
-                    // Execute physical deletion if erasure executor is available
-                    if (erasureExecutor is not null)
-                    {
-                        var erasureScope = new ErasureScope
-                        {
-                            Reason = ErasureReason.NoLongerNecessary
-                        };
-
-                        await erasureExecutor.EraseAsync(
-                            record.EntityId, erasureScope, cancellationToken)
-                            .ConfigureAwait(false);
-                    }
-
-                    // Mark as deleted in the retention record aggregate
-                    await recordService.MarkDeletedAsync(record.Id, cancellationToken)
-                        .ConfigureAwait(false);
-                    recordsDeleted++;
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
-                    recordsFailed++;
+                    // Only the cycle's own cancellation stops the cycle. Any other exception, including a
+                    // cancellation raised inside a dependency (e.g. an HTTP timeout during erasure), fails
+                    // this record only and the cycle moves on to the next one.
                     _logger.RetentionEnforcementCycleFailed(ex);
+                    outcome = RecordOutcome.Failed;
+                }
+
+                switch (outcome)
+                {
+                    case RecordOutcome.Deleted:
+                        recordsDeleted++;
+                        break;
+                    case RecordOutcome.Held:
+                        recordsUnderHold++;
+                        break;
+                    case RecordOutcome.ErasureUnavailable:
+                        if (!erasureExecutorMissingLogged)
+                        {
+                            _logger.RetentionErasureExecutorMissing();
+                            erasureExecutorMissingLogged = true;
+                        }
+
+                        recordsFailed++;
+                        break;
+                    default:
+                        recordsFailed++;
+                        break;
                 }
             }
 
@@ -233,6 +256,175 @@ public sealed class RetentionEnforcementService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Moves one expired record through <c>Active → Expired → Deleted</c>, erasing its data in between.
+    /// </summary>
+    /// <remarks>
+    /// Every step checks its <c>Either</c> result; the first <c>Left</c> stops the record and reports it
+    /// as <see cref="RecordOutcome.Failed"/>, leaving it in a state that the next cycle picks up again:
+    /// <list type="bullet">
+    /// <item><description>Legal-hold lookup error (before marking expired or right before erasing): the record
+    /// is skipped without erasure (fail closed).</description></item>
+    /// <item><description>No <see cref="IDataErasureExecutor"/> registered, erasure or <c>MarkDeleted</c> error:
+    /// the record stays <see cref="RetentionStatus.Expired"/> and is returned again by
+    /// <see cref="IRetentionRecordService.GetExpiredRecordsAsync"/>.</description></item>
+    /// </list>
+    /// A hold found by the re-check right before erasure moves the record to
+    /// <see cref="RetentionStatus.UnderLegalHold"/> and nothing is erased.
+    /// Records that reached <see cref="RetentionStatus.Deleted"/> are never returned again, so their
+    /// entities are not erased twice.
+    /// </remarks>
+    private async ValueTask<RecordOutcome> ProcessRecordAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        ILegalHoldService legalHoldService,
+        IDataErasureExecutor? erasureExecutor,
+        CancellationToken cancellationToken)
+    {
+        // Legal hold check — fail closed: if the hold status is unknown, nothing is erased.
+        var holdStatus = await CheckLegalHoldAsync(record, legalHoldService, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (holdStatus == HoldStatus.Unknown)
+        {
+            return RecordOutcome.Failed;
+        }
+
+        if (holdStatus == HoldStatus.Held)
+        {
+            return await HoldRecordAsync(record, recordService, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Active → Expired before erasure, so that a failed erasure leaves the record Expired
+        // and the next cycle retries it.
+        if (record.Status == RetentionStatus.Active)
+        {
+            var expiredResult = await recordService
+                .MarkExpiredAsync(record.Id, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (expiredResult.IsLeft)
+            {
+                _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkExpired", ((EncinaError)expiredResult).Message);
+                return RecordOutcome.Failed;
+            }
+        }
+
+        // Without an executor nothing can be erased, so the record must never reach Deleted:
+        // it stays Expired, is counted as failed and is retried once an executor is registered.
+        if (erasureExecutor is null)
+        {
+            return RecordOutcome.ErasureUnavailable;
+        }
+
+        // Re-check the hold immediately before erasing: a hold placed after the first check (while
+        // the record was being marked expired) must still prevent erasure. This narrows the window
+        // but does not close it; closing it fully needs a per-entity lock shared with
+        // ILegalHoldService.PlaceHoldAsync, which is tracked separately.
+        holdStatus = await CheckLegalHoldAsync(record, legalHoldService, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (holdStatus == HoldStatus.Unknown)
+        {
+            return RecordOutcome.Failed;
+        }
+
+        if (holdStatus == HoldStatus.Held)
+        {
+            return await HoldRecordAsync(record, recordService, cancellationToken).ConfigureAwait(false);
+        }
+
+        var erasureScope = new ErasureScope
+        {
+            Reason = ErasureReason.NoLongerNecessary
+        };
+
+        var erasureResult = await erasureExecutor
+            .EraseAsync(record.EntityId, erasureScope, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (erasureResult.IsLeft)
+        {
+            _logger.RetentionErasureFailed(record.EntityId, ((EncinaError)erasureResult).Message);
+            return RecordOutcome.Failed;
+        }
+
+        var erasure = (ErasureResult)erasureResult;
+        if (erasure.FieldsFailed > 0)
+        {
+            _logger.RetentionErasureIncomplete(record.EntityId, erasure.FieldsFailed);
+            return RecordOutcome.Failed;
+        }
+
+        // Expired → Deleted, only after a successful erasure.
+        var deletedResult = await recordService
+            .MarkDeletedAsync(record.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (deletedResult.IsLeft)
+        {
+            _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkDeleted", ((EncinaError)deletedResult).Message);
+            return RecordOutcome.Failed;
+        }
+
+        return RecordOutcome.Deleted;
+    }
+
+    /// <summary>
+    /// Asks the legal hold service whether the record's entity is held, failing closed: an error
+    /// result or an exception (other than the cycle's own cancellation) yields <see cref="HoldStatus.Unknown"/>.
+    /// </summary>
+    private async ValueTask<HoldStatus> CheckLegalHoldAsync(
+        ReadModels.RetentionRecordReadModel record,
+        ILegalHoldService legalHoldService,
+        CancellationToken cancellationToken)
+    {
+        Either<EncinaError, bool> hasHoldsResult;
+
+        try
+        {
+            hasHoldsResult = await legalHoldService
+                .HasActiveHoldsAsync(record.EntityId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ex.Message);
+            return HoldStatus.Unknown;
+        }
+
+        if (hasHoldsResult.IsLeft)
+        {
+            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ((EncinaError)hasHoldsResult).Message);
+            return HoldStatus.Unknown;
+        }
+
+        return (bool)hasHoldsResult ? HoldStatus.Held : HoldStatus.None;
+    }
+
+    /// <summary>
+    /// Moves a record whose entity is under legal hold to <see cref="RetentionStatus.UnderLegalHold"/>.
+    /// </summary>
+    private async ValueTask<RecordOutcome> HoldRecordAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        CancellationToken cancellationToken)
+    {
+        _logger.RetentionDeletionSkippedLegalHold(record.EntityId);
+
+        var holdResult = await recordService
+            .HoldRecordAsync(record.Id, Guid.Empty, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (holdResult.IsLeft)
+        {
+            _logger.RetentionEnforcementTransitionFailed(record.Id, "HoldRecord", ((EncinaError)holdResult).Message);
+            return RecordOutcome.Failed;
+        }
+
+        return RecordOutcome.Held;
+    }
+
     private async Task CheckExpiringDataAsync(
         IRetentionRecordService recordService,
         IServiceProvider scopedProvider,
@@ -266,7 +458,7 @@ public sealed class RetentionEnforcementService : BackgroundService
                 Left: _ => (IReadOnlyList<ReadModels.RetentionRecordReadModel>)[]);
 
             var alertWindow = TimeSpan.FromDays(_options.AlertBeforeExpirationDays);
-            var now = DateTimeOffset.UtcNow;
+            var now = _timeProvider.GetUtcNow();
             var expiringCount = 0;
 
             foreach (var record in activeRecords)
@@ -296,5 +488,41 @@ public sealed class RetentionEnforcementService : BackgroundService
             // Expiring data check failure should not prevent enforcement
             _logger.RetentionExpiringDataCheckFailed(ex);
         }
+    }
+
+    /// <summary>
+    /// Result of processing one expired record in an enforcement cycle.
+    /// </summary>
+    private enum RecordOutcome
+    {
+        /// <summary>The data was erased and the record reached <see cref="RetentionStatus.Deleted"/>.</summary>
+        Deleted,
+
+        /// <summary>The entity is under legal hold; nothing was erased.</summary>
+        Held,
+
+        /// <summary>A step failed; nothing was counted as deleted and the record is retried next cycle.</summary>
+        Failed,
+
+        /// <summary>
+        /// No <see cref="IDataErasureExecutor"/> is registered: the record was left
+        /// <see cref="RetentionStatus.Expired"/> without erasure and is counted as failed.
+        /// </summary>
+        ErasureUnavailable
+    }
+
+    /// <summary>
+    /// Result of a legal hold lookup for one record.
+    /// </summary>
+    private enum HoldStatus
+    {
+        /// <summary>No active hold on the entity.</summary>
+        None,
+
+        /// <summary>The entity is under at least one active hold.</summary>
+        Held,
+
+        /// <summary>The lookup failed; treated as held for erasure purposes (fail closed).</summary>
+        Unknown
     }
 }
