@@ -17,7 +17,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// <list type="bullet">
 /// <item><description>Immediate persistence via SaveChangesAsync for durability</description></item>
 /// <item><description>Optimized queries with proper indexing</description></item>
-/// <item><description>Provider-agnostic support for SQLite, SQL Server, PostgreSQL, and MySQL</description></item>
+/// <item><description>Provider-agnostic support for SQL Server, PostgreSQL, and MySQL</description></item>
 /// <item><description>Full support for <see cref="AuditQuery"/> with pagination</description></item>
 /// </list>
 /// </para>

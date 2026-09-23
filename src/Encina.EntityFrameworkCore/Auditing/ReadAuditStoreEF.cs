@@ -16,7 +16,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// <list type="bullet">
 /// <item><description>Immediate persistence via SaveChangesAsync for durability</description></item>
 /// <item><description>Optimized queries with proper indexing via <see cref="ReadAuditEntryEntityConfiguration"/></description></item>
-/// <item><description>Provider-agnostic support for SQLite, SQL Server, PostgreSQL, and MySQL</description></item>
+/// <item><description>Provider-agnostic support for SQL Server, PostgreSQL, and MySQL</description></item>
 /// <item><description>Full support for <see cref="ReadAuditQuery"/> with pagination</description></item>
 /// <item><description>Bulk delete via ExecuteDeleteAsync for efficient purge operations</description></item>
 /// </list>
