@@ -10,6 +10,8 @@ permission:
 
 You maintain documentation for the **Encina** library project. Create ADRs, add changelog fragments, and write test justification files following Encina conventions.
 
+For any page under `docs/` or a package README, the house rules are in `.claude/skills/encina-docs/SKILL.md` and the Diátaxis summary in `.claude/skills/encina-docs/diataxis.md`; read both first and keep each page in one quadrant.
+
 ## ADRs (Architecture Decision Records)
 
 When an architectural decision is made, create an ADR:

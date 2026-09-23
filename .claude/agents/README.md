@@ -9,6 +9,8 @@ Subagents the main Claude Code session can spawn for this repository, each pinne
 | `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
 | `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
 | `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
+| `docs-writer` | Sonnet 5 / medium | Writes or restructures one documentation page or issue under the `encina-docs` skill: one Diátaxis quadrant per page, identifiers verified in `src/`, cited figures, links and lint checked | Yes (in its worktree, never pushes) |
+| `docs-reviewer` | Sonnet 5 / medium | Read-only review of documentation pages against the `encina-docs` checklist: quadrant, real API, no hand-typed figures, ADR/SPEC links, provider coverage, links and lint | No |
 
 Conventions shared by all agents:
 
@@ -35,6 +37,8 @@ The main session orchestrates: it writes a closed brief per issue, runs one `iss
 | Root-cause a failing job or test not obvious from the first errors | `ci-diagnoser` |
 | Already-decided mechanical edits (docs, tables, renames, format, thread replies) | `mechanical-fixer` |
 | Review a PR or a specification, and every PR merged without CodeRabbit | `adversarial-reviewer` |
+| Write or restructure a documentation page (documentation milestone issues, package READMEs) | `docs-writer` |
+| Review a documentation PR or a page before it is published | `docs-reviewer` |
 | Bulk drafts, classification, summaries | local model (`local-ai-task` skill) |
 | Watching PRs and runs | token-free scripts (`tools/ai/watch-pr-events.ps1`) |
 
@@ -50,6 +54,7 @@ Procedures the main session loads on demand, in `.claude/skills/<name>/SKILL.md`
 | `open-issue` | Open an issue with the template prefix and the template's headers verbatim |
 | `implementation-plan` | Plan a `[FEATURE]` with `docs/engineering/prompts/implementation-plan-prompt.md` before coding |
 | `local-ai-task` | Delegate a bounded task to the local model with a brief, a ledger line and a review |
+| `encina-docs` | House rules for documentation: Diátaxis quadrants (`diataxis.md` in the skill folder), where each kind of page lives, front matter, cited figures, verification and the review checklist |
 
 ## Hooks
 
