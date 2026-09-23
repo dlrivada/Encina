@@ -10,7 +10,8 @@ namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 /// <remarks>
 /// <para>
 /// <b>IMPORTANT:</b> This fixture requires Pomelo.EntityFrameworkCore.MySql v10.0.0 or later,
-/// which is not yet released. Until then, MySQL EF Core tests will throw NotSupportedException.
+/// which is not yet released. Until then, MySQL EF Core tests are skipped (Assert.Skip) until
+/// Pomelo supports EF Core 10.
 /// </para>
 /// <para>
 /// Track progress: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019

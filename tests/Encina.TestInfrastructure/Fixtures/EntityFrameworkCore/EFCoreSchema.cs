@@ -1,7 +1,10 @@
 using System.Data.Common;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using MySqlConnector;
+using Npgsql;
 
 namespace Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
 
@@ -40,9 +43,14 @@ internal static class EFCoreSchema
     }
 
     // PostgreSQL 42P07 duplicate_table, SQL Server 2714 "There is already an object named ...",
-    // MySQL 1050 "Table ... already exists". Any other DDL failure is a real error and must surface.
+    // MySQL 1050 "Table ... already exists" (MySqlErrorCode.TableExists). Any other DDL failure is a
+    // real error and must surface.
     private static bool IsAlreadyExists(DbException ex) =>
-        ex.SqlState == "42P07"
-        || ex.Message.Contains("There is already an object named", StringComparison.Ordinal)
-        || (ex.Message.Contains("Table '", StringComparison.Ordinal) && ex.Message.Contains("' already exists", StringComparison.Ordinal));
+        ex switch
+        {
+            SqlException { Number: 2714 } => true,
+            PostgresException { SqlState: "42P07" } => true,
+            MySqlException { ErrorCode: MySqlErrorCode.TableExists } => true,
+            _ => false,
+        };
 }

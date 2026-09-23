@@ -190,18 +190,18 @@ jobs:
       matrix:
         shard:
           - name: ADO
-            filter: "FullyQualifiedName~IntegrationTests.ADO"
+            filter: "FullyQualifiedName~Encina.IntegrationTests.ADO."
           - name: Dapper
-            filter: "FullyQualifiedName~IntegrationTests.Dapper"
+            filter: "FullyQualifiedName~Encina.IntegrationTests.Dapper."
           - name: EFCore
-            filter: "FullyQualifiedName~IntegrationTests.Infrastructure"
+            filter: "FullyQualifiedName~Encina.IntegrationTests.Infrastructure."
           - name: Compliance
-            filter: "FullyQualifiedName~IntegrationTests.Compliance"
+            filter: "FullyQualifiedName~Encina.IntegrationTests.Compliance."
           # Everything no shard above names (Security, Sharding, Cdc, Web, Testing, MessageBrokers, ...), so a new
           # namespace can never be left out of CI silently (#1094, SPEC-000 REQ-006). Observability runs in CI Full.
-          # Known failures excluded until fixed: EF Core audit stores (#1128), ADO.NET/Dapper PostgreSQL audit queries (#1129).
+          # Known failures excluded until fixed: EF Core audit stores on PostgreSQL (#1128), ADO.NET/Dapper PostgreSQL audit queries (#1129).
           - name: Other
-            filter: "FullyQualifiedName!~Encina.IntegrationTests.ADO.&FullyQualifiedName!~Encina.IntegrationTests.Dapper.&FullyQualifiedName!~Encina.IntegrationTests.Infrastructure.&FullyQualifiedName!~Encina.IntegrationTests.Compliance.&FullyQualifiedName!~Encina.IntegrationTests.Observability.&FullyQualifiedName!~Encina.IntegrationTests.Security.Audit.EFCore.&FullyQualifiedName!~Encina.IntegrationTests.Security.Audit.ReadAudit.EFCore.&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreADOPostgreSqlIntegrationTests.GetByEntityAsync_WithEntityType_ShouldReturnMatchingEntries&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreADOPostgreSqlIntegrationTests.GetByUserAsync_WithUserId_ShouldReturnUserEntries&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreDapperPostgreSqlIntegrationTests.GetByUserAsync_WithUserId_ShouldReturnUserEntries"
+            filter: "FullyQualifiedName!~Encina.IntegrationTests.ADO.&FullyQualifiedName!~Encina.IntegrationTests.Dapper.&FullyQualifiedName!~Encina.IntegrationTests.Infrastructure.&FullyQualifiedName!~Encina.IntegrationTests.Compliance.&FullyQualifiedName!~Encina.IntegrationTests.Observability.&FullyQualifiedName!~Encina.IntegrationTests.Security.Audit.EFCore.AuditStoreEFPostgreSqlIntegrationTests.&FullyQualifiedName!~Encina.IntegrationTests.Security.Audit.ReadAudit.EFCore.ReadAuditStoreEFPostgreSqlIntegrationTests.&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreADOPostgreSqlIntegrationTests.GetByEntityAsync_WithEntityType_ShouldReturnMatchingEntries&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreADOPostgreSqlIntegrationTests.GetByUserAsync_WithUserId_ShouldReturnUserEntries&FullyQualifiedName!=Encina.IntegrationTests.Security.Audit.AuditStoreDapperPostgreSqlIntegrationTests.GetByUserAsync_WithUserId_ShouldReturnUserEntries"
     steps:
       - name: Free disk space
         run: |
