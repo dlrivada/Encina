@@ -929,7 +929,7 @@ None. Encina is pre-1.0 and has no users to migrate (CLAUDE.md). Event shapes ch
 3. **OD-3 — Jurisdiction source at tracking time.** Options default plus per-tenant map (the plan's default), a resolver the application implements, or a value on each tracking call or attribute. What happens when no policy matches: fall back to `DefaultPolicy`, or refuse to track (fail closed)?
 4. **OD-4 — Deployment-level versus tenant-level policies.** Do code-configured policies apply to every tenant as defaults a tenant can override (the plan's default)? May a tenant policy set a shorter floor than the deployment-level one?
 5. **OD-5 — Scope of the immutable-record class.** Retention-level only (records frozen, corrections linked; the plan's default), or also a data-level guard in `Encina.DomainModeling` (`IImmutableRecord` plus a decorator over `IFunctionalRepository` that refuses updates and deletes on all 10 providers)?
-6. **OD-6 — Name of the period type.** `CalendarPeriod` (the plan) or `RetentionPeriod` as in the issue sketch, which collides with `RetentionPeriodAttribute` and the existing `RetentionPeriod` members?
+6. **OD-6 — Name and home of the period type.** `CalendarPeriod` (the plan) or `RetentionPeriod` as in the issue sketch, which collides with `RetentionPeriodAttribute` and the existing `RetentionPeriod` members? And should it live in core `Encina` instead of `Encina.Compliance.Retention`, so that read audit (P-05, which does not reference Retention) and blocking (P-03) share it (P-05 OD-7)?
 7. **OD-7 — `ExpiryDisposition.Block` before P-03.** Ship the member now with a start-up rejection until an `IBlockingService` exists (the plan), or add it only in P-03?
 8. **OD-8 — Subject-wide anchors.** Should an anchor such as a death apply to every category of an entity in one call, or stay per (entity, category) as the plan implements?
 9. **OD-9 — Policy changes after tracking.** Snapshot at tracking plus explicit `ReapplyPolicyAsync` (the plan), or records that follow the live policy? May re-application shorten a floor (the plan allows it only with `allowShortening: true` and a warning)?
@@ -940,6 +940,7 @@ None. Encina is pre-1.0 and has no users to migrate (CLAUDE.md). Event shapes ch
 - REQ-001 and AC-001 say the period "re-anchors when a new episode opens"; the legal anchor is the discharge, not the opening, so the plan models opening as a suspension (OD-2).
 - REQ-001 does not state the time zone of calendar arithmetic (OD-1), while S4 relies on `Europe/Madrid` for scheduling.
 - REQ-001 does not say whether a regional period replaces or adds to the national one; the plan resolves the most specific key.
+- SPEC-002 uses "data category" in REQ-001, REQ-004, REQ-005 and REQ-007 without a shared vocabulary: Retention and blocking use free-form strings, DSR uses the `PersonalDataCategory` enum (ADR-031 records the many-to-many mismatch). See P-03 OD-10.
 - The retention pipeline and hosted services pass no tenant today (`TrackEntityAsync(..., Guid.Empty, ...)` with `tenantId` null), and `RetentionDiagnostics` tags activities with the entity id; both conflict with REQ-061/REQ-062 and are fixed here.
 
 ---
