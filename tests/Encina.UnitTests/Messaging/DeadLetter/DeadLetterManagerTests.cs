@@ -11,6 +11,8 @@ using Shouldly;
 
 using static LanguageExt.Prelude;
 
+#pragma warning disable CA2012 // NSubstitute setup of ValueTask-returning members
+
 namespace Encina.UnitTests.Messaging.DeadLetter;
 
 /// <summary>
@@ -167,6 +169,62 @@ public sealed class DeadLetterManagerTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: e => e.Message.ShouldContain("Cannot resolve type"));
+    }
+
+    /// <summary>A request the manager can resolve by name and deserialize.</summary>
+    public sealed record ReplayedCommand(int Value) : IRequest<int>;
+
+    [Fact]
+    public async Task ReplayAsync_WhenTheReplayedRequestSucceeds_ReportsSuccess()
+    {
+        // Arrange
+        var (manager, store, _, serviceProvider) = CreateManager();
+        var messageId = Guid.NewGuid();
+        var message = CreateMockMessage(messageId, requestType: typeof(ReplayedCommand).AssemblyQualifiedName!);
+        message.RequestContent.Returns("{\"value\":5}");
+        store.GetAsync(messageId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
+
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, int>>(Right<EncinaError, int>(5)));
+        serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+
+        // Act
+        var result = await manager.ReplayAsync(messageId);
+
+        // Assert
+        var replay = result.ShouldBeRight();
+        replay.ErrorMessage.ShouldBeNull();
+        replay.Success.ShouldBeTrue();
+        await encina.Received(1).Send(Arg.Is<IRequest<int>>(r => r is ReplayedCommand && ((ReplayedCommand)r).Value == 5), Arg.Any<CancellationToken>());
+        await store.Received(1).MarkAsReplayedAsync(messageId, "Success", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReplayAsync_WhenTheReplayedRequestReturnsLeft_ReportsAFailedReplay()
+    {
+        // Arrange
+        var (manager, store, _, serviceProvider) = CreateManager();
+        var messageId = Guid.NewGuid();
+        var message = CreateMockMessage(messageId, requestType: typeof(ReplayedCommand).AssemblyQualifiedName!);
+        message.RequestContent.Returns("{\"value\":5}");
+        store.GetAsync(messageId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Option<IDeadLetterMessage>>(Option<IDeadLetterMessage>.Some(message)));
+
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, int>>(Left<EncinaError, int>(EncinaError.New("still broken"))));
+        serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+
+        // Act
+        var result = await manager.ReplayAsync(messageId);
+
+        // Assert
+        var replay = result.ShouldBeRight();
+        replay.Success.ShouldBeFalse();
+        replay.ErrorMessage.ShouldNotBeNull().ShouldContain("still broken");
+        await store.DidNotReceive().MarkAsReplayedAsync(messageId, "Success", Arg.Any<CancellationToken>());
     }
 
     #endregion

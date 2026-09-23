@@ -14,9 +14,19 @@ namespace Encina;
 /// </para>
 /// <para>
 /// While a request, notification or stream is being dispatched, the accessor holds the context of
-/// that dispatch, so a handler that sends a nested request, an EF Core interceptor or a tenant
-/// provider all observe the same context. The dispatcher restores the previous value when the
-/// dispatch finishes, so the context never leaks into unrelated calls.
+/// that dispatch, so its behaviors, its handler, an EF Core interceptor or a tenant provider all
+/// observe the same context. The dispatcher restores the previous value when the dispatch finishes
+/// (also when it throws, is cancelled, or a stream is abandoned early), so the context never leaks
+/// into unrelated calls.
+/// </para>
+/// <para>
+/// A dispatch that starts while another one is running (a handler sending a nested request,
+/// publishing a notification or domain events, or enumerating a stream) does not reuse the outer
+/// context unchanged: it gets a derived context with the same correlation id, user id, tenant id
+/// and metadata, its own <see cref="IRequestContext.Timestamp"/>, and no
+/// <see cref="IRequestContext.IdempotencyKey"/>. The key identifies the entry point's logical
+/// request; passing it on would make idempotency behaviors treat the nested request as a duplicate
+/// of the outer one. A context passed explicitly to an overload is always used as-is.
 /// </para>
 /// <para>
 /// The default implementation (<see cref="RequestContextAccessor"/>) stores the value in an

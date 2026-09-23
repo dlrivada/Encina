@@ -370,15 +370,15 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     }
 
     /// <summary>
-    /// Resolves the current <see cref="IRequestContext"/>: an explicitly registered one wins,
-    /// otherwise the ambient context held by <see cref="IRequestContextAccessor"/>.
+    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by <see cref="IRequestContextAccessor"/>
+    /// wins, a DI-registered one is only a fallback.
     /// </summary>
     private IRequestContext? ResolveRequestContext()
     {
         try
         {
-            return _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext
-                ?? (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext;
+            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext
+                ?? _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext;
         }
         catch (Exception ex)
         {

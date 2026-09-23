@@ -357,6 +357,27 @@ public class AuditService
 - Isolated between concurrent requests
 - Null when accessed outside of request context
 
+**Nested dispatches (pre-1.0 behaviour):**
+
+The context set by `UseEncinaContext()` seeds the *first* `Send`, `Publish` or `Stream` of the HTTP request (the entry point) as-is, idempotency key included. A dispatch issued while another one is running (a handler that sends another command, publishes a notification or domain events, or enumerates a stream) gets a derived context instead:
+
+| Property | Nested dispatch |
+|---|---|
+| `CorrelationId`, `UserId`, `TenantId`, `Metadata` | Same as the outer dispatch |
+| `Timestamp` | When the nested dispatch starts (read from the `TimeProvider` given to `Encina`) |
+| `IdempotencyKey` | `null`; `context.IsNestedDispatch()` returns `true` |
+
+The key identifies the client's logical request, which the entry point's idempotency check already covers. Passing it on would make the inbox (`InboxPipelineBehavior`) or `DistributedIdempotencyPipelineBehavior` treat the nested command as a duplicate of the outer one; without a key, both behaviors let a nested idempotent request run. To deduplicate a nested request on its own, send it with an explicit context carrying its own key:
+
+```csharp
+await encina.Send(
+    new ReserveStockCommand(order.Id),
+    contextAccessor.RequestContext!.WithIdempotencyKey($"{order.Id}:reserve-stock"),
+    cancellationToken);
+```
+
+A context passed explicitly to `Send`, `Publish` or `Stream` is always used as-is.
+
 ## Configuration Options
 
 ### EncinaAspNetCoreOptions

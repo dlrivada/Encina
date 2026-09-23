@@ -259,10 +259,11 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     {
         try
         {
-            // An explicitly registered IRequestContext wins; otherwise read the ambient context
-            // that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on the accessor.
-            var requestContext = _serviceProvider.GetService<IRequestContext>()
-                ?? _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
+            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
+            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
+            // register one by hand.
+            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
+                ?? _serviceProvider.GetService<IRequestContext>();
             return requestContext?.UserId;
         }
         catch (Exception ex)
@@ -374,8 +375,8 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     {
         try
         {
-            var requestContext = _serviceProvider.GetService<IRequestContext>()
-                ?? _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
+            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
+                ?? _serviceProvider.GetService<IRequestContext>();
             return requestContext?.CorrelationId;
         }
         catch

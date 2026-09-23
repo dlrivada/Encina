@@ -36,7 +36,7 @@ public sealed partial class Encina
 
         // Resolved at the first MoveNextAsync, on the consumer's execution context, so the ambient
         // context of the caller that enumerates the stream is the one that seeds the pipeline.
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext);
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
         var items = AmbientRequestContext.Flow(
             StreamDispatcher.ExecuteAsync(this, request, context, cancellationToken),
             _requestContextAccessor,

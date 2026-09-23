@@ -754,7 +754,98 @@ public class AuditInterceptorTests
 
     #endregion
 
+    #region Ambient Request Context (#1147)
+
+    [Fact]
+    public async Task SaveChangesAsync_WithAmbientRequestContextOnly_UsesItsUserAndCorrelationId()
+    {
+        // Arrange - no IRequestContext registration: the context comes from the accessor that
+        // IEncina.Send (or EncinaContextMiddleware) fills.
+        var ambient = RequestContext.CreateForTest(userId: "ambient-user", correlationId: "ambient-corr");
+        var serviceProvider = CreateServiceProviderWithAccessor(ambient, registeredUserId: null);
+        var auditLogStore = new InMemoryAuditLogStore();
+        var interceptor = new AuditInterceptor(
+            serviceProvider,
+            new AuditInterceptorOptions { Enabled = true, LogChangesToStore = true },
+            TimeProvider.System,
+            Substitute.For<ILogger<AuditInterceptor>>(),
+            auditLogStore);
+
+        await using var context = CreateInMemoryContext(interceptor);
+        var entity = new AuditedTestEntity { Name = "Test" };
+        context.AuditedEntities.Add(entity);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert
+        entity.CreatedBy.ShouldBe("ambient-user");
+        var entry = (await auditLogStore.GetHistoryAsync(nameof(AuditedTestEntity), entity.Id.ToString())).ShouldHaveSingleItem();
+        entry.UserId.ShouldBe("ambient-user");
+        entry.CorrelationId.ShouldBe("ambient-corr");
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_WithAmbientAndRegisteredRequestContext_TheAmbientOneWins()
+    {
+        // Arrange
+        var ambient = RequestContext.CreateForTest(userId: "ambient-user", correlationId: "ambient-corr");
+        var serviceProvider = CreateServiceProviderWithAccessor(ambient, registeredUserId: "registered-user");
+        var auditLogStore = new InMemoryAuditLogStore();
+        var interceptor = new AuditInterceptor(
+            serviceProvider,
+            new AuditInterceptorOptions { Enabled = true, LogChangesToStore = true },
+            TimeProvider.System,
+            Substitute.For<ILogger<AuditInterceptor>>(),
+            auditLogStore);
+
+        await using var context = CreateInMemoryContext(interceptor);
+        var entity = new AuditedTestEntity { Name = "Test" };
+        context.AuditedEntities.Add(entity);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert
+        entity.CreatedBy.ShouldBe("ambient-user");
+        var entry = (await auditLogStore.GetHistoryAsync(nameof(AuditedTestEntity), entity.Id.ToString())).ShouldHaveSingleItem();
+        entry.CorrelationId.ShouldBe("ambient-corr");
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_WithAnEmptyAccessor_FallsBackToTheRegisteredRequestContext()
+    {
+        // Arrange
+        var serviceProvider = CreateServiceProviderWithAccessor(ambient: null, registeredUserId: "registered-user");
+        var interceptor = new AuditInterceptor(
+            serviceProvider,
+            new AuditInterceptorOptions { Enabled = true },
+            TimeProvider.System,
+            Substitute.For<ILogger<AuditInterceptor>>());
+
+        await using var context = CreateInMemoryContext(interceptor);
+        var entity = new AuditedTestEntity { Name = "Test" };
+        context.AuditedEntities.Add(entity);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert
+        entity.CreatedBy.ShouldBe("registered-user");
+    }
+
+    #endregion
+
     #region Helper Methods
+
+    private static IServiceProvider CreateServiceProviderWithAccessor(IRequestContext? ambient, string? registeredUserId)
+    {
+        var serviceProvider = CreateServiceProviderWithUser(registeredUserId);
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(ambient);
+        serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+        return serviceProvider;
+    }
 
     private static IServiceProvider CreateServiceProviderWithUser(string? userId)
     {

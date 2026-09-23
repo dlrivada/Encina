@@ -25,13 +25,19 @@ namespace Encina;
 /// Optional accessor for the ambient <see cref="IRequestContext"/>. When omitted, a
 /// <see cref="RequestContextAccessor"/> is used, which shares the process-wide ambient context.
 /// </param>
+/// <param name="timeProvider">
+/// Optional time source for the <see cref="IRequestContext.Timestamp"/> of the contexts the
+/// dispatcher creates (a fresh context, or the derived context of a nested dispatch). Defaults to
+/// <see cref="TimeProvider.System"/>.
+/// </param>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("ApiDesign", "RS0026:Do not add multiple public overloads with optional parameters",
     Justification = "Pre-1.0: the explicit-context overloads mirror the ambient ones; the context parameter is required, so calls never become ambiguous.")]
 public sealed partial class Encina(
     IServiceScopeFactory scopeFactory,
     ILogger<Encina>? logger = null,
     IOptions<NotificationDispatchOptions>? notificationOptions = null,
-    IRequestContextAccessor? requestContextAccessor = null) : IEncina
+    IRequestContextAccessor? requestContextAccessor = null,
+    TimeProvider? timeProvider = null) : IEncina
 {
     private static readonly ConcurrentDictionary<(Type Request, Type Response), RequestHandlerBase> RequestHandlerCache = new();
     private static readonly ConcurrentDictionary<(Type Handler, Type Notification), Func<object, object?, CancellationToken, Task<Either<EncinaError, Unit>>>> NotificationHandlerInvokerCache = new();
@@ -41,6 +47,7 @@ public sealed partial class Encina(
     internal readonly NotificationDispatchOptions _notificationOptions = notificationOptions?.Value ?? new NotificationDispatchOptions();
     internal readonly INotificationDispatchStrategy _dispatchStrategy = CreateDispatchStrategy(notificationOptions?.Value ?? new NotificationDispatchOptions());
     internal readonly IRequestContextAccessor _requestContextAccessor = requestContextAccessor ?? new RequestContextAccessor();
+    internal readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     private static INotificationDispatchStrategy CreateDispatchStrategy(NotificationDispatchOptions options) =>
         options.Strategy switch
@@ -82,7 +89,7 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext);
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
         return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken));
     }
 
@@ -95,7 +102,7 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, Unit>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext);
+        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
         return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken));
     }
 

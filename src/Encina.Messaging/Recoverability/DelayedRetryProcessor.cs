@@ -156,7 +156,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
             // Execute through Encina pipeline
             // Note: The RecoverabilityPipelineBehavior will handle any further failures
-            var result = await DispatchRequestAsync(encina, request, requestType, cancellationToken).ConfigureAwait(false);
+            var result = await DispatchRequestAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
             if (result.IsSuccess)
             {
@@ -200,68 +200,17 @@ public sealed class DelayedRetryProcessor : BackgroundService
     private static async Task<DispatchResult> DispatchRequestAsync(
         IEncina encina,
         object request,
-        Type requestType,
         CancellationToken cancellationToken)
     {
         try
         {
-            // Use reflection to call the appropriate Send method
-            var sendMethod = typeof(IEncina).GetMethods()
-                .FirstOrDefault(m => m.Name == nameof(IEncina.Send) && m.GetParameters().Length == 2);
-            if (sendMethod is null)
-            {
-                return new DispatchResult(false, "Send method not found on IEncina");
-            }
+            var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
-            // Get the response type from the request
-            var requestInterface = requestType.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
-
-            if (requestInterface is null)
-            {
-                return new DispatchResult(false, $"Request type {requestType.Name} does not implement IRequest<TResponse>");
-            }
-
-            var responseType = requestInterface.GetGenericArguments()[0];
-            var genericSendMethod = sendMethod.MakeGenericMethod(responseType);
-
-            var task = (Task?)genericSendMethod.Invoke(encina, [request, cancellationToken]);
-            if (task is null)
-            {
-                return new DispatchResult(false, "Send method returned null");
-            }
-
-            await task.ConfigureAwait(false);
-
-            // Get the result from the task
-            var resultProperty = task.GetType().GetProperty("Result");
-            var result = resultProperty?.GetValue(task);
-
-            if (result is null)
-            {
-                return new DispatchResult(false, "Send method returned null result");
-            }
-
-            // Check if the result is Right (success) or Left (error)
-            var isRightProperty = result.GetType().GetProperty("IsRight");
-            var isRight = (bool)(isRightProperty?.GetValue(result) ?? false);
-
-            if (isRight)
-            {
-                return new DispatchResult(true, null);
-            }
-
-            // Extract error message from Left
-            var matchMethod = result.GetType().GetMethod("Match");
-            if (matchMethod is not null)
-            {
-                // Try to extract the error message
-                return new DispatchResult(false, "Request failed during delayed retry");
-            }
-
-            return new DispatchResult(false, "Request failed during delayed retry");
+            return outcome.Match(
+                Right: _ => new DispatchResult(true, null),
+                Left: error => new DispatchResult(false, error.Message));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return new DispatchResult(false, ex.Message);
         }

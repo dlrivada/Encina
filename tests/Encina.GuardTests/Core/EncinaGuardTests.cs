@@ -370,6 +370,32 @@ public class EncinaGuardTests
 
     #endregion
 
+    #region RequestContextDispatchExtensions
+
+    /// <summary>
+    /// Verifies that IsNestedDispatch throws ArgumentNullException when the context is null.
+    /// </summary>
+    [Fact]
+    public void IsNestedDispatch_NullContext_ThrowsArgumentNullException()
+    {
+        // Arrange
+        IRequestContext context = null!;
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => context.IsNestedDispatch()).ParamName.ShouldBe("context");
+    }
+
+    /// <summary>
+    /// Verifies that an entry-point context is not reported as nested.
+    /// </summary>
+    [Fact]
+    public void IsNestedDispatch_EntryPointContext_ReturnsFalse()
+    {
+        RequestContext.CreateForTest(idempotencyKey: "key").IsNestedDispatch().ShouldBeFalse();
+    }
+
+    #endregion
+
     #region Test Stubs
 
     private sealed class TestNotification : INotification { }

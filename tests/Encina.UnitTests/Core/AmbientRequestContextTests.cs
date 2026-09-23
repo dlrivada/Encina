@@ -256,21 +256,26 @@ public sealed class AmbientRequestContextTests
     }
 
     [Fact]
-    public async Task Send_NestedSendInsideAHandler_SeesTheParentContext()
+    public async Task Send_NestedSendInsideAHandler_InheritsTheParentIdentity_ButNotItsIdempotencyKey()
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
-        var parent = UserContext("parent-user", "parent-tenant");
+        var parent = RequestContext.CreateForTest(userId: "parent-user", tenantId: "parent-tenant", idempotencyKey: "parent-key", correlationId: "corr-parent");
 
         var result = await encina.Send(new Outer(), parent);
 
         var (outer, inner) = result.ShouldBeSuccess();
         outer.ShouldBeSameAs(parent);
-        inner.ShouldBeSameAs(parent);
+        inner.ShouldNotBeSameAs(parent);
+        inner.UserId.ShouldBe("parent-user");
+        inner.TenantId.ShouldBe("parent-tenant");
+        inner.CorrelationId.ShouldBe("corr-parent");
+        inner.IdempotencyKey.ShouldBeNull();
+        inner.IsNestedDispatch().ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Send_NestedSendWithoutAnyContext_SharesTheFreshParentContext()
+    public async Task Send_NestedSendWithoutAnyContext_DerivesFromTheFreshParentContext()
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
@@ -279,7 +284,9 @@ public sealed class AmbientRequestContextTests
         var result = await encina.Send(new Outer());
 
         var (outer, inner) = result.ShouldBeSuccess();
-        inner.ShouldBeSameAs(outer);
+        outer.IsNestedDispatch().ShouldBeFalse();
+        inner.CorrelationId.ShouldBe(outer.CorrelationId);
+        inner.IsNestedDispatch().ShouldBeTrue();
     }
 
     [Fact]

@@ -17,6 +17,12 @@ namespace Encina.Messaging.Inbox;
 /// This is a provider-agnostic implementation that delegates to <see cref="InboxOrchestrator"/>
 /// for all domain logic and <see cref="IInboxStore"/> for persistence.
 /// </para>
+/// <para>
+/// A request sent from inside another dispatch inherits no idempotency key (see
+/// <see cref="RequestContextDispatchExtensions.IsNestedDispatch"/>); without a key of its own it runs
+/// without an inbox entry, covered by the entry point's one. To deduplicate it separately, send it
+/// with an explicit context that carries its own key.
+/// </para>
 /// </remarks>
 public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -42,6 +48,13 @@ public sealed class InboxPipelineBehavior<TRequest, TResponse> : IPipelineBehavi
     {
         // Only process if request is idempotent
         if (request is not IIdempotentRequest)
+        {
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        // A request sent from inside another dispatch without a key of its own: the key belongs to
+        // the entry point, whose inbox entry already covers this nested work.
+        if (string.IsNullOrWhiteSpace(context.IdempotencyKey) && context.IsNestedDispatch())
         {
             return await nextStep().ConfigureAwait(false);
         }
