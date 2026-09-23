@@ -127,7 +127,7 @@ public class HangfireRequestJobAdapterTests
             .Returns(Left<EncinaError, TestResponse>(error));
 
         // Act
-        await _adapter.ExecuteAsync(request);
+        await Should.ThrowAsync<EncinaJobFailedException>(() => _adapter.ExecuteAsync(request));
 
         // Assert
         var logEntry = _logger.Collector.GetSnapshot()

@@ -171,7 +171,7 @@ public sealed class HangfireJobAdapterLeftResultTests
         var response = new SpikeResponse("ok");
         var adapter = CreateRequestAdapter(Right<EncinaError, SpikeResponse>(response));
 
-        var result = await adapter.ExecuteAsync(new SpikeRequest("payload"));
+        var result = await adapter.ExecuteAndReturnResultAsync(new SpikeRequest("payload"));
 
         result.ShouldBe(response);
     }
