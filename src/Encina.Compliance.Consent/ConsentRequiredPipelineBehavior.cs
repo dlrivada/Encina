@@ -198,23 +198,28 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
     {
         // If SubjectIdProperty is specified, use cached reflection. The property value is converted
         // by SubjectIdConversion (string, Guid, integer ids, IFormattable strongly-typed ids, or
-        // wrappers exposing a primitive 'Value'); an unsupported type throws. Only when no matching
-        // property exists at all do we fall back to context.UserId — a matching property whose value
+        // wrappers exposing a primitive 'Value'); an unsupported type throws. A property whose value
         // is null, Guid.Empty or empty is a missing subject (the check below fails closed), never a
-        // reason to use the caller's id (project history: #1149).
+        // reason to use the caller's id (project history: #1149). A configured SubjectIdProperty
+        // that names no public instance property is a configuration error and throws.
         if (attribute.SubjectIdProperty is not null)
         {
             var cacheKey = (requestType, attribute.SubjectIdProperty);
             var property = PropertyCache.GetOrAdd(cacheKey, static key =>
                 key.Item1.GetProperty(key.Item2, BindingFlags.Public | BindingFlags.Instance));
 
-            if (property is not null)
+            if (property is null)
             {
-                return SubjectIdConversion.ToInvariantString(property.GetValue(request), property);
+                throw new InvalidOperationException(
+                    $"[RequireConsent(SubjectIdProperty = \"{attribute.SubjectIdProperty}\")] on '{requestType.FullName}' " +
+                    $"names a property that does not exist. Declare a public instance property " +
+                    $"'{attribute.SubjectIdProperty}' on the request or fix the attribute.");
             }
+
+            return SubjectIdConversion.ToInvariantString(property.GetValue(request), property);
         }
 
-        // Fallback to context.UserId
+        // No SubjectIdProperty configured: use the authenticated caller
         return context.UserId;
     }
 

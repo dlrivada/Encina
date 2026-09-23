@@ -29,7 +29,9 @@ namespace Encina.Compliance.Consent;
 /// </list>
 /// <para>
 /// <c>null</c>, <see cref="Guid.Empty"/>, and an empty or whitespace string (including when unwrapped
-/// from a <c>Value</c> property) mean "subject missing" and return <c>null</c>. Any other type — for
+/// from a <c>Value</c> property) mean "subject missing" and return <c>null</c>. A wrapper's primitive
+/// <c>Value</c> is unwrapped before its <see cref="IFormattable"/> implementation is considered, and an
+/// <see cref="IFormattable"/> id that formats as an all-zero Guid is missing too. Any other type — for
 /// example <see cref="double"/>, <see cref="DateTime"/>, an enum, or a wrapper without a supported
 /// <c>Value</c> property — is a configuration error and throws <see cref="InvalidOperationException"/>
 /// rather than silently producing an unstable identifier or falling back to the authenticated caller.
@@ -91,11 +93,8 @@ internal static class SubjectIdConversion
         // implement IFormattable but are not identifiers.
         if (!type.IsEnum && type.Assembly != typeof(object).Assembly)
         {
-            if (value is IFormattable formattable)
-            {
-                return formattable.ToString(null, CultureInfo.InvariantCulture);
-            }
-
+            // Unwrap a primitive 'Value' first, even when the wrapper also implements IFormattable:
+            // the wrapped value decides whether the subject is missing (null, Guid.Empty, empty string).
             var valueProperty = ValuePropertyCache.GetOrAdd(type, ResolveValueProperty);
             if (valueProperty is not null)
             {
@@ -109,6 +108,11 @@ internal static class SubjectIdConversion
                 {
                     return unwrapped;
                 }
+            }
+
+            if (value is IFormattable formattable)
+            {
+                return NormalizeFormatted(formattable.ToString(null, CultureInfo.InvariantCulture));
             }
         }
 
@@ -139,6 +143,20 @@ internal static class SubjectIdConversion
                 result = null;
                 return false;
         }
+    }
+
+    // A strongly-typed id without a readable 'Value' is formatted as is; an empty result or an all-zero
+    // Guid still means the subject is missing.
+    private static string? NormalizeFormatted(string? formatted)
+    {
+        if (string.IsNullOrWhiteSpace(formatted))
+        {
+            return null;
+        }
+
+        return Guid.TryParse(formatted, CultureInfo.InvariantCulture, out var guid) && guid == Guid.Empty
+            ? null
+            : formatted;
     }
 
     private static PropertyInfo? ResolveValueProperty(Type type)

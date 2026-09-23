@@ -40,10 +40,11 @@ internal static class JobFailure
             cancellationToken);
 
     /// <summary>
-    /// Classifies <paramref name="error"/>; unknown classifications are treated as transient.
+    /// Classifies <paramref name="error"/>, passing the exception that caused it (if any) to the
+    /// classifier; unknown classifications are treated as transient.
     /// </summary>
     internal static ErrorClassification Classify(EncinaError error, IErrorClassifier classifier) =>
-        classifier.Classify(error, null) == ErrorClassification.Permanent
+        classifier.Classify(error, InnerException(error)) == ErrorClassification.Permanent
             ? ErrorClassification.Permanent
             : ErrorClassification.Transient;
 

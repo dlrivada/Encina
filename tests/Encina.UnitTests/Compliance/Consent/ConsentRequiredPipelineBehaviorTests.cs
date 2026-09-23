@@ -127,6 +127,32 @@ public class ConsentRequiredPipelineBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_SubjectIdPropertyNotFound_ShouldThrowConfigurationError()
+    {
+        // Arrange: SubjectIdProperty names a property the request does not have. Falling back to the
+        // authenticated caller would validate the wrong subject's consent.
+        var options = new ConsentOptions();
+        options.DefinePurpose(ConsentPurposes.Marketing);
+        var behavior = new ConsentRequiredPipelineBehavior<SampleMisconfiguredSubjectRequest, Unit>(
+            _validator,
+            Options.Create(options),
+            Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleMisconfiguredSubjectRequest, Unit>>>());
+        var request = new SampleMisconfiguredSubjectRequest("customer-1");
+        var context = RequestContext.CreateForTest(userId: "context-user-1");
+
+        // Act
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await behavior.Handle(
+            request, context, () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None));
+
+        // Assert
+        ex.Message.ShouldContain("NonExistentProperty");
+#pragma warning disable CA2012
+        await _validator.DidNotReceive()
+            .ValidateAsync(Arg.Any<string>(), Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
+#pragma warning restore CA2012
+    }
+
+    [Fact]
     public async Task Handle_EmptySubjectId_ShouldReturnError()
     {
         // Arrange
@@ -467,6 +493,9 @@ public readonly record struct SamplePatientId(Guid Value);
 
 [RequireConsent(ConsentPurposes.Marketing, SubjectIdProperty = "Patient")]
 public sealed record SampleStronglyTypedSubjectRequest(SamplePatientId Patient) : ICommand<Unit>;
+
+[RequireConsent(ConsentPurposes.Marketing, SubjectIdProperty = "NonExistentProperty")]
+public sealed record SampleMisconfiguredSubjectRequest(string CustomerId) : ICommand<Unit>;
 
 [RequireConsent(ConsentPurposes.Marketing, ErrorMessage = "Marketing consent required")]
 public sealed record SampleCustomErrorRequest(string UserId) : ICommand<Unit>;

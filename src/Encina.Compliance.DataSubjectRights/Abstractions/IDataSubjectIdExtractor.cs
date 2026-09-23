@@ -12,8 +12,9 @@ namespace Encina.Compliance.DataSubjectRights;
 /// <para>
 /// The default implementation, <see cref="DefaultDataSubjectIdExtractor"/>, reads a <c>SubjectId</c>
 /// or <c>UserId</c> property of the request (or the property named by
-/// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>) and falls back to
-/// <see cref="IRequestContext.UserId"/> only when the request has no such property.
+/// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>, which must exist) and falls back to
+/// <see cref="IRequestContext.UserId"/> only when no property is configured and the request has no
+/// <c>SubjectId</c> or <c>UserId</c> property.
 /// </para>
 /// <para>
 /// When the resolved subject is missing (<c>null</c> or empty) for a request decorated with
@@ -56,7 +57,8 @@ public interface IDataSubjectIdExtractor
     /// </returns>
     /// <exception cref="InvalidOperationException">
     /// The request is misconfigured: its subject-id property has a type that cannot be converted to a
-    /// stable identifier. <see cref="DefaultDataSubjectIdExtractor"/> throws in this case instead of
+    /// stable identifier, or <see cref="RestrictProcessingAttribute.SubjectIdProperty"/> names a property
+    /// that does not exist. <see cref="DefaultDataSubjectIdExtractor"/> throws in this case instead of
     /// returning <c>null</c>, so a configuration error is never mistaken for a missing subject or
     /// silently replaced by the authenticated caller. Custom implementations should do the same.
     /// </exception>

@@ -126,7 +126,73 @@ public sealed class QuartzJobFailureSemanticsTests
         exception.Data[EncinaJobFailureData.ErrorClassificationKey].ShouldBe("Permanent");
     }
 
+    [Fact]
+    public async Task RequestJob_PassesTheCauseToTheErrorClassifier()
+    {
+        // A custom classifier keyed on the exception type sees the handler's exception.
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("custom.failure", "failed", new PoisonMessageException())));
+        var job = new QuartzRequestJob<SpikeRequest, SpikeResponse>(
+            encina, NullLogger<QuartzRequestJob<SpikeRequest, SpikeResponse>>.Instance, new PoisonMessageClassifier());
+
+        var exception = await Should.ThrowAsync<JobExecutionException>(() =>
+            job.Execute(CreateContext(QuartzConstants.RequestKey, new SpikeRequest("payload"))));
+
+        exception.Data[EncinaJobFailureData.ErrorClassificationKey].ShouldBe("Permanent");
+    }
+
+    [Fact]
+    public async Task NotificationJob_PassesTheCauseToTheErrorClassifier()
+    {
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<SpikeNotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(
+                EncinaErrors.Create("custom.failure", "failed", new PoisonMessageException()))));
+        var job = new QuartzNotificationJob<SpikeNotification>(
+            encina, NullLogger<QuartzNotificationJob<SpikeNotification>>.Instance, new PoisonMessageClassifier());
+
+        var exception = await Should.ThrowAsync<JobExecutionException>(() =>
+            job.Execute(CreateContext(QuartzConstants.NotificationKey, new SpikeNotification("payload"))));
+
+        exception.Data[EncinaJobFailureData.ErrorClassificationKey].ShouldBe("Permanent");
+    }
+
+    [Fact]
+    public async Task RequestJob_WithoutCause_PassesNoExceptionToTheErrorClassifier()
+    {
+        var classifier = Substitute.For<IErrorClassifier>();
+        var job = new QuartzRequestJob<SpikeRequest, SpikeResponse>(
+            CreateEncinaReturning(EncinaErrors.Create("custom.failure", "failed")),
+            NullLogger<QuartzRequestJob<SpikeRequest, SpikeResponse>>.Instance,
+            classifier);
+
+        await Should.ThrowAsync<JobExecutionException>(() =>
+            job.Execute(CreateContext(QuartzConstants.RequestKey, new SpikeRequest("payload"))));
+
+        classifier.Received(1).Classify(Arg.Any<EncinaError>(), null);
+    }
+
     // ─── Helpers ───
+
+    private static IEncina CreateEncinaReturning(EncinaError error)
+    {
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SpikeResponse>(error));
+        return encina;
+    }
+
+    private sealed class PoisonMessageException : Exception
+    {
+    }
+
+    /// <summary>A custom classifier that decides by exception type only.</summary>
+    private sealed class PoisonMessageClassifier : IErrorClassifier
+    {
+        public ErrorClassification Classify(EncinaError encinaError, Exception? exception) =>
+            exception is PoisonMessageException ? ErrorClassification.Permanent : ErrorClassification.Transient;
+    }
 
     private static QuartzNotificationJob<SpikeNotification> CreateNotificationJob(EncinaError error)
     {

@@ -239,8 +239,17 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
             return SubjectIdConversion.ToInvariantString(property.GetValue(request), property);
         }
 
-        // Priority 2: Registered IDataSubjectIdExtractor (no explicit property, or the named
-        // property does not exist on the request type)
+        // A SubjectIdProperty that names no public instance property is a configuration error: falling
+        // back to the extractor (and from there to the authenticated caller) would check the wrong subject.
+        if (attrInfo.ConfiguredSubjectIdProperty is { } missingProperty)
+        {
+            throw new InvalidOperationException(
+                $"[RestrictProcessing(SubjectIdProperty = \"{missingProperty}\")] on '{typeof(TRequest).FullName}' " +
+                $"names a property that does not exist. Declare a public instance property '{missingProperty}' " +
+                "on the request or fix the attribute.");
+        }
+
+        // Priority 2: Registered IDataSubjectIdExtractor (no explicit property configured)
         return _subjectIdExtractor.ExtractSubjectId(request, context);
     }
 
@@ -297,11 +306,18 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
             source = "ProcessingActivityAttribute";
 
         // SubjectIdProperty is only available from [RestrictProcessing]
-        var subjectIdProperty = restrictAttr?.SubjectIdProperty is { Length: > 0 } propertyName
-            ? requestType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)
+        var configuredProperty = restrictAttr?.SubjectIdProperty is { Length: > 0 } propertyName
+            ? propertyName
+            : null;
+        var subjectIdProperty = configuredProperty is not null
+            ? requestType.GetProperty(configuredProperty, BindingFlags.Public | BindingFlags.Instance)
             : null;
 
-        return new RestrictionAttributeInfo(subjectIdProperty, restrictAttr is not null, source);
+        // Keep the configured name only when it does not resolve, so extraction can report the
+        // configuration error at request time (throwing here would surface as a TypeInitializationException).
+        var unresolvedProperty = subjectIdProperty is null ? configuredProperty : null;
+
+        return new RestrictionAttributeInfo(subjectIdProperty, unresolvedProperty, restrictAttr is not null, source);
     }
 
     /// <summary>
@@ -313,6 +329,11 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
     /// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>; <c>null</c> as well when the
     /// named property does not exist on the request type.
     /// </param>
+    /// <param name="ConfiguredSubjectIdProperty">
+    /// The <see cref="RestrictProcessingAttribute.SubjectIdProperty"/> name when it is configured but does
+    /// not resolve to a public instance property of the request type (a configuration error); otherwise
+    /// <c>null</c>.
+    /// </param>
     /// <param name="IsRestrictProcessing">
     /// <c>true</c> when the request carries <see cref="RestrictProcessingAttribute"/>, which makes a
     /// missing subject fail closed (see <see cref="DataSubjectRightsOptions.FailClosedOnMissingSubjectId"/>).
@@ -320,5 +341,9 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
     /// <param name="Source">
     /// Describes which attribute triggered the restriction check (for diagnostics).
     /// </param>
-    private sealed record RestrictionAttributeInfo(PropertyInfo? SubjectIdPropertyInfo, bool IsRestrictProcessing, string Source);
+    private sealed record RestrictionAttributeInfo(
+        PropertyInfo? SubjectIdPropertyInfo,
+        string? ConfiguredSubjectIdProperty,
+        bool IsRestrictProcessing,
+        string Source);
 }

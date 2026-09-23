@@ -60,6 +60,14 @@ public class ProcessingRestrictionPipelineBehaviorTests
     [RestrictProcessing(SubjectIdProperty = nameof(Patient))]
     private sealed record StronglyTypedIdCommand(PatientId Patient) : IRequest<Unit>;
 
+    private readonly record struct FormattablePatientId(Guid Value) : IFormattable
+    {
+        public string ToString(string? format, IFormatProvider? formatProvider) => Value.ToString("N", formatProvider);
+    }
+
+    [RestrictProcessing(SubjectIdProperty = nameof(Patient))]
+    private sealed record FormattableIdCommand(FormattablePatientId Patient) : IRequest<Unit>;
+
     [RestrictProcessing(SubjectIdProperty = nameof(Score))]
     private sealed record UnsupportedIdCommand(double Score) : IRequest<Unit>;
 
@@ -162,22 +170,24 @@ public class ProcessingRestrictionPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_SubjectIdPropertyNotFound_ShouldFallbackToExtractor()
+    public async Task Handle_SubjectIdPropertyNotFound_ShouldThrowConfigurationError()
     {
+        // An explicit SubjectIdProperty that does not exist is a configuration error: the behavior
+        // must not fall back to the extractor (and from there to the authenticated caller).
         _extractor.ExtractSubjectId(Arg.Any<MissingPropertyCommand>(), Arg.Any<IRequestContext>())
             .Returns("fallback-subject");
-        _dsrService.HasActiveRestrictionAsync("fallback-subject", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, bool>(false));
 
         var behavior = CreateBehavior<MissingPropertyCommand>();
         var command = new MissingPropertyCommand("subject-1");
         var next = NextStep();
 
-        var result = await behavior.Handle(command, _context, next, CancellationToken.None);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await behavior.Handle(command, _context, next, CancellationToken.None));
 
-        result.IsRight.ShouldBeTrue();
-        _nextStepCalled.ShouldBeTrue();
-        _extractor.Received(1).ExtractSubjectId(command, _context);
+        ex.Message.ShouldContain("NonExistentProperty");
+        _nextStepCalled.ShouldBeFalse();
+        _extractor.DidNotReceive().ExtractSubjectId(Arg.Any<MissingPropertyCommand>(), Arg.Any<IRequestContext>());
+        await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -279,6 +289,22 @@ public class ProcessingRestrictionPipelineBehaviorTests
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.SubjectIdMissingCode));
         _nextStepCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_RestrictProcessing_FormattableWrapperOfEmptyGuid_BlockMode_ShouldReturnSubjectIdMissing()
+    {
+        // The wrapper implements IFormattable, but its Value (Guid.Empty) decides: the subject is missing.
+        var behavior = CreateBehavior<FormattableIdCommand>(DSREnforcementMode.Block);
+        var next = NextStep();
+
+        var result = await behavior.Handle(
+            new FormattableIdCommand(new FormattablePatientId(Guid.Empty)), _context, next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(DSRErrors.SubjectIdMissingCode));
+        _nextStepCalled.ShouldBeFalse();
+        await _dsrService.DidNotReceive().HasActiveRestrictionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

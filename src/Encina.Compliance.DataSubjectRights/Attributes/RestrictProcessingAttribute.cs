@@ -39,8 +39,10 @@ public sealed class RestrictProcessingAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// When specified, the pipeline behavior uses reflection to read this property value as the
-    /// subject ID. When <c>null</c>, the behavior falls back to the registered
-    /// <see cref="IDataSubjectIdExtractor"/> for subject ID resolution.
+    /// subject ID; a name that matches no public instance property of the request is a configuration
+    /// error and the behavior throws <see cref="InvalidOperationException"/> instead of checking another
+    /// subject. When <c>null</c>, the behavior uses the registered <see cref="IDataSubjectIdExtractor"/>
+    /// for subject ID resolution.
     /// </remarks>
     public string? SubjectIdProperty { get; set; }
 }

@@ -1,5 +1,8 @@
 using System.Net;
+using Encina.Messaging.Choreography;
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.RoutingSlip;
+using Encina.Messaging.Sagas;
 using LanguageExt;
 using Shouldly;
 
@@ -362,19 +365,28 @@ public sealed class DefaultErrorClassifierTests
     #region Error-code classification
 
     [Theory]
-    [InlineData("encina.validation.failed")]
-    [InlineData("encina.handler.missing")]
-    [InlineData("encina.request.handler_missing")]
-    [InlineData("encina.request.handler_type_mismatch")]
-    [InlineData("encina.authorization.policy_failed")]
+    [InlineData(EncinaErrorCodes.HandlerMissing)]
+    [InlineData(EncinaErrorCodes.RequestHandlerMissing)]
+    [InlineData(EncinaErrorCodes.RequestHandlerTypeMismatch)]
+    [InlineData(EncinaErrorCodes.NotificationMissingHandle)]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData("Encina.guard.validation_failed")]
+    [InlineData("Repository.ValidationFailed")]
+    [InlineData("processor.validation_failed")]
+    [InlineData("gdpr.compliance_validation_failed")]
+    [InlineData("aiact.compliance_validation_failed")]
     [InlineData("consent.missing")]
     [InlineData("consent.expired")]
     [InlineData("consent.withdrawn")]
     [InlineData("consent.requires_reconsent")]
+    [InlineData("consent.version_mismatch")]
     [InlineData("dsr.restriction_active")]
     [InlineData("dsr.subject_id_missing")]
     [InlineData("dsr.identity_not_verified")]
-    public void Classify_PermanentErrorCode_ReturnsPermanent(string code)
+    public void Classify_ExplicitPermanentErrorCode_ReturnsPermanent(string code)
     {
         // The message deliberately contains a transient word: the code decides first.
         var error = EncinaErrors.Create(code, "Please retry later");
@@ -383,21 +395,50 @@ public sealed class DefaultErrorClassifierTests
     }
 
     [Theory]
-    [InlineData("encina.timeout")]
-    [InlineData("encina.ratelimit.exceeded")]
-    [InlineData("consent.event_history_unavailable")]
-    public void Classify_TransientErrorCode_ReturnsTransient(string code)
+    [InlineData(EncinaErrorCodes.Timeout)]
+    [InlineData(EncinaErrorCodes.RateLimitExceeded)]
+    public void Classify_ExplicitTransientErrorCode_ReturnsTransient(string code)
     {
-        var error = EncinaErrors.Create(code, "Something happened");
+        // The message deliberately contains a permanent word: the code decides first.
+        var error = EncinaErrors.Create(code, "Invalid state, try again");
 
         _classifier.Classify(error, null).ShouldBe(ErrorClassification.Transient);
     }
 
-    [Fact]
-    public void Classify_CodeOnlyPattern_IsNotMatchedAgainstTheMessage()
+    [Theory]
+    [InlineData("marten.aggregate_not_found")]
+    [InlineData(SagaErrorCodes.NotFound)]
+    [InlineData(ChoreographyErrorCodes.SagaNotFound)]
+    [InlineData(RoutingSlipErrorCodes.NotFound)]
+    [InlineData(SagaErrorCodes.InvalidStatus)]
+    [InlineData(ChoreographyErrorCodes.InvalidState)]
+    public void Classify_NotFoundOrInvalidCodeOutsideTheExplicitList_IsNotPermanentByCode(string code)
     {
-        // "missing" is a permanent pattern for codes only; a free-text message with it stays unknown.
-        var error = EncinaErrors.Create("test.error", "Some value is missing");
+        // An out-of-order event or a saga state race can succeed on a later attempt: these codes are not
+        // matched by substring ("not_found", "invalid"), so the message decides as it did before codes
+        // were considered — here a neutral message, so the error is Unknown (retried).
+        var error = EncinaErrors.Create(code, "The target could not be loaded yet");
+
+        _classifier.Classify(error, null).ShouldBe(ErrorClassification.Unknown);
+    }
+
+    [Theory]
+    [InlineData(SagaErrorCodes.NotFound)]
+    [InlineData(SagaErrorCodes.InvalidStatus)]
+    public void Classify_CodeOutsideTheExplicitList_FallsBackToTheMessage(string code)
+    {
+        var error = EncinaErrors.Create(code, "Store unavailable, retry later");
+
+        _classifier.Classify(error, null).ShouldBe(ErrorClassification.Transient);
+    }
+
+    [Theory]
+    [InlineData("consent.event_history_unavailable")]
+    [InlineData("encina.handler.missing_extra")]
+    [InlineData("custom.consent.missing")]
+    public void Classify_CodeIsMatchedExactlyNotBySubstring(string code)
+    {
+        var error = EncinaErrors.Create(code, "Something happened");
 
         _classifier.Classify(error, null).ShouldBe(ErrorClassification.Unknown);
     }
@@ -411,6 +452,61 @@ public sealed class DefaultErrorClassifierTests
     }
 
     #endregion
+
+    #region Errors with a causing exception
+
+    [Fact]
+    public void Classify_DispatcherErrorForUnknownException_DoesNotMatchHandlerNameInMessage()
+    {
+        // The dispatcher builds "Unexpected exception in notification handler CacheInvalidationHandler ..."
+        // around the thrown exception: "invalid" in the handler name must not make it permanent.
+        var error = EncinaErrors.FromException(
+            EncinaErrorCodes.NotificationException,
+            new DownstreamUnavailableException(),
+            "Unexpected exception in notification handler CacheInvalidationHandler for OrderPlaced. " +
+            "Handlers should return Left for expected failures instead of throwing exceptions.");
+
+        _classifier.Classify(error, null).ShouldNotBe(ErrorClassification.Permanent);
+        _classifier.Classify(error, error.GetCause().MatchUnsafe(ex => ex, () => null))
+            .ShouldNotBe(ErrorClassification.Permanent);
+    }
+
+    [Fact]
+    public void Classify_DispatcherErrorForTransientException_ReturnsTransient()
+    {
+        var error = EncinaErrors.FromException(
+            EncinaErrorCodes.NotificationException,
+            new TimeoutException(),
+            "Unexpected exception in notification handler CacheInvalidationHandler for OrderPlaced.");
+
+        _classifier.Classify(error, error.GetCause().MatchUnsafe(ex => ex, () => null))
+            .ShouldBe(ErrorClassification.Transient);
+    }
+
+    [Fact]
+    public void Classify_UnknownExceptionPassedIn_DoesNotApplyMessagePatterns()
+    {
+        var error = EncinaErrors.Create("test.error", "Invalid handler CacheInvalidationHandler");
+
+        _classifier.Classify(error, new DownstreamUnavailableException()).ShouldBe(ErrorClassification.Unknown);
+    }
+
+    [Fact]
+    public void Classify_ErrorWithoutCause_WhenItsCarrierIsPassedBack_StillAppliesMessagePatterns()
+    {
+        // The recoverability pipeline passes EncinaError.Exception, which for an error without a cause is
+        // the internal carrier of code and message: the message is still free text and is matched.
+        var error = EncinaErrors.Create("test.error", "invalid request");
+        var carrier = error.Exception.MatchUnsafe(ex => ex, () => null);
+
+        _classifier.Classify(error, carrier).ShouldBe(ErrorClassification.Permanent);
+    }
+
+    #endregion
+
+    private sealed class DownstreamUnavailableException : Exception
+    {
+    }
 
     private sealed class CustomTestException : Exception
     {

@@ -44,7 +44,7 @@ public sealed class HangfireJobAdapterLeftResultTests
     }
 
     [Theory]
-    [InlineData("encina.validation.failed")]
+    [InlineData("Encina.guard.validation_failed")]
     [InlineData("consent.missing")]
     [InlineData("dsr.restriction_active")]
     [InlineData("encina.request.handler_missing")]
@@ -122,6 +122,50 @@ public sealed class HangfireJobAdapterLeftResultTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_PassesTheCauseToTheErrorClassifier()
+    {
+        // A custom classifier keyed on the exception type sees the handler's exception.
+        var cause = new PoisonMessageException();
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("custom.failure", "failed", cause)));
+        var adapter = new HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>(
+            encina, NullLogger<HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>>.Instance, new PoisonMessageClassifier());
+
+        var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        exception.InnerException.ShouldBeSameAs(cause);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithoutCause_PassesNoExceptionToTheErrorClassifier()
+    {
+        var classifier = Substitute.For<IErrorClassifier>();
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<SpikeRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("custom.failure", "failed")));
+        var adapter = new HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>(
+            encina, NullLogger<HangfireRequestJobAdapter<SpikeRequest, SpikeResponse>>.Instance, classifier);
+
+        await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
+
+        classifier.Received(1).Classify(Arg.Any<EncinaError>(), null);
+    }
+
+    [Fact]
+    public async Task PublishAsync_PassesTheCauseToTheErrorClassifier()
+    {
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<SpikeNotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(
+                EncinaErrors.Create("custom.failure", "failed", new PoisonMessageException()))));
+        var adapter = new HangfireNotificationJobAdapter<SpikeNotification>(
+            encina, NullLogger<HangfireNotificationJobAdapter<SpikeNotification>>.Instance, new PoisonMessageClassifier());
+
+        await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.PublishAsync(new SpikeNotification("payload")));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_Right_ReturnsTheResponse()
     {
         var response = new SpikeResponse("ok");
@@ -184,6 +228,17 @@ public sealed class HangfireJobAdapterLeftResultTests
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
         return new HangfireNotificationJobAdapter<SpikeNotification>(
             encina, NullLogger<HangfireNotificationJobAdapter<SpikeNotification>>.Instance);
+    }
+
+    private sealed class PoisonMessageException : Exception
+    {
+    }
+
+    /// <summary>A custom classifier that decides by exception type only.</summary>
+    private sealed class PoisonMessageClassifier : IErrorClassifier
+    {
+        public ErrorClassification Classify(EncinaError encinaError, Exception? exception) =>
+            exception is PoisonMessageException ? ErrorClassification.Permanent : ErrorClassification.Transient;
     }
 
     public sealed record SpikeRequest(string Payload) : IRequest<SpikeResponse>;

@@ -42,6 +42,12 @@ public sealed class SubjectIdConversionTests
         { new NullableValueId(null), null },
         { new NullableValueId(12), "12" },
         { new FormattableId(8), "id-8" },
+        // A formattable wrapper exposing a primitive Value is unwrapped first (#1159 re-review).
+        { new FormattablePatientId(Guid.Empty), null },
+        { new FormattablePatientId(SampleGuid), "7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b" },
+        // A formattable id without a Value that formats as an all-zero Guid is a missing subject.
+        { new OpaqueGuidId(Guid.Empty), null },
+        { new OpaqueGuidId(SampleGuid), "7f3a2c1e4b5d4e6f8a9b0c1d2e3f4a5b" },
     };
 
     [Theory]
@@ -177,6 +183,25 @@ public sealed class SubjectIdConversionTests
 
         public string ToString(string? format, IFormatProvider? formatProvider) =>
             "id-" + _number.ToString(formatProvider);
+
+        public override string ToString() => ToString(null, CultureInfo.InvariantCulture);
+    }
+
+    public readonly record struct FormattablePatientId(Guid Value) : IFormattable
+    {
+        // Formats with "N", so the test also proves the unwrapped Value ("D") is used instead.
+        public string ToString(string? format, IFormatProvider? formatProvider) =>
+            Value.ToString("N", formatProvider);
+    }
+
+    public readonly struct OpaqueGuidId : IFormattable
+    {
+        private readonly Guid _value;
+
+        public OpaqueGuidId(Guid value) => _value = value;
+
+        public string ToString(string? format, IFormatProvider? formatProvider) =>
+            _value.ToString("N", formatProvider);
 
         public override string ToString() => ToString(null, CultureInfo.InvariantCulture);
     }

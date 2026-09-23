@@ -26,7 +26,8 @@ public sealed class HangfireRetryPolicyIntegrationTests
     [Fact]
     public async Task PermanentFailure_IsNotRetried_JobEndsFailed()
     {
-        var state = await RunJobAndWaitForStateAsync("order.validation_failed");
+        // One of DefaultErrorClassifier's explicit permanent codes.
+        var state = await RunJobAndWaitForStateAsync("consent.missing");
 
         state.ShouldBe(FailedState.StateName);
     }

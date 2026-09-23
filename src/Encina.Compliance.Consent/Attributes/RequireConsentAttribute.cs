@@ -13,7 +13,7 @@ namespace Encina.Compliance.Consent;
 /// </para>
 /// <para>
 /// The data subject is identified either by the property specified in <see cref="SubjectIdProperty"/>
-/// (using cached reflection) or by falling back to <c>IRequestContext.UserId</c>.
+/// (using cached reflection) or, when that property is not set, by <c>IRequestContext.UserId</c>.
 /// </para>
 /// </remarks>
 /// <example>
@@ -82,8 +82,9 @@ public sealed class RequireConsentAttribute : Attribute
     /// A <c>null</c> value, <see cref="Guid.Empty"/> or an empty string means the subject is missing and
     /// the request fails closed with a missing-consent error; it never falls back to
     /// <c>IRequestContext.UserId</c>. Numeric <c>0</c> is a valid identifier. A property of any other
-    /// type is a configuration error and throws <see cref="InvalidOperationException"/>. If no property
-    /// with this name exists, the behavior falls back to <c>IRequestContext.UserId</c>.
+    /// type is a configuration error and throws <see cref="InvalidOperationException"/>, and so does a
+    /// name that matches no public instance property of the request. Only when this property is not set
+    /// does the behavior use <c>IRequestContext.UserId</c>.
     /// </para>
     /// </remarks>
     /// <example>"CustomerId", "UserId", "SubjectId"</example>

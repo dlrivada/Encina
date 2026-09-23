@@ -65,23 +65,31 @@ public enum ErrorClassification
 /// <item><description><see cref="InvalidOperationException"/></description></item>
 /// <item><description><see cref="NotSupportedException"/></description></item>
 /// <item><description><see cref="UnauthorizedAccessException"/></description></item>
-/// <item><description>Error codes or messages containing "validation", "not_found", "unauthorized", "forbidden", "invalid", "bad_request"</description></item>
-/// <item><description>Error codes (not messages) containing "missing", "mismatch", "authorization",
-/// "consent.expired", "withdrawn", "reconsent", "restriction_active", "not_verified", "rejected" or
-/// "exemption" — for example <c>encina.handler.missing</c>, <c>consent.missing</c> or
-/// <c>dsr.restriction_active</c></description></item>
+/// <item><description>The explicit error codes listed below (exact match, case-insensitive)</description></item>
+/// <item><description>Error messages containing "validation", "not_found", "unauthorized", "forbidden", "invalid", "bad_request"</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// Evaluation order: the exception passed in, then <see cref="EncinaError.Exception"/>, then the error
-/// code (<see cref="EncinaErrorExtensions.GetCode(EncinaError)"/>), then the error message. Anything
-/// not matched is <see cref="ErrorClassification.Unknown"/> (treated as transient). Codes containing
-/// "ratelimit" are also transient.
+/// Evaluation order:
+/// <list type="number">
+/// <item><description>The exception passed in, then <see cref="EncinaError.Exception"/>, by type.</description></item>
+/// <item><description>The error code (<see cref="EncinaErrorExtensions.GetCode(EncinaError)"/>), against an explicit
+/// list of codes whose outcome a retry cannot change (a missing handler, missing, expired or withdrawn
+/// consent, an active processing restriction, a missing data subject id, a denied authorization, a failed
+/// validation) and an explicit list of transient codes (<c>encina.timeout</c>, <c>encina.ratelimit.exceeded</c>).
+/// Codes are never matched by substring: <c>saga.not_found</c> or <c>marten.aggregate_not_found</c> can be an
+/// out-of-order event that succeeds on a later attempt, so they are not permanent by code.</description></item>
+/// <item><description>The error message, by pattern, but only when the error has no causing exception: a message
+/// built around an exception (for example the dispatcher's <c>encina.notification.exception</c> message, which
+/// names the handler type) is not free text about the failure, so words such as "invalid" in a handler name
+/// must not make the failure permanent.</description></item>
+/// </list>
+/// Anything not matched is <see cref="ErrorClassification.Unknown"/> (treated as transient).
 /// </para>
 /// </remarks>
 public sealed class DefaultErrorClassifier : IErrorClassifier
 {
-    private static readonly string[] PermanentErrorCodePatterns =
+    private static readonly string[] PermanentMessagePatterns =
     [
         "validation",
         "not_found",
@@ -91,7 +99,7 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         "bad_request"
     ];
 
-    private static readonly string[] TransientErrorCodePatterns =
+    private static readonly string[] TransientMessagePatterns =
     [
         "timeout",
         "unavailable",
@@ -104,27 +112,47 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         "overload"
     ];
 
-    // Matched against the error code only (never the free-text message, where these words are too
-    // common): outcomes a retry cannot change, such as a missing handler, missing or withdrawn
-    // consent, an active processing restriction, or a denied authorization.
-    private static readonly string[] PermanentCodeOnlyPatterns =
-    [
-        "missing",
-        "mismatch",
-        "authorization",
-        "consent.expired",
-        "withdrawn",
-        "reconsent",
-        "restriction_active",
-        "not_verified",
-        "rejected",
-        "exemption"
-    ];
+    // Exact error codes (case-insensitive) whose outcome a retry cannot change. Kept as an explicit
+    // list on purpose: substring matching on codes turned "*.not_found" and "*.invalid_*" codes that
+    // can succeed on a later attempt (out-of-order events, saga state races) into permanent failures.
+    private static readonly HashSet<string> PermanentErrorCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Encina core: no handler, wrong handler, authorization denied
+        EncinaErrorCodes.HandlerMissing,
+        EncinaErrorCodes.RequestHandlerMissing,
+        EncinaErrorCodes.RequestHandlerTypeMismatch,
+        EncinaErrorCodes.NotificationMissingHandle,
+        EncinaErrorCodes.AuthorizationUnauthorized,
+        EncinaErrorCodes.AuthorizationForbidden,
+        EncinaErrorCodes.AuthorizationPolicyFailed,
+        EncinaErrorCodes.AuthorizationResourceDenied,
 
-    private static readonly string[] TransientCodeOnlyPatterns =
-    [
-        "ratelimit"
-    ];
+        // Validation failures (Encina.GuardClauses, Encina.DomainModeling, compliance modules)
+        "encina.guard.validation_failed",
+        "repository.validationfailed",
+        "processor.validation_failed",
+        "gdpr.compliance_validation_failed",
+        "aiact.compliance_validation_failed",
+
+        // Encina.Compliance.Consent
+        "consent.missing",
+        "consent.expired",
+        "consent.withdrawn",
+        "consent.requires_reconsent",
+        "consent.version_mismatch",
+
+        // Encina.Compliance.DataSubjectRights
+        "dsr.restriction_active",
+        "dsr.subject_id_missing",
+        "dsr.identity_not_verified"
+    };
+
+    // Exact error codes (case-insensitive) that are transient.
+    private static readonly HashSet<string> TransientErrorCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        EncinaErrorCodes.Timeout,
+        EncinaErrorCodes.RateLimitExceeded
+    };
 
     /// <inheritdoc />
     public ErrorClassification Classify(EncinaError encinaError, Exception? exception)
@@ -150,7 +178,7 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             }
         }
 
-        // Then, check the error code for patterns
+        // Then, check the error code against the explicit lists
         var code = encinaError.GetCode().IfNone(string.Empty);
         var codeClassification = ClassifyErrorCode(code);
         if (codeClassification != ErrorClassification.Unknown)
@@ -158,8 +186,28 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             return codeClassification;
         }
 
-        // Finally, check the error message for patterns
+        // Finally, check the error message for patterns, unless the error has a causing exception:
+        // then the message was built around that exception (for example by the dispatcher, naming
+        // the handler type) and its words say nothing about whether a retry can succeed.
+        if (HasCause(encinaError, exception))
+        {
+            return ErrorClassification.Unknown;
+        }
+
         return ClassifyErrorMessage(encinaError.Message);
+    }
+
+    private static bool HasCause(EncinaError encinaError, Exception? exception)
+    {
+        if (encinaError.GetCause().IsSome)
+        {
+            return true;
+        }
+
+        // Without a cause, EncinaError.Exception is the internal carrier of the code and message;
+        // callers that pass it back in (for example the recoverability pipeline) do not pass a cause.
+        return exception is not null
+            && !encinaError.Exception.Exists(carrier => ReferenceEquals(carrier, exception));
     }
 
     private static ErrorClassification ClassifyErrorCode(string code)
@@ -169,32 +217,17 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
             return ErrorClassification.Unknown;
         }
 
-        var lowerCode = code.ToLowerInvariant();
-
-        if (ContainsAny(lowerCode, PermanentErrorCodePatterns) || ContainsAny(lowerCode, PermanentCodeOnlyPatterns))
+        if (PermanentErrorCodes.Contains(code))
         {
             return ErrorClassification.Permanent;
         }
 
-        if (ContainsAny(lowerCode, TransientErrorCodePatterns) || ContainsAny(lowerCode, TransientCodeOnlyPatterns))
+        if (TransientErrorCodes.Contains(code))
         {
             return ErrorClassification.Transient;
         }
 
         return ErrorClassification.Unknown;
-    }
-
-    private static bool ContainsAny(string value, string[] patterns)
-    {
-        foreach (var pattern in patterns)
-        {
-            if (value.Contains(pattern, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static ErrorClassification ClassifyException(Exception exception)
@@ -262,7 +295,7 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         var lowerMessage = message.ToLowerInvariant();
 
         // Check for permanent patterns first
-        foreach (var pattern in PermanentErrorCodePatterns)
+        foreach (var pattern in PermanentMessagePatterns)
         {
             if (lowerMessage.Contains(pattern, StringComparison.Ordinal))
             {
@@ -271,7 +304,7 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         }
 
         // Check for transient patterns
-        foreach (var pattern in TransientErrorCodePatterns)
+        foreach (var pattern in TransientMessagePatterns)
         {
             if (lowerMessage.Contains(pattern, StringComparison.Ordinal))
             {
