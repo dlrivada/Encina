@@ -9,6 +9,7 @@ $repo = Split-Path -Parent (Split-Path -Parent $hooks)
 $attribution = Join-Path $hooks 'block-ai-attribution.ps1'
 $issue = Join-Path $hooks 'check-issue-template.ps1'
 $publish = Join-Path $hooks 'block-worker-publish.ps1'
+$spawn = Join-Path $hooks 'block-worker-spawn.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -154,6 +155,17 @@ $cases = @(
     @($publish, 'PowerShell', 'gh api repos/o/r/pulls/5', 0, 'gh api with no method or fields is allowed')
 )
 
+# subagent_type, expected, label
+$spawnCases = @(
+    @('issue-worker', 2, 'issue-worker is blocked'),
+    @('general-purpose', 2, 'general-purpose is blocked'),
+    @($null, 2, 'missing subagent_type is blocked'),
+    @('claude', 2, 'unknown subagent_type is blocked'),
+    @('ci-diagnoser', 0, 'ci-diagnoser is allowed'),
+    @('mechanical-fixer', 0, 'mechanical-fixer is allowed'),
+    @('Explore', 0, 'Explore is allowed')
+)
+
 $failed = 0
 Push-Location $work
 try {
@@ -167,11 +179,31 @@ try {
         "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $hook), $label
         if (-not $ok -and $stderr) { "      $stderr" }
     }
+
+    foreach ($case in $spawnCases) {
+        $subagentType, $expected, $label = $case
+        $toolInput = if ($null -eq $subagentType) { @{} } else { @{ subagent_type = $subagentType } }
+        $json = @{ tool_name = 'Agent'; cwd = $work; tool_input = $toolInput } | ConvertTo-Json -Compress
+        $stderr = $json | pwsh -NoProfile -File $spawn 2>&1
+        $code = $LASTEXITCODE
+        $ok = $code -eq $expected
+        if (-not $ok) { $failed++ }
+        "{0} [{1}, expected {2}] {3}: {4}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $expected, (Split-Path -Leaf $spawn), $label
+        if (-not $ok -and $stderr) { "      $stderr" }
+    }
+
+    $malformedStderr = 'not json' | pwsh -NoProfile -File $spawn 2>&1
+    $malformedCode = $LASTEXITCODE
+    $malformedOk = $malformedCode -eq 0
+    if (-not $malformedOk) { $failed++ }
+    "{0} [{1}, expected 0] {2}: {3}" -f ($(if ($malformedOk) { 'PASS' } else { 'FAIL' })), $malformedCode, (Split-Path -Leaf $spawn), 'malformed payload'
+    if (-not $malformedOk -and $malformedStderr) { "      $malformedStderr" }
 }
 finally {
     Pop-Location
     Remove-Item -Recurse -Force $work
 }
 
-"{0} cases, {1} failed" -f $cases.Count, $failed
+$totalCases = $cases.Count + $spawnCases.Count + 1
+"{0} cases, {1} failed" -f $totalCases, $failed
 exit ([int]($failed -gt 0))
