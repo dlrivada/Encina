@@ -1,0 +1,1 @@
+- **`Encina.ADO.MySQL` now registers the Unit of Work pattern** (#1260). `ServiceCollectionExtensions.AddEncinaUnitOfWork` registers `IUnitOfWork` backed by `UnitOfWorkADO`, matching the `Encina.ADO.SqlServer` and `Encina.ADO.PostgreSQL` extensions.

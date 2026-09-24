@@ -257,6 +257,22 @@ public class ServiceCollectionExtensionsGuardsTests
         Should.Throw<InvalidOperationException>(act);
     }
 
+    // ----- AddEncinaUnitOfWork guards -----
+
+    /// <summary>
+    /// Verifies that AddEncinaUnitOfWork throws ArgumentNullException when services is null.
+    /// </summary>
+    [Fact]
+    public void AddEncinaUnitOfWork_NullServices_ThrowsArgumentNullException()
+    {
+        // Arrange
+        IServiceCollection services = null!;
+
+        // Act & Assert
+        var act = () => services.AddEncinaUnitOfWork();
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe(nameof(services));
+    }
+
     // ----- AddEncinaProcessingActivityADOMySQL guards -----
 
     /// <summary>

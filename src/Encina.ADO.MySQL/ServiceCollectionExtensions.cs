@@ -6,6 +6,7 @@ using Encina.ADO.MySQL.Outbox;
 using Encina.ADO.MySQL.Repository;
 using Encina.ADO.MySQL.Sagas;
 using Encina.ADO.MySQL.Scheduling;
+using Encina.ADO.MySQL.UnitOfWork;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
@@ -262,6 +263,98 @@ public static class ServiceCollectionExtensions
             return new FunctionalRepositoryADO<TEntity, TId>(
                 connection, mapping, requestContext, timeProvider);
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Encina Unit of Work pattern with ADO.NET for MySQL/MariaDB.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="IUnitOfWork"/> implemented by <see cref="UnitOfWorkADO"/>
+    /// with scoped lifetime.
+    /// </para>
+    /// <para>
+    /// Requires an <see cref="IDbConnection"/> to be registered in the service collection,
+    /// typically via <see cref="AddEncinaADO(IServiceCollection, string, Action{MessagingConfiguration})"/>.
+    /// </para>
+    /// <para>
+    /// Entity mappings must be registered separately using
+    /// <see cref="AddEncinaRepository{TEntity, TId}(IServiceCollection, Action{EntityMappingBuilder{TEntity, TId}})"/>
+    /// for each entity type used with the Unit of Work.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// services.AddEncinaADO(connectionString, config => { });
+    ///
+    /// // Register entity mappings
+    /// services.AddEncinaRepository&lt;Account, Guid&gt;(mapping =&gt;
+    ///     mapping.ToTable("Accounts")
+    ///            .HasId(a =&gt; a.Id)
+    ///            .MapProperty(a =&gt; a.Balance));
+    ///
+    /// // Add Unit of Work
+    /// services.AddEncinaUnitOfWork();
+    ///
+    /// // Usage in handler
+    /// public class TransferHandler(IUnitOfWork unitOfWork)
+    /// {
+    ///     public async Task&lt;Either&lt;EncinaError, Unit&gt;&gt; HandleAsync(TransferCommand cmd, CancellationToken ct)
+    ///     {
+    ///         var beginResult = await unitOfWork.BeginTransactionAsync(ct);
+    ///         if (beginResult.IsLeft) return beginResult;
+    ///
+    ///         var accounts = unitOfWork.Repository&lt;Account, Guid&gt;();
+    ///         var sourceResult = await accounts.GetByIdAsync(cmd.SourceId, ct);
+    ///         if (sourceResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return sourceResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var targetResult = await accounts.GetByIdAsync(cmd.TargetId, ct);
+    ///         if (targetResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return targetResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var source = sourceResult.Match(Right: a =&gt; a, Left: _ =&gt; throw new InvalidOperationException());
+    ///         var target = targetResult.Match(Right: a =&gt; a, Left: _ =&gt; throw new InvalidOperationException());
+    ///
+    ///         source.Debit(cmd.Amount);
+    ///         target.Credit(cmd.Amount);
+    ///
+    ///         // ADO.NET repositories persist immediately: each UpdateAsync call is its own write.
+    ///         var updateSourceResult = await accounts.UpdateAsync(source, ct);
+    ///         if (updateSourceResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return updateSourceResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         var updateTargetResult = await accounts.UpdateAsync(target, ct);
+    ///         if (updateTargetResult.IsLeft)
+    ///         {
+    ///             await unitOfWork.RollbackAsync(ct);
+    ///             return updateTargetResult.Map(_ =&gt; Unit.Default);
+    ///         }
+    ///
+    ///         return await unitOfWork.CommitAsync(ct);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddEncinaUnitOfWork(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        // Only register if not already registered
+        services.TryAddScoped<IUnitOfWork, UnitOfWorkADO>();
 
         return services;
     }
