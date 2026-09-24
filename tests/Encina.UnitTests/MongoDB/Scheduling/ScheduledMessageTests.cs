@@ -51,4 +51,16 @@ public sealed class ScheduledMessageTests
 
         message.IsDeadLettered(maxRetries: 3).ShouldBeFalse();
     }
+
+    [Fact]
+    public void IsDeadLettered_WhenProcessedAndRetryCountAtOrAboveMaxRetries_ReturnsFalse()
+    {
+        var message = new ScheduledMessage
+        {
+            ProcessedAtUtc = DateTime.UtcNow,
+            RetryCount = 5
+        };
+
+        message.IsDeadLettered(maxRetries: 3).ShouldBeFalse();
+    }
 }

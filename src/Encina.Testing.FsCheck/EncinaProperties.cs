@@ -394,6 +394,21 @@ public static class EncinaProperties
             .Label("Scheduled message should have Id, RequestType, and Content");
     }
 
+    /// <summary>
+    /// Verifies that dead lettering logic is consistent with retry count and processed state:
+    /// a processed scheduled message is never dead-lettered.
+    /// </summary>
+    /// <param name="message">The message to test.</param>
+    /// <param name="maxRetries">The maximum number of delivery attempts.</param>
+    /// <returns>A property that passes if dead letter state is consistent.</returns>
+    public static Property ScheduledDeadLetterIsConsistent(IScheduledMessage message, PositiveInt maxRetries)
+    {
+        var expectedDeadLetter = message.RetryCount >= maxRetries.Get && !message.IsProcessed;
+        return (message.IsDeadLettered(maxRetries.Get) == expectedDeadLetter)
+            .ToProperty()
+            .Label("IsDeadLettered should match RetryCount >= MaxRetries && !IsProcessed");
+    }
+
     #endregion
 
     #region Handler Properties
