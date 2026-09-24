@@ -150,14 +150,14 @@ sequenceDiagram
     Enc-->>App: Either[EncinaError, T]
 ```
 
-## Packages (39 Active)
+## Packages
 
 | Category | Packages | Description |
 |----------|----------|-------------|
 | **Core** | `Encina` | ROP, CQRS, pipeline behaviors |
 | **Validation** | `FluentValidation`, `DataAnnotations`, `MiniValidator`, `GuardClauses` | Request validation with ROP integration |
 | **Web** | `AspNetCore`, `SignalR` | Middleware, authorization, real-time notifications |
-| **Database** | `EntityFrameworkCore`, `MongoDB`, `Dapper.{5}`, `ADO.{5}` | Persistence with messaging patterns |
+| **Database** | `EntityFrameworkCore`, `MongoDB`, `Dapper.{SqlServer,PostgreSQL,MySQL}`, `ADO.{SqlServer,PostgreSQL,MySQL}` | Persistence with messaging patterns |
 | **Messaging** | `Messaging`, `RabbitMQ`, `Kafka`, `AzureServiceBus`, `AmazonSQS`, `NATS`, `MQTT`, `Redis.PubSub`, `InMemory`, `gRPC`, `GraphQL` | Message transports |
 | **Caching** | `Caching`, `Caching.Memory`, `Caching.Hybrid`, `Caching.Redis`, `Caching.Valkey`, `Caching.KeyDB`, `Caching.Dragonfly`, `Caching.Garnet` | Multi-tier caching |
 | **Scheduling** | `Hangfire`, `Quartz` | Job scheduling adapters |
@@ -166,7 +166,7 @@ sequenceDiagram
 | **Compliance** | `Compliance.Attestation`, `Compliance.GDPR`, `Compliance.NIS2` | Audit attestation, GDPR, NIS2 |
 | **Observability** | `OpenTelemetry` | Distributed tracing and metrics |
 
-> **Note**: 3,800+ tests across all packages
+> **Note**: [.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml) runs every test project on every PR and reports the current count; see [docs/INVENTORY.md](docs/INVENTORY.md) for the package list.
 
 ## Validation
 
@@ -486,11 +486,11 @@ src/
 ├── Encina.Messaging/          # Messaging abstractions
 ├── Encina.AspNetCore/         # Web integration
 ├── Encina.EntityFrameworkCore/# EF Core provider
-├── Encina.Dapper.*/           # Dapper providers (5 databases)
-├── Encina.ADO.*/              # ADO.NET providers (5 databases)
-├── Encina.Caching.*/          # Caching providers (8 packages)
+├── Encina.Dapper.*/           # Dapper providers (SqlServer, PostgreSQL, MySQL)
+├── Encina.ADO.*/              # ADO.NET providers (SqlServer, PostgreSQL, MySQL)
+├── Encina.Caching.*/          # Caching providers
 ├── Encina.FluentValidation/   # FluentValidation integration
-└── ...                        # 39 packages total
+└── ...                        # see docs/INVENTORY.md for the full package list
 
 tests/
 ├── Encina.UnitTests/          # Consolidated unit tests
@@ -533,7 +533,7 @@ Encina is in active development toward **1.0**. See [ROADMAP.md](ROADMAP.md) for
 |-------|--------|-------------|
 | Phase 1 | ✅ Complete | Stability - All tests passing |
 | **Phase 2** | **In Progress** | Functionality - 364 issues across 10 milestones |
-| Phase 3 | Pending | Testing & Quality - Coverage targets (85%+) |
+| Phase 3 | Pending | Testing & Quality - reach the per-package coverage targets ([coverage dashboard](https://dlrivada.github.io/Encina/coverage/), [methodology](docs/testing/coverage-measurement-methodology.md)) |
 | Phase 4 | Pending | Code Quality - SonarCloud compliance |
 | Phase 5 | Pending | Documentation - User guides and examples |
 | Phase 6 | Pending | Release - NuGet publishing, branding |
