@@ -28,9 +28,9 @@ public sealed class TokenMappingStoreRegistrationTests
         });
 
         // Assert: the in-memory default was removed, only the database-backed store remains.
-        services.Count(sd => sd.ServiceType == typeof(ITokenMappingStore)).ShouldBe(1);
-        services.Single(sd => sd.ServiceType == typeof(ITokenMappingStore))
-            .ImplementationType.ShouldBe(typeof(DbTokenMappingStore));
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<ITokenMappingStore>()
+            .ShouldBeOfType<DbTokenMappingStore>();
     }
 
     [Fact]
@@ -49,9 +49,9 @@ public sealed class TokenMappingStoreRegistrationTests
         services.AddEncinaAnonymization();
 
         // Assert: AddEncinaAnonymization's TryAdd no-ops because a store is already registered.
-        services.Count(sd => sd.ServiceType == typeof(ITokenMappingStore)).ShouldBe(1);
-        services.Single(sd => sd.ServiceType == typeof(ITokenMappingStore))
-            .ImplementationType.ShouldBe(typeof(DbTokenMappingStore));
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<ITokenMappingStore>()
+            .ShouldBeOfType<DbTokenMappingStore>();
     }
 
     [Fact]
