@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | DRAFT — not yet APPROVED. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24 and are encoded here; DEC-001 … DEC-005 are DECIDED (maintainer, 2026-09-24). The split of knowledge migration (per closed issue) from code quality auditing (per audit unit) is DECIDED (maintainer, 2026-09-24, §17.1). Pilot 1 (REQ-026, 20 issues, knowledge only) and pilot 2 (3 deep unit audits) both ran and are reported in §17. **Pilot amendment proposed 2026-09-24, awaiting approval**: the checklist changes of §17.3 and the two-phase execution model of §17.4 are a proposal, not yet decided; the record-schema changes of §17.1 (outcome split, `linked_prs`) are applied below as schema version 2. Approval of the outstanding proposal (REQ-029) still gates scaling |
+| **Status** | **APPROVED with the pilot amendment (maintainer, 2026-09-24)**. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24; DEC-001 … DEC-005 are DECIDED (maintainer, 2026-09-24). Pilot 1 (REQ-026, 20 issues, knowledge only) and pilot 2 (3 deep unit audits) both ran and are reported in §15. Their amendment is DECIDED (maintainer, 2026-09-24, §15): the audit unit is one closed issue, not a package or folder; every closed issue gets a full deep audit of the code it touched plus its knowledge record, processed one by one in ascending issue-number order from #1; record schema version 2 applies (§3.1, outcome split, `linked_prs`); the checklist amendments of §15.3 apply. Scaling starts at #1 |
 | **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-24 |
 | **Date** | 2026-09-24 |
 | **Refines** | [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §9 (Historian), §10 (Auditor), §16 (existing code audit), §17 (knowledge debt) and §22 (audit passes); turns [PROJECT-HISTORY.md](../engineering/PROJECT-HISTORY.md) into a generated document |
@@ -42,9 +42,9 @@ The goal is therefore not a better summary. It is that the durable knowledge of 
 | Current | A knowledge item still constrains today's work: the decision was not reversed and the feature was not removed. |
 | Destination | The repository artifact where a knowledge item lives today (§4). |
 | Knowledge record | The small per-issue file of §3 that lists an issue's knowledge items, their destinations, its audit verdict and its remediation issues. |
-| Audit unit | The part of the code audited as one: a project under `src/`, or, for the core `Encina` package, one top-level folder of `src/Encina/` (the same folders the mutation matrix shards on). Knowledge migrates per closed issue (records, §3); code quality is audited per audit unit, using the issues that touched it as historical context (§17.1, DECIDED). A record links the audit result of the unit or units its code falls in (§5.5); it does not repeat the audit. |
+| Audit unit | One closed issue: the code audited as one is the code that issue's merged pull requests touched, as it exists today (§5.1). Superseded by the pilot amendment (§15.4, DECIDED, maintainer 2026-09-24): the earlier definition of a per-package or per-folder unit is replaced. Knowledge migration and code auditing now run on the same unit, one closed issue, processed in ascending issue-number order starting at #1. |
 | Finding | A checklist item (§5) that fails on verified evidence. |
-| Remediation issue | A GitHub issue that groups the findings of one audit unit or feature for one template type (§5.4). |
+| Remediation issue | A GitHub issue that groups the findings of one feature or package and one template type, deduplicated against open issues before it is drafted (§5.4, amended §15.4). |
 | Batch | A set of records or findings handled by one specialist in one pull request (§6). |
 
 ### 2.3 Non-goals
@@ -65,21 +65,21 @@ One file per closed issue at `docs/knowledge/issues/<n>.md`, where `<n>` is the 
 
 | Field | Type | Values and rules |
 |---|---|---|
-| `schema` | integer | Version of this table; starts at 1 and changes only through an amendment of this specification (REQ-030). **Version 2** as of the pilot amendment of §17.1 (2026-09-24): splits `outcome: rejected` and adds `linked_prs`. |
+| `schema` | integer | Version of this table; starts at 1 and changes only through an amendment of this specification (REQ-030). **Version 2** as of the pilot amendment of §15.1 (2026-09-24): splits `outcome: rejected` and adds `linked_prs`. |
 | `nav_exclude` | boolean | Always `true`: records are internal and stay out of the site navigation. |
 | `issue` | integer | The issue number. |
 | `title` | string | The issue title as it was at closure. |
 | `closed` | date | `yyyy-MM-dd`. |
 | `state_reason` | enum | `completed`, `not-planned`, `duplicate`. |
-| `outcome` | enum | `delivered`, `partial`, `rejected-reasoned`, `rejected-unexplained`, `superseded`, `duplicate`, `moved`, `no-evidence` (DEC-002; split of `rejected` per §17.1, schema 2). `rejected-reasoned` records a stated reason in the evidence; `rejected-unexplained` records none found. |
+| `outcome` | enum | `delivered`, `partial`, `rejected-reasoned`, `rejected-unexplained`, `superseded`, `duplicate`, `moved`, `no-evidence` (DEC-002; split of `rejected` per §15.1, schema 2). `rejected-reasoned` records a stated reason in the evidence; `rejected-unexplained` records none found. |
 | `type` | enum | The template prefix: `bug`, `feature`, `debt`, `test`, `spike`, `infra`, `refactor`, `epic`, or `other` for issues opened without a template. |
 | `area` | enum | One of the fourteen areas of `PROJECT-HISTORY.md` (the keys of `tools/ai/consolidate-run.ps1`: `core`, `messaging`, `data`, `caching`, `eventsourcing`, `validation`, `observability`, `security-compliance`, `testing-quality`, `ci-process`, `docs-dx`, `web-cloud`, `modules-tenancy`, `resilience`). |
 | `packages` | list | The projects under `src/` whose code the issue touched, by project name; empty when it touched none. |
 | `prs` | list | Pull request numbers in the evidence set, with `merged` or `closed`. |
-| `linked_prs` | list | Pull request numbers found through `closedByPullRequestsReferences` and timeline cross-references rather than `prs` search alone (§17.1, schema 2); overlaps `prs` where a number appears in both. |
+| `linked_prs` | list | Pull request numbers found through `closedByPullRequestsReferences` and timeline cross-references rather than `prs` search alone (§15.1, schema 2); overlaps `prs` where a number appears in both. |
 | `duplicate_of` / `superseded_by` | integer | Required when the outcome says so. |
 | `knowledge` | list | One entry per knowledge item: `kind` (decision, rejected-alternative, rule, direction-change, gotcha, pending-work), `statement` (one sentence), `current` (`yes`, `no`, `unknown`), `sources` (at least one: URL, date, and a quote or paraphrase marked `quote:` or `paraphrase:`), `destinations` (list, §4). |
-| `audit` | map | `unit` (list of audit units), `checklist` (version of §5), `date`, `verdict` (§5.3), `record` (link to the audit unit's result file, REQ-011). |
+| `audit` | map | `checklist` (version of §5), `date`, `verdict` (§5.3), `record` (link to `docs/knowledge/audits/issue-<n>.md`, REQ-011). The audit unit is the issue itself (§15.4, DECIDED), so no separate `unit` field is needed. |
 | `remediation` | list | Issue numbers of the remediation issues that carry this issue's findings. |
 | `review` | enum | `draft` (local model), `verified` (a Claude agent followed every source link), `sampled` (part of a verified sample, REQ-022). |
 
@@ -113,13 +113,13 @@ Precedence: a rule that can be checked mechanically goes to `executable-rule`, a
 
 ### 5.1 What is audited
 
-For each record whose outcome is `delivered` or `partial`, or whose outcome is `no-evidence` and whose subject exists in `src/`, the auditor maps the issue to the code it touched: the files changed by the merged pull requests of its evidence set, followed through later renames to their current paths. Files deleted since are recorded as `code-removed` and are not audited. The files are grouped by audit unit.
+For each record whose outcome is `delivered` or `partial`, or whose outcome is `no-evidence` and whose subject exists in `src/`, the auditor maps the issue to the code it touched: the files changed by the merged pull requests of its evidence set, followed through later renames to their current paths. Files deleted since are recorded as `code-removed` and are not audited.
 
-A unit is audited once per checklist version, and the result is shared by every record whose files fall in that unit. Two items are issue-specific and run per record: AUD-01 (decision conformance) and AUD-06 (regression test).
+The audit unit is the issue itself (§15.4, DECIDED, maintainer 2026-09-24, superseding the earlier per-package/per-folder unit): every closed issue gets its own full audit against every applicable checklist item, on the code it touched as it exists today, in ascending issue-number order starting at #1. Nothing is shared between issues' audits, even where two issues touched the same file; each issue is audited on its own evidence. The depth pilot 1 found missing (§15.1) is mandatory: the auditor reads every touched file, measures the coverage of those files per flag against the package manifest (never guesses it), and runs the tests relevant to the issue rather than only reading them.
 
 ### 5.2 Checklist, version 1
 
-Each item has one outcome per unit (or per record, for AUD-01 and AUD-06): **pass** with the evidence named in the table, **finding** with its class (A, B or C of [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14) and severity (blocker, major, minor), or **not applicable** with a one-sentence reason. For AUD-02, a function may also be **deferred** to an open issue.
+Each item has one outcome per record (the audit unit and the record are the same issue, §15.4, except AUD-11 which runs once per package, §15.3): **pass** with the evidence named in the table, **finding** with its class (A, B or C of [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14) and severity (blocker, major, minor), or **not applicable** with a one-sentence reason. For AUD-02, a function may also be **deferred** to an open issue.
 
 | ID | Check (what must be true today) | Applies when | Normative source | How it is verified | Passing evidence |
 |---|---|---|---|---|---|
@@ -152,15 +152,15 @@ A record's `audit.verdict` is one of: `conforms` (every applicable item passes),
 
 ### 5.4 From findings to remediation issues
 
-- Findings are grouped **per audit unit or feature and per template type**, never one issue per finding: all the missing tests of `Encina.Compliance.Retention` go to one `[TEST]` issue, its defects to one `[BUG]` issue per defect family. An open issue that already covers a finding takes it as a comment or a checklist line instead of a new issue.
-- Each remediation issue uses the headers of its template in `.github/ISSUE_TEMPLATE/` verbatim, in order, with the checkboxes ticked, lists its findings with the checklist ID, file and evidence, and links the records it came from. Workers write it as an issue file under `artifacts/issues/`; the orchestrator opens it through the `open-issue` skill.
+- Findings are grouped **per feature or package and per template type**, never one issue per finding: all the missing tests of `Encina.Compliance.Retention` go to one `[TEST]` issue, its defects to one `[BUG]` issue per defect family. Because the audit now runs one closed issue at a time (§15.4), the same defect can surface from more than one issue's audit; **before drafting a remediation issue, the auditor searches the open issues for the same defect** (§15.4, DECIDED). When one already tracks it, the finding is added there as a comment or a checklist line, through the orchestrator, instead of opening a duplicate.
+- Each remediation issue uses the headers of its template in `.github/ISSUE_TEMPLATE/` verbatim, in order, with the checkboxes ticked, lists its findings with the checklist ID, file and evidence, and links the records it came from. Workers write it as an issue file under `artifacts/issues/`; the orchestrator opens it through the `open-issue` skill, or adds the comment/checklist line to the deduplicated issue.
 - **Milestones.** Defects go to `v0.14.0 — Hardening`. Missing tests, telemetry and documentation go to the pre-1.0 milestone that owns the package; when none owns it, to `v0.21.0 — Documentation`.
 - **Priority.** P0 – P3 as in [ENCINA-1.0-RECONCILIATION.md](../engineering/ENCINA-1.0-RECONCILIATION.md) §4. A remediation issue enters P0 only with a recorded reason citing a SPEC-000 requirement (SPEC-000 INV-004), for example REQ-007 for coverage, REQ-010 for EventIds, REQ-011 for defects or REQ-013 for public API and XML documentation. A security-classified defect cannot be deferred (SPEC-000 REQ-011).
 - **Labels.** The template's default label, the `area-*` label of the unit, and `ai:local-candidate` or `ai:claude-required` (`ai-task-routing.md` §6).
 
 ### 5.5 Where audit results live
 
-One result file per audit unit at `docs/knowledge/audits/<unit>.md` (same folder decision as the records, DEC-001), with the checklist version, the date, one row per checklist item with its outcome and evidence, coverage figures only as covref citations, and the remediation issues. Records link the result file; they do not copy it.
+One result file per closed issue at `docs/knowledge/audits/issue-<n>.md` (same folder decision as the records, DEC-001; same numbering as the record it audits), with the checklist version, the date, one row per checklist item with its outcome and evidence, coverage figures only as covref citations, and the remediation issues (deduplicated per §5.4). The record links the result file; it does not copy it (§15.4, DECIDED: a separate file, not an embedded section, so the record stays within the 200-word body of §3.2 and REQ-011's "a result file" is one file per issue).
 
 ## 6. Requirements
 
@@ -183,11 +183,11 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 ### 6.3 Audit
 
-- **REQ-010** Every record whose outcome is `delivered` or `partial`, and every `no-evidence` record whose subject exists in `src/`, is audited against the current checklist version (§5), on the code as it is today, through its audit units.
-- **REQ-011** Every audit unit touched by at least one record has a result file (§5.5) whose rows cover every checklist item with an outcome and evidence.
+- **REQ-010** Every record whose outcome is `delivered` or `partial`, and every `no-evidence` record whose subject exists in `src/`, is audited against the current checklist version (§5), on the code as it is today: the audit unit is the issue itself (§15.4), so this is one full pass per record.
+- **REQ-011** Every such record has a result file (§5.5, `docs/knowledge/audits/issue-<n>.md`) whose rows cover every checklist item with an outcome and evidence.
 - **REQ-012** A finding is recorded only after it has been checked against the code, with file, line and the evidence that exposes it; a local-model draft of a finding is not a finding until verified. A manifest entry that misdeclares a file is a finding for `quality-method`, not a change of target.
 - **REQ-013** Every finding is fixed (with the pull request that fixed it), tracked in a remediation issue (§5.4), or not applicable with a reason. Class B and Class C findings go to the maintainer with the options (INV-004).
-- **REQ-014** Remediation issues follow §5.4: grouped per unit or feature and template type, deduplicated against open issues, templated, milestoned, prioritised and labelled as stated there, and linked from the records they came from.
+- **REQ-014** Remediation issues follow §5.4: grouped per feature or package and template type, deduplicated against open issues before drafting, templated, milestoned, prioritised and labelled as stated there, and linked from the records they came from.
 
 ### 6.4 Generated documents
 
@@ -199,12 +199,13 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 ### 6.5 Execution
 
-- **REQ-020** The migration runs as a pipeline of stages whose handoffs are files, never conversation (§8 diagram): extraction by script, triage and record drafts by the local model, verification by Claude agents, audit per unit, destination batches by specialists, remediation issue files, generation.
+- **REQ-020** The migration runs as a pipeline of stages whose handoffs are files, never conversation (§8 diagram): extraction by script, triage and record drafts by the local model, verification by Claude agents, audit per issue (§15.4), destination batches by specialists, remediation issue files, generation.
 - **REQ-021** The local model drafts records in bounded batches with a closed brief and a JSON output that a script validates before anything is kept (every input issue present, enum values valid, a source on every item), as `tools/ai/archaeology-run.ps1` does today; a batch that fails validation twice is re-briefed, not accepted in part. Every local run is recorded in `artifacts/local-ai/ledger.csv`.
 - **REQ-022** Drafts are verified by a Sonnet agent that follows the source links: every record of the pilot, and after the pilot a sample per batch whose size and rejection threshold the pilot fixes (REQ-029). A batch whose sample fails the threshold is verified in full. Every record with an `adr`, `rule`, `executable-rule` or `spec-invariant` destination is verified in full, whatever the sample.
 - **REQ-023** Destinations are delivered by the specialist that owns the kind (§4), in batches, each batch one pull request that names the records it resolves and updates their destination status in the same pull request. Code batches get an `adversarial-reviewer` pass and documentation batches a `docs-reviewer` pass before they are reported.
 - **REQ-024** The orchestrator's context holds batch manifests and one-line batch results, never per-issue evidence; per-issue content stays in files under `artifacts/` and in the records.
 - **REQ-025** The cost of the program is reported from the ledgers (`artifacts/local-ai/ledger.csv`, `artifacts/agent-usage/ledger.csv`), never typed by hand.
+- **REQ-035** A closed issue's audit is the rest of the review pipeline the issue never had (§15.0, DECIDED): the coordinating worker gathers the issue's scope and knowledge, then runs `adversarial-reviewer`, `docs-reviewer` and a test review (coverage per flag, missing test types, regression tests, reflection-only tests) in the foreground, on the code the issue touched today. Their verified findings feed the knowledge record and the remediation drafts; remediation is implemented afterwards through the normal pull-request cycle with the usual reviewers, not inline by the auditor.
 
 ### 6.6 Pilot
 
@@ -234,7 +235,7 @@ The definition of done of the program is AC-001 – AC-006; the others verify th
 | AC-005 | REQ-031, REQ-034 | A test pull request that closes an issue without its record fails the CI check; the same pull request with the record passes. `.claude/agents/adversarial-reviewer.md`, `.claude/agents/docs-reviewer.md` and `.claude/skills/pr-cycle/SKILL.md` reference the checklist version; the tests or CI checks for AUD-08, AUD-09, AUD-14, AUD-16, AUD-17 and AUD-18 exist and are green on `main`. |
 | AC-006 | REQ-002, REQ-022 | Every knowledge item has a source with link, date and a marked quote or paraphrase; every batch has a verification report listing the records checked and the errors found. |
 | AC-007 | REQ-008 | Every record of type `bug` with outcome `delivered` or `partial` has a `regression-test` destination whose target test exists, or an AUD-06 finding tracked in a remediation issue. |
-| AC-008 | REQ-014 | No two open remediation issues from this program share an audit unit and a template type; each follows its template (`.claude/hooks/check-issue-template.ps1` accepts it), has the milestone and labels of §5.4, and each P0 one cites a SPEC-000 requirement. |
+| AC-008 | REQ-014 | No two open remediation issues from this program share the same feature or package and template type for the same defect: a repeat finding from a later issue's audit is added as a comment or checklist line to the existing one instead of a duplicate (§5.4); each remediation issue follows its template (`.claude/hooks/check-issue-template.ps1` accepts it), has the milestone and labels of §5.4, and each P0 one cites a SPEC-000 requirement. |
 | AC-009 | REQ-006 | No file under `docs/plans/` is added by a pull request of this program. |
 | AC-010 | REQ-009 | No performance claim quoted in any record's evidence remains in `docs/`, a README or an ADR without a DocRef citation. |
 | AC-011 | REQ-019 | The validation job fails a pull request with a record that has an unknown enum value, a missing required field, a `done` destination pointing at a missing file, or an item without a source; it passes with the record fixed. |
@@ -258,7 +259,7 @@ flowchart TD
     G --> H[Generator: indexes and PROJECT-HISTORY.md]
 ```
 
-- **Extraction** extends `tools/ai/historian-extract-closed.ps1` with the files each pull request changed, the review threads of those pull requests and the referencing commits, and writes one evidence file per issue under `artifacts/knowledge/`. It gathers pull requests through `closedByPullRequestsReferences` and timeline cross-references, not `gh pr list --search`, which misses the pull requests of early issues (pilot 1, §17.1); the fetcher of #1311 does this and populates `linked_prs`.
+- **Extraction** extends `tools/ai/historian-extract-closed.ps1` with the files each pull request changed, the review threads of those pull requests and the referencing commits, and writes one evidence file per issue under `artifacts/knowledge/`. It gathers pull requests through `closedByPullRequestsReferences` and timeline cross-references, not `gh pr list --search`, which misses the pull requests of early issues (pilot 1, §15.1); the fetcher of #1311 does this and populates `linked_prs`.
 - **Drafting** replaces the output schema of `tools/ai/archaeology-run.ps1` with the record schema of §3; `consolidate-run.ps1` and `history-sections-run.ps1` are retired, because the generator of REQ-015 needs no model.
 - **Routing** follows [ai-task-routing.md](../engineering/ai-task-routing.md): the Historian role is local with Claude sampling; the Auditor's mechanical items are scripts; judgement items (AUD-01, AUD-02, AUD-12, AUD-13) are Claude agents; the orchestrator dispatches and never reads evidence (REQ-024).
 - **Order.** After the pilot, batches run by area, starting with the areas whose packages are in the 1.0 contract and have the most records, so that remediation reaches the pre-1.0 milestones first.
@@ -288,7 +289,7 @@ flowchart TD
 |---|---|
 | Records (REQ-001 – REQ-003) | The AC-001 script; the validation script of REQ-019; the verification reports of REQ-022 |
 | Destinations (REQ-004 – REQ-009) | The validation script; the batch pull requests; for regression tests, running the named test on the parent commit of the fix |
-| Audit (REQ-010 – REQ-014) | Result files per unit; the mechanical checks as scripts or tests; `adversarial-reviewer` on a sample of findings; the issue template hook |
+| Audit (REQ-010 – REQ-014, REQ-035) | Result files per issue (§15.4); the mechanical checks as scripts or tests; `adversarial-reviewer` and `docs-reviewer` runs per issue (§15.0); the issue template hook |
 | Generated documents (REQ-015 – REQ-019) | Regenerating over the records of the last generation commit and comparing; the CI validation job |
 | Execution (REQ-020 – REQ-025) | Batch manifests and verification reports under `artifacts/knowledge/`; the ledgers |
 | Pilot (REQ-026 – REQ-030) | The pilot report; the amendment pull request of this specification |
@@ -342,23 +343,29 @@ Scaling batches are tracked by the batch manifests, not by one issue per batch; 
 | SPEC-002 DEC-006, REQ-034, REQ-061, REQ-062 | AUD-12, AUD-13; §5.2.1 |
 | Issues #522, #543, #667, #765, #794, #851, #856, #897, #1155, #1273 | §1; AUD-12 – AUD-17 |
 
-## 17. Pilot amendment (2026-09-24)
+## 15. Pilot amendment (2026-09-24)
 
-The maintainer approved the split of units (§2.2) and running both pilots on 2026-09-24. §17.1 and §17.2 report what the pilots found and are DECIDED as facts of record. §17.3 and §17.4 are a **proposed amendment, pending the maintainer's approval** (REQ-029); they are not yet in force.
+The maintainer ran both pilots, reviewed their reports and DECIDED the amendment below on 2026-09-24. Every part of this section is in force; there is no separate proposal stage.
 
-### 17.1 Pilot 1 — knowledge migration only, 20 issues
+### 15.0 Philosophy: the audit runs the closed issue through the rest of the pipeline
+
+For new work, Encina's lifecycle is: the maintainer and the architect design the issue; a specialist helps draft the issue and its specs; an agent implements it; then many specialists check the work — documenters, testers, workers, reviewers — before it becomes a permanent part of Encina.
+
+A closed issue is the same lifecycle with the first half already done: the issue exists, there are no specs, and the code is finished, or seems to be. The audit therefore runs the issue through the rest of the specialist pipeline it would have gone through had it been reviewed today, and collects what those specialists teach, rather than inventing a separate audit method (§15.4).
+
+### 15.1 Pilot 1 — knowledge migration only, 20 issues
 
 Outcomes: 16 delivered, 2 rejected, 1 superseded, 1 partial.
 
-Per-issue code auditing, tried inside this pilot, was shallow: 1 major and 12 minor findings, with most audit cells left "not checked". This is the evidence behind the split of units in §2.2: knowledge migrates per issue, code is audited per unit.
+Per-issue code auditing, tried inside this pilot, was shallow: 1 major and 12 minor findings, with most audit cells left "not checked". This is the evidence behind §15.4: an auditor working issue by issue needs the depth pilot 2 used (measured coverage, every touched file read, the relevant tests run), not a lighter pass.
 
 Schema changes (schema version 2, applied in §3.1 above): `outcome: rejected` splits into `rejected-reasoned` (a stated reason exists in the evidence) and `rejected-unexplained` (none found); a `linked_prs` field is added.
 
 Data gathering must use `closedByPullRequestsReferences` and timeline cross-references: `gh pr list --search` misses the pull requests of early issues. The fetcher of #1311 does this (applied in §8 above).
 
-### 17.2 Pilot 2 — three deep unit audits
+### 15.2 Pilot 2 — three deep unit audits
 
-Units: the core `Encina` pipeline, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`.
+Units: the core `Encina` pipeline, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`. These were audited as packages/folders under the pilot's original design; §15.4 replaces that unit definition with one closed issue, but the depth pilot 2 demonstrated — reading every touched file, measuring coverage per flag, running tests — carries over unchanged to the per-issue audit.
 
 Findings: 26 total — 5 blockers, 11 major, 10 minor. 13 remediation issues were opened: #1313–#1325.
 
@@ -378,32 +385,48 @@ Coverage was measured per flag against each package's manifest:
 - Consent: unit 81/70, guard 11/20 (fail), contract 0/15 (fail), property 11/15 (fail).
 - ADO.PostgreSQL: unit 29.6/30 (borderline), guard 26/10, contract 92.9/5, integration 39.2/25.
 
-Cost: about 200,000–370,000 Claude (Sonnet) tokens and about 15 minutes of wall time per unit; the three units ran in parallel. Local-model use was low: one agent used it only to draft issue files.
+Cost: about 200,000–370,000 Claude (Sonnet) tokens and about 15 minutes of wall time per unit; the three units ran in parallel. Local-model use was low: one agent used it only to draft issue files. The maintainer accepts this token cost as a good investment per issue (§15.4); it is not being optimized away by batching units.
 
-### 17.3 Proposed amendment — checklist (pending maintainer approval)
+### 15.3 Checklist amendments (DECIDED)
 
 - **AUD-03**: also verify the manifest's file list against a glob of the package, to catch a manifest that misdeclares a file.
 - **AUD-05**: "Applies when" treats Marten/event-sourced features as database features for the integration-test rule (no justification file accepted for their integration tests).
-- **AUD-06**: not applicable when the unit has no closed bug issue.
-- **AUD-07**: not applicable for provider-agnostic units.
-- **AUD-11**: runs once per package, not once per folder audit unit.
-- Mark as **SCRIPTED** checks (a machine runs them, not an agent's judgement): AUD-13 (message leaks), AUD-14 (`TimeProvider`), AUD-16 (synchronous database calls), AUD-17 (DI `ValidateOnBuild`, #1308), and the reflection-only contract test check that pilot 2 found manually (#1316).
+- **AUD-06**: not applicable when the issue's evidence includes no closed bug (type `bug` outcome `delivered`/`partial`).
+- **AUD-07**: not applicable for provider-agnostic issues.
+- **AUD-11**: runs once per package, not once per issue; an issue whose files fall in a package already checked under the current checklist version does not repeat AUD-11.
+- **SCRIPTED checks**: AUD-13 (message leaks), AUD-14 (`TimeProvider`), AUD-16 (synchronous database calls), AUD-17 (DI `ValidateOnBuild`, #1308), and the reflection-only contract test check pilot 2 found manually (#1316), are backed by an analyzer, a script or an architecture test that fails on a violating example, so the pattern cannot recur. A SCRIPTED check does not replace the per-issue audit of that item (§15.4): the auditor still records the item's outcome for the issue, citing the script or test as evidence instead of re-deriving it by hand.
 
-### 17.4 Proposed amendment — execution model (pending maintainer approval)
+### 15.4 Execution model (DECIDED): one closed issue, ascending order
 
-Revise §8 into two phases. **Phase A** runs repository-wide scripted sweeps for the mechanical items marked SCRIPTED in §17.3: analyzers, scripts and architecture tests that each fix one pattern across every package at once, cheaper than finding it unit by unit. **Phase B** runs deep unit audits focused on the remaining, judgement-only items, with the local model reading and summarising the unit's closed issues before a Claude agent audits.
+There is no per-package or per-folder audit unit, and no scripted-sweep phase ahead of the audits. **The audit unit is one closed issue.** Every closed issue in scope (§2.1) is audited one by one, in ascending issue-number order starting at #1, through the last closed issue. Each issue's audit is a full pass of every applicable item of the checklist (§5.2, AUD-01 … AUD-18, as amended by §15.3) against the code that issue's merged pull requests touched, as it exists today — measured and cited with file:line evidence, never guessed. The issue's knowledge record (§3) is produced alongside its audit.
 
-Pilot 2, run without Phase A, cost about 300,000 tokens per unit for roughly 100 units, so scaling as pilot 2 ran would cost on that order across the whole codebase (a qualitative extrapolation from the two measured units above, not a new figure). The goal of Phase A is to cut that substantially by moving the mechanical items out of each unit's per-unit cost; this specification adds no invented number for the reduction.
+Mandatory depth per issue, carried over from pilot 2 because pilot 1 showed a lighter pass is not reliable (§15.1): the auditor reads every file the issue touched, measures the coverage of those files per flag against the package manifest, and runs the tests relevant to the issue rather than only reading them.
 
-## 18. Change log
+**The audit is the rest of the review pipeline the issue never had (§15.0).** Concretely, for each issue the coordinating worker first gathers the scope (the files it touched, §5.1) and the knowledge (§3), then runs these specialists in the **foreground**, in the same worktree:
+
+- `adversarial-reviewer`: reviews the code in scope as if it were this issue's pull request today, against the issue's stated goal and acceptance criteria and against today's standards (this checklist and the `CLAUDE.md` rules).
+- `docs-reviewer`: reviews the docs and package READMEs that describe the feature the issue touched.
+- A test review: measured coverage per flag against the manifest (AUD-03, AUD-04), missing test types (AUD-05), a regression test for a fixed bug (AUD-06), and test quality, including tests that only use reflection (AUD-04). A dedicated `test-auditor` agent may replace this ad hoc review later; until then the coordinating worker or `adversarial-reviewer` performs it.
+
+The specialists' verified findings and lessons feed the issue's knowledge record and its remediation drafts; nothing is guessed or accepted from a specialist's draft without verification (§3.1 `review` field). Remediation itself is implemented later by workers through the normal pull-request cycle, with the usual reviewers — the audit finds and records the gap, it does not fix it inline.
+
+Audit results live at `docs/knowledge/audits/issue-<n>.md`, one file per issue (§5.5, DECIDED: a separate file rather than an embedded record section, so the record stays within its 200-word body).
+
+Mechanical items (AUD-13, AUD-14, AUD-16, AUD-17, and the reflection-only contract test check) are backed by scripts and architecture tests so the pattern cannot recur codebase-wide; these scripts prevent regressions, they do not replace auditing that item for each issue (§15.3).
+
+Before drafting a remediation issue, the auditor searches the open issues for the same defect (§5.4, amended). When one already tracks it, the finding is added there as a comment or a checklist line through the orchestrator, instead of a new issue.
+
+The token cost measured in pilot 2 (§15.2) is accepted as a good investment for this program; scaling does not attempt to reduce it through batching by package. Scaling starts at issue #1.
+
+## 16. Change log
 
 | Date | Change |
 |---|---|
 | 2026-09-24 | DRAFT created from the maintainer's approval of the program's goal, taxonomy, record, checklist, grouping, execution model, continuity and definition of done. DEC-001 … DEC-005 open. Counts: 34 REQ, 16 AC, 7 INV, 18 checklist items, 5 DEC. The first draft of the checklist table was produced by the local model from a facts file and rewritten. |
 | 2026-09-24 | DEC-001 … DEC-005 DECIDED: the maintainer took option (a) for all five. Records and audit results live under `docs/knowledge/`; every closed issue gets a full record, with duplicates and not-planned issues recorded but not audited; merged pull requests with no issue stay out of scope; the generated documents regenerate only through the weekly and milestone passes; the closing `issue-worker` writes the record, and the path-ownership hook change that requires (T-08) is tracked, not yet made. The document no longer hedges these five points as open. Status stays DRAFT pending the pilot amendment of REQ-029. |
-| 2026-09-24 | Pilot amendment (§17), from pilot 1 (20 issues, knowledge only) and pilot 2 (3 deep unit audits: core, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`). DECIDED and applied: the split of units (§2.2), record schema version 2 (`outcome` splits `rejected` into `rejected-reasoned`/`rejected-unexplained`, adds `linked_prs`, §3.1), and the extraction method using `closedByPullRequestsReferences` and timeline cross-references (§8). Proposed and **pending the maintainer's approval**: the checklist changes of §17.3 (AUD-03, AUD-05, AUD-06, AUD-07, AUD-11, and marking AUD-13/14/16/17 and the reflection-only contract test check as SCRIPTED) and the two-phase execution model of §17.4 (Phase A scripted sweeps, then Phase B unit audits). Status stays DRAFT until that proposal is decided. |
+| 2026-09-24 | Pilot amendment (§15) DECIDED (maintainer, 2026-09-24), from pilot 1 (20 issues, knowledge only) and pilot 2 (3 deep unit audits: core, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`). The audit unit becomes one closed issue, replacing the earlier per-package/per-folder unit and the two-phase scripted-sweep proposal (§2.2, §5.1, §5.4, §5.5, §15.4): every closed issue is audited one by one in ascending order from #1, with full checklist depth and file:line evidence, plus its knowledge record; mechanical items (AUD-13/14/16/17, reflection-only contract tests) are backed by scripts to prevent recurrence but do not replace the per-issue audit; remediation issues are deduplicated against open issues before drafting. §15.0 (REQ-035, DECIDED) states the philosophy: the audit runs the closed issue through the rest of the specialist review pipeline it never had — `adversarial-reviewer`, `docs-reviewer` and a test review, in the foreground, feeding the record and remediation drafts, which workers implement through the normal pull-request cycle. Record schema version 2 applies (`outcome` splits into `rejected-reasoned`/`rejected-unexplained`, adds `linked_prs`, §3.1); extraction uses `closedByPullRequestsReferences` and timeline cross-references (§8). The checklist amendments of §15.3 (AUD-03, AUD-05, AUD-06, AUD-07, AUD-11, SCRIPTED marking) apply. REQ-010, REQ-011, REQ-014 and AC-008 are reworded to match the one-issue-one-unit model. Status changes to APPROVED with the pilot amendment. Scaling starts at #1. |
 
-## 19. Related documents
+## 17. Related documents
 
 - [SPEC-000 — Encina 1.0 Baseline and Release Scope](SPEC-000-encina-1.0-baseline-and-release-scope.md)
 - [SPEC-001 — DocRef citations for coverage](SPEC-001-coverage-docref-citations.md)
