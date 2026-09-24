@@ -212,11 +212,12 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
             return outcome.Match(
                 Right: _ => new DispatchResult(true, null),
-                Left: error => new DispatchResult(false, error.Message));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return new DispatchResult(false, ex.Message);
+            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name);
         }
     }
 

@@ -198,10 +198,9 @@ public sealed class StorePayloadEncryptionTests
         first.RequestContent.ShouldNotContain("F41.1");
 
         // Arrange: the processor resolves its collaborators from a scope, like in production.
-        // The Left stub below is not what makes the dispatch fail: DelayedRetryProcessor casts the
-        // ValueTask returned by IEncina.Send to Task, so every dispatch currently ends in an
-        // InvalidCastException (#1272) and takes the reschedule path. Send is still invoked with
-        // the decrypted request before the cast, which is what this test checks.
+        // The Left stub below is what makes the dispatch fail: DelayedRetryProcessor dispatches
+        // through RuntimeTypeRequestDispatcher, so the failed Either takes the reschedule path.
+        // Send is still invoked with the decrypted request, which is what this test checks.
         var encina = Substitute.For<IEncina>();
         encina.Send(Arg.Any<SessionReminderRequest>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, string>(EncinaErrors.Create("reminder.failed", "still failing")));
@@ -221,8 +220,7 @@ public sealed class StorePayloadEncryptionTests
         };
 
         // Act: one processing pass decrypts the request, dispatches it and, because the dispatch
-        // fails (the #1272 InvalidCastException, see above), schedules the next delayed retry,
-        // which re-encrypts it.
+        // fails (the Left stub above), schedules the next delayed retry, which re-encrypts it.
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await processor.StartAsync(cts.Token);
         await store.WaitForMessageCountAsync(2, cts.Token);

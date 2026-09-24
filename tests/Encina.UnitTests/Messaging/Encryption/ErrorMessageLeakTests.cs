@@ -90,6 +90,60 @@ public sealed class ErrorMessageLeakTests
     }
 
     [Fact]
+    public async Task DelayedRetryProcessor_DispatchReturnsLeft_StoresOnlyTheErrorCode()
+    {
+        // Arrange - no delayed retries configured, so the first failed dispatch goes straight
+        // to the permanent-failure path and MarkAsFailedAsync is the sink under test.
+        var serializer = new JsonMessageSerializer();
+        var message = Substitute.For<IDelayedRetryMessage>();
+        message.Id.Returns(Guid.NewGuid());
+        message.RequestType.Returns(typeof(ReminderRequest).AssemblyQualifiedName!);
+        message.RequestContent.Returns(serializer.Serialize(new ReminderRequest(PersonalData)));
+        message.ContextContent.Returns("{}");
+        message.DelayedRetryAttempt.Returns(0);
+
+        var store = Substitute.For<IDelayedRetryStore>();
+        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<IDelayedRetryMessage>>([message]));
+        var failed = new TaskCompletionSource<string>();
+        store.MarkAsFailedAsync(message.Id, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask)
+            .AndDoes(ci => failed.TrySetResult(ci.ArgAt<string>(1)));
+
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<ReminderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, string>(SensitiveError));
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
+        serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+        serviceProvider.GetService(typeof(IMessageSerializer)).Returns(serializer);
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+
+        var processor = new DelayedRetryProcessor(
+            scopeFactory,
+            new RecoverabilityOptions { DelayedRetries = [] },
+            NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMinutes(5)
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        // Act
+        await processor.StartAsync(cts.Token);
+        var reason = await failed.Task.WaitAsync(cts.Token);
+        await processor.StopAsync(CancellationToken.None);
+
+        // Assert - only the error code reaches the stored failure reason.
+        reason.ShouldBe("consent.missing");
+        reason.ShouldNotContain(PersonalData);
+    }
+
+    [Fact]
     public async Task DeadLetter_AddAsync_StoresAndLogsOnlyTheErrorCodeAndExceptionType()
     {
         // Arrange
