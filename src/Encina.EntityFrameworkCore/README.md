@@ -650,7 +650,7 @@ entity.ConfigureSoftDelete();
 entity.Property(e => e.IsDeleted).HasDefaultValue(false);
 entity.Property(e => e.DeletedAtUtc);
 entity.Property(e => e.DeletedBy).HasMaxLength(256);
-entity.HasQueryFilter(e => !e.IsDeleted); // Global query filter
+entity.HasQueryFilter("Encina.SoftDelete", e => !e.IsDeleted); // Named global query filter (see #1268)
 ```
 
 **Automatic Audit Timestamps:**
