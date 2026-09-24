@@ -645,4 +645,18 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Debug,
         Message = "Retention record is not under legal hold; release already done. RecordId={RecordId}, Status={Status}")]
     internal static partial void RetentionRecordAlreadyReleased(this ILogger logger, Guid recordId, Model.RetentionStatus status);
+
+    // ========================================================================
+    // Legal hold placement outcome log messages (8594)
+    // ========================================================================
+
+    /// <summary>
+    /// Placing a legal hold on one retention record failed — the record stays out of legal hold
+    /// and <c>PlaceHoldAsync</c> reports the failure so that a later call can retry it.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8594,
+        Level = LogLevel.Warning,
+        Message = "Retention record could not be placed under a newly placed legal hold; it is not protected until the placement is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
+    internal static partial void LegalHoldRecordHoldFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorMessage);
 }

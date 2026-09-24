@@ -246,6 +246,127 @@ public sealed class DefaultLegalHoldServiceTests
             Arg.Any<CancellationToken>());
     }
 
+    // ------------------------------------------------------------------------
+    // Placement cascade failures (#1184)
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task PlaceHoldAsync_HoldRecordReturnsLeft_ReturnsHoldPlacementIncomplete_ListingTheFailedRecord_ButStillHoldsTheOthers()
+    {
+        var held = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        var failing = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        GivenPlaceSucceeds();
+        GivenRecordsToHold(held, failing);
+        _retentionRecordService
+            .HoldRecordAsync(held.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+        _retentionRecordService
+            .HoldRecordAsync(failing.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaError.New("event store down")));
+
+        var result = await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+
+        var error = result.Match(_ => throw new InvalidOperationException("Expected Left"), e => e);
+        error.GetCode().Match(c => c, () => string.Empty).ShouldBe(RetentionErrors.HoldPlacementIncompleteCode);
+        FailedRecordIds(error).ShouldBe([failing.Id.ToString()]);
+        // The hold itself is still placed; only the cascade is incomplete.
+        await _repository.Received(1).CreateAsync(Arg.Any<LegalHoldAggregate>(), Arg.Any<CancellationToken>());
+        // The other record is still held: one failure does not stop the others.
+        await _retentionRecordService.Received(1).HoldRecordAsync(held.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceHoldAsync_HoldRecordThrows_ReturnsHoldPlacementIncomplete_AndHoldsTheRest()
+    {
+        var throwing = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        var held = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        GivenPlaceSucceeds();
+        GivenRecordsToHold(throwing, held);
+        _retentionRecordService
+            .HoldRecordAsync(held.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+#pragma warning disable CA2012 // NSubstitute mock setup for ValueTask-returning method
+        _retentionRecordService
+            .HoldRecordAsync(throwing.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("event store down"));
+#pragma warning restore CA2012
+
+        var result = await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+
+        var error = result.Match(_ => throw new InvalidOperationException("Expected Left"), e => e);
+        error.GetCode().Match(c => c, () => string.Empty).ShouldBe(RetentionErrors.HoldPlacementIncompleteCode);
+        FailedRecordIds(error).ShouldBe([throwing.Id.ToString()]);
+        await _retentionRecordService.Received(1).HoldRecordAsync(held.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceHoldAsync_RecordsQueryReturnsLeft_ReturnsHoldPlacementIncomplete_HoldsNothing()
+    {
+        GivenPlaceSucceeds();
+        _recordReadModelRepository
+            .QueryAsync(
+                Arg.Any<Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(EncinaError.New("records store down")));
+
+        var result = await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+
+        result.Match(_ => string.Empty, e => e.GetCode().Match(c => c, () => string.Empty))
+            .ShouldBe(RetentionErrors.HoldPlacementIncompleteCode);
+        await _retentionRecordService.DidNotReceive()
+            .HoldRecordAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceHoldAsync_HoldFailsThenRetried_SecondCallHoldsOnlyTheRemainingRecord()
+    {
+        var record = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        GivenPlaceSucceeds();
+        GivenRecordsToHold(record);
+        _retentionRecordService
+            .HoldRecordAsync(record.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Left<EncinaError, Unit>(EncinaError.New("transient")),
+                Right<EncinaError, Unit>(Unit.Default));
+
+        var first = await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+        var second = await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+
+        first.IsLeft.ShouldBeTrue();
+        second.IsRight.ShouldBeTrue();
+        // A new hold aggregate is placed each call.
+        await _repository.Received(2).CreateAsync(Arg.Any<LegalHoldAggregate>(), Arg.Any<CancellationToken>());
+        await _retentionRecordService.Received(2).HoldRecordAsync(record.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaceHoldAsync_RecordsQuery_ExcludesRecordsAlreadyUnderLegalHold()
+    {
+        // A retry must only attempt records not yet held, so records already UnderLegalHold are
+        // excluded from the cascade query.
+        GivenPlaceSucceeds();
+        Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>? query = null;
+        _recordReadModelRepository
+            .QueryAsync(
+                Arg.Do<Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>>(q => query = q),
+                Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(new List<RetentionRecordReadModel>()));
+
+        await _sut.PlaceHoldAsync(
+            entityId: "customer-42", reason: "Litigation hold", appliedByUserId: "legal-counsel-1");
+
+        query.ShouldNotBeNull();
+        var active = CreateRecordReadModel(Guid.NewGuid(), "customer-42");
+        var held = CreateRecordReadModel(Guid.NewGuid(), "customer-42", RetentionStatus.UnderLegalHold);
+        var deleted = CreateRecordReadModel(Guid.NewGuid(), "customer-42", RetentionStatus.Deleted);
+        query(new[] { active, held, deleted }.AsQueryable()).ShouldBe([active]);
+    }
+
     #endregion
 
     // ========================================================================
@@ -756,6 +877,18 @@ public sealed class DefaultLegalHoldServiceTests
             .ReleaseRecordAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Unit>(Unit.Default));
 
+    private void GivenPlaceSucceeds() =>
+        _repository
+            .CreateAsync(Arg.Any<LegalHoldAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+    private void GivenRecordsToHold(params RetentionRecordReadModel[] records) =>
+        _recordReadModelRepository
+            .QueryAsync(
+                Arg.Any<Func<IQueryable<RetentionRecordReadModel>, IQueryable<RetentionRecordReadModel>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<RetentionRecordReadModel>>(records));
+
     private static string[] FailedRecordIds(EncinaError error) =>
         (string[])error.GetDetails()["failedRecordIds"]!;
 
@@ -781,7 +914,8 @@ public sealed class DefaultLegalHoldServiceTests
         };
     }
 
-    private static RetentionRecordReadModel CreateRecordReadModel(Guid id, string entityId)
+    private static RetentionRecordReadModel CreateRecordReadModel(
+        Guid id, string entityId, RetentionStatus status = RetentionStatus.Active)
     {
         return new RetentionRecordReadModel
         {
@@ -790,7 +924,7 @@ public sealed class DefaultLegalHoldServiceTests
             DataCategory = "customer-data",
             PolicyId = Guid.NewGuid(),
             RetentionPeriod = TimeSpan.FromDays(365),
-            Status = RetentionStatus.Active,
+            Status = status,
             ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(365),
             CreatedAtUtc = DateTimeOffset.UtcNow,
             LastModifiedAtUtc = DateTimeOffset.UtcNow,
