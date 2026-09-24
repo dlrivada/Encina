@@ -376,7 +376,9 @@ public sealed class ErrorMessageLeakTests
     {
         // Arrange
         var logger = new FakeLogger<RoutingSlipRunner>();
-        var runner = new RoutingSlipRunner(Substitute.For<IRequestContext>(), new RoutingSlipOptions(), logger);
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+        requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+        var runner = new RoutingSlipRunner(requestContextAccessor, new RoutingSlipOptions(), logger);
         var builder = RoutingSlipBuilder.Create<SensitiveData>("TestSlip");
         var definition = builder.Step("Step1")
             .Execute((_, _, _) => ValueTask.FromResult(Left<EncinaError, SensitiveData>(SensitiveError)))
@@ -411,7 +413,9 @@ public sealed class ErrorMessageLeakTests
         var orchestrator = new SagaOrchestrator(sagaStore, new SagaOptions(), NullLogger<SagaOrchestrator>.Instance, stateFactory, new JsonMessageSerializer());
 
         var logger = new FakeLogger<SagaRunner>();
-        var runner = new SagaRunner(orchestrator, Substitute.For<IRequestContext>(), logger);
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+        requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+        var runner = new SagaRunner(orchestrator, requestContextAccessor, logger);
         var definition = SagaDefinition.Create<SensitiveData>("TestSaga")
             .Step("Step1")
             .Execute((_, _, _) => ValueTask.FromResult(Left<EncinaError, SensitiveData>(SensitiveError)))
