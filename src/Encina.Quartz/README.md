@@ -313,7 +313,7 @@ services.AddEncinaQuartz(quartz =>
 | Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while `context.CancellationToken` is cancelled, e.g. scheduler shutdown | `OperationCanceledException` |
 | Any other failure | `JobExecutionException` with `RefireImmediately = false` |
 
-`context.Result` is not persisted by Quartz's default `RAMJobStore`, but an `AdoJobStore` or a custom listener may persist it outside Encina's retention and erasure controls. Unlike `Encina.Hangfire`, there is currently no opt-out for the response on `QuartzRequestJob` (tracked in #1258).
+`context.Result` is exposed to Quartz listeners and is not persisted automatically by Quartz, including `AdoJobStore`. A custom listener or plugin may store it outside Encina's retention and erasure controls. Unlike `Encina.Hangfire`, there is currently no opt-out for the response on `QuartzRequestJob` (tracked in #1258).
 
 Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Messaging.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
 
