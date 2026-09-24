@@ -116,6 +116,31 @@ public sealed class DeadLetterOrchestratorTests
     }
 
     [Fact]
+    public async Task AddAsync_CalledWithABaseTypeParameter_StoresTheRuntimeTypeNotTheDeclaredOne()
+    {
+        // Arrange - calling AddAsync<TRequest> with TRequest bound to a base/interface type while
+        // passing a derived instance must not desync RequestType (stored from the declared type
+        // parameter) from RequestContent (serialized from the runtime type by
+        // SerializeAsRuntimeType), or DeadLetterManager.ReplayAsync cannot resolve the type back
+        // (#1259 review).
+        var request = new DerivedDeadLetterRequest { Id = Guid.NewGuid(), Data = "Test" };
+        var error = EncinaErrors.Create("test.error", "Test error");
+        var context = new DeadLetterContext(
+            error, null, DeadLetterSourcePatterns.Recoverability, TotalRetryAttempts: 1, FirstFailedAtUtc: FixedUtcNow);
+
+        var expectedRuntimeType = typeof(DerivedDeadLetterRequest).AssemblyQualifiedName!;
+        var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(expectedMessage);
+
+        // Act - TRequest is explicitly the base type, but the instance passed is the derived one.
+        await _orchestrator.AddAsync<BaseDeadLetterRequest>(request, context);
+
+        // Assert
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.RequestType == expectedRuntimeType));
+    }
+
+    [Fact]
     public async Task AddAsync_WithException_KeepsExceptionTypeButNotItsMessage()
     {
         // Arrange
@@ -421,6 +446,20 @@ public sealed class DeadLetterOrchestratorTests
 public sealed class TestDeadLetterRequest
 {
     public Guid Id { get; set; }
+    public string Data { get; set; } = string.Empty;
+}
+
+/// <summary>Base type used to exercise <c>AddAsync&lt;TRequest&gt;</c> with a declared type
+/// parameter narrower than the instance's runtime type.</summary>
+public abstract class BaseDeadLetterRequest
+{
+    public Guid Id { get; set; }
+}
+
+/// <summary>Derived request whose runtime type must be the one stored in <c>RequestType</c>,
+/// not <see cref="BaseDeadLetterRequest"/>.</summary>
+public sealed class DerivedDeadLetterRequest : BaseDeadLetterRequest
+{
     public string Data { get; set; } = string.Empty;
 }
 

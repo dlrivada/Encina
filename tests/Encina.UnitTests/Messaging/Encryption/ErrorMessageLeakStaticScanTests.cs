@@ -15,10 +15,13 @@ public sealed partial class ErrorMessageLeakStaticScanTests
     /// <summary>
     /// Identifiers that conventionally hold an <c>EncinaError</c> in this codebase. Deliberately
     /// conservative: a generic name like "e" or "ex" is not included because it usually holds an
-    /// <see cref="Exception"/>, not an <c>EncinaError</c>, and would produce false positives.
+    /// <see cref="Exception"/>, not an <c>EncinaError</c>, and would produce false positives. Any
+    /// identifier ending in "Error" (case-insensitive), such as <c>replayError</c> or
+    /// <c>resultError</c>, is included alongside the fixed set of conventional names, since that
+    /// suffix is this codebase's own naming convention for an <c>EncinaError</c>-typed variable.
     /// </summary>
     [GeneratedRegex(
-        @"\b(error|err|storeError|left|failure|encinaError)\.Message\b",
+        @"\b(\w*error|err|left|failure)\.Message\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex ErrorMessageAccessRegex();
 
