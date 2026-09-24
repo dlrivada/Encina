@@ -1,3 +1,5 @@
+using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Configuration;
 using Encina.EntityFrameworkCore.Tenancy;
 using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -283,6 +285,50 @@ public sealed class TenantDbContextTests
 
     #endregion
 
+    #region Named Query Filter Coexistence Tests (#1268)
+
+    [Fact]
+    public void OnModelCreating_TenantFilterAppliedBeforeSoftDelete_BothNamedFiltersCoexist()
+    {
+        // Arrange
+        var optionsBuilder = new DbContextOptionsBuilder<TenantThenSoftDeleteDbContext>();
+        optionsBuilder.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}");
+
+        // Act
+        using var context = new TenantThenSoftDeleteDbContext(
+            optionsBuilder.Options,
+            _tenantProvider,
+            _efCoreOptions,
+            _coreOptions);
+        var entityType = context.Model.FindEntityType(typeof(TenantSoftDeleteTestEntity))!;
+
+        // Assert - both named filters are present, neither overwrote the other
+        entityType.FindDeclaredQueryFilter(TenantDbContext.TenantQueryFilterKey).ShouldNotBeNull();
+        entityType.FindDeclaredQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void OnModelCreating_SoftDeleteFilterAppliedBeforeTenant_BothNamedFiltersCoexist()
+    {
+        // Arrange
+        var optionsBuilder = new DbContextOptionsBuilder<SoftDeleteThenTenantDbContext>();
+        optionsBuilder.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}");
+
+        // Act
+        using var context = new SoftDeleteThenTenantDbContext(
+            optionsBuilder.Options,
+            _tenantProvider,
+            _efCoreOptions,
+            _coreOptions);
+        var entityType = context.Model.FindEntityType(typeof(TenantSoftDeleteTestEntity))!;
+
+        // Assert - order of the two Apply* calls does not matter
+        entityType.FindDeclaredQueryFilter(TenantDbContext.TenantQueryFilterKey).ShouldNotBeNull();
+        entityType.FindDeclaredQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey).ShouldNotBeNull();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private TestTenantDbContext CreateTestContext(
@@ -340,6 +386,82 @@ public sealed class TenantDbContextTests
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string TenantId { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Test entity implementing both <see cref="ITenantEntity"/> and <see cref="ISoftDeletable"/>,
+    /// used to verify that the tenant and soft-delete query filters coexist (#1268).
+    /// </summary>
+    private sealed class TenantSoftDeleteTestEntity : ITenantEntity, ISoftDeletable
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string TenantId { get; set; } = string.Empty;
+        public bool IsDeleted { get; set; }
+        public DateTime? DeletedAtUtc { get; set; }
+        public string? DeletedBy { get; set; }
+    }
+
+    /// <summary>
+    /// Applies the tenant filter first (via <c>base.OnModelCreating</c>) and the soft-delete
+    /// filter afterward, mirroring the order described in the #1268 repro steps.
+    /// </summary>
+    private sealed class TenantThenSoftDeleteDbContext : TenantDbContext
+    {
+        public TenantThenSoftDeleteDbContext(
+            DbContextOptions options,
+            ITenantProvider tenantProvider,
+            IOptions<EfCoreTenancyOptions> tenancyOptions,
+            IOptions<TenancyOptions> coreOptions)
+            : base(options, tenantProvider, tenancyOptions, coreOptions)
+        {
+        }
+
+        public DbSet<TenantSoftDeleteTestEntity> Entities { get; set; } = null!;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder); // Applies the "Encina.Tenancy" named filter.
+
+            modelBuilder.Entity<TenantSoftDeleteTestEntity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.ApplySoftDeleteQueryFilters(); // Applies the "Encina.SoftDelete" named filter.
+        }
+    }
+
+    /// <summary>
+    /// Applies the soft-delete filter first and the tenant filter afterward (via
+    /// <c>base.OnModelCreating</c>), the reverse order of <see cref="TenantThenSoftDeleteDbContext"/>.
+    /// </summary>
+    private sealed class SoftDeleteThenTenantDbContext : TenantDbContext
+    {
+        public SoftDeleteThenTenantDbContext(
+            DbContextOptions options,
+            ITenantProvider tenantProvider,
+            IOptions<EfCoreTenancyOptions> tenancyOptions,
+            IOptions<TenancyOptions> coreOptions)
+            : base(options, tenantProvider, tenancyOptions, coreOptions)
+        {
+        }
+
+        public DbSet<TenantSoftDeleteTestEntity> Entities { get; set; } = null!;
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<TenantSoftDeleteTestEntity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.ApplySoftDeleteQueryFilters(); // Applies the "Encina.SoftDelete" named filter first.
+
+            base.OnModelCreating(modelBuilder); // Applies the "Encina.Tenancy" named filter afterward.
+        }
     }
 
     #endregion

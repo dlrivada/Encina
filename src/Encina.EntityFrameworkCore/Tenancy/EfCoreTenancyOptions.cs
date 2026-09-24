@@ -68,8 +68,13 @@ public sealed class EfCoreTenancyOptions
     /// <see cref="Encina.Tenancy.ITenantEntity"/> to filter by current tenant ID.
     /// </para>
     /// <para>
-    /// Filters can be bypassed using <c>IgnoreQueryFilters()</c> in specific queries
-    /// when needed (e.g., for admin operations).
+    /// This filter is registered under the <c>"Encina.Tenancy"</c> named filter key. To bypass
+    /// it in specific queries (e.g., for admin operations), pass that key explicitly to the
+    /// EF Core 10 keyed overload: <c>IgnoreQueryFilters(["Encina.Tenancy"])</c>. Calling the
+    /// parameterless <c>IgnoreQueryFilters()</c> instead also drops every other named filter on
+    /// the entity — including the soft-delete filter — which can leak soft-deleted or
+    /// cross-tenant rows on an entity that implements both <see cref="Encina.Tenancy.ITenantEntity"/>
+    /// and <see cref="Encina.DomainModeling.ISoftDeletable"/>.
     /// </para>
     /// </remarks>
     public bool UseQueryFilters { get; set; } = true;

@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Configuration;
 using Encina.EntityFrameworkCore.SoftDelete;
 using Microsoft.EntityFrameworkCore;
 
@@ -307,7 +308,7 @@ public sealed class SoftDeleteRepositoryEFGuardTests
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).ValueGeneratedNever();
-                entity.HasQueryFilter(e => !e.IsDeleted);
+                entity.HasQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey, (TestSoftDeletableEntity e) => !e.IsDeleted);
             });
         }
     }
