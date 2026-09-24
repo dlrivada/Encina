@@ -96,10 +96,12 @@ public sealed class MartenHealthCheckTests
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert
+        // Assert: the base class only reports the exception type, never its message or the
+        // exception object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldNotBeNull();
-        result.Description!.ShouldContain("Store not configured");
+        result.Exception.ShouldBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Store not configured");
     }
 
     [Fact]
@@ -113,9 +115,11 @@ public sealed class MartenHealthCheckTests
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert
+        // Assert: the base class only reports the exception type, never its message or the
+        // exception object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldNotBeNull();
-        result.Description!.ShouldContain("Database connection failed");
+        result.Exception.ShouldBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Database connection failed");
     }
 }

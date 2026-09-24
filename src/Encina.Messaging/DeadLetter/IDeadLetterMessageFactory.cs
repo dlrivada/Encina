@@ -1,5 +1,3 @@
-using Encina.Messaging.Recoverability;
-
 namespace Encina.Messaging.DeadLetter;
 
 /// <summary>
@@ -7,8 +5,11 @@ namespace Encina.Messaging.DeadLetter;
 /// </summary>
 /// <param name="Id">The unique identifier.</param>
 /// <param name="RequestType">The request type name.</param>
-/// <param name="RequestContent">The serialized request content.</param>
-/// <param name="ErrorMessage">The error message.</param>
+/// <param name="RequestContent">The request content, serialized through <c>IMessageSerializer</c> (encrypted when message encryption is enabled).</param>
+/// <param name="ErrorMessage">
+/// The <see cref="EncinaError"/> code of the failure. Never <c>EncinaError.Message</c>, which can carry
+/// personal data (#1274).
+/// </param>
 /// <param name="SourcePattern">The source pattern that produced this dead letter.</param>
 /// <param name="TotalRetryAttempts">The total number of retry attempts.</param>
 /// <param name="FirstFailedAtUtc">When the message first failed.</param>
@@ -16,7 +17,10 @@ namespace Encina.Messaging.DeadLetter;
 /// <param name="ExpiresAtUtc">When the message expires.</param>
 /// <param name="CorrelationId">The correlation ID.</param>
 /// <param name="ExceptionType">The exception type name.</param>
-/// <param name="ExceptionMessage">The exception message.</param>
+/// <param name="ExceptionMessage">
+/// Not populated by <see cref="DeadLetterOrchestrator"/>: an exception message can carry personal data,
+/// so only <paramref name="ExceptionType"/> and <paramref name="ExceptionStackTrace"/> are kept.
+/// </param>
 /// <param name="ExceptionStackTrace">The exception stack trace.</param>
 public sealed record DeadLetterData(
     Guid Id,
@@ -47,17 +51,12 @@ public interface IDeadLetterMessageFactory
     /// </summary>
     /// <param name="data">The data for creating the dead letter message.</param>
     /// <returns>A new dead letter message.</returns>
+    /// <remarks>
+    /// <see cref="DeadLetterOrchestrator"/> builds <paramref name="data"/> for every entry point
+    /// (including <see cref="DeadLetterOrchestrator.AddFromFailedMessageAsync"/>), so the request
+    /// content has already gone through <c>IMessageSerializer</c> and the error fields hold only
+    /// the error code and exception type. Implementations copy the values; they never serialize
+    /// the request themselves.
+    /// </remarks>
     IDeadLetterMessage Create(DeadLetterData data);
-
-    /// <summary>
-    /// Creates a dead letter message from a failed message record.
-    /// </summary>
-    /// <param name="failedMessage">The failed message from recoverability pipeline.</param>
-    /// <param name="sourcePattern">The source pattern that produced this dead letter.</param>
-    /// <param name="expiresAtUtc">When the message expires.</param>
-    /// <returns>A new dead letter message.</returns>
-    IDeadLetterMessage CreateFromFailedMessage(
-        FailedMessage failedMessage,
-        string sourcePattern,
-        DateTime? expiresAtUtc);
 }

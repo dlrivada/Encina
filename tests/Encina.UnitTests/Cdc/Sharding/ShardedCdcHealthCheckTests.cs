@@ -244,8 +244,12 @@ public sealed class ShardedCdcHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync();
 
+        // The base class only reports the exception type, never its message or the exception
+        // object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBeOfType<TimeoutException>();
+        result.Exception.ShouldBeNull();
+        result.Description!.ShouldContain(nameof(TimeoutException));
+        result.Description!.ShouldNotContain("Connection timeout");
     }
 
     #endregion

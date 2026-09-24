@@ -100,8 +100,11 @@ public sealed class MQTTHealthCheckTests
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert
+        // Assert: the base class only reports the exception type, never its message or the
+        // exception object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldNotBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Client not available");
+        result.Exception.ShouldBeNull();
     }
 }

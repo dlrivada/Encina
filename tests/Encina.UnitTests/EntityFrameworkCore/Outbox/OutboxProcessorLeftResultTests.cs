@@ -67,7 +67,7 @@ public sealed class OutboxProcessorLeftResultTests : IDisposable
         var persisted = await ReadAsync(messageId);
         persisted.ProcessedAtUtc.ShouldBeNull();
         persisted.RetryCount.ShouldBe(1);
-        persisted.ErrorMessage.ShouldBe("Handler rejected the notification");
+        persisted.ErrorMessage.ShouldBe("handler.rejected");
         persisted.NextRetryAtUtc.ShouldNotBeNull();
     }
 

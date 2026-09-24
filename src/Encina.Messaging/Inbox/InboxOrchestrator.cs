@@ -210,9 +210,11 @@ public sealed class InboxOrchestrator
 
     private string SerializeResponse<TResponse>(Either<EncinaError, TResponse> response)
     {
+        // Only the error code: EncinaError.Message can carry personal data (#1259 review), and the
+        // envelope is serialized and cached in the inbox store's response payload.
         var envelope = response.Match(
             Right: value => new ResponseEnvelope<TResponse> { IsSuccess = true, Value = value },
-            Left: error => new ResponseEnvelope<TResponse> { IsSuccess = false, ErrorMessage = error.Message });
+            Left: error => new ResponseEnvelope<TResponse> { IsSuccess = false, ErrorMessage = error.GetCode().IfNone("encina.unknown") });
 
         return _messageSerializer.Serialize(envelope);
     }

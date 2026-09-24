@@ -277,29 +277,6 @@ public class CustomTransactionBehavior<TRequest, TResponse>
 }
 ```
 
-### Bulk Operations
-
-Dapper excels at bulk operations:
-
-```csharp
-// Bulk insert outbox messages
-var messages = notifications.Select(n => new OutboxMessage
-{
-    Id = Guid.NewGuid(),
-    NotificationType = n.GetType().AssemblyQualifiedName!,
-    Content = JsonSerializer.Serialize(n),
-    CreatedAtUtc = DateTime.UtcNow,
-    RetryCount = 0
-});
-
-await _connection.ExecuteAsync(@"
-    INSERT INTO OutboxMessages
-    (Id, NotificationType, Content, CreatedAtUtc, RetryCount)
-    VALUES
-    (@Id, @NotificationType, @Content, @CreatedAtUtc, @RetryCount)",
-    messages);
-```
-
 ## Performance Tips
 
 1. **Keep Connections Open**: Open connection once per request

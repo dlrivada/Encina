@@ -1,5 +1,6 @@
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
+using Encina.Messaging.Serialization;
 using Shouldly;
 
 namespace Encina.GuardTests.Messaging.Sagas;
@@ -19,7 +20,8 @@ public class SagaRunnerGuardTests
             Substitute.For<ISagaStore>(),
             new SagaOptions(),
             NullLogger<SagaOrchestrator>.Instance,
-            Substitute.For<ISagaStateFactory>());
+            Substitute.For<ISagaStateFactory>(),
+            new JsonMessageSerializer());
         _requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
     }
 

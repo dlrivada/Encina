@@ -5,6 +5,7 @@ using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -81,6 +82,10 @@ public static class ServiceCollectionExtensions
         // Register MongoDB client if not already registered
         services.TryAddSingleton<IMongoClient>(sp =>
             new MongoClient(options.ConnectionString));
+
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
 
         // Register stores based on configuration
         if (options.UseOutbox)
@@ -223,6 +228,10 @@ public static class ServiceCollectionExtensions
         // resolve the current context even when the host only wires Encina.MongoDB, without the
         // core mediator's AddEncina() (TryAdd is idempotent when both are called).
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
 
         // Register stores based on configuration
         if (options.UseOutbox)

@@ -39,7 +39,8 @@ internal static class OutboxRetryScenarios
         var message = pending.Single(m => m.Id == messageId);
         message.ProcessedAtUtc.ShouldBeNull();
         message.RetryCount.ShouldBe(1);
-        message.ErrorMessage.ShouldBe(HandlerErrorMessage);
+        // Only the error code is persisted; EncinaError.Message can carry personal data (#1259 review).
+        message.ErrorMessage.ShouldBe("handler.rejected");
         message.NextRetryAtUtc.ShouldNotBeNull();
     }
 

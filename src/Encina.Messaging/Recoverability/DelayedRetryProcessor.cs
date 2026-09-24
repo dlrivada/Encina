@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using Encina.Messaging.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -112,6 +113,8 @@ public sealed class DelayedRetryProcessor : BackgroundService
             return;
         }
 
+        var messageSerializer = scope.ServiceProvider.GetService<IMessageSerializer>() ?? new JsonMessageSerializer();
+
         var messages = await store.GetPendingMessagesAsync(BatchSize, cancellationToken).ConfigureAwait(false);
 
         foreach (var message in messages)
@@ -119,7 +122,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            await ProcessMessageAsync(message, store, encina, cancellationToken).ConfigureAwait(false);
+            await ProcessMessageAsync(message, store, encina, messageSerializer, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -127,6 +130,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         IDelayedRetryMessage message,
         IDelayedRetryStore store,
         IEncina encina,
+        IMessageSerializer messageSerializer,
         CancellationToken cancellationToken)
     {
         try
@@ -146,7 +150,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 return;
             }
 
-            var request = JsonSerializer.Deserialize(message.RequestContent, requestType, JsonOptions);
+            var request = messageSerializer.Deserialize(message.RequestContent, requestType);
             if (request is null)
             {
                 DelayedRetryProcessorLog.DeserializationFailed(_logger, message.Id, message.RequestType);
@@ -208,11 +212,12 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
             return outcome.Match(
                 Right: _ => new DispatchResult(true, null),
-                Left: error => new DispatchResult(false, error.Message));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => new DispatchResult(false, error.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            return new DispatchResult(false, ex.Message);
+            return new DispatchResult(false, ex.GetType().FullName ?? ex.GetType().Name);
         }
     }
 

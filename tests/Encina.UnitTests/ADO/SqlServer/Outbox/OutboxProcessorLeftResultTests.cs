@@ -94,7 +94,7 @@ public sealed class OutboxProcessorLeftResultTests
         await encina.Received().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
         await store.Received(1).MarkAsFailedAsync(
             messageId,
-            "Handler rejected the notification",
+            "handler.rejected",
             now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
         await store.DidNotReceive().MarkAsProcessedAsync(messageId, Arg.Any<CancellationToken>());

@@ -303,48 +303,21 @@ Execute commands at specific times or on recurring schedules.
 ```csharp
 public class OrderService
 {
-    private readonly IScheduledMessageStore _scheduler;
+    private readonly SchedulerOrchestrator _scheduler;
 
     public async Task ScheduleOrderReminder(Guid orderId)
     {
-        var command = new SendOrderReminderCommand { OrderId = orderId };
-
-        var message = new ScheduledMessage
-        {
-            Id = Guid.NewGuid(),
-            RequestType = typeof(SendOrderReminderCommand).AssemblyQualifiedName!,
-            Content = JsonSerializer.Serialize(command),
-            ScheduledAtUtc = DateTime.UtcNow.AddDays(7),
-            CreatedAtUtc = DateTime.UtcNow,
-            IsRecurring = false,
-            RetryCount = 0
-        };
-
-        await _scheduler.AddAsync(message);
-        await _scheduler.SaveChangesAsync();
+        await _scheduler.ScheduleAsync(new SendOrderReminderCommand { OrderId = orderId }, TimeSpan.FromDays(7));
     }
 
     public async Task ScheduleDailyReports()
     {
-        var command = new GenerateDailyReportCommand();
-
-        var message = new ScheduledMessage
-        {
-            Id = Guid.NewGuid(),
-            RequestType = typeof(GenerateDailyReportCommand).AssemblyQualifiedName!,
-            Content = JsonSerializer.Serialize(command),
-            ScheduledAtUtc = DateTime.UtcNow.Date.AddDays(1), // Tomorrow at midnight
-            CreatedAtUtc = DateTime.UtcNow,
-            IsRecurring = true,
-            CronExpression = "0 0 * * *", // Daily at midnight
-            RetryCount = 0
-        };
-
-        await _scheduler.AddAsync(message);
-        await _scheduler.SaveChangesAsync();
+        await _scheduler.ScheduleRecurringAsync(new GenerateDailyReportCommand(), "0 0 * * *");
     }
 }
 ```
+
+The orchestrator serializes the payload through `IMessageSerializer`, so `Encina.Messaging.Encryption` encrypts it when enabled.
 
 **How it works:**
 
@@ -555,20 +528,17 @@ builder.Services.AddDomainEventDispatcher();
 // Option 2: Configure domain events to go through Outbox
 public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 {
-    private readonly IOutboxStore _outbox;
+    private readonly OutboxOrchestrator _outbox;
 
     public async Task Handle(OrderPlacedEvent notification, CancellationToken ct)
     {
         // Store in outbox for reliable async delivery
-        await _outbox.AddAsync(new OutboxMessage
-        {
-            NotificationType = typeof(OrderPlacedExternalEvent).AssemblyQualifiedName!,
-            Content = JsonSerializer.Serialize(new OrderPlacedExternalEvent(notification.OrderId)),
-            CreatedAtUtc = DateTime.UtcNow
-        });
+        await _outbox.AddAsync(new OrderPlacedExternalEvent(notification.OrderId), ct);
     }
 }
 ```
+
+The orchestrator serializes the payload through `IMessageSerializer`, so `Encina.Messaging.Encryption` encrypts it when enabled.
 
 ### Entity Configuration Helpers
 

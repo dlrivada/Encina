@@ -57,6 +57,30 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Enqueues a request to be executed as a Hangfire background job, opting in to persisting
+    /// the handler's response (and any failure) in Hangfire's own job storage.
+    /// </summary>
+    /// <typeparam name="TRequest">The type of request.</typeparam>
+    /// <typeparam name="TResponse">The type of response.</typeparam>
+    /// <param name="client">The Hangfire background job client.</param>
+    /// <param name="request">The request to execute.</param>
+    /// <returns>The Hangfire job ID.</returns>
+    /// <remarks>
+    /// Use only when <typeparamref name="TResponse"/> and any resulting <see cref="EncinaError"/>
+    /// are known not to carry personal or health data (#1173); Hangfire's job storage sits outside
+    /// Encina's retention, erasure and encryption controls. <see cref="EnqueueRequest{TRequest, TResponse}"/>
+    /// is the safe default and does not persist the response.
+    /// </remarks>
+    public static string EnqueueRequestWithResult<TRequest, TResponse>(
+        this IBackgroundJobClient client,
+        TRequest request)
+        where TRequest : IRequest<TResponse>
+    {
+        return client.Enqueue<HangfireRequestJobAdapter<TRequest, TResponse>>(
+            adapter => adapter.ExecuteAndReturnResultAsync(request, default));
+    }
+
+    /// <summary>
     /// Schedules a request to be executed as a Hangfire background job after a delay.
     /// </summary>
     /// <typeparam name="TRequest">The type of request.</typeparam>

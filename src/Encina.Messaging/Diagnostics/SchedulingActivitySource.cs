@@ -120,9 +120,11 @@ internal static class SchedulingActivitySource
     /// Marks a scheduling activity as failed.
     /// </summary>
     /// <param name="activity">The activity to mark as failed.</param>
-    /// <param name="errorCode">The error code.</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void Failed(Activity? activity, string? errorCode, string? errorMessage)
+    /// <param name="errorCode">
+    /// The error code. Only the code is recorded: <c>EncinaError.Message</c> can carry personal
+    /// data (#1259 review) and never reaches an activity tag or status description.
+    /// </param>
+    internal static void Failed(Activity? activity, string? errorCode)
     {
         if (activity is null)
         {
@@ -134,7 +136,7 @@ internal static class SchedulingActivitySource
             activity.SetTag("error.code", errorCode);
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 

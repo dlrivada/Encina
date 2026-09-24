@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Serialization;
 using Shouldly;
 
 namespace Encina.GuardTests.Messaging.DeadLetter;
@@ -17,7 +18,8 @@ public class DeadLetterGuardTests
             null!,
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
-            NullLogger<DeadLetterOrchestrator>.Instance);
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
@@ -29,7 +31,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             null!,
             new DeadLetterOptions(),
-            NullLogger<DeadLetterOrchestrator>.Instance);
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageFactory");
     }
@@ -41,7 +44,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             Substitute.For<IDeadLetterMessageFactory>(),
             null!,
-            NullLogger<DeadLetterOrchestrator>.Instance);
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
@@ -53,9 +57,23 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
-            null!);
+            null!,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void DeadLetterOrchestrator_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterOrchestrator(
+            Substitute.For<IDeadLetterStore>(),
+            Substitute.For<IDeadLetterMessageFactory>(),
+            new DeadLetterOptions(),
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion
@@ -165,7 +183,8 @@ public class DeadLetterGuardTests
             null!,
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
-            NullLogger<DeadLetterManager>.Instance);
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("store");
     }
@@ -177,7 +196,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             null!,
             Substitute.For<IServiceProvider>(),
-            NullLogger<DeadLetterManager>.Instance);
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("orchestrator");
     }
@@ -189,7 +209,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             CreateOrchestrator(),
             null!,
-            NullLogger<DeadLetterManager>.Instance);
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }
@@ -201,9 +222,23 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
-            null!);
+            null!,
+            new JsonMessageSerializer());
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void DeadLetterManager_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterManager(
+            Substitute.For<IDeadLetterStore>(),
+            CreateOrchestrator(),
+            Substitute.For<IServiceProvider>(),
+            NullLogger<DeadLetterManager>.Instance,
+            null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion
@@ -281,7 +316,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             Substitute.For<IDeadLetterMessageFactory>(),
             new DeadLetterOptions(),
-            NullLogger<DeadLetterOrchestrator>.Instance);
+            NullLogger<DeadLetterOrchestrator>.Instance,
+            new JsonMessageSerializer());
     }
 
     private static DeadLetterManager CreateManager()
@@ -290,7 +326,8 @@ public class DeadLetterGuardTests
             Substitute.For<IDeadLetterStore>(),
             CreateOrchestrator(),
             Substitute.For<IServiceProvider>(),
-            NullLogger<DeadLetterManager>.Instance);
+            NullLogger<DeadLetterManager>.Instance,
+            new JsonMessageSerializer());
     }
 
     #endregion

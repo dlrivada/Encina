@@ -53,7 +53,7 @@ public sealed class OutboxBatchProcessorTests
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 1, 0, 0));
         await _store.Received(1).MarkAsFailedAsync(
             message.Id,
-            HandlerError.Message,
+            "handler.rejected",
             Now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
@@ -124,12 +124,14 @@ public sealed class OutboxBatchProcessorTests
         var result = await sut.ProcessAsync((_, _, _) => Rejected(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 1, 0));
-        await _store.Received(1).MarkAsFailedAsync(message.Id, HandlerError.Message, null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().MarkAsProcessedAsync(default, default);
         var entry = _logger.Entries.Single(e => e.EventId == 2958);
         entry.Level.ShouldBe(LogLevel.Error);
         entry.Message.ShouldContain(OutboxErrorCodes.MaxRetriesExceeded);
         entry.Message.ShouldContain(message.Id.ToString());
+        entry.Message.ShouldContain("handler.rejected");
+        entry.Message.ShouldNotContain(HandlerError.Message);
     }
 
     [Fact]
@@ -146,23 +148,28 @@ public sealed class OutboxBatchProcessorTests
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 1, 0, 0));
         await _store.Received(1).MarkAsFailedAsync(
             message.Id,
-            "Broker unavailable",
+            typeof(InvalidOperationException).FullName!,
             Now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
         _logger.Entries.Single(e => e.EventId == 2832).Exception.ShouldBeSameAs(exception);
     }
 
     [Fact]
-    public async Task ProcessAsync_LeftCarryingAnException_LogsThatException()
+    public async Task ProcessAsync_LeftCarryingAnException_LogsTheCodeButNotTheException()
     {
+        // EncinaErrors.FromException copies the cause's message into EncinaError.Message, which can
+        // carry personal data, so a Left logs its code only (#1259 review).
         Pending(retryCount: 0);
         var sut = CreateSut(Options(maxRetries: 3));
-        var exception = new TimeoutException("Handler timed out");
+        var exception = new TimeoutException("Handler timed out for patient-123");
         var error = EncinaErrors.FromException("handler.timeout", exception);
 
         await sut.ProcessAsync((_, _, _) => ValueTask.FromResult(Left<EncinaError, Unit>(error)), CancellationToken.None);
 
-        _logger.Entries.Single(e => e.EventId == 2832).Exception.ShouldBeSameAs(exception);
+        var entry = _logger.Entries.Single(e => e.EventId == 2832);
+        entry.Exception.ShouldBeNull();
+        entry.Message.ShouldContain("handler.timeout");
+        entry.Message.ShouldNotContain("patient-123");
     }
 
     [Fact]
@@ -264,7 +271,8 @@ public sealed class OutboxBatchProcessorTests
         entry.Level.ShouldBe(LogLevel.Error);
         entry.Message.ShouldContain(nameof(IOutboxStore.MarkAsProcessedAsync));
         entry.Message.ShouldContain(message.Id.ToString());
-        entry.Message.ShouldContain(StoreError.Message);
+        entry.Message.ShouldContain("outbox.mark_failed");
+        entry.Message.ShouldNotContain(StoreError.Message);
     }
 
     [Fact]
@@ -295,7 +303,7 @@ public sealed class OutboxBatchProcessorTests
         var result = await sut.ProcessAsync((_, _, _) => Rejected(), CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
-        await _store.Received(1).MarkAsFailedAsync(message.Id, HandlerError.Message, null, Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsFailedAsync(message.Id, "handler.rejected", null, Arg.Any<CancellationToken>());
         _logger.EventIds.ShouldNotContain(2958);
         _logger.EventIds.ShouldContain(2961);
     }
@@ -376,7 +384,12 @@ public sealed class OutboxBatchProcessorTests
             CancellationToken.None);
 
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 1, 0, 0));
-        await _store.Received(1).MarkAsFailedAsync(message.Id, "HTTP timeout", Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
+        await _store.Received(1).MarkAsFailedAsync(
+            message.Id,
+            typeof(TaskCanceledException).FullName!,
+            Arg.Any<DateTime?>(),
+            Arg.Any<CancellationToken>());
+        await _store.DidNotReceive().MarkAsFailedAsync(message.Id, "HTTP timeout", Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -392,7 +405,7 @@ public sealed class OutboxBatchProcessorTests
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 1, 0, 0));
         await _store.Received(1).MarkAsFailedAsync(
             message.Id,
-            HandlerError.Message,
+            "handler.rejected",
             DateTime.MaxValue,
             Arg.Any<CancellationToken>());
     }

@@ -393,7 +393,7 @@ public sealed class OutboxProcessorTests
         // Assert
         await store.Received().MarkAsFailedAsync(
             messageId,
-            Arg.Is<string>(s => s.Contains("Test exception")),
+            Arg.Is<string>(s => s == typeof(InvalidOperationException).FullName && !s.Contains("Test exception")),
             Arg.Any<DateTime?>(),
             Arg.Any<CancellationToken>());
     }

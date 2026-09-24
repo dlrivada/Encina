@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -41,12 +41,7 @@ public sealed class DeadLetterOrchestrator
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
     private readonly TimeProvider _timeProvider;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterOrchestrator"/> class.
@@ -55,23 +50,30 @@ public sealed class DeadLetterOrchestrator
     /// <param name="messageFactory">The message factory.</param>
     /// <param name="options">The DLQ options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist the failed request payload, so that decorators
+    /// such as <c>EncryptingMessageSerializer</c> apply to dead-lettered content too.
+    /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public DeadLetterOrchestrator(
         IDeadLetterStore store,
         IDeadLetterMessageFactory messageFactory,
         DeadLetterOptions options,
         ILogger<DeadLetterOrchestrator> logger,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _messageFactory = messageFactory;
         _options = options;
         _logger = logger;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -93,18 +95,22 @@ public sealed class DeadLetterOrchestrator
         ArgumentNullException.ThrowIfNull(context);
         ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
 
-        var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
-        var requestContent = JsonSerializer.Serialize(request, JsonOptions);
+        var runtimeType = request.GetType();
+        var requestType = runtimeType.AssemblyQualifiedName ?? runtimeType.FullName ?? runtimeType.Name;
+        var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
 
+        // EncinaError.Message and Exception.Message can carry personal data (e.g. a data-subject
+        // id), so the record and the log keep only the error code and the exception type (#1274).
+        var errorCode = ErrorCodeOf(context.Error);
         var data = new DeadLetterData(
             Id: Guid.NewGuid(),
             RequestType: requestType,
             RequestContent: requestContent,
-            ErrorMessage: context.Error.Message,
+            ErrorMessage: errorCode,
             SourcePattern: context.SourcePattern,
             TotalRetryAttempts: context.TotalRetryAttempts,
             FirstFailedAtUtc: context.FirstFailedAtUtc,
@@ -112,7 +118,7 @@ public sealed class DeadLetterOrchestrator
             ExpiresAtUtc: expiresAt,
             CorrelationId: context.CorrelationId,
             ExceptionType: context.Exception?.GetType().FullName,
-            ExceptionMessage: context.Exception?.Message,
+            ExceptionMessage: null,
             ExceptionStackTrace: context.Exception?.StackTrace);
 
         var message = _messageFactory.Create(data);
@@ -130,7 +136,7 @@ public sealed class DeadLetterOrchestrator
             message.Id,
             requestType,
             context.SourcePattern,
-            context.Error.Message,
+            errorCode,
             context.TotalRetryAttempts,
             context.CorrelationId);
 
@@ -170,7 +176,26 @@ public sealed class DeadLetterOrchestrator
             ? now.Add(_options.RetentionPeriod.Value)
             : (DateTime?)null;
 
-        var message = _messageFactory.CreateFromFailedMessage(failedMessage, sourcePattern, expiresAt);
+        // The record is built here, not by the provider factory, so the request goes through
+        // IMessageSerializer (encryption applies, using the request's runtime type) and only the
+        // error code and exception type are kept (#1274).
+        var errorCode = ErrorCodeOf(failedMessage.Error);
+        var data = new DeadLetterData(
+            Id: Guid.NewGuid(),
+            RequestType: failedMessage.RequestType,
+            RequestContent: _messageSerializer.SerializeAsRuntimeType(failedMessage.Request),
+            ErrorMessage: errorCode,
+            SourcePattern: sourcePattern,
+            TotalRetryAttempts: failedMessage.TotalAttempts,
+            FirstFailedAtUtc: failedMessage.FirstAttemptAtUtc,
+            DeadLetteredAtUtc: now,
+            ExpiresAtUtc: expiresAt,
+            CorrelationId: failedMessage.CorrelationId,
+            ExceptionType: failedMessage.Exception?.GetType().FullName,
+            ExceptionMessage: null,
+            ExceptionStackTrace: failedMessage.Exception?.StackTrace);
+
+        var message = _messageFactory.Create(data);
 
         var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
         if (addResult.IsLeft)
@@ -185,7 +210,7 @@ public sealed class DeadLetterOrchestrator
             message.Id,
             message.RequestType,
             sourcePattern,
-            message.ErrorMessage,
+            errorCode,
             failedMessage.TotalAttempts,
             failedMessage.CorrelationId);
 
@@ -350,4 +375,6 @@ public sealed class DeadLetterOrchestrator
 
         return count;
     }
+
+    private static string ErrorCodeOf(EncinaError error) => error.GetCode().IfNone("encina.unknown");
 }

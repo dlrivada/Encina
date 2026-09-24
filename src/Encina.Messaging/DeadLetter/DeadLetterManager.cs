@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +13,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private readonly DeadLetterOrchestrator _orchestrator;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DeadLetterManager> _logger;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterManager"/> class.
@@ -26,21 +22,28 @@ public sealed class DeadLetterManager : IDeadLetterManager
     /// <param name="orchestrator">The orchestrator.</param>
     /// <param name="serviceProvider">The service provider for resolving IEncina.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to read back the persisted request payload, matching
+    /// whatever serializer (plain or encrypting) wrote it.
+    /// </param>
     public DeadLetterManager(
         IDeadLetterStore store,
         DeadLetterOrchestrator orchestrator,
         IServiceProvider serviceProvider,
-        ILogger<DeadLetterManager> logger)
+        ILogger<DeadLetterManager> logger,
+        IMessageSerializer messageSerializer)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(orchestrator);
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _orchestrator = orchestrator;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _messageSerializer = messageSerializer;
     }
 
     /// <inheritdoc />
@@ -84,7 +87,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
                 return EncinaError.New(error);
             }
 
-            var request = JsonSerializer.Deserialize(message.RequestContent, requestType, JsonOptions);
+            var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
             if (request is null)
             {
                 var error = $"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content";
@@ -118,7 +121,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         {
             DeadLetterLog.MessageReplayException(_logger, ex, messageId);
 
-            var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.Message}";
+            var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
             await _store.MarkAsReplayedAsync(messageId, $"Failed: {errorMessage}", cancellationToken);
             await _store.SaveChangesAsync(cancellationToken);
 
@@ -137,10 +140,12 @@ public sealed class DeadLetterManager : IDeadLetterManager
             var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
             // A Left outcome is a failed replay: the request ran and its handler (or a behavior) failed.
+            // Only the error code travels: EncinaError.Message can carry personal data, and this
+            // reaches both the log and the ReplayResult returned to the caller (#1259 review).
             if (outcome.IsLeft)
             {
-                var failure = outcome.Match(Right: _ => string.Empty, Left: error => error.Message);
-                var error = $"Replay failed: {failure}";
+                var errorCode = outcome.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone("unknown"));
+                var error = $"Replay failed: {errorCode}";
                 DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
                 return ReplayResult.Failed(messageId, error);
             }
@@ -150,7 +155,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
         }
         catch (Exception ex)
         {
-            var error = $"Replay failed: {ex.Message}";
+            var innerException = ex.InnerException ?? ex;
+            var error = $"Replay failed: {innerException.GetType().FullName}";
             DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
             return ReplayResult.Failed(messageId, error);
         }
@@ -184,7 +190,8 @@ public sealed class DeadLetterManager : IDeadLetterManager
             var result = await ReplayAsync(message.Id, cancellationToken);
             result.Match(
                 Right: r => results.Add(r),
-                Left: error => results.Add(ReplayResult.Failed(message.Id, error.Message)));
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                Left: error => results.Add(ReplayResult.Failed(message.Id, error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed))));
         }
 
         var batchResult = new BatchReplayResult

@@ -97,7 +97,7 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
         }
 
         var classification = JobFailure.Classify(error, _errorClassifier);
-        Log.NotificationJobFailed(_logger, context.JobDetail.Key, notificationType, error.GetCode().IfNone("encina.unknown"), classification.ToString(), error.Message);
+        Log.NotificationJobFailed(_logger, context.JobDetail.Key, notificationType, error.GetCode().IfNone("encina.unknown"), classification.ToString());
         return JobFailure.Failed(error, classification);
     }
 }

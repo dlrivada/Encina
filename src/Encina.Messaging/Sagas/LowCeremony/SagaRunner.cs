@@ -108,14 +108,17 @@ public sealed class SagaRunner : ISagaRunner
                         Right: _ => EncinaErrors.Create(SagaErrorCodes.StepFailed, "Unexpected"),
                         Left: e => e);
 
-                    Log.StepFailed(_logger, sagaId, i + 1, step.Name, error.Message);
+                    // Only the error code: EncinaError.Message can carry personal data (#1259 review),
+                    // and StartCompensationAsync persists this string in the saga state store.
+                    var errorCode = error.GetCode().IfNone("encina.unknown");
+                    Log.StepFailed(_logger, sagaId, i + 1, step.Name, errorCode);
 
                     // Run compensation for completed steps
                     await CompensateAsync(definition, currentData, i - 1, requestContext, cancellationToken)
                         .ConfigureAwait(false);
 
                     // Mark saga as compensated
-                    await _orchestrator.StartCompensationAsync(sagaId, error.Message, cancellationToken)
+                    await _orchestrator.StartCompensationAsync(sagaId, errorCode, cancellationToken)
                         .ConfigureAwait(false);
 
                     return error;

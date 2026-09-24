@@ -133,6 +133,36 @@ public class QuartzNotificationJobTests
         logEntry.Exception.ShouldBe(exception);
     }
 
+    [Theory]
+    [InlineData("consent.missing", "Permanent")]
+    [InlineData("store.timeout", "Transient")]
+    public async Task Execute_OnFailure_LogsErrorCodeAndClassificationButNotErrorMessage(string errorCode, string classification)
+    {
+        // Arrange: the failure message may carry personal data (a data-subject id from a
+        // compliance module); the log line carries only the code and the classification (#1173).
+        var notification = _notificationFaker.Generate();
+        _context.JobDetail.JobDataMap[QuartzConstants.NotificationKey] = notification;
+        var error = EncinaErrors.Create(errorCode, "Failure for subject 'patient-123'");
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mocking pattern
+        _encina.Publish(Arg.Any<TestNotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<LanguageExt.Either<EncinaError, LanguageExt.Unit>>(
+                LanguageExt.Prelude.Left<EncinaError, LanguageExt.Unit>(error)));
+#pragma warning restore CA2012
+
+        // Act
+        var jobException = await Assert.ThrowsAsync<JobExecutionException>(() => _job.Execute(_context));
+
+        // Assert
+        jobException.Message.ShouldNotContain("patient-123");
+        var logEntry = _logger.Collector.GetSnapshot().SingleOrDefault(r => r.Id.Id == 4059);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Error);
+        logEntry.Message.ShouldContain(errorCode);
+        logEntry.Message.ShouldContain(classification);
+        logEntry.Message.ShouldNotContain("patient-123");
+        logEntry.Message.ShouldNotContain("Failure for subject");
+    }
+
     [Fact]
     public async Task Execute_PassesCancellationToken()
     {

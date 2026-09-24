@@ -108,7 +108,8 @@ public sealed class ContentRouter : IContentRouter
             if (errorResult is not null)
             {
                 stopwatch.Stop();
-                ContentRouterLog.RouteExecutionFailed(_logger, routingId, errorResult.RouteName, errorResult.Error.Message);
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                ContentRouterLog.RouteExecutionFailed(_logger, routingId, errorResult.RouteName, errorResult.Error.GetCode().IfNone("encina.unknown"));
                 return errorResult.Error;
             }
 
@@ -330,7 +331,8 @@ public sealed class ContentRouter : IContentRouter
                 },
                 Left: error =>
                 {
-                    ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, error.Message);
+                    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                    ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, error.GetCode().IfNone("encina.unknown"));
                     return InternalRouteResult<TResult>.Failure(route.Name, error, stopwatch.Elapsed, executedAt);
                 });
         }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Serialization;
 using Encina.Testing.Shouldly;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ public sealed class DeadLetterOrchestratorTests
     private readonly IDeadLetterMessageFactory _messageFactory;
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterOrchestrator> _logger;
+    private readonly IMessageSerializer _messageSerializer;
     private readonly DeadLetterOrchestrator _orchestrator;
 
     public DeadLetterOrchestratorTests()
@@ -33,8 +35,9 @@ public sealed class DeadLetterOrchestratorTests
             EnableAutomaticCleanup = true
         };
         _logger = Substitute.For<ILogger<DeadLetterOrchestrator>>();
+        _messageSerializer = new JsonMessageSerializer();
 
-        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger);
+        _orchestrator = new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, _messageSerializer);
     }
 
     #region Constructor Tests
@@ -42,7 +45,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullStore_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger);
+        var act = () => new DeadLetterOrchestrator(null!, _messageFactory, _options, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("store");
     }
@@ -50,7 +53,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullMessageFactory_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger);
+        var act = () => new DeadLetterOrchestrator(_store, null!, _options, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageFactory");
     }
@@ -58,7 +61,7 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, null!, _logger, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("options");
     }
@@ -66,9 +69,17 @@ public sealed class DeadLetterOrchestratorTests
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!);
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, null!, _messageSerializer);
 
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void Constructor_NullMessageSerializer_ThrowsArgumentNullException()
+    {
+        var act = () => new DeadLetterOrchestrator(_store, _messageFactory, _options, _logger, null!);
+
+        act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("messageSerializer");
     }
 
     #endregion
@@ -105,7 +116,32 @@ public sealed class DeadLetterOrchestratorTests
     }
 
     [Fact]
-    public async Task AddAsync_WithException_IncludesExceptionDetails()
+    public async Task AddAsync_CalledWithABaseTypeParameter_StoresTheRuntimeTypeNotTheDeclaredOne()
+    {
+        // Arrange - calling AddAsync<TRequest> with TRequest bound to a base/interface type while
+        // passing a derived instance must not desync RequestType (stored from the declared type
+        // parameter) from RequestContent (serialized from the runtime type by
+        // SerializeAsRuntimeType), or DeadLetterManager.ReplayAsync cannot resolve the type back
+        // (#1259 review).
+        var request = new DerivedDeadLetterRequest { Id = Guid.NewGuid(), Data = "Test" };
+        var error = EncinaErrors.Create("test.error", "Test error");
+        var context = new DeadLetterContext(
+            error, null, DeadLetterSourcePatterns.Recoverability, TotalRetryAttempts: 1, FirstFailedAtUtc: FixedUtcNow);
+
+        var expectedRuntimeType = typeof(DerivedDeadLetterRequest).AssemblyQualifiedName!;
+        var expectedMessage = CreateTestDeadLetterMessage(Guid.NewGuid());
+        _messageFactory.Create(Arg.Any<DeadLetterData>()).Returns(expectedMessage);
+
+        // Act - TRequest is explicitly the base type, but the instance passed is the derived one.
+        await _orchestrator.AddAsync<BaseDeadLetterRequest>(request, context);
+
+        // Assert
+        _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
+            d.RequestType == expectedRuntimeType));
+    }
+
+    [Fact]
+    public async Task AddAsync_WithException_KeepsExceptionTypeButNotItsMessage()
     {
         // Arrange
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
@@ -120,12 +156,12 @@ public sealed class DeadLetterOrchestratorTests
 
         _messageFactory.Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == error.Message &&
+            d.ErrorMessage == "test.error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
             d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == "Something went wrong"))
+            d.ExceptionMessage == null))
             .Returns(expectedMessage);
 
         // Act
@@ -135,12 +171,14 @@ public sealed class DeadLetterOrchestratorTests
         // Assert
         _messageFactory.Received(1).Create(Arg.Is<DeadLetterData>(d =>
             d.RequestType == expectedRequestType &&
-            d.ErrorMessage == error.Message &&
+            d.ErrorMessage == "test.error" &&
+            d.ErrorMessage != "Test error" &&
             d.SourcePattern == sourcePattern &&
             d.TotalRetryAttempts == retryCount &&
             d.FirstFailedAtUtc == firstFailedAt &&
             d.ExceptionType == typeof(InvalidOperationException).FullName &&
-            d.ExceptionMessage == "Something went wrong"));
+            d.ExceptionMessage == null &&
+            d.ExceptionMessage != "Something went wrong"));
     }
 
     [Fact]
@@ -162,7 +200,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -191,7 +229,7 @@ public sealed class DeadLetterOrchestratorTests
         };
 
         var orchestrator = new DeadLetterOrchestrator(
-            _store, _messageFactory, optionsWithCallback, _logger);
+            _store, _messageFactory, optionsWithCallback, _logger, _messageSerializer);
 
         var request = new TestDeadLetterRequest { Id = Guid.NewGuid() };
         var error = EncinaErrors.Create("test.error", "Test error");
@@ -411,6 +449,20 @@ public sealed class TestDeadLetterRequest
     public string Data { get; set; } = string.Empty;
 }
 
+/// <summary>Base type used to exercise <c>AddAsync&lt;TRequest&gt;</c> with a declared type
+/// parameter narrower than the instance's runtime type.</summary>
+public abstract class BaseDeadLetterRequest
+{
+    public Guid Id { get; set; }
+}
+
+/// <summary>Derived request whose runtime type must be the one stored in <c>RequestType</c>,
+/// not <see cref="BaseDeadLetterRequest"/>.</summary>
+public sealed class DerivedDeadLetterRequest : BaseDeadLetterRequest
+{
+    public string Data { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// Test implementation of IDeadLetterMessage for unit tests.
 /// </summary>
@@ -447,3 +499,4 @@ internal sealed class TestDeadLetterMessage : IDeadLetterMessage
     public bool IsReplayed => ReplayedAtUtc.HasValue;
     public bool IsExpired => ExpiresAtUtc.HasValue && ExpiresAtUtc.Value <= NowProvider();
 }
+

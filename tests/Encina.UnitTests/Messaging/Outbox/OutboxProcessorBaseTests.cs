@@ -23,16 +23,49 @@ public sealed class OutboxProcessorBaseTests
     {
         var harness = new Harness(Right<EncinaError, Unit>(Unit.Default));
         harness.Store.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("outbox.save_failed", "Deadlock victim")));
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("outbox.save_failed", "Deadlock victim for patient-123")));
         using var unsaved = new OutcomeListener("unsaved");
 
         await harness.RunUntilLoggedAsync(2960);
 
         var entry = harness.Logger.Entries.Single(e => e.EventId == 2960);
         entry.Level.ShouldBe(LogLevel.Error);
-        entry.Message.ShouldContain("Deadlock victim");
+        entry.Message.ShouldContain("outbox.save_failed");
+        entry.Message.ShouldNotContain("patient-123");
         harness.Logger.EventIds.ShouldNotContain(2833);
         unsaved.Total.ShouldBeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
+    public async Task Processor_FetchReturnsLeft_LogsTheErrorCodeButNotTheErrorMessage()
+    {
+        // EncinaError.Message can carry personal data; only the code reaches the log (#1259 review).
+        var harness = new Harness(Right<EncinaError, Unit>(Unit.Default));
+        harness.Store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IOutboxMessage>>(
+                EncinaErrors.Create("outbox.fetch_failed", "Row for patient-123 is locked")));
+
+        await harness.RunUntilLoggedAsync(2829);
+
+        var entry = harness.Logger.Entries.First(e => e.EventId == 2829);
+        entry.Message.ShouldContain("outbox.fetch_failed");
+        harness.Logger.Entries.ShouldAllBe(e => !e.Message.Contains("patient-123"));
+    }
+
+    [Fact]
+    public async Task Processor_PublishReturnsLeft_StoresAndLogsTheErrorCodeButNotTheErrorMessage()
+    {
+        var harness = new Harness(Left<EncinaError, Unit>(
+            EncinaErrors.Create("consent.missing", "No consent for subject patient-123")));
+
+        await harness.RunUntilLoggedAsync(2832);
+
+        await harness.Store.Received().MarkAsFailedAsync(
+            Arg.Any<Guid>(), "consent.missing", Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
+        await harness.Store.DidNotReceive().MarkAsFailedAsync(
+            Arg.Any<Guid>(), Arg.Is<string>(s => s.Contains("patient-123")), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
+        harness.Logger.Entries.Single(e => e.EventId == 2832).Message.ShouldContain("consent.missing");
+        harness.Logger.Entries.ShouldAllBe(e => !e.Message.Contains("patient-123"));
     }
 
     [Fact]
@@ -235,7 +268,8 @@ public sealed class OutboxProcessorBaseTests
         {
             lock (_gate)
             {
-                _entries.Add((eventId.Id, logLevel, formatter(state, exception)));
+                // The exception text is part of what a log sink writes, so it is captured too.
+                _entries.Add((eventId.Id, logLevel, formatter(state, exception) + (exception is null ? string.Empty : " | " + exception)));
                 if (_waiters.Remove(eventId.Id, out var waiter))
                 {
                     waiter.TrySetResult();

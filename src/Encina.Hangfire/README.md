@@ -232,8 +232,17 @@ public class ProcessPaymentHandler : ICommandHandler<ProcessPaymentCommand, Rece
 var jobId = _backgroundJobs.EnqueueRequest<ProcessPaymentCommand, Receipt>(
     new ProcessPaymentCommand(paymentId, 100m));
 
+// EnqueueRequest calls HangfireRequestJobAdapter.ExecuteAsync, which returns plain Task:
+// Hangfire's job storage never receives the Receipt. Only opt into persisting it with
+// EnqueueRequestWithResult (HangfireRequestJobAdapter.ExecuteAndReturnResultAsync) when
+// Receipt is known not to carry personal or health data. This is the fail-closed default
+// of SPEC-002 DEC-006 (see ../../docs/specifications/SPEC-002-eu-regulatory-readiness.md,
+// "11. Decisions for the maintainer"), introduced by
+// https://github.com/dlrivada/Encina/issues/1173.
+//
 // In Hangfire Dashboard:
-// - Success: the Receipt is the job result
+// - Success: nothing is stored by default; with EnqueueRequestWithResult, the Receipt is
+//   the job result
 // - ValidationFailed: a permanent failure - the job throws EncinaJobPermanentFailureException
 //   and, with EncinaAutomaticRetry, goes straight to Failed without retries
 // - A timeout or an unavailable dependency: a transient failure - the job throws
@@ -246,12 +255,14 @@ Hangfire marks a job as failed, and applies its retry policy, only when the job 
 
 | Handler outcome | Exception thrown | Hangfire default | With `UseEncinaAutomaticRetry` |
 |-----------------|------------------|------------------|--------------------------------|
-| `Right` | none (`ExecuteAsync` returns the response) | Succeeded | Succeeded |
+| `Right` | none (`ExecuteAsync` discards the response; use `ExecuteAndReturnResultAsync` / `EnqueueRequestWithResult` to persist it) | Succeeded | Succeeded |
 | Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while the job's token is cancelled, e.g. server shutdown | `OperationCanceledException` | Interrupted, not failed (after a server shutdown the job is processed again) | Same |
 | Permanent failure (validation, not found, missing handler, missing or withdrawn consent, active processing restriction, authorization denied, ...) | `EncinaJobPermanentFailureException` | Retried (Hangfire retries every exception) | **Failed, no retries** |
 | Transient or unclassified failure (timeout, unavailable dependency, rate limit, ...) | `EncinaJobFailedException` | Retried | Retried |
 
 Permanent and transient are decided by `Encina.Messaging.Recoverability.IErrorClassifier`: the registered implementation, or `DefaultErrorClassifier` when none is registered. The default classifier looks at the error's exception, then its code, then its message; register your own `IErrorClassifier` to classify your domain error codes.
+
+Only `EnqueueRequest` has an opt-in for keeping the response (`EnqueueRequestWithResult`, which enqueues `ExecuteAndReturnResultAsync`). `ScheduleRequestWithDelay`, `ScheduleRequestAt` and `AddOrUpdateRecurringRequest` always enqueue `ExecuteAsync`, so the response of a delayed, scheduled or recurring job is never stored in Hangfire.
 
 To stop Hangfire from retrying permanent failures, replace its global retry filter once at startup:
 
@@ -273,7 +284,7 @@ GlobalJobFilters.Filters.Add(new AutomaticRetryAttribute
 });
 ```
 
-Hangfire stores the type, message and stack trace of every failed attempt. The exception `Message` of both Encina exceptions therefore contains only the error code and a generic text, never `EncinaError.Message`, which may carry personal data such as a data-subject id. The error code is also available as `ErrorCode` and in `Exception.Data["Encina.ErrorCode"]`, and the exception that caused the error, if any, is the `InnerException`. The full error message is written only to the application log.
+Hangfire stores the type, message and stack trace of every failed attempt. The exception `Message` of both Encina exceptions therefore contains only the error code and a generic text, never `EncinaError.Message`, which may carry personal data such as a data-subject id. The error code is also available as `ErrorCode` and in `Exception.Data["Encina.ErrorCode"]`, and the exception that caused the error, if any, is the `InnerException`. The `RequestJobFailed`/`NotificationJobFailed` log lines carry only the error code too (#1173) — `EncinaError.Message` is not written anywhere by the adapter.
 
 ### Continuation Jobs
 

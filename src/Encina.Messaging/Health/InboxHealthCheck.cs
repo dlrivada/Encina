@@ -42,9 +42,11 @@ public class InboxHealthCheck : EncinaHealthCheck
         if (expiredResult.IsLeft)
         {
             var storeError = expiredResult.LeftToArray()[0];
+            // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+            var errorCode = storeError.GetCode().IfNone("encina.unknown");
             return HealthCheckResult.Unhealthy(
-                $"Failed to query inbox store: {storeError.Message}",
-                data: new Dictionary<string, object> { ["error"] = storeError.Message });
+                $"Failed to query inbox store: {errorCode}",
+                data: new Dictionary<string, object> { ["error"] = errorCode });
         }
 
         var expiredMessages = expiredResult.Match(Right: msgs => msgs, Left: _ => Enumerable.Empty<IInboxMessage>());

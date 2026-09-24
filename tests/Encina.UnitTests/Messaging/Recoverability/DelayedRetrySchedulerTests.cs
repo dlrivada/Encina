@@ -1,4 +1,5 @@
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.Serialization;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -26,10 +27,11 @@ public sealed class DelayedRetrySchedulerTests
         // Arrange
         var messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
         var logger = NullLogger<DelayedRetryScheduler>.Instance;
+        var messageSerializer = new JsonMessageSerializer();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DelayedRetryScheduler(null!, messageFactory, logger));
+            new DelayedRetryScheduler(null!, messageFactory, logger, messageSerializer));
     }
 
     [Fact]
@@ -38,10 +40,11 @@ public sealed class DelayedRetrySchedulerTests
         // Arrange
         var store = Substitute.For<IDelayedRetryStore>();
         var logger = NullLogger<DelayedRetryScheduler>.Instance;
+        var messageSerializer = new JsonMessageSerializer();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DelayedRetryScheduler(store, null!, logger));
+            new DelayedRetryScheduler(store, null!, logger, messageSerializer));
     }
 
     [Fact]
@@ -50,10 +53,24 @@ public sealed class DelayedRetrySchedulerTests
         // Arrange
         var store = Substitute.For<IDelayedRetryStore>();
         var messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
+        var messageSerializer = new JsonMessageSerializer();
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            new DelayedRetryScheduler(store, messageFactory, null!));
+            new DelayedRetryScheduler(store, messageFactory, null!, messageSerializer));
+    }
+
+    [Fact]
+    public void Constructor_WithNullMessageSerializer_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var store = Substitute.For<IDelayedRetryStore>();
+        var messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
+        var logger = NullLogger<DelayedRetryScheduler>.Instance;
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new DelayedRetryScheduler(store, messageFactory, logger, null!));
     }
 
     [Fact]
@@ -220,7 +237,8 @@ public sealed class DelayedRetrySchedulerTests
 
         // Assert
         capturedData.ShouldNotBeNull();
-        capturedData.ContextContent.ShouldContain("Test error message");
+        capturedData.ContextContent.ShouldContain("\"lastErrorCode\":\"TEST_ERROR\"");
+        capturedData.ContextContent.ShouldNotContain("Test error message");
     }
 
     #endregion
@@ -272,7 +290,7 @@ public sealed class DelayedRetrySchedulerTests
         var messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
         var logger = NullLogger<DelayedRetryScheduler>.Instance;
 
-        return new DelayedRetryScheduler(store, messageFactory, logger);
+        return new DelayedRetryScheduler(store, messageFactory, logger, new JsonMessageSerializer());
     }
 
     private static (DelayedRetryScheduler Scheduler, IDelayedRetryStore Store, IDelayedRetryMessageFactory MessageFactory) CreateSchedulerWithDependencies()
@@ -281,7 +299,7 @@ public sealed class DelayedRetrySchedulerTests
         var messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
         var logger = NullLogger<DelayedRetryScheduler>.Instance;
 
-        var scheduler = new DelayedRetryScheduler(store, messageFactory, logger);
+        var scheduler = new DelayedRetryScheduler(store, messageFactory, logger, new JsonMessageSerializer());
 
         return (scheduler, store, messageFactory);
     }

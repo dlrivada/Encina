@@ -4,6 +4,7 @@ using Encina.Cdc;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Messaging;
 using Encina.IntegrationTests.Cdc.Helpers;
+using Encina.Messaging.Serialization;
 using Encina.Testing.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -51,7 +52,7 @@ public sealed class OutboxCdcHandlerIntegrationTests
         {
             Id = Guid.NewGuid().ToString(),
             NotificationType = typeof(TestNotification).AssemblyQualifiedName,
-            Content = JsonSerializer.Serialize(notification),
+            Content = new JsonMessageSerializer().Serialize(notification),
             CreatedAtUtc = DateTime.UtcNow.ToString("O"),
             ProcessedAtUtc = (string?)null,
             ErrorMessage = (string?)null,
@@ -93,7 +94,7 @@ public sealed class OutboxCdcHandlerIntegrationTests
         {
             Id = Guid.NewGuid().ToString(),
             NotificationType = typeof(TestNotification).AssemblyQualifiedName,
-            Content = JsonSerializer.Serialize(new TestNotification("Already done")),
+            Content = new JsonMessageSerializer().Serialize(new TestNotification("Already done")),
             CreatedAtUtc = DateTime.UtcNow.ToString("O"),
             ProcessedAtUtc = DateTime.UtcNow.ToString("O"), // Already processed!
             ErrorMessage = (string?)null,
@@ -241,7 +242,7 @@ public sealed class OutboxCdcHandlerIntegrationTests
         {
             "Id": "{{Guid.NewGuid()}}",
             "NotificationType": "{{typeof(TestNotification).AssemblyQualifiedName}}",
-            "Content": "{{JsonSerializer.Serialize(notification).Replace("\"", "\\\"")}}",
+            "Content": "{{new JsonMessageSerializer().Serialize(notification).Replace("\"", "\\\"")}}",
             "CreatedAtUtc": "{{DateTime.UtcNow:O}}",
             "ProcessedAtUtc": null,
             "ErrorMessage": null,

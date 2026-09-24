@@ -29,7 +29,7 @@ public class HangfireRequestJobAdapterTests
             .Returns(Right<EncinaError, TestResponse>(expectedResponse));
 
         // Act
-        var result = await _adapter.ExecuteAsync(request);
+        var result = await _adapter.ExecuteAndReturnResultAsync(request);
 
         // Assert
         result.ShouldBe(expectedResponse);
@@ -114,6 +114,49 @@ public class HangfireRequestJobAdapterTests
             .FirstOrDefault(r => r.Message.Contains("failed"));
         logEntry.ShouldNotBeNull();
         logEntry!.Level.ShouldBe(LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OnFailure_LogsErrorCodeOnlyNotErrorMessage()
+    {
+        // Arrange: the failure message may contain personal data (e.g. a subject id from
+        // ConsentErrors/DSRErrors); the log line must carry only the error code (#1173).
+        var request = new TestRequest("test-data");
+        var error = EncinaErrors.Create("test.error", "Failure for subject 'patient-123'");
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
+
+        // Act
+        await Should.ThrowAsync<EncinaJobFailedException>(() => _adapter.ExecuteAsync(request));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot()
+            .FirstOrDefault(r => r.Message.Contains("failed"));
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("test.error");
+        logEntry.Message.ShouldContain("Transient");
+        logEntry.Message.ShouldNotContain("patient-123");
+        logEntry.Message.ShouldNotContain("Failure for subject");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OnPermanentFailure_LogsPermanentClassification()
+    {
+        // Arrange
+        var request = new TestRequest("test-data");
+        var error = EncinaErrors.Create("consent.missing", "No consent for subject 'patient-123'");
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
+
+        // Act
+        await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => _adapter.ExecuteAsync(request));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot().SingleOrDefault(r => r.Id.Id == 4002);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("consent.missing");
+        logEntry.Message.ShouldContain("Permanent");
+        logEntry.Message.ShouldNotContain("patient-123");
     }
 
     [Fact]

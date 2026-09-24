@@ -28,6 +28,10 @@ public static class DeadLetterServiceCollectionExtensions
 
         services.AddSingleton(options);
 
+        // DeadLetterOrchestrator and DeadLetterManager serialize the request payload through
+        // IMessageSerializer (so encryption applies to dead-lettered content).
+        services.TryAddDefaultMessageSerializer();
+
         // Register store and factory
         services.TryAddScoped<IDeadLetterStore, TStore>();
         services.TryAddScoped<IDeadLetterMessageFactory, TFactory>();

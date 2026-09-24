@@ -38,11 +38,13 @@ public sealed class HealthChecksTests
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert
+        // Assert: only the exception type travels, never its message or the exception itself
+        // (#1259 review) since an adapter could propagate the exception object unchanged.
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description!.ShouldContain("Database connection failed");
-        result.Exception.ShouldNotBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Database connection failed");
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]
@@ -244,7 +246,7 @@ public sealed class HealthChecksTests
         // Arrange
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_pending_count_failed", "pending count failed")));
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_pending_count_failed", "pending count failed for subject patient-123")));
         var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
@@ -252,7 +254,10 @@ public sealed class HealthChecksTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("pending count failed");
+
+        // Only the error code travels: EncinaError.Message can carry personal data (#1259 review).
+        result.Description!.ShouldContain("outbox.get_pending_count_failed");
+        result.Description!.ShouldNotContain("pending count failed for subject patient-123");
     }
 
     [Fact]
@@ -263,7 +268,7 @@ public sealed class HealthChecksTests
         store.GetPendingCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, int>(0));
         store.GetExhaustedCountAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_exhausted_count_failed", "exhausted count failed")));
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("outbox.get_exhausted_count_failed", "exhausted count failed for subject patient-123")));
         var healthCheck = new OutboxHealthCheck(store, new OutboxOptions());
 
         // Act
@@ -271,7 +276,10 @@ public sealed class HealthChecksTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("exhausted count failed");
+
+        // Only the error code travels: EncinaError.Message can carry personal data (#1259 review).
+        result.Description!.ShouldContain("outbox.get_exhausted_count_failed");
+        result.Description!.ShouldNotContain("exhausted count failed for subject patient-123");
     }
 
     private static IOutboxStore CreateOutboxStore(int pending, int exhausted)

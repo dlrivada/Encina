@@ -1,4 +1,5 @@
 using Encina.Messaging.Recoverability;
+using Encina.Messaging.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -12,6 +13,7 @@ public sealed class DelayedRetrySchedulerAdditionalTests
 {
     private readonly IDelayedRetryStore _store = Substitute.For<IDelayedRetryStore>();
     private readonly IDelayedRetryMessageFactory _messageFactory = Substitute.For<IDelayedRetryMessageFactory>();
+    private readonly IMessageSerializer _messageSerializer = new JsonMessageSerializer();
 
     [Fact]
     public void Constructor_WithNullStore_ThrowsArgumentNullException()
@@ -19,7 +21,8 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         Should.Throw<ArgumentNullException>(() => new DelayedRetryScheduler(
             null!,
             _messageFactory,
-            NullLogger<DelayedRetryScheduler>.Instance));
+            NullLogger<DelayedRetryScheduler>.Instance,
+            _messageSerializer));
     }
 
     [Fact]
@@ -28,13 +31,24 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         Should.Throw<ArgumentNullException>(() => new DelayedRetryScheduler(
             _store,
             null!,
-            NullLogger<DelayedRetryScheduler>.Instance));
+            NullLogger<DelayedRetryScheduler>.Instance,
+            _messageSerializer));
+    }
+
+    [Fact]
+    public void Constructor_WithNullMessageSerializer_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() => new DelayedRetryScheduler(
+            _store,
+            _messageFactory,
+            NullLogger<DelayedRetryScheduler>.Instance,
+            null!));
     }
 
     [Fact]
     public async Task ScheduleRetryAsync_WithNullRequest_ThrowsArgumentNullException()
     {
-        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
         var context = new RecoverabilityContext();
 
         await Should.ThrowAsync<ArgumentNullException>(
@@ -44,7 +58,7 @@ public sealed class DelayedRetrySchedulerAdditionalTests
     [Fact]
     public async Task ScheduleRetryAsync_WithNullContext_ThrowsArgumentNullException()
     {
-        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
 
         await Should.ThrowAsync<ArgumentNullException>(
             async () => await sut.ScheduleRetryAsync("request", null!, TimeSpan.FromMinutes(1), 0));
@@ -56,7 +70,7 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         var message = Substitute.For<IDelayedRetryMessage>();
         _messageFactory.Create(Arg.Any<DelayedRetryMessageData>()).Returns(message);
 
-        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
         var context = new RecoverabilityContext { CorrelationId = "corr-1" };
 
         var result = await sut.ScheduleRetryAsync("test-request", context, TimeSpan.FromMinutes(5), 0);
@@ -72,7 +86,7 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         var contextId = Guid.NewGuid();
         _store.DeleteByContextIdAsync(contextId, Arg.Any<CancellationToken>()).Returns(true);
 
-        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
         var result = await sut.CancelScheduledRetryAsync(contextId);
 
         result.IsRight.ShouldBeTrue();
@@ -85,9 +99,10 @@ public sealed class DelayedRetrySchedulerAdditionalTests
         var contextId = Guid.NewGuid();
         _store.DeleteByContextIdAsync(contextId, Arg.Any<CancellationToken>()).Returns(false);
 
-        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance);
+        var sut = new DelayedRetryScheduler(_store, _messageFactory, NullLogger<DelayedRetryScheduler>.Instance, _messageSerializer);
         var result = await sut.CancelScheduledRetryAsync(contextId);
 
         result.IsRight.ShouldBeTrue();
     }
 }
+

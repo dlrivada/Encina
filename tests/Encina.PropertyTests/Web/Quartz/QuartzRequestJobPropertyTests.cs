@@ -67,7 +67,8 @@ public sealed class QuartzRequestJobPropertyTests
             Encina.Send(request, Arg.Any<CancellationToken>())
                 .Returns(Left<EncinaError, string>(expectedError));
 
-            // Act & Assert
+            // Act & Assert: the exception message carries the error code, not the full
+            // EncinaError.Message, which may embed personal data (#1173).
             var exception = await Assert.ThrowsAsync<JobExecutionException>(() => job.Execute(context));
             exception.Message.ShouldContain(expectedError.GetCode().IfNone(string.Empty));
             exception.Message.ShouldNotContain(expectedError.Message);
