@@ -95,7 +95,8 @@ public sealed class DeadLetterOrchestrator
         ArgumentNullException.ThrowIfNull(context);
         ArgumentException.ThrowIfNullOrEmpty(context.SourcePattern);
 
-        var requestType = typeof(TRequest).AssemblyQualifiedName ?? typeof(TRequest).FullName ?? typeof(TRequest).Name;
+        var runtimeType = request.GetType();
+        var requestType = runtimeType.AssemblyQualifiedName ?? runtimeType.FullName ?? runtimeType.Name;
         var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var expiresAt = _options.RetentionPeriod.HasValue
