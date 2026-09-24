@@ -1,6 +1,6 @@
 # Encina project history
 
-> What the closed issues of this repository decided, rejected, learned and changed, consolidated per area with a citation to the issue that holds the evidence. Produced by the Historian pass of 2026-09-22 over the 331 issues closed up to that date: evidence (body, human comments, referencing pull requests) extracted by script, knowledge items extracted and grouped by the free local model in bounded batches, citations validated automatically, and the editorial review, corrections and promotion candidates written by the maintainer's main agent. Method and costs: [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) §3 and §6. Raw data: `artifacts/local-ai/historian/` on the maintainer's machine (not versioned).
+> What the closed issues of this repository decided, rejected, learned and changed, consolidated per area with a citation to the issue that holds the evidence. Produced by the Historian pass of 2026-09-22 over the 331 issues closed up to that date: evidence (body, human comments, referencing pull requests) extracted by script, knowledge items extracted and grouped by the free local model in bounded batches, citations validated automatically, and the editorial review, corrections and promotion candidates written by the maintainer's main agent. A first incremental pass on 2026-09-24 folded in the 32 issues closed between 2026-09-22 and 2026-09-24, using the same pipeline (`tools/ai/historian-extract-closed.ps1` with a `-Since` filter) with area assignment and section drafting reviewed before merging. Method and costs: [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) §3 and §6. Raw data: `artifacts/local-ai/historian/` on the maintainer's machine (not versioned).
 
 ## How to use this document
 
@@ -9,18 +9,18 @@
 - **Candidates for promotion** at the end lists what should become an ADR or a rule in `CLAUDE.md`; nothing there is a rule until the maintainer promotes it (human decision gate, `AI-DEVELOPMENT-MODEL.md` §15).
 - New closed issues are folded in by re-running the Historian pass and appending, with the date, under the affected area.
 
-## Outcomes of the 331 closed issues
+## Outcomes of the 363 closed issues
 
 | Outcome | Issues |
 |---|---|
-| Delivered | 274 |
+| Delivered | 304 |
 | Closed as duplicate | 26 |
-| Rejected with a reason | 9 |
-| Superseded by another design or issue | 6 |
+| Rejected with a reason | 10 |
+| Superseded by another design or issue | 7 |
 | Moved elsewhere | 1 |
 | Closed without comments or references (no evidence) | 15 |
 
-379 knowledge items were extracted: 192 decisions, 57 rejected alternatives, 53 rules, 56 things learned the hard way, 21 changes of direction; 18 were duplicates of another item and are merged below.
+419 knowledge items were extracted: 200 decisions, 58 rejected alternatives, 67 rules, 73 things learned the hard way, 21 changes of direction; 18 were duplicates of another item and are merged below.
 
 ## Areas
 
@@ -44,11 +44,19 @@
 - Encina adopts Snowflake, ULID, UUIDv7, and ShardPrefixed as the standard distributed ID strategies. (#638)
 - Core ID generation abstractions return Railway Oriented Programming types to handle errors consistently. (#638)
 
+**2026-09-24 pass:**
+
+- Request context propagation in Encina core uses an AsyncLocal-backed ambient accessor, supplemented by explicit overloads for non-HTTP entry points to handle cases without ambient context. (#1147)
+
 #### Rules the project committed to
 
 - The IDomainService marker interface is defined identically to the specification in issue #377. (#473)
-- Time-dependent code must use an injected TimeProvider instead of direct DateTime.UtcNow calls to ensure deterministic testing. (#543)
+- Time-dependent code must use an injected TimeProvider instead of direct DateTime.UtcNow calls to ensure deterministic testing. (#543, #1146)
 - Encina enforces Railway Oriented Programming by using Either<EncinaError, T> instead of exceptions for business logic failures. (#669, #671)
+
+**2026-09-24 pass:**
+
+- Components must read IRequestContext via IRequestContextAccessor at the point of use, rather than resolving it directly from dependency injection. (#1163)
 
 #### Alternatives considered and rejected
 
@@ -66,6 +74,17 @@
 - Either<T1, T2> is not covariant, preventing direct assignment to Either<EncinaError, object> and requiring explicit property access. (#520)
 - IEncina.Send uses a single generic parameter, requiring reflection to match MakeGenericMethod with one type argument. (#520)
 - LanguageExt's Match method throws ResultIsNullException if a branch returns null, even for Left branches. (#674)
+
+**2026-09-24 pass:**
+
+- Pipeline behaviors previously received null values for UserId and TenantId because the context was not correctly seeded from the ambient request accessor. (#1147)
+- Resolving an unregistered IRequestContext from dependency injection returns null, which silently disables tenant- and identity-dependent logic. (#1163)
+
+#### No longer applicable
+
+**2026-09-24 pass:**
+
+- Casting a ValueTask result from IEncina.Send to Task caused invalid-cast exceptions and prevented delayed retries: IEncina.Send returns a ValueTask, not a Task, superseded by the fix in #1162. (#1272)
 
 ### Messaging patterns and transports
 
@@ -90,12 +109,22 @@
 - Guid Id is the primary key for ProcessingActivity entities, not the activity string format. (#681)
 - Messaging store interfaces must return Either<EncinaError, T> or Either<EncinaError, Option<T>> to enforce ROP patterns and eliminate exception-based error handling. (#690)
 
+**2026-09-24 pass:**
+
+- Outbox messages that exhaust their retry limits must be moved to an observable dead-letter state to enable logging, metrics and requeue capability. (#1150)
+
 #### Rules the project committed to
 
 - Send and Publish methods must implement equivalent guard clauses for null parameters and cancellation tokens to ensure API consistency. (#33)
 - Permanent failures are routed to a Dead Letter Queue (DLQ) while transient errors undergo immediate or delayed retries. (#39)
 - Integration events must always be published via the Outbox pattern to ensure reliable delivery and consistency, while domain events remain in-process. (#384)
 - RegisterActivityAsync must use INSERT-only semantics to match InMemoryProcessingActivityRegistry behavior, returning an error on duplicates rather than upserting. (#681)
+
+**2026-09-24 pass:**
+
+- Outbox processors must treat a Left result from `IEncina.Publish` as a failure that triggers the `MarkAsFailedAsync` path, so a message is never marked processed without a successful delivery. (#1151)
+- Job adapters for Hangfire and Quartz must throw typed exceptions on Left results so the underlying scheduler records the failure and triggers its own retry logic. (#1152)
+- Scheduling methods must propagate store errors from `AddAsync` rather than always returning the message ID, to prevent silent failure of recurring job registration. (#1153)
 
 #### Alternatives considered and rejected
 
@@ -110,6 +139,11 @@
 
 - SQLite datetime format incompatibility can cause scheduled message reschedule tests to fail, requiring specific handling or skipping in property-based tests. (#9)
 - Scheduled messages could be stored but never executed because the ScheduledMessageProcessor background service was missing from the Encina.Messaging core. (#765)
+
+**2026-09-24 pass:**
+
+- Constant retry backoff in the outbox, despite documentation claiming exponential behavior, caused silent message loss during brief downstream outages. (#1150)
+- MongoDB outbox registration sets up messaging manually and may omit the background `OutboxProcessor` hosted service, breaking the at-least-once delivery guarantee unless it is added explicitly. (#1289)
 
 ### Data access and database providers
 
@@ -146,6 +180,10 @@
 - Scatter-gather pagination uses two merge strategies: `OverfetchAndMerge` and `EstimateAndDistribute`. (#652)
 - `TransactionPipelineBehavior` must use `DbConnection.OpenAsync` and `BeginTransactionAsync` instead of synchronous counterparts. (#794)
 
+**2026-09-24 pass:**
+
+- Provider registration methods must register all required dependencies, including options classes, to ensure dependency injection resolution succeeds: `AddEncinaMongoDB` registered `InboxOrchestrator` without registering the `InboxOptions` it depends on. (#1273)
+
 #### Rules the project committed to
 
 - The Oracle provider is excluded from pre-1.0 scope, leaving 13 supported providers for this feature. (#286)
@@ -153,6 +191,11 @@
 - A multi-provider rule requires all database features to be implemented across all supported providers to ensure parity. (#536)
 - All store implementations must support `TimeProvider` injection to ensure testability and provider coherence. (#667)
 - Database provider implementations must use async overloads accepting `CancellationToken` to satisfy S6966. (#897)
+
+**2026-09-24 pass:**
+
+- All ADO.NET providers must expose an `AddEncinaUnitOfWork` method in `ServiceCollectionExtensions`, aligning with the multi-provider rule for all ten providers. (#1260)
+- Removed database providers, Oracle and SQLite, must have every reference and dispatch branch purged from EF Core packages; references extended well beyond `BulkOperations`, with 21 source files still mentioning them. (#1262)
 
 #### Alternatives considered and rejected
 
@@ -181,6 +224,13 @@
 - PostgreSQL integration tests fail with 'relation does not exist' because EF Core quotes identifiers while raw SQL schemas create unquoted lowercase tables. (#570)
 - EF Core `EnsureCreatedAsync` does not create tables for custom `DbContexts` if the database already contains pre-created tables from raw SQL schema initialization. (#571)
 - `IDbConnection.Open()` is the only blocking call in the codebase and causes ThreadPool starvation under high concurrency. (#794)
+
+**2026-09-24 pass:**
+
+- ADO.NET schema scripts for PostgreSQL and MySQL contained incorrect SQL Server syntax, revealed while documenting the database providers. (#83)
+- EF Core filtered indexes with unquoted identifiers fail on PostgreSQL because the system folds identifiers to lowercase, causing DDL errors such as a missing column. (#1128)
+- PostgreSQL audit store queries failed because nullable parameters in filters were not cast, causing type mismatches; the fix casts the reused nullable parameters in the PostgreSQL audit queries. (#1129)
+- Using `TryAdd` for both in-memory and database stores means registration order decides which store wins, which can silently lose audit evidence if the in-memory store is registered first. (#1269)
 
 #### Changes of direction
 
@@ -316,6 +366,10 @@
 - Log filtering by EventId is unreliable if modules share ranges, making production diagnostics ambiguous for overlapping IDs. (#828)
 - .NET 10 introduces ambiguous overloads for Counter.Add and Histogram.Record with KeyValuePair parameters, requiring explicit TagList or array wrappers. (#867)
 
+**2026-09-24 pass:**
+
+- Reflection-based enforcement of ADR-021 failed to detect EventIds defined via LoggerMessage.Define, allowing ID collisions, because those EventIds are plain constructor arguments that EventIdUniquenessRule does not inspect. (#1125)
+
 ### Resilience
 
 #### Decisions
@@ -356,6 +410,12 @@
 - ADR-022 documents security considerations including HMAC-SHA256 rationale, constant-time comparison, and SSRF protection (#861).
 - The documented REST contract for HttpAttestationProvider requires POST /attest and GET /receipt/{attestationId} (#862).
 
+**2026-09-24 pass:**
+
+- Retention enforcement must treat legal-hold lookup errors as "hold active" to prevent accidental erasure, so the check fails closed. (#1143)
+- US and Canada adequacy decisions are conditional on the recipient being certified under the respective framework, specifically DPF or PIPEDA. (#1145)
+- HMAC validation must fail closed by default when HttpContext is absent; skipping validation requires an explicit opt-out configuration or attribute. (#1155)
+
 #### Rules the project committed to
 
 - Feature-specific stores must be placed in subfolders named after the feature, not the source package (#413).
@@ -364,6 +424,13 @@
 - Entity properties must exactly match the domain model, using Purpose instead of Description and ThirdCountryTransfers as string? instead of bool (#681).
 - HMAC key size must match the configured hash algorithm (32/48/64 bytes) to avoid failures (#850).
 - Options classes exposing sensitive properties must use [JsonIgnore] and override ToString() to prevent leaks (#851).
+
+**2026-09-24 pass:**
+
+- Transfers to regions without an unconditional adequacy decision must be evaluated on the recipient's certification status, not just the destination region. (#1145)
+- Subject ID extraction must support convertible types such as Guid and fall back to the caller's UserId only when no matching property exists. (#1149)
+- Retention enforcement erasure must be scoped to the specific DataCategory of the expired record, not the entire entity. (#1160)
+- Legal-hold lifting must fail closed if releasing records fails or if the check for other active holds errors. (#1161)
 
 #### Alternatives considered and rejected
 
@@ -377,9 +444,20 @@
 - SQL-level query interceptors were rejected because they capture all reads with high overhead and cannot identify specific returned entities (#573).
 - Using native IConfiguration secret providers was rejected because they only support reading secrets, lacking write, delete, or list capabilities (#603).
 
+**2026-09-24 pass:**
+
+- The previous behavior of silently skipping HMAC validation for background jobs and tests was rejected as a fail-open security risk. (#1155)
+
 #### Things learned the hard way
 
 - Using an ephemeral HMAC key in HashChainAttestationProvider causes silent evidence loss on process restart, so a startup warning is required (#902).
+
+**2026-09-24 pass:**
+
+- Retention enforcement previously failed to mark records as expired, causing deletion attempts to fail with `RetentionErrors.InvalidStateTransition` and entities to be erased repeatedly. (#1142)
+- Passing EntityId as the subject ID to the erasure executor is incorrect and leads to improper scoping, because the executor treats it as a data-subject ID. (#1160)
+- Ignoring `ReleaseRecordAsync` failures leaves records `UnderLegalHold` indefinitely, which excludes them from expired sweeps. (#1161)
+- `AddEncinaCrossBorderTransfer` must explicitly register `IAdequacyDecisionProvider` via `TryAdd` to prevent DI resolution failures of the validator when `AddEncinaDataResidency` is not called. (#1285)
 
 #### No longer applicable
 
@@ -547,6 +625,10 @@
 - Issue #743 is the canonical issue for Secrets resilience patterns, superseding duplicate requests. (#795)
 - The 'Encina.Secrets.*' package family was identified as duplicates of 'Encina.Security.Secrets.*' and required cleanup to resolve naming conflicts. (#1089)
 
+**2026-09-24 pass:**
+
+- The default worker model is Sonnet; Opus is reserved for unknown root causes or design-heavy tasks. (#1181)
+
 #### Rules the project committed to
 
 - Load tests are excluded from the standard CI pipeline to prevent crashes caused by the upstream .NET 10 JIT bug. (#5)
@@ -554,6 +636,12 @@
 - Required status checks in branch protection must accurately reflect existing CI workflow jobs to prevent blocking merges with non-existent or retired checks. (#98)
 - Directory.Build.rsp enforces -maxcpucount:1 and -nodeReuse:false to stabilize builds. (#496)
 - GitHub Actions workflow permissions must be scoped at the job level rather than workflow level for least privilege. (#896)
+
+**2026-09-24 pass:**
+
+- No test suite may be excluded from CI without an open issue tracking the exclusion. (#1094)
+- User-visible changes must be recorded as fragments in changelog.d/, enforced by CI scripts. (#1165)
+- Workers must edit source files with the Edit/Write tools, never PowerShell `-replace` or `[IO.File]` writes. (#1181)
 
 #### Alternatives considered and rejected
 
@@ -568,6 +656,11 @@
 - Dependabot nuget updates can exceed GitHub Actions 1-hour job timeouts in large repositories with Central Package Management, requiring job splitting. (#1042)
 - NuGet audit warnings (NU1902/NU1904) are escalated to build errors by TreatWarningsAsErrors, causing CI failures if vulnerable transitive dependencies are not updated. (#1088)
 - Projects can be intentionally excluded from the main solution file while still being built via ProjectReferences from test or integration projects. (#1089)
+
+**2026-09-24 pass:**
+
+- The Compliance test suite was previously excluded from CI shards, allowing significant test failures to go unnoticed. (#1094)
+- Using PowerShell string replacement to edit source files can corrupt multiple files simultaneously. (#1181)
 
 #### Changes of direction
 
@@ -587,6 +680,10 @@
 - The project adopted a hybrid architecture where DocFX generates API references as flat HTML files that are integrated into the Jekyll-driven documentation site. (#91)
 - The project documentation site uses the just-the-docs Jekyll theme for navigation and layout. (#914)
 
+**2026-09-24 pass:**
+
+- The quickstart documentation was designed to be completed in 5 minutes, prioritizing fast onboarding over comprehensive coverage. (#81)
+
 #### Rules the project committed to
 
 - DocFX configuration must explicitly exclude System and Microsoft namespaces and private members to prevent clutter and noise in the generated API reference. (#91)
@@ -595,6 +692,10 @@
 
 - Removing DocFX configuration for a Jekyll migration breaks the DocFX workflow if not explicitly reconfigured or removed, leaving the system in a state where no API docs are generated. (#91)
 - The ModuleArchitectureAnalyzer may detect false positive dependencies between file-scoped modules due to namespace proximity or implicit transitive dependencies. (#497)
+
+**2026-09-24 pass:**
+
+- Writing the introduction and quickstart docs revealed significant documentation drift in the README and the patterns guide. (#80)
 
 ## Editorial corrections
 
