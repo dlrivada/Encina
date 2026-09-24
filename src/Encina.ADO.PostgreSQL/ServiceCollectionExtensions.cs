@@ -8,6 +8,7 @@ using Encina.ADO.PostgreSQL.Sagas;
 using Encina.ADO.PostgreSQL.Scheduling;
 using Encina.ADO.PostgreSQL.UnitOfWork;
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Database;
@@ -83,6 +84,19 @@ public static class ServiceCollectionExtensions
         // Register Anonymization token mapping store if enabled
         if (config.UseAnonymization)
         {
+            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
+            // store wins regardless of the order in which AddEncinaAnonymization and this
+            // provider run. A custom ITokenMappingStore the application registered itself is
+            // never removed here, so it keeps winning (#1295).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreADO>();
         }
 
