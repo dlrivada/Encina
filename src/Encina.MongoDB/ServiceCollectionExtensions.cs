@@ -72,6 +72,11 @@ public static class ServiceCollectionExtensions
         // Register TimeProvider for consistent timestamps across all MongoDB components
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so audit/tenant-aware components can
+        // resolve the current context even when the host only wires Encina.MongoDB, without the
+        // core mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register MongoDB client if not already registered
         services.TryAddSingleton<IMongoClient>(sp =>
             new MongoClient(options.ConnectionString));
@@ -197,6 +202,11 @@ public static class ServiceCollectionExtensions
 
         services.Configure(configure);
         services.AddSingleton(mongoClient);
+
+        // Register the ambient request context accessor so audit/tenant-aware components can
+        // resolve the current context even when the host only wires Encina.MongoDB, without the
+        // core mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
         // Register stores based on configuration
         if (options.UseOutbox)
@@ -367,7 +377,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new FunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, idProperty, requestContext, timeProvider);
@@ -439,7 +449,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFunctionalReadRepository<TEntity, TId>>(sp =>
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new FunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, idProperty, requestContext, timeProvider);
@@ -586,7 +596,7 @@ public static class ServiceCollectionExtensions
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             var entityMapping = sp.GetRequiredService<ISoftDeleteEntityMapping<TEntity, TId>>();
             var softDeleteOptions = sp.GetRequiredService<SoftDeleteOptions>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new SoftDeletableFunctionalRepositoryMongoDB<TEntity, TId>(
                 collection, entityMapping, softDeleteOptions, requestContext, timeProvider);
@@ -738,7 +748,7 @@ public static class ServiceCollectionExtensions
         {
             var collection = sp.GetRequiredService<IMongoCollection<TEntity>>();
             var options = sp.GetRequiredService<MongoDbRepositoryOptions<TEntity, TId>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             return new BulkOperationsMongoDB<TEntity, TId>(
                 collection, options.IdProperty!, null, requestContext, timeProvider);

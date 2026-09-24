@@ -114,6 +114,11 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new ABACOptions();
         configure?.Invoke(optionsInstance);
 
+        // Register the ambient request context accessor so the persistent PAP can resolve the
+        // current actor for audit entries even when the host only wires Encina.Security.ABAC,
+        // without the core mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded
         services.TryAddSingleton<IFunctionRegistry>(sp =>
@@ -196,8 +201,8 @@ public static class ServiceCollectionExtensions
 
                 var logger = sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>();
                 var auditStore = sp.GetService<Audit.IAuditStore>();
-                var requestContext = sp.GetService<IRequestContext>();
-                return new PersistentPolicyAdministrationPoint(store, logger, auditStore, requestContext);
+                var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
+                return new PersistentPolicyAdministrationPoint(store, logger, auditStore, requestContextAccessor);
             });
 
             // ── Policy Cache PubSub Hosted Service ───────────────────

@@ -201,7 +201,7 @@ public static class ServiceCollectionExtensions
         {
             var connection = sp.GetRequiredService<IDbConnection>();
             var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalRepositoryDapper<TEntity, TId>(
@@ -266,7 +266,7 @@ public static class ServiceCollectionExtensions
         {
             var connection = sp.GetRequiredService<IDbConnection>();
             var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalRepositoryDapper<TEntity, TId>(

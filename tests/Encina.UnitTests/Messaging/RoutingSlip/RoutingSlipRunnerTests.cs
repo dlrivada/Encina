@@ -26,7 +26,7 @@ public sealed class RoutingSlipRunnerTests
     #region Constructor
 
     [Fact]
-    public void Constructor_WithNullRequestContext_ThrowsArgumentNullException()
+    public void Constructor_WithNullRequestContextAccessor_ThrowsArgumentNullException()
     {
         // Arrange
         var options = new RoutingSlipOptions();
@@ -40,34 +40,34 @@ public sealed class RoutingSlipRunnerTests
     public void Constructor_WithNullOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         var logger = NullLogger<RoutingSlipRunner>.Instance;
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContext, null!, logger));
+        Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContextAccessor, null!, logger));
     }
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         var options = new RoutingSlipOptions();
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContext, options, null!));
+        Should.Throw<ArgumentNullException>(() => new RoutingSlipRunner(requestContextAccessor, options, null!));
     }
 
     [Fact]
     public void Constructor_WithValidParameters_Succeeds()
     {
         // Arrange
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         var options = new RoutingSlipOptions();
         var logger = NullLogger<RoutingSlipRunner>.Instance;
 
         // Act
-        var runner = new RoutingSlipRunner(requestContext, options, logger);
+        var runner = new RoutingSlipRunner(requestContextAccessor, options, logger);
 
         // Assert
         runner.ShouldNotBeNull();
@@ -567,9 +567,10 @@ public sealed class RoutingSlipRunnerTests
 
     private static RoutingSlipRunner CreateRunner(RoutingSlipOptions? options = null)
     {
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+        requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
         return new RoutingSlipRunner(
-            requestContext,
+            requestContextAccessor,
             options ?? new RoutingSlipOptions(),
             NullLogger<RoutingSlipRunner>.Instance);
     }

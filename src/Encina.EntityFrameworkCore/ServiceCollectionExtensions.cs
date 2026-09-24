@@ -138,6 +138,12 @@ public static class ServiceCollectionExtensions
         // Register TimeProvider for consistent timestamps across all EF Core components
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so audit/soft-delete/query-cache
+        // interceptors can resolve the current context even when the host only wires
+        // Encina.EntityFrameworkCore, without the core mediator's AddEncina() (TryAdd is
+        // idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 
@@ -406,6 +412,12 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services)
         where TDbContext : DbContext
     {
+        // Register the ambient request context accessor so audit/soft-delete/query-cache
+        // interceptors can resolve the current context even when the host only wires this
+        // no-pattern overload, without the core mediator's AddEncina() (TryAdd is idempotent
+        // when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Just register DbContext mapping, no patterns enabled
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
         return services;

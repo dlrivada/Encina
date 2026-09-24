@@ -109,6 +109,11 @@ public static class ShardingServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so the sharded repository can resolve
+        // the current context even when the host only wires this sharding extension, without the
+        // core mediator's AddEncina() or AddEncinaMongoDB (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         var collectionName = options.GetEffectiveCollectionName();
         var idSelector = options.IdProperty!;
 
@@ -149,7 +154,7 @@ public static class ShardingServiceCollectionExtensions
         {
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalShardedRepositoryMongoDB<TEntity, TId>(
@@ -218,7 +223,7 @@ public static class ShardingServiceCollectionExtensions
             var collectionFactory = sp.GetRequiredService<IShardedMongoCollectionFactory>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryMongoDB<TEntity, TId>>>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
 
             return new FunctionalShardedRepositoryMongoDB<TEntity, TId>(

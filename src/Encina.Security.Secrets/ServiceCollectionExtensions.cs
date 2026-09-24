@@ -205,6 +205,11 @@ public static class ServiceCollectionExtensions
             services.Configure<SecretsOptions>(_ => { });
         }
 
+        // Register the ambient request context accessor so EnableAccessAuditing can resolve the
+        // current actor even when the host only wires Encina.Security.Secrets, without the core
+        // mediator's AddEncina() (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register rotation coordinator
         services.TryAddSingleton<SecretRotationCoordinator>();
 
@@ -336,14 +341,14 @@ public static class ServiceCollectionExtensions
         if (options.EnableAccessAuditing)
         {
             var auditStore = sp.GetService<IAuditStore>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
 
-            if (auditStore is not null && requestContext is not null)
+            if (auditStore is not null && requestContextAccessor is not null)
             {
                 reader = new AuditedSecretReaderDecorator(
                     reader,
                     auditStore,
-                    requestContext,
+                    requestContextAccessor,
                     options,
                     sp.GetRequiredService<ILogger<AuditedSecretReaderDecorator>>());
             }

@@ -68,7 +68,7 @@ public sealed class NIS2AdvancedIntegrationTests
             services.AddSingleton<ICacheProvider>(cacheProvider);
 
         if (requestContext is not null)
-            services.AddScoped<IRequestContext>(_ => requestContext);
+            services.AddSingleton<IRequestContextAccessor>(new RequestContextAccessor { RequestContext = requestContext });
 
         if (breachService is not null)
             services.AddSingleton(breachService);

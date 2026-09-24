@@ -8,39 +8,44 @@ namespace Encina.GuardTests.Messaging.RoutingSlip;
 /// </summary>
 public class RoutingSlipRunnerGuardTests
 {
-    private readonly IRequestContext _requestContext = Substitute.For<IRequestContext>();
+    private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
     private readonly RoutingSlipOptions _options = new();
     private readonly ILogger<RoutingSlipRunner> _logger = NullLogger<RoutingSlipRunner>.Instance;
 
-    private RoutingSlipRunner CreateSut() => new(_requestContext, _options, _logger);
+    public RoutingSlipRunnerGuardTests()
+    {
+        _requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+    }
+
+    private RoutingSlipRunner CreateSut() => new(_requestContextAccessor, _options, _logger);
 
     #region Constructor Guards
 
     [Fact]
-    public void Constructor_NullRequestContext_ThrowsArgumentNullException()
+    public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
     {
         var act = () => new RoutingSlipRunner(null!, _options, _logger);
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContext");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
 
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new RoutingSlipRunner(_requestContext, null!, _logger);
+        var act = () => new RoutingSlipRunner(_requestContextAccessor, null!, _logger);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new RoutingSlipRunner(_requestContext, _options, null!);
+        var act = () => new RoutingSlipRunner(_requestContextAccessor, _options, null!);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
     [Fact]
     public void Constructor_NullTimeProvider_UsesSystemDefault()
     {
-        var act = () => new RoutingSlipRunner(_requestContext, _options, _logger, timeProvider: null);
+        var act = () => new RoutingSlipRunner(_requestContextAccessor, _options, _logger, timeProvider: null);
         Should.NotThrow(act);
     }
 

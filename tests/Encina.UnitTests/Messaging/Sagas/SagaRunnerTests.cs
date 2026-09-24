@@ -29,15 +29,15 @@ public sealed class SagaRunnerTests
     public void Constructor_WithNullOrchestrator_ThrowsArgumentNullException()
     {
         // Arrange
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new SagaRunner(null!, requestContext, logger));
+        Should.Throw<ArgumentNullException>(() => new SagaRunner(null!, requestContextAccessor, logger));
     }
 
     [Fact]
-    public void Constructor_WithNullRequestContext_ThrowsArgumentNullException()
+    public void Constructor_WithNullRequestContextAccessor_ThrowsArgumentNullException()
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
@@ -52,10 +52,10 @@ public sealed class SagaRunnerTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => new SagaRunner(orchestrator, requestContext, null!));
+        Should.Throw<ArgumentNullException>(() => new SagaRunner(orchestrator, requestContextAccessor, null!));
     }
 
     [Fact]
@@ -63,11 +63,11 @@ public sealed class SagaRunnerTests
     {
         // Arrange
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
 
         // Act
-        var runner = new SagaRunner(orchestrator, requestContext, logger);
+        var runner = new SagaRunner(orchestrator, requestContextAccessor, logger);
 
         // Assert
         runner.ShouldNotBeNull();
@@ -184,6 +184,72 @@ public sealed class SagaRunnerTests
         executedSteps[0].ShouldBe("Step1");
         executedSteps[1].ShouldBe("Step2");
         executedSteps[2].ShouldBe("Step3");
+    }
+
+    #endregion
+
+    #region RunAsync - Request Context Propagation
+
+    [Fact]
+    public async Task RunAsync_OutsideDispatch_StepsReceiveTenantLessContext()
+    {
+        // Arrange: a real accessor with no ambient context set, as when a background job
+        // invokes the saga directly instead of going through IEncina.Send/Publish/Stream.
+        var accessor = new RequestContextAccessor();
+        var orchestrator = CreateOrchestrator();
+        var logger = NullLogger<SagaRunner>.Instance;
+        var runner = new SagaRunner(orchestrator, accessor, logger);
+
+        IRequestContext? observedContext = null;
+        var definition = CreateDefinition(steps:
+        [
+            ("Step1", (data, context, _) =>
+            {
+                observedContext = context;
+                return ValueTask.FromResult(Right<EncinaError, TestData>(data));
+            })
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        observedContext.ShouldNotBeNull();
+        observedContext.TenantId.ShouldBeNull();
+        observedContext.UserId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_WithTenantSetOnAccessor_StepsReceiveThatTenant()
+    {
+        // Arrange: the ambient context carries a tenant, as when a dispatch set it before
+        // invoking the saga.
+        var accessor = new RequestContextAccessor
+        {
+            RequestContext = RequestContext.CreateForTest(tenantId: "tenant-42")
+        };
+        var orchestrator = CreateOrchestrator();
+        var logger = NullLogger<SagaRunner>.Instance;
+        var runner = new SagaRunner(orchestrator, accessor, logger);
+
+        IRequestContext? observedContext = null;
+        var definition = CreateDefinition(steps:
+        [
+            ("Step1", (data, context, _) =>
+            {
+                observedContext = context;
+                return ValueTask.FromResult(Right<EncinaError, TestData>(data));
+            })
+        ]);
+
+        // Act
+        var result = await runner.RunAsync(definition);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        observedContext.ShouldNotBeNull();
+        observedContext.TenantId.ShouldBe("tenant-42");
     }
 
     #endregion
@@ -421,9 +487,16 @@ public sealed class SagaRunnerTests
     private static SagaRunner CreateRunner()
     {
         var orchestrator = CreateOrchestrator();
-        var requestContext = Substitute.For<IRequestContext>();
+        var requestContextAccessor = CreateAccessor();
         var logger = NullLogger<SagaRunner>.Instance;
-        return new SagaRunner(orchestrator, requestContext, logger);
+        return new SagaRunner(orchestrator, requestContextAccessor, logger);
+    }
+
+    private static IRequestContextAccessor CreateAccessor()
+    {
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+        return accessor;
     }
 
     private static BuiltSagaDefinition<TestData> CreateDefinition(

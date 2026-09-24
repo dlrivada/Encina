@@ -60,6 +60,11 @@ public static class MessagingServiceCollectionExtensions
         // Register TimeProvider for consistent timestamps across all messaging components
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor. AddEncina() also registers it (TryAdd is
+        // idempotent), but provider packages that wire messaging without the core mediator still
+        // need it resolvable, since SagaRunner and other consumers require it.
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register default message serializer (JSON with camelCase).
         // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.
         services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
@@ -184,6 +189,11 @@ public static class MessagingServiceCollectionExtensions
 
         // Register TimeProvider for consistent timestamps across all messaging components
         services.TryAddSingleton(TimeProvider.System);
+
+        // Register the ambient request context accessor. AddEncina() also registers it (TryAdd is
+        // idempotent), but provider packages that wire messaging without the core mediator still
+        // need it resolvable, since SagaRunner and other consumers require it.
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
         // Register default message serializer (JSON with camelCase).
         // Encina.Messaging.Encryption can decorate this with EncryptingMessageSerializer.

@@ -318,9 +318,11 @@ public class DefaultNIS2ComplianceValidatorTests
     [Fact]
     public async Task ValidateAsync_WithTenantId_ShouldIncludeTenantInCacheKey()
     {
-        // Arrange — IRequestContext provides TenantId
+        // Arrange — IRequestContextAccessor provides the ambient TenantId
         var requestContext = Substitute.For<IRequestContext>();
         requestContext.TenantId.Returns("tenant-42");
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+        requestContextAccessor.RequestContext.Returns(requestContext);
 
         var cache = Substitute.For<ICacheProvider>();
         cache.GetAsync<NIS2ComplianceResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -328,7 +330,7 @@ public class DefaultNIS2ComplianceValidatorTests
 
         var sp = Substitute.For<IServiceProvider>();
         sp.GetService(typeof(ICacheProvider)).Returns(cache);
-        sp.GetService(typeof(IRequestContext)).Returns(requestContext);
+        sp.GetService(typeof(IRequestContextAccessor)).Returns(requestContextAccessor);
 
         var evaluator = CreateSatisfiedEvaluator(NIS2Measure.RiskAnalysisAndSecurityPolicies);
         var options = CreateDefaultOptions();
@@ -348,14 +350,14 @@ public class DefaultNIS2ComplianceValidatorTests
     [Fact]
     public async Task ValidateAsync_WithoutTenantId_ShouldUseCacheKeyWithoutTenant()
     {
-        // Arrange — no IRequestContext registered
+        // Arrange — no IRequestContextAccessor registered
         var cache = Substitute.For<ICacheProvider>();
         cache.GetAsync<NIS2ComplianceResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<NIS2ComplianceResult?>(null));
 
         var sp = Substitute.For<IServiceProvider>();
         sp.GetService(typeof(ICacheProvider)).Returns(cache);
-        // No IRequestContext
+        // No IRequestContextAccessor
 
         var evaluator = CreateSatisfiedEvaluator(NIS2Measure.RiskAnalysisAndSecurityPolicies);
         var options = CreateDefaultOptions();
@@ -375,12 +377,14 @@ public class DefaultNIS2ComplianceValidatorTests
     [Fact]
     public async Task ValidateAsync_WithTenantId_ShouldPropagateToContext()
     {
-        // Arrange — IRequestContext provides TenantId, capture context
+        // Arrange — IRequestContextAccessor provides TenantId, capture context
         var requestContext = Substitute.For<IRequestContext>();
         requestContext.TenantId.Returns("tenant-abc");
+        var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+        requestContextAccessor.RequestContext.Returns(requestContext);
 
         var sp = Substitute.For<IServiceProvider>();
-        sp.GetService(typeof(IRequestContext)).Returns(requestContext);
+        sp.GetService(typeof(IRequestContextAccessor)).Returns(requestContextAccessor);
 
         NIS2MeasureContext? capturedContext = null;
         var evaluator = Substitute.For<INIS2MeasureEvaluator>();

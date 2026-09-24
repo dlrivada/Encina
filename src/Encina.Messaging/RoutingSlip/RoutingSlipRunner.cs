@@ -20,7 +20,7 @@ namespace Encina.Messaging.RoutingSlip;
 /// </remarks>
 public sealed class RoutingSlipRunner : IRoutingSlipRunner
 {
-    private readonly IRequestContext _requestContext;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly RoutingSlipOptions _options;
     private readonly ILogger<RoutingSlipRunner> _logger;
     private readonly TimeProvider _timeProvider;
@@ -28,21 +28,25 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
     /// <summary>
     /// Initializes a new instance of the <see cref="RoutingSlipRunner"/> class.
     /// </summary>
-    /// <param name="requestContext">The request context.</param>
+    /// <param name="requestContextAccessor">
+    /// Accessor for the ambient request context. Every run resolves the current context (or a
+    /// fresh one when none is in flight) instead of capturing a snapshot at construction time,
+    /// since this runner is registered as scoped but may outlive the caller's own dispatch.
+    /// </param>
     /// <param name="options">The routing slip options.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public RoutingSlipRunner(
-        IRequestContext requestContext,
+        IRequestContextAccessor requestContextAccessor,
         RoutingSlipOptions options,
         ILogger<RoutingSlipRunner> logger,
         TimeProvider? timeProvider = null)
     {
-        ArgumentNullException.ThrowIfNull(requestContext);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _requestContext = requestContext;
+        _requestContextAccessor = requestContextAccessor;
         _options = options;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -71,6 +75,11 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
         var stopwatch = Stopwatch.StartNew();
         var initialStepCount = definition.Steps.Count;
 
+        // The ambient context set by IEncina.Send/Publish/Stream wins; a run started outside a
+        // dispatch (a background job invoking the routing slip directly) gets a fresh context
+        // instead of a null one, since steps require a non-null IRequestContext.
+        var requestContext = _requestContextAccessor.RequestContext ?? RequestContext.Create();
+
         // Create mutable copies for the context
         var remainingSteps = new List<RoutingSlipStepDefinition<TData>>(definition.Steps);
         var activityLog = new List<RoutingSlipActivityEntry<TData>>();
@@ -78,7 +87,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
         var context = new RoutingSlipContext<TData>(
             routingSlipId,
             definition.SlipType,
-            _requestContext,
+            requestContext,
             remainingSteps,
             activityLog);
 

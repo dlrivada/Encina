@@ -83,6 +83,11 @@ public static class ShardingServiceCollectionExtensions
         // Register TimeProvider.System as singleton if not already registered
         services.TryAddSingleton(TimeProvider.System);
 
+        // Register the ambient request context accessor so the sharded repository can resolve
+        // the current context even when the host only wires this sharding extension, without the
+        // core mediator's AddEncina() or AddMessagingServices (TryAdd is idempotent when both are called).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register the sharded connection factory (both interfaces)
         services.TryAddScoped<ShardedConnectionFactory>();
         services.TryAddScoped<IShardedConnectionFactory>(sp => sp.GetRequiredService<ShardedConnectionFactory>());
@@ -104,7 +109,7 @@ public static class ShardingServiceCollectionExtensions
             var connectionFactory = sp.GetRequiredService<IShardedConnectionFactory<SqlConnection>>();
             var entityMapping = sp.GetRequiredService<IEntityMapping<TEntity, TId>>();
             var queryExecutor = sp.GetRequiredService<IShardedQueryExecutor>();
-            var requestContext = sp.GetService<IRequestContext>();
+            var requestContext = sp.GetService<IRequestContextAccessor>()?.RequestContext;
             var timeProvider = sp.GetService<TimeProvider>();
             var logger = sp.GetRequiredService<ILogger<FunctionalShardedRepositoryADO<TEntity, TId>>>();
 
