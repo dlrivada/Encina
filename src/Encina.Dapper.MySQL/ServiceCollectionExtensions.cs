@@ -65,6 +65,19 @@ public static class ServiceCollectionExtensions
         // Register read audit store if enabled
         if (config.UseReadAuditStore)
         {
+            // Remove the in-memory default from Encina.Security.Audit so the database-backed
+            // store wins regardless of the order in which AddEncinaReadAuditing and this
+            // provider run. A custom IReadAuditStore the application registered itself is
+            // never removed here, so it keeps winning (#1269).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(IReadAuditStore) &&
+                    services[i].ImplementationType == typeof(InMemoryReadAuditStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
             services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreDapper>();
         }
 
