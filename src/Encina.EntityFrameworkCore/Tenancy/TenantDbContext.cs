@@ -54,6 +54,18 @@ namespace Encina.EntityFrameworkCore.Tenancy;
 /// </example>
 public abstract class TenantDbContext : DbContext
 {
+    /// <summary>
+    /// The EF Core named query filter key used for the tenant isolation filter applied by
+    /// <see cref="ApplyTenantQueryFilters"/>.
+    /// </summary>
+    /// <remarks>
+    /// Using a named filter (instead of the single unnamed <c>HasQueryFilter</c> overload) allows
+    /// this filter to coexist with other named filters — such as the soft-delete filter applied by
+    /// <see cref="EntityFrameworkCore.Configuration.EntityConfigurationExtensions.ApplySoftDeleteQueryFilters"/> —
+    /// on the same entity, instead of one overwriting the other (see #1268).
+    /// </remarks>
+    internal const string TenantQueryFilterKey = "Encina.Tenancy";
+
     private readonly ITenantProvider _tenantProvider;
     private readonly EfCoreTenancyOptions _tenancyOptions;
     private readonly TenancyOptions _coreOptions;
@@ -180,7 +192,7 @@ public abstract class TenantDbContext : DbContext
 
             var lambda = Expression.Lambda(comparison, parameter);
 
-            modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            modelBuilder.Entity(entityType.ClrType).HasQueryFilter(TenantQueryFilterKey, lambda);
         }
     }
 

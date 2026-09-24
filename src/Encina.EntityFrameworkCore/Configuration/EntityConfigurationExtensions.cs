@@ -46,6 +46,18 @@ namespace Encina.EntityFrameworkCore.Configuration;
 public static class EntityConfigurationExtensions
 {
     /// <summary>
+    /// The EF Core named query filter key used for the soft-delete filter applied by
+    /// <see cref="ApplySoftDeleteQueryFilters"/>.
+    /// </summary>
+    /// <remarks>
+    /// Using a named filter (instead of the single unnamed <c>HasQueryFilter</c> overload) allows
+    /// this filter to coexist with other named filters — such as the tenant isolation filter applied
+    /// by <c>TenantDbContext.ApplyTenantQueryFilters</c> — on the same entity, instead of one
+    /// overwriting the other (see #1268).
+    /// </remarks>
+    internal const string SoftDeleteQueryFilterKey = "Encina.SoftDelete";
+
+    /// <summary>
     /// Configures the row version property for optimistic concurrency control.
     /// </summary>
     /// <typeparam name="T">The entity type that implements <see cref="IConcurrencyAware"/>.</typeparam>
@@ -669,7 +681,7 @@ public static class EntityConfigurationExtensions
     private static void ApplySoftDeleteQueryFilterInternal<T>(ModelBuilder modelBuilder)
         where T : class, ISoftDeletable
     {
-        modelBuilder.Entity<T>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<T>().HasQueryFilter(SoftDeleteQueryFilterKey, (T e) => !e.IsDeleted);
     }
 
     /// <summary>
