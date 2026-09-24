@@ -1,0 +1,22 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  Job-NUBXJZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+
+
+```
+| Method      | Job        | IterationCount | LaunchCount | WarmupCount | Mean            | Error          | StdDev        | Median          | Ratio    | RatioSD  | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|------------ |----------- |--------------- |------------ |------------ |----------------:|---------------:|--------------:|----------------:|---------:|---------:|-------:|-------:|----------:|------------:|
+| Add         | Job-NUBXJZ | 20             | Default     | 5           |     1,248.07 ns |      64.768 ns |     66.512 ns |     1,251.25 ns |     1.00 |     0.07 | 0.0076 | 0.0057 |     144 B |        1.00 |
+| Exists_Hit  | Job-NUBXJZ | 20             | Default     | 5           |        55.43 ns |       0.067 ns |      0.077 ns |        55.43 ns |     0.04 |     0.00 |      - |      - |         - |        0.00 |
+| Exists_Miss | Job-NUBXJZ | 20             | Default     | 5           |        22.28 ns |       0.022 ns |      0.023 ns |        22.27 ns |     0.02 |     0.00 |      - |      - |         - |        0.00 |
+| Cleanup     | Job-NUBXJZ | 20             | Default     | 5           | 5,440,699.79 ns |   9,934.890 ns | 11,441.035 ns | 5,442,299.79 ns | 4,370.90 |   225.53 | 7.8125 |      - |  209656 B |    1,455.94 |
+|             |            |                |             |             |                 |                |               |                 |          |          |        |        |           |             |
+| Add         | ShortRun   | 3              | 1           | 3           |     1,524.17 ns |  13,054.323 ns |    715.552 ns |     1,135.83 ns |     1.13 |     0.60 | 0.0076 | 0.0057 |     144 B |        1.00 |
+| Exists_Hit  | ShortRun   | 3              | 1           | 3           |        55.55 ns |       0.631 ns |      0.035 ns |        55.54 ns |     0.04 |     0.01 |      - |      - |         - |        0.00 |
+| Exists_Miss | ShortRun   | 3              | 1           | 3           |        22.26 ns |       0.092 ns |      0.005 ns |        22.26 ns |     0.02 |     0.01 |      - |      - |         - |        0.00 |
+| Cleanup     | ShortRun   | 3              | 1           | 3           | 5,429,582.95 ns | 172,914.424 ns |  9,478.023 ns | 5,430,624.98 ns | 4,028.99 | 1,292.25 | 7.8125 |      - |  209656 B |    1,455.94 |
