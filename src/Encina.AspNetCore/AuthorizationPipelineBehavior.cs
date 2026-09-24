@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using Encina.AspNetCore.Authorization;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using static LanguageExt.Prelude;
@@ -31,8 +30,11 @@ namespace Encina.AspNetCore;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Important</b>: Requires authenticated user via <see cref="HttpContext.User"/>.
-/// Use after <c>app.UseAuthentication()</c> in the middleware pipeline.
+/// <b>Important</b>: Requires an authenticated principal, resolved through <see cref="IPrincipalResolver"/>
+/// (by default, <see cref="Microsoft.AspNetCore.Http.HttpContext.User"/> via <see cref="HttpContextPrincipalResolver"/>).
+/// Use after <c>app.UseAuthentication()</c> in the middleware pipeline. Transports without an ambient
+/// <c>HttpContext</c> — such as Blazor Server circuits — can register a different <see cref="IPrincipalResolver"/>
+/// (see <c>Encina.AspNetCore.Blazor</c>).
 /// </para>
 /// </remarks>
 /// <example>
@@ -93,7 +95,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
             "Authorization denied for {RequestType}. Policy: {Policy}, UserId: {UserId}, Reason: {Reason}");
 
     private readonly IAuthorizationService _authorizationService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IPrincipalResolver _principalResolver;
     private readonly AuthorizationConfiguration _configuration;
     private readonly ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> _logger;
 
@@ -101,17 +103,17 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     /// Initializes a new instance of the <see cref="AuthorizationPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="authorizationService">The ASP.NET Core authorization service.</param>
-    /// <param name="httpContextAccessor">Accessor to get the current HTTP context.</param>
+    /// <param name="principalResolver">Resolves the current caller's principal in a transport-agnostic way.</param>
     /// <param name="options">CQRS-aware authorization configuration.</param>
     /// <param name="logger">Logger for structured authorization diagnostics.</param>
     public AuthorizationPipelineBehavior(
         IAuthorizationService authorizationService,
-        IHttpContextAccessor httpContextAccessor,
+        IPrincipalResolver principalResolver,
         IOptions<AuthorizationConfiguration> options,
         ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> logger)
     {
         _authorizationService = authorizationService;
-        _httpContextAccessor = httpContextAccessor;
+        _principalResolver = principalResolver;
         _configuration = options.Value;
         _logger = logger;
     }
@@ -154,9 +156,9 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
             return await nextStep().ConfigureAwait(false);
         }
 
-        // 5. Get HTTP context
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext is null)
+        // 5. Resolve the current caller's principal in a transport-agnostic way (see IPrincipalResolver)
+        var user = await _principalResolver.ResolvePrincipalAsync(cancellationToken).ConfigureAwait(false);
+        if (user is null)
         {
             var reason = "Authorization requires HTTP context but none is available.";
             LogAuthorizationDenied(_logger, requestType.FullName!, null, null, reason, null);
@@ -171,11 +173,10 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
                 }));
         }
 
-        var user = httpContext.User;
         var userId = context.UserId;
 
         // 6. Check if user is authenticated
-        if (user?.Identity?.IsAuthenticated is not true)
+        if (user.Identity?.IsAuthenticated is not true)
         {
             var reason = $"Request '{requestType.Name}' requires authentication.";
             LogAuthorizationDenied(_logger, requestType.FullName!, null, userId, reason, null);

@@ -79,6 +79,11 @@ public static class ServiceCollectionExtensions
         // Register HttpContextAccessor (required by authorization behavior)
         services.AddHttpContextAccessor();
 
+        // Register the default, HTTP-based principal resolver used by AuthorizationPipelineBehavior.
+        // Transports without an ambient HttpContext (e.g. Blazor Server) replace this via
+        // Encina.AspNetCore.Blazor's AddEncinaBlazorAuthorization().
+        services.TryAddSingleton<IPrincipalResolver, HttpContextPrincipalResolver>();
+
         return services;
     }
 
@@ -169,6 +174,9 @@ public static class ServiceCollectionExtensions
 
         // Ensure HttpContextAccessor is available
         services.AddHttpContextAccessor();
+
+        // Register the default, HTTP-based principal resolver used by AuthorizationPipelineBehavior.
+        services.TryAddSingleton<IPrincipalResolver, HttpContextPrincipalResolver>();
 
         // Register the "RequireAuthenticated" policy if not already configured
         services.AddAuthorizationBuilder()

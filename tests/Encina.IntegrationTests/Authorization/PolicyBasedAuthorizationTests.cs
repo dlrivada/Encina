@@ -401,10 +401,11 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         }
 
         var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
+        var principalResolver = new HttpContextPrincipalResolver(httpContextAccessor);
 
         return new AuthorizationPipelineBehavior<TRequest, TResponse>(
             authorizationService,
-            httpContextAccessor,
+            principalResolver,
             options,
             logger);
     }
