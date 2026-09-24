@@ -235,7 +235,10 @@ var jobId = _backgroundJobs.EnqueueRequest<ProcessPaymentCommand, Receipt>(
 // EnqueueRequest calls HangfireRequestJobAdapter.ExecuteAsync, which returns plain Task:
 // Hangfire's job storage never receives the Receipt. Only opt into persisting it with
 // EnqueueRequestWithResult (HangfireRequestJobAdapter.ExecuteAndReturnResultAsync) when
-// Receipt is known not to carry personal or health data (#1173).
+// Receipt is known not to carry personal or health data. This is the fail-closed default
+// of SPEC-002 DEC-006 (see ../../docs/specifications/SPEC-002-eu-regulatory-readiness.md,
+// "11. Decisions for the maintainer"), introduced by
+// https://github.com/dlrivada/Encina/issues/1173.
 //
 // In Hangfire Dashboard:
 // - Success: nothing is stored by default; with EnqueueRequestWithResult, the Receipt is
