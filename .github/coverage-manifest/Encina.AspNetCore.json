@@ -1,7 +1,7 @@
 {
   "package": "Encina.AspNetCore",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 22,
+  "totalFiles": 24,
   "targets": {
     "unit": 60,
     "guard": 15
@@ -125,6 +125,14 @@
       "defaultRule": "*Extensions.cs",
       "reason": "4 extension methods each with ThrowIfNull(context) guard clause"
     },
+    "HttpContextPrincipalResolver.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Resolver.cs",
+      "reason": "Default IPrincipalResolver reading IHttpContextAccessor.HttpContext, with a null guard on the constructor dependency"
+    },
     "HttpDataResidencyContextExtensions.cs": {
       "defaultTests": [
         "unit",
@@ -142,6 +150,11 @@
       "reason": "Region context provider with mockeable HttpContext and IOptions dependencies"
     },
     "Modules/IModuleWithHealthChecks.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interface — no implementation to test"
+    },
+    "IPrincipalResolver.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interface — no implementation to test"

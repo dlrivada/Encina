@@ -45,32 +45,31 @@ public class AuthorizationPipelineBehaviorBenchmarks
         _nextStep = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
         // Setup behaviors
-        var httpContextAccessor = new HttpContextAccessor();
         var authService = new TestAuthorizationService(shouldSucceed: true);
         var options = Options.Create(new AuthorizationConfiguration());
 
         // No authorization required
-        httpContextAccessor.HttpContext = null;
+        var noAuthAccessor = new HttpContextAccessor { HttpContext = null };
         _noAuthBehavior = new AuthorizationPipelineBehavior<UnauthorizedRequest, string>(
-            authService, httpContextAccessor, options,
+            authService, new HttpContextPrincipalResolver(noAuthAccessor), options,
             NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
 
         // Simple authentication
-        httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123");
+        var authAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123") };
         _authBehavior = new AuthorizationPipelineBehavior<AuthorizedRequest, string>(
-            authService, httpContextAccessor, options,
+            authService, new HttpContextPrincipalResolver(authAccessor), options,
             NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
 
         // Role-based authorization
-        httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123", roles: ["Admin"]);
+        var roleAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123", roles: ["Admin"]) };
         _roleBehavior = new AuthorizationPipelineBehavior<RoleBasedRequest, string>(
-            authService, httpContextAccessor, options,
+            authService, new HttpContextPrincipalResolver(roleAccessor), options,
             NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
 
         // Policy-based authorization
-        httpContextAccessor.HttpContext = CreateAuthenticatedContext("user-123");
+        var policyAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123") };
         _policyBehavior = new AuthorizationPipelineBehavior<PolicyBasedRequest, string>(
-            authService, httpContextAccessor, options,
+            authService, new HttpContextPrincipalResolver(policyAccessor), options,
             NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
     }
 
