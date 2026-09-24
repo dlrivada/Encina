@@ -783,15 +783,11 @@ await result;
 
 ### Performance Comparison
 
-| Approach | Time | Ratio |
-|----------|------|-------|
-| Direct call | 150ns | 1.0x |
-| Compiled delegate | 180ns | 1.2x |
-| MethodInfo.Invoke | 2,500ns | 16.7x |
+The measured latency and allocation numbers for a direct call, a cached compiled delegate, and `MethodInfo.Invoke` are in [ADR-003's benchmark table](adr/003-caching-strategy.md#performance-benchmarks); a cached compiled delegate is close to a direct call and clearly faster than reflection, but not by the 50-100x once claimed here — see the ADR for the exact ratio.
 
 ### Benefits
 
-- **Performance:** 50-100x faster than reflection
+- **Performance:** avoids the per-call reflection cost of `MethodInfo.Invoke` (see the ADR-003 benchmark linked above for measured numbers)
 - **Type Safety:** Casts are validated at compile time
 - **Caching:** Compiled once, reused forever
 

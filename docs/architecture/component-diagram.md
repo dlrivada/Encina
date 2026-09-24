@@ -350,9 +350,9 @@ graph TB
 ```
 
 **Performance:**
-- **First call:** ~1-5ms (compilation overhead)
-- **Subsequent calls:** ~10ns (dictionary lookup) + 180ns (delegate invocation)
-- **Total improvement:** 50-100x faster than reflection
+- **First call:** one-time expression compilation per handler type (microsecond range)
+- **Subsequent calls:** a cache lookup plus a cached compiled delegate invocation, avoiding a `MethodInfo.Invoke` call on every dispatch
+- Measured latency and allocation numbers, including the comparison against `MethodInfo.Invoke`, are in [ADR-003's benchmark table](adr/003-caching-strategy.md#performance-benchmarks)
 
 ## Dependency Graph
 
