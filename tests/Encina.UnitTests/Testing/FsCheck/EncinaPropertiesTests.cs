@@ -203,6 +203,30 @@ public class EncinaPropertiesTests : PropertyTestBase
         return EncinaProperties.ScheduledDeadLetterIsConsistent(message, maxRetries);
     }
 
+    [Fact]
+    public void ScheduledDeadLetterIsConsistent_UnprocessedMessageAtThreshold_IsDeadLettered()
+    {
+        // Arrange: an unprocessed message that reached the retry threshold must be
+        // reported as dead-lettered (RetryCount >= maxRetries && !IsProcessed).
+        const int maxRetries = 3;
+        var message = new ArbitraryScheduledMessage
+        {
+            Id = Guid.NewGuid(),
+            RequestType = "Test",
+            Content = "{}",
+            ScheduledAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = null,
+            RetryCount = maxRetries
+        };
+
+        // Act
+        var isDeadLettered = message.IsDeadLettered(maxRetries);
+
+        // Assert
+        isDeadLettered.ShouldBeTrue();
+    }
+
     #endregion
 
     #region Handler Properties Tests
