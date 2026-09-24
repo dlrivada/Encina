@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | DRAFT — awaiting approval. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24 and are encoded here; DEC-001 … DEC-005 are open |
+| **Status** | DRAFT — not yet APPROVED. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24 and are encoded here; DEC-001 … DEC-005 are DECIDED (maintainer, 2026-09-24). Approval awaits the pilot amendment (REQ-029): pilot 1 (REQ-026) is done, and a proposed amendment from its report is pending the maintainer's approval |
 | **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-24 |
 | **Date** | 2026-09-24 |
 | **Refines** | [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §9 (Historian), §10 (Auditor), §16 (existing code audit), §17 (knowledge debt) and §22 (audit passes); turns [PROJECT-HISTORY.md](../engineering/PROJECT-HISTORY.md) into a generated document |
@@ -59,7 +59,7 @@ The goal is therefore not a better summary. It is that the durable knowledge of 
 
 ## 3. The knowledge record
 
-One file per closed issue at `docs/knowledge/issues/<n>.md`, where `<n>` is the issue number without padding (the folder is subject to DEC-001). The file is Markdown with a YAML front matter block, so that scripts read the fields and people read the body.
+One file per closed issue at `docs/knowledge/issues/<n>.md`, where `<n>` is the issue number without padding (DEC-001). The file is Markdown with a YAML front matter block, so that scripts read the fields and people read the body.
 
 ### 3.1 Front matter
 
@@ -267,7 +267,7 @@ flowchart TD
 - Scripting in PowerShell or C# file-based apps only (`CLAUDE.md`, "Scripting & Tooling Policy").
 - The local model's known limits shape every brief: one bounded task, enumerated points, a validated output, no open-ended research ([HOW-ENCINA-IS-BUILT.md](../engineering/HOW-ENCINA-IS-BUILT.md) §3.2, [ai-task-routing.md](../engineering/ai-task-routing.md) §2.1).
 - Every change reaches `main` through a pull request with green required checks, including generated files (SPEC-000 INV-006); no bot commits to `main`.
-- Path ownership applies to records as to any documentation: under DEC-001 (a) or (b) the records are `docs/**/*.md`, which only the `docs-writer` may edit today (`.claude/hooks/enforce-path-ownership.ps1`), while the closing pull requests of REQ-031 are usually an `issue-worker`'s. DEC-005 settles who writes the record, and the hook changes to match before REQ-031 is enforced.
+- Path ownership applies to records as to any documentation: under DEC-001 the records are `docs/**/*.md`, which only the `docs-writer` may edit today (`.claude/hooks/enforce-path-ownership.ps1`), while the closing pull requests of REQ-031 are usually an `issue-worker`'s. DEC-005 names the `issue-worker` as the record writer, so the hook must move the records folder to that worker's allowlist before REQ-031 is enforced (§13, T-07).
 - Issue bodies use the templates verbatim (`CLAUDE.md`, "Issue Body Format"); workers write issue files and the orchestrator opens them.
 - Figures in records, audit results and reports are citations or ledger quotes, never typed (SPEC-001; `.claude/skills/encina-docs/SKILL.md` §3).
 
@@ -299,11 +299,11 @@ Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL
 
 | ID | Decision | Options | Recommendation | Consequences | Status |
 |---|---|---|---|---|---|
-| **DEC-001** | Where records and audit results live | (a) `docs/knowledge/issues/` and `docs/knowledge/audits/`; (b) `docs/engineering/knowledge/…`, next to `PROJECT-HISTORY.md`; (c) a root folder `knowledge/` outside `docs/` | (a): a short, stable path of its own for generated and per-issue files, apart from the hand-written process documents of `docs/engineering/` | Under (a) and (b) the Jekyll build, DocFX input and the offline link check process every record, and the records are documentation under the ownership hook (DEC-005). Under (c) the site does not publish them and the hook needs a new category for the folder | OPEN |
-| **DEC-002** | Closed-as-duplicate, not-planned and no-evidence issues | (a) a full record for every closed issue: a duplicate points to the canonical record and is not audited; a not-planned issue records its rejection as a `rejected-alternative` item (an `adr` destination when still current) and is not audited; a no-evidence issue is audited when its subject exists in `src/`; (b) index entries only for duplicates and not-planned issues, no record; (c) the same treatment as delivered issues | (a): AC-001 stays literally true, and rejected ideas are knowledge that stops agents from proposing them again | Under (b) AC-001 counts only `completed` issues, and rejected alternatives live only in GitHub | OPEN |
-| **DEC-003** | Merged pull requests that reference no issue | (a) out of scope; the continuity rule makes new pull requests reference an issue; (b) in scope, one record per such pull request | (a) | Under (b) the record key becomes "issue or pull request" and AC-001 counts both | OPEN |
-| **DEC-004** | When the generated documents are regenerated | (a) by the weekly and milestone passes only, committed through their pull requests; a record added in between appears at the next pass; (b) in every pull request that adds a record; (c) at site build time only, not committed | (a): each record is a new file, so pull requests never conflict; regenerating in every pull request would recreate the conflict hot spot that `changelog.d/` removed; under (c) agents reading the repository would not see the history | Under (a) the committed history lags the records by up to one pass, and AC-004 compares against the records of the last generation commit | OPEN |
-| **DEC-005** | Who writes the record in a pull request that closes an issue (REQ-031) | (a) the `issue-worker` itself: the records folder moves from the documentation category to the worker's allowlist in `enforce-path-ownership.ps1`, because a record is structured data rather than prose; (b) the `issue-worker` spawns `docs-writer` for the record, as for any documentation; (c) the orchestrator adds the record through `mechanical-fixer` after the worker reports | (a): the worker holds the facts of the change and the audit outcomes of its own diff; a spawn per record adds cost without adding judgement, and the validation script of REQ-019 checks the result | Under (a) the hook and `.claude/agents/README.md` change; under (b) every closing pull request costs one more spawn; under (c) the record can lag the pull request's last push | OPEN |
+| **DEC-001** | Where records and audit results live | (a) `docs/knowledge/issues/` and `docs/knowledge/audits/`; (b) `docs/engineering/knowledge/…`, next to `PROJECT-HISTORY.md`; (c) a root folder `knowledge/` outside `docs/` | (a): a short, stable path of its own for generated and per-issue files, apart from the hand-written process documents of `docs/engineering/` | Under (a) and (b) the Jekyll build, DocFX input and the offline link check process every record, and the records are documentation under the ownership hook (DEC-005). Under (c) the site does not publish them and the hook needs a new category for the folder | DECIDED (a): maintainer, 2026-09-24 |
+| **DEC-002** | Closed-as-duplicate, not-planned and no-evidence issues | (a) a full record for every closed issue: a duplicate points to the canonical record and is not audited; a not-planned issue records its rejection as a `rejected-alternative` item (an `adr` destination when still current) and is not audited; a no-evidence issue is audited when its subject exists in `src/`; (b) index entries only for duplicates and not-planned issues, no record; (c) the same treatment as delivered issues | (a): AC-001 stays literally true, and rejected ideas are knowledge that stops agents from proposing them again | Under (b) AC-001 counts only `completed` issues, and rejected alternatives live only in GitHub | DECIDED (a): maintainer, 2026-09-24 |
+| **DEC-003** | Merged pull requests that reference no issue | (a) out of scope; the continuity rule makes new pull requests reference an issue; (b) in scope, one record per such pull request | (a) | Under (b) the record key becomes "issue or pull request" and AC-001 counts both | DECIDED (a): maintainer, 2026-09-24 |
+| **DEC-004** | When the generated documents are regenerated | (a) by the weekly and milestone passes only, committed through their pull requests; a record added in between appears at the next pass; (b) in every pull request that adds a record; (c) at site build time only, not committed | (a): each record is a new file, so pull requests never conflict; regenerating in every pull request would recreate the conflict hot spot that `changelog.d/` removed; under (c) agents reading the repository would not see the history | Under (a) the committed history lags the records by up to one pass, and AC-004 compares against the records of the last generation commit | DECIDED (a): maintainer, 2026-09-24 |
+| **DEC-005** | Who writes the record in a pull request that closes an issue (REQ-031) | (a) the `issue-worker` itself: the records folder moves from the documentation category to the worker's allowlist in `enforce-path-ownership.ps1`, because a record is structured data rather than prose; (b) the `issue-worker` spawns `docs-writer` for the record, as for any documentation; (c) the orchestrator adds the record through `mechanical-fixer` after the worker reports | (a): the worker holds the facts of the change and the audit outcomes of its own diff; a spawn per record adds cost without adding judgement, and the validation script of REQ-019 checks the result | Under (a) the hook and `.claude/agents/README.md` change; under (b) every closing pull request costs one more spawn; under (c) the record can lag the pull request's last push | DECIDED (a): maintainer, 2026-09-24 |
 
 ## 13. Tracking plan (proposed, not opened)
 
@@ -317,8 +317,9 @@ Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL
 | T-05 | Generator for the indexes and `PROJECT-HISTORY.md` | `[INFRA]` | v0.21.0 — Documentation | REQ-015 – REQ-017 |
 | T-06 | Pilot: 20 closed issues end to end, report and amendment of SPEC-003 | `[SPIKE]` | v0.21.0 — Documentation | REQ-026 – REQ-030 |
 | T-07 | Continuity: `pr-cycle` step, closing-PR record check, reviewer checklists, weekly and milestone passes | `[INFRA]` | v0.21.0 — Documentation | REQ-031 – REQ-034 |
+| T-08 | Move `docs/knowledge/issues/` and `docs/knowledge/audits/` from the documentation category to the `issue-worker` allowlist in `.claude/hooks/enforce-path-ownership.ps1` (DEC-005) | `[INFRA]` | v0.21.0 — Documentation | REQ-031 |
 
-Scaling batches are tracked by the batch manifests, not by one issue per batch; remediation issues are opened as §5.4 says.
+Scaling batches are tracked by the batch manifests, not by one issue per batch; remediation issues are opened as §5.4 says. T-08 must land before REQ-031 is enforced, since until then the hook still routes the records folder to `docs-writer`.
 
 ## 14. Traceability
 
@@ -345,6 +346,7 @@ Scaling batches are tracked by the batch manifests, not by one issue per batch; 
 | Date | Change |
 |---|---|
 | 2026-09-24 | DRAFT created from the maintainer's approval of the program's goal, taxonomy, record, checklist, grouping, execution model, continuity and definition of done. DEC-001 … DEC-005 open. Counts: 34 REQ, 16 AC, 7 INV, 18 checklist items, 5 DEC. The first draft of the checklist table was produced by the local model from a facts file and rewritten. |
+| 2026-09-24 | DEC-001 … DEC-005 DECIDED: the maintainer took option (a) for all five. Records and audit results live under `docs/knowledge/`; every closed issue gets a full record, with duplicates and not-planned issues recorded but not audited; merged pull requests with no issue stay out of scope; the generated documents regenerate only through the weekly and milestone passes; the closing `issue-worker` writes the record, and the path-ownership hook change that requires (T-08) is tracked, not yet made. The document no longer hedges these five points as open. Status stays DRAFT pending the pilot amendment of REQ-029. |
 
 ## 16. Related documents
 
