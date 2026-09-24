@@ -34,4 +34,11 @@ Review against, in this order:
 
 Verification discipline: report a finding only after checking it against the code; state the exact file:line and the input or scenario that exposes it. Rank by severity (blocker, major, minor). Classify each as A (defect), B (spec gap), or C (unbacked claim / drift). If nothing survives verification, say so plainly.
 
+Known failure patterns to check (project history — check every diff against these):
+
+- Registration completeness: a registration method (`AddEncina*`) that adds a service, orchestrator or hosted service must also register every option type and dependency it resolves, proven by a DI test with `ValidateOnBuild`/`ValidateScopes` (#1260, #1273, #1285, #1289).
+- Errors swallowed in background infrastructure: a `Left` from `IEncina.Send`/`Publish` or from a store inside a processor, adapter, orchestrator or job must fail the operation, not report success (#1150, #1151, #1152, #1153, #1184).
+- Compliance/security gates failing open: missing context (no `HttpContext`, no tenant, no principal) or a failed lookup must deny, not allow, with a logged, explicit opt-out only (#1143, #1145, #1148, #1155, #1161).
+- `EncinaError.Message` leaking into logs, activity tags, health-check results or plaintext storage instead of only the error code or exception type (#1168, #1173, #1259, #1274).
+
 Output (English): a ranked findings list; a short "what I could not verify and why" section; a verdict: merge / merge after fixes / do not merge.
