@@ -92,13 +92,11 @@ public class AppDbContext : DbContext
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Apply soft delete configuration
+        // Apply soft delete configuration (adds properties and the named
+        // "Encina.SoftDelete" query filter; see EntityConfigurationExtensions.ConfigureSoftDelete)
         modelBuilder.Entity<Order>(entity =>
         {
-            entity.HasQueryFilter(e => !e.IsDeleted);
-
-            // Or use the extension method
-            entity.ApplySoftDeleteQueryFilter();
+            entity.ConfigureSoftDelete();
         });
     }
 }
