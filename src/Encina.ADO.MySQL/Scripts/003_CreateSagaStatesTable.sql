@@ -3,19 +3,21 @@
 -- For distributed transaction orchestration with compensation
 -- =============================================
 
-CREATE TABLE [dbo].[SagaStates]
+CREATE TABLE IF NOT EXISTS `SagaStates`
 (
-    [SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [SagaType] NVARCHAR(500) NOT NULL,
-    [Data] NVARCHAR(MAX) NOT NULL,
-    [Status] INT NOT NULL, -- 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
-    [StartedAtUtc] DATETIME2(7) NOT NULL,
-    [LastUpdatedAtUtc] DATETIME2(7) NOT NULL,
-    [CompletedAtUtc] DATETIME2(7) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [CurrentStep] INT NOT NULL DEFAULT 0,
+    `SagaId` CHAR(36) NOT NULL,
+    `SagaType` VARCHAR(500) NOT NULL,
+    `Data` LONGTEXT NOT NULL,
+    `Status` VARCHAR(50) NOT NULL, -- Running, Completed, Failed, Compensating, Compensated
+    `StartedAtUtc` DATETIME(6) NOT NULL,
+    `LastUpdatedAtUtc` DATETIME(6) NOT NULL,
+    `CompletedAtUtc` DATETIME(6) NULL,
+    `ErrorMessage` LONGTEXT NULL,
+    `CurrentStep` INT NOT NULL DEFAULT 0,
+    `TimeoutAtUtc` DATETIME(6) NULL,
+    `CorrelationId` VARCHAR(256) NULL,
+    `Metadata` TEXT NULL,
 
-    INDEX [IX_SagaStates_Status_LastUpdated]
-        ([Status], [LastUpdatedAtUtc])
-);
-GO
+    PRIMARY KEY (`SagaId`),
+    INDEX `IX_SagaStates_Status_LastUpdated` (`Status`, `LastUpdatedAtUtc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
