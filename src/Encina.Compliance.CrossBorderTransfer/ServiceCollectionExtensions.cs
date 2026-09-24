@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
     /// This method registers the following services:
     /// <list type="bullet">
     /// <item><see cref="CrossBorderTransferOptions"/> — Configured via the provided action, validated at first access</item>
+    /// <item><see cref="IAdequacyDecisionProvider"/> → <see cref="DefaultAdequacyDecisionProvider"/> (Singleton, using TryAdd) — so <see cref="DefaultTransferValidator"/> resolves without also calling <c>AddEncinaDataResidency</c></item>
     /// <item><see cref="ITIAService"/> → <see cref="DefaultTIAService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="ISCCService"/> → <see cref="DefaultSCCService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IApprovedTransferService"/> → <see cref="DefaultApprovedTransferService"/> (Scoped, using TryAdd)</item>
@@ -89,6 +90,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
 
         // Register default service implementations (TryAdd allows override)
+        services.TryAddSingleton<IAdequacyDecisionProvider, DefaultAdequacyDecisionProvider>();
         services.TryAddScoped<ITIAService, DefaultTIAService>();
         services.TryAddScoped<ISCCService, DefaultSCCService>();
         services.TryAddScoped<IApprovedTransferService, DefaultApprovedTransferService>();

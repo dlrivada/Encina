@@ -1,0 +1,1 @@
+- `AddEncinaCrossBorderTransfer()` now registers a default `IAdequacyDecisionProvider` (`DefaultAdequacyDecisionProvider`, singleton, via `TryAdd`), so `DefaultTransferValidator` resolves without also requiring `AddEncinaDataResidency()` (#1285).
