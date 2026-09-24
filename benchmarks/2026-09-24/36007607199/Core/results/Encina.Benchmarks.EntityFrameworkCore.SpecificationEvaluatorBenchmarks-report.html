@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.EntityFrameworkCore.SpecificationEvaluatorBenchmarks-20260924-135819</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                        </th><th>CriteriaCount</th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Simple Where (single criterion)&#39;</td><td>2</td><td>11.049 &mu;s</td><td>0.8316 &mu;s</td><td>0.0456 &mu;s</td><td>1.00</td><td>0.01</td><td>2</td><td>0.3815</td><td>6.45 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Direct LINQ Where (baseline)&#39;</td><td>2</td><td>9.358 &mu;s</td><td>0.2524 &mu;s</td><td>0.0138 &mu;s</td><td>0.85</td><td>0.00</td><td>2</td><td>0.3204</td><td>5.26 KB</td><td>0.82</td>
+</tr><tr><td>&#39;Complex predicates (parameterized)&#39;</td><td>2</td><td>12.732 &mu;s</td><td>1.4318 &mu;s</td><td>0.0785 &mu;s</td><td>1.15</td><td>0.01</td><td>2</td><td>0.3662</td><td>6.14 KB</td><td>0.95</td>
+</tr><tr><td>&#39;Two criteria (AND)&#39;</td><td>2</td><td>13.050 &mu;s</td><td>0.8326 &mu;s</td><td>0.0456 &mu;s</td><td>1.18</td><td>0.01</td><td>2</td><td>0.3662</td><td>6.14 KB</td><td>0.95</td>
+</tr><tr><td>&#39;Five criteria (AND)&#39;</td><td>2</td><td>29.206 &mu;s</td><td>4.2861 &mu;s</td><td>0.2349 &mu;s</td><td>2.64</td><td>0.02</td><td>4</td><td>0.7019</td><td>11.55 KB</td><td>1.79</td>
+</tr><tr><td>&#39;Ten criteria (AND)&#39;</td><td>2</td><td>55.029 &mu;s</td><td>0.6955 &mu;s</td><td>0.0381 &mu;s</td><td>4.98</td><td>0.02</td><td>5</td><td>1.2817</td><td>21.07 KB</td><td>3.27</td>
+</tr><tr><td>&#39;Keyset pagination&#39;</td><td>2</td><td>19.838 &mu;s</td><td>1.9464 &mu;s</td><td>0.1067 &mu;s</td><td>1.80</td><td>0.01</td><td>3</td><td>0.6104</td><td>10.43 KB</td><td>1.62</td>
+</tr><tr><td>&#39;Keyset pagination (fresh cursor)&#39;</td><td>2</td><td>3,208.164 &mu;s</td><td>111.9457 &mu;s</td><td>6.1361 &mu;s</td><td>290.35</td><td>1.14</td><td>6</td><td>3.9063</td><td>109.36 KB</td><td>16.97</td>
+</tr><tr><td>&#39;Lambda Include&#39;</td><td>2</td><td>7.001 &mu;s</td><td>0.2391 &mu;s</td><td>0.0131 &mu;s</td><td>0.63</td><td>0.00</td><td>1</td><td>0.2594</td><td>4.26 KB</td><td>0.66</td>
+</tr><tr><td>&#39;String Include&#39;</td><td>2</td><td>7.002 &mu;s</td><td>0.6907 &mu;s</td><td>0.0379 &mu;s</td><td>0.63</td><td>0.00</td><td>1</td><td>0.2594</td><td>4.26 KB</td><td>0.66</td>
+</tr><tr><td>&#39;Multi-column ordering&#39;</td><td>2</td><td>15.982 &mu;s</td><td>0.8408 &mu;s</td><td>0.0461 &mu;s</td><td>1.45</td><td>0.01</td><td>3</td><td>0.5188</td><td>8.77 KB</td><td>1.36</td>
+</tr><tr><td>&#39;Offset pagination (Skip/Take)&#39;</td><td>2</td><td>16.629 &mu;s</td><td>1.1162 &mu;s</td><td>0.0612 &mu;s</td><td>1.50</td><td>0.01</td><td>3</td><td>0.5493</td><td>9.36 KB</td><td>1.45</td>
+</tr><tr><td>&#39;Full specification (all features)&#39;</td><td>2</td><td>45.924 &mu;s</td><td>4.9654 &mu;s</td><td>0.2722 &mu;s</td><td>4.16</td><td>0.03</td><td>5</td><td>1.1597</td><td>19.88 KB</td><td>3.08</td>
+</tr><tr><td>&#39;Simple Where (single criterion)&#39;</td><td>10</td><td>11.401 &mu;s</td><td>0.3127 &mu;s</td><td>0.0171 &mu;s</td><td>1.00</td><td>0.00</td><td>3</td><td>0.3815</td><td>6.45 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Direct LINQ Where (baseline)&#39;</td><td>10</td><td>9.257 &mu;s</td><td>0.2612 &mu;s</td><td>0.0143 &mu;s</td><td>0.81</td><td>0.00</td><td>2</td><td>0.3204</td><td>5.26 KB</td><td>0.82</td>
+</tr><tr><td>&#39;Complex predicates (parameterized)&#39;</td><td>10</td><td>55.464 &mu;s</td><td>3.0482 &mu;s</td><td>0.1671 &mu;s</td><td>4.86</td><td>0.01</td><td>8</td><td>1.2207</td><td>20.91 KB</td><td>3.24</td>
+</tr><tr><td>&#39;Two criteria (AND)&#39;</td><td>10</td><td>13.010 &mu;s</td><td>1.1939 &mu;s</td><td>0.0654 &mu;s</td><td>1.14</td><td>0.01</td><td>3</td><td>0.3662</td><td>6.14 KB</td><td>0.95</td>
+</tr><tr><td>&#39;Five criteria (AND)&#39;</td><td>10</td><td>29.446 &mu;s</td><td>1.7210 &mu;s</td><td>0.0943 &mu;s</td><td>2.58</td><td>0.01</td><td>6</td><td>0.7019</td><td>11.55 KB</td><td>1.79</td>
+</tr><tr><td>&#39;Ten criteria (AND)&#39;</td><td>10</td><td>54.891 &mu;s</td><td>6.5754 &mu;s</td><td>0.3604 &mu;s</td><td>4.81</td><td>0.03</td><td>8</td><td>1.2207</td><td>20.91 KB</td><td>3.24</td>
+</tr><tr><td>&#39;Keyset pagination&#39;</td><td>10</td><td>20.466 &mu;s</td><td>1.6947 &mu;s</td><td>0.0929 &mu;s</td><td>1.80</td><td>0.01</td><td>5</td><td>0.6104</td><td>10.43 KB</td><td>1.62</td>
+</tr><tr><td>&#39;Keyset pagination (fresh cursor)&#39;</td><td>10</td><td>3,233.227 &mu;s</td><td>392.5814 &mu;s</td><td>21.5187 &mu;s</td><td>283.59</td><td>1.68</td><td>9</td><td>3.9063</td><td>109.93 KB</td><td>17.06</td>
+</tr><tr><td>&#39;Lambda Include&#39;</td><td>10</td><td>6.933 &mu;s</td><td>0.3389 &mu;s</td><td>0.0186 &mu;s</td><td>0.61</td><td>0.00</td><td>1</td><td>0.2594</td><td>4.26 KB</td><td>0.66</td>
+</tr><tr><td>&#39;String Include&#39;</td><td>10</td><td>7.490 &mu;s</td><td>0.6665 &mu;s</td><td>0.0365 &mu;s</td><td>0.66</td><td>0.00</td><td>1</td><td>0.2747</td><td>4.55 KB</td><td>0.71</td>
+</tr><tr><td>&#39;Multi-column ordering&#39;</td><td>10</td><td>16.142 &mu;s</td><td>4.2504 &mu;s</td><td>0.2330 &mu;s</td><td>1.42</td><td>0.02</td><td>4</td><td>0.5188</td><td>8.77 KB</td><td>1.36</td>
+</tr><tr><td>&#39;Offset pagination (Skip/Take)&#39;</td><td>10</td><td>16.966 &mu;s</td><td>0.2921 &mu;s</td><td>0.0160 &mu;s</td><td>1.49</td><td>0.00</td><td>4</td><td>0.5493</td><td>9.36 KB</td><td>1.45</td>
+</tr><tr><td>&#39;Full specification (all features)&#39;</td><td>10</td><td>45.215 &mu;s</td><td>2.7360 &mu;s</td><td>0.1500 &mu;s</td><td>3.97</td><td>0.01</td><td>7</td><td>1.1597</td><td>19.88 KB</td><td>3.08</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.Retention.RetentionServiceBenchmarks-20260924-135926</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.70GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                  </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Policy: create (fast path)&#39;</td><td>2.760 &mu;s</td><td>0.4923 &mu;s</td><td>0.0270 &mu;s</td><td>1.00</td><td>0.01</td><td>2</td><td>0.0725</td><td>0.0343</td><td>1248 B</td><td>1.00</td>
+</tr><tr><td>&#39;Policy: get retention period (cached lookup)&#39;</td><td>1.055 &mu;s</td><td>0.0265 &mu;s</td><td>0.0015 &mu;s</td><td>0.38</td><td>0.00</td><td>1</td><td>0.0381</td><td>0.0191</td><td>656 B</td><td>0.53</td>
+</tr><tr><td>&#39;Policy: get by ID&#39;</td><td>2.191 &mu;s</td><td>0.9322 &mu;s</td><td>0.0511 &mu;s</td><td>0.79</td><td>0.02</td><td>2</td><td>0.0496</td><td>0.0229</td><td>864 B</td><td>0.69</td>
+</tr><tr><td>&#39;Policy: deactivate&#39;</td><td>1.995 &mu;s</td><td>0.6783 &mu;s</td><td>0.0372 &mu;s</td><td>0.72</td><td>0.01</td><td>2</td><td>0.0381</td><td>0.0191</td><td>680 B</td><td>0.54</td>
+</tr><tr><td>&#39;Record: track entity&#39;</td><td>3.251 &mu;s</td><td>0.2827 &mu;s</td><td>0.0155 &mu;s</td><td>1.18</td><td>0.01</td><td>2</td><td>0.0648</td><td>0.0305</td><td>1088 B</td><td>0.87</td>
+</tr><tr><td>&#39;Record: mark expired&#39;</td><td>1.985 &mu;s</td><td>0.4214 &mu;s</td><td>0.0231 &mu;s</td><td>0.72</td><td>0.01</td><td>2</td><td>0.0343</td><td>0.0153</td><td>608 B</td><td>0.49</td>
+</tr><tr><td>&#39;Record: mark deleted (terminal)&#39;</td><td>1.999 &mu;s</td><td>0.7932 &mu;s</td><td>0.0435 &mu;s</td><td>0.72</td><td>0.01</td><td>2</td><td>0.0343</td><td>0.0153</td><td>608 B</td><td>0.49</td>
+</tr><tr><td>&#39;Record: mark anonymized (terminal)&#39;</td><td>1.917 &mu;s</td><td>0.1824 &mu;s</td><td>0.0100 &mu;s</td><td>0.69</td><td>0.01</td><td>2</td><td>0.0343</td><td>0.0153</td><td>608 B</td><td>0.49</td>
+</tr><tr><td>&#39;Legal hold: place (cross-aggregate)&#39;</td><td>2.332 &mu;s</td><td>0.2893 &mu;s</td><td>0.0159 &mu;s</td><td>0.84</td><td>0.01</td><td>2</td><td>0.0572</td><td>0.0267</td><td>960 B</td><td>0.77</td>
+</tr><tr><td>&#39;Legal hold: lift&#39;</td><td>2.012 &mu;s</td><td>0.0518 &mu;s</td><td>0.0028 &mu;s</td><td>0.73</td><td>0.01</td><td>2</td><td>0.0381</td><td>0.0191</td><td>680 B</td><td>0.54</td>
+</tr><tr><td>&#39;Legal hold: has active holds (read-only)&#39;</td><td>1.030 &mu;s</td><td>0.1897 &mu;s</td><td>0.0104 &mu;s</td><td>0.37</td><td>0.00</td><td>1</td><td>0.0343</td><td>0.0172</td><td>576 B</td><td>0.46</td>
+</tr></tbody></table>
+</body>
+</html>
