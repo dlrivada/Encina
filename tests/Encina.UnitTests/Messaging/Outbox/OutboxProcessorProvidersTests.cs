@@ -11,10 +11,11 @@ using static LanguageExt.Prelude;
 namespace Encina.UnitTests.Messaging.Outbox;
 
 /// <summary>
-/// Runs the delivery rules of #1151 and #1150 through the <c>OutboxProcessor</c> of every ADO.NET and
-/// Dapper provider, so that a provider that stops deriving from <see cref="OutboxProcessorBase"/> or
-/// overrides its store resolution incorrectly is caught. The EF Core processor is covered end to end
-/// by <c>Encina.UnitTests.EntityFrameworkCore.Outbox.OutboxProcessorLeftResultTests</c>.
+/// Runs the delivery rules of #1151 and #1150 through the <c>OutboxProcessor</c> of every ADO.NET,
+/// Dapper and MongoDB provider, so that a provider that stops deriving from
+/// <see cref="OutboxProcessorBase"/> or overrides its store resolution incorrectly is caught. The
+/// EF Core processor is covered end to end by
+/// <c>Encina.UnitTests.EntityFrameworkCore.Outbox.OutboxProcessorLeftResultTests</c>.
 /// </summary>
 public sealed class OutboxProcessorProvidersTests
 {
@@ -27,7 +28,8 @@ public sealed class OutboxProcessorProvidersTests
         "ADO.MySQL",
         "Dapper.SqlServer",
         "Dapper.PostgreSQL",
-        "Dapper.MySQL"
+        "Dapper.MySQL",
+        "MongoDB"
     ];
 
     [Theory]
@@ -68,6 +70,7 @@ public sealed class OutboxProcessorProvidersTests
         "Dapper.SqlServer" => new global::Encina.Dapper.SqlServer.Outbox.OutboxProcessor(services, NullLogger<global::Encina.Dapper.SqlServer.Outbox.OutboxProcessor>.Instance, options, timeProvider),
         "Dapper.PostgreSQL" => new global::Encina.Dapper.PostgreSQL.Outbox.OutboxProcessor(services, NullLogger<global::Encina.Dapper.PostgreSQL.Outbox.OutboxProcessor>.Instance, options, timeProvider),
         "Dapper.MySQL" => new global::Encina.Dapper.MySQL.Outbox.OutboxProcessor(services, NullLogger<global::Encina.Dapper.MySQL.Outbox.OutboxProcessor>.Instance, options, timeProvider),
+        "MongoDB" => new global::Encina.MongoDB.Outbox.OutboxProcessor(services, NullLogger<global::Encina.MongoDB.Outbox.OutboxProcessor>.Instance, options, timeProvider),
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
     };
 

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
+using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.MongoDB.Modules;
@@ -38,6 +39,15 @@ public sealed class EncinaMongoDbOptions
     /// Gets or sets a value indicating whether to use the Outbox pattern.
     /// </summary>
     public bool UseOutbox { get; set; }
+
+    /// <summary>
+    /// Gets the outbox options.
+    /// </summary>
+    /// <remarks>
+    /// Only used when <see cref="UseOutbox"/> is <c>true</c>. Controls the background outbox
+    /// processor's polling interval, batch size and retry/dead-letter behavior.
+    /// </remarks>
+    public OutboxOptions OutboxOptions { get; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether to use the Inbox pattern.
