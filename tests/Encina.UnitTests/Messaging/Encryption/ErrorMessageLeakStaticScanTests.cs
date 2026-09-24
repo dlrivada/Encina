@@ -32,6 +32,15 @@ public sealed partial class ErrorMessageLeakStaticScanTests
     private static partial Regex HealthCheckResultRegex();
 
     /// <summary>
+    /// Matches a <c>Left: error =&gt; error.Message</c>-shaped projection (the error-like identifier bound
+    /// by the lambda parameter and immediately projected to its own <c>.Message</c>). This shape is a sink
+    /// on its own: whatever the caller does with the projected value (store it in a result field, log it,
+    /// pass it to a health check) happens on a later line the per-line scan below cannot see.
+    /// </summary>
+    [GeneratedRegex(@"\bLeft\s*:\s*(\w+)\s*=>\s*\1\.Message\b", RegexOptions.IgnoreCase)]
+    private static partial Regex LeftProjectsMessageRegex();
+
+    /// <summary>
     /// Legitimate uses of "&lt;error-like identifier&gt;.Message" next to a logger/tag/health-check call,
     /// each with a one-line reason. Keyed by the path relative to the repository root (forward slashes)
     /// and the exact source line (trimmed), so a change to the surrounding code re-triggers review.
@@ -78,12 +87,14 @@ public sealed partial class ErrorMessageLeakStaticScanTests
                         continue;
                     }
 
-                    if (!ErrorMessageAccessRegex().IsMatch(trimmed))
+                    var projectsMessage = LeftProjectsMessageRegex().IsMatch(trimmed);
+                    if (!projectsMessage && !ErrorMessageAccessRegex().IsMatch(trimmed))
                     {
                         continue;
                     }
 
-                    var isSink = LoggerCallRegex().IsMatch(trimmed)
+                    var isSink = projectsMessage
+                        || LoggerCallRegex().IsMatch(trimmed)
                         || ActivityOrTagCallRegex().IsMatch(trimmed)
                         || HealthCheckResultRegex().IsMatch(trimmed);
 

@@ -95,9 +95,9 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
             {
                 Log.RequestJobCompleted(_logger, context.JobDetail.Key, requestType);
 
-                // Store result in JobDataMap for retrieval. Not persisted by Quartz's default
-                // RAMJobStore, but applications using AdoJobStore or a custom listener may
-                // persist it outside Encina's retention/erasure controls (tracked in #1258).
+                // Expose the response to Quartz listeners through context.Result. Quartz does
+                // not persist this value; a custom listener or plugin may store it outside
+                // Encina's retention/erasure controls (tracked in #1258).
                 context.Result = response;
             },
             Left: error => throw ToException(error, context, requestType));

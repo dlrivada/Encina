@@ -13,6 +13,7 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DeadLetterOptions _options;
     private readonly ILogger<DeadLetterCleanupProcessor> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DeadLetterCleanupProcessor"/> class.
@@ -20,10 +21,14 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
     /// <param name="scopeFactory">The service scope factory.</param>
     /// <param name="options">The DLQ options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider for testability. Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
     public DeadLetterCleanupProcessor(
         IServiceScopeFactory scopeFactory,
         DeadLetterOptions options,
-        ILogger<DeadLetterCleanupProcessor> logger)
+        ILogger<DeadLetterCleanupProcessor> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
@@ -32,6 +37,7 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -49,7 +55,7 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
         {
             try
             {
-                await Task.Delay(_options.CleanupInterval, stoppingToken);
+                await Task.Delay(_options.CleanupInterval, _timeProvider, stoppingToken);
 
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var store = scope.ServiceProvider.GetRequiredService<IDeadLetterStore>();
