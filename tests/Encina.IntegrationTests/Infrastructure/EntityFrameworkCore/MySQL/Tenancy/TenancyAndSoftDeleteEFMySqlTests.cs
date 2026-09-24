@@ -1,4 +1,5 @@
 using Encina.TestInfrastructure.Fixtures.EntityFrameworkCore;
+using Xunit;
 
 namespace Encina.IntegrationTests.Infrastructure.EntityFrameworkCore.MySQL.Tenancy;
 
@@ -42,13 +43,17 @@ public sealed class TenancyAndSoftDeleteEFMySqlTests : IAsyncLifetime
     [Fact]
     public async Task TenantFilter_AppliedBeforeSoftDelete_OnlyReturnsCurrentTenantNonDeletedRows()
     {
-        // This test will be skipped until Pomelo 10.0.0 is available
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible). See: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019");
+
+        // This code will execute once Pomelo v10 is available
         await Task.CompletedTask;
     }
 
     [Fact]
     public async Task SoftDeleteFilter_AppliedBeforeTenant_OnlyReturnsCurrentTenantNonDeletedRows()
     {
+        Assert.SkipWhen(true, "MySQL support requires Pomelo.EntityFrameworkCore.MySql v10.0.0 (EF Core 10 compatible). See: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/pull/2019");
+
         await Task.CompletedTask;
     }
 }
