@@ -23,8 +23,10 @@ namespace Encina.Hangfire;
 /// <para>
 /// As with <see cref="EncinaJobFailedException"/>, the <see cref="Exception.Message"/> contains only the
 /// error code and a generic text (never <see cref="EncinaError.Message"/>, which may contain personal
-/// data), <see cref="Exception.Data"/> carries only the error code, and the exception that caused the
-/// error, if any, is the <see cref="Exception.InnerException"/>.
+/// data), <see cref="Exception.Data"/> carries only the error code, and, when the error carries a cause,
+/// <see cref="Exception.InnerException"/> is a sanitized exception whose message is only the cause's type
+/// name — never the cause's own <see cref="Exception.Message"/>, which Hangfire would otherwise persist
+/// in full in its <c>ExceptionDetails</c>.
 /// </para>
 /// </remarks>
 public sealed class EncinaJobPermanentFailureException : Exception
@@ -88,8 +90,13 @@ public sealed class EncinaJobPermanentFailureException : Exception
 
     private static string ResolveCode(EncinaError error) => error.GetCode().IfNone(UnknownCode);
 
+    // Only the cause's type travels: Hangfire's FailedState persists the full exception chain
+    // (including every inner exception's Message) in its own storage as ExceptionDetails, and
+    // the cause's Message may carry personal data (#1259 review).
     private static Exception? ResolveInnerException(EncinaError error) =>
-        error.GetCause().MatchUnsafe(ex => ex, () => (Exception?)null);
+        error.GetCause().MatchUnsafe(
+            cause => new InvalidOperationException($"Cause type: {cause.GetType().FullName ?? cause.GetType().Name}"),
+            () => (Exception?)null);
 
     private static string BuildMessage(string code) =>
         $"The Encina job failed with permanent error code '{code}'. Retrying the job will not succeed.";

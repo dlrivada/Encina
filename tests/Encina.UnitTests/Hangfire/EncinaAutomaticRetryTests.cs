@@ -60,15 +60,19 @@ public sealed class EncinaAutomaticRetryTests
     }
 
     [Fact]
-    public void PermanentFailureException_FromError_CarriesCodeAndInnerException()
+    public void PermanentFailureException_FromError_CarriesCodeAndSanitizedInnerException()
     {
-        var cause = new InvalidOperationException("boom");
+        var cause = new InvalidOperationException("boom for patient-1");
         var error = EncinaErrors.Create("consent.missing", "Consent missing for subject 'patient-1'", cause);
 
         var exception = new EncinaJobPermanentFailureException(error);
 
         exception.ErrorCode.ShouldBe("consent.missing");
-        exception.InnerException.ShouldBeSameAs(cause);
+        // Hangfire persists the full exception chain, so the cause's own Message (which may
+        // carry personal data) never becomes the InnerException's message (#1259 review).
+        exception.InnerException.ShouldNotBeSameAs(cause);
+        exception.InnerException!.Message.ShouldContain(nameof(InvalidOperationException));
+        exception.InnerException!.Message.ShouldNotContain("patient-1");
         exception.Message.ShouldNotContain("patient-1");
         exception.Data[EncinaJobPermanentFailureException.ErrorCodeDataKey].ShouldBe("consent.missing");
     }
