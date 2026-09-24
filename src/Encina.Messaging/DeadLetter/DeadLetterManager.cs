@@ -140,10 +140,12 @@ public sealed class DeadLetterManager : IDeadLetterManager
             var outcome = await RuntimeTypeRequestDispatcher.SendAsync(encina, request, cancellationToken).ConfigureAwait(false);
 
             // A Left outcome is a failed replay: the request ran and its handler (or a behavior) failed.
+            // Only the error code travels: EncinaError.Message can carry personal data, and this
+            // reaches both the log and the ReplayResult returned to the caller (#1259 review).
             if (outcome.IsLeft)
             {
-                var failure = outcome.Match(Right: _ => string.Empty, Left: error => error.Message);
-                var error = $"Replay failed: {failure}";
+                var errorCode = outcome.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone("unknown"));
+                var error = $"Replay failed: {errorCode}";
                 DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
                 return ReplayResult.Failed(messageId, error);
             }

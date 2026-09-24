@@ -229,16 +229,19 @@ public sealed class DeadLetterManagerTests
 
         var encina = Substitute.For<IEncina>();
         encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, int>>(Left<EncinaError, int>(EncinaError.New("still broken"))));
+            .Returns(new ValueTask<Either<EncinaError, int>>(
+                Left<EncinaError, int>(EncinaErrors.Create("consent.missing", "Consent missing for subject 'patient-1'"))));
         serviceProvider.GetService(typeof(IEncina)).Returns(encina);
 
         // Act
         var result = await manager.ReplayAsync(messageId);
 
-        // Assert
+        // Assert - only the error code travels: EncinaError.Message can carry personal data and
+        // must not reach the returned ReplayResult (#1259 review).
         var replay = result.ShouldBeRight();
         replay.Success.ShouldBeFalse();
-        replay.ErrorMessage.ShouldNotBeNull().ShouldContain("still broken");
+        replay.ErrorMessage.ShouldNotBeNull().ShouldContain("consent.missing");
+        replay.ErrorMessage.ShouldNotContain("patient-1");
         await store.DidNotReceive().MarkAsReplayedAsync(messageId, "Success", Arg.Any<CancellationToken>());
     }
 

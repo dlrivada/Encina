@@ -201,34 +201,52 @@ public sealed class ErrorMessageLeakTests
     [Fact]
     public async Task Scheduler_BatchFailed_LogsAndTagsOnlyTheErrorCode()
     {
-        // Arrange
-        var time = new FakeTimeProvider(new DateTimeOffset(2026, 9, 23, 10, 0, 0, TimeSpan.Zero));
-        var store = new FakeScheduledMessageStore(time);
-        var logger = new FakeLogger<SchedulerOrchestrator>();
-        var options = new SchedulingOptions();
-        var orchestrator = new SchedulerOrchestrator(
-            store, options, logger, new EfScheduledMessageFactory(),
-            new ExponentialBackoffRetryPolicy(options), new JsonMessageSerializer(),
-            cronParser: null, timeProvider: time);
+        // Arrange - run the real ScheduledMessageProcessor cycle (through the hosted-service
+        // loop) so the assertions cover the actual failure path, not just the logging/activity
+        // helpers called in isolation (#1259 review).
+        var store = Substitute.For<IScheduledMessageStore>();
+        store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IEnumerable<IScheduledMessage>>(SensitiveError));
 
+        var options = new SchedulingOptions { ProcessingInterval = TimeSpan.FromMinutes(5) };
+        var orchestrator = new SchedulerOrchestrator(
+            store, options, NullLogger<SchedulerOrchestrator>.Instance, new EfScheduledMessageFactory(),
+            new ExponentialBackoffRetryPolicy(options), new JsonMessageSerializer());
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddSingleton(orchestrator);
+        services.AddSingleton(Substitute.For<IScheduledMessageDispatcher>());
+        await using var provider = services.BuildServiceProvider();
+
+        System.Diagnostics.Activity? stopped = null;
         using var listener = new System.Diagnostics.ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina.Messaging.Scheduling",
             Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
-                System.Diagnostics.ActivitySamplingResult.AllData
+                System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStopped = activity => stopped = activity
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
 
         var processorLogger = new FakeLogger<ScheduledMessageProcessor>();
+        var processor = new ScheduledMessageProcessor(provider, options, processorLogger);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        // Act - reproduce the ScheduledMessageProcessor.ProcessOnceAsync failure branch directly,
-        // since the processor itself only runs through a hosted-service loop.
-        var errorCode = SensitiveError.GetCode().IfNone("unknown");
-        var activity = SchedulingActivitySource.StartProcessingCycle(10);
-        SchedulingProcessorLog.BatchFailed(processorLogger, errorCode);
-        SchedulingActivitySource.Failed(activity, errorCode);
+        // Act
+        await processor.StartAsync(cts.Token);
+        while (stopped is null && !cts.IsCancellationRequested)
+        {
+            await Task.Delay(10, CancellationToken.None);
+        }
+        await cts.CancelAsync();
+        await processor.StopAsync(CancellationToken.None);
 
-        // Assert
+        // Assert - the activity SchedulingActivitySource.Failed stops carries only the error code.
+        stopped.ShouldNotBeNull();
+        stopped!.Status.ShouldBe(System.Diagnostics.ActivityStatusCode.Error);
+        stopped.GetTagItem("error.code").ShouldBe("consent.missing");
+        stopped.StatusDescription.ShouldBe("consent.missing");
+
         var logs = processorLogger.Collector.GetSnapshot();
         logs.ShouldContain(r => r.Message.Contains("consent.missing"));
         logs.ShouldAllBe(r => !r.Message.Contains(PersonalData));
@@ -261,9 +279,17 @@ public sealed class ErrorMessageLeakTests
     [Fact]
     public async Task DeadLetterManager_ReplayAllAsync_UsesTheSameCodeOnlyRuleAsReplayAsync()
     {
-        // Arrange
+        // Arrange - a dispatchable handler that returns SensitiveError, so the test exercises
+        // the conversion of a handler Left, not a type-resolution failure (#1259 review: the
+        // previous "Not.A.Real.Type" setup never reached that code path).
+        var serializer = new JsonMessageSerializer();
         var store = Substitute.For<IDeadLetterStore>();
-        var message = new FakeDeadLetterMessage { Id = Guid.NewGuid(), RequestType = "Not.A.Real.Type" };
+        var message = new FakeDeadLetterMessage
+        {
+            Id = Guid.NewGuid(),
+            RequestType = typeof(ReminderRequest).AssemblyQualifiedName!,
+            RequestContent = serializer.Serialize(new ReminderRequest("r-1"))
+        };
         store.GetMessagesAsync(Arg.Any<DeadLetterFilter>(), 0, 100, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, IEnumerable<IDeadLetterMessage>>([message]));
         store.GetAsync(message.Id, Arg.Any<CancellationToken>())
@@ -273,28 +299,36 @@ public sealed class ErrorMessageLeakTests
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, Unit>(Unit.Default));
 
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, string>(SensitiveError));
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IEncina)).Returns(encina);
+
         var orchestrator = new DeadLetterOrchestrator(
             store, new PassThroughDeadLetterMessageFactory(), new DeadLetterOptions(),
-            NullLogger<DeadLetterOrchestrator>.Instance, new JsonMessageSerializer());
-        var manager = new DeadLetterManager(
-            store, orchestrator, Substitute.For<IServiceProvider>(),
-            NullLogger<DeadLetterManager>.Instance, new JsonMessageSerializer());
+            NullLogger<DeadLetterOrchestrator>.Instance, serializer);
+        var logger = new FakeLogger<DeadLetterManager>();
+        var manager = new DeadLetterManager(store, orchestrator, serviceProvider, logger, serializer);
 
         // Act
         var result = await manager.ReplayAllAsync(new DeadLetterFilter());
 
-        // Assert - the batch result carries an error code, not a free-form message, matching
-        // the same rule ReplayAsync itself applies.
+        // Assert - the batch result and the log carry the error code, never the sensitive message.
         result.IsRight.ShouldBeTrue();
         result.Match(
             Right: r =>
             {
                 var errorMessage = r.Results[0].ErrorMessage;
                 errorMessage.ShouldNotBeNull();
-                errorMessage.ShouldStartWith("dlq.");
-                errorMessage.ShouldNotContain(" ");
+                errorMessage.ShouldContain("consent.missing");
+                errorMessage.ShouldNotContain(PersonalData);
             },
             Left: _ => throw new InvalidOperationException("Expected Right"));
+
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("consent.missing"));
+        logs.ShouldAllBe(r => !r.Message.Contains(PersonalData));
     }
 
     [Fact]
@@ -312,19 +346,28 @@ public sealed class ErrorMessageLeakTests
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
         scopeFactory.CreateScope().Returns(scope);
 
+        var timeProvider = new FakeTimeProvider();
         var logger = new FakeLogger<DeadLetterCleanupProcessor>();
         var processor = new DeadLetterCleanupProcessor(
             scopeFactory,
             new DeadLetterOptions { EnableAutomaticCleanup = true, RetentionPeriod = TimeSpan.FromDays(1), CleanupInterval = TimeSpan.FromMilliseconds(10) },
-            logger);
+            logger,
+            timeProvider);
 
-        using var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        // Act
+        // Act - drive the cleanup delay through a controlled clock and wait for the expected log
+        // entry, instead of racing a fixed real-time delay against the background loop
+        // (#1259 review).
         await processor.StartAsync(cts.Token);
-        await Task.Delay(80);
-        cts.Cancel();
-        await processor.StopAsync(default);
+        while (!logger.Collector.GetSnapshot().Any(r => r.Exception is not null) && !cts.IsCancellationRequested)
+        {
+            timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+            await Task.Delay(10, CancellationToken.None);
+        }
+
+        await cts.CancelAsync();
+        await processor.StopAsync(CancellationToken.None);
 
         // Assert
         var logs = logger.Collector.GetSnapshot();
