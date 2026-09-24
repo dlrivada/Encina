@@ -1,0 +1,1 @@
+- Fix the database `IReadAuditStore` losing to the in-memory default in the ADO.NET and Dapper packages when `AddEncinaReadAuditing` ran before the provider registration (#1269).
