@@ -1,7 +1,7 @@
 #nullable enable
 Encina.AspNetCore.ApplicationBuilderExtensions
 Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>
-Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.AuthorizationPipelineBehavior(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor, Microsoft.Extensions.Options.IOptions<Encina.AspNetCore.Authorization.AuthorizationConfiguration!>! options, Microsoft.Extensions.Logging.ILogger<Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.AuthorizationPipelineBehavior(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorizationService, Encina.AspNetCore.IPrincipalResolver! principalResolver, Microsoft.Extensions.Options.IOptions<Encina.AspNetCore.Authorization.AuthorizationConfiguration!>! options, Microsoft.Extensions.Logging.ILogger<Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.AspNetCore.AuthorizationPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.AspNetCore.ProblemDetailsExtensions
 Encina.AspNetCore.ServiceCollectionExtensions
@@ -100,3 +100,8 @@ Encina.AspNetCore.AssessDPIARequest.HighRiskTriggers.init -> void
 Encina.AspNetCore.RejectDPIARequest
 Encina.AspNetCore.RejectDPIARequest.Reason.get -> string?
 Encina.AspNetCore.RejectDPIARequest.Reason.init -> void
+Encina.AspNetCore.IPrincipalResolver
+Encina.AspNetCore.IPrincipalResolver.ResolvePrincipalAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Security.Claims.ClaimsPrincipal?>
+Encina.AspNetCore.HttpContextPrincipalResolver
+Encina.AspNetCore.HttpContextPrincipalResolver.HttpContextPrincipalResolver(Microsoft.AspNetCore.Http.IHttpContextAccessor! httpContextAccessor) -> void
+Encina.AspNetCore.HttpContextPrincipalResolver.ResolvePrincipalAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Security.Claims.ClaimsPrincipal?>
