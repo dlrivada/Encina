@@ -57,7 +57,12 @@ public interface ILegalHoldService
     /// <param name="tenantId">Optional tenant identifier for multi-tenancy.</param>
     /// <param name="moduleId">Optional module identifier for modular monolith.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>Either an error or the identifier of the newly created legal hold aggregate.</returns>
+    /// <returns>
+    /// <c>Right</c> with the new hold's identifier when the hold is placed and every retention record it
+    /// should protect was transitioned to <c>UnderLegalHold</c>; otherwise an error. A
+    /// <see cref="RetentionErrors.HoldPlacementIncompleteCode"/> error means the hold was placed but some
+    /// records are not yet held; its details list them under <c>failedRecordIds</c>.
+    /// </returns>
     /// <remarks>
     /// <para>
     /// Per GDPR Article 17(3)(e), processing (including retention) is necessary "for the
@@ -68,6 +73,14 @@ public interface ILegalHoldService
     /// <para>
     /// Multiple holds may exist for the same entity (e.g., multiple ongoing litigation matters).
     /// The entity remains protected from deletion until ALL active holds are lifted.
+    /// </para>
+    /// <para>
+    /// The cascade fails closed and never reports a success it did not achieve: every record is
+    /// attempted even when an earlier one fails, and any record that could not be transitioned stays out
+    /// of <c>UnderLegalHold</c> and is listed in the returned error. The hold itself stays placed. Calling
+    /// this method again for the same <paramref name="entityId"/> places a new hold and retries the
+    /// cascade only for the records not yet held, because the query behind the cascade excludes records
+    /// already <c>UnderLegalHold</c>.
     /// </para>
     /// </remarks>
     ValueTask<Either<EncinaError, Guid>> PlaceHoldAsync(

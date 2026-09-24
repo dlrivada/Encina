@@ -113,10 +113,15 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
                     _logger.LegalHoldPlacedES(id, entityId, reason);
                     RetentionDiagnostics.LegalHoldsAppliedTotal.Add(1);
 
-                    // Cross-aggregate coordination: hold all retention records for this entity
-                    await CascadeHoldToRecordsAsync(entityId, id, cancellationToken);
+                    // Cross-aggregate coordination: hold all retention records for this entity.
+                    // The hold itself stays placed even if the cascade fails; any failure is returned,
+                    // never swallowed, so that the caller can retry (a retry places a new hold and only
+                    // attempts the records not yet held).
+                    var cascadeResult = await CascadeHoldToRecordsAsync(entityId, id, cancellationToken);
 
-                    return id;
+                    return cascadeResult.Match<Either<EncinaError, Guid>>(
+                        Right: _ => id,
+                        Left: error => error);
                 },
                 Left: error => error);
         }
@@ -314,45 +319,87 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
     // ========================================================================
 
     /// <summary>
-    /// Cascades a legal hold to all retention records for the specified entity.
+    /// Cascades a legal hold to all retention records for the specified entity that are not already
+    /// under legal hold.
     /// </summary>
-    private async Task CascadeHoldToRecordsAsync(
+    /// <remarks>
+    /// <para>
+    /// Every record is attempted even when an earlier one fails. The records that could not be held stay
+    /// out of <c>UnderLegalHold</c> (so they are not protected yet) and are listed in the returned
+    /// <see cref="RetentionErrors.HoldPlacementIncompleteCode"/> error; placing a new hold on the same
+    /// entity retries them, because the query only selects records not yet held.
+    /// </para>
+    /// <para>
+    /// Records already <c>UnderLegalHold</c> are excluded from the query, so a retry does not re-attempt
+    /// records an earlier call already held.
+    /// </para>
+    /// </remarks>
+    private async ValueTask<Either<EncinaError, Unit>> CascadeHoldToRecordsAsync(
         string entityId,
         Guid legalHoldId,
         CancellationToken cancellationToken)
     {
+        Either<EncinaError, IReadOnlyList<RetentionRecordReadModel>> recordsResult;
         try
         {
-            var recordsResult = await _recordReadModelRepository.QueryAsync(
+            recordsResult = await _recordReadModelRepository.QueryAsync(
                 q => q.Where(r =>
                     r.EntityId == entityId
-                    && r.Status != Model.RetentionStatus.Deleted),
+                    && r.Status != Model.RetentionStatus.Deleted
+                    && r.Status != Model.RetentionStatus.UnderLegalHold),
                 cancellationToken);
-
-            if (recordsResult.IsLeft)
-            {
-                var error = (EncinaError)recordsResult;
-                _logger.LegalHoldCascadeFailed(entityId, error.Message);
-                return;
-            }
-
-            var records = recordsResult.Match(
-                Right: r => r,
-                Left: _ => (IReadOnlyList<RetentionRecordReadModel>)[]);
-            var affectedCount = 0;
-            foreach (var record in records)
-            {
-                // Best-effort cascade — individual record hold failures should not block the hold creation
-                await _retentionRecordService.HoldRecordAsync(record.Id, legalHoldId, cancellationToken);
-                affectedCount++;
-            }
-
-            _logger.RetentionCrossAggregateCascade(entityId, "Hold", affectedCount);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LegalHoldCascadeFailed(entityId, ex.Message);
+            recordsResult = RetentionErrors.ServiceError("GetRecordsToHold", ex);
         }
+
+        if (recordsResult.IsLeft)
+        {
+            var error = (EncinaError)recordsResult;
+            _logger.LegalHoldCascadeFailed(entityId, error.Message);
+            return RetentionErrors.HoldPlacementIncomplete(
+                legalHoldId, entityId, [], "the entity's retention records could not be queried");
+        }
+
+        var records = recordsResult.Match(
+            Right: r => r,
+            Left: _ => (IReadOnlyList<RetentionRecordReadModel>)[]);
+        var failedRecordIds = new List<Guid>();
+
+        foreach (var record in records)
+        {
+            string? failure;
+            try
+            {
+                var holdResult = await _retentionRecordService.HoldRecordAsync(
+                    record.Id, legalHoldId, cancellationToken);
+                failure = holdResult.IsLeft ? ((EncinaError)holdResult).Message : null;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failure = ex.Message;
+            }
+
+            if (failure is not null)
+            {
+                _logger.LegalHoldRecordHoldFailed(legalHoldId, record.Id, entityId, failure);
+                failedRecordIds.Add(record.Id);
+            }
+        }
+
+        _logger.RetentionCrossAggregateCascade(entityId, "Hold", records.Count - failedRecordIds.Count);
+
+        if (failedRecordIds.Count > 0)
+        {
+            return RetentionErrors.HoldPlacementIncomplete(
+                legalHoldId,
+                entityId,
+                failedRecordIds,
+                $"{failedRecordIds.Count} of {records.Count} retention record(s) could not be held");
+        }
+
+        return Unit.Default;
     }
 
     /// <summary>
