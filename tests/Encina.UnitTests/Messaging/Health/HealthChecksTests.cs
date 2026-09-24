@@ -38,11 +38,13 @@ public sealed class HealthChecksTests
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
-        // Assert
+        // Assert: only the exception type travels, never its message or the exception itself
+        // (#1259 review) since an adapter could propagate the exception object unchanged.
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description!.ShouldContain("Database connection failed");
-        result.Exception.ShouldNotBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Database connection failed");
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]
