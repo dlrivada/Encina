@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20260924-094004</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>10.59 &mu;s</td><td>0.695 &mu;s</td><td>0.038 &mu;s</td><td>0.001</td><td>0.00</td><td>1</td><td>0.4425</td><td>7.42 KB</td><td>0.75</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>25.92 &mu;s</td><td>11.750 &mu;s</td><td>0.644 &mu;s</td><td>0.002</td><td>0.00</td><td>2</td><td>0.9460</td><td>15.61 KB</td><td>1.58</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>12,303.61 &mu;s</td><td>4,458.817 &mu;s</td><td>244.403 &mu;s</td><td>1.000</td><td>0.02</td><td>3</td><td>-</td><td>9.85 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>19,172.64 &mu;s</td><td>26,273.662 &mu;s</td><td>1,440.148 &mu;s</td><td>1.559</td><td>0.10</td><td>4</td><td>-</td><td>97.57 KB</td><td>9.91</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>64,086.34 &mu;s</td><td>17,930.397 &mu;s</td><td>982.826 &mu;s</td><td>5.210</td><td>0.11</td><td>5</td><td>-</td><td>47.85 KB</td><td>4.86</td>
+</tr></tbody></table>
+</body>
+</html>
