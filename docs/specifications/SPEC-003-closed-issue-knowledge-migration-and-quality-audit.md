@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | DRAFT — not yet APPROVED. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24 and are encoded here; DEC-001 … DEC-005 are DECIDED (maintainer, 2026-09-24). Approval awaits the pilot amendment (REQ-029): pilot 1 (REQ-026) is done, and a proposed amendment from its report is pending the maintainer's approval |
+| **Status** | DRAFT — not yet APPROVED. The goal, the destination taxonomy, the knowledge record, the audit checklist, the grouping of findings, the execution model, the continuity rule and the definition of done were approved by the maintainer on 2026-09-24 and are encoded here; DEC-001 … DEC-005 are DECIDED (maintainer, 2026-09-24). The split of knowledge migration (per closed issue) from code quality auditing (per audit unit) is DECIDED (maintainer, 2026-09-24, §17.1). Pilot 1 (REQ-026, 20 issues, knowledge only) and pilot 2 (3 deep unit audits) both ran and are reported in §17. **Pilot amendment proposed 2026-09-24, awaiting approval**: the checklist changes of §17.3 and the two-phase execution model of §17.4 are a proposal, not yet decided; the record-schema changes of §17.1 (outcome split, `linked_prs`) are applied below as schema version 2. Approval of the outstanding proposal (REQ-029) still gates scaling |
 | **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-24 |
 | **Date** | 2026-09-24 |
 | **Refines** | [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §9 (Historian), §10 (Auditor), §16 (existing code audit), §17 (knowledge debt) and §22 (audit passes); turns [PROJECT-HISTORY.md](../engineering/PROJECT-HISTORY.md) into a generated document |
@@ -42,7 +42,7 @@ The goal is therefore not a better summary. It is that the durable knowledge of 
 | Current | A knowledge item still constrains today's work: the decision was not reversed and the feature was not removed. |
 | Destination | The repository artifact where a knowledge item lives today (§4). |
 | Knowledge record | The small per-issue file of §3 that lists an issue's knowledge items, their destinations, its audit verdict and its remediation issues. |
-| Audit unit | The part of the code audited as one: a project under `src/`, or, for the core `Encina` package, one top-level folder of `src/Encina/` (the same folders the mutation matrix shards on). |
+| Audit unit | The part of the code audited as one: a project under `src/`, or, for the core `Encina` package, one top-level folder of `src/Encina/` (the same folders the mutation matrix shards on). Knowledge migrates per closed issue (records, §3); code quality is audited per audit unit, using the issues that touched it as historical context (§17.1, DECIDED). A record links the audit result of the unit or units its code falls in (§5.5); it does not repeat the audit. |
 | Finding | A checklist item (§5) that fails on verified evidence. |
 | Remediation issue | A GitHub issue that groups the findings of one audit unit or feature for one template type (§5.4). |
 | Batch | A set of records or findings handled by one specialist in one pull request (§6). |
@@ -65,17 +65,18 @@ One file per closed issue at `docs/knowledge/issues/<n>.md`, where `<n>` is the 
 
 | Field | Type | Values and rules |
 |---|---|---|
-| `schema` | integer | Version of this table; starts at 1 and changes only through an amendment of this specification (REQ-030). |
+| `schema` | integer | Version of this table; starts at 1 and changes only through an amendment of this specification (REQ-030). **Version 2** as of the pilot amendment of §17.1 (2026-09-24): splits `outcome: rejected` and adds `linked_prs`. |
 | `nav_exclude` | boolean | Always `true`: records are internal and stay out of the site navigation. |
 | `issue` | integer | The issue number. |
 | `title` | string | The issue title as it was at closure. |
 | `closed` | date | `yyyy-MM-dd`. |
 | `state_reason` | enum | `completed`, `not-planned`, `duplicate`. |
-| `outcome` | enum | `delivered`, `partial`, `rejected`, `superseded`, `duplicate`, `moved`, `no-evidence` (DEC-002). |
+| `outcome` | enum | `delivered`, `partial`, `rejected-reasoned`, `rejected-unexplained`, `superseded`, `duplicate`, `moved`, `no-evidence` (DEC-002; split of `rejected` per §17.1, schema 2). `rejected-reasoned` records a stated reason in the evidence; `rejected-unexplained` records none found. |
 | `type` | enum | The template prefix: `bug`, `feature`, `debt`, `test`, `spike`, `infra`, `refactor`, `epic`, or `other` for issues opened without a template. |
 | `area` | enum | One of the fourteen areas of `PROJECT-HISTORY.md` (the keys of `tools/ai/consolidate-run.ps1`: `core`, `messaging`, `data`, `caching`, `eventsourcing`, `validation`, `observability`, `security-compliance`, `testing-quality`, `ci-process`, `docs-dx`, `web-cloud`, `modules-tenancy`, `resilience`). |
 | `packages` | list | The projects under `src/` whose code the issue touched, by project name; empty when it touched none. |
 | `prs` | list | Pull request numbers in the evidence set, with `merged` or `closed`. |
+| `linked_prs` | list | Pull request numbers found through `closedByPullRequestsReferences` and timeline cross-references rather than `prs` search alone (§17.1, schema 2); overlaps `prs` where a number appears in both. |
 | `duplicate_of` / `superseded_by` | integer | Required when the outcome says so. |
 | `knowledge` | list | One entry per knowledge item: `kind` (decision, rejected-alternative, rule, direction-change, gotcha, pending-work), `statement` (one sentence), `current` (`yes`, `no`, `unknown`), `sources` (at least one: URL, date, and a quote or paraphrase marked `quote:` or `paraphrase:`), `destinations` (list, §4). |
 | `audit` | map | `unit` (list of audit units), `checklist` (version of §5), `date`, `verdict` (§5.3), `record` (link to the audit unit's result file, REQ-011). |
@@ -257,7 +258,7 @@ flowchart TD
     G --> H[Generator: indexes and PROJECT-HISTORY.md]
 ```
 
-- **Extraction** extends `tools/ai/historian-extract-closed.ps1` with the files each pull request changed, the review threads of those pull requests and the referencing commits, and writes one evidence file per issue under `artifacts/knowledge/`.
+- **Extraction** extends `tools/ai/historian-extract-closed.ps1` with the files each pull request changed, the review threads of those pull requests and the referencing commits, and writes one evidence file per issue under `artifacts/knowledge/`. It gathers pull requests through `closedByPullRequestsReferences` and timeline cross-references, not `gh pr list --search`, which misses the pull requests of early issues (pilot 1, §17.1); the fetcher of #1311 does this and populates `linked_prs`.
 - **Drafting** replaces the output schema of `tools/ai/archaeology-run.ps1` with the record schema of §3; `consolidate-run.ps1` and `history-sections-run.ps1` are retired, because the generator of REQ-015 needs no model.
 - **Routing** follows [ai-task-routing.md](../engineering/ai-task-routing.md): the Historian role is local with Claude sampling; the Auditor's mechanical items are scripts; judgement items (AUD-01, AUD-02, AUD-12, AUD-13) are Claude agents; the orchestrator dispatches and never reads evidence (REQ-024).
 - **Order.** After the pilot, batches run by area, starting with the areas whose packages are in the 1.0 contract and have the most records, so that remediation reaches the pre-1.0 milestones first.
@@ -341,14 +342,68 @@ Scaling batches are tracked by the batch manifests, not by one issue per batch; 
 | SPEC-002 DEC-006, REQ-034, REQ-061, REQ-062 | AUD-12, AUD-13; §5.2.1 |
 | Issues #522, #543, #667, #765, #794, #851, #856, #897, #1155, #1273 | §1; AUD-12 – AUD-17 |
 
-## 15. Change log
+## 17. Pilot amendment (2026-09-24)
+
+The maintainer approved the split of units (§2.2) and running both pilots on 2026-09-24. §17.1 and §17.2 report what the pilots found and are DECIDED as facts of record. §17.3 and §17.4 are a **proposed amendment, pending the maintainer's approval** (REQ-029); they are not yet in force.
+
+### 17.1 Pilot 1 — knowledge migration only, 20 issues
+
+Outcomes: 16 delivered, 2 rejected, 1 superseded, 1 partial.
+
+Per-issue code auditing, tried inside this pilot, was shallow: 1 major and 12 minor findings, with most audit cells left "not checked". This is the evidence behind the split of units in §2.2: knowledge migrates per issue, code is audited per unit.
+
+Schema changes (schema version 2, applied in §3.1 above): `outcome: rejected` splits into `rejected-reasoned` (a stated reason exists in the evidence) and `rejected-unexplained` (none found); a `linked_prs` field is added.
+
+Data gathering must use `closedByPullRequestsReferences` and timeline cross-references: `gh pr list --search` misses the pull requests of early issues. The fetcher of #1311 does this (applied in §8 above).
+
+### 17.2 Pilot 2 — three deep unit audits
+
+Units: the core `Encina` pipeline, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`.
+
+Findings: 26 total — 5 blockers, 11 major, 10 minor. 13 remediation issues were opened: #1313–#1325.
+
+Recurring patterns across the three units:
+
+- `EncinaError.Message` or `ex.Message` leaking into logs, OpenTelemetry tags, metrics and errors, in all three units (#1314, #1319, #1322); Consent also leaked the raw `DataSubjectId`.
+- `TimeProvider` violations (#1320, #1325).
+- Synchronous ADO.NET calls (#1325).
+- No DI `ValidateOnBuild` test in any of the three units (#1308, #1316, #1317, #1324).
+- Contract tests that are reflection-only, measuring 0% coverage (#1316).
+- A missing tenant filter on consent reads (#1315).
+- Legacy aliases and manifest gaps (#1313, #1318).
+
+Coverage was measured per flag against each package's manifest:
+
+- Core: unit 90.8/70, guard 48.2/20, contract 85.9/15.
+- Consent: unit 81/70, guard 11/20 (fail), contract 0/15 (fail), property 11/15 (fail).
+- ADO.PostgreSQL: unit 29.6/30 (borderline), guard 26/10, contract 92.9/5, integration 39.2/25.
+
+Cost: about 200,000–370,000 Claude (Sonnet) tokens and about 15 minutes of wall time per unit; the three units ran in parallel. Local-model use was low: one agent used it only to draft issue files.
+
+### 17.3 Proposed amendment — checklist (pending maintainer approval)
+
+- **AUD-03**: also verify the manifest's file list against a glob of the package, to catch a manifest that misdeclares a file.
+- **AUD-05**: "Applies when" treats Marten/event-sourced features as database features for the integration-test rule (no justification file accepted for their integration tests).
+- **AUD-06**: not applicable when the unit has no closed bug issue.
+- **AUD-07**: not applicable for provider-agnostic units.
+- **AUD-11**: runs once per package, not once per folder audit unit.
+- Mark as **SCRIPTED** checks (a machine runs them, not an agent's judgement): AUD-13 (message leaks), AUD-14 (`TimeProvider`), AUD-16 (synchronous database calls), AUD-17 (DI `ValidateOnBuild`, #1308), and the reflection-only contract test check that pilot 2 found manually (#1316).
+
+### 17.4 Proposed amendment — execution model (pending maintainer approval)
+
+Revise §8 into two phases. **Phase A** runs repository-wide scripted sweeps for the mechanical items marked SCRIPTED in §17.3: analyzers, scripts and architecture tests that each fix one pattern across every package at once, cheaper than finding it unit by unit. **Phase B** runs deep unit audits focused on the remaining, judgement-only items, with the local model reading and summarising the unit's closed issues before a Claude agent audits.
+
+Pilot 2, run without Phase A, cost about 300,000 tokens per unit for roughly 100 units, so scaling as pilot 2 ran would cost on that order across the whole codebase (a qualitative extrapolation from the two measured units above, not a new figure). The goal of Phase A is to cut that substantially by moving the mechanical items out of each unit's per-unit cost; this specification adds no invented number for the reduction.
+
+## 18. Change log
 
 | Date | Change |
 |---|---|
 | 2026-09-24 | DRAFT created from the maintainer's approval of the program's goal, taxonomy, record, checklist, grouping, execution model, continuity and definition of done. DEC-001 … DEC-005 open. Counts: 34 REQ, 16 AC, 7 INV, 18 checklist items, 5 DEC. The first draft of the checklist table was produced by the local model from a facts file and rewritten. |
 | 2026-09-24 | DEC-001 … DEC-005 DECIDED: the maintainer took option (a) for all five. Records and audit results live under `docs/knowledge/`; every closed issue gets a full record, with duplicates and not-planned issues recorded but not audited; merged pull requests with no issue stay out of scope; the generated documents regenerate only through the weekly and milestone passes; the closing `issue-worker` writes the record, and the path-ownership hook change that requires (T-08) is tracked, not yet made. The document no longer hedges these five points as open. Status stays DRAFT pending the pilot amendment of REQ-029. |
+| 2026-09-24 | Pilot amendment (§17), from pilot 1 (20 issues, knowledge only) and pilot 2 (3 deep unit audits: core, `Encina.Compliance.Consent`, `Encina.ADO.PostgreSQL`). DECIDED and applied: the split of units (§2.2), record schema version 2 (`outcome` splits `rejected` into `rejected-reasoned`/`rejected-unexplained`, adds `linked_prs`, §3.1), and the extraction method using `closedByPullRequestsReferences` and timeline cross-references (§8). Proposed and **pending the maintainer's approval**: the checklist changes of §17.3 (AUD-03, AUD-05, AUD-06, AUD-07, AUD-11, and marking AUD-13/14/16/17 and the reflection-only contract test check as SCRIPTED) and the two-phase execution model of §17.4 (Phase A scripted sweeps, then Phase B unit audits). Status stays DRAFT until that proposal is decided. |
 
-## 16. Related documents
+## 19. Related documents
 
 - [SPEC-000 — Encina 1.0 Baseline and Release Scope](SPEC-000-encina-1.0-baseline-and-release-scope.md)
 - [SPEC-001 — DocRef citations for coverage](SPEC-001-coverage-docref-citations.md)
