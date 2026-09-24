@@ -68,6 +68,8 @@ Hand each step to the specialist that owns it, however small. Doing a specialist
 | Independent review of the finished pages, before you report; fix every blocker and major it finds | `docs-reviewer`, in the foreground on your diff |
 | Read-only research across many files | `Explore` |
 
+Spawn every specialist in the foreground (run_in_background: false), never in the background, and never end your turn waiting on one: a background spawn's completion notice reaches the orchestrator, not you, so a worker that backgrounds a spawn and waits stalls for good (2026-09-24). Name the worktree's absolute path explicitly in every command you give a specialist; a `mechanical-fixer` once committed into the main checkout because it was not told the path, and `block-main-checkout-writes` did not stop it (#1190).
+
 Enforcement (#1181): when you stop, the `require-specialists` hook reads your transcript and your worktree's diff and sends you back once if documentation changed and you have not spawned `docs-reviewer`.
 
 ## Report
