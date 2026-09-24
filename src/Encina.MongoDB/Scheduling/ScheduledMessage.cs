@@ -72,5 +72,5 @@ public sealed class ScheduledMessage : IScheduledMessage
         TimeProvider.System.GetUtcNow().UtcDateTime >= ScheduledAtUtc;
 
     /// <inheritdoc />
-    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries;
+    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;
 }

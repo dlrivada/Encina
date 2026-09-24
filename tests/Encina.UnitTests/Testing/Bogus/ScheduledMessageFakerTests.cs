@@ -91,6 +91,28 @@ public sealed class ScheduledMessageFakerTests
         msg.IsDeadLettered(6).ShouldBeFalse();
     }
 
+    [Fact]
+    public void AsProcessed_WithHighRetryCount_IsNeverDeadLettered()
+    {
+        var msg = new ScheduledMessageFaker().AsProcessed().AsFailed(10).Generate();
+        msg.IsProcessed.ShouldBeTrue();
+
+        msg.IsDeadLettered(1).ShouldBeFalse();
+        msg.IsDeadLettered(10).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Generate_ManyMessages_NeverReportsProcessedMessageAsDeadLettered()
+    {
+        var faker = new ScheduledMessageFaker().AsProcessed().AsFailed(3);
+
+        foreach (var msg in faker.Generate(100))
+        {
+            msg.IsProcessed.ShouldBeTrue();
+            msg.IsDeadLettered(0).ShouldBeFalse();
+        }
+    }
+
     #endregion
 
     #region AsDue

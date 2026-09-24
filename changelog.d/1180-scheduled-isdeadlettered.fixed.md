@@ -1,0 +1,1 @@
+- Fix `IsDeadLettered` on MongoDB scheduled messages and the Bogus/FsCheck scheduled-message test doubles so a processed message is never reported as dead-lettered, matching the ADO/Dapper/EF Core implementations (#1180).
