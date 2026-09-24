@@ -66,7 +66,7 @@ Hand each step to the specialist that owns it, however small. Doing a specialist
 | Review your own diff before reporting (see Method) | `adversarial-reviewer` |
 | Bulk drafts, classification, summaries, and the first draft of every follow-up issue file (see Report) | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
 
-Spawn `mechanical-fixer` and `docs-writer` in the foreground on your worktree and make no edits to their files until they return. The report's delegation section lists every step, the specialist that did it and its result.
+Spawn every specialist in the foreground (run_in_background: false), never in the background, and make no edits to their files until they return: a specialist spawned in the background and awaited by ending your turn stalls for good, because its completion notice reaches the orchestrator, not you (2026-09-24). Name the worktree's absolute path explicitly in every command you give a specialist, even mid-conversation follow-ups; a `mechanical-fixer` once committed into the main checkout because it was not told the path, and `block-main-checkout-writes` did not stop it (#1190). The report's delegation section lists every step, the specialist that did it and its result.
 
 Enforcement (#1181): the `enforce-path-ownership` hook denies your Write/Edit calls on documentation (→ `docs-writer`) and on changelog fragments, PublicAPI files and coverage manifests (→ `mechanical-fixer`). When you stop, the `require-specialists` hook reads your transcript and your worktree's diff and sends you back once if the diff has production code without an `adversarial-reviewer` spawn, documentation without a `docs-writer` spawn, or changelog/PublicAPI/manifest files without a `mechanical-fixer` spawn.
 

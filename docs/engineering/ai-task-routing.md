@@ -94,7 +94,27 @@ Principles already set in `AI-DEVELOPMENT-MODEL.md` §4, applied explicitly here
 
 ---
 
-## 7. Reviewing this document
+## 7. Routing evidence (2026-09-23/24)
+
+Findings from the orchestrator sessions of 2026-09-23 and 2026-09-24, each dated and stated as observed fact, no prices. These are inputs to the `ai:local-candidate` / `ai:claude-required` labelling decision (§6.3), not a change to the routing table in §4.
+
+Reliable for the local model:
+
+- **Translation with a reference** (2026-09-23): SQL scripts translated against an existing store's SQL as the reference produced 10 of 10 usable drafts.
+- **Mirroring an existing pattern across providers** (2026-09-23): given one provider's implementation as the template, drafting the equivalent for another provider.
+- **Drafting an issue from given facts** (2026-09-23/24): the local model writes the first draft of a follow-up issue file when the facts (title, location, behaviour, root cause) are already established; see the Delegation table in `.claude/agents/README.md`.
+- **Triage and classification tasks** (2026-09-23/24): labelling or sorting a batch of items against a stated rule.
+
+Unreliable for the local model:
+
+- **Type-level reasoning** (2026-09-24): a task requiring reflection over `ValueTask` produced a draft that was not usable.
+- **Any task where the target API is not included in its input** (2026-09-23/24): the model invents members it cannot see. Asking it to list which parts of its draft are "unverified" helps the reviewer find where to look first, but does not replace the reviewer checking every identifier.
+
+Firm rule, not a suggestion: every local-model draft is audited by the delegating agent before use (`local-ai-task` skill §4).
+
+---
+
+## 8. Reviewing this document
 
 Revise this routing when:
 

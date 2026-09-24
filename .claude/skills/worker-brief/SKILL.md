@@ -41,6 +41,11 @@ Rules:
 - Delegation is mandatory: every step that belongs to a specialist goes to it (the table in your agent
   definition). Never do a specialist's step yourself. Hooks enforce part of it: path ownership on Write/Edit,
   the spawn allowlist, and a check at stop time that the specialists your diff requires were spawned.
+- Every specialist spawn runs in the FOREGROUND (run_in_background: false) and names <wt> explicitly in every
+  command you give it, even when the specialist "obviously" knows the worktree from context: a background
+  spawn's completion notice reaches the orchestrator, not you, so a worker that backgrounds a spawn and then
+  ends its turn waiting stalls for good (2026-09-24); a specialist not told <wt> explicitly has committed into
+  the main checkout before, and block-main-checkout-writes did not catch it (#1190).
 - When the task changes nature (scope grows, the cause is elsewhere, a decision this brief does not make,
   tests you cannot make pass), stop and report with evidence.
 - Report: files changed; verification commands and output; self-review result; delegation (what went to whom);
