@@ -84,9 +84,11 @@ public static class ServiceCollectionExtensions
         // Register stores based on configuration
         if (options.UseOutbox)
         {
+            services.AddSingleton(options.OutboxOptions);
             services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
             services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
             services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
+            services.AddHostedService<Outbox.OutboxProcessor>();
         }
 
         if (options.UseInbox)
@@ -211,9 +213,11 @@ public static class ServiceCollectionExtensions
         // Register stores based on configuration
         if (options.UseOutbox)
         {
+            services.AddSingleton(options.OutboxOptions);
             services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
             services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
             services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
+            services.AddHostedService<Outbox.OutboxProcessor>();
         }
 
         if (options.UseInbox)

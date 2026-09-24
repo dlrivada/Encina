@@ -11,6 +11,7 @@ using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
 using Encina.Security.Audit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using NSubstitute;
@@ -121,6 +122,113 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         });
 
         services.ShouldNotContain(sd => sd.ServiceType == typeof(IOutboxStore));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseOutboxTrue_RegistersOutboxOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseOutbox = true;
+        });
+
+        services.ShouldContain(sd => sd.ServiceType == typeof(OutboxOptions));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseOutboxTrue_RegistersHostedOutboxProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseOutbox = true;
+        });
+
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(global::Encina.MongoDB.Outbox.OutboxProcessor));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseOutboxFalse_DoesNotRegisterHostedOutboxProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseOutbox = false;
+        });
+
+        services.ShouldNotContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(global::Encina.MongoDB.Outbox.OutboxProcessor));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseOutboxTrue_ResolvesHostedOutboxProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var client = Substitute.For<IMongoClient>();
+        services.AddSingleton(client);
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseOutbox = true;
+        });
+
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        var hostedServices = sp.GetServices<IHostedService>();
+
+        hostedServices.ShouldContain(s => s is global::Encina.MongoDB.Outbox.OutboxProcessor);
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_WithClient_UseOutboxTrue_RegistersHostedOutboxProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var client = Substitute.For<IMongoClient>();
+
+        services.AddEncinaMongoDB(client, opts =>
+        {
+            opts.DatabaseName = "test";
+            opts.UseOutbox = true;
+        });
+
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(global::Encina.MongoDB.Outbox.OutboxProcessor));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_WithClient_UseOutboxFalse_DoesNotRegisterHostedOutboxProcessor()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var client = Substitute.For<IMongoClient>();
+
+        services.AddEncinaMongoDB(client, opts =>
+        {
+            opts.DatabaseName = "test";
+            opts.UseOutbox = false;
+        });
+
+        services.ShouldNotContain(sd =>
+            sd.ServiceType == typeof(IHostedService) &&
+            sd.ImplementationType == typeof(global::Encina.MongoDB.Outbox.OutboxProcessor));
     }
 
     #endregion
