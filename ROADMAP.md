@@ -9,33 +9,37 @@ This document outlines the vision, current status, and future direction of Encin
 ## Current Status
 
 **Version**: Pre-1.0 (breaking changes allowed)
-**Packages**: 53 active (including CLI tool)
+**Packages**: see [docs/INVENTORY.md](docs/INVENTORY.md) for the current package list and count
 **Target**: .NET 10
 
-| Category | Packages | Status |
-|----------|----------|--------|
-| Core & Validation | 5 | ✅ Production |
-| Web Integration | 2 | ✅ Production |
-| Serverless | 2 | ✅ Production |
-| Database Providers | 12 | ✅ Production |
-| Messaging Transports | 10 (+ 6 planned) | ✅ Production |
-| Caching | 8 | ✅ Production |
-| Scheduling | 2 | ✅ Production |
-| Resilience | 3 | ✅ Production |
-| Distributed Lock | 4 | ✅ Production |
-| Event Sourcing | 1 | ✅ Production |
-| Observability | 1 | ✅ Production |
-| Developer Tooling | 1 | ✅ Production |
+| Category | Status |
+|----------|--------|
+| Core & Validation | ✅ Production |
+| Web Integration | ✅ Production |
+| Serverless | ✅ Production |
+| Database Providers | ✅ Production |
+| Messaging Transports | ✅ Production |
+| Caching | ✅ Production |
+| Scheduling | ✅ Production |
+| Resilience | ✅ Production |
+| Distributed Lock | ✅ Production |
+| Event Sourcing | ✅ Production |
+| Observability | ✅ Production |
+| Developer Tooling | ✅ Production |
+
+Per-category package counts are not repeated here to avoid drifting from `src/`; see [docs/INVENTORY.md](docs/INVENTORY.md) or `CLAUDE.md`'s provider tables for the current set.
 
 ### Quality Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Test Count | 6,500+ | 5,000+ ✅ |
-| Line Coverage | 92.3% | ≥85% ✅ |
-| Mutation Score | [see dashboard](https://dlrivada.github.io/Encina/mutations/) | tracked per-package, not project-wide ([methodology](docs/testing/mutation-measurement-methodology.md)) |
-| Build Warnings | 0 | 0 ✅ |
-| SonarCloud Issues | 0 | 0 ✅ |
+Encina does not track a single project-wide percentage for coverage or mutation score; both are measured **per package/file** under an obligations model. There is no dashboard for aggregate test counts, Sonar issues or build warnings either — those come from CI on the current commit, not from this file.
+
+| Metric | Source of truth |
+|--------|------------------|
+| Test Count | [.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml) run summary (per test project) |
+| Line Coverage | [Coverage dashboard](https://dlrivada.github.io/Encina/coverage/) — per-package, per-flag targets ([methodology](docs/testing/coverage-measurement-methodology.md)) |
+| Mutation Score | [Mutation dashboard](https://dlrivada.github.io/Encina/mutations/) — tracked per-file, not project-wide ([methodology](docs/testing/mutation-measurement-methodology.md)) |
+| Build Warnings | [.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml) fails the build on any warning |
+| SonarCloud Issues | [SonarCloud dashboard](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina) (scans are currently skipped on PRs, see #75) |
 
 ---
 
@@ -122,7 +126,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
 
 *Complete testing toolkit*
 
-> **Milestone Completed**: 34 issues closed, 92.3% coverage, 0 SonarCloud issues
+> **Milestone completed** (2026-01-19); see [milestone #8](https://github.com/dlrivada/Encina/milestone/8) for the closed issues.
 
 **All Features Delivered:**
 
@@ -718,7 +722,7 @@ Key areas already completed:
   - New labels created: `area-application-services`, `area-ports-adapters`, `area-hexagonal`, `area-dto-mapping`, `clean-architecture`, `abp-inspired`, `ardalis-inspired`
 - **AI/LLM Patterns** (new - based on December 29, 2025 research):
   - MCP Support [#481](https://github.com/dlrivada/Encina/issues/481) — Model Context Protocol server/client with `MCPServerBuilder`, SSE/HTTP transports
-  - Semantic Caching [#482](https://github.com/dlrivada/Encina/issues/482) — `SemanticCachingPipelineBehavior` with embedding-based cache (40-70% cost reduction)
+  - Semantic Caching [#482](https://github.com/dlrivada/Encina/issues/482) — `SemanticCachingPipelineBehavior` with embedding-based cache to reduce redundant LLM calls (not yet implemented; no measured figure)
   - AI Guardrails & Safety [#483](https://github.com/dlrivada/Encina/issues/483) — `Encina.AI.Safety` with prompt injection, PII detection, content moderation
   - RAG Pipeline [#484](https://github.com/dlrivada/Encina/issues/484) — `Encina.AI.RAG` with query rewriting, chunk retrieval, re-ranking
   - Token Budget [#485](https://github.com/dlrivada/Encina/issues/485) — `TokenBudgetPipelineBehavior` with per-user/tenant limits, cost tracking
@@ -735,7 +739,7 @@ Key areas already completed:
 
 *Achieve reliability through comprehensive testing*
 
-Focus: Increase coverage to ≥85%, complete Testcontainers fixtures, eliminate flaky tests.
+Focus: reach the per-package coverage targets in the [coverage manifests](https://dlrivada.github.io/Encina/coverage/) (no single project-wide percentage), complete Testcontainers fixtures, eliminate flaky tests.
 
 → [View Phase 3 Issues](https://github.com/dlrivada/Encina/milestone/3)
 
