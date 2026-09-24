@@ -3,7 +3,9 @@ param(
     [string]$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts\local-ai\historian\closed-evidence.json'),
     [int]$BodyChars = 2000,
     [int]$CommentChars = 700,
-    [int]$MaxComments = 15
+    [int]$MaxComments = 15,
+    [int[]]$Numbers = @(),
+    [string]$Since = ''
 )
 
 # Archaeology extractor: every closed issue with body, human comments, close date and the PRs/issues that reference it.
@@ -17,7 +19,10 @@ function Clean([string]$t, [int]$max) {
     if ($t.Length -gt $max) { $t = $t.Substring(0, $max) + '…' }
     return $t
 }
-$closed = gh issue list --repo $Repo --state closed --limit 1000 --json number,title,labels,milestone,createdAt,closedAt,body,comments,stateReason | ConvertFrom-Json
+$searchArgs = @()
+if ($Since) { $searchArgs = @('--search', "closed:>$Since") }
+$closed = gh issue list --repo $Repo --state closed --limit 1000 @searchArgs --json number,title,labels,milestone,createdAt,closedAt,body,comments,stateReason | ConvertFrom-Json
+if ($Numbers.Count -gt 0) { $closed = @($closed | Where-Object { $Numbers -contains [int]$_.number }) }
 Write-Output "closed issues: $($closed.Count)"
 $results = New-Object System.Collections.Generic.List[object]
 $n = 0
