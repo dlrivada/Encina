@@ -57,6 +57,7 @@ public sealed partial class ErrorMessageLeakStaticScanTests
 
     private static readonly string[] ScannedPackages =
     [
+        "src/Encina",
         "src/Encina.Messaging",
         "src/Encina.Hangfire",
         "src/Encina.Quartz",

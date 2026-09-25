@@ -114,7 +114,7 @@ public sealed partial class Encina
                 Right: _ => EncinaErrors.Unknown);
 
             var errorCode = error.GetEncinaCode();
-            activity?.SetStatus(ActivityStatusCode.Error, error.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, errorCode);
             activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
             var exception = error.Exception.Match(
                 Some: ex => (Exception?)ex,
@@ -131,7 +131,7 @@ public sealed partial class Encina
             }
             else
             {
-                Log.NotificationHandlerFailure(Encina._logger, notificationName, handlerTypeName, error.Message);
+                Log.NotificationHandlerFailure(Encina._logger, notificationName, handlerTypeName, errorCode);
             }
 
             return true;

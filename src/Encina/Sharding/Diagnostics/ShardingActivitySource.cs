@@ -61,8 +61,7 @@ internal static class ShardingActivitySource
     /// </summary>
     /// <param name="activity">The routing activity to mark as failed.</param>
     /// <param name="errorCode">The error code.</param>
-    /// <param name="errorMessage">The error message.</param>
-    internal static void RoutingFailed(Activity? activity, string? errorCode, string? errorMessage)
+    internal static void RoutingFailed(Activity? activity, string? errorCode)
     {
         if (activity is null)
         {
@@ -74,7 +73,8 @@ internal static class ShardingActivitySource
             activity.SetTag(ActivityTagNames.FailureCode, errorCode);
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        // Only the error code (never EncinaError.Message) reaches the Activity status (#1319).
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 
@@ -183,15 +183,17 @@ internal static class ShardingActivitySource
     /// </summary>
     /// <param name="activity">The shard query activity to complete.</param>
     /// <param name="isSuccess">Whether the query succeeded.</param>
-    /// <param name="errorMessage">Optional error message if the query failed.</param>
-    internal static void CompleteShardQuery(Activity? activity, bool isSuccess, string? errorMessage = null)
+    /// <param name="errorCode">Optional error code (never a message) if the query failed.</param>
+    internal static void CompleteShardQuery(Activity? activity, bool isSuccess, string? errorCode = null)
     {
         if (activity is null)
         {
             return;
         }
 
-        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
+        // Only the error code (never EncinaError.Message or an exception message) reaches the
+        // Activity status (#1319).
+        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 

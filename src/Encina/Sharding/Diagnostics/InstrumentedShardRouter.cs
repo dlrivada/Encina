@@ -54,7 +54,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty), error.Message);
+                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
                 return string.Empty;
             });
 
@@ -84,7 +84,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty), error.Message);
+                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
                 return string.Empty;
             });
 
@@ -112,7 +112,7 @@ internal sealed class InstrumentedShardRouter : IShardRouter
             },
             Left: error =>
             {
-                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty), error.Message);
+                ShardingActivitySource.RoutingFailed(activity, error.GetCode().IfNone(string.Empty));
                 return (IReadOnlyList<string>)[];
             });
 

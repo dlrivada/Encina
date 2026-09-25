@@ -171,7 +171,7 @@ public sealed class TierTransitionScheduler : BackgroundService
                     },
                     Left: error =>
                     {
-                        Log.TransitionFailed(_logger, shard.ShardId, error.Message);
+                        Log.TransitionFailed(_logger, shard.ShardId, error.GetEncinaCode());
                         failureCount++;
                     });
             }

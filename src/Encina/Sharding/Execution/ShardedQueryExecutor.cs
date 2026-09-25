@@ -255,10 +255,10 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
                 Left: error =>
                 {
                     _logger.LogWarning(
-                        "Query on shard {ShardId} returned error: {ErrorMessage}",
+                        "Query on shard {ShardId} returned error: {ErrorCode}",
                         shardId,
-                        error.Message);
-                    ShardingActivitySource.CompleteShardQuery(shardActivity, isSuccess: false, error.Message);
+                        error.GetEncinaCode());
+                    ShardingActivitySource.CompleteShardQuery(shardActivity, isSuccess: false, error.GetEncinaCode());
                     return ShardQueryTaskResult<T>.Failure(shardId, error);
                 });
         }
@@ -270,7 +270,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Query on shard {ShardId} threw an exception", shardId);
-            ShardingActivitySource.CompleteShardQuery(shardActivity, isSuccess: false, ex.Message);
+            ShardingActivitySource.CompleteShardQuery(shardActivity, isSuccess: false, ex.GetType().Name);
 
             return ShardQueryTaskResult<T>.Failure(
                 shardId,

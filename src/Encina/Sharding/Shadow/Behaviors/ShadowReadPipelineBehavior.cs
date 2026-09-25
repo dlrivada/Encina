@@ -119,7 +119,7 @@ internal sealed class ShadowReadPipelineBehavior<TQuery, TResponse>(
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowReadFailed(_logger, queryType, ex.Message);
+            ShadowShardingLog.ShadowReadFailed(_logger, queryType, ex.GetType().Name);
         }
     }
 
@@ -141,7 +141,7 @@ internal sealed class ShadowReadPipelineBehavior<TQuery, TResponse>(
         catch (Exception ex)
         {
             ShadowShardingLog.DiscrepancyHandlerFailed(
-                _logger, typeof(TQuery).Name, ex.Message);
+                _logger, typeof(TQuery).Name, ex.GetType().Name);
         }
     }
 

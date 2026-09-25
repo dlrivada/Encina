@@ -82,11 +82,40 @@ public sealed class EncinaTests
                  && Equals(a.GetTagItem("Encina.request_type"), typeof(MissingHandlerRequest).FullName));
 
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
+        activity.StatusDescription.ShouldNotBe(error.Message);
         activity.GetTagItem("Encina.request_type").ShouldBe(typeof(MissingHandlerRequest).FullName);
         activity.GetTagItem("Encina.request_name").ShouldBe(nameof(MissingHandlerRequest));
         activity.GetTagItem("Encina.request_kind").ShouldBe("request");
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
+    }
+
+    [Fact]
+    public async Task Send_WithFailureContainingPersonalData_NeverExposesTheMessageOnTheActivity()
+    {
+        using var activityCollector = new ActivityCollector();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.AddScoped<IRequestHandler<PersonalDataFailureRequest, string>, PersonalDataFailureRequestHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+
+        await Encina.Send(new PersonalDataFailureRequest(), CancellationToken.None);
+
+        var activities = activityCollector.Activities
+            .Where(a => a.DisplayName == "Encina.Send"
+                        && Equals(a.GetTagItem("Encina.request_type"), typeof(PersonalDataFailureRequest).FullName))
+            .ToList();
+        activities.ShouldNotBeEmpty();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(PersonalDataFailureRequestHandler.PersonalData);
+            foreach (var tag in activity.Tags)
+            {
+                tag.Value.ShouldNotBe(PersonalDataFailureRequestHandler.PersonalData);
+            }
+        }
     }
 
     [Fact]
@@ -362,7 +391,7 @@ public sealed class EncinaTests
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
         failureEntry.Message.Contains("The EchoRequest request failed (Encina.failure)").ShouldBeTrue();
-        failureEntry.Message.Contains("the operation failed").ShouldBeTrue();
+        failureEntry.Message.Contains("the operation failed").ShouldBeFalse();
         failureEntry.Exception.ShouldNotBeNull();
         ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
@@ -642,7 +671,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeTrue();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -670,7 +699,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBe(1);
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -743,7 +772,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification)));
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -776,7 +805,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeFalse();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -806,7 +835,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(AccidentalCancellationNotification))).ShouldBeFalse();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -1745,6 +1774,16 @@ public sealed class EncinaTests
     }
 
     private sealed record MissingHandlerRequest : IRequest<int>;
+
+    private sealed record PersonalDataFailureRequest : IRequest<string>;
+
+    private sealed class PersonalDataFailureRequestHandler : IRequestHandler<PersonalDataFailureRequest, string>
+    {
+        public const string PersonalData = "user@example.com must not leave the process";
+
+        public Task<Either<EncinaError, string>> Handle(PersonalDataFailureRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.personal_data_failure", PersonalData)));
+    }
 
     private sealed record AsyncRequest(string Value) : IRequest<string>;
 

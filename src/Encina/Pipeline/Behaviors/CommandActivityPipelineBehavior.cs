@@ -110,9 +110,10 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
 
     private static void RecordException(Activity? activity, Exception ex)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+        var exceptionTypeName = ex.GetType().Name;
+        activity?.SetStatus(ActivityStatusCode.Error, exceptionTypeName);
         activity?.SetTag(ActivityTagNames.ExceptionType, ex.GetType().FullName);
-        activity?.SetTag(ActivityTagNames.ExceptionMessage, ex.Message);
+        activity?.SetTag(ActivityTagNames.ExceptionMessage, exceptionTypeName);
     }
 
     private void RecordOutcome(Activity? activity, Either<EncinaError, TResponse> outcome)
@@ -161,9 +162,10 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
 
     private static Unit RecordErrorOutcome(Activity? activity, EncinaError error)
     {
-        activity?.SetStatus(ActivityStatusCode.Error, error.Message);
+        var errorCode = error.GetEncinaCode();
+        activity?.SetStatus(ActivityStatusCode.Error, errorCode);
         activity?.SetTag(ActivityTagNames.PipelineFailure, true);
-        activity?.SetTag(ActivityTagNames.FailureReason, error.GetEncinaCode());
+        activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
         return Unit.Default;
     }
 }

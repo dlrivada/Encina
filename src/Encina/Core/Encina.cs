@@ -134,7 +134,7 @@ public sealed partial class Encina(
             return;
         }
 
-        Log.RequestFailed(_logger, requestType.Name, errorCode, effectiveError.Message, exception);
+        Log.RequestFailed(_logger, requestType.Name, errorCode, exception);
     }
 
     private static (bool IsSuccess, EncinaError? Error) ExtractOutcome<TResponse>(Either<EncinaError, TResponse> outcome)
@@ -230,8 +230,8 @@ public sealed partial class Encina(
         [LoggerMessage(EventId = 116, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType}.")]
         public static partial void NotificationHandlerException(ILogger logger, string notificationType, string handlerType, Exception exception);
 
-        [LoggerMessage(EventId = 117, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType}: {Message}")]
-        public static partial void NotificationHandlerFailure(ILogger logger, string notificationType, string handlerType, string message);
+        [LoggerMessage(EventId = 117, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType} ({Reason}).")]
+        public static partial void NotificationHandlerFailure(ILogger logger, string notificationType, string handlerType, string reason);
 
         [LoggerMessage(EventId = 118, Level = LogLevel.Debug, Message = "Request {RequestType} completed by {HandlerType}.")]
         public static partial void RequestCompleted(ILogger logger, string requestType, string handlerType);
@@ -239,7 +239,7 @@ public sealed partial class Encina(
         [LoggerMessage(EventId = 119, Level = LogLevel.Warning, Message = "The {RequestType} request was cancelled ({Reason}).")]
         public static partial void RequestCancelled(ILogger logger, string requestType, string reason, Exception? exception);
 
-        [LoggerMessage(EventId = 120, Level = LogLevel.Error, Message = "The {RequestType} request failed ({Reason}): {Message}")]
-        public static partial void RequestFailed(ILogger logger, string requestType, string reason, string message, Exception? exception);
+        [LoggerMessage(EventId = 120, Level = LogLevel.Error, Message = "The {RequestType} request failed ({Reason}).")]
+        public static partial void RequestFailed(ILogger logger, string requestType, string reason, Exception? exception);
     }
 }
