@@ -71,7 +71,20 @@
 #     tool call, so a direct Write/Edit/shell-write to it is always denied, including for the orchestrator
 #     (previously it fell through to the default allow, since it names no pipeline.stages entry).
 #
-# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call.
+# #1374: the hook is wired twice on purpose (see above), so two of its own instances can update the sidecar
+# concurrently for the same tool call. Their read-modify-write on .authors.json is serialized with a named
+# System.Threading.Mutex derived from the sidecar's full path (a hex SHA-256 of the lower-cased path, so it is
+# stable across processes and short enough for a kernel object name), WaitOne with a 5-second timeout; a
+# timeout denies the write (exit 2) rather than racing the other instance. The write itself is atomic: the
+# updated JSON goes to a per-process temp file next to the sidecar, then [System.IO.File]::Move(...,
+# overwrite: true) replaces the sidecar in one filesystem operation, so a reader never observes a half-written
+# or concatenated file. A sidecar that exists but fails to parse as a single JSON object denies the write
+# (fail closed, AGENTS.md §3) with the parse error and the repair instruction ("run
+# tools/ai/audit/audit-stage.ps1 -RepairAuthors from the main checkout") instead of being silently swallowed
+# and masking the real cause, as it did before #1374.
+#
+# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
+# (except the authorship-sidecar write above, which denies on its own failure instead — see #1374).
 
 param([string]$Agent)
 
@@ -101,6 +114,75 @@ try {
     if ($null -eq $layout) { exit 0 }
 
     $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
+
+    # A short, stable, filesystem-independent name for a named Mutex guarding $Path: a hex SHA-256 of the
+    # lower-cased full path (#1374), so two hook processes racing on the very same sidecar always compute the
+    # same mutex name regardless of case differences the filesystem itself ignores.
+    function Get-PathLockName([string]$Path) {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Path.ToLowerInvariant())
+        $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+        $hex = -join ($hash | ForEach-Object { $_.ToString('x2') })
+        return "Local\Encina.AuthorsSidecar.$hex"
+    }
+
+    # Records $Agent as the last writer of $Stage in $Root's authorship sidecar (#1374). Serializes the
+    # read-modify-write across every concurrent instance of this hook with a named Mutex (5-second timeout),
+    # writes atomically (temp file next to the sidecar, then an overwriting File.Move), and fails closed: a
+    # lock timeout, an unparseable existing sidecar, or any other exception returns $false (denying the write
+    # that triggered it) with the reason on stderr, instead of silently doing nothing as the previous
+    # `catch { }` did. An existing sidecar that is not a single JSON object is reported with the exact parse
+    # error and the sanctioned repair command, never masked.
+    function Set-StageAuthor([string]$Root, [string]$Stage, [string]$Agent) {
+        $mutex = $null
+        $acquired = $false
+        $tempPath = $null
+        try {
+            $authorsPath = Join-Path $Root 'artifacts\knowledge\stages\.authors.json'
+            $mutex = [System.Threading.Mutex]::new($false, (Get-PathLockName $authorsPath))
+            try { $acquired = $mutex.WaitOne(5000) }
+            catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+            if (-not $acquired) {
+                [Console]::Error.WriteLine("Blocked: could not acquire the lock on 'artifacts/knowledge/stages/.authors.json' within 5 seconds (another hook instance may be stuck); the '$Stage' stage authorship was not recorded (#1374).")
+                return $false
+            }
+
+            $authors = @{}
+            if (Test-Path -LiteralPath $authorsPath) {
+                $raw = Get-Content -LiteralPath $authorsPath -Raw
+                if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                    try {
+                        $parsed = $raw | ConvertFrom-Json -AsHashtable
+                        if ($null -ne $parsed) { $authors = $parsed }
+                    }
+                    catch {
+                        [Console]::Error.WriteLine("Blocked: 'artifacts/knowledge/stages/.authors.json' is not valid JSON ($($_.Exception.Message)); run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout to repair it, then have $Agent re-write the '$Stage' stage artifact (#1374).")
+                        return $false
+                    }
+                }
+            }
+
+            $authors[$Stage] = @{ agent = $Agent; utc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
+            $dir = Split-Path -Parent $authorsPath
+            New-Item -ItemType Directory -Force $dir | Out-Null
+            $tempPath = Join-Path $dir ".authors.json.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+            ($authors | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $tempPath -Encoding utf8
+            [System.IO.File]::Move($tempPath, $authorsPath, $true)
+            $tempPath = $null
+            return $true
+        }
+        catch {
+            [Console]::Error.WriteLine("Blocked: could not record authorship for the '$Stage' stage in artifacts/knowledge/stages/.authors.json: $($_.Exception.Message) (#1374).")
+            return $false
+        }
+        finally {
+            # A leftover temp file means the move never completed (Move throws before renaming, e.g. the
+            # destination is locked by an antivirus scan or another process): clean it up so a failed write
+            # never leaves a stray '.authors.json.<pid>.<guid>.tmp' behind in a directory that gets committed.
+            if ($null -ne $tempPath -and (Test-Path -LiteralPath $tempPath)) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+            if ($acquired) { $mutex.ReleaseMutex() }
+            if ($null -ne $mutex) { $mutex.Dispose() }
+        }
+    }
 
     # Checks one resolved absolute path against every ownership rule. Returns $true (allowed) or $false
     # (blocked; the reason is already on stderr). A path outside the project is always allowed.
@@ -155,18 +237,12 @@ try {
                 }
                 # Allowed: record authorship in the sidecar so audit-commit-stage.ps1 can refuse to commit a
                 # stage whose last recorded writer does not match the agent pipeline.json assigns to it.
-                try {
-                    $authorsPath = Join-Path $location.Root 'artifacts\knowledge\stages\.authors.json'
-                    $authors = @{}
-                    if (Test-Path -LiteralPath $authorsPath) {
-                        $existing = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable
-                        if ($null -ne $existing) { $authors = $existing }
-                    }
-                    $authors[[string]$stageDef.stage] = @{ agent = $Agent; utc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
-                    New-Item -ItemType Directory -Force (Split-Path -Parent $authorsPath) | Out-Null
-                    ($authors | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $authorsPath -Encoding utf8
-                }
-                catch { }
+                # #1374: this hook runs twice concurrently for the same tool call (see header comment), so the
+                # read-modify-write below is serialized with a named mutex and written atomically via a
+                # temp-file-and-move, and any failure (lock timeout, unparseable sidecar, anything else) DENIES
+                # the write instead of silently allowing it — a swallowed failure here previously masked a
+                # corrupted sidecar as "no recorded author" downstream (#1374).
+                if (-not (Set-StageAuthor $location.Root $stageDef.stage $Agent)) { return $false }
                 return $true
             }
             # $stageArtifactMatch succeeded but the file names no pipeline.stages entry (e.g. lessons.md): not

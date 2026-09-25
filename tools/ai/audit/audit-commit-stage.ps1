@@ -84,8 +84,18 @@ $knownStageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-v
 if ($expectedAgent -in $knownStageAgents) {
     $authorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
     $authorship = $null
+    # #1374: an unreadable sidecar (corrupted by a lost race between the two concurrent hook instances, before
+    # the mutex fix) is a DIFFERENT failure than "no recorded author" -- the artifact may well have been
+    # written by the right agent, but the sidecar cannot prove it. Reporting the parse error, never masking it
+    # behind "no recorded author", is what let #1374 be diagnosed instead of silently blocking the audit.
+    $unreadableReason = $null
     if (Test-Path -LiteralPath $authorsPath) {
-        try { $authors = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable; $authorship = $authors[$Stage] } catch { $authorship = $null }
+        try { $authors = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable; $authorship = $authors[$Stage] }
+        catch { $unreadableReason = $_.Exception.Message }
+    }
+    if ($unreadableReason) {
+        Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: artifacts\knowledge\stages\.authors.json is unreadable: $unreadableReason; run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout, then have $expectedAgent re-write the '$Stage' stage artifact so it is recorded again (#1374)."
+        exit 1
     }
     if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
         $found = if ($null -eq $authorship) { 'no recorded author' } else { "recorded author '$($authorship.agent)'" }
