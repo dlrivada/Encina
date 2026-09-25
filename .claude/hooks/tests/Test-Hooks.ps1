@@ -557,6 +557,10 @@ $ownershipCases = @(
     @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: the orchestrator writing code.md is denied'),
     @('test-auditor', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: test-auditor writing code.md is denied'),
     @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 0, 'fabrication gap: issue-auditor writing code.md is allowed'),
+    # The gap this closes is exactly a caller OTHER than the assigned agent, no matter its own identity: an
+    # ungoverned agent (mechanical-fixer has no path-ownership hook of its own) fabricating the code stage via
+    # the globally-wired instance of this hook (no -Agent, its agent_type from the payload; #1345 review).
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: mechanical-fixer (no dedicated ownership hook) writing code.md is denied by the global wiring', 'mechanical-fixer'),
     @('docs-reviewer', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 0, 'docs-reviewer: its own stage artifact (audit mode)'),
     @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 2, 'fabrication gap: issue-archivist writing the docs stage is denied'),
     @($null, 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'the remediation stage artifact is written only by its own script, never via the Write/Edit tool, even by the orchestrator'),

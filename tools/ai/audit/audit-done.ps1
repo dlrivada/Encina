@@ -107,7 +107,10 @@ if (Test-Path -LiteralPath $lessonsFile) {
         $agentName = $Matches['agent']
         $detail = $Matches['detail'].Trim()
         $roleLessonsFile = Join-Path $mainRoot ".claude\agents\lessons\$agentName.md"
-        if (-not (Test-Path -LiteralPath $roleLessonsFile)) { continue }
+        if (-not (Test-Path -LiteralPath $roleLessonsFile)) {
+            Write-Warning "audit-done: stages\lessons.md names 'role:$agentName' but .claude\agents\lessons\$agentName.md does not exist; the lesson '$text' was NOT recorded anywhere. Check the agent name for a typo."
+            continue
+        }
         $suffix = if ($detail) { " ($detail)" } else { '' }
         Add-Content -LiteralPath $roleLessonsFile -Value "- ($today, #$n) $text$suffix"
         $appliedRoles++
