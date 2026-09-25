@@ -4,7 +4,7 @@ nav_exclude: true
 
 # CRAP gate — CI wiring design note
 
-**Status:** design note, awaiting a maintainer decision. `crap-gate.cs` exists; its behavior (diff parsing, the exemption comment, `--report`/`--enforce` exit codes) was verified manually against the fixtures under `.github/scripts/testdata/crap-gate/` during development, but there is no automated test in the repo that runs it (see [§5](#5-open-questions--follow-ups)); no workflow calls it either. `.github/workflows/ci.yml` is out of scope for the worktree that wrote this note — wiring the gate in is a follow-up change to that file.
+**Status:** design note. `crap-gate.cs` exists; its behavior (diff parsing, the exemption comment, `--report`/`--enforce` exit codes) was verified manually against the fixtures under `.github/scripts/testdata/crap-gate/` during development. Sections 1–3 and 5 describe the state before wiring and are otherwise unchanged; the gate is now wired into `.github/workflows/ci.yml` as the `crap-gate` job, enforcing from day one (see §4), and `.github/scripts/crap-gate-selftest.ps1` now runs the fixtures in that job, so the "no automated test" gap noted in [§5](#5-open-questions--follow-ups) is closed.
 **Issue:** #1346
 **Audience:** whoever wires `crap-gate.cs` into CI next — this note exists so that decision does not have to re-derive what `ci.yml` already does.
 
@@ -53,7 +53,9 @@ Fetch the last `docref-index.json` / Cobertura-derived data Publish Coverage put
 
 ## 4. Rollout plan (decided)
 
-Report-only for one week, then switch to `--enforce`. This is a maintainer decision, not open for re-litigation in this note; what needs stating is only how "one week" is measured, since the repository has no existing precedent for a phased CI gate rollout to follow (`coverage-citations` and `changelog-fragments` — the two most similar per-PR gates in `ci.yml` — both shipped directly as enforcing checks, with no report-only period). In the absence of a "count of merged PRs" precedent elsewhere in this project's CI history, **calendar time is the practical measure**: run the new job with `--report` from the day it merges into `ci.yml`, and flip the same job to `--enforce` seven calendar days later, regardless of how many PRs landed in between (a quiet week should not extend the report-only period, and a busy week should not shorten it — the point is giving the CRAP output visible time on the PR checks page before it can block a merge).
+Blocking from day one (maintainer decision, 2026-09-25). There is no report-only period: the `crap-gate` job in `ci.yml` runs `--enforce --threshold 10` from the first PR that merges it, and it is in `ci-result`'s `needs:` list alongside `coverage-citations` and `changelog-fragments`, so a non-exempt violation blocks the merge immediately, the same way those two checks already do. This supersedes an earlier draft of this section, written before `ci.yml` was wired, which proposed a week of `--report`-only output before switching to `--enforce`; the maintainer rejected the phased rollout and chose to ship the gate enforcing from the start, matching the precedent `coverage-citations` and `changelog-fragments` already set (both shipped directly as enforcing checks, with no report-only period).
+
+The job runs only for a pull request where `needs.changes.outputs.src == 'true'`, after the six flag jobs (`test-unit`, `test-integration`, `test-contract`, `test-property`, `test-guard`, `test-ef-providers`) whose Cobertura artifacts it downloads, and it runs `.github/scripts/crap-gate-selftest.ps1` against the script's own fixtures first (closing #1354), so a broken `crap-gate.cs` fails loudly instead of silently passing every PR — see `.github/workflows/ci.yml`, the `crap-gate` job.
 
 ## 5. Open questions / follow-ups
 
