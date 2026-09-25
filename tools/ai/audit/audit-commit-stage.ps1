@@ -1,8 +1,8 @@
-# tools/ai/audit/audit-commit-stage.ps1 -Stage <name> (#1345)
+# tools/ai/audit/audit-commit-stage.ps1 -Stage <name> | -Lessons (#1345)
 #
 # Commits one stage's artifact (and anything else the stage wrote under artifacts\knowledge\, which is
 # gitignored, hence `git add -f`) on the open audit's branch (audit/<n>, created detached-free by
-# audit-next.ps1). The commit message is "audit #<n>: <stage> stage" with the trailer "Stage: <stage>" — a
+# audit-next.ps1). The commit message is "audit #<n>: <stage> stage" with the trailer "Stage: <stage>" -- a
 # plain provenance marker for `git log --grep`, not AI attribution.
 #
 # A stage counts as "done" (audit-stage.ps1 -Next, audit-stage-guard.ps1, audit-done.ps1) only once this
@@ -17,14 +17,24 @@
 # script (audit-draft-remediation.ps1), which writes with Set-Content, never through the Write/Edit tool, so
 # the sidecar never gets an entry for it.
 #
-# Both git calls capture their output into a variable and read $LASTEXITCODE on the very next line, never
+# -Lessons commits stages\lessons.md instead of a pipeline.json stage: it is not one of pipeline.json's
+# stages (the orchestrator hand-edits it to resolve each 'Applied: TODO'), so the -Stage path above does not
+# apply to it, and enforce-path-ownership.ps1 blocks a bare `git commit` for every caller inside an open
+# audit's worktree (review thread T2): this is the one authorized way to commit it. It validates the same
+# lessons-resolved check audit-done.ps1 performs (Test-LessonsResolved, shared in _audit-lib.ps1) before
+# committing "audit #<n>: lessons" with the trailer "Stage: lessons", and refuses anything else.
+#
+# Every git call captures its output into a variable and reads $LASTEXITCODE on the very next line, never
 # piping straight into a cmdlet (`| Out-Null`): PowerShell updates $LASTEXITCODE only once the native process
 # has exited, and a downstream cmdlet can race that, so a piped check can read a stale exit code (the same
 # gotcha require-specialists.ps1 documents for its own git calls). Test-Hooks.ps1's audit-commit-stage.ps1
 # cases caught this intermittently, since the old `2>&1 | Out-Null; if ($LASTEXITCODE -ne 0)` form sometimes
 # reported "nothing to commit" for a commit that actually raced past the check.
 
-param([Parameter(Mandatory)][string]$Stage)
+param(
+    [Parameter(Mandatory, ParameterSetName = 'Stage')][string]$Stage,
+    [Parameter(Mandatory, ParameterSetName = 'Lessons')][switch]$Lessons
+)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
@@ -35,6 +45,25 @@ if ($null -eq $audit) { Write-Error 'audit-commit-stage: no open audit (artifact
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
+
+if ($Lessons) {
+    $lessonsFile = Join-Path (Get-StagesDir $wt) 'lessons.md'
+    $reason = Test-LessonsResolved $lessonsFile
+    if ($reason) { Write-Error "audit-commit-stage: $reason"; exit 1 }
+
+    $addOutput = & git -C $wt add -f 'artifacts/knowledge/stages/lessons.md' 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-commit-stage: 'git add -f artifacts/knowledge/stages/lessons.md' failed in $wt`: $addOutput"; exit 1 }
+
+    $commitOutput = & git -C $wt commit -q -m "audit #$n`: lessons" -m 'Stage: lessons' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "audit-commit-stage: nothing to commit for lessons in #$n (already committed, or lessons.md matches what was last committed); git said: $commitOutput"
+        exit 1
+    }
+
+    "audit-commit-stage: committed lessons for #$n"
+    exit 0
+}
+
 $pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
 $stageDef = $pipeline.stages | Where-Object { $_.stage -eq $Stage }
 if ($null -eq $stageDef) {

@@ -150,9 +150,16 @@ blocked). For each lesson, replace `TODO` with one of:
   `.claude/agents/lessons/<agent>.md` when the audit closes. Use the exact agent name (`issue-archivist`,
   `issue-auditor`, `test-auditor`, `audit-verifier`, `docs-reviewer`).
 
-Commit `stages/lessons.md` on the audit branch yourself (`git -C <wt> add -f artifacts/knowledge; git -C <wt>
-commit -m "audit #<n>: lessons"`) — it is not a `pipeline.json` stage, so `audit-commit-stage.ps1` does not
-apply to it.
+Commit `stages/lessons.md` on the audit branch with:
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Lessons
+```
+
+It is not a `pipeline.json` stage, so the plain `-Stage` mode does not apply to it, and a bare `git commit`
+is blocked by `enforce-path-ownership.ps1` for every caller inside an open audit's worktree; `-Lessons` is
+the one authorized way to commit it. It runs the same lessons-resolved check as `audit-done.ps1` and refuses
+if any lesson still has `Applied: TODO`.
 
 ## 5. Close the audit
 
