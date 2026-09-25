@@ -34,6 +34,12 @@ Rules:
 - Changelog: no edits to CHANGELOG.md. A user-visible change adds changelog.d/<n>-<slug>.<section>.md
   (rules in changelog.d/README.md; an issue-worker has mechanical-fixer write it) and passes:
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/changelog-fragments.cs -- --check
+- Knowledge record (SPEC-003 REQ-031): the PR that closes #<n> adds docs/knowledge/issues/<n>.md, written by
+  you (issue-worker, DEC-005) in the format of the existing records (docs/knowledge/issues/1345.md is the
+  house example; schema 1, same source and destination kinds, never a new enum value), with prs and
+  linked_prs left as empty lists for the orchestrator to fill after the PR opens. Validate it with:
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/knowledge-records.cs -- --check
+  A docs-writer does not write it: it lists the record's content in its report for the orchestrator.
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
@@ -87,6 +93,7 @@ Fill `<wt>` in every command. Each one either starts with `Set-Location <wt>;` o
 | `.github/scripts/*.cs` | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\<script>.cs -- <the mode the change touches>` against a real input |
 | Hooks in `.claude/hooks` | `pwsh -NoProfile -File <wt>\.claude\hooks\tests\Test-Hooks.ps1`, plus an AST parse of each changed hook: `[System.Management.Automation.Language.Parser]::ParseFile('<wt>\.claude\hooks\<hook>.ps1', [ref]$null, [ref]$errors)` with `$errors` empty |
 | Changelog fragment | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\changelog-fragments.cs -- --check` |
+| Knowledge record | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\knowledge-records.cs -- --check` |
 | Local-model draft | `Set-Location <wt>; dotnet run --file <wt>\tools\ai\local-ai-ask.cs -- --task <name> --brief <wt>\artifacts\local-ai\briefs\<name>.md --input <file> --out <wt>\artifacts\local-ai\out\<name>.md` (the script appends to `artifacts/local-ai/ledger.csv` under the current directory, hence the `Set-Location`) |
 | Documentation | the `encina-docs` skill, §5 (lychee, markdownlint, citation check), each run from `Set-Location <wt>;` |
 
