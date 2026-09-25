@@ -23,7 +23,10 @@ function Get-MainRoot([string]$From) {
     if ([string]::IsNullOrWhiteSpace($From)) { $From = (Get-Location).Path }
     $common = & git -C $From rev-parse --git-common-dir 2>$null | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($common)) { throw "Get-MainRoot: '$From' is not inside a git repository." }
-    $full = [IO.Path]::GetFullPath((Join-Path $From $common))
+    # git prints an ABSOLUTE path here for a worktree, relative (usually '.git') for the main checkout.
+    # PowerShell's Join-Path (unlike [IO.Path]::Combine) does not special-case a rooted second argument, so
+    # it must be handled explicitly or a worktree's common-dir corrupts into '$From\D:\...\.git'.
+    $full = if ([IO.Path]::IsPathRooted($common)) { [IO.Path]::GetFullPath($common) } else { [IO.Path]::GetFullPath((Join-Path $From $common)) }
     return (Split-Path -Parent $full)
 }
 
@@ -80,7 +83,10 @@ function Test-LastVerdictFail([string]$StagesDir) {
 function Get-StageSection([string]$Path, [string]$Heading) {
     if (-not (Test-Path -LiteralPath $Path)) { return '' }
     $text = Get-Content -LiteralPath $Path -Raw
-    $pattern = "(?ms)^##\s*$([regex]::Escape($Heading))\s*$(?<body>.*?)(?=^##\s|\z)"
+    # The backtick before '$(?<body>' keeps it a literal regex group, not a PowerShell subexpression: an
+    # unescaped '$(' inside a double-quoted string is evaluated by PowerShell itself before the regex ever
+    # sees it.
+    $pattern = "(?ms)^##\s*$([regex]::Escape($Heading))\s*`$(?<body>.*?)(?=^##\s|\z)"
     $m = [regex]::Match($text, $pattern)
     if (-not $m.Success) { return '' }
     return $m.Groups['body'].Value.Trim()

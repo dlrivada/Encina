@@ -20,15 +20,17 @@ $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
 $pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
-$next = Get-NextStage $stagesDir $wt $pipeline
+# Named $dueStage, not $next: the -Next switch parameter above already owns $Next, and PowerShell variable
+# names are case-insensitive, so `$next = <object>` would try to convert the result into a SwitchParameter.
+$dueStage = Get-NextStage $stagesDir $wt $pipeline
 
-if ($null -eq $next) {
+if ($null -eq $dueStage) {
     "All stages complete for #$n. Run audit-done.ps1."
     exit 0
 }
-if ($next.agent -match '^issue-|^audit-|^docs-reviewer$') {
-    "Next stage: $($next.stage) (spawn $($next.agent) on issue #$n, worktree $wt)"
+if ($dueStage.agent -match '^issue-|^audit-|^docs-reviewer$') {
+    "Next stage: $($dueStage.stage) (spawn $($dueStage.agent) on issue #$n, worktree $wt)"
 }
 else {
-    "Next stage: $($next.stage) (run $($next.agent) for issue #$n)"
+    "Next stage: $($dueStage.stage) (run $($dueStage.agent) for issue #$n)"
 }
