@@ -484,6 +484,64 @@ jobs:
   # CI-fast skips coverage to avoid partial data from skipped test jobs.
   # Coverage dashboard is updated only by CI Full (weekly/manual/release).
 
+  # Issue #1346: CRAP (Change Risk Anti-Patterns) gate on the methods a PR changes.
+  # Blocking from day one (maintainer decision, 2026-09-25) — see
+  # docs/engineering/crap-gate-design.md for the option evaluation (this is option (a)) and the
+  # rollout decision. Reuses the Cobertura artifacts the six flag jobs above already upload on
+  # every PR that touches src/ — no new test execution. Runs the self-test first, so a broken gate
+  # fails loudly instead of silently passing every PR.
+  crap-gate:
+    needs: [changes, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
+    # Runs only for a PR that touches src/ (same `changes.src` filter `build` uses). `always()`
+    # plus the explicit failure/cancelled check (mirrors ci-result below) is required because
+    # test-ef-providers is legitimately skipped for a non-EF PR — the job's default implicit
+    # `success()` condition would treat that skip as "do not run" and the gate would never fire.
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.src == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      # Closes #1354: prove crap-gate.cs still behaves (report/enforce exit codes, the exemption
+      # comment) against its own fixtures before trusting it to gate this PR.
+      - name: Self-test crap-gate.cs
+        shell: pwsh
+        run: ./.github/scripts/crap-gate-selftest.ps1
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-results-*
+          path: artifacts/crap-gate/coverage
+          merge-multiple: false
+
+      - name: Run CRAP gate
+        run: |
+          git diff -U0 ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > artifacts/crap-gate/diff.patch
+
+          mapfile -t cobertura_files < <(find artifacts/crap-gate/coverage -type f -name 'coverage.cobertura.xml')
+          if [ ${#cobertura_files[@]} -eq 0 ]; then
+            echo "No Cobertura coverage files found among the downloaded artifacts; nothing to gate."
+            exit 0
+          fi
+
+          dotnet run --file .github/scripts/crap-gate.cs -- --enforce --threshold 10 --diff artifacts/crap-gate/diff.patch "${cobertura_files[@]}"
+
   # SPEC-001 (REQ-005): every cov: citation in docs/, src/ and the root .md files must resolve against this tree's
   # coverage manifests and source files. Runs on every PR, docs-only included, needs no build
   # and no coverage data, and does not depend on GitHub Pages.
@@ -566,7 +624,7 @@ jobs:
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, coverage-citations, changelog-fragments, knowledge-records]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
