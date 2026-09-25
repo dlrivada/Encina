@@ -78,6 +78,25 @@ function Get-TemplateBody([string]$TemplateFile) {
     return ($raw -replace '(?s)^---.*?---\r?\n', '').Trim()
 }
 
+# A '## Findings' header literally present in the file -- distinct from Get-StageSection's return value,
+# which is '' both when the file/header is missing AND when the header is present with a genuinely empty body,
+# so it cannot tell "no header at all" (a malformed stage artifact) from "header present, body empty" on its
+# own (#1375 CodeRabbit review). Only an explicit "- none" body means zero findings; a missing header is
+# always an error.
+function Test-FindingsHeaderPresent([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    $text = Get-Content -LiteralPath $Path -Raw
+    return [regex]::IsMatch($text, '(?m)^##\s*Findings\s*$')
+}
+
+# A model-named 'duplicate-of #m' is only honored when m is one of the candidates actually offered to the
+# model (from the gh search); a fabricated or hallucinated issue number must never suppress a real finding's
+# draft. $DuplicateOf and every entry of $CandidateNumbers are plain numeric strings (no '#').
+function Test-ValidDuplicate([string]$DuplicateOf, [string[]]$CandidateNumbers) {
+    if ([string]::IsNullOrWhiteSpace($DuplicateOf)) { return $false }
+    return $CandidateNumbers -contains $DuplicateOf
+}
+
 function Get-DryRunKind([string]$Stage, [string]$Severity) {
     if ($Stage -eq 'tests') { return 'test' }
     if ($Stage -eq 'docs') { return 'docs' }
@@ -85,18 +104,30 @@ function Get-DryRunKind([string]$Stage, [string]$Severity) {
     return 'debt'
 }
 
-# Up to 4 backticked identifiers or file basenames from a finding's text, for the `gh issue list --search`
-# duplicate query -- backticked file:line citations and symbol names are the most specific search terms a
-# finding carries.
+# Up to 4 search terms from a finding's text, for the `gh issue list --search` duplicate query: backticked
+# identifiers or file:line citations first (the most specific terms a finding carries), then un-backticked
+# path-like tokens with a known extension (a finding may cite 'src/A.cs:12' in plain prose, not backticks).
+# Both kinds are reduced to a file basename; the un-backticked kind additionally drops the extension (a search
+# for 'A.cs' rarely matches an issue title the way 'A' sometimes does).
 function Get-SearchTerms([string]$Text) {
     $terms = [System.Collections.Generic.List[string]]::new()
+
     foreach ($m in [regex]::Matches($Text, '`([^`]+)`')) {
         $clean = ($m.Groups[1].Value -split '[:\s]')[0]
         if ([string]::IsNullOrWhiteSpace($clean)) { continue }
         $base = Split-Path -Leaf $clean
         if ($base -and ($terms -notcontains $base)) { $terms.Add($base) }
+        if ($terms.Count -ge 4) { return $terms }
+    }
+
+    foreach ($m in [regex]::Matches($Text, '[\w./\\-]+\.(cs|ps1|md|json|yml|yaml|csproj|txt)(:\d+(-\d+)?)?')) {
+        $stripped = ($m.Value -split ':')[0]
+        $baseNoExt = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $stripped))
+        if ([string]::IsNullOrWhiteSpace($baseNoExt)) { continue }
+        if ($terms -notcontains $baseNoExt) { $terms.Add($baseNoExt) }
         if ($terms.Count -ge 4) { break }
     }
+
     return $terms
 }
 
@@ -146,18 +177,45 @@ Guidance:
 $stageNames = 'code', 'tests', 'docs'
 $allFindings = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($stageName in $stageNames) {
-    $section = Get-StageSection (StageFile $stageName) 'Findings'
-    foreach ($f in (Split-Findings $stageName $section)) { $allFindings.Add($f) }
+    $stageFile = StageFile $stageName
+    if (-not (Test-FindingsHeaderPresent $stageFile)) {
+        Write-Error "audit-draft-remediation: stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)."
+        exit 1
+    }
+    $section = Get-StageSection $stageFile 'Findings'
+    try {
+        foreach ($f in (Split-Findings $stageName $section)) { $allFindings.Add($f) }
+    }
+    catch {
+        Write-Error "audit-draft-remediation: $($_.Exception.Message)"
+        exit 1
+    }
 }
 
 $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
 New-Item -ItemType Directory -Force $remediationDir | Out-Null
 
-$dryRunDir = $null
+# Remove only THIS audit's previous outputs before drafting -- a re-run (e.g. after a Verdict: FAIL) must not
+# accumulate stale drafts/intermediates from an earlier run of the same audit, and must never touch another
+# audit's files (every pattern below is anchored on "$n-", never a bare wildcard).
+$cleanupPatterns = "$n-*.md", "_input-$n-*.md", "_classify-brief-$n-*.md", "_classify-$n-*.md", "_brief-$n-*.md"
+foreach ($pattern in $cleanupPatterns) {
+    foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $staleFile.FullName -Force
+        "audit-draft-remediation: removed previous output $($staleFile.Name)"
+    }
+}
+$dryRunDir = Join-Path $remediationDir "_dryrun-$n"
+if (Test-Path -LiteralPath $dryRunDir) {
+    Remove-Item -LiteralPath $dryRunDir -Recurse -Force
+    "audit-draft-remediation: removed previous output _dryrun-$n\"
+}
+
 if ($DryRun) {
-    $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
-    if (Test-Path -LiteralPath $dryRunDir) { Remove-Item -Recurse -Force $dryRunDir }
     New-Item -ItemType Directory -Force $dryRunDir | Out-Null
+}
+else {
+    $dryRunDir = $null
 }
 
 $lines = [System.Collections.Generic.List[string]]::new()
@@ -178,17 +236,26 @@ foreach ($finding in $allFindings) {
     $inputFile = if ($DryRun) { Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-input.md" } else { Join-Path $remediationDir "_input-$n-$($finding.Stage)-$($finding.Id).md" }
     Set-Content -LiteralPath $inputFile -Encoding utf8 -Value $finding.Text
 
-    $candidates = @()
+    # One 'gh issue list --search' call per term (never terms joined with spaces -- GitHub's search treats a
+    # space-separated query as AND, which misses candidates that match only one term), merged by issue number
+    # so the same issue found by two terms is not listed twice, capped at 10 candidates.
+    $candidatesByNumber = [ordered]@{}
     if (-not $NoGh) {
-        $terms = Get-SearchTerms $finding.Text
-        $query = ($terms -join ' ')
-        if ($query) {
-            $ghOut = & gh issue list --repo dlrivada/Encina --state open --search $query --json number,title --limit 8 2>&1
+        foreach ($term in (Get-SearchTerms $finding.Text)) {
+            if ([string]::IsNullOrWhiteSpace($term)) { continue }
+            $ghOut = & gh issue list --repo dlrivada/Encina --state open --search $term --json number,title --limit 8 2>&1
             $ghExit = $LASTEXITCODE
-            if ($ghExit -ne 0) { Write-Error "audit-draft-remediation: 'gh issue list' failed for $label (exit $ghExit): $ghOut"; exit 1 }
-            try { $candidates = @($ghOut | ConvertFrom-Json) } catch { $candidates = @() }
+            if ($ghExit -ne 0) { Write-Error "audit-draft-remediation: 'gh issue list' failed for $label (term '$term', exit $ghExit): $ghOut"; exit 1 }
+            $parsed = @()
+            try { $parsed = @($ghOut | ConvertFrom-Json) } catch { $parsed = @() }
+            foreach ($c in $parsed) {
+                $key = [string]$c.number
+                if (-not $candidatesByNumber.Contains($key)) { $candidatesByNumber[$key] = $c }
+            }
         }
     }
+    $candidates = @($candidatesByNumber.Values | Select-Object -First 10)
+    $candidateNumbers = @($candidates | ForEach-Object { [string]$_.number })
     $candidateLines = if ($candidates.Count -gt 0) { (($candidates | ForEach-Object { "#$($_.number): $($_.title)" }) -join '; ') } else { '(none found)' }
 
     if ($DryRun) {
@@ -252,6 +319,11 @@ $candidateLines
         $classifyMatch = $classifyMatches[-1]
         $kind = $classifyMatch.Groups['kind'].Value.ToLowerInvariant()
         if ($classifyMatch.Groups['dup'].Value -ne 'none') { $duplicateOf = $classifyMatch.Groups['dup'].Value.TrimStart('#') }
+    }
+
+    if ($duplicateOf -and -not (Test-ValidDuplicate $duplicateOf $candidateNumbers)) {
+        $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, which is not one of the candidates passed to it; drafting normally.")
+        $duplicateOf = $null
     }
 
     if ($duplicateOf) {

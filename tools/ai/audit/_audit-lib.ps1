@@ -118,25 +118,44 @@ function Get-StageSection([string]$Path, [string]$Heading) {
 # Splits one stage's '## Findings' section text (as returned by Get-StageSection) into individual findings
 # (#1375). The layout every stage agent (issue-auditor, test-auditor, docs-reviewer) writes: one numbered
 # paragraph per finding, starting with "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by an em
-# dash or a hyphen and the body; continuation lines belong to that finding until the next numbered finding or
-# the next '## ' heading. Returns an array of @{ Stage; Id; Severity; Text } (Id is the finding's own number
-# as a string, unique within $Stage). An explicit "- none" section (the convention the stage agents use when
-# nothing survives review) yields an empty array. A non-empty section with no recognizable numbered findings
-# never yields zero silently: it becomes one finding with Severity 'Unknown' and the whole section as Text, so
-# a stage's real findings are never dropped by a formatting drift the parser does not recognize.
+# dash (the regex below matches it with the Unicode dash-punctuation property escape, never a literal byte,
+# so this file stays ASCII-only, per PSScriptAnalyzer)
+# or a hyphen and the body; continuation lines belong to that finding until the next numbered finding or the
+# next '## ' heading. Returns an array of @{ Stage; Id; Severity; Text } (Id is the finding's own number as a
+# string, unique within $Stage -- a repeated number within one stage is a malformed artifact, never silently
+# overwritten: see the duplicate-id check below). An explicit "- none" section (the convention the stage
+# agents use when nothing survives review) yields an empty array. A numbered paragraph whose bold token is not
+# one of Blocker/Major/Minor (a typo like **Critical**, or a marker this parser does not know) still starts a
+# NEW finding rather than being appended to the previous one or discarded when it is the first line, with
+# Severity 'Unknown'. A non-empty section with no recognizable numbered findings at all never yields zero
+# silently either: it becomes one finding with Severity 'Unknown' and the whole section as Text, so a stage's
+# real findings are never dropped by a formatting drift the parser does not recognize.
 function Split-Findings([string]$Stage, [string]$FindingsText) {
     $results = [System.Collections.Generic.List[pscustomobject]]::new()
+    $seenIds = [System.Collections.Generic.HashSet[string]]::new()
     $text = if ($null -eq $FindingsText) { '' } else { $FindingsText.Trim() }
     if ([string]::IsNullOrWhiteSpace($text)) { return $results }
     if ($text -match '(?i)^-\s*none\s*$') { return $results }
 
-    $startPattern = '^(?<id>\d+)\.\s+\*\*(?<sev>Blocker|Major|Minor)\*\*\s*[—-]\s*(?<body>.*)$'
+    function Complete-Finding($Current) {
+        if ($null -eq $Current) { return }
+        if (-not $seenIds.Add($Current.Id)) {
+            throw "Split-Findings: stage '$Stage' has more than one finding numbered '$($Current.Id)' -- each finding's number must be unique within a stage."
+        }
+        $results.Add([pscustomobject]@{ Stage = $Stage; Id = $Current.Id; Severity = $Current.Severity; Text = ($Current.Lines -join "`n").Trim() })
+    }
+
+    # \p{Pd} (Unicode "dash punctuation" category) matches an em dash or a plain hyphen with a pure-ASCII
+    # regex escape, never a literal non-ASCII byte in this file's source (PSScriptAnalyzer).
+    $startPattern = '^(?<id>\d+)\.\s+\*\*(?<sev>[^*]+)\*\*\s*\p{Pd}\s*(?<body>.*)$'
     $current = $null
     foreach ($line in ($text -split "`r?`n")) {
         $lineMatch = [regex]::Match($line, $startPattern)
         if ($lineMatch.Success) {
-            if ($null -ne $current) { $results.Add([pscustomobject]@{ Stage = $Stage; Id = $current.Id; Severity = $current.Severity; Text = ($current.Lines -join "`n").Trim() }) }
-            $current = [pscustomobject]@{ Id = $lineMatch.Groups['id'].Value; Severity = $lineMatch.Groups['sev'].Value; Lines = [System.Collections.Generic.List[string]]::new() }
+            Complete-Finding $current
+            $sevRaw = $lineMatch.Groups['sev'].Value
+            $severity = if ($sevRaw -in 'Blocker', 'Major', 'Minor') { $sevRaw } else { 'Unknown' }
+            $current = [pscustomobject]@{ Id = $lineMatch.Groups['id'].Value; Severity = $severity; Lines = [System.Collections.Generic.List[string]]::new() }
             $current.Lines.Add($lineMatch.Groups['body'].Value)
         }
         elseif ($line -match '^##\s') {
@@ -148,7 +167,7 @@ function Split-Findings([string]$Stage, [string]$FindingsText) {
             $current.Lines.Add($line)
         }
     }
-    if ($null -ne $current) { $results.Add([pscustomobject]@{ Stage = $Stage; Id = $current.Id; Severity = $current.Severity; Text = ($current.Lines -join "`n").Trim() }) }
+    Complete-Finding $current
 
     if ($results.Count -eq 0) {
         $results.Add([pscustomobject]@{ Stage = $Stage; Id = '1'; Severity = 'Unknown'; Text = $text })
