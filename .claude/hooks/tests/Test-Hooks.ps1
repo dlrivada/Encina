@@ -240,10 +240,12 @@ $msysWt = ConvertTo-Msys $wt
 $scriptWritesSrc = Join-Path $work 'script-writes-src.cs'
 $scriptWritesDocs = Join-Path $work 'script-writes-docs.cs'
 $scriptWritesTestsPs1 = Join-Path $work 'script-writes-tests.ps1'
+$scriptWritesDocsPs1 = Join-Path $work 'script-writes-docs.ps1'
 $scriptMissing = Join-Path $work 'script-missing.cs'
 Set-Content $scriptWritesSrc 'File.WriteAllText("src/x.cs", "y");'
 Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
+Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
 
 # tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)[, environment overrides[, stdout regex]]]
 $warned = 'additionalContext'
@@ -318,6 +320,10 @@ $writeCases = @(
     @('PowerShell', @{ command = "Set-Location '$main'; dotnet run --file '$scriptWritesSrc'" }, $wt, 2, 'Set-Location into the main checkout before dotnet run --file: blocked'),
     @('PowerShell', @{ command = "Set-Location '$wt'; pwsh -File '$scriptWritesTestsPs1'" }, $main, 0, 'Set-Location into the worktree before pwsh -File: allowed'),
     @('PowerShell', @{ command = "Set-Location '$main'; pwsh -File '$scriptWritesTestsPs1'" }, $wt, 2, 'Set-Location into the main checkout before pwsh -File: blocked'),
+    # #1345: a blocked `pwsh -File` replayed with the call operator or dot-sourcing must be seen too (#1190).
+    @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, 2, 'call operator of a script that writes tests/, from the main checkout'),
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, 2, 'dot-source of a script that writes tests/, from the main checkout'),
+    @('PowerShell', @{ command = "& '$scriptWritesDocsPs1'" }, $main, 0, 'call operator of a script that writes only docs/, from the main checkout'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
@@ -680,7 +686,10 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: pwsh -File of a script that writes tests/'),
     @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, $null, 2, 'main session: dotnet run of a script the hook cannot read: denied'),
     @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 2, 'general-purpose subagent: dotnet run of a script that writes src/', 'general-purpose'),
-    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer')
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer'),
+    # #1345: the same call-operator / dot-source detection applies with no -Agent (guard-orchestrator-writes).
+    @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: call operator of a script that writes tests/'),
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
