@@ -205,7 +205,7 @@ Copy `tools/ai/briefs/` as templates. Rules learned the measured way (`HOW-ENCIN
 
 ### 6.5 The batch pipelines (ready to run)
 
-All under `tools/ai/`, each reading its inputs from `artifacts/local-ai/` and writing there:
+All under `tools/ai/`, most reading their inputs from `artifacts/local-ai/` and writing there (see the Output column for exceptions):
 
 | Script | Purpose | Input | Output |
 |---|---|---|---|
