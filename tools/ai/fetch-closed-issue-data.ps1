@@ -35,8 +35,16 @@ if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDi
 function Get-ClosedIssues {
     $searchArgs = @()
     if ($Since) { $searchArgs = @('--search', "closed:>$Since") }
-    $issues = gh issue list --repo $Repo --state closed --limit 2000 @searchArgs `
-        --json number,title,body,labels,milestone,closedAt,stateReason,comments | ConvertFrom-Json
+    # --limit is generous (well above any realistic closed-issue count) rather than a small cap: `gh
+    # issue list` paginates internally up to --limit, so a low cap silently truncates the result set
+    # with no error. A `gh` failure here (network, auth, rate limit) must not be mistaken for "zero
+    # closed issues" — check $LASTEXITCODE before parsing, matching every other gh call below.
+    $raw = gh issue list --repo $Repo --state closed --limit 100000 @searchArgs `
+        --json number,title,body,labels,milestone,closedAt,stateReason,comments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh issue list failed (exit $LASTEXITCODE): $raw"
+    }
+    $issues = $raw | ConvertFrom-Json
     if ($parsedNumbers.Count -gt 0) { $issues = @($issues | Where-Object { $parsedNumbers -contains [int]$_.number }) }
     return $issues
 }
@@ -65,6 +73,12 @@ query($owner: String!, $repo: String!, $number: Int!) {
 '@
 
 function ConvertTo-PrRecord($node) {
+    $files = @($node.files.nodes | ForEach-Object { [pscustomobject]@{ path = $_.path; additions = $_.additions; deletions = $_.deletions } })
+    # files(first: 100) silently truncates a PR touching more than 100 files. There is no error to
+    # detect from the API response itself, so flag the exact page-size boundary as suspicious.
+    if ($files.Count -eq 100) {
+        $script:currentIssueErrors.Add("PR #$($node.number): files list has exactly 100 entries — GraphQL's files(first: 100) page size; it may be truncated for a large PR. Verify with 'gh pr view $($node.number) --repo $Repo --json files' (paginated) if the file count matters.")
+    }
     [pscustomobject]@{
         number        = $node.number
         title         = $node.title
@@ -73,7 +87,7 @@ function ConvertTo-PrRecord($node) {
         mergedAt      = $node.mergedAt
         closedAt      = $node.closedAt
         mergeCommit   = if ($node.mergeCommit) { $node.mergeCommit.oid } else { $null }
-        files         = @($node.files.nodes | ForEach-Object { [pscustomobject]@{ path = $_.path; additions = $_.additions; deletions = $_.deletions } })
+        files         = $files
     }
 }
 
@@ -109,9 +123,19 @@ function Get-TimelineReferencedPrNumbers([int]$number) {
             return @()
         }
         $events = $tl | ConvertFrom-Json
+        # A cross-referenced PR can live in another repository (e.g. a fork). Get-PrByNumber below
+        # always queries --repo $Repo, so a foreign PR number would either resolve to an unrelated
+        # local PR that happens to share the number, or fail outright — both silently wrong. Only
+        # local PRs are supported here; a foreign one is recorded as skipped, never guessed at.
+        $expectedRepoUrl = "https://api.github.com/repos/$Repo"
         $result = New-Object System.Collections.Generic.List[int]
         foreach ($e in $events) {
             if ($e.event -eq 'cross-referenced' -and $e.source.issue -and $e.source.issue.pull_request) {
+                $refRepoUrl = $e.source.issue.repository_url
+                if ($refRepoUrl -and $refRepoUrl -ne $expectedRepoUrl) {
+                    $script:currentIssueErrors.Add("issue #$number : cross-referenced PR #$($e.source.issue.number) is in a different repository ($refRepoUrl), not $Repo — skipped, not queried against $Repo")
+                    continue
+                }
                 $result.Add([int]$e.source.issue.number)
             }
         }
@@ -131,6 +155,10 @@ function Get-PrByNumber([int]$number) {
             return $null
         }
         $pr = $json | ConvertFrom-Json
+        $files = @($pr.files | ForEach-Object { [pscustomobject]@{ path = $_.path; additions = $_.additions; deletions = $_.deletions } })
+        if ($files.Count -eq 100) {
+            $script:currentIssueErrors.Add("PR #$($pr.number): files list has exactly 100 entries — 'gh pr view --json files' page size; it may be truncated for a large PR.")
+        }
         return [pscustomobject]@{
             number        = $pr.number
             title         = $pr.title
@@ -139,7 +167,7 @@ function Get-PrByNumber([int]$number) {
             mergedAt      = $pr.mergedAt
             closedAt      = $pr.closedAt
             mergeCommit   = if ($pr.mergeCommit) { $pr.mergeCommit.oid } else { $null }
-            files         = @($pr.files | ForEach-Object { [pscustomobject]@{ path = $_.path; additions = $_.additions; deletions = $_.deletions } })
+            files         = $files
         }
     }
     catch {
@@ -173,6 +201,17 @@ foreach ($i in $issues) {
         continue
     }
 
+    # Reset per issue: a `gh` failure while fetching this issue's PRs must not leak into the next.
+    $script:currentIssueErrors = New-Object System.Collections.Generic.List[string]
+
+    # gh issue list --json comments requests comments through GraphQL's default page size (100). An
+    # issue with more than 100 comments is silently truncated with no error from `gh` itself — flag
+    # the exact page-size boundary as suspicious rather than trust it as the full comment list.
+    $rawCommentsCount = @($i.comments).Count
+    if ($rawCommentsCount -eq 100) {
+        $script:currentIssueErrors.Add("issue #$($i.number): comments field has exactly 100 entries — the GraphQL page size; it may be truncated. Verify with 'gh issue view $($i.number) --repo $Repo --comments' if the comment count matters.")
+    }
+
     $comments = @($i.comments | Where-Object { $_.author.login -notin $bots } | ForEach-Object {
         [pscustomobject]@{
             author    = $_.author.login
@@ -181,8 +220,6 @@ foreach ($i in $issues) {
         }
     })
 
-    # Reset per issue: a `gh` failure while fetching this issue's PRs must not leak into the next.
-    $script:currentIssueErrors = New-Object System.Collections.Generic.List[string]
     $prs = @(Get-LinkedPrs ([int]$i.number))
 
     $record = [pscustomobject]@{
