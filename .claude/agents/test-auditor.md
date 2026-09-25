@@ -71,7 +71,7 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 ## Coverage measured
 <per scoped file, per flag: measured % vs manifest target, pass/fail; "not measured: <reason>" only when a flag genuinely does not apply>
 ## Findings
-<missing test types, missing regression tests, test-quality issues, missing real-infrastructure tests — one per line with file:line/test name and severity; "- none" when nothing survives verification>
+<missing test types, missing regression tests, test-quality issues, missing real-infrastructure tests — one numbered paragraph per finding, in this exact shape: "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by " — " and the body (file:line/test name first, then what is missing or wrong); continuation lines belong to the same numbered finding until the next "N. **Severity**" line or the next "## " heading; "- none" when nothing survives verification. audit-draft-remediation.ps1's Split-Findings depends on this exact layout to draft one issue per finding; any other shape surfaces as a single Unknown-severity finding covering the whole section instead of being split further>
 ## CRAP
 <pending #1346>
 ## Lessons for the pipeline
