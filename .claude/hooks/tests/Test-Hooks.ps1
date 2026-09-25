@@ -1016,6 +1016,9 @@ try {
         $defaultPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
         # Reordered: 'code' runs before 'archivist' — proves the guard reads pipeline.json, not a hard-coded order.
         $reorderedPipelineJson = '{"stages":[{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        # #1345 review: the verifier artifact name must be resolved from pipeline.json (the stage whose agent
+        # is audit-verifier), not hard-coded as 'verification.md' — proven by renaming it here.
+        $renamedVerifierPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verdict.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
 
         function Invoke-AuditGit { & git -C $auditWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
 
@@ -1092,6 +1095,16 @@ try {
 
         Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage." $null 0 'audit-stage-guard: earlier stage re-run allowed after a Verdict: FAIL'
+
+        Initialize-AuditWorktree $renamedVerifierPipelineJson
+        Set-AuditOpen $true
+        Write-AuditStage 'archivist' 'archivist.md' -Commit
+        Write-AuditStage 'code' 'code.md' -Commit
+        Write-AuditStage 'tests' 'tests.md' -Commit
+        Write-AuditStage 'docs' 'docs.md' -Commit
+        Write-AuditStage 'remediation' 'remediation.md' -Commit
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verdict.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage (renamed verifier artifact)." $null 0 'audit-stage-guard: FAIL verdict resolved from pipeline.json artifact name (verdict.md), re-run still allowed'
 
         Initialize-AuditWorktree $reorderedPipelineJson
         Set-AuditOpen $true

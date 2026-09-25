@@ -106,7 +106,11 @@ try {
         if (-not $done) { $nextStage = $stage; break }
     }
 
-    $verificationFile = Join-Path $stagesDir 'verification.md'
+    # Resolve the verifier's artifact name from pipeline.json (the stage whose agent is audit-verifier),
+    # the same way tools/ai/audit/_audit-lib.ps1's Test-LastVerdictFail does, instead of hard-coding
+    # 'verification.md' (#1345).
+    $verifierStage = @($pipeline.stages) | Where-Object { [string]$_.agent -eq 'audit-verifier' } | Select-Object -First 1
+    $verificationFile = if ($verifierStage) { Join-Path $stagesDir $verifierStage.artifact } else { Join-Path $stagesDir 'verification.md' }
     $lastVerdictFail = $false
     if (Test-Path -LiteralPath $verificationFile) {
         $firstLine = Get-Content -LiteralPath $verificationFile -TotalCount 1
