@@ -139,15 +139,15 @@ static List<string> ValidateRecord(string file, string repoRoot)
     if (!missingScalarFields.Contains("issue") && !int.TryParse(AsScalar(front.GetValueOrDefault("issue")), out _))
         Err("'issue' must be an integer");
 
-    CheckEnum(front, "state_reason", RecordSchema.StateReasons, Err);
-    CheckEnum(front, "type", RecordSchema.Types, Err);
-    CheckEnum(front, "area", RecordSchema.Areas, Err);
-    CheckEnum(front, "review", RecordSchema.ReviewValues, Err);
+    if (!missingScalarFields.Contains("state_reason")) CheckEnum(front, "state_reason", RecordSchema.StateReasons, Err);
+    if (!missingScalarFields.Contains("type")) CheckEnum(front, "type", RecordSchema.Types, Err);
+    if (!missingScalarFields.Contains("area")) CheckEnum(front, "area", RecordSchema.Areas, Err);
+    if (!missingScalarFields.Contains("review")) CheckEnum(front, "review", RecordSchema.ReviewValues, Err);
 
     string? outcome = AsScalar(front.GetValueOrDefault("outcome"));
-    if (outcome is null || !RecordSchema.Outcomes.Contains(outcome))
+    if (!missingScalarFields.Contains("outcome") && (outcome is null || !RecordSchema.Outcomes.Contains(outcome)))
         Err($"'outcome' has an unknown value '{outcome}' (expected one of: {string.Join(", ", RecordSchema.Outcomes)})");
-    else if (RecordSchema.OutcomesRequiringLink.Contains(outcome))
+    else if (outcome is not null && RecordSchema.OutcomesRequiringLink.Contains(outcome))
     {
         var linkField = outcome == "duplicate" ? "duplicate_of" : "superseded_by";
         if (!front.TryGetValue(linkField, out var linkVal) || string.IsNullOrWhiteSpace(AsScalar(linkVal)))
