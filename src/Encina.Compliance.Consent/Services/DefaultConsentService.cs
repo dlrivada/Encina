@@ -145,10 +145,14 @@ internal sealed class DefaultConsentService : IConsentService
         string? moduleId = null,
         CancellationToken cancellationToken = default)
     {
-        // The data subject's own identifier is never logged; correlate via purpose and actor (#1314).
-        _logger.LogDebug(
-            "Granting consent for purpose '{Purpose}', by '{GrantedBy}'",
-            purpose, grantedBy);
+        // Neither the data subject's own identifier nor the actor (which is frequently the data
+        // subject itself for a self-service grant) is logged; correlate via purpose only (#1314).
+        _logger.LogDebug("Granting consent for purpose '{Purpose}'", purpose);
+
+        if (!TryResolveWriteTenantScope("GrantConsent", tenantId, out var effectiveTenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
 
         try
         {
@@ -159,7 +163,7 @@ internal sealed class DefaultConsentService : IConsentService
             var aggregate = ConsentAggregate.Grant(
                 id, dataSubjectId, purpose, consentVersionId, source,
                 ipAddress, proofOfConsent, effectiveMetadata, expiresAtUtc,
-                grantedBy, occurredAtUtc, tenantId, moduleId);
+                grantedBy, occurredAtUtc, effectiveTenantId, moduleId);
 
             var result = await _repository.CreateAsync(aggregate, cancellationToken);
 
@@ -186,7 +190,14 @@ internal sealed class DefaultConsentService : IConsentService
         string? reason = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Withdrawing consent '{ConsentId}' by '{WithdrawnBy}'", consentId, withdrawnBy);
+        // The actor is frequently the data subject itself for a self-service withdrawal, so it is
+        // never logged; correlate via consent id only (#1314).
+        _logger.LogDebug("Withdrawing consent '{ConsentId}'", consentId);
+
+        if (!TryResolveTenantScope("WithdrawConsent", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
 
         try
         {
@@ -195,6 +206,13 @@ internal sealed class DefaultConsentService : IConsentService
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
                 {
+                    // A consent loaded by id that belongs to a different tenant is reported as
+                    // not found, never mutated (#1315).
+                    if (!TenantsMatch(aggregate.TenantId, tenantId))
+                    {
+                        return ConsentErrors.ConsentNotFound(consentId);
+                    }
+
                     var occurredAtUtc = _timeProvider.GetUtcNow();
                     aggregate.Withdraw(withdrawnBy, reason, occurredAtUtc);
                     var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
@@ -234,6 +252,11 @@ internal sealed class DefaultConsentService : IConsentService
     {
         _logger.LogDebug("Renewing consent '{ConsentId}' with version '{VersionId}'", consentId, consentVersionId);
 
+        if (!TryResolveTenantScope("RenewConsent", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             var loadResult = await _repository.LoadAsync(consentId, cancellationToken);
@@ -241,6 +264,13 @@ internal sealed class DefaultConsentService : IConsentService
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
                 {
+                    // A consent loaded by id that belongs to a different tenant is reported as
+                    // not found, never mutated (#1315).
+                    if (!TenantsMatch(aggregate.TenantId, tenantId))
+                    {
+                        return ConsentErrors.ConsentNotFound(consentId);
+                    }
+
                     var occurredAtUtc = _timeProvider.GetUtcNow();
                     aggregate.Renew(consentVersionId, newExpiresAtUtc, renewedBy, source, occurredAtUtc);
                     var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
@@ -283,6 +313,11 @@ internal sealed class DefaultConsentService : IConsentService
     {
         _logger.LogDebug("Providing reconsent for '{ConsentId}' with version '{VersionId}'", consentId, newConsentVersionId);
 
+        if (!TryResolveTenantScope("ProvideReconsent", out var tenantId, out var tenantError))
+        {
+            return tenantError!.Value;
+        }
+
         try
         {
             var loadResult = await _repository.LoadAsync(consentId, cancellationToken);
@@ -290,6 +325,13 @@ internal sealed class DefaultConsentService : IConsentService
             return await loadResult.MatchAsync<Either<EncinaError, Unit>>(
                 RightAsync: async aggregate =>
                 {
+                    // A consent loaded by id that belongs to a different tenant is reported as
+                    // not found, never mutated (#1315).
+                    if (!TenantsMatch(aggregate.TenantId, tenantId))
+                    {
+                        return ConsentErrors.ConsentNotFound(consentId);
+                    }
+
                     var occurredAtUtc = _timeProvider.GetUtcNow();
                     var effectiveMetadata = metadata ?? new Dictionary<string, object?>();
 
@@ -335,6 +377,43 @@ internal sealed class DefaultConsentService : IConsentService
     private bool TryResolveTenantScope(string operation, out string? tenantId, out EncinaError? error)
     {
         tenantId = CurrentTenantId;
+
+        if (string.IsNullOrEmpty(tenantId) && IsTenantContextRequired)
+        {
+            _logger.ConsentTenantContextMissing(operation);
+            error = ConsentErrors.TenantRequired(operation);
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the tenant a write should be recorded under, combining an optional explicit
+    /// <paramref name="explicitTenantId"/> with the ambient tenant (#1315): defaults to the
+    /// ambient tenant when the caller does not pass one explicitly, so a write made under an
+    /// ambient tenant is never orphaned outside every tenant-scoped read; fails closed when
+    /// tenant isolation is required and neither is present; and rejects an explicit tenant that
+    /// does not match the ambient one, so a request scoped to one tenant can never write into
+    /// another tenant's data.
+    /// </summary>
+    private bool TryResolveWriteTenantScope(
+        string operation, string? explicitTenantId, out string? tenantId, out EncinaError? error)
+    {
+        var ambientTenantId = CurrentTenantId;
+
+        if (explicitTenantId is not null
+            && !string.IsNullOrEmpty(ambientTenantId)
+            && !TenantsMatch(explicitTenantId, ambientTenantId))
+        {
+            _logger.ConsentTenantContextMissing(operation);
+            tenantId = null;
+            error = ConsentErrors.TenantRequired(operation);
+            return false;
+        }
+
+        tenantId = explicitTenantId ?? ambientTenantId;
 
         if (string.IsNullOrEmpty(tenantId) && IsTenantContextRequired)
         {
@@ -416,7 +495,9 @@ internal sealed class DefaultConsentService : IConsentService
         try
         {
             var cached = await _cache.GetAsync<ConsentReadModel>(cacheKey, cancellationToken);
-            if (cached is not null)
+            // Re-checked defensively even though the cache key already encodes the tenant, so a
+            // hit can never surface a different tenant's record (#1315).
+            if (cached is not null && TenantsMatch(cached.TenantId, tenantId))
             {
                 _logger.ConsentCacheHit("consent:subject:purpose", "Consent");
                 return Option<ConsentReadModel>.Some(cached);

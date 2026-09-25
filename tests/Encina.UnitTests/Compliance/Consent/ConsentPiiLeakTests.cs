@@ -143,7 +143,31 @@ public sealed class ConsentPiiLeakTests
 
         var (service, logger) = CreateService(repository: repository);
 
-        var result = await service.GrantConsentAsync(SubjectId, "marketing", "v1", "web-form", "admin");
+        // grantedBy is deliberately the data subject's own id — the realistic self-service case
+        // where the actor and the subject are the same person — so this proves the actor field
+        // does not become a side-channel for the identifier the log message itself never prints.
+        var result = await service.GrantConsentAsync(SubjectId, "marketing", "v1", "web-form", SubjectId);
+
+        result.IsRight.ShouldBeTrue();
+        AssertLogsNeverContain(logger, SubjectId);
+    }
+
+    [Fact]
+    public async Task ConsentService_WithdrawConsent_NeverLogsActorId()
+    {
+        var repository = Substitute.For<IAggregateRepository<ConsentAggregate>>();
+        var aggregate = ConsentAggregate.Grant(
+            Guid.NewGuid(), SubjectId, "marketing", "v1", "web-form",
+            null, null, new Dictionary<string, object?>(), null, SubjectId, DateTimeOffset.UtcNow, null, null);
+        repository.LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, ConsentAggregate>(aggregate));
+        repository.SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        var (service, logger) = CreateService(repository: repository);
+
+        // withdrawnBy is deliberately the data subject's own id, same rationale as above.
+        var result = await service.WithdrawConsentAsync(aggregate.Id, SubjectId);
 
         result.IsRight.ShouldBeTrue();
         AssertLogsNeverContain(logger, SubjectId);
