@@ -4,7 +4,8 @@
 # once. Refuses when an audit is already open, or when a stray `wia-*` worktree exists even though
 # current-audit.json is missing (a previous audit that was not closed with audit-done.ps1). With no -Issue,
 # takes the first queue entry (artifacts/knowledge/audit-queue.txt, ascending) not already recorded in
-# artifacts/knowledge/progress.csv.
+# artifacts/knowledge/progress.csv. -Issue n is only accepted when n equals that same next pending entry AND
+# gh reports it CLOSED; there is no override to jump the queue.
 #
 # Creates .claude/worktrees/wia-<n> on a NEW LOCAL branch audit/<n> based on origin/main (never a detached
 # HEAD, and the branch is never pushed: audit-done.ps1 deletes it after collecting), writes
@@ -33,29 +34,62 @@ if ($existingWia.Count -gt 0) {
     exit 1
 }
 
+# The pending queue entry, computed the same way whether -Issue is given or not: the first
+# audit-queue.txt entry (ascending) not already recorded in progress.csv. -Issue is only ever accepted
+# when it equals this value AND gh reports the issue CLOSED (review thread T7); there is no override.
+$queuePath = Join-Path $knowledgeRoot 'audit-queue.txt'
+if (-not (Test-Path -LiteralPath $queuePath)) { Write-Error "audit-next: no queue file at $queuePath."; exit 1 }
+$progressPath = Join-Path $knowledgeRoot 'progress.csv'
+$done = if (Test-Path -LiteralPath $progressPath) { @(Get-Content -LiteralPath $progressPath | ForEach-Object { ($_ -split ',')[0] }) } else { @() }
+$queue = @(Get-Content -LiteralPath $queuePath | Where-Object { $_ -match '\S' } | ForEach-Object { $_.Trim() })
+$pending = $queue | Where-Object { $done -notcontains $_ } | Select-Object -First 1
+if (-not $pending) { Write-Error 'audit-next: no pending issue in artifacts/knowledge/audit-queue.txt.'; exit 1 }
+
 if ($Issue) {
+    if ([string]$Issue -ne [string]$pending) {
+        Write-Error "audit-next: -Issue $Issue is not the next pending issue in artifacts/knowledge/audit-queue.txt (next pending: #$pending)."
+        exit 1
+    }
+    $stateOutput = & gh issue view $Issue --repo dlrivada/Encina --json state --jq '.state' 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: gh issue view #$Issue failed: $stateOutput"; exit 1 }
+    if (([string]$stateOutput).Trim() -ne 'CLOSED') {
+        Write-Error "audit-next: issue #$Issue is not CLOSED (gh reports '$stateOutput')."
+        exit 1
+    }
     $n = $Issue
 }
 else {
-    $queuePath = Join-Path $knowledgeRoot 'audit-queue.txt'
-    if (-not (Test-Path -LiteralPath $queuePath)) { Write-Error "audit-next: no queue file at $queuePath and no -Issue given."; exit 1 }
-    $progressPath = Join-Path $knowledgeRoot 'progress.csv'
-    $done = if (Test-Path -LiteralPath $progressPath) { @(Get-Content -LiteralPath $progressPath | ForEach-Object { ($_ -split ',')[0] }) } else { @() }
-    $queue = @(Get-Content -LiteralPath $queuePath | Where-Object { $_ -match '\S' } | ForEach-Object { $_.Trim() })
-    $pending = $queue | Where-Object { $done -notcontains $_ } | Select-Object -First 1
-    if (-not $pending) { Write-Error 'audit-next: no pending issue in artifacts/knowledge/audit-queue.txt.'; exit 1 }
     $n = [int]$pending
 }
 
-& git -C $mainRoot fetch origin main 2>&1 | Out-Null
+$fetchOutput = & git -C $mainRoot fetch origin main 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: git fetch origin main failed: $fetchOutput"; exit 1 }
 
 $wt = Join-Path $worktreesRoot "wia-$n"
 $branch = "audit/$n"
-& git -C $mainRoot worktree add -b $branch $wt origin/main 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: failed to create worktree $wt on branch $branch."; exit 1 }
+$addOutput = & git -C $mainRoot worktree add -b $branch $wt origin/main 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: failed to create worktree $wt on branch $branch`: $addOutput"; exit 1 }
 
 New-Item -ItemType Directory -Force (Get-StagesDir $wt) | Out-Null
 New-Item -ItemType Directory -Force $knowledgeRoot | Out-Null
+
+# The pre-draft must exist BEFORE current-audit.json is written (review thread T9): a generator that fails
+# or exits without writing predraft/<n>.md must never leave an audit "open" that the next audit-next.ps1
+# call refuses to touch. On failure, undo the worktree and branch just created (checking their exit codes
+# too) and leave no current-audit.json behind.
+$predraftFile = Join-Path $knowledgeRoot "predraft\$n.md"
+if (-not (Test-Path -LiteralPath $predraftFile)) {
+    & (Join-Path $PSScriptRoot 'qwen-predraft.ps1') -Issue $n
+    $predraftExit = $LASTEXITCODE
+    if ($predraftExit -ne 0 -or -not (Test-Path -LiteralPath $predraftFile)) {
+        $rmOut = & git -C $mainRoot worktree remove $wt --force 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: pre-draft generation failed for #$n (exit $predraftExit) AND cleanup 'git worktree remove $wt' also failed: $rmOut"; exit 1 }
+        $brOut = & git -C $mainRoot branch -D $branch 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: pre-draft generation failed for #$n (exit $predraftExit) AND cleanup 'git branch -D $branch' also failed: $brOut"; exit 1 }
+        Write-Error "audit-next: pre-draft generation failed for #$n (exit $predraftExit, predraft\$n.md present: $(Test-Path -LiteralPath $predraftFile)); worktree and branch removed, no audit left open."
+        exit 1
+    }
+}
 
 $audit = [ordered]@{
     issue      = $n
@@ -64,11 +98,6 @@ $audit = [ordered]@{
     startedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
 }
 $audit | ConvertTo-Json | Set-Content -LiteralPath $currentAuditPath -Encoding utf8
-
-$predraftFile = Join-Path $knowledgeRoot "predraft\$n.md"
-if (-not (Test-Path -LiteralPath $predraftFile)) {
-    & (Join-Path $PSScriptRoot 'qwen-predraft.ps1') -Issue $n
-}
 
 $scope = & (Join-Path $PSScriptRoot 'classify-scope.ps1') -Issue $n
 "$scope"
@@ -79,7 +108,7 @@ if ($null -eq $next) {
     'All stages already complete. Run audit-done.ps1.'
 }
 elseif ($next.agent -match '^issue-|^audit-|^docs-reviewer$') {
-    "Next stage: $($next.stage) (spawn $($next.agent) — issue #$n, worktree $wt, branch $branch)"
+    "Next stage: $($next.stage) (spawn $($next.agent) -- issue #$n, worktree $wt, branch $branch)"
 }
 else {
     "Next stage: $($next.stage) (run $($next.agent))"
