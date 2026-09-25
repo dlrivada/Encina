@@ -13,10 +13,14 @@ param(
 #   RESUMED <name>                                       (once, when a previously STALLED worktree's
 #                                                          fingerprint changes again)
 #   REMOVED <name>                                       (when a previously seen worktree disappears)
+#   WARN <message>                            (a transient git failure; the previous state is kept and no
+#                                              REMOVED/STALLED/RESUMED is derived from a partial result)
 #
-# A worktree's fingerprint is its HEAD sha + `git status --porcelain` + the newest LastWriteTimeUtc of the
-# files under <worktree>\artifacts (agents write their outputs there; the rest of the tree is not scanned,
-# to avoid walking thousands of files). -Once does a single poll and exits 0, for verification and tests.
+# A worktree's fingerprint is its HEAD sha + `git status --porcelain` + a SHA256 of `git diff HEAD` + the
+# newest LastWriteTimeUtc across the files under <worktree>\artifacts and the files `git status --porcelain`
+# lists: an agent that keeps editing tracked files (an ` M <file>` status with HEAD unchanged) must never
+# read as stalled even when none of those edits land under artifacts\. -Once does a single poll and exits 0,
+# for verification and tests.
 
 $ErrorActionPreference = 'Continue'
 
@@ -24,7 +28,8 @@ function Get-Worktrees([string]$Root) {
     # Trailing separator so a sibling directory whose name merely starts with "worktrees" (e.g.
     # .claude\worktrees-backup\) is never matched as a segment-boundary prefix.
     $prefix = ((Join-Path $Root '.claude\worktrees') -replace '\\', '/') + '/'
-    $lines = & git -C $Root worktree list --porcelain 2>$null
+    $lines = & git -C $Root worktree list --porcelain 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git worktree list failed: $lines" }
     $result = @{}
     $path = $null
     $branch = $null
@@ -57,16 +62,51 @@ function Get-Worktrees([string]$Root) {
 }
 
 function Get-Fingerprint([string]$WtPath) {
-    $head = & git -C $WtPath rev-parse HEAD 2>$null
-    $status = & git -C $WtPath status --porcelain 2>$null
+    $head = & git -C $WtPath rev-parse HEAD 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git rev-parse HEAD failed in ${WtPath}: $head" }
+    $status = & git -C $WtPath status --porcelain 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git status --porcelain failed in ${WtPath}: $status" }
+    $diffOutput = & git -C $WtPath diff HEAD 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git diff HEAD failed in ${WtPath}: $diffOutput" }
+
+    $diffText = ($diffOutput -join "`n")
+    $diffHash = ''
+    if ($diffText) {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($diffText))
+            $diffHash = [Convert]::ToHexString($bytes)
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+
+    $newest = [DateTime]::MinValue
+    $found = $false
     $artifactsDir = Join-Path $WtPath 'artifacts'
-    $newest = ''
     if (Test-Path -LiteralPath $artifactsDir) {
         $latest = Get-ChildItem -LiteralPath $artifactsDir -Recurse -File -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-        if ($latest) { $newest = $latest.LastWriteTimeUtc.ToString('o') }
+        if ($latest) { $newest = $latest.LastWriteTimeUtc; $found = $true }
     }
-    return "$head|$($status -join "`n")|$newest"
+    # Also consider the mtime of every file `git status --porcelain` lists (tracked edits, renames,
+    # untracked files), not only artifacts\: an agent editing a tracked file elsewhere in the tree must move
+    # the fingerprint too.
+    foreach ($line in @($status)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $relative = $line.Substring([Math]::Min(3, $line.Length)).Trim().Trim('"')
+        if ($relative -match '^(.+) -> (.+)$') { $relative = $Matches[2] }
+        if (-not $relative) { continue }
+        $full = Join-Path $WtPath ($relative -replace '/', '\')
+        if (Test-Path -LiteralPath $full -PathType Leaf) {
+            $mtime = (Get-Item -LiteralPath $full).LastWriteTimeUtc
+            if ($mtime -gt $newest) { $newest = $mtime; $found = $true }
+        }
+    }
+    $newestText = if ($found) { $newest.ToString('o') } else { '' }
+
+    return "$head|$($status -join "`n")|$diffHash|$newestText"
 }
 
 # name -> @{ Fingerprint; LastChangeUtc; Stalled; Branch }
