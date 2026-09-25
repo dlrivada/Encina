@@ -350,6 +350,67 @@ Visit <https://dlrivada.github.io/Encina/coverage/>. Key elements:
 
 Every cell is colored by the pass/warn/fail rules above. Cells with no data (flag not applicable, or no test artifact arrived) are shown as grey with an explanatory label.
 
+## CRAP (Change Risk Anti-Patterns)
+
+CRAP is a per-method risk score computed alongside the obligations model, from the same Cobertura data. It answers a different question than the rest of this document: not "is this file covered to its target?" but "is this specific method both complex and undertested?" — the combination that produces bugs no one notices until production.
+
+### Formula
+
+```text
+CRAP(m) = comp(m)^2 * (1 - cov(m))^3 + comp(m)
+```
+
+- `comp(m)` — the method's cyclomatic complexity, read directly from Cobertura's `<method complexity="">` attribute. Cobertura computes this per method when the collector runs; Encina does not recompute it.
+- `cov(m)` — the method's own line coverage, as a fraction in `[0, 1]` (`covered lines / coverable lines` for that method, from the `<lines>` Cobertura nests under the method).
+
+A simple method (`comp = 1`) scores near 1 regardless of coverage. A complex, fully-covered method's CRAP collapses toward `comp` (the `(1 - cov)^3` term vanishes). A complex, uncovered method's score grows with the cube of the coverage gap — CRAP punishes complexity left untested far more than complexity alone.
+
+### Why CRAP uses combined coverage, not the per-flag obligations model
+
+Every other figure in this document — the obligations percentage, the per-package targets, the dashboard cells — is scoped to the flags a file's manifest entry declares applicable (see [the obligations model](#the-obligations-model) and [per-file manifests](#per-file-manifests-and-automatic-classification) above). A method's CRAP score does not use that scoping: `cov(m)` is the **union of covered lines across every Cobertura report available** — unit, guard, contract, property and integration alike — regardless of which flags the file's manifest lists.
+
+This is a deliberate, narrow departure, not an inconsistency: the obligations model measures whether the test suite delivers the *kind* of assurance the team decided a file needs (a store needs an integration test even if its unit test already hits every line). CRAP measures something else — the risk of shipping a specific complex method with no test exercising it at all. That risk is real whether the method ends up covered by a unit test, an integration test, or a property test the manifest never asked for. A method proven safe by an integration test the manifest does not require is not risky merely because integration tests are not its assigned obligation; scoping CRAP to per-flag applicability would hide genuinely-tested complexity behind a manifest technicality. So CRAP intentionally answers "has anything exercised this method" rather than "has the assigned kind of test exercised this method".
+
+### Where it is computed
+
+`.github/scripts/coverage-report.cs` builds the CRAP data from the same `<method>` elements it already reads for line coverage — no second pass over the Cobertura files. Two places carry the result:
+
+- The markdown report (`artifacts/coverage/encina-coverage-report.md`) adds a **Max CRAP** column to the per-file detail table under each package: the highest CRAP score among the file's methods.
+- The JSON summary (`artifacts/coverage/encina-coverage-summary.json`) adds a `methods` array per package: the top 25 methods by CRAP, each with `file`, `className`, `method`, `signature`, `complexity`, `coverage` and `crap`. The cap keeps the summary file a usable size; it is a leaderboard of the riskiest methods in the package, not an exhaustive per-method export.
+
+Build-generated sources under `obj/` (regex source generators, `JsonSerializerContext` partials, and similar) are excluded from CRAP entirely, the same way they are excluded from other coverage bookkeeping — nobody edits generated code, so its complexity is not a signal about hand-written risk.
+
+### The gate: `crap-gate.cs`
+
+CRAP as a report is informative; CRAP as a **gate** is what makes it actionable on a pull request. `.github/scripts/crap-gate.cs` is a standalone script, separate from `coverage-report.cs`, that answers one question: among the methods *this diff touches*, which ones are both complex and undertested?
+
+It takes one or more Cobertura files (`--cobertura <path>`, or bare `*.xml` positional arguments — the script merges method data across all of them, exactly like the combined-coverage rule above) and a unified diff (`--diff <path>`, or stdin), which is expected to be the output of `git diff -U0 <base>...HEAD` with repository-root-relative paths. For each method whose Cobertura line range overlaps a line the diff added or changed, it recomputes CRAP and compares it to `--threshold` (default **10**). Encina has no ADR recording this choice as its own design decision; the value is adopted as-is from [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge)'s engineering constitution, which sets CRAP ≤ 10 as the bar for changed code. If the threshold is ever revisited for Encina-specific reasons, that decision should get its own ADR rather than staying an inline attribution to an external project.
+
+Two modes control what happens with a violation:
+
+- `--report` always exits `0`. It prints every touched method above the threshold, tagged `[VIOLATION]` or `[EXEMPT]`, plus a one-line count of methods above the threshold that the diff does **not** touch (`Backlog: N method(s) with CRAP > threshold outside this diff (not gated).`) — pre-existing risk the gate does not hold this PR responsible for.
+- `--enforce` exits `1` when at least one touched, non-exempt method is above the threshold.
+
+#### The exemption comment
+
+A method is exempt from the gate when the source line immediately above its declaration reads exactly:
+
+```csharp
+// crap-exempt: single-question switch — <reason>
+```
+
+This is the one exception swarm-forge's constitution allows: a single `switch` or pattern match that answers one question (a classifier, a mapper from one enum to another) is inherently branchy — high cyclomatic complexity by construction — without being a design smell the way an equivalent amount of nested conditional logic would be. `<reason>` is free text explaining why *this* switch qualifies. `crap-gate.cs` never applies the exemption silently: an exempt method still appears in the `--report` output, tagged `[EXEMPT]` with its reason, so the exemption is visible in the same place a violation would be, not hidden by disappearing from the report.
+
+Compiler-generated members (async state machines, lambdas, property accessors reported under a synthesized name) cannot be reliably matched back to a source declaration and are therefore never eligible for the exemption — only a hand-written method with a findable declaration line can carry the comment.
+
+### Not yet wired into CI
+
+`crap-gate.cs` exists and is tested (see its fixtures under `.github/scripts/testdata/crap-gate/`), but no workflow invokes it yet. Wiring it into `ci.yml` — which coverage artifacts feed it, and the `--report` → `--enforce` rollout — is a separate decision, recorded in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md).
+
+### Citation status
+
+CRAP fields are **not** part of the `covref` DocRef index described above. The [DocRef convention](#docref-convention) cites data from `docref-index.json`, which is built from the per-file **manifests** so that citations stay stable across partial runs; CRAP is a per-method figure with no manifest entry of its own; and unlike the fields in that index, a CRAP score is not something a narrative page would cite as a stable fact — it is meant to be read live off the markdown report or the gate output on the PR that touched the method, not repeated in prose. A future change could add a `crap:<package>/<path>:<method>` DocRef family if a documented use case for citing it emerges; until then, do not hand-type a CRAP number in a document — link to the dashboard's per-package detail or the gate's own output instead.
+
 ## Relationship to other measurements
 
 - **Code coverage** (this document) measures *which lines are tested*.
@@ -374,5 +435,6 @@ The document is living because the methodology is living. Honesty about what we 
 - [ADR-025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md) (architectural sibling)
 - [`performance-measurement-methodology.md`](performance-measurement-methodology.md) (sibling methodology)
 - [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md) (sibling methodology — mutation testing)
-- Scripts: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs`, `.github/scripts/generate-coverage-manifest.cs`
+- Scripts: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs`, `.github/scripts/generate-coverage-manifest.cs`, `.github/scripts/crap-gate.cs`
 - Dashboard: <https://dlrivada.github.io/Encina/coverage/>
+- [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md) — how `crap-gate.cs` wires into CI (design note, not yet decided)
