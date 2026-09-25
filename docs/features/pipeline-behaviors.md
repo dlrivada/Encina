@@ -7,7 +7,7 @@ nav_order: 82
 
 # Pipeline behaviors
 
-Reference for the pipeline behaviors that ship in the core `Encina` package. For what a pipeline behavior is and how the dispatch flow assembles them, see [About the request pipeline](../architecture/request-pipeline.md); for writing your own, see [How to write a pipeline behavior](../guides/how-to-write-a-pipeline-behavior.md). Full member signatures are in the [API reference](/api/).
+Reference for the pipeline behaviors that ship in the core `Encina` package. For what a pipeline behavior is and how the dispatch flow assembles them, see [About the request pipeline](../architecture/request-pipeline.md); for writing your own, see [How to write a pipeline behavior](../guides/how-to-write-a-pipeline-behavior.md). Full member signatures are in the [API reference](https://dlrivada.github.io/Encina/api/).
 
 Behaviors that belong to a specific provider or compliance module (transactions, outbox/inbox, read/write separation, GDPR, ABAC, and the rest) are documented on their own feature page, listed in the [features index](index.md); this page only covers the generic behaviors in `src/Encina/Pipeline/Behaviors/` and `src/Encina/Validation/`.
 
