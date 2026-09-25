@@ -1172,6 +1172,116 @@ try {
     }
     $env:CLAUDE_PROJECT_DIR = $repo
 
+    # ---- #1375: audit-draft-remediation.ps1 (Split-Findings, per-finding template routing, -DryRun) ----
+    # One delimited block, appended after the audit-stage-guard.ps1 cases above so it stays clear of #1374's
+    # edits nearby. Exercises the real _audit-lib.ps1/audit-draft-remediation.ps1 directly (not through a
+    # hook): -DryRun -NoGh never calls the local model or `gh`, so this suite stays free and offline.
+    . (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1')
+
+    function Test-RemediationCase([string]$Label, [scriptblock]$Check) {
+        $script:total++
+        try {
+            if (& $Check) { "PASS audit-draft-remediation: $Label" }
+            else { $script:failed++; "FAIL audit-draft-remediation: $Label" }
+        }
+        catch {
+            $script:failed++
+            "FAIL audit-draft-remediation: $Label ($($_.Exception.Message))"
+        }
+    }
+
+    # (a) Split-Findings splits the numbered "N. **Severity** -- ..." paragraphs the stage agents write,
+    # including a finding with a continuation line and a blank-line-separated finding (issue-auditor's style).
+    $codeFindingsText = "1. **Blocker** -- ``src/A.cs:1`` first.`nmore.`n`n2. **Major** -- ``src/B.cs:2`` second.`n`n3. **Minor** -- ``src/C.cs:3`` third."
+    $codeSplit = @(Split-Findings 'code' $codeFindingsText)
+    Test-RemediationCase 'Split-Findings: 3 code findings with the right severities, in order' { $codeSplit.Count -eq 3 -and $codeSplit[0].Severity -eq 'Blocker' -and $codeSplit[1].Severity -eq 'Major' -and $codeSplit[2].Severity -eq 'Minor' -and $codeSplit[0].Text -match 'more\.' }
+
+    $testsFindingsText = "1. **Major** -- ``tests/X.cs:1`` a.`n2. **Minor** -- ``tests/Y.cs:2`` b."
+    $testsSplit = @(Split-Findings 'tests' $testsFindingsText)
+    Test-RemediationCase 'Split-Findings: 2 tests findings with the right severities' { $testsSplit.Count -eq 2 -and $testsSplit[0].Severity -eq 'Major' -and $testsSplit[1].Severity -eq 'Minor' }
+
+    $docsFindingsText = "1. **Blocker** -- ``docs/a.md:1`` a.`n2. **Major** -- ``docs/b.md:2`` b."
+    $docsSplit = @(Split-Findings 'docs' $docsFindingsText)
+    Test-RemediationCase 'Split-Findings: 2 docs findings with the right severities' { $docsSplit.Count -eq 2 -and $docsSplit[0].Severity -eq 'Blocker' -and $docsSplit[1].Severity -eq 'Major' }
+
+    # (d) "- none" (the stage agents' own convention for "nothing survives review") yields zero findings, but a
+    # non-empty section the parser cannot recognize never yields zero silently: one 'Unknown' finding instead.
+    Test-RemediationCase 'Split-Findings: "- none" yields zero findings' { @(Split-Findings 'code' '- none').Count -eq 0 }
+    $unknownSplit = @(Split-Findings 'code' 'Some free-form paragraph with no numbered severity line at all.')
+    Test-RemediationCase 'Split-Findings: an unrecognized non-empty section yields one Unknown finding, never silently zero' { $unknownSplit.Count -eq 1 -and $unknownSplit[0].Severity -eq 'Unknown' }
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        # A self-contained repo (its own '.git', so Get-MainRoot resolves to itself -- the same trick $auditWt
+        # and $commitWt use above) carrying its own copies of the real scripts, so $PSScriptRoot resolves
+        # inside the fixture, not the real checkout.
+        $remWt = Join-Path $work 'RemediationWt'
+        if (Test-Path $remWt) { Remove-Item -Recurse -Force $remWt }
+        New-Item -ItemType Directory -Force (Join-Path $remWt 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt 'artifacts\knowledge\stages') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt '.github\ISSUE_TEMPLATE') | Out-Null
+        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt 'tools\ai\audit\pipeline.json')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt 'tools\ai\audit\_audit-lib.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1')
+        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
+            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt ".github\ISSUE_TEMPLATE\$t")
+        }
+        function Invoke-RemGit { & git -C $remWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit init -q -b main
+        Invoke-RemGit commit -q --allow-empty -m base
+
+        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\tests.md') "## Findings`n$testsFindingsText`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\docs.md') "## Findings`n$docsFindingsText`n## Lessons for the pipeline`n- none`n"
+        $remN = 4242
+        @{ issue = $remN; worktree = $remWt; branch = "audit/$remN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt 'artifacts\knowledge\current-audit.json')
+
+        $remOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $remExit = $LASTEXITCODE
+        Test-RemediationCase '-DryRun -NoGh exits 0 and never calls the model or gh' { $remExit -eq 0 }
+
+        $dryDir = Join-Path $remWt "artifacts\knowledge\remediation\_dryrun-$remN"
+        $inputFiles = @(Get-ChildItem $dryDir -Filter '*-input.md' -ErrorAction SilentlyContinue)
+        $briefFiles = @(Get-ChildItem $dryDir -Filter '*-brief.md' -ErrorAction SilentlyContinue)
+        # (b) 7 findings (3 + 2 + 2) -> 7 input files and 7 briefs.
+        Test-RemediationCase '-DryRun -NoGh writes 7 per-finding input files' { $inputFiles.Count -eq 7 }
+        Test-RemediationCase '-DryRun -NoGh writes 7 per-finding briefs' { $briefFiles.Count -eq 7 }
+
+        # Deterministic fallback routing (decision 5): tests stage -> test; docs stage -> docs; a code Blocker
+        # -> bug; everything else -> debt. Each brief's first '## ' header must match its routed template's.
+        $expectedFirstHeader = @{
+            'code-1-brief.md'  = '## Description'          # bug_report.md
+            'code-2-brief.md'  = '## Type'                  # technical_debt.md (Major, not a Blocker)
+            'code-3-brief.md'  = '## Type'                  # technical_debt.md (Minor)
+            'tests-1-brief.md' = '## Test Category'          # test_implementation.md
+            'tests-2-brief.md' = '## Test Category'
+            'docs-1-brief.md'  = '## Type'                  # technical_debt.md (docs kind)
+            'docs-2-brief.md'  = '## Type'
+        }
+        foreach ($fileName in $expectedFirstHeader.Keys) {
+            $path = Join-Path $dryDir $fileName
+            $firstHeader = if (Test-Path -LiteralPath $path) { @(Get-Content -LiteralPath $path | Where-Object { $_ -match '^##\s' })[0] } else { $null }
+            Test-RemediationCase "-DryRun brief '$fileName' routes to the template whose first header is '$($expectedFirstHeader[$fileName])'" { $firstHeader -eq $expectedFirstHeader[$fileName] }
+        }
+
+        # (c) stages/remediation.md lists one line per finding (7), plus a real Lessons section -- -DryRun
+        # previews it too (see the script's own comment: not a model call, always regenerated for real later).
+        $remStageLines = @(Get-Content (Join-Path $remWt 'artifacts\knowledge\stages\remediation.md') | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' })
+        Test-RemediationCase 'stages/remediation.md lists 7 finding lines' { $remStageLines.Count -eq 7 }
+
+        # A regression in the em-dash/label construction would still pass every check above (they only look at
+        # the first '## ' header); check the actual header-comment content of one bug-routed and one
+        # docs-routed brief so the milestone and label lines are verified, not just the routed template.
+        $bugBriefText = Get-Content -LiteralPath (Join-Path $dryDir 'code-1-brief.md') -Raw
+        Test-RemediationCase "bug-routed brief 'code-1-brief.md' carries the real Hardening milestone with its em dash" { $bugBriefText -match [regex]::Escape("milestone: v0.14.0 $([char]0x2014) Hardening") }
+        Test-RemediationCase "bug-routed brief 'code-1-brief.md' carries the 'bug' label and [BUG] prefix" { $bugBriefText -match 'labels:\s*bug\b' -and $bugBriefText -match 'title:\s*\[BUG\]' }
+        $docsBriefText = Get-Content -LiteralPath (Join-Path $dryDir 'docs-1-brief.md') -Raw
+        Test-RemediationCase "docs-routed brief 'docs-1-brief.md' carries the area-documentation label, [DEBT] prefix and an empty milestone" { $docsBriefText -match 'labels:\s*technical-debt,\s*area-documentation' -and $docsBriefText -match 'title:\s*\[DEBT\]' -and $docsBriefText -match '(?m)^milestone:\s*$' }
+    }
+    else {
+        'SKIP audit-draft-remediation.ps1: git is not on PATH'
+    }
+    # ---- end #1375 block ----
+
     # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
     function Test-Wiring([string]$Label, [string[]]$Problems) {
         $script:total++

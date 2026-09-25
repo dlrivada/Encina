@@ -114,3 +114,44 @@ function Get-StageSection([string]$Path, [string]$Heading) {
     if (-not $m.Success) { return '' }
     return $m.Groups['body'].Value.Trim()
 }
+
+# Splits one stage's '## Findings' section text (as returned by Get-StageSection) into individual findings
+# (#1375). The layout every stage agent (issue-auditor, test-auditor, docs-reviewer) writes: one numbered
+# paragraph per finding, starting with "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by an em
+# dash or a hyphen and the body; continuation lines belong to that finding until the next numbered finding or
+# the next '## ' heading. Returns an array of @{ Stage; Id; Severity; Text } (Id is the finding's own number
+# as a string, unique within $Stage). An explicit "- none" section (the convention the stage agents use when
+# nothing survives review) yields an empty array. A non-empty section with no recognizable numbered findings
+# never yields zero silently: it becomes one finding with Severity 'Unknown' and the whole section as Text, so
+# a stage's real findings are never dropped by a formatting drift the parser does not recognize.
+function Split-Findings([string]$Stage, [string]$FindingsText) {
+    $results = [System.Collections.Generic.List[pscustomobject]]::new()
+    $text = if ($null -eq $FindingsText) { '' } else { $FindingsText.Trim() }
+    if ([string]::IsNullOrWhiteSpace($text)) { return $results }
+    if ($text -match '(?i)^-\s*none\s*$') { return $results }
+
+    $startPattern = '^(?<id>\d+)\.\s+\*\*(?<sev>Blocker|Major|Minor)\*\*\s*[—-]\s*(?<body>.*)$'
+    $current = $null
+    foreach ($line in ($text -split "`r?`n")) {
+        $lineMatch = [regex]::Match($line, $startPattern)
+        if ($lineMatch.Success) {
+            if ($null -ne $current) { $results.Add([pscustomobject]@{ Stage = $Stage; Id = $current.Id; Severity = $current.Severity; Text = ($current.Lines -join "`n").Trim() }) }
+            $current = [pscustomobject]@{ Id = $lineMatch.Groups['id'].Value; Severity = $lineMatch.Groups['sev'].Value; Lines = [System.Collections.Generic.List[string]]::new() }
+            $current.Lines.Add($lineMatch.Groups['body'].Value)
+        }
+        elseif ($line -match '^##\s') {
+            # The input is already the extracted Findings section, so a '## ' line here means the section
+            # boundary was mis-detected upstream; stop rather than absorb the next section into a finding.
+            break
+        }
+        elseif ($null -ne $current) {
+            $current.Lines.Add($line)
+        }
+    }
+    if ($null -ne $current) { $results.Add([pscustomobject]@{ Stage = $Stage; Id = $current.Id; Severity = $current.Severity; Text = ($current.Lines -join "`n").Trim() }) }
+
+    if ($results.Count -eq 0) {
+        $results.Add([pscustomobject]@{ Stage = $Stage; Id = '1'; Severity = 'Unknown'; Text = $text })
+    }
+    return $results
+}
