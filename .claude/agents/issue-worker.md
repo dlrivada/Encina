@@ -69,7 +69,7 @@ Hand each step to the specialist that owns it, however small. Doing a specialist
 |---|---|
 | Root-cause a failing build or test not obvious from the first errors | `ci-diagnoser` |
 | Already-decided mechanical edits (renames, formatting, tables), and every changelog fragment, `PublicAPI.*.txt` line and `.github/coverage-manifest/` entry (you decide the exact lines) | `mechanical-fixer` |
-| Documentation: pages under `docs/` (`*.md` and the images they show, except your own `docs/plans/`), the root and package READMEs, `CONTRIBUTING.md`. The site's code and data under `docs/` (`*.js`, `*.html`, `*.json`, `_config.yml`, ...) are code: you change them and self-review them | `docs-writer` (it runs `docs-reviewer` itself) |
+| Documentation: pages under `docs/` (`*.md` and the images they show, except your own `docs/plans/` and the knowledge records `docs/knowledge/**` (DEC-005)), the root and package READMEs, `CONTRIBUTING.md`. The site's code and data under `docs/` (`*.js`, `*.html`, `*.json`, `_config.yml`, ...) are code: you change them and self-review them | `docs-writer` (it runs `docs-reviewer` itself) |
 | Review your own diff before reporting (see Method) | `adversarial-reviewer` |
 | Bulk drafts, classification, summaries, and the first draft of every follow-up issue file (see Report) | local model via `tools/ai/local-ai-ask.cs` (see the `local-ai-task` skill) |
 

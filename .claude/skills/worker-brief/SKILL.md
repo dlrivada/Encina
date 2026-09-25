@@ -35,11 +35,14 @@ Rules:
   (rules in changelog.d/README.md; an issue-worker has mechanical-fixer write it) and passes:
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/changelog-fragments.cs -- --check
 - Knowledge record (SPEC-003 REQ-031): the PR that closes #<n> adds docs/knowledge/issues/<n>.md, written by
-  you (issue-worker, DEC-005) in the format of the existing records (docs/knowledge/issues/1345.md is the
-  house example; schema 1, same source and destination kinds, never a new enum value), with prs and
-  linked_prs left as empty lists for the orchestrator to fill after the PR opens. Validate it with:
+  you (issue-worker, DEC-005: docs/knowledge/** is yours, never the docs-writer's) in the format of the
+  existing records (docs/knowledge/issues/1345.md for the front matter and item shapes; schema 1, same source
+  and destination kinds, never a new enum value), with prs and linked_prs left as empty lists for the
+  orchestrator to fill after the PR opens. The audit block is required by the validator: checklist and date
+  as in the example, verdict not-audited unless this brief hands you a checklist result file, and record
+  naming a file only when that file exists (1345.md's target does not exist yet: #1379). Validate it with:
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/knowledge-records.cs -- --check
-  A docs-writer does not write it: it lists the record's content in its report for the orchestrator.
+  When a docs-writer closes the issue, this brief's variable part says who writes the record (#1379).
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
