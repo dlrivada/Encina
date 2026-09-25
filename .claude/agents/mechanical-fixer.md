@@ -16,6 +16,8 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent mechanical-fixer'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command

@@ -18,6 +18,8 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent issue-archivist'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent issue-archivist'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command

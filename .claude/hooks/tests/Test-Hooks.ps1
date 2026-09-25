@@ -597,6 +597,18 @@ $noBgCases = @(
     @('docs-writer', 'a2', 'docs-reviewer', $true, 0, 'no-background-specialists: -Agent for a different agent than agent_type is not this agent stopping', 'issue-worker')
 )
 
+# #1345: the same hook also denies run_in_background: true on a subagent's OWN Bash/PowerShell tool call (not
+# just on the Agent/Task calls it makes), because a worker that backgrounds a shell command and ends its turn
+# waiting on it stalls exactly like a backgrounded specialist spawn.
+# agent_type (payload), agent_id, tool (Bash/PowerShell), run_in_background, expected, label[, -Agent]
+$noBgShellCases = @(
+    @('issue-worker', 'a1', 'PowerShell', $true, 2, 'no-background-specialists: worker PowerShell background command is blocked'),
+    @('issue-worker', 'a1', 'PowerShell', $false, 0, 'no-background-specialists: worker PowerShell foreground command is allowed'),
+    @($null, $null, 'PowerShell', $true, 0, 'no-background-specialists: main session background command is allowed'),
+    @($null, $null, 'PowerShell', $true, 2, 'no-background-specialists: blank agent_type falls back to -Agent for a shell command', 'issue-worker'),
+    @('issue-archivist', 'a3', 'Bash', $true, 2, 'no-background-specialists: audit-stage agent Bash background command is blocked')
+)
+
 $srcPatch = Join-Path $work 'src.patch'
 $docsPatch = Join-Path $work 'docs.patch'
 Set-Content $srcPatch "diff --git a/src/x.cs b/src/x.cs`n--- a/src/x.cs`n+++ b/src/x.cs`n@@ -1 +1 @@`n-a`n+b"
@@ -885,6 +897,13 @@ try {
         Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label $hookAgentArg
     }
     Invoke-HookCase $noBg 'not json' 0 'malformed payload'
+
+    foreach ($case in $noBgShellCases) {
+        $agentType, $agentId, $tool, $runInBackground, $expected, $label, $hookAgentArg = $case
+        $payload = @{ tool_name = $tool; cwd = $work; tool_input = @{ command = 'dotnet test'; run_in_background = $runInBackground } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = $agentId }
+        Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label $hookAgentArg
+    }
 
     foreach ($case in $orchestratorCases) {
         $tool, $toolInput, $caseCwd, $agentId, $expected, $label, $agentType = $case
