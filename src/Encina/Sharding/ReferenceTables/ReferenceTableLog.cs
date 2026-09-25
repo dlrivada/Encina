@@ -38,11 +38,11 @@ internal static partial class ReferenceTableLog
     [LoggerMessage(
         EventId = 135,
         Level = LogLevel.Error,
-        Message = "Reference table '{EntityType}' replication failed: {ErrorMessage}")]
+        Message = "Reference table '{EntityType}' replication failed: {ErrorCode}")]
     public static partial void ReplicationFailed(
         ILogger logger,
         string entityType,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 136,

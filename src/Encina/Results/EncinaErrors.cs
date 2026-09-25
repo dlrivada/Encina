@@ -158,13 +158,16 @@ public static class EncinaErrorExtensions
     // Internal method for compatibility
     internal static string GetEncinaCode(this EncinaError error)
     {
+        // The None branch never falls back to error.Message: an EncinaError created via
+        // EncinaError.New(string) or the implicit string conversion has no code, and the message
+        // may carry personal data. "Encina.unknown" is the safe, stable fallback (#1319).
         return error.MetadataException.Match(
             Some: ex => ex switch
             {
                 EncinaException enEx => enEx.Code,
                 _ => ex.GetType().Name
             },
-            None: () => string.IsNullOrWhiteSpace(error.Message) ? "Encina.unknown" : error.Message);
+            None: () => "Encina.unknown");
     }
 
     // Internal method for compatibility

@@ -28,7 +28,7 @@ public sealed partial class ErrorMessageLeakStaticScanTests
     [GeneratedRegex(@"\bLog\.|\bLogError\b|\bLogWarning\b|_logger\.", RegexOptions.IgnoreCase)]
     private static partial Regex LoggerCallRegex();
 
-    [GeneratedRegex(@"\bSetTag\b|\bSetStatus\b|\bAddTag\b|\bActivitySource\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bSetTag\b|\bSetStatus\b|\bAddTag\b|ActivitySource", RegexOptions.IgnoreCase)]
     private static partial Regex ActivityOrTagCallRegex();
 
     [GeneratedRegex(@"HealthCheckResult\.|\bdata\[", RegexOptions.IgnoreCase)]
@@ -57,6 +57,7 @@ public sealed partial class ErrorMessageLeakStaticScanTests
 
     private static readonly string[] ScannedPackages =
     [
+        "src/Encina",
         "src/Encina.Messaging",
         "src/Encina.Hangfire",
         "src/Encina.Quartz",

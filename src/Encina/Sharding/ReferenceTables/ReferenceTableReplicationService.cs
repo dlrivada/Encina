@@ -92,9 +92,9 @@ internal sealed class ReferenceTableReplicationService(
                     result.Match(
                         Right: _ => { },
                         Left: error => _logger.LogWarning(
-                            "Polling check failed for reference table '{EntityType}': {ErrorMessage}",
+                            "Polling check failed for reference table '{EntityType}': {ErrorCode}",
                             config.EntityType.Name,
-                            error.Message));
+                            error.GetEncinaCode()));
                 }
 
                 consecutiveErrors = 0;
@@ -164,8 +164,8 @@ internal sealed class ReferenceTableReplicationService(
                 }
             },
             Left: error => _logger.LogError(
-                "Startup sync failed: {ErrorMessage}",
-                error.Message));
+                "Startup sync failed: {ErrorCode}",
+                error.GetEncinaCode()));
     }
 
     private static TimeSpan CalculateRetryDelay(int retryCount)

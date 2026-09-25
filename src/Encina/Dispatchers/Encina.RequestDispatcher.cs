@@ -82,7 +82,7 @@ public sealed partial class Encina
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerMissing);
                 var error = handlerError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
-                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode());
                 return handlerError;
             }
 
@@ -94,7 +94,7 @@ public sealed partial class Encina
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestHandlerTypeMismatch);
                 var error = typeError.Match(Left: err => err, Right: _ => EncinaErrors.Unknown);
-                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode(), errorMessage: error.Message);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: error.GetEncinaCode());
                 return typeError;
             }
 
@@ -140,8 +140,7 @@ public sealed partial class Encina
                 EncinaDiagnostics.SendCompleted(
                     activity,
                     outcome.IsRight,
-                    errorCode: outcomeError?.GetEncinaCode(),
-                    errorMessage: outcomeError?.Message);
+                    errorCode: outcomeError?.GetEncinaCode());
                 return outcome;
             }
             catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
@@ -158,7 +157,7 @@ public sealed partial class Encina
                 Log.RequestCancelledDuringSend(Encina._logger, requestType.Name);
                 stopwatch.Stop();
                 metrics?.TrackFailure(requestKind, requestType.Name, stopwatch.Elapsed, EncinaErrorCodes.RequestCancelled);
-                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: EncinaErrorCodes.RequestCancelled, errorMessage: message);
+                EncinaDiagnostics.SendCompleted(activity, isSuccess: false, errorCode: EncinaErrorCodes.RequestCancelled);
                 return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
             }
             // Pure ROP: Any other exception (e.g., NullReferenceException, InvalidOperationException)

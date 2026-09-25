@@ -85,7 +85,7 @@ internal sealed class ShadowWritePipelineBehavior<TCommand, TResponse>(
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowWriteFailed(_logger, commandType, ex.Message);
+            ShadowShardingLog.ShadowWriteFailed(_logger, commandType, ex.GetType().Name, ex);
         }
     }
 }
