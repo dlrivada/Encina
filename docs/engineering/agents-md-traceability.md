@@ -130,3 +130,4 @@ The table was drafted by the local model (Qwen, through `tools/ai/local-ai-ask.c
 | CodeRabbit Integration > Workflow: Issues + CodeRabbit + Claude Code | Seven-step workflow | CLAUDE.md "CodeRabbit"; AGENTS.md §11 | |
 | CodeRabbit Integration > Tips for Effective CodeRabbit Usage | Detailed descriptions, conventional commits, reference issues, read enrichment, plan mode | CLAUDE.md "CodeRabbit"; AGENTS.md §11 | |
 | CodeRabbit Integration > Requesting CodeRabbit Analysis on Existing Issues | Comment to trigger analysis and read it first | CLAUDE.md "CodeRabbit" | |
+| (new rule, 2026-09-26) | CRAP ≤ 10 on changed methods | AGENTS.md §9 | added after the split by #1346; not in the frozen handbook |
