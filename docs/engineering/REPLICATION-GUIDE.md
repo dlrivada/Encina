@@ -214,6 +214,7 @@ All under `tools/ai/`, each reading its inputs from `artifacts/local-ai/` and wr
 | `historian-extract.ps1` | Evidence per open issue: body, human comments, referencing PRs, `git grep` hits for the title's identifiers | GitHub API, repository | `historian/evidence.json` |
 | `historian-run.ps1` | "Does this already exist?" verdict per issue with cited evidence, batches of 12 | `historian/evidence.json`, `briefs/historian-rules.md` | `historian/historian.csv` |
 | `historian-extract-closed.ps1` and `archaeology-run.ps1` | Durable knowledge from closed issues with provenance | GitHub API; `briefs/archaeology-rules.md` | `historian/archaeology.csv`, `historian/knowledge.csv` |
+| `fetch-closed-issue-data.ps1` | Fetches per-closed-issue evidence (body, comments, labels, milestone, linked PRs via GraphQL + timeline) for SPEC-003 knowledge records | GitHub API (issue numbers via `-Numbers`, or `-Since`, or every closed issue) | one JSON file per issue under `artifacts/knowledge/raw/<n>.json` (or `-OutDir`) |
 | `consolidate-run.ps1` and `history-sections-run.ps1` | Area assignment, duplicate marking, one drafted section per area with validated citations | `historian/knowledge.csv`, `briefs/consolidate-areas-rules.md`, `briefs/history-section-rules.md` | `historian/knowledge-areas.csv`, `out/history/*.md` |
 | `renumber-milestones-repair.ps1` | Milestone renumbering after classification (`-Execute` to apply) | `issues/classification-final.csv` | milestones on GitHub |
 
