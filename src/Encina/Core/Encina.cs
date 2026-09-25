@@ -123,8 +123,10 @@ public sealed partial class Encina(
         var effectiveError = error ?? EncinaErrors.Unknown;
 
         var errorCode = effectiveError.GetEncinaCode();
-        // Use MatchUnsafe to allow null return values from None case
-        var exception = effectiveError.Exception.MatchUnsafe(
+        // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
+        // uses to hold the code and details, whose Message IS the error message and may carry
+        // personal data (#1319). Using effectiveError.Exception directly would leak it here.
+        var exception = effectiveError.GetCause().MatchUnsafe(
             Some: ex => (Exception?)ex,
             None: () => (Exception?)null);
 

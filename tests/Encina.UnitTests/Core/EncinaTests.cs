@@ -119,6 +119,48 @@ public sealed class EncinaTests
     }
 
     [Fact]
+    public async Task Send_WithValidationFailureEchoingSubmittedValue_NeverExposesItInLogsOrActivity()
+    {
+        // Mirrors ValidationOrchestrator.ValidateAsync (line ~70-71): on an invalid request it builds
+        // EncinaError.New(errorMessage), and that message conventionally echoes the submitted value
+        // (e.g. "'juan@example.com' is not a valid email"). Neither the logged entry nor the Activity
+        // status description may contain that value (#1319).
+        using var activityCollector = new ActivityCollector();
+        var loggerCollector = new LoggerCollector();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.AddScoped<IRequestHandler<ValidationFailureRequest, string>, ValidationFailureRequestHandler>();
+        services.AddSingleton(loggerCollector);
+        services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
+
+        await using var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+
+        await Encina.Send(new ValidationFailureRequest(), CancellationToken.None);
+
+        loggerCollector.Entries.ShouldNotBeEmpty();
+        foreach (var entry in loggerCollector.Entries)
+        {
+            entry.Message.ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            (entry.Exception?.Message ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+        }
+
+        var activities = activityCollector.Activities
+            .Where(a => a.DisplayName == "Encina.Send"
+                        && Equals(a.GetTagItem("Encina.request_type"), typeof(ValidationFailureRequest).FullName))
+            .ToList();
+        activities.ShouldNotBeEmpty();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            foreach (var tag in activity.Tags)
+            {
+                (tag.Value?.ToString() ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Send_ReturnsFailureWhenRequestIsNull()
     {
         var loggerCollector = new LoggerCollector();
@@ -422,10 +464,13 @@ public sealed class EncinaTests
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
         failureEntry.Message.ShouldContain("The EchoRequest request failed (Encina.failure)");
-        failureEntry.Exception.ShouldNotBeNull();
-        failureEntry.Exception!.GetType().Name.ShouldBe("EncinaException");
-        failureEntry.Exception.InnerException.ShouldBeNull();
+        // The internal EncinaException carrier that EncinaErrors.Create uses to hold the code and
+        // details has a Message that IS the error message, which may carry personal data (#1319).
+        // It must never be logged as the exception object: GetCause() filters it out, so a
+        // code-only error logs with no exception at all.
+        failureEntry.Exception.ShouldBeNull();
         error.Exception.IsSome.ShouldBeTrue();
+        error.GetCause().IsNone.ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
     }
 
@@ -1783,6 +1828,19 @@ public sealed class EncinaTests
 
         public Task<Either<EncinaError, string>> Handle(PersonalDataFailureRequest request, CancellationToken cancellationToken)
             => Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.personal_data_failure", PersonalData)));
+    }
+
+    private sealed record ValidationFailureRequest : IRequest<string>;
+
+    private sealed class ValidationFailureRequestHandler : IRequestHandler<ValidationFailureRequest, string>
+    {
+        public const string SubmittedValue = "juan@example.com";
+
+        // Same construction ValidationOrchestrator.ValidateAsync uses on an invalid request:
+        // EncinaError.New(errorMessage), with no code and no exception, where the message echoes
+        // the submitted value.
+        public Task<Either<EncinaError, string>> Handle(ValidationFailureRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Left<EncinaError, string>(EncinaError.New($"'{SubmittedValue}' is not a valid email")));
     }
 
     private sealed record AsyncRequest(string Value) : IRequest<string>;

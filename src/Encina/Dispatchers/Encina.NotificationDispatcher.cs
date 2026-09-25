@@ -116,9 +116,13 @@ public sealed partial class Encina
             var errorCode = error.GetEncinaCode();
             activity?.SetStatus(ActivityStatusCode.Error, errorCode);
             activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
-            var exception = error.Exception.Match(
+            // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
+            // uses to hold the code and details, whose Message IS the error message and may carry
+            // personal data (#1319). Using error.Exception directly would leak it into the logged
+            // exception object below.
+            var exception = error.GetCause().MatchUnsafe(
                 Some: ex => (Exception?)ex,
-                None: () => null);
+                None: () => (Exception?)null);
             var handlerTypeName = handlerInstance.GetType().Name;
 
             if (IsCancellationCode(errorCode))

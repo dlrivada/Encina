@@ -232,7 +232,7 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         activity.ShouldNotBeNull();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.GetTagItem("exception.type").ShouldBe(typeof(InvalidOperationException).FullName);
-        activity.GetTagItem("exception.message").ShouldBe(nameof(InvalidOperationException));
+        activity.GetTagItem("exception.message").ShouldBeNull();
         activity.StatusDescription.ShouldBe(nameof(InvalidOperationException));
         (activity.StatusDescription ?? string.Empty).ShouldNotContain("Something went wrong");
     }

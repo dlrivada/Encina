@@ -23,7 +23,7 @@ internal static partial class ShadowShardingLog
 
     [LoggerMessage(EventId = 138, Level = LogLevel.Warning,
         Message = "Shadow routing failed for shard key '{ShardKey}': {ErrorCode}")]
-    public static partial void ShadowRoutingFailed(ILogger logger, string shardKey, string errorCode);
+    public static partial void ShadowRoutingFailed(ILogger logger, string shardKey, string errorCode, Exception? exception);
 
     [LoggerMessage(EventId = 139, Level = LogLevel.Warning,
         Message = "Shadow routing mismatch for shard key '{ShardKey}': production={ProductionShardId}, shadow={ShadowShardId}")]
@@ -33,7 +33,7 @@ internal static partial class ShadowShardingLog
 
     [LoggerMessage(EventId = 140, Level = LogLevel.Warning,
         Message = "Shadow write failed for command '{CommandType}': {ErrorCode}")]
-    public static partial void ShadowWriteFailed(ILogger logger, string commandType, string errorCode);
+    public static partial void ShadowWriteFailed(ILogger logger, string commandType, string errorCode, Exception? exception);
 
     [LoggerMessage(EventId = 141, Level = LogLevel.Warning,
         Message = "Shadow write timed out for command '{CommandType}' after {TimeoutMs}ms")]
@@ -47,11 +47,11 @@ internal static partial class ShadowShardingLog
 
     [LoggerMessage(EventId = 143, Level = LogLevel.Warning,
         Message = "Shadow read failed for query '{QueryType}': {ErrorCode}")]
-    public static partial void ShadowReadFailed(ILogger logger, string queryType, string errorCode);
+    public static partial void ShadowReadFailed(ILogger logger, string queryType, string errorCode, Exception? exception);
 
     [LoggerMessage(EventId = 144, Level = LogLevel.Warning,
         Message = "Shadow discrepancy handler failed for query '{QueryType}': {ErrorCode}")]
-    public static partial void DiscrepancyHandlerFailed(ILogger logger, string queryType, string errorCode);
+    public static partial void DiscrepancyHandlerFailed(ILogger logger, string queryType, string errorCode, Exception? exception);
 
     // ── Shadow lifecycle (730-739) ───────────────────────────────────────
 

@@ -113,7 +113,6 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
         var exceptionTypeName = ex.GetType().Name;
         activity?.SetStatus(ActivityStatusCode.Error, exceptionTypeName);
         activity?.SetTag(ActivityTagNames.ExceptionType, ex.GetType().FullName);
-        activity?.SetTag(ActivityTagNames.ExceptionMessage, exceptionTypeName);
     }
 
     private void RecordOutcome(Activity? activity, Either<EncinaError, TResponse> outcome)
