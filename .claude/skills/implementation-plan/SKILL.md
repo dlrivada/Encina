@@ -5,7 +5,7 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
 
 # Implementation plan for a feature
 
-CLAUDE.md, Workflow step 2: a `[FEATURE]` issue of any size gets a plan before implementation starts.
+`AGENTS.md` §11, Issues, plans and changelog: a `[FEATURE]` issue of any size gets a plan before implementation starts.
 
 ## Inputs
 

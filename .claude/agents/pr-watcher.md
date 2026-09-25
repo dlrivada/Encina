@@ -19,7 +19,7 @@ You watch a single pull request of the `dlrivada/Encina` repository and report e
 
 Inputs you receive in the task: the PR number, the head commit to watch, and optionally a list of checks to focus on.
 
-Tooling rules (mandatory, from `CLAUDE.md`): PowerShell or direct CLI calls (`gh`, `git`) only. No python, no bash constructs (`for`/`if`/pipes/subshells), no `grep`/`sed`/`head`/`tail`. Use `gh ... --jq '<single-quoted expression>'` to filter JSON.
+Tooling rules (mandatory, from `AGENTS.md` §2): PowerShell or direct CLI calls (`gh`, `git`) only. No python, no bash constructs (`for`/`if`/pipes/subshells), no `grep`/`sed`/`head`/`tail`. Use `gh ... --jq '<single-quoted expression>'` to filter JSON.
 
 What to report, each time it happens, with `SendMessage` to `main` (first line = one self-contained sentence):
 

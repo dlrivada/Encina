@@ -23,7 +23,7 @@ Brief description of what this PR does.
 
 ## Cross-Cutting Integration
 
-> For new features: verify integration with all 12 transversal functions (see CLAUDE.md "Cross-Cutting Integration Rule").
+> For new features: verify integration with all 12 transversal functions (see `AGENTS.md` §6, "Cross-cutting integration check").
 > Skip this section for bug fixes, documentation updates, and refactoring PRs.
 
 - [ ] Evaluated against all 12 transversal functions (Caching, OpenTelemetry, Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail)

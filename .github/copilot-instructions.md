@@ -1,6 +1,6 @@
 # Copilot Instructions for Encina
 
-> This is a condensed version of `CLAUDE.md`. When in doubt, refer to the full guidelines there.
+> This is a condensed version of `AGENTS.md`, the operative engineering rules. When in doubt, refer to the full rules there.
 
 ## Project Overview
 
@@ -61,7 +61,7 @@ All provider-dependent features MUST be implemented for ALL 10 database provider
 | PostgreSQL | `@param` | `LIMIT @n` | `true/false` | Case-sensitive identifiers |
 | MySQL | `@param` | `LIMIT @n` | `0/1` | Backtick identifiers |
 
-Beyond the 10 database providers, there are specialized categories: **Caching (8)**, **Transport (10+)**, **Lock (4+)**, **Validation (3)**, **Cloud (3)**, **Resilience (3)**, **Observability (1+)**. See `CLAUDE.md` for full details.
+Beyond the 10 database providers, there are specialized categories: **Caching (8)**, **Transport (10+)**, **Lock (4+)**, **Validation (3)**, **Cloud (3)**, **Resilience (3)**, **Observability (1+)**. See `AGENTS.md` §5 (Providers) for full details.
 
 ## Code Conventions
 
@@ -223,7 +223,8 @@ Key .NET 10 breaking changes: SLNX format default, transitive package auditing, 
 
 ## Key Files
 
-- `CLAUDE.md` - Comprehensive development guidelines (source of truth)
+- `AGENTS.md` - Engineering rules for every contributor and tool (source of truth)
+- `docs/engineering/ENGINEERING-HANDBOOK.md` - Frozen snapshot of the former `CLAUDE.md`, with the reasoning and examples behind the rules
 - `Directory.Build.props` - Shared MSBuild properties
 - `Directory.Packages.props` - Central package management
 - `.coderabbit.yaml` - CodeRabbit AI review configuration
