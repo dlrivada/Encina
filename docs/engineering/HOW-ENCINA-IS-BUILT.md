@@ -73,6 +73,16 @@ Decisions are recorded where the next agent will find them: in the specification
 - **Agents work through pull requests only.** One task, one worktree, one branch; two agents never share a branch; an agent never commits to `main`; every change reaches `main` through a pull request whose required checks are green (§4, SPEC-000 INV-006). This is enforced by branch protection, not by good intentions (section 4.5).
 - **The human gate is narrow on purpose.** Textbook processes tend to widen human review as the stakes rise. Here the gate is kept to genuine trade-offs, and the rest is pushed into evidence that machines can check.
 
+### 2.6 The closed-issue audit pipeline
+
+A closed issue carries design and code that already exist, but not the rest of the specialist pipeline that normally checks work before it becomes a permanent part of Encina: no independent reviewer, no tester, no QA gate. The SPEC-003 audit (#1345, [`docs/specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md`](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md)) runs that missing half, issue by issue, and the [`issue-audit` skill](../../.claude/skills/issue-audit/SKILL.md) is the orchestrator's procedure for it.
+
+One audit runs at a time, in its own worktree, through six fixed stages, each with exactly one owner and exactly one artifact: an archivist builds and verifies the knowledge record and scope, a code auditor adversarially reviews today's code in that scope (including the siblings the issue's own fix did not reach), a test auditor measures per-flag coverage and test quality against the manifest, a docs reviewer checks what the issue delivered in documentation, a remediation stage drafts one follow-up issue per finding with the free local model, and an independent verifier re-checks every prior claim against its source and returns a `Verdict: PASS` or `Verdict: FAIL` — never fixing anything itself, only naming the stage to re-run. Lessons the stages surface flow back into the pipeline: either applied now, recorded as not applicable, or written into a stage agent's own memory file so the next audit starts smarter.
+
+What holds this together is hooks, not prose: `audit-stage-guard.ps1` refuses to spawn a stage agent out of order, for the wrong issue, or below the pipeline's minimum model, and `enforce-path-ownership.ps1` refuses to let anyone but the stage's assigned agent write that stage's artifact — the fabrication gap that let an earlier, unversioned coordinator claim a stage was done when it was not.
+
+Credit where it is due: the single-owner-role, mandatory-handoff and independent-QA discipline this pipeline enforces adapts the ideas of [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) to Claude Code, PowerShell and C# (see [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md) §4 for the principles and what Encina adopted from each).
+
 ## 3. The AI layer
 
 ### 3.1 Two models, one budget
@@ -200,7 +210,7 @@ Almost none of that wall time was spent writing code. It was CI (about 40 minute
 
 ### 6.2 Watch by events, never by reports
 
-The first pull-request watcher was an Opus agent asked to "watch and report at the end". It cost 125,000 tokens for 35 minutes of polling and reported a failing check and a bot review after the maintainer had already seen both on the screen (agent usage recorded in the session; the resulting rule is stated in [`.claude/agents/README.md`](../../.claude/agents/README.md)). The replacement is a script (`artifacts/tools/watch-pr-events.ps1`, kept outside the repository) that polls GitHub every 45 seconds and emits one line per event: `CHECK-FAIL`, `REVIEW-COMMENT`, `REVIEW`, `CHECKS-DONE`, `PR-MERGED`. It costs no model tokens; the main session reacts to each event within minutes; model-backed agents are used only when a log needs a diagnosis. A second Opus watcher used for the rest of the day consumed 168,000 tokens for two hours; the same job now goes to the Haiku `pr-watcher` (#1099).
+The first pull-request watcher was an Opus agent asked to "watch and report at the end". It cost 125,000 tokens for 35 minutes of polling and reported a failing check and a bot review after the maintainer had already seen both on the screen (agent usage recorded in the session; the resulting rule is stated in [`.claude/agents/README.md`](../../.claude/agents/README.md)). The replacement is now three versioned scripts under `tools/ai/`, none costing a model token: `watch-pr-events.ps1` polls one named pull request and emits one line per event (`CHECK-FAIL`, `REVIEW-COMMENT`, `ISSUE-COMMENT`, `REVIEW`, `CHECKS-DONE`, `PR-MERGED`/`PR-CLOSED`); `watch-open-prs.ps1` polls every open pull request of the repository and emits `PR #n CHECK-FAIL`, `PR #n NEW-THREAD` and `PR #n MERGED`/`CLOSED`; `watch-worktrees.ps1` polls the worktrees under `.claude/worktrees/` and emits `STALLED`, `RESUMED` and `REMOVED` when one stops changing. The main session reacts to each event within minutes; model-backed agents are used only when a log needs a diagnosis. A second Opus watcher used for the rest of the day consumed 168,000 tokens for two hours; the same job now goes to the Haiku `pr-watcher` (#1099).
 
 ### 6.3 What the free model actually saves
 
@@ -250,6 +260,7 @@ This section is the conceptual checklist, in the order that worked here. It is d
 8. **Watch by events.** A script that emits one line per pull-request event; react within minutes; batch corrections into one push.
 9. **Pipeline the work.** The next specification starts while the previous pull request is in CI; auto-merge on green; worktrees per task; agents never on the same branch.
 10. **Make every problem an issue the moment it appears**, with a typed prefix and a template, and keep going. Review the lessons section of this document every few weeks and append what changed, with its evidence.
+11. **Enforce the process with hooks, not prose.** A rule stated only in an agent's prompt gets skipped under pressure; a `PreToolUse`/`Stop` hook that reads the tool call and denies the wrong one enforces it every time. The SPEC-003 audit pipeline (§2.6) is the clearest example: stage order, single-owner artifacts and foreground-only spawns are hook-checked, not merely asked for.
 
 ## Evidence index
 
