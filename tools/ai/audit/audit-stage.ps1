@@ -59,8 +59,16 @@ if ($RepairAuthors) {
     $dir = Split-Path -Parent $authorsPath
     New-Item -ItemType Directory -Force $dir | Out-Null
     $tempPath = Join-Path $dir ".authors.json.$PID.$([guid]::NewGuid().ToString('N')).tmp"
-    $committedText | Set-Content -LiteralPath $tempPath -Encoding utf8
-    [System.IO.File]::Move($tempPath, $authorsPath, $true)
+    try {
+        $committedText | Set-Content -LiteralPath $tempPath -Encoding utf8
+        [System.IO.File]::Move($tempPath, $authorsPath, $true)
+        $tempPath = $null
+    }
+    finally {
+        # A leftover temp file means Move never completed (e.g. the destination was locked): remove it so a
+        # failed repair does not leave a stray '.authors.json.<pid>.<guid>.tmp' behind (#1374 review).
+        if ($null -ne $tempPath -and (Test-Path -LiteralPath $tempPath)) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+    }
 
     "audit-stage: restored artifacts\knowledge\stages\.authors.json for #$n from the committed version at HEAD."
     $dropped = @($workingEntries.Keys | Where-Object { -not $committedEntries.ContainsKey($_) })

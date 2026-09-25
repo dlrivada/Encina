@@ -1202,8 +1202,13 @@ try {
             $err2 = Join-Path $concurrentWt "err2-$round.txt"
             $p1 = Start-Process pwsh -ArgumentList @('-NoProfile', '-File', $ownership, '-Agent', 'issue-archivist') -RedirectStandardInput $concurrentArchivistStdin -RedirectStandardOutput $out1 -RedirectStandardError $err1 -PassThru -WindowStyle Hidden
             $p2 = Start-Process pwsh -ArgumentList @('-NoProfile', '-File', $ownership, '-Agent', 'issue-auditor') -RedirectStandardInput $concurrentCodeStdin -RedirectStandardOutput $out2 -RedirectStandardError $err2 -PassThru -WindowStyle Hidden
-            $p1.WaitForExit()
-            $p2.WaitForExit()
+            # A bounded timeout, not an unbounded WaitForExit(): a hung child (e.g. a broken pwsh install)
+            # must fail this case with a clear message, never block the whole suite forever.
+            $exited1 = $p1.WaitForExit(15000)
+            $exited2 = $p2.WaitForExit(15000)
+            if (-not $exited1) { Stop-Process -Id $p1.Id -Force -ErrorAction SilentlyContinue }
+            if (-not $exited2) { Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue }
+            if (-not ($exited1 -and $exited2)) { $concurrentFailures.Add("round $round`: a hook process did not exit within 15s (killed)"); continue }
             if (-not (Test-Path $concurrentAuthorsPath)) { $concurrentFailures.Add("round $round`: sidecar missing"); continue }
             try {
                 $parsed = Get-Content -LiteralPath $concurrentAuthorsPath -Raw | ConvertFrom-Json -AsHashtable

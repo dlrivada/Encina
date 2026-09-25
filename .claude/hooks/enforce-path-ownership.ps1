@@ -133,10 +133,12 @@ try {
     # `catch { }` did. An existing sidecar that is not a single JSON object is reported with the exact parse
     # error and the sanctioned repair command, never masked.
     function Set-StageAuthor([string]$Root, [string]$Stage, [string]$Agent) {
-        $authorsPath = Join-Path $Root 'artifacts\knowledge\stages\.authors.json'
-        $mutex = [System.Threading.Mutex]::new($false, (Get-PathLockName $authorsPath))
+        $mutex = $null
         $acquired = $false
+        $tempPath = $null
         try {
+            $authorsPath = Join-Path $Root 'artifacts\knowledge\stages\.authors.json'
+            $mutex = [System.Threading.Mutex]::new($false, (Get-PathLockName $authorsPath))
             try { $acquired = $mutex.WaitOne(5000) }
             catch [System.Threading.AbandonedMutexException] { $acquired = $true }
             if (-not $acquired) {
@@ -165,6 +167,7 @@ try {
             $tempPath = Join-Path $dir ".authors.json.$PID.$([guid]::NewGuid().ToString('N')).tmp"
             ($authors | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $tempPath -Encoding utf8
             [System.IO.File]::Move($tempPath, $authorsPath, $true)
+            $tempPath = $null
             return $true
         }
         catch {
@@ -172,8 +175,12 @@ try {
             return $false
         }
         finally {
+            # A leftover temp file means the move never completed (Move throws before renaming, e.g. the
+            # destination is locked by an antivirus scan or another process): clean it up so a failed write
+            # never leaves a stray '.authors.json.<pid>.<guid>.tmp' behind in a directory that gets committed.
+            if ($null -ne $tempPath -and (Test-Path -LiteralPath $tempPath)) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
             if ($acquired) { $mutex.ReleaseMutex() }
-            $mutex.Dispose()
+            if ($null -ne $mutex) { $mutex.Dispose() }
         }
     }
 
