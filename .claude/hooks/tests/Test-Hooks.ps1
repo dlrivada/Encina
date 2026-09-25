@@ -307,6 +307,12 @@ $writeCases = @(
     @('PowerShell', @{ command = "dotnet run --file '$scriptWritesSrc'" }, $main, 2, 'dotnet run --file of a script that writes src/'),
     @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, 2, 'pwsh -File of a script that writes tests/'),
     @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, 0, 'dotnet run of a script the hook cannot read: allowed for a worker'),
+    # #1345: the script's own Base (after a prior Set-Location), not the tool call's raw cwd, decides whether
+    # the launching statement runs from the main checkout.
+    @('PowerShell', @{ command = "Set-Location '$wt'; dotnet run --file '$scriptWritesSrc'" }, $main, 0, 'Set-Location into the worktree before dotnet run --file: allowed'),
+    @('PowerShell', @{ command = "Set-Location '$main'; dotnet run --file '$scriptWritesSrc'" }, $wt, 2, 'Set-Location into the main checkout before dotnet run --file: blocked'),
+    @('PowerShell', @{ command = "Set-Location '$wt'; pwsh -File '$scriptWritesTestsPs1'" }, $main, 0, 'Set-Location into the worktree before pwsh -File: allowed'),
+    @('PowerShell', @{ command = "Set-Location '$main'; pwsh -File '$scriptWritesTestsPs1'" }, $wt, 2, 'Set-Location into the main checkout before pwsh -File: blocked'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
