@@ -5,10 +5,10 @@ This is the prompt the maintainer uses to turn a `[FEATURE]` issue into an imple
 **How to use it**
 
 1. Replace `{{ISSUE_URL}}`, `{{ISSUE_NUMBER}}` and `{{FEATURE_NAME}}` (kebab-case, e.g. `dsr`, `breach-notification`).
-2. Run it with the agent of your choice from the repository root, so the mandatory research can read the code and `CLAUDE.md`.
+2. Run it with the agent of your choice from the repository root, so the mandatory research can read the code and `AGENTS.md`.
 3. Review the plan, commit it as `docs/plans/{{FEATURE_NAME}}-implementation-plan-{{ISSUE_NUMBER}}.md`, and link it from the issue.
 
-Issue bodies themselves follow the templates in `.github/ISSUE_TEMPLATE/` (headers verbatim; see `CLAUDE.md`, "Issue Tracking & Project Documentation").
+Issue bodies themselves follow the templates in `.github/ISSUE_TEMPLATE/` (headers verbatim; see `AGENTS.md` §11, "Issues, plans and changelog").
 
 Three lines differ from the maintainer's original wording, aligned with `CLAUDE.md` on 2026-09-22: the database provider count (10, SQLite is out of the matrix), the Event ID rule (register the range in `EventIdRanges.cs` first, ADR-021) and the test verification criterion (per-flag coverage targets from the manifest, not a single 85%).
 
@@ -21,9 +21,9 @@ INSTRUCTIONS:
 1. MANDATORY RESEARCH (before writing the plan):
    - Read the full issue body (gh issue view {{ISSUE_NUMBER}})
    - Read issue comments for CodeRabbit plans or relevant discussion
-   - Read CLAUDE.md thoroughly — understand project philosophy, architecture, provider categories, testing standards, and naming conventions
+   - Read AGENTS.md thoroughly — understand project philosophy, architecture, provider categories, testing standards, and naming conventions
    - Explore existing code in the area that corresponds to identify established patterns (interfaces, stores, behaviors, diagnostics, DI registrations)
-   - Identify which provider category applies (see "Provider Applicability Matrix" and "Specialized Provider Categories" in CLAUDE.md):
+   - Identify which provider category applies (see "Providers", AGENTS.md §5):
      - Database (10): ADO.NET ×3, Dapper ×3, EF Core ×3 (SqlServer, PostgreSQL, MySQL), MongoDB
      - Caching (8): Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB, Memcached
      - Messaging Transport (10+): RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC, GraphQL
@@ -37,7 +37,7 @@ INSTRUCTIONS:
      - Or none — some features are provider-independent
    - Find the next free Event ID range in src/Encina/Diagnostics/EventIdRanges.cs (ADR-021: every range is registered there before use; grep Diagnostics/ folders for EventId patterns to confirm nothing unregistered collides)
    - Understand which existing modules the feature integrates with
-   - Evaluate the feature against ALL 12 transversal functions defined in CLAUDE.md "Cross-Cutting Integration Rule" (Caching, OpenTelemetry, Structured Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail). For each, determine: ✅ Include in this implementation, ⏭️ Defer to separate issue, or ❌ N/A.
+   - Evaluate the feature against ALL 12 transversal functions defined in AGENTS.md §6 "Cross-cutting integration check" (Caching, OpenTelemetry, Structured Logging, Health Checks, Validation, Resilience, Distributed Locks, Transactions, Idempotency, Multi-Tenancy, Module Isolation, Audit Trail). For each, determine: ✅ Include in this implementation, ⏭️ Defer to separate issue, or ❌ N/A.
 2. PLAN STRUCTURE (all sections are mandatory):
    a) SUMMARY
       - What it implements, which standards/specifications it covers (if applicable)
@@ -145,7 +145,7 @@ INSTRUCTIONS:
       - Single <details> block with the combined prompt for all phases
       - Includes PROJECT CONTEXT, IMPLEMENTATION OVERVIEW, KEY PATTERNS, REFERENCE FILES
    f) CROSS-CUTTING INTEGRATION MATRIX
-      - Evaluate against ALL 12 transversal functions from CLAUDE.md "Cross-Cutting Integration Rule"
+      - Evaluate against ALL 12 transversal functions from AGENTS.md §6 "Cross-cutting integration check"
       | # | Function | Status | Notes |
       |---|----------|--------|-------|
       | 1 | Caching | ✅/⏭️/❌ | Justification |
@@ -163,7 +163,7 @@ INSTRUCTIONS:
       - For ⏭️ items: note if a GitHub issue already exists or needs to be created
       - For ✅ items: ensure the integration is included in the implementation phases (section c)
 
-3. ENCINA RULES (always apply — see CLAUDE.md for full details):
+3. ENCINA RULES (always apply — see AGENTS.md for full details):
    - .NET 10 / C# 14, nullable enabled
    - ROP: Either<EncinaError, T> on all store/handler methods
    - Provider coherence: if a feature touches provider-specific code, implement across ALL providers in that category

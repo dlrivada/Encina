@@ -886,7 +886,7 @@ dotnet run -c Release --project tests/Encina.BenchmarkTests/Encina.Benchmarks --
 - [Read/Write Separation Benchmarks](../../../tests/Encina.BenchmarkTests/Encina.Benchmarks/ReadWriteSeparation/README.md)
 - [EntityFrameworkCore Benchmarks](../../../tests/Encina.BenchmarkTests/Encina.Benchmarks/EntityFrameworkCore/README.md)
 - [Lawful Basis Feature Guide](../../features/lawful-basis-validation.md#performance-benchmarks) — GDPR Article 6 benchmark summary
-- [CLAUDE.md - Testing Standards](../../../CLAUDE.md#testing-standards)
+- [AGENTS.md §9 - Testing obligations](../../../AGENTS.md#9-testing-obligations)
 
 ---
 

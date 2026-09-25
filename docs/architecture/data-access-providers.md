@@ -11,7 +11,7 @@ This page is for a developer who has to pick a data-access provider for Encina's
 
 ## What "provider" means here
 
-Encina's database-provider matrix is a fundamental project rule, not just a testing convention (`CLAUDE.md`, *Multi-Provider Implementation Rule*). Any feature that touches a store — outbox, inbox, saga, scheduling, repository, unit of work, bulk operations, audit — ships on all of them, or the page for that feature says which ones it covers and links the issue for the rest.
+Encina's database-provider matrix is a fundamental project rule, not just a testing convention (`AGENTS.md` §5, *Providers*). Any feature that touches a store — outbox, inbox, saga, scheduling, repository, unit of work, bulk operations, audit — ships on all of them, or the page for that feature says which ones it covers and links the issue for the rest.
 
 There are **10 database providers**, grouped into three data-access families plus one document database:
 
@@ -31,7 +31,7 @@ So the historical sequence is 16 planned providers → 13 after Oracle → 10 to
 
 ## The provider-coherence rule
 
-The three relational families and MongoDB implement the **same abstractions** from `Encina.Messaging` and `Encina.DomainModeling` — `IOutboxStore`, `IInboxStore`, `ISagaStore`, `IScheduledMessageStore`, the repository and unit-of-work interfaces — with a different implementation per provider. Switching providers is a change to one line of DI registration; the rest of the application code does not change (`CLAUDE.md`, *Provider Coherence*).
+The three relational families and MongoDB implement the **same abstractions** from `Encina.Messaging` and `Encina.DomainModeling` — `IOutboxStore`, `IInboxStore`, `ISagaStore`, `IScheduledMessageStore`, the repository and unit-of-work interfaces — with a different implementation per provider. Switching providers is a change to one line of DI registration; the rest of the application code does not change (`AGENTS.md` §3, *Code rules*: provider coherence).
 
 ```csharp
 // Using EF Core
@@ -41,7 +41,7 @@ services.AddEncinaEntityFrameworkCore<AppDbContext>(config => { config.UseOutbox
 services.AddEncinaDapper(config => { config.UseOutbox = true; });
 ```
 
-Store implementations follow the naming pattern `{Pattern}Store{Provider}` — `OutboxStoreEF`, `OutboxStoreDapper`, `OutboxStoreADO`, `OutboxStoreMongoDB` — never a bare `Store` or `Repository` (`CLAUDE.md`, *Store Implementations*). The full type-per-provider list is in the [reference page](../features/database-providers.md).
+Store implementations follow the naming pattern `{Pattern}Store{Provider}` — `OutboxStoreEF`, `OutboxStoreDapper`, `OutboxStoreADO`, `OutboxStoreMongoDB` — never a bare `Store` or `Repository` (`AGENTS.md` §4, *Naming*). The full type-per-provider list is in the [reference page](../features/database-providers.md).
 
 ## How to choose
 

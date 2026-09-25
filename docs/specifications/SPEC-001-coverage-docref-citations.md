@@ -40,7 +40,7 @@ Documentation quotes coverage figures by hand, and they drift (#1090). Benchmark
 
 ## 4. Constraints
 
-- Scripts are C# 14 file-based apps under `.github/scripts/` (`CLAUDE.md` scripting policy); workflows are GitHub Actions YAML.
+- Scripts are C# 14 file-based apps under `.github/scripts/` (`AGENTS.md` §2 scripting policy); workflows are GitHub Actions YAML.
 - Marker names must not collide with `docref-*` or `mutref-*` (renderers scan the same `docs/` and `src/` trees).
 - The per-flag obligations model stays authoritative (`AI-DEVELOPMENT-MODEL.md` §3); the index reports what `coverage-report.cs` computes, it does not recompute.
 - No change to the coverage manifests' format.

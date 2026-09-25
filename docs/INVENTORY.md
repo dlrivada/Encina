@@ -64,7 +64,7 @@
 
 ## Reglas de Coherencia de Proveedores
 
-> **IMPORTANTE**: Esta sección define las reglas de implementación para cada categoría de proveedores. Ver también [CLAUDE.md](../CLAUDE.md) para las reglas detalladas.
+> **IMPORTANTE**: Esta sección define las reglas de implementación para cada categoría de proveedores. Ver también [AGENTS.md](../AGENTS.md) para las reglas detalladas.
 
 ### Proveedores de Base de Datos (13 obligatorios)
 

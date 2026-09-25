@@ -93,8 +93,8 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 
 ### Provider completeness (DEC-003)
 
-- **REQ-027** The caching and distributed-lock provider sets ship complete as `CLAUDE.md` documents them: eight caching providers (adding `Encina.Caching.Memcached`, #277) and five lock providers: the three that exist (`InMemory`, which is the single-process testing provider, `Redis`, `SqlServer`) plus `Encina.DistributedLock.PostgreSQL` with `pg_advisory_lock` (#207) and `Encina.DistributedLock.MySQL` with `GET_LOCK` (#208), i.e. four production-grade backends and one in-memory. The remaining lock backends in the `CLAUDE.md` table (Azure Blob, DynamoDB, Consul, etcd, ZooKeeper) are post-1.0. Each provider ships with the same interfaces, options, health check, OpenTelemetry instrumentation and test types as the existing providers of its category.
-- **REQ-028** The cloud provider set for 1.0 is AWS Lambda and Azure Functions; Google Cloud Functions (#205) is post-1.0 and `CLAUDE.md` states the deferral explicitly instead of a three-way triangle.
+- **REQ-027** The caching and distributed-lock provider sets ship complete as `AGENTS.md` §5 documents them: eight caching providers (adding `Encina.Caching.Memcached`, #277) and five lock providers: the three that exist (`InMemory`, which is the single-process testing provider, `Redis`, `SqlServer`) plus `Encina.DistributedLock.PostgreSQL` with `pg_advisory_lock` (#207) and `Encina.DistributedLock.MySQL` with `GET_LOCK` (#208), i.e. four production-grade backends and one in-memory. The remaining lock backends in the `AGENTS.md` §5 table (Azure Blob, DynamoDB, Consul, etcd, ZooKeeper) are post-1.0. Each provider ships with the same interfaces, options, health check, OpenTelemetry instrumentation and test types as the existing providers of its category.
+- **REQ-028** The cloud provider set for 1.0 is AWS Lambda and Azure Functions; Google Cloud Functions (#205) is post-1.0 and `AGENTS.md` §5 states the deferral explicitly instead of a three-way triangle.
 
 ### EU regulatory readiness (DEC-007, SPEC-002)
 
@@ -130,19 +130,19 @@ Identifiers are stable. Each requirement has at least one acceptance criterion i
 | AC-024 | REQ-024 | One `SPEC-NNN` per compliance package under `docs/specifications/`, with an article coverage table; the package README links to it. The `Encina.Compliance.Consent` specification has two tables, GDPR and ePrivacy (Art. 5(3) at minimum), each row pointing at its test or audit evidence. Every table has the shape of SPEC-002 REQ-022, including the national rows it names (the Consent specification adds an LSSI arts. 20–22 table), and SPEC-002 AC-022 holds. |
 | AC-025 | REQ-025 | EPIC #881 closed with its twelve compliance child issues (#836–#847); #71, #72, #74 moved out of it (done 2026-09-21). |
 | AC-026 | REQ-026 | #822–#827 and #810–#816 closed; #804–#808 labelled post-1.0 and left open; SPEC-002 AC-024 holds (each Omnibus behaviour off by default, with a test asserting that the default follows current law). |
-| AC-027 | REQ-027 | #207, #208 closed and the Memcached scope of #277 delivered; contract tests cover the 8 caches and the 5 locks (InMemory, Redis, SqlServer, PostgreSQL, MySQL); the `CLAUDE.md` lock table marks exactly those five as shipped and the other five as post-1.0, and both provider tables match `src/`. |
-| AC-028 | REQ-028 | #205 labelled post-1.0; `CLAUDE.md` cloud section lists AWS + Azure with GCP deferred. |
+| AC-027 | REQ-027 | #207, #208 closed and the Memcached scope of #277 delivered; contract tests cover the 8 caches and the 5 locks (InMemory, Redis, SqlServer, PostgreSQL, MySQL); the `AGENTS.md` §5 lock table marks exactly those five as shipped and the other five as post-1.0, and both provider tables match `src/`. |
+| AC-028 | REQ-028 | #205 labelled post-1.0; `AGENTS.md` §5 cloud section lists AWS + Azure with GCP deferred. |
 | AC-029 | REQ-029 | On the release-candidate commit, SPEC-002 AC-001 – SPEC-002 AC-044 hold; the PracticeManagement reference scenario is green in CI Full with tenancy on (SPEC-002 AC-038); the SPEC-002 EPIC is closed. |
 
 ## 5. Constraints
 
-- .NET 10 only; C# 14; nullable enabled (`CLAUDE.md`).
+- .NET 10 only; C# 14; nullable enabled (`AGENTS.md` §1).
 - The per-flag obligations coverage model is normative (`AI-DEVELOPMENT-MODEL.md` §3).
-- Provider coherence rules for database (10), caching, transports, locks and validation apply to whatever is in the 1.0 list (`CLAUDE.md`), with the actual set fixed by DEC-003.
+- Provider coherence rules for database (10), caching, transports, locks and validation apply to whatever is in the 1.0 list (`AGENTS.md` §5), with the actual set fixed by DEC-003.
 - Cross-cutting integration rule (ADR-018) applies to any new code written for 1.0.
 - EventId allocation via `EventIdRanges.cs` (ADR-021).
 - Existing quality infrastructure is orchestrated, not replaced (`ENCINA-1.0-RECONCILIATION.md` §11).
-- Scripting: PowerShell or C# file-based apps only (`CLAUDE.md`).
+- Scripting: PowerShell or C# file-based apps only (`AGENTS.md` §2).
 - Every capability SPEC-002 adds or changes is tenant-aware and instrumented, and security- and compliance-relevant behaviours fail closed unless an explicit, logged opt-out says otherwise (SPEC-002 §8, SPEC-002 DEC-006, SPEC-002 DEC-009, SPEC-002 DEC-010).
 
 ## 6. Non-goals
