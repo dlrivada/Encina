@@ -76,19 +76,30 @@ foreach ($n in $Issues) {
     $sb = [System.Text.StringBuilder]::new()
     [void]$sb.AppendLine("ISSUE #$($v.number): $($v.title)`nclosed_at: $($v.closedAt)`nlabels: $(($v.labels | ForEach-Object name) -join ', ')`n`nBODY:`n$($v.body)`n")
     foreach ($c in $v.comments) { if ($c.author.login -notmatch 'bot|coderabbit') { $b = $c.body; if ($b.Length -gt 3000) { $b = $b.Substring(0, 3000) + ' [...]' }; [void]$sb.AppendLine("COMMENT by $($c.author.login):`n$b`n") } }
-    $tl = gh api "repos/dlrivada/Encina/issues/$n/timeline" --paginate 2>$null | ConvertFrom-Json
-    foreach ($e in @($tl)) {
-        if ($e.event -eq 'cross-referenced' -and $e.source.issue.pull_request) { [void]$sb.AppendLine("LINKED PR #$($e.source.issue.number): $($e.source.issue.title) (state $($e.source.issue.state))") }
-        if ($e.event -in 'referenced', 'closed' -and $e.commit_id) { $msg = git -C $root log -1 --format=%s $e.commit_id 2>$null; [void]$sb.AppendLine("COMMIT $($e.commit_id.Substring(0, 8)) ($($e.event)): $msg") }
+    # --slurp wraps every page gh api --paginate fetches into one outer JSON array (each element is itself
+    # one page's array), instead of concatenating raw per-page documents that a single ConvertFrom-Json
+    # cannot parse once the timeline spans more than one page (review thread T11).
+    $tl = gh api "repos/dlrivada/Encina/issues/$n/timeline" --paginate --slurp 2>$null | ConvertFrom-Json
+    foreach ($page in @($tl)) {
+        foreach ($e in @($page)) {
+            if ($e.event -eq 'cross-referenced' -and $e.source.issue.pull_request) { [void]$sb.AppendLine("LINKED PR #$($e.source.issue.number): $($e.source.issue.title) (state $($e.source.issue.state))") }
+            if ($e.event -in 'referenced', 'closed' -and $e.commit_id) { $msg = git -C $root log -1 --format=%s $e.commit_id 2>$null; [void]$sb.AppendLine("COMMIT $($e.commit_id.Substring(0, 8)) ($($e.event)): $msg") }
+        }
     }
     $text = $sb.ToString(); if ($text.Length -gt 60000) { $text = $text.Substring(0, 60000) + "`n[truncated]" }
     Set-Content $in $text -Encoding utf8
     Push-Location $root
     try {
-        dotnet run (Join-Path $root 'tools\ai\local-ai-ask.cs') -- --task "predraft-$n" --brief $brief --input $in --out $dst | Out-Null
+        $askOutput = dotnet run (Join-Path $root 'tools\ai\local-ai-ask.cs') -- --task "predraft-$n" --brief $brief --input $in --out $dst 2>&1
+        $askExit = $LASTEXITCODE
     }
     finally {
         Pop-Location
+    }
+    if ($askExit -ne 0 -or -not (Test-Path -LiteralPath $dst)) {
+        "failed #$n`: local model exit $askExit, output present: $(Test-Path -LiteralPath $dst); $askOutput"
+        if ($Issue) { exit 1 }
+        continue
     }
     "predrafted #$n"
 }
