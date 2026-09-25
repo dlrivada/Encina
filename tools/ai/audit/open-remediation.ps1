@@ -30,6 +30,10 @@ foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
     if ($m) { $a += @('--milestone', $m) }
     foreach ($l in $lab) { $a += @('--label', $l) }
     $url = & gh @a
+    if ($LASTEXITCODE -ne 0 -or -not $url -or $url -notmatch '^https://github.com/') {
+        Write-Error "open-remediation: gh issue create failed for $($f.Name) (exit $LASTEXITCODE, url: '$url')"
+        exit 1
+    }
     Add-Content $opened "$($f.Name),$url"
     "$url  $title"
 }
