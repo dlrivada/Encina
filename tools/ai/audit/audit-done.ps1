@@ -7,8 +7,9 @@
 #   - the worktree's knowledge-records.cs --check fails against artifacts/knowledge/issues.
 #
 # Otherwise it copies the collected records, audit results, remediation drafts, stage artifacts and ledger
-# lines into the main artifacts/knowledge, appends artifacts/knowledge/progress.csv, removes the wia-<n>
-# worktree AND its audit/<n> branch, and deletes current-audit.json.
+# lines into the main artifacts/knowledge, appends artifacts/knowledge/progress.csv, appends any role-tagged
+# lesson (stages/lessons.md 'Applied: role:<agent>' line) to .claude/agents/lessons/<agent>.md (#1345), removes
+# the wia-<n> worktree AND its audit/<n> branch, and deletes current-audit.json.
 
 param()
 
@@ -92,6 +93,27 @@ $stagesDest = Join-Path $knowledgeRoot "stages\$n"
 New-Item -ItemType Directory -Force $stagesDest | Out-Null
 Copy-Item (Join-Path $stagesDir '*') -Destination $stagesDest -Recurse -Force
 
+# #1345: role memory. A lessons.md item's 'Applied:' line naming 'role:<agent>' is a lesson for that agent's
+# own memory, not a one-off orchestrator fix; append it to .claude/agents/lessons/<agent>.md (main checkout)
+# with today's date and this issue number, so the agent reads it at the start of its next spawn.
+$appliedRoles = 0
+if (Test-Path -LiteralPath $lessonsFile) {
+    $lessonsLines = @(Get-Content -LiteralPath $lessonsFile)
+    $today = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
+    for ($i = 0; $i -lt $lessonsLines.Count - 1; $i++) {
+        if ($lessonsLines[$i] -notmatch '^-\s+(?<text>.+)$') { continue }
+        $text = $Matches['text']
+        if ($lessonsLines[$i + 1] -notmatch '^Applied:\s*role:(?<agent>[\w-]+)\s*(?<detail>.*)$') { continue }
+        $agentName = $Matches['agent']
+        $detail = $Matches['detail'].Trim()
+        $roleLessonsFile = Join-Path $mainRoot ".claude\agents\lessons\$agentName.md"
+        if (-not (Test-Path -LiteralPath $roleLessonsFile)) { continue }
+        $suffix = if ($detail) { " ($detail)" } else { '' }
+        Add-Content -LiteralPath $roleLessonsFile -Value "- ($today, #$n) $text$suffix"
+        $appliedRoles++
+    }
+}
+
 $ledger = Join-Path $wt 'artifacts\agent-usage\ledger.csv'
 if (Test-Path -LiteralPath $ledger) { Get-Content -LiteralPath $ledger | Select-Object -Skip 1 | Add-Content (Join-Path $knowledgeRoot 'agent-ledger.csv') }
 
@@ -102,4 +124,4 @@ Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`"
 if ($branch) { & git -C $mainRoot branch -D $branch 2>&1 | Out-Null }
 Remove-Item -LiteralPath $currentAuditPath -Force
 
-"audit-done: closed audit for #$n (remediation drafts: $remCount; stages archived to artifacts\knowledge\stages\$n; branch $branch removed)"
+"audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed)"
