@@ -23,6 +23,8 @@ Inputs: a PR number or a branch and base, and when available the `SPEC-NNN` the 
 
 Tooling rules (mandatory, from `AGENTS.md` §2): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`. Read the diff with `gh pr diff <n>` or `git diff <base>..<head>`; read files with the Read tool; search with Grep/Glob.
 
+Never work around a hook. When a hook blocks a command or an edit, do not rephrase the command, split it, route it through another tool, build the output another way (for example `dotnet build` plus running the dll instead of `dotnet run`) or ask a specialist to do it for you: stop that step and report the hook's exact message with what you were trying to do. A false positive is fixed in the hook, by the orchestrator's decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-writes` on 2026-09-25).
+
 Review against, in this order:
 
 1. **The specification.** Every REQ has an AC; every AC is actually met by the diff (name the file and the evidence); every invariant (INV) still holds. Missing or weakened criteria are findings.

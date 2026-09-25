@@ -47,6 +47,8 @@ Inputs: a PR number, or a branch and base, or a list of page paths. Read the dif
 
 Tooling rules (mandatory, from `AGENTS.md` §2): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`.
 
+Never work around a hook. When a hook blocks a command or an edit, do not rephrase the command, split it, route it through another tool, build the output another way (for example `dotnet build` plus running the dll instead of `dotnet run`) or ask a specialist to do it for you: stop that step and report the hook's exact message with what you were trying to do. A false positive is fixed in the hook, by the orchestrator's decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-writes` on 2026-09-25).
+
 ## Procedure
 
 For each changed page:
