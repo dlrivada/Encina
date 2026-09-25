@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Configuration;
 using Encina.TestInfrastructure.Fixtures;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -108,8 +109,8 @@ public sealed class SoftDeleteTestDbContext : DbContext
             entity.Property(e => e.ModifiedAtUtc);
             entity.Property(e => e.ModifiedBy).HasMaxLength(200);
 
-            // Apply global query filter for soft delete
-            entity.HasQueryFilter(e => !e.IsDeleted);
+            // Apply named global query filter for soft delete (matches production configuration)
+            entity.HasQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey, (SoftDeleteTestEntity e) => !e.IsDeleted);
         });
     }
 }

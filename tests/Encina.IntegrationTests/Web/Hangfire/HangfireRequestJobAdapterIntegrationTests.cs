@@ -29,7 +29,7 @@ public sealed class HangfireRequestJobAdapterIntegrationTests
         var request = new TestRequest("integration-test");
 
         // Act
-        var result = await adapter.ExecuteAsync(request);
+        var result = await adapter.ExecuteAndReturnResultAsync(request);
 
         // Assert
         result.ShouldBe("Processed: integration-test");

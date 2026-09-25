@@ -181,5 +181,5 @@ public sealed class ArbitraryScheduledMessage : IScheduledMessage
     public bool IsDue(DateTime asOf) => asOf >= ScheduledAtUtc;
 
     /// <inheritdoc/>
-    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries;
+    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;
 }

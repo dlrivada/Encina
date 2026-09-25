@@ -146,8 +146,8 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
                         var error = result.Match(Right: _ => default!, Left: e => e);
 
                         _logger.LogError(
-                            "Shard migration failed. MigrationId={MigrationId}, ShardId={ShardId}, ErrorMessage={ErrorMessage}, RollbackInitiated={RollbackInitiated}",
-                            migrationId, shard.ShardId, error.Message, options.StopOnFirstFailure);
+                            "Shard migration failed. MigrationId={MigrationId}, ShardId={ShardId}, ErrorCode={ErrorCode}, RollbackInitiated={RollbackInitiated}",
+                            migrationId, shard.ShardId, error.GetEncinaCode(), options.StopOnFirstFailure);
                     }
 
                     return result;

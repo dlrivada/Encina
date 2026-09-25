@@ -46,6 +46,18 @@ namespace Encina.EntityFrameworkCore.Configuration;
 public static class EntityConfigurationExtensions
 {
     /// <summary>
+    /// The EF Core named query filter key used for the soft-delete filter applied by
+    /// <see cref="ApplySoftDeleteQueryFilters"/>.
+    /// </summary>
+    /// <remarks>
+    /// Using a named filter (instead of the single unnamed <c>HasQueryFilter</c> overload) allows
+    /// this filter to coexist with other named filters — such as the tenant isolation filter applied
+    /// by <c>TenantDbContext.ApplyTenantQueryFilters</c> — on the same entity, instead of one
+    /// overwriting the other (see #1268).
+    /// </remarks>
+    internal const string SoftDeleteQueryFilterKey = "Encina.SoftDelete";
+
+    /// <summary>
     /// Configures the row version property for optimistic concurrency control.
     /// </summary>
     /// <typeparam name="T">The entity type that implements <see cref="IConcurrencyAware"/>.</typeparam>
@@ -265,15 +277,20 @@ public static class EntityConfigurationExtensions
     /// <item><description><see cref="ISoftDeletable.IsDeleted"/>: Required boolean property</description></item>
     /// <item><description><see cref="ISoftDeletable.DeletedAtUtc"/>: Optional timestamp when deleted</description></item>
     /// <item><description><see cref="ISoftDeletable.DeletedBy"/>: Optional user who performed the deletion</description></item>
-    /// <item><description>Global query filter: <c>HasQueryFilter(e =&gt; !e.IsDeleted)</c></description></item>
+    /// <item><description>Global query filter: named <c>HasQueryFilter</c> under the <see cref="SoftDeleteQueryFilterKey"/> key</description></item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Query Filter</b>: The global filter automatically excludes soft-deleted entities
-    /// from all queries. To include deleted entities, use <c>IgnoreQueryFilters()</c>:
+    /// from all queries. This filter is registered under the <c>"Encina.SoftDelete"</c> named
+    /// filter key, so it coexists with other named filters (such as the tenant isolation filter)
+    /// on the same entity. To include deleted entities without also bypassing other named
+    /// filters, pass the key explicitly:
     /// </para>
     /// <code>
-    /// var allOrders = await context.Orders.IgnoreQueryFilters().ToListAsync();
+    /// var allOrders = await context.Orders
+    ///     .IgnoreQueryFilters(["Encina.SoftDelete"])
+    ///     .ToListAsync();
     /// </code>
     /// </remarks>
     /// <example>
@@ -295,7 +312,7 @@ public static class EntityConfigurationExtensions
         builder.Property(e => e.DeletedBy)
             .HasMaxLength(256);
 
-        builder.HasQueryFilter(e => !e.IsDeleted);
+        builder.HasQueryFilter(SoftDeleteQueryFilterKey, (T e) => !e.IsDeleted);
 
         return builder;
     }
@@ -525,7 +542,7 @@ public static class EntityConfigurationExtensions
             var notDeleted = System.Linq.Expressions.Expression.Not(property);
             var lambda = System.Linq.Expressions.Expression.Lambda<Func<T, bool>>(notDeleted, parameter);
 
-            builder.HasQueryFilter(lambda);
+            builder.HasQueryFilter(SoftDeleteQueryFilterKey, lambda);
         }
     }
 
@@ -536,16 +553,17 @@ public static class EntityConfigurationExtensions
     /// <returns>The model builder for chaining.</returns>
     /// <remarks>
     /// <para>
-    /// This method scans all entity types in the model and applies a global query filter
-    /// (<c>HasQueryFilter(e =&gt; !e.IsDeleted)</c>) to those implementing <see cref="ISoftDeletable"/>.
+    /// This method scans all entity types in the model and applies a named global query filter
+    /// (key <c>"Encina.SoftDelete"</c>) to those implementing <see cref="ISoftDeletable"/>, so it
+    /// coexists with other named filters (such as the tenant isolation filter) on the same entity.
     /// </para>
     /// <para>
     /// <b>Usage</b>: Call this method in your <c>OnModelCreating</c> override after all entities
     /// are configured, or use it in combination with <c>ApplyConfigurationsFromAssembly</c>.
     /// </para>
     /// <para>
-    /// <b>Note</b>: If you need to include soft-deleted entities in a query, use
-    /// <c>IgnoreQueryFilters()</c> on the query.
+    /// <b>Note</b>: If you need to include soft-deleted entities in a query without also bypassing
+    /// other named filters, use <c>IgnoreQueryFilters(["Encina.SoftDelete"])</c> on the query.
     /// </para>
     /// </remarks>
     /// <example>
@@ -669,7 +687,7 @@ public static class EntityConfigurationExtensions
     private static void ApplySoftDeleteQueryFilterInternal<T>(ModelBuilder modelBuilder)
         where T : class, ISoftDeletable
     {
-        modelBuilder.Entity<T>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<T>().HasQueryFilter(SoftDeleteQueryFilterKey, (T e) => !e.IsDeleted);
     }
 
     /// <summary>
@@ -746,7 +764,7 @@ public static class EntityConfigurationExtensions
         builder.Property(e => e.DeletedBy)
             .HasMaxLength(256);
 
-        builder.HasQueryFilter(e => !e.IsDeleted);
+        builder.HasQueryFilter(SoftDeleteQueryFilterKey, (T e) => !e.IsDeleted);
 
         return builder;
     }

@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -35,11 +35,7 @@ public sealed class SchedulerOrchestrator
     private readonly IScheduledMessageRetryPolicy _retryPolicy;
     private readonly ICronParser? _cronParser;
     private readonly TimeProvider _timeProvider;
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SchedulerOrchestrator"/> class.
@@ -54,13 +50,17 @@ public sealed class SchedulerOrchestrator
     /// <see cref="ExponentialBackoffRetryPolicy"/>; users can swap in their own
     /// implementation by registering it before <c>AddEncina*()</c>.
     /// </param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist the scheduled request payload, so that
+    /// decorators such as <c>EncryptingMessageSerializer</c> apply to it too.
+    /// </param>
     /// <param name="cronParser">Optional cron parser for recurring messages.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any required dependency (<paramref name="store"/>,
     /// <paramref name="options"/>, <paramref name="logger"/>,
-    /// <paramref name="messageFactory"/>, or <paramref name="retryPolicy"/>) is
-    /// <see langword="null"/>.
+    /// <paramref name="messageFactory"/>, <paramref name="retryPolicy"/>, or
+    /// <paramref name="messageSerializer"/>) is <see langword="null"/>.
     /// </exception>
     public SchedulerOrchestrator(
         IScheduledMessageStore store,
@@ -68,6 +68,7 @@ public sealed class SchedulerOrchestrator
         ILogger<SchedulerOrchestrator> logger,
         IScheduledMessageFactory messageFactory,
         IScheduledMessageRetryPolicy retryPolicy,
+        IMessageSerializer messageSerializer,
         ICronParser? cronParser = null,
         TimeProvider? timeProvider = null)
     {
@@ -76,12 +77,14 @@ public sealed class SchedulerOrchestrator
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(retryPolicy);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _options = options;
         _logger = logger;
         _messageFactory = messageFactory;
         _retryPolicy = retryPolicy;
+        _messageSerializer = messageSerializer;
         _cronParser = cronParser;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -113,7 +116,7 @@ public sealed class SchedulerOrchestrator
             ?? typeof(TRequest).FullName
             ?? typeof(TRequest).Name;
 
-        var content = JsonSerializer.Serialize(request, JsonOptions);
+        var content = _messageSerializer.Serialize(request);
 
         var message = _messageFactory.Create(
             Guid.NewGuid(),
@@ -198,7 +201,7 @@ public sealed class SchedulerOrchestrator
                     ?? typeof(TRequest).FullName
                     ?? typeof(TRequest).Name;
 
-                var content = JsonSerializer.Serialize(request, JsonOptions);
+                var content = _messageSerializer.Serialize(request);
 
                 var message = _messageFactory.Create(
                     Guid.NewGuid(),
@@ -313,7 +316,7 @@ public sealed class SchedulerOrchestrator
                     continue;
                 }
 
-                var request = JsonSerializer.Deserialize(message.Content, requestType, JsonOptions);
+                var request = _messageSerializer.Deserialize(message.Content, requestType);
                 if (request == null)
                 {
                     Log.DeserializationFailed(_logger, message.Id, message.RequestType);
@@ -326,8 +329,10 @@ public sealed class SchedulerOrchestrator
                 {
                     var error = dispatchResult.LeftToArray()[0];
                     var errorCode = error.GetCode().IfNone("unknown");
-                    Log.DispatchFailed(_logger, message.Id, errorCode, error.Message);
-                    await MarkAsFailedAsync(message, error.Message, cancellationToken).ConfigureAwait(false);
+                    // EncinaError.Message can carry personal data (e.g. a data-subject id), so only
+                    // the error code is logged and stored (#1259 review).
+                    Log.DispatchFailed(_logger, message.Id, errorCode);
+                    await MarkAsFailedAsync(message, errorCode, cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
@@ -340,7 +345,7 @@ public sealed class SchedulerOrchestrator
                     var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
                     if (markResult.IsLeft)
                     {
-                        Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].Message);
+                        Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].GetCode().IfNone("unknown"));
                     }
                 }
 
@@ -358,7 +363,8 @@ public sealed class SchedulerOrchestrator
                 // Safety net for true bugs (handler crashes, AVE, etc.).
                 // Real failures use the Either path above.
                 Log.ExecutionFailed(_logger, ex, message.Id);
-                await MarkAsFailedAsync(message, ex.Message, cancellationToken).ConfigureAwait(false);
+                // The exception message may carry personal data; store only the exception type.
+                await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -386,7 +392,7 @@ public sealed class SchedulerOrchestrator
         {
             var result = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
             if (result.IsLeft)
-                Log.StoreMarkAsFailedError(_logger, message.Id, result.LeftToArray()[0].Message);
+                Log.StoreMarkAsFailedError(_logger, message.Id, result.LeftToArray()[0].GetCode().IfNone("unknown"));
             return;
         }
 
@@ -397,7 +403,7 @@ public sealed class SchedulerOrchestrator
             {
                 var rescheduleResult = await _store.RescheduleRecurringMessageAsync(message.Id, nextExecution, cancellationToken).ConfigureAwait(false);
                 if (rescheduleResult.IsLeft)
-                    Log.StoreMarkAsFailedError(_logger, message.Id, rescheduleResult.LeftToArray()[0].Message);
+                    Log.StoreMarkAsFailedError(_logger, message.Id, rescheduleResult.LeftToArray()[0].GetCode().IfNone("unknown"));
                 else
                     Log.RecurringMessageRescheduled(_logger, message.Id, nextExecution);
                 return Unit.Default;
@@ -406,7 +412,7 @@ public sealed class SchedulerOrchestrator
             {
                 var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
                 if (markResult.IsLeft)
-                    Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].Message);
+                    Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].GetCode().IfNone("unknown"));
                 else
                     Log.RecurringMessageEnded(_logger, message.Id);
                 return Unit.Default;
@@ -420,7 +426,7 @@ public sealed class SchedulerOrchestrator
         if (storeResult.IsLeft)
         {
             var storeError = storeResult.LeftToArray()[0];
-            Log.StoreMarkAsFailedError(_logger, message.Id, storeError.Message);
+            Log.StoreMarkAsFailedError(_logger, message.Id, storeError.GetCode().IfNone("unknown"));
         }
     }
 }
@@ -591,12 +597,12 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2940,
         Level = LogLevel.Warning,
-        Message = "Dispatch returned failure for message {MessageId}: [{ErrorCode}] {ErrorMessage}")]
-    public static partial void DispatchFailed(ILogger logger, Guid messageId, string errorCode, string errorMessage);
+        Message = "Dispatch returned failure for message {MessageId} with error code {ErrorCode}")]
+    public static partial void DispatchFailed(ILogger logger, Guid messageId, string errorCode);
 
     [LoggerMessage(
         EventId = 2941,
         Level = LogLevel.Error,
-        Message = "Failed to update store for message {MessageId} after dispatch failure: {StoreErrorMessage}")]
-    public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorMessage);
+        Message = "Failed to update store for message {MessageId} after dispatch failure: error code {StoreErrorCode}")]
+    public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorCode);
 }

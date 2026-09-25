@@ -167,15 +167,20 @@ public static partial class MessagingLog
         string notificationType);
 
     /// <summary>Logs when an outbox message fails to process and a retry is scheduled.</summary>
+    /// <remarks>
+    /// <paramref name="failureReason"/> is the <see cref="EncinaError"/> code, the exception type, or a
+    /// fixed description (unknown type, undeserializable payload); never <c>EncinaError.Message</c>,
+    /// which can carry personal data.
+    /// </remarks>
     [LoggerMessage(
         EventId = 2832,
         Level = LogLevel.Warning,
-        Message = "Failed to process outbox message {MessageId}: {ErrorMessage}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
+        Message = "Failed to process outbox message {MessageId}: {FailureReason}. Retry {RetryCount}/{MaxRetries}. Next retry at {NextRetry}")]
     public static partial void FailedToProcessOutboxMessage(
         ILogger logger,
         Exception? exception,
         Guid messageId,
-        string errorMessage,
+        string failureReason,
         int retryCount,
         int maxRetries,
         DateTime? nextRetry);
@@ -232,11 +237,14 @@ public static partial class MessagingLog
     /// <summary>
     /// Logs when a failure uses up the retries of an outbox message, so it will not be fetched again.
     /// </summary>
-    /// <remarks>The <paramref name="errorCode"/> is <c>outbox.max_retries_exceeded</c>.</remarks>
+    /// <remarks>
+    /// The <paramref name="errorCode"/> is <c>outbox.max_retries_exceeded</c>; <paramref name="lastFailureReason"/>
+    /// is the last failure's error code, exception type or fixed description, never <c>EncinaError.Message</c>.
+    /// </remarks>
     [LoggerMessage(
         EventId = 2958,
         Level = LogLevel.Error,
-        Message = "Outbox message {MessageId} of type {NotificationType} failed {RetryCount} times and will not be retried ({ErrorCode}). Last error: {ErrorMessage}")]
+        Message = "Outbox message {MessageId} of type {NotificationType} failed {RetryCount} times and will not be retried ({ErrorCode}). Last failure: {LastFailureReason}")]
     public static partial void OutboxMessageRetriesExhausted(
         ILogger logger,
         Exception? exception,
@@ -244,7 +252,7 @@ public static partial class MessagingLog
         string notificationType,
         int retryCount,
         string errorCode,
-        string errorMessage);
+        string lastFailureReason);
 
     // =========================================================================
     // Outbox requeue of exhausted messages (EventId 2959)
@@ -277,11 +285,11 @@ public static partial class MessagingLog
     [LoggerMessage(
         EventId = 2960,
         Level = LogLevel.Error,
-        Message = "Failed to save the outcomes of {MessageCount} outbox messages; they will be delivered again ({ErrorMessage})")]
+        Message = "Failed to save the outcomes of {MessageCount} outbox messages; they will be delivered again (error code {ErrorCode})")]
     public static partial void OutboxBatchSaveFailed(
         ILogger logger,
         int messageCount,
-        string errorMessage);
+        string errorCode);
 
     /// <summary>
     /// Logs when the outbox store fails to record the outcome of one message.
@@ -290,12 +298,12 @@ public static partial class MessagingLog
     [LoggerMessage(
         EventId = 2961,
         Level = LogLevel.Error,
-        Message = "Outbox store failed to record {Operation} for message {MessageId}: {ErrorMessage}")]
+        Message = "Outbox store failed to record {Operation} for message {MessageId}: error code {ErrorCode}")]
     public static partial void OutboxMessageOutcomeNotRecorded(
         ILogger logger,
         string operation,
         Guid messageId,
-        string errorMessage);
+        string errorCode);
 
     /// <summary>
     /// Logs when cancellation stops an outbox batch; the interrupted message keeps its retry budget.

@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace Encina.UnitTests.EntityFrameworkCore.SoftDelete;
@@ -27,8 +28,8 @@ public class SoftDeleteTestDbContext : DbContext
             entity.Property(e => e.ModifiedBy).HasMaxLength(200);
             entity.Property(e => e.DeletedBy).HasMaxLength(200);
 
-            // Apply global query filter for soft delete
-            entity.HasQueryFilter(e => !e.IsDeleted);
+            // Apply named global query filter for soft delete (matches production configuration)
+            entity.HasQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey, (TestSoftDeletableOrder e) => !e.IsDeleted);
         });
 
         modelBuilder.Entity<TestSoftDeletableOrderEntity>(entity =>
@@ -41,8 +42,8 @@ public class SoftDeleteTestDbContext : DbContext
             entity.Property(e => e.ModifiedBy).HasMaxLength(200);
             entity.Property(e => e.DeletedBy).HasMaxLength(200);
 
-            // Apply global query filter for soft delete
-            entity.HasQueryFilter(e => !e.IsDeleted);
+            // Apply named global query filter for soft delete (matches production configuration)
+            entity.HasQueryFilter(EntityConfigurationExtensions.SoftDeleteQueryFilterKey, (TestSoftDeletableOrderEntity e) => !e.IsDeleted);
         });
     }
 }

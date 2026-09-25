@@ -1,5 +1,6 @@
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Sagas.LowCeremony;
+using Encina.Messaging.Serialization;
 
 using LanguageExt;
 
@@ -481,7 +482,7 @@ public sealed class SagaRunnerTests
         sagaStore.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(LanguageExt.Unit.Default));
 
-        return new SagaOrchestrator(sagaStore, options, logger, stateFactory);
+        return new SagaOrchestrator(sagaStore, options, logger, stateFactory, new JsonMessageSerializer());
     }
 
     private static SagaRunner CreateRunner()

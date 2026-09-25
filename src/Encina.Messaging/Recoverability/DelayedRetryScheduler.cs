@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -18,6 +19,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     private readonly IDelayedRetryMessageFactory _messageFactory;
     private readonly ILogger<DelayedRetryScheduler> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IMessageSerializer _messageSerializer;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -30,20 +32,30 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
     /// <param name="store">The delayed retry store.</param>
     /// <param name="messageFactory">The message factory.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer used to persist the retried request payload, so that decorators
+    /// such as <c>EncryptingMessageSerializer</c> apply to it too. Only the request payload
+    /// goes through this serializer; the recoverability context metadata (identifiers, retry
+    /// counters, request type name and the last error's code) is stored as plain JSON. It never
+    /// contains <c>EncinaError.Message</c>, which can carry personal data.
+    /// </param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
     public DelayedRetryScheduler(
         IDelayedRetryStore store,
         IDelayedRetryMessageFactory messageFactory,
         ILogger<DelayedRetryScheduler> logger,
+        IMessageSerializer messageSerializer,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(messageFactory);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _store = store;
         _messageFactory = messageFactory;
         _logger = logger;
+        _messageSerializer = messageSerializer;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -63,7 +75,7 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             ?? typeof(TRequest).FullName
             ?? typeof(TRequest).Name;
 
-        var requestContent = JsonSerializer.Serialize(request, JsonOptions);
+        var requestContent = _messageSerializer.Serialize(request);
         var contextContent = SerializeContext(context);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -121,7 +133,9 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
             CorrelationId = context.CorrelationId,
             IdempotencyKey = context.IdempotencyKey,
             RequestTypeName = context.RequestTypeName,
-            LastErrorMessage = context.LastError?.Message
+            // Only the error code: EncinaError.Message can carry personal data, and this
+            // metadata is stored as plain JSON (#1259 review).
+            LastErrorCode = context.LastError is { } lastError ? lastError.GetCode().IfNone("encina.unknown") : null
         };
 
         return JsonSerializer.Serialize(serializableContext, JsonOptions);
@@ -140,7 +154,7 @@ internal sealed class SerializableRecoverabilityContext
     public string? CorrelationId { get; set; }
     public string? IdempotencyKey { get; set; }
     public string? RequestTypeName { get; set; }
-    public string? LastErrorMessage { get; set; }
+    public string? LastErrorCode { get; set; }
 }
 
 /// <summary>

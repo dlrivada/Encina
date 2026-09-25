@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -23,6 +24,12 @@ namespace Encina.Cdc.Messaging;
 /// Encina's standard notification pipeline.
 /// </para>
 /// <para>
+/// The content is read through the registered <see cref="IMessageSerializer"/>, the same
+/// abstraction the outbox writers (<c>OutboxPostProcessor</c>, <c>OutboxOrchestrator</c>) use,
+/// so a payload encrypted by <c>EncryptingMessageSerializer</c> is decrypted before it is
+/// deserialized (#1168).
+/// </para>
+/// <para>
 /// Already-processed messages (where <c>ProcessedAtUtc</c> is set) are skipped
 /// to avoid duplicate publishing when used alongside a traditional <c>OutboxProcessor</c>.
 /// </para>
@@ -31,27 +38,29 @@ internal sealed class OutboxCdcHandler : IChangeEventHandler<JsonElement>
 {
     private readonly IEncina _encina;
     private readonly ILogger<OutboxCdcHandler> _logger;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+    private readonly IMessageSerializer _messageSerializer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OutboxCdcHandler"/> class.
     /// </summary>
     /// <param name="encina">The Encina coordinator for publishing notifications.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="messageSerializer">
+    /// The message serializer that wrote the outbox content; used to decrypt it (when it was
+    /// written encrypted) and deserialize it.
+    /// </param>
     public OutboxCdcHandler(
         IEncina encina,
-        ILogger<OutboxCdcHandler> logger)
+        ILogger<OutboxCdcHandler> logger,
+        IMessageSerializer messageSerializer)
     {
         ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(messageSerializer);
 
         _encina = encina;
         _logger = logger;
+        _messageSerializer = messageSerializer;
     }
 
     /// <inheritdoc />
@@ -122,13 +131,15 @@ internal sealed class OutboxCdcHandler : IChangeEventHandler<JsonElement>
                 new InvalidOperationException($"Unknown notification type: {notificationType}")));
         }
 
-        // Deserialize the notification
+        // Deserialize the notification through the serializer that wrote it, decrypting it
+        // first when it was written encrypted. A decryption failure surfaces as
+        // InvalidOperationException from EncryptingMessageSerializer.
         object? notification;
         try
         {
-            notification = JsonSerializer.Deserialize(content, type, JsonOptions);
+            notification = _messageSerializer.Deserialize(content, type);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
         {
             CdcMessagingLog.OutboxCdcDeserializationFailed(_logger, notificationType);
             return Left(CdcErrors.DeserializationFailed(context.TableName, type, ex));

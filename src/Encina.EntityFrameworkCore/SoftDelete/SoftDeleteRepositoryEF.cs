@@ -1,4 +1,5 @@
 using Encina.DomainModeling;
+using Encina.EntityFrameworkCore.Configuration;
 using Encina.EntityFrameworkCore.Repository;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
@@ -278,7 +279,7 @@ public sealed class SoftDeleteRepositoryEF<TEntity, TId> : ISoftDeleteRepository
         try
         {
             var query = SpecificationEvaluator.GetQuery(
-                _dbSet.IgnoreQueryFilters().AsQueryable(),
+                _dbSet.IgnoreQueryFilters([EntityConfigurationExtensions.SoftDeleteQueryFilterKey]).AsQueryable(),
                 specification);
 
             var entities = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -300,7 +301,7 @@ public sealed class SoftDeleteRepositoryEF<TEntity, TId> : ISoftDeleteRepository
         try
         {
             var entity = await _dbSet
-                .IgnoreQueryFilters()
+                .IgnoreQueryFilters([EntityConfigurationExtensions.SoftDeleteQueryFilterKey])
                 .FirstOrDefaultAsync(e => EF.Property<TId>(e, "Id")!.Equals(id), cancellationToken)
                 .ConfigureAwait(false);
 
@@ -328,7 +329,7 @@ public sealed class SoftDeleteRepositoryEF<TEntity, TId> : ISoftDeleteRepository
         {
             // First, get the entity including soft-deleted
             var entity = await _dbSet
-                .IgnoreQueryFilters()
+                .IgnoreQueryFilters([EntityConfigurationExtensions.SoftDeleteQueryFilterKey])
                 .FirstOrDefaultAsync(e => EF.Property<TId>(e, "Id")!.Equals(id), cancellationToken)
                 .ConfigureAwait(false);
 
@@ -389,7 +390,7 @@ public sealed class SoftDeleteRepositoryEF<TEntity, TId> : ISoftDeleteRepository
         {
             // Get the entity including soft-deleted ones
             var entity = await _dbSet
-                .IgnoreQueryFilters()
+                .IgnoreQueryFilters([EntityConfigurationExtensions.SoftDeleteQueryFilterKey])
                 .FirstOrDefaultAsync(e => EF.Property<TId>(e, "Id")!.Equals(id), cancellationToken)
                 .ConfigureAwait(false);
 
@@ -401,7 +402,7 @@ public sealed class SoftDeleteRepositoryEF<TEntity, TId> : ISoftDeleteRepository
 
             // Use ExecuteDelete to bypass the SoftDeleteInterceptor
             var deletedCount = await _dbSet
-                .IgnoreQueryFilters()
+                .IgnoreQueryFilters([EntityConfigurationExtensions.SoftDeleteQueryFilterKey])
                 .Where(e => EF.Property<TId>(e, "Id")!.Equals(id))
                 .ExecuteDeleteAsync(cancellationToken)
                 .ConfigureAwait(false);

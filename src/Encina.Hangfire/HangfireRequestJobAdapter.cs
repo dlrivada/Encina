@@ -59,17 +59,69 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
     }
 
     /// <summary>
-    /// Executes the request through the Encina as a Hangfire job.
+    /// Executes the request through Encina as a Hangfire job, without persisting the
+    /// handler's response in Hangfire storage.
     /// </summary>
     /// <param name="request">The request to execute.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The handler's response. Hangfire stores it as the job result.</returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// This is the default entry point used by <c>EnqueueRequest</c>, <c>ScheduleRequestWithDelay</c>
+    /// and <c>ScheduleRequestAt</c>. Hangfire serializes and stores whatever a job method returns
+    /// alongside the job in its own storage (outside Encina's retention, erasure and encryption
+    /// controls), so the response is deliberately discarded here. Use
+    /// <see cref="ExecuteAndReturnResultAsync"/> to opt in to persisting the response when the
+    /// application explicitly needs it and the response is known not to carry personal or
+    /// sensitive data (#1173).
+    /// </remarks>
     /// <exception cref="OperationCanceledException">The job was cancelled through <paramref name="cancellationToken"/>.</exception>
     /// <exception cref="EncinaJobPermanentFailureException">The handler failed with a permanent error.</exception>
     /// <exception cref="EncinaJobFailedException">The handler failed with a transient or unclassified error.</exception>
-    public async Task<TResponse> ExecuteAsync(
+    public async Task ExecuteAsync(
         TRequest request,
         CancellationToken cancellationToken = default)
+    {
+        await ExecuteCoreAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Executes the request through Encina as a Hangfire job and returns the response, which
+    /// Hangfire will persist alongside the job in its own storage.
+    /// </summary>
+    /// <param name="request">The request to execute.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The handler's response.</returns>
+    /// <remarks>
+    /// <para>
+    /// <strong>Opt-in only.</strong> Hangfire stores whatever this method returns in its job
+    /// storage, outside Encina's retention, erasure and encryption controls. Only enqueue a job
+    /// through this method when <typeparamref name="TResponse"/> is known not to carry personal
+    /// or health data. For requests whose response may contain personal data, use
+    /// <see cref="ExecuteAsync"/> instead (the default used by <c>EnqueueRequest</c>) and read
+    /// the outcome through Encina's own stores (outbox, audit trail) rather than Hangfire's job
+    /// result.
+    /// </para>
+    /// <para>
+    /// Failures are reported exactly like <see cref="ExecuteAsync"/>: an
+    /// <see cref="OperationCanceledException"/> for a cancelled job, <see cref="EncinaJobPermanentFailureException"/>
+    /// for a permanent failure, and <see cref="EncinaJobFailedException"/> otherwise. The exception
+    /// message never carries <see cref="EncinaError.Message"/>, so only the response type on the
+    /// success path needs to be checked for personal data.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">The job was cancelled through <paramref name="cancellationToken"/>.</exception>
+    /// <exception cref="EncinaJobPermanentFailureException">The handler failed with a permanent error.</exception>
+    /// <exception cref="EncinaJobFailedException">The handler failed with a transient or unclassified error.</exception>
+    public async Task<TResponse> ExecuteAndReturnResultAsync(
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteCoreAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<TResponse> ExecuteCoreAsync(
+        TRequest request,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -108,7 +160,7 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         }
 
         var classification = JobFailure.Classify(error, _errorClassifier);
-        Log.RequestJobFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"), classification.ToString(), error.Message);
+        Log.RequestJobFailed(_logger, requestType, error.GetCode().IfNone("encina.unknown"), classification.ToString());
         return JobFailure.Failed(error, classification);
     }
 }

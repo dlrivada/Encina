@@ -82,11 +82,82 @@ public sealed class EncinaTests
                  && Equals(a.GetTagItem("Encina.request_type"), typeof(MissingHandlerRequest).FullName));
 
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
+        activity.StatusDescription.ShouldNotBe(error.Message);
         activity.GetTagItem("Encina.request_type").ShouldBe(typeof(MissingHandlerRequest).FullName);
         activity.GetTagItem("Encina.request_name").ShouldBe(nameof(MissingHandlerRequest));
         activity.GetTagItem("Encina.request_kind").ShouldBe("request");
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
+    }
+
+    [Fact]
+    public async Task Send_WithFailureContainingPersonalData_NeverExposesTheMessageOnTheActivity()
+    {
+        using var activityCollector = new ActivityCollector();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.AddScoped<IRequestHandler<PersonalDataFailureRequest, string>, PersonalDataFailureRequestHandler>();
+
+        await using var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+
+        await Encina.Send(new PersonalDataFailureRequest(), CancellationToken.None);
+
+        var activities = activityCollector.Activities
+            .Where(a => a.DisplayName == "Encina.Send"
+                        && Equals(a.GetTagItem("Encina.request_type"), typeof(PersonalDataFailureRequest).FullName))
+            .ToList();
+        activities.ShouldNotBeEmpty();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(PersonalDataFailureRequestHandler.PersonalData);
+            foreach (var tag in activity.Tags)
+            {
+                tag.Value.ShouldNotBe(PersonalDataFailureRequestHandler.PersonalData);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Send_WithValidationFailureEchoingSubmittedValue_NeverExposesItInLogsOrActivity()
+    {
+        // Mirrors ValidationOrchestrator.ValidateAsync (line ~70-71): on an invalid request it builds
+        // EncinaError.New(errorMessage), and that message conventionally echoes the submitted value
+        // (e.g. "'juan@example.com' is not a valid email"). Neither the logged entry nor the Activity
+        // status description may contain that value (#1319).
+        using var activityCollector = new ActivityCollector();
+        var loggerCollector = new LoggerCollector();
+        var services = new ServiceCollection();
+        services.AddApplicationMessaging(typeof(EchoRequest).Assembly);
+        services.AddScoped<IRequestHandler<ValidationFailureRequest, string>, ValidationFailureRequestHandler>();
+        services.AddSingleton(loggerCollector);
+        services.AddSingleton<ILogger<Encina>>(sp => new ListLogger<Encina>(sp.GetRequiredService<LoggerCollector>()));
+
+        await using var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+
+        await Encina.Send(new ValidationFailureRequest(), CancellationToken.None);
+
+        loggerCollector.Entries.ShouldNotBeEmpty();
+        foreach (var entry in loggerCollector.Entries)
+        {
+            entry.Message.ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            (entry.Exception?.Message ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+        }
+
+        var activities = activityCollector.Activities
+            .Where(a => a.DisplayName == "Encina.Send"
+                        && Equals(a.GetTagItem("Encina.request_type"), typeof(ValidationFailureRequest).FullName))
+            .ToList();
+        activities.ShouldNotBeEmpty();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            foreach (var tag in activity.Tags)
+            {
+                (tag.Value?.ToString() ?? string.Empty).ShouldNotContain(ValidationFailureRequestHandler.SubmittedValue);
+            }
+        }
     }
 
     [Fact]
@@ -362,7 +433,7 @@ public sealed class EncinaTests
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
         failureEntry.Message.Contains("The EchoRequest request failed (Encina.failure)").ShouldBeTrue();
-        failureEntry.Message.Contains("the operation failed").ShouldBeTrue();
+        failureEntry.Message.Contains("the operation failed").ShouldBeFalse();
         failureEntry.Exception.ShouldNotBeNull();
         ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
@@ -393,10 +464,13 @@ public sealed class EncinaTests
 
         var failureEntry = loggerCollector.Entries.Single(entry => entry.LogLevel == LogLevel.Error);
         failureEntry.Message.ShouldContain("The EchoRequest request failed (Encina.failure)");
-        failureEntry.Exception.ShouldNotBeNull();
-        failureEntry.Exception!.GetType().Name.ShouldBe("EncinaException");
-        failureEntry.Exception.InnerException.ShouldBeNull();
+        // The internal EncinaException carrier that EncinaErrors.Create uses to hold the code and
+        // details has a Message that IS the error message, which may carry personal data (#1319).
+        // It must never be logged as the exception object: GetCause() filters it out, so a
+        // code-only error logs with no exception at all.
+        failureEntry.Exception.ShouldBeNull();
         error.Exception.IsSome.ShouldBeTrue();
+        error.GetCause().IsNone.ShouldBeTrue();
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
     }
 
@@ -642,7 +716,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeTrue();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -670,7 +744,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBe(1);
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -743,7 +817,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification)));
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -776,7 +850,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeFalse();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -806,7 +880,7 @@ public sealed class EncinaTests
             && entry.Message.Contains(nameof(AccidentalCancellationNotification))).ShouldBeFalse();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");
         activity.Status.ShouldBe(ActivityStatusCode.Error);
-        activity.StatusDescription.ShouldBe(error.Message);
+        activity.StatusDescription.ShouldBe(error.GetEncinaCode());
         activity.GetTagItem("Encina.failure_reason").ShouldBe(error.GetEncinaCode());
     }
 
@@ -1745,6 +1819,29 @@ public sealed class EncinaTests
     }
 
     private sealed record MissingHandlerRequest : IRequest<int>;
+
+    private sealed record PersonalDataFailureRequest : IRequest<string>;
+
+    private sealed class PersonalDataFailureRequestHandler : IRequestHandler<PersonalDataFailureRequest, string>
+    {
+        public const string PersonalData = "user@example.com must not leave the process";
+
+        public Task<Either<EncinaError, string>> Handle(PersonalDataFailureRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("test.personal_data_failure", PersonalData)));
+    }
+
+    private sealed record ValidationFailureRequest : IRequest<string>;
+
+    private sealed class ValidationFailureRequestHandler : IRequestHandler<ValidationFailureRequest, string>
+    {
+        public const string SubmittedValue = "juan@example.com";
+
+        // Same construction ValidationOrchestrator.ValidateAsync uses on an invalid request:
+        // EncinaError.New(errorMessage), with no code and no exception, where the message echoes
+        // the submitted value.
+        public Task<Either<EncinaError, string>> Handle(ValidationFailureRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(Left<EncinaError, string>(EncinaError.New($"'{SubmittedValue}' is not a valid email")));
+    }
 
     private sealed record AsyncRequest(string Value) : IRequest<string>;
 

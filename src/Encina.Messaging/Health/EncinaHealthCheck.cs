@@ -84,7 +84,12 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy($"Health check failed: {ex.Message}", ex);
+            // Only the exception type travels: ex.Message may carry personal data (e.g. an
+            // identifier embedded by a store or handler), and the exception itself is not
+            // attached either, since IEncinaHealthCheckAdapter propagates it unchanged to
+            // Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult, outside this
+            // library's control over what a downstream writer or logger does with it (#1259 review).
+            return HealthCheckResult.Unhealthy($"Health check failed: {ex.GetType().FullName}");
         }
     }
 

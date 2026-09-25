@@ -117,10 +117,14 @@ public class OutboxHealthCheck : EncinaHealthCheck
         return count >= warningThreshold ? HealthStatus.Degraded : HealthStatus.Healthy;
     }
 
+    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
     private static HealthCheckResult StoreFailure(EncinaError error)
-        => HealthCheckResult.Unhealthy(
-            $"Failed to query outbox store: {error.Message}",
-            data: new Dictionary<string, object> { ["error"] = error.Message });
+    {
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        return HealthCheckResult.Unhealthy(
+            $"Failed to query outbox store: {errorCode}",
+            data: new Dictionary<string, object> { ["error"] = errorCode });
+    }
 }
 
 /// <summary>

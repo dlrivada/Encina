@@ -113,7 +113,7 @@ internal sealed class ShadowShardRouterDecorator : IShadowShardRouter
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, ex.Message);
+            ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, ex.GetType().Name, ex);
             return Task.FromResult(
                 Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
@@ -136,7 +136,7 @@ internal sealed class ShadowShardRouterDecorator : IShadowShardRouter
         catch (Exception ex)
         {
             var keyString = key.ToString();
-            ShadowShardingLog.ShadowRoutingFailed(_logger, keyString, ex.Message);
+            ShadowShardingLog.ShadowRoutingFailed(_logger, keyString, ex.GetType().Name, ex);
             return Task.FromResult(
                 Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
@@ -170,13 +170,13 @@ internal sealed class ShadowShardRouterDecorator : IShadowShardRouter
                 Right: id => id,
                 Left: error =>
                 {
-                    ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, error.Message);
+                    ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, error.GetEncinaCode(), null);
                     return string.Empty;
                 });
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, ex.Message);
+            ShadowShardingLog.ShadowRoutingFailed(_logger, shardKey, ex.GetType().Name, ex);
             shadowShardId = string.Empty;
             shadowLatency = TimeSpan.Zero;
         }

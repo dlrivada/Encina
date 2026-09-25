@@ -68,9 +68,10 @@ internal static class ReferenceTableDiagnostics
     }
 
     /// <summary>
-    /// Completes an activity span with success or error status.
+    /// Completes an activity span with success or error status. <paramref name="errorCode"/> must never
+    /// be an <c>EncinaError.Message</c> or an exception message, as it can carry personal data (#1319).
     /// </summary>
-    internal static void Complete(Activity? activity, bool success, string? errorMessage = null)
+    internal static void Complete(Activity? activity, bool success, string? errorCode = null)
     {
         if (activity is null)
         {
@@ -79,7 +80,7 @@ internal static class ReferenceTableDiagnostics
 
         activity.SetStatus(
             success ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
-            errorMessage);
+            errorCode);
 
         activity.Dispose();
     }

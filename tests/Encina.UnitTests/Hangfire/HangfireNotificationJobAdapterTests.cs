@@ -100,6 +100,54 @@ public class HangfireNotificationJobAdapterTests
     }
 
     [Fact]
+    public async Task PublishAsync_OnFailure_LogsErrorCodeAndClassificationButNotErrorMessage()
+    {
+        // Arrange: the failure message may carry personal data (a data-subject id from a
+        // compliance module); the log line carries only the code and the classification (#1173).
+        var notification = new TestNotificationFaker().WithMessage("test-message").Generate();
+        var error = EncinaErrors.Create("consent.missing", "No consent for subject 'patient-123'");
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mocking pattern
+        _encina.Publish(Arg.Any<TestNotificationData>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
+#pragma warning restore CA2012
+
+        // Act
+        await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => _adapter.PublishAsync(notification));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot()
+            .SingleOrDefault(r => r.Id.Id == 4007);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Level.ShouldBe(LogLevel.Error);
+        logEntry.Message.ShouldContain("consent.missing");
+        logEntry.Message.ShouldContain("Permanent");
+        logEntry.Message.ShouldNotContain("patient-123");
+        logEntry.Message.ShouldNotContain("No consent for subject");
+    }
+
+    [Fact]
+    public async Task PublishAsync_OnTransientFailure_LogsTransientClassification()
+    {
+        // Arrange
+        var notification = new TestNotificationFaker().WithMessage("test-message").Generate();
+        var error = EncinaErrors.Create("store.timeout", "Timed out writing record for 'patient-123'");
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mocking pattern
+        _encina.Publish(Arg.Any<TestNotificationData>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
+#pragma warning restore CA2012
+
+        // Act
+        await Should.ThrowAsync<EncinaJobFailedException>(() => _adapter.PublishAsync(notification));
+
+        // Assert
+        var logEntry = _logger.Collector.GetSnapshot().SingleOrDefault(r => r.Id.Id == 4007);
+        logEntry.ShouldNotBeNull();
+        logEntry!.Message.ShouldContain("store.timeout");
+        logEntry.Message.ShouldContain("Transient");
+        logEntry.Message.ShouldNotContain("patient-123");
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenExceptionThrown_LogsAndRethrows()
     {
         // Arrange

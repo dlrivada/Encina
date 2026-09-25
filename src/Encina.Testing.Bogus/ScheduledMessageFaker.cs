@@ -238,5 +238,5 @@ public sealed class FakeScheduledMessage : IScheduledMessage
     public bool IsDue(DateTime asOf) => asOf >= ScheduledAtUtc && !IsProcessed;
 
     /// <inheritdoc/>
-    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries;
+    public bool IsDeadLettered(int maxRetries) => RetryCount >= maxRetries && !IsProcessed;
 }

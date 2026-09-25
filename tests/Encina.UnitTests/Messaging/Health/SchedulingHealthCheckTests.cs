@@ -26,7 +26,7 @@ public sealed class SchedulingHealthCheckTests
     [Fact]
     public async Task CheckHealthAsync_WhenStoreReturnsError_ReturnsUnhealthy()
     {
-        var error = EncinaError.New("Store failure");
+        var error = EncinaError.New("No consent recorded for subject patient-123");
         _store.GetDueMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Either<EncinaError, IEnumerable<IScheduledMessage>>.Left(error));
 
@@ -34,7 +34,10 @@ public sealed class SchedulingHealthCheckTests
         var result = await sut.CheckHealthAsync(CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("Store failure");
+
+        // Only the error code travels: EncinaError.Message can carry personal data (#1259 review).
+        result.Description!.ShouldNotContain("patient-123");
+        result.Data["error"].ShouldNotBe("No consent recorded for subject patient-123");
     }
 
     [Fact]

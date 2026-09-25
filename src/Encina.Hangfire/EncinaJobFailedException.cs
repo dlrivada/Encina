@@ -15,11 +15,14 @@ namespace Encina.Hangfire;
 /// (<c>Encina.Quartz</c>) applies the same semantics with Quartz's <c>JobExecutionException</c>.
 /// </para>
 /// <para>
-/// Hangfire persists the exception type, message and details of every failed attempt in its storage.
-/// The <see cref="Exception.Message"/> therefore contains only the error code and a generic text, never
+/// Hangfire persists the exception type, message and details (including the full
+/// <see cref="Exception.InnerException"/> chain) of every failed attempt in its storage. The
+/// <see cref="Exception.Message"/> therefore contains only the error code and a generic text, never
 /// <see cref="EncinaError.Message"/>, which may contain data-subject identifiers or other personal data.
-/// <see cref="Exception.Data"/> carries only the error code (<see cref="ErrorCodeDataKey"/>). The
-/// exception that caused the error, if any, is the <see cref="Exception.InnerException"/>.
+/// <see cref="Exception.Data"/> carries only the error code (<see cref="ErrorCodeDataKey"/>). When the
+/// error carries a cause, <see cref="Exception.InnerException"/> is a sanitized exception whose message
+/// is only the cause's type name — never the cause's own <see cref="Exception.Message"/>, which may also
+/// carry personal data.
 /// </para>
 /// </remarks>
 public sealed class EncinaJobFailedException : Exception
@@ -84,8 +87,13 @@ public sealed class EncinaJobFailedException : Exception
 
     private static string ResolveCode(EncinaError error) => error.GetCode().IfNone(UnknownCode);
 
+    // Only the cause's type travels: Hangfire's FailedState persists the full exception chain
+    // (including every inner exception's Message) in its own storage as ExceptionDetails, and
+    // the cause's Message may carry personal data (#1259 review).
     private static Exception? ResolveInnerException(EncinaError error) =>
-        error.GetCause().MatchUnsafe(ex => ex, () => (Exception?)null);
+        error.GetCause().MatchUnsafe(
+            cause => new InvalidOperationException($"Cause type: {cause.GetType().FullName ?? cause.GetType().Name}"),
+            () => (Exception?)null);
 
     private static string BuildMessage(string code) =>
         $"The Encina job failed with transient error code '{code}'. The job can be retried.";

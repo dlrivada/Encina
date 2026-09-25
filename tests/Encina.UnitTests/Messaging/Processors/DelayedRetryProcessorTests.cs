@@ -293,9 +293,10 @@ public sealed class DelayedRetryProcessorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenTheRetriedRequestReturnsLeft_TreatsItAsAFailure_WithTheErrorMessage()
+    public async Task ExecuteAsync_WhenTheRetriedRequestReturnsLeft_TreatsItAsAFailure_WithTheErrorCode()
     {
         // Arrange - no further delayed retries configured, so a failure is permanent.
+        // Only the error code is stored: EncinaError.Message can carry personal data (#1259 review).
         var message = CreateRetriedCommandMessage(value: 1);
         var store = Substitute.For<IDelayedRetryStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new[] { message }, System.Array.Empty<IDelayedRetryMessage>());
@@ -305,7 +306,8 @@ public sealed class DelayedRetryProcessorTests
 
         var encina = Substitute.For<IEncina>();
         encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, int>>(Left<EncinaError, int>(EncinaError.New("payment gateway down"))));
+            .Returns(new ValueTask<Either<EncinaError, int>>(Left<EncinaError, int>(
+                EncinaErrors.Create("payment.gateway.down", "payment gateway down for customer 12345"))));
 
         FailedMessage? permanentFailure = null;
         var options = new RecoverabilityOptions
@@ -323,7 +325,7 @@ public sealed class DelayedRetryProcessorTests
         await processor.StopAsync(default);
 
         // Assert
-        errorMessage.ShouldBe("payment gateway down");
+        errorMessage.ShouldBe("payment.gateway.down");
         await store.DidNotReceive().MarkAsProcessedAsync(message.Id, Arg.Any<CancellationToken>());
         permanentFailure.ShouldNotBeNull();
     }

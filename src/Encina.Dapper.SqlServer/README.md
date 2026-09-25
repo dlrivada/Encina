@@ -332,31 +332,6 @@ var config = BulkConfig.Default with
 await bulkOps.BulkUpdateAsync(entities, config);
 ```
 
-#### Direct Dapper Bulk Insert (Legacy)
-
-For simple cases, you can still use Dapper's built-in multi-row insert:
-
-```csharp
-// Bulk insert using Dapper's ExecuteAsync with collection
-var messages = notifications.Select(n => new OutboxMessage
-{
-    Id = Guid.NewGuid(),
-    NotificationType = n.GetType().AssemblyQualifiedName!,
-    Content = JsonSerializer.Serialize(n),
-    CreatedAtUtc = DateTime.UtcNow,
-    RetryCount = 0
-});
-
-await _connection.ExecuteAsync(@"
-    INSERT INTO OutboxMessages
-    (Id, NotificationType, Content, CreatedAtUtc, RetryCount)
-    VALUES
-    (@Id, @NotificationType, @Content, @CreatedAtUtc, @RetryCount)",
-    messages);
-```
-
-> **Note**: For best performance with large datasets (1000+ rows), prefer `IBulkOperations.BulkInsertAsync()` which uses SqlBulkCopy internally.
-
 ## Performance Tips
 
 1. **Keep Connections Open**: Open connection once per request

@@ -293,7 +293,7 @@ public sealed class OutboxOrchestratorTests
         result.RightAsEnumerable().First().ShouldBe(0);
         await fixture.Store.Received(1).MarkAsFailedAsync(
             message.Id,
-            Arg.Is<string>(s => s.Contains("Publish failed")),
+            Arg.Is<string>(s => s == typeof(InvalidOperationException).FullName && !s.Contains("Publish failed")),
             Arg.Any<DateTime>(),
             Arg.Any<CancellationToken>());
     }

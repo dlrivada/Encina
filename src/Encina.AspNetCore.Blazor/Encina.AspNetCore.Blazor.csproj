@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ProjectGuid>{AE0E0130-579F-4D2B-8021-66A66653CE4A}</ProjectGuid>
+    <PackageId>Encina.AspNetCore.Blazor</PackageId>
+    <Description>Blazor Server integration for Encina's authorization pipeline. Resolves the current caller's principal from AuthenticationStateProvider when there is no ambient HttpContext, so [Authorize] requests work inside interactive circuits.</Description>
+    <PackageTags>encina;aspnetcore;blazor;authorization;cqrs;rop</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <IncludeSymbols>false</IncludeSymbols>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Encina.AspNetCore\Encina.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" Link="README.md" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.ContractTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.PropertyTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

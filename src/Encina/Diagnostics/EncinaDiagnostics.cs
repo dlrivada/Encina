@@ -24,7 +24,7 @@ internal static class EncinaDiagnostics
         return activity;
     }
 
-    internal static void SendCompleted(Activity? activity, bool isSuccess, string? errorCode = null, string? errorMessage = null)
+    internal static void SendCompleted(Activity? activity, bool isSuccess, string? errorCode = null)
     {
         if (activity is null)
         {
@@ -36,7 +36,9 @@ internal static class EncinaDiagnostics
             activity.SetTag(ActivityTagNames.FailureReason, errorCode);
         }
 
-        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorMessage);
+        // Only the error code (never EncinaError.Message or an exception message) is exposed as the
+        // Activity status description: the message can carry personal data (#1319).
+        activity.SetStatus(isSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error, errorCode);
         activity.Dispose();
     }
 

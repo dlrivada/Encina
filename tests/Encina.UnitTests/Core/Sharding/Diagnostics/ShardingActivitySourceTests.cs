@@ -82,7 +82,7 @@ public sealed class ShardingActivitySourceTests : IDisposable
     public void RoutingFailed_SetsErrorStatusAndCode()
     {
         var activity = ShardingActivitySource.StartRouting("key-123", "hash");
-        ShardingActivitySource.RoutingFailed(activity, "encina.sharding.shard_not_found", "Not found");
+        ShardingActivitySource.RoutingFailed(activity, "encina.sharding.shard_not_found");
 
         activity.ShouldNotBeNull();
         activity!.GetTagItem(ActivityTagNames.FailureCode).ShouldBe("encina.sharding.shard_not_found");
@@ -92,14 +92,14 @@ public sealed class ShardingActivitySourceTests : IDisposable
     [Fact]
     public void RoutingFailed_NullActivity_DoesNotThrow()
     {
-        Should.NotThrow(() => ShardingActivitySource.RoutingFailed(null, "code", "msg"));
+        Should.NotThrow(() => ShardingActivitySource.RoutingFailed(null, "code"));
     }
 
     [Fact]
     public void RoutingFailed_NullErrorCode_DoesNotSetFailureCodeTag()
     {
         var activity = ShardingActivitySource.StartRouting("key-123", "hash");
-        ShardingActivitySource.RoutingFailed(activity, null, "Error");
+        ShardingActivitySource.RoutingFailed(activity, null);
 
         activity.ShouldNotBeNull();
         activity!.GetTagItem(ActivityTagNames.FailureCode).ShouldBeNull();

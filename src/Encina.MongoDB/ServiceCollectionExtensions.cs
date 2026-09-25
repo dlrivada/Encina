@@ -1,9 +1,11 @@
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.Messaging;
 using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
@@ -81,6 +83,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IMongoClient>(sp =>
             new MongoClient(options.ConnectionString));
 
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
+
         // Register stores based on configuration
         if (options.UseOutbox)
         {
@@ -139,7 +145,20 @@ public static class ServiceCollectionExtensions
         // Register Anonymization token mapping store if enabled
         if (options.UseAnonymization)
         {
-            services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
+            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
+            // store wins regardless of the order in which AddEncinaAnonymization and this
+            // provider run. A custom ITokenMappingStore the application registered itself is
+            // never removed here, so it keeps winning (#1295).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
+            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
@@ -210,6 +229,10 @@ public static class ServiceCollectionExtensions
         // core mediator's AddEncina() (TryAdd is idempotent when both are called).
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
+
         // Register stores based on configuration
         if (options.UseOutbox)
         {
@@ -268,7 +291,20 @@ public static class ServiceCollectionExtensions
         // Register Anonymization token mapping store if enabled
         if (options.UseAnonymization)
         {
-            services.AddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
+            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
+            // store wins regardless of the order in which AddEncinaAnonymization and this
+            // provider run. A custom ITokenMappingStore the application registered itself is
+            // never removed here, so it keeps winning (#1295).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
+            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
         }
 
         // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)

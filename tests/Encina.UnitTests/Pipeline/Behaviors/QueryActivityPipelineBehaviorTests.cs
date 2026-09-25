@@ -232,7 +232,56 @@ public sealed class QueryActivityPipelineBehaviorTests : IDisposable
         activity.ShouldNotBeNull();
         activity.Status.ShouldBe(ActivityStatusCode.Error);
         activity.GetTagItem("exception.type").ShouldBe(typeof(InvalidOperationException).FullName);
-        activity.GetTagItem("exception.message").ShouldBe("Something went wrong");
+        activity.GetTagItem("exception.message").ShouldBeNull();
+        activity.StatusDescription.ShouldBe(nameof(InvalidOperationException));
+        (activity.StatusDescription ?? string.Empty).ShouldNotContain("Something went wrong");
+    }
+
+    [Fact]
+    public async Task Handle_WithPipelineErrorContainingPersonalData_NeverExposesTheMessageOnTheActivity()
+    {
+        var behavior = new QueryActivityPipelineBehavior<TestQuery, string>(NullFunctionalFailureDetector.Instance);
+        const string personalData = "user@example.com must not leave the process";
+        var error = EncinaErrors.Create("pipeline.error", personalData);
+
+        await behavior.Handle(
+            new TestQuery("test"),
+            RequestContext.Create(),
+            () => ValueTask.FromResult(Left<EncinaError, string>(error)),
+            CancellationToken.None);
+
+        var activities = _activities.Where(a => a.DisplayName.Contains("TestQuery")).ToList();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(personalData);
+            foreach (var tag in activity.Tags)
+            {
+                tag.Value.ShouldNotBe(personalData);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Handle_WithExceptionContainingPersonalData_NeverExposesTheMessageOnTheActivity()
+    {
+        var behavior = new QueryActivityPipelineBehavior<TestQuery, string>(NullFunctionalFailureDetector.Instance);
+        const string personalData = "user@example.com must not leave the process";
+
+        await behavior.Handle(
+            new TestQuery("test"),
+            RequestContext.Create(),
+            () => throw new InvalidOperationException(personalData),
+            CancellationToken.None);
+
+        var activities = _activities.Where(a => a.DisplayName.Contains("TestQuery")).ToList();
+        foreach (var activity in activities)
+        {
+            (activity.StatusDescription ?? string.Empty).ShouldNotContain(personalData);
+            foreach (var tag in activity.Tags)
+            {
+                tag.Value.ShouldNotBe(personalData);
+            }
+        }
     }
 
     [Fact]

@@ -98,7 +98,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                 _logger,
                 context.CorrelationId,
                 typeof(TRequest).Name,
-                recoverabilityContext.LastError?.Message ?? RecoverabilityConstants.Unknown);
+                recoverabilityContext.LastError?.GetCode().IfNone(RecoverabilityConstants.Unknown) ?? RecoverabilityConstants.Unknown);
 
             await HandlePermanentFailureAsync(request, recoverabilityContext, cancellationToken).ConfigureAwait(false);
             return result;
@@ -129,7 +129,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                     _logger,
                     recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                     typeof(TRequest).Name,
-                    error.Message));
+                    error.GetCode().IfNone(RecoverabilityConstants.Unknown)));
 
             // Return error but note that delayed retry is scheduled
             return Either<EncinaError, TResponse>.Left(
@@ -244,7 +244,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
                 recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                 typeof(TRequest).Name,
                 attempt + 1,
-                error.Message);
+                error.GetCode().IfNone(RecoverabilityConstants.Unknown));
             return AttemptResult.PermanentFailure(result);
         }
 
@@ -254,7 +254,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             typeof(TRequest).Name,
             attempt + 1,
             _options.ImmediateRetries + 1,
-            error.Message);
+            error.GetCode().IfNone(RecoverabilityConstants.Unknown));
 
         return AttemptResult.TransientFailure(result);
     }
@@ -437,19 +437,27 @@ internal static partial class RecoverabilityLog
     public static partial void SucceededAfterRetry(
         ILogger logger, string correlationId, string requestType, int attemptCount);
 
+    /// <remarks>
+    /// Only the error code is logged: <c>EncinaError.Message</c> can carry personal data
+    /// (#1259 review).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2862,
         Level = LogLevel.Debug,
-        Message = "[{CorrelationId}] {RequestType} transient error on attempt {Attempt}/{MaxAttempts}: {ErrorMessage}")]
+        Message = "[{CorrelationId}] {RequestType} transient error on attempt {Attempt}/{MaxAttempts}: {ErrorCode}")]
     public static partial void TransientErrorOnAttempt(
-        ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, string errorMessage);
+        ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, string errorCode);
 
+    /// <remarks>
+    /// Only the error code is logged: <c>EncinaError.Message</c> can carry personal data
+    /// (#1259 review).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2863,
         Level = LogLevel.Warning,
-        Message = "[{CorrelationId}] {RequestType} permanent error on attempt {Attempt}: {ErrorMessage}")]
+        Message = "[{CorrelationId}] {RequestType} permanent error on attempt {Attempt}: {ErrorCode}")]
     public static partial void PermanentErrorOnAttempt(
-        ILogger logger, string correlationId, string requestType, int attempt, string errorMessage);
+        ILogger logger, string correlationId, string requestType, int attempt, string errorCode);
 
     [LoggerMessage(
         EventId = 2864,
@@ -479,12 +487,16 @@ internal static partial class RecoverabilityLog
     public static partial void SchedulingDelayedRetry(
         ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, TimeSpan delay);
 
+    /// <remarks>
+    /// Only the error code is logged: <c>EncinaError.Message</c> can carry personal data
+    /// (#1259 review).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2868,
         Level = LogLevel.Warning,
-        Message = "[{CorrelationId}] {RequestType} permanent error detected: {ErrorMessage}")]
+        Message = "[{CorrelationId}] {RequestType} permanent error detected: {ErrorCode}")]
     public static partial void PermanentErrorDetected(
-        ILogger logger, string correlationId, string requestType, string errorMessage);
+        ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
         EventId = 2869,
@@ -500,10 +512,14 @@ internal static partial class RecoverabilityLog
     public static partial void OnPermanentFailureCallbackFailed(
         ILogger logger, Exception ex, string correlationId, string requestType);
 
+    /// <remarks>
+    /// Only the error code is logged: <c>EncinaError.Message</c> can carry personal data
+    /// (#1259 review).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2871,
         Level = LogLevel.Error,
-        Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorMessage}")]
+        Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorCode}")]
     public static partial void SchedulingDelayedRetryFailed(
-        ILogger logger, string correlationId, string requestType, string errorMessage);
+        ILogger logger, string correlationId, string requestType, string errorCode);
 }

@@ -52,6 +52,9 @@ public static class RetentionErrors
     /// <summary>Error code when a legal hold was lifted but not all of its retention records could be released.</summary>
     public const string HoldReleaseIncompleteCode = "retention.hold_release_incomplete";
 
+    /// <summary>Error code when a legal hold was placed but not all of the entity's retention records could be held.</summary>
+    public const string HoldPlacementIncompleteCode = "retention.hold_placement_incomplete";
+
     /// <summary>Error code when the retention enforcement cycle fails.</summary>
     public const string EnforcementFailedCode = "retention.enforcement_failed";
 
@@ -231,6 +234,45 @@ public static class RetentionErrors
             code: HoldReleaseIncompleteCode,
             message: $"Legal hold '{holdId}' was lifted, but the retention records of entity '{entityId}' were not all released: {reason}. " +
                      "They stay under legal hold; lift the hold again to retry the release.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyHoldId] = holdId.ToString(),
+                [MetadataKeyEntityId] = entityId,
+                ["failedRecordIds"] = failedRecordIds.Select(id => id.ToString()).ToArray(),
+                ["reason"] = reason,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when a legal hold was placed but some or all of the entity's retention records
+    /// could not be transitioned to <c>UnderLegalHold</c>.
+    /// </summary>
+    /// <param name="holdId">The identifier of the placed hold.</param>
+    /// <param name="entityId">The identifier of the entity whose records could not all be held.</param>
+    /// <param name="failedRecordIds">
+    /// The records that could not be held. Empty when no record was attempted because the entity's
+    /// records could not safely be queried.
+    /// </param>
+    /// <param name="reason">Why the placement cascade is incomplete.</param>
+    /// <returns>An error indicating the cascade of the hold to the entity's records is incomplete.</returns>
+    /// <remarks>
+    /// The hold itself stays placed. The records listed are not yet <c>UnderLegalHold</c>; calling
+    /// <c>ILegalHoldService.PlaceHoldAsync</c> again for the same entity places a new hold and retries the
+    /// cascade for the records not yet held.
+    /// </remarks>
+    public static EncinaError HoldPlacementIncomplete(
+        Guid holdId,
+        string entityId,
+        IReadOnlyList<Guid> failedRecordIds,
+        string reason)
+    {
+        ArgumentNullException.ThrowIfNull(failedRecordIds);
+
+        return EncinaErrors.Create(
+            code: HoldPlacementIncompleteCode,
+            message: $"Legal hold '{holdId}' was placed, but the retention records of entity '{entityId}' were not all held: {reason}. " +
+                     "Place a new hold on the entity to retry the records not yet held.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyHoldId] = holdId.ToString(),

@@ -199,21 +199,30 @@ public sealed class CdcHappyPathAndConstructorGuardTests
     public void OutboxCdcHandler_NullEncina_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new OutboxCdcHandler(null!, NullLogger<OutboxCdcHandler>.Instance));
+            new OutboxCdcHandler(null!, NullLogger<OutboxCdcHandler>.Instance, new global::Encina.Messaging.Serialization.JsonMessageSerializer()));
     }
 
     [Fact]
     public void OutboxCdcHandler_NullLogger_Throws()
     {
         var encina = Substitute.For<IEncina>();
-        Should.Throw<ArgumentNullException>(() => new OutboxCdcHandler(encina, null!));
+        Should.Throw<ArgumentNullException>(() =>
+            new OutboxCdcHandler(encina, null!, new global::Encina.Messaging.Serialization.JsonMessageSerializer()));
+    }
+
+    [Fact]
+    public void OutboxCdcHandler_NullMessageSerializer_Throws()
+    {
+        var encina = Substitute.For<IEncina>();
+        Should.Throw<ArgumentNullException>(() =>
+            new OutboxCdcHandler(encina, NullLogger<OutboxCdcHandler>.Instance, null!));
     }
 
     [Fact]
     public void OutboxCdcHandler_ValidArgs_Constructs()
     {
         var encina = Substitute.For<IEncina>();
-        var sut = new OutboxCdcHandler(encina, NullLogger<OutboxCdcHandler>.Instance);
+        var sut = new OutboxCdcHandler(encina, NullLogger<OutboxCdcHandler>.Instance, new global::Encina.Messaging.Serialization.JsonMessageSerializer());
         sut.ShouldNotBeNull();
     }
 

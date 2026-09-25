@@ -3,19 +3,20 @@
 -- For distributed transaction orchestration with compensation
 -- =============================================
 
-CREATE TABLE [dbo].[SagaStates]
+CREATE TABLE IF NOT EXISTS sagastates
 (
-    [SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [SagaType] NVARCHAR(500) NOT NULL,
-    [Data] NVARCHAR(MAX) NOT NULL,
-    [Status] INT NOT NULL, -- 0=Running, 1=Completed, 2=Failed, 3=Compensating, 4=Compensated
-    [StartedAtUtc] DATETIME2(7) NOT NULL,
-    [LastUpdatedAtUtc] DATETIME2(7) NOT NULL,
-    [CompletedAtUtc] DATETIME2(7) NULL,
-    [ErrorMessage] NVARCHAR(MAX) NULL,
-    [CurrentStep] INT NOT NULL DEFAULT 0,
-
-    INDEX [IX_SagaStates_Status_LastUpdated]
-        ([Status], [LastUpdatedAtUtc])
+    sagaid UUID NOT NULL PRIMARY KEY,
+    sagatype TEXT NOT NULL,
+    data TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL, -- Running, Completed, Failed, Compensating, Compensated
+    startedatutc TIMESTAMP NOT NULL,
+    lastupdatedatutc TIMESTAMP NOT NULL,
+    completedatutc TIMESTAMP NULL,
+    errormessage TEXT NULL,
+    currentstep INTEGER NOT NULL DEFAULT 0,
+    timeoutatutc TIMESTAMP NULL,
+    correlationid VARCHAR(256) NULL,
+    metadata TEXT NULL
 );
-GO
+
+CREATE INDEX IF NOT EXISTS ix_sagastates_status_lastupdated ON sagastates (status, lastupdatedatutc);

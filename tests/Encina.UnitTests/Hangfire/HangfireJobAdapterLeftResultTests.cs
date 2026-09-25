@@ -72,14 +72,18 @@ public sealed class HangfireJobAdapterLeftResultTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_LeftWithException_PassesItAsInnerException()
+    public async Task ExecuteAsync_LeftWithException_PassesOnlyTheCauseTypeAsInnerException()
     {
-        var cause = new TimeoutException("db timeout");
+        var cause = new TimeoutException("db timeout for patient-9");
         var adapter = CreateRequestAdapter(Left<EncinaError, SpikeResponse>(EncinaErrors.Create("store.failure", "Store failed", cause)));
 
         var exception = await Should.ThrowAsync<EncinaJobFailedException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
 
-        exception.InnerException.ShouldBeSameAs(cause);
+        // Hangfire persists the full exception chain, so the cause itself (and its Message,
+        // which may carry personal data) never becomes the InnerException (#1259 review).
+        exception.InnerException.ShouldNotBeSameAs(cause);
+        exception.InnerException!.Message.ShouldContain(nameof(TimeoutException));
+        exception.ToString().ShouldNotContain("db timeout for patient-9");
     }
 
     [Fact]
@@ -134,7 +138,10 @@ public sealed class HangfireJobAdapterLeftResultTests
 
         var exception = await Should.ThrowAsync<EncinaJobPermanentFailureException>(() => adapter.ExecuteAsync(new SpikeRequest("payload")));
 
-        exception.InnerException.ShouldBeSameAs(cause);
+        // The classifier still sees the real cause (asserted above); the exception Hangfire
+        // persists carries only its type, never the instance itself (#1259 review).
+        exception.InnerException.ShouldNotBeSameAs(cause);
+        exception.InnerException!.Message.ShouldContain(nameof(PoisonMessageException));
     }
 
     [Fact]
@@ -171,7 +178,7 @@ public sealed class HangfireJobAdapterLeftResultTests
         var response = new SpikeResponse("ok");
         var adapter = CreateRequestAdapter(Right<EncinaError, SpikeResponse>(response));
 
-        var result = await adapter.ExecuteAsync(new SpikeRequest("payload"));
+        var result = await adapter.ExecuteAndReturnResultAsync(new SpikeRequest("payload"));
 
         result.ShouldBe(response);
     }

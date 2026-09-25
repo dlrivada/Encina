@@ -34,7 +34,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
                 .Returns(Right<EncinaError, string>(expectedResult));
 
             // Act
-            var result = await adapter.ExecuteAsync(request);
+            var result = await adapter.ExecuteAndReturnResultAsync(request);
 
             // Assert
             result.ShouldBe(expectedResult);
@@ -92,9 +92,9 @@ public sealed class HangfireRequestJobAdapterPropertyTests
             .Returns(Right<EncinaError, string>(expectedResult));
 
         // Act - Multiple executions
-        var result1 = await adapter.ExecuteAsync(request);
-        var result2 = await adapter.ExecuteAsync(request);
-        var result3 = await adapter.ExecuteAsync(request);
+        var result1 = await adapter.ExecuteAndReturnResultAsync(request);
+        var result2 = await adapter.ExecuteAndReturnResultAsync(request);
+        var result3 = await adapter.ExecuteAndReturnResultAsync(request);
 
         // Assert - All results identical
         result1.ShouldBe(expectedResult);
@@ -116,7 +116,7 @@ public sealed class HangfireRequestJobAdapterPropertyTests
 
         // Act - Execute concurrently
         var tasks = Enumerable.Range(0, 20)
-            .Select(i => Task.Run(async () => await adapter.ExecuteAsync(new TestRequest($"request-{i}"))))
+            .Select(i => Task.Run(async () => await adapter.ExecuteAndReturnResultAsync(new TestRequest($"request-{i}"))))
             .ToArray();
 
         await Task.WhenAll(tasks);

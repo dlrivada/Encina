@@ -121,7 +121,8 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
                         Right: _ => EncinaErrors.Create(RoutingSlipErrorCodes.StepFailed, "Unexpected"),
                         Left: e => e);
 
-                    RoutingSlipLog.StepFailed(_logger, routingSlipId, stepsExecuted + 1, step.Name, error.Message);
+                    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                    RoutingSlipLog.StepFailed(_logger, routingSlipId, stepsExecuted + 1, step.Name, error.GetCode().IfNone("encina.unknown"));
 
                     // Run compensation for completed steps (in reverse order)
                     await CompensateAsync(context, cancellationToken).ConfigureAwait(false);

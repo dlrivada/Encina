@@ -34,8 +34,8 @@ internal static partial class Log
     public static partial void TransitionSucceeded(ILogger logger, string shardId, ShardTier newTier);
 
     [LoggerMessage(EventId = 153, Level = LogLevel.Warning,
-        Message = "Tier transition failed for shard '{ShardId}': {ErrorMessage}")]
-    public static partial void TransitionFailed(ILogger logger, string shardId, string errorMessage);
+        Message = "Tier transition failed for shard '{ShardId}': {ErrorCode}")]
+    public static partial void TransitionFailed(ILogger logger, string shardId, string errorCode);
 
     [LoggerMessage(EventId = 154, Level = LogLevel.Information,
         Message = "Tier transition check completed. Transitioned: {SuccessCount}, Failed: {FailureCount}")]

@@ -290,6 +290,111 @@ public class AuthorizationPipelineBehaviorTests
         });
     }
 
+    /// <summary>
+    /// Regression test for #1148 (ported from the verification spike on branch
+    /// <c>spike/verify-request-context</c>, commit <c>9215e9a8</c>,
+    /// <c>AuthorizationPipelineBehaviorBlazorServerSpikeTests</c>). A Blazor Server interactive circuit
+    /// has no <see cref="HttpContext"/> for its whole lifetime after the initial negotiate request, so
+    /// the behavior must resolve the caller's principal through <see cref="IPrincipalResolver"/> instead
+    /// of denying whenever HttpContext is unavailable.
+    /// </summary>
+    [Fact]
+#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
+    public async Task Handle_NoHttpContext_ResolverReturnsAuthenticatedPrincipal_ProceedsToNextStep()
+    {
+        // Arrange: simulates a Blazor Server interactive circuit via a custom IPrincipalResolver that
+        // does not depend on HttpContext (e.g. backed by AuthenticationStateProvider, as
+        // Encina.AspNetCore.Blazor's AuthenticationStatePrincipalResolver does).
+        var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "blazor-user-1")], "TestAuthType"));
+
+        var principalResolver = Substitute.For<IPrincipalResolver>();
+        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(authenticatedUser));
+#pragma warning restore CA2012
+
+        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
+        var request = new AuthorizedRequest();
+        var context = RequestContext.CreateForTest(userId: "blazor-user-1");
+        var nextStepCalled = false;
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+        {
+            nextStepCalled = true;
+            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+        };
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        nextStepCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
+    public async Task Handle_NoHttpContext_ResolverReturnsUnauthenticatedPrincipal_ReturnsError()
+    {
+        // Arrange
+        var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
+        var principalResolver = Substitute.For<IPrincipalResolver>();
+        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(anonymousUser));
+#pragma warning restore CA2012
+
+        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
+        var request = new AuthorizedRequest();
+        var context = RequestContext.CreateForTest();
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeError();
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldContain("requires authentication");
+            error.GetCode().Match(
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                None: () => Assert.Fail("Expected error code"));
+        });
+    }
+
+    [Fact]
+#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
+    public async Task Handle_NoHttpContext_ResolverReturnsNull_ReturnsError()
+    {
+        // Arrange: a resolver that itself cannot resolve any principal (e.g. missing HttpContext and
+        // no AuthenticationStateProvider) must still deny, exactly as today's HttpContext-null path.
+        var principalResolver = Substitute.For<IPrincipalResolver>();
+        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(null));
+#pragma warning restore CA2012
+
+        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
+        var request = new AuthorizedRequest();
+        var context = RequestContext.CreateForTest();
+
+        RequestHandlerCallback<Unit> nextStep = () =>
+            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+
+        // Assert
+        result.ShouldBeError();
+        result.IfLeft(error =>
+        {
+            error.GetCode().Match(
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                None: () => Assert.Fail("Expected error code"));
+        });
+    }
+
     [Fact]
     public async Task Handle_AllowAnonymous_BypassesAuthorization()
     {
@@ -657,6 +762,18 @@ public class AuthorizationPipelineBehaviorTests
             HttpContext = httpContext
         };
 
+        return CreateBehavior<TRequest, TResponse>(
+            new HttpContextPrincipalResolver(httpContextAccessor),
+            authorizationService,
+            configuration);
+    }
+
+    private static AuthorizationPipelineBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(
+        IPrincipalResolver principalResolver,
+        IAuthorizationService? authorizationService = null,
+        AuthorizationConfiguration? configuration = null)
+        where TRequest : IRequest<TResponse>
+    {
         authorizationService ??= new TestAuthorizationService(shouldSucceed: true);
         configuration ??= new AuthorizationConfiguration();
 
@@ -665,7 +782,7 @@ public class AuthorizationPipelineBehaviorTests
 
         return new AuthorizationPipelineBehavior<TRequest, TResponse>(
             authorizationService,
-            httpContextAccessor,
+            principalResolver,
             options,
             logger);
     }

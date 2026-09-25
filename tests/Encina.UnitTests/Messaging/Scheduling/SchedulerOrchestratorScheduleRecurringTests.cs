@@ -1,4 +1,5 @@
 using Encina.Messaging.Scheduling;
+using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using static LanguageExt.Prelude;
@@ -37,7 +38,7 @@ public sealed class SchedulerOrchestratorScheduleRecurringTests
         var options = new SchedulingOptions();
         var retryPolicy = new ExponentialBackoffRetryPolicy(options);
 
-        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, retryPolicy, cronParser);
+        var orchestrator = new SchedulerOrchestrator(store, options, logger, messageFactory, retryPolicy, new JsonMessageSerializer(), cronParser);
 
         var nextExecution = DateTime.UtcNow.AddMinutes(1);
         cronParser.GetNextOccurrence(Arg.Any<string>(), Arg.Any<DateTime>())

@@ -313,6 +313,8 @@ services.AddEncinaQuartz(quartz =>
 | Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while `context.CancellationToken` is cancelled, e.g. scheduler shutdown | `OperationCanceledException` |
 | Any other failure | `JobExecutionException` with `RefireImmediately = false` |
 
+`context.Result` is exposed to Quartz listeners and is not persisted automatically by Quartz, including `AdoJobStore`. A custom listener or plugin may store it outside Encina's retention and erasure controls. Unlike `Encina.Hangfire`, there is currently no opt-out for the response on `QuartzRequestJob` (tracked in #1258).
+
 Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Messaging.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
 
 - `jobException.Data[EncinaJobFailureData.ErrorCodeKey]` is the Encina error code.
@@ -330,7 +332,7 @@ public Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? 
 }
 ```
 
-The exception message contains only the error code and the classification, never `EncinaError.Message`, which may carry personal data such as a data-subject id; the full message is written to the application log. The exception that caused the error, if any, is the `InnerException`.
+The exception message contains only the error code and the classification, never `EncinaError.Message`, which may carry personal data such as a data-subject id. The `RequestJobFailed`/`NotificationJobFailed` log lines carry only the error code too (#1173) — the full `EncinaError.Message` is not written anywhere by the adapter. The exception that caused the error, if any, is the `InnerException`.
 
 ### Pausing and Resuming Jobs
 

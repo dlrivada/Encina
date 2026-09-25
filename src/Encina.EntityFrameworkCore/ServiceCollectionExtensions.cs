@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.Anonymization;
+using Encina.Compliance.Anonymization.InMemory;
 using Encina.Compliance.GDPR;
 using Encina.Compliance.Retention;
 using Encina.Database;
@@ -143,6 +144,10 @@ public static class ServiceCollectionExtensions
         // Encina.EntityFrameworkCore, without the core mediator's AddEncina() (TryAdd is
         // idempotent when both are called).
         services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
 
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
@@ -351,6 +356,19 @@ public static class ServiceCollectionExtensions
         // Register Anonymization token mapping store if enabled
         if (config.UseAnonymization)
         {
+            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
+            // store wins regardless of the order in which AddEncinaAnonymization and this
+            // provider run. A custom ITokenMappingStore the application registered itself is
+            // never removed here, so it keeps winning (#1295).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreEF>();
         }
 

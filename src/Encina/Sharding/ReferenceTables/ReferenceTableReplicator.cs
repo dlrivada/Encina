@@ -90,7 +90,7 @@ internal sealed class ReferenceTableReplicator(
                     ReferenceTableLog.ReplicationFailed(
                         _logger,
                         config.EntityType.Name,
-                        error.Message);
+                        error.GetEncinaCode());
                 });
         }
 
@@ -213,7 +213,7 @@ internal sealed class ReferenceTableReplicator(
                     },
                     Left: error =>
                     {
-                        ReferenceTableDiagnostics.Complete(syncActivity, false, error.Message);
+                        ReferenceTableDiagnostics.Complete(syncActivity, false, error.GetEncinaCode());
 
                         failedShards.Add(new ShardFailure(shard.ShardId, error));
                     });
