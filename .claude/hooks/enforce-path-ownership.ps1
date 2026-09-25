@@ -2,6 +2,17 @@
 # docs-writer with -Agent <name>: a file belongs to the specialist that owns its kind, and the other agents
 # delegate it (#1181; categories in _repo-paths.ps1, Get-PathCategory).
 #
+# Wired twice, deliberately (#1345 review, minor 3): once per-agent in frontmatter with an explicit -Agent
+# <name> (the fallback used when the hook input carries no agent_type at all, i.e. the call is that agent's
+# own, not a nested agent's), and once project-wide in .claude/settings.json with no -Agent, so $Agent comes
+# entirely from the hook input's agent_type. The project-wide instance is what catches a caller with no
+# dedicated frontmatter hook of its own (mechanical-fixer, the SPEC-003 audit-stage agents before their own
+# frontmatter existed) and the orchestrator (main session), whose calls carry no agent_type at all and so fall
+# through to the same stage-artifact and .authors.json rules below. Removing either copy would reopen a gap:
+# dropping the frontmatter copy loses the -Agent fallback for an agent's own top-level calls when its own
+# tool-call payload happens to omit agent_type; dropping the project-wide copy loses coverage for every caller
+# without a dedicated frontmatter hook.
+#
 #   issue-worker  may not edit documentation (docs/**/*.md except docs/plans/** and docs/knowledge/**, the
 #                 images docs pages show, the root README.md, package READMEs and other .md under src/,
 #                 CONTRIBUTING.md): spawn docs-writer. The site's code and data under docs/ (*.js, *.html,
