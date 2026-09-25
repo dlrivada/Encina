@@ -211,6 +211,9 @@ $spawnCases = @(
     @('issue-auditor', $null, 'mechanical-fixer', 2, 'issue-auditor: no delegation (stage agent, #1345)'),
     @('test-auditor', $null, 'mechanical-fixer', 2, 'test-auditor: no delegation (stage agent, #1345)'),
     @('audit-verifier', $null, 'mechanical-fixer', 2, 'audit-verifier: no delegation (stage agent, #1345)'),
+    @('docs-reviewer', $null, 'mechanical-fixer', 2, 'docs-reviewer: read-only specialist never delegates (#1345)'),
+    @('adversarial-reviewer', $null, 'mechanical-fixer', 2, 'adversarial-reviewer: read-only specialist never delegates (#1345)'),
+    @('ci-diagnoser', $null, 'mechanical-fixer', 2, 'ci-diagnoser: read-only specialist never delegates (#1345)'),
     # M1: the orchestrator's allowlist (settings.json, -Agent orchestrator).
     @('orchestrator', $null, 'issue-worker', 0, 'orchestrator: issue-worker is allowed'),
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
