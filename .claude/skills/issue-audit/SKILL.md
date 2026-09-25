@@ -37,6 +37,12 @@ local model before the archivist stage starts; `issue-archivist` verifies and co
 than redoing the extraction from zero. `audit-draft-remediation.ps1` (the remediation stage) also runs on the
 local model. An audit that used no local-model tokens should be rare and explainable.
 
+**Sharing the llama-server slot.** `qwen-predraft.ps1`'s queue loop and a worker's own local-model call
+compete for the one llama-server slot. When a worker needs the model now, create
+`artifacts/knowledge/predraft/PAUSE` (any content) under the main root; the queue loop waits, rechecking
+every 30s, while that file exists, and resumes as soon as you remove it. `-Issue` (single-issue) mode ignores
+PAUSE, because `audit-next.ps1` needs that draft immediately to start the archivist stage.
+
 **Deduplication.** Before a remediation draft becomes an issue, `audit-verifier` checks that it does not
 duplicate an open issue (`gh issue list --state open --search "<keywords>"`); a duplicate finding gets no new
 draft, only a reference to the existing issue number.

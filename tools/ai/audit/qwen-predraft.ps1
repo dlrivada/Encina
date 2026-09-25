@@ -6,6 +6,12 @@
 # record, save it. -Issue drafts a single issue (audit-next.ps1 calls it this way, so the pre-draft exists
 # before the archivist stage starts); with no -Issue, drafts every entry of -QueueFile (default
 # artifacts/knowledge/predraft-queue.txt) not already drafted.
+#
+# PAUSE file (#1345): the pre-draft queue and a worker's own local-model call share one llama-server slot.
+# Before each issue of the QUEUE loop (not -Issue single-issue mode, which audit-next.ps1 needs to complete
+# now), this script waits while artifacts\knowledge\predraft\PAUSE exists under the main root, checking every
+# 30s. The orchestrator creates that file when a worker needs the model and removes it when the worker is
+# done; see .claude/skills/issue-audit/SKILL.md, "Local model: mandatory".
 
 param([int]$Issue, [string]$QueueFile, [switch]$Force)
 
@@ -52,7 +58,16 @@ packages: [<package names mentioned>]
 ## Open questions for the auditor
 - <what the auditor must verify in the code>
 '@
+$pauseFile = Join-Path $out 'PAUSE'
+$pausePrinted = $false
 foreach ($n in $Issues) {
+    if (-not $Issue) {
+        while (Test-Path -LiteralPath $pauseFile) {
+            if (-not $pausePrinted) { "paused: PAUSE file present"; $pausePrinted = $true }
+            Start-Sleep -Seconds 30
+        }
+        $pausePrinted = $false
+    }
     $dst = Join-Path $out "$n.md"
     if ((Test-Path $dst) -and -not $Force) { continue }
     $in = Join-Path $raw "$n.txt"
