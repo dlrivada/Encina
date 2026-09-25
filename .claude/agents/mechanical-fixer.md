@@ -24,6 +24,8 @@ hooks:
       hooks:
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1" -Agent mechanical-fixer'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent mechanical-fixer'
 ---
 
 You execute an already-decided change in the `dlrivada/Encina` repository. The task states exactly what to change, in which worktree, and how to verify it. If the task leaves a decision open, stop and report instead of choosing.

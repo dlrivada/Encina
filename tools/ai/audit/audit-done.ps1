@@ -35,8 +35,9 @@ foreach ($stage in $pipeline.stages) {
         $reasons.Add("missing stages\$($stage.artifact) (stage: $($stage.stage))")
         continue
     }
-    if (-not (Test-StageCommitted $wt $stage.stage)) {
-        $reasons.Add("stages\$($stage.artifact) exists but was never committed with audit-commit-stage.ps1 -Stage $($stage.stage) (no 'Stage: $($stage.stage)' commit on $branch)")
+    $relative = "artifacts/knowledge/stages/$($stage.artifact)"
+    if (-not (Test-StageCommitted $wt $stage.stage $relative)) {
+        $reasons.Add("stages\$($stage.artifact) exists but is not committed clean with audit-commit-stage.ps1 -Stage $($stage.stage) (no 'Stage: $($stage.stage)' commit on $branch, or the file has uncommitted changes since)")
     }
 }
 

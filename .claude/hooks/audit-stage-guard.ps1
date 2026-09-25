@@ -41,7 +41,10 @@ try {
     }
 
     $stageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier'
-    $isDocsStage = $subagent -eq 'docs-reviewer' -and $prompt -match 'wia-\d+'
+    # Requiring both 'wia-<n>' AND the word 'audit' keeps an ordinary docs-writer self-review — whose prompt
+    # might legitimately mention a 'wia-<n>' worktree name for unrelated reasons, e.g. this very pipeline's
+    # own documentation — from being misread as an audit-stage spawn and denied for having no open audit.
+    $isDocsStage = $subagent -eq 'docs-reviewer' -and $prompt -match 'wia-\d+' -and $prompt -match '(?i)\baudit\b'
     if ($subagent -notin $stageAgents -and -not $isDocsStage) { exit 0 }
 
     $projectDir = [string]$env:CLAUDE_PROJECT_DIR
@@ -84,15 +87,22 @@ try {
 
     $stagesDir = Join-Path $wt 'artifacts\knowledge\stages'
 
-    function Test-StageCommitted([string]$Worktree, [string]$StageName) {
-        $out = & git -C $Worktree log -1 --grep "Stage: $StageName" --pretty=format:%H 2>$null
-        return -not [string]::IsNullOrWhiteSpace(($out | Select-Object -First 1))
+    # A stage is done only when it has a 'Stage: <name>' commit AND the artifact has no uncommitted changes
+    # since (git status --porcelain clean): --grep alone would prove a commit once existed, not that the
+    # file on disk right now is what was committed. Mirrors _audit-lib.ps1's Test-StageCommitted / Get-NextStage
+    # (inlined here so this hook has no dependency beyond pipeline.json).
+    function Test-StageCommitted([string]$Worktree, [string]$StageName, [string]$ArtifactRelativePath) {
+        $commit = & git -C $Worktree log -1 --grep "Stage: $StageName" --fixed-strings --pretty=format:%H 2>$null
+        if ([string]::IsNullOrWhiteSpace(($commit | Select-Object -First 1))) { return $false }
+        $dirty = & git -C $Worktree status --porcelain -- $ArtifactRelativePath 2>$null
+        return [string]::IsNullOrWhiteSpace(($dirty | Select-Object -First 1))
     }
 
     $nextStage = $null
     foreach ($stage in @($pipeline.stages)) {
         $file = Join-Path $stagesDir $stage.artifact
-        $done = (Test-Path -LiteralPath $file) -and (Test-StageCommitted $wt $stage.stage)
+        $relative = "artifacts/knowledge/stages/$($stage.artifact)"
+        $done = (Test-Path -LiteralPath $file) -and (Test-StageCommitted $wt $stage.stage $relative)
         if (-not $done) { $nextStage = $stage; break }
     }
 

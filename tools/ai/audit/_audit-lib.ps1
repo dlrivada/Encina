@@ -52,19 +52,26 @@ function Get-Pipeline([string]$ToolsAuditDir) {
     return Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
 }
 
-# True when a commit on the branch checked out at $Worktree carries the trailer 'Stage: <StageName>'
-# (audit-commit-stage.ps1's own commit message format).
-function Test-StageCommitted([string]$Worktree, [string]$StageName) {
-    $out = & git -C $Worktree log -1 --grep "Stage: $StageName" --pretty=format:%H 2>$null
-    return -not [string]::IsNullOrWhiteSpace(($out | Select-Object -First 1))
+# True when a commit on the branch checked out at $Worktree carries the trailer 'Stage: <StageName>' AND the
+# working-tree copy of $ArtifactRelativePath (forward slashes, relative to $Worktree) has no uncommitted
+# changes (`git status --porcelain` for that path is empty). The second half matters: --grep alone only
+# proves SOME commit once carried that trailer, not that the file on disk right now is what was committed —
+# an artifact edited again after audit-commit-stage.ps1 ran, and never re-committed, must NOT read as done.
+function Test-StageCommitted([string]$Worktree, [string]$StageName, [string]$ArtifactRelativePath) {
+    $commit = & git -C $Worktree log -1 --grep "Stage: $StageName" --fixed-strings --pretty=format:%H 2>$null
+    if ([string]::IsNullOrWhiteSpace(($commit | Select-Object -First 1))) { return $false }
+    $dirty = & git -C $Worktree status --porcelain -- $ArtifactRelativePath 2>$null
+    return [string]::IsNullOrWhiteSpace(($dirty | Select-Object -First 1))
 }
 
 # The first stage (in pipeline order) that is not yet done: its artifact is missing under $StagesDir, or it
-# is present but not yet committed on the audit branch at $Worktree. $null when every stage is done.
+# is present but not committed (clean, with a 'Stage: <name>' commit) on the audit branch at $Worktree.
+# $null when every stage is done.
 function Get-NextStage([string]$StagesDir, [string]$Worktree, $Pipeline) {
     foreach ($stage in $Pipeline.stages) {
         $file = Join-Path $StagesDir $stage.artifact
-        $done = (Test-Path -LiteralPath $file) -and (Test-StageCommitted $Worktree $stage.stage)
+        $relative = "artifacts/knowledge/stages/$($stage.artifact)"
+        $done = (Test-Path -LiteralPath $file) -and (Test-StageCommitted $Worktree $stage.stage $relative)
         if (-not $done) { return $stage }
     }
     return $null

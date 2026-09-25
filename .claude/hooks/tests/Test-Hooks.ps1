@@ -547,13 +547,17 @@ $ownershipCases = @(
     @('audit-verifier', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'audit-verifier: CLAUDE.md is denied')
 )
 
-# agent_type (caller), agent_id, subagent_type, run_in_background, expected, label
+# agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
 $noBgCases = @(
     @('issue-worker', 'a1', 'adversarial-reviewer', $true, 2, 'no-background-specialists: worker background spawn is blocked'),
     @('issue-worker', 'a1', 'adversarial-reviewer', $false, 0, 'no-background-specialists: worker foreground spawn is allowed'),
     @($null, $null, 'issue-worker', $true, 0, 'no-background-specialists: main session background spawn is allowed'),
     @('docs-writer', 'a2', 'docs-reviewer', $true, 2, 'no-background-specialists: docs-writer background spawn is blocked'),
-    @('issue-archivist', 'a3', 'issue-auditor', $true, 2, 'no-background-specialists: audit-stage agent background spawn is blocked')
+    @('issue-archivist', 'a3', 'issue-auditor', $true, 2, 'no-background-specialists: audit-stage agent background spawn is blocked'),
+    # m1: a blank/missing agent_type falls back to -Agent (frontmatter wiring), not a single point of trust.
+    @($null, $null, 'adversarial-reviewer', $true, 2, 'no-background-specialists: blank agent_type falls back to -Agent', 'issue-worker'),
+    @($null, $null, 'adversarial-reviewer', $false, 0, 'no-background-specialists: -Agent fallback, foreground is allowed', 'issue-worker'),
+    @('docs-writer', 'a2', 'docs-reviewer', $true, 0, 'no-background-specialists: -Agent for a different agent than agent_type is not this agent stopping', 'issue-worker')
 )
 
 $srcPatch = Join-Path $work 'src.patch'
@@ -781,10 +785,10 @@ try {
     Invoke-HookCase $ownership 'not json' 0 'malformed payload' 'issue-worker'
 
     foreach ($case in $noBgCases) {
-        $agentType, $agentId, $subagentType, $runInBackground, $expected, $label = $case
+        $agentType, $agentId, $subagentType, $runInBackground, $expected, $label, $hookAgentArg = $case
         $payload = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $subagentType; run_in_background = $runInBackground } }
         if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = $agentId }
-        Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label
+        Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label $hookAgentArg
     }
     Invoke-HookCase $noBg 'not json' 0 'malformed payload'
 
