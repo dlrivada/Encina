@@ -1,6 +1,6 @@
 # AGENTS.md - Encina engineering rules
 
-The operative rules for every contributor and every AI agent, whatever the tool. MUST and NEVER are binding. The reasoning, examples and history behind each rule are in the frozen [engineering handbook](docs/engineering/ENGINEERING-HANDBOOK.md) (the pre-2026-09-25 `CLAUDE.md`); "handbook: X" below names its section. Where this file and the handbook disagree, this file wins.
+The operative rules for every contributor and every AI agent, whatever the tool. Every rule in this file is binding; MUST and NEVER mark the ones most often broken. The reasoning, examples and history behind each rule are in the frozen [engineering handbook](docs/engineering/ENGINEERING-HANDBOOK.md) (the pre-2026-09-25 `CLAUDE.md`); "handbook: X" below names its section. Where this file and the handbook disagree, this file wins.
 
 ## 1. Project facts
 
@@ -46,12 +46,14 @@ The operative rules for every contributor and every AI agent, whatever the tool.
 
 **Database: every provider-dependent feature MUST be implemented for all 10 providers.** It applies to every store (outbox, inbox, saga, scheduled message, ...), repositories, unit of work, bulk operations, anything with database-specific SQL or connection types, and registrations in `ServiceCollectionExtensions`.
 
-| Family | Providers | SQL notes |
-| --- | --- | --- |
-| ADO.NET | SqlServer, PostgreSQL, MySQL | SQL Server: `@param`, `TOP (@n)`, `bit`, native DateTime/GUID |
-| Dapper | SqlServer, PostgreSQL, MySQL | PostgreSQL: `@param`, `LIMIT @n`, `true/false`, case-sensitive identifiers |
-| EF Core | SqlServer, PostgreSQL, MySQL | MySQL: `@param`, `LIMIT @n`, `0/1`, backtick identifiers |
-| MongoDB | MongoDB | |
+| Family | Providers |
+| --- | --- |
+| ADO.NET | SqlServer, PostgreSQL, MySQL |
+| Dapper | SqlServer, PostgreSQL, MySQL |
+| EF Core | SqlServer, PostgreSQL, MySQL |
+| MongoDB | MongoDB |
+
+SQL differences per database: SQL Server uses `@param`, `TOP (@n)`, `bit`, native DateTime and GUID; PostgreSQL uses `@param`, `LIMIT @n`, `true/false`, case-sensitive identifiers; MySQL uses `@param`, `LIMIT @n`, `0/1`, backtick identifiers.
 
 Oracle (ADR-009, code in `.backup/oracle/`) and SQLite (ADR-024, packages in `.backup/`, not built, tested or guaranteed) are out of the matrix. Message brokers, caching and event sourcing (Marten) are excluded from the database rule; they follow their own category below.
 
@@ -60,7 +62,7 @@ Oracle (ADR-009, code in `.backup/oracle/`) and SQLite (ADR-024, packages in `.b
 | Category | Providers | 1.0 scope | Every provider MUST support |
 | --- | --- | --- | --- |
 | Caching (8) | Memory (L1), Hybrid (L1+L2), Redis, Valkey, Dragonfly, Garnet, KeyDB, Memcached (planned) | all 8 (SPEC-000 REQ-027, #277) | Get/Set/Remove; TTL/expiration; serialization abstraction; pub/sub backplane where applicable. Applies to `ICacheProvider`, `IPubSubProvider`, stampede protection, eager refresh, fail-safe, tag invalidation, read/write-through |
-| Transports (10 + 6 planned) | RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC, GraphQL; planned (v0.15.0): GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr | the 10 existing | Send/Publish; subscription management; error handling and DLQ; metadata propagation. Applies to `IMessageTransport`, outbox publishing, inbox consumption, DLQ |
+| Transports (10 + 6 planned) | RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC, GraphQL; planned (v0.15.0): GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr | not fixed by SPEC-000; the 10 existing must stay coherent | Send/Publish; subscription management; error handling and DLQ; metadata propagation. Applies to `IMessageTransport`, outbox publishing, inbox consumption, DLQ |
 | Distributed locks | InMemory (testing), Redis (Redlock), SqlServer (`sp_getapplock`), PostgreSQL (`pg_advisory_lock`, #207), MySQL (`GET_LOCK`, #208); post-1.0: Azure Blob, DynamoDB, Consul, etcd, ZooKeeper | exactly these 5; a lock feature is complete for 1.0 when they are covered (SPEC-000 DEC-003) | TryAcquire with timeout; auto-release on timeout; `CancellationToken`. Applies to `IDistributedLockProvider`, leader election, resource coordination |
 | Validation (3) | FluentValidation, DataAnnotations, MiniValidator | all 3 | integrate with `ValidationOrchestrator`; return `ValidationResult`; same `ValidationPipelineBehavior`. Applies to `IValidationProvider` and its registration |
 | Cloud | AwsLambda, AzureFunctions; GoogleCloudFunctions (#205) | AWS + Azure; GCP is post-1.0 (SPEC-000 DEC-003): note the GCP gap in the issue | consider the AWS/Azure/GCP triangle for any cloud-specific feature |
@@ -107,7 +109,7 @@ Common misses: a new store or entity misses OpenTelemetry, `TenantId`, `ModuleId
 - Workflow: pick the next free range in the right area (typically 50 or 100 slots); register it; write `Diagnostics/*LogMessages.cs` with EventIds inside it; add the new field to `PublicAPI.Unshipped.txt`; add the assembly to the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the test fails otherwise); run the architecture tests.
 - Pack EventIds sequentially; NEVER sparse allocations (8400, 8410, 8420). Group them by functional area. Use the `[LoggerMessage]` source generator, not `LoggerMessage.Define`, for new code; existing `LoggerMessage.Define` calls need one literal `new EventId(<n>, ...)` each, which the test scans (#1125). Add XML docs naming the range (`/// Event IDs: 8120-8133 (see EventIdRanges.ComplianceGDPR)`).
 - `EventIdUniquenessRule` (`Encina.Testing.Architecture`) asserts every `[LoggerMessage]` has an EventId, every EventId is in a range mapped to its assembly, and no ranges overlap.
-- The registry is the source of truth for the range map. Free ranges as of 2026-09-25: 300-1099, 5400-6999, 7100-7999, 8950-8999, 9700-9999 (area map: handbook "Current Range Map").
+- The registry is the source of truth for the range map. Free ranges as of 2026-09-25: 300-1099, 3850-3899, 5400-6999, 7100-7999, 8950-8999, 9700-9999 (area map: handbook "Current Range Map").
 
 ## 8. Build, analysis, public API and documentation
 
@@ -134,7 +136,7 @@ Test projects (consolidated, one per type, under `tests/`):
 - `Encina.IntegrationTests`: real databases and externals via Docker/Testcontainers, full workflows, `[Trait("Category", "Integration")]`.
 - `Encina.LoadTests` (concurrent, performance-critical code) and `Encina.BenchmarkTests` (hot paths, BenchmarkDotNet).
 - Shared infrastructure in `Encina.TestInfrastructure`; reference examples in `Encina.Testing.Examples`.
-- Tests of a provider-dependent feature cover all 10 database providers.
+- Tests of a provider-dependent feature MUST cover all 10 database providers.
 
 **Required test types by feature category:**
 
@@ -151,7 +153,7 @@ Test projects (consolidated, one per type, under `tests/`):
 
 **Integration test fixtures** (shared containers, ~23 instead of ~71):
 
-- Every database integration test class MUST use a shared `[Collection("<Family>-<Database>")]` fixture, plus `[Trait("Category", "Integration")]` and `[Trait("Database", "<Db>")]`. NEVER create a per-class fixture for database tests.
+- Every integration test class MUST use a shared `[Collection("<Family>-<Database>")]` fixture; NEVER create a per-class fixture for database tests. The template also marks the class `[Trait("Category", "Integration")]` and `[Trait("Database", "<Db>")]`.
 - Collections: `ADO-`, `Dapper-` × `SqlServer`/`PostgreSQL`/`MySQL` use `SqlServerFixture`, `PostgreSqlFixture`, `MySqlFixture`; `EFCore-SqlServer`/`-PostgreSQL`/`-MySQL` use `EFCoreSqlServerFixture`, `EFCorePostgreSqlFixture`, `EFCoreMySqlFixture` (defined in `Collections.cs` files).
 - NEVER use `IClassFixture<T>` for database fixtures; NEVER `new SqlServerFixture()` or `_fixture = new()`; NEVER call the fixture's `DisposeAsync()` from a test (the collection owns the lifecycle).
 - Inject the fixture through the constructor, call `_fixture.ClearAllDataAsync()` in `InitializeAsync()`, use `_fixture.CreateConnection()` for shared connections. Details: [integration tests](docs/testing/integration-tests.md#collection-fixture-strategy).
@@ -181,7 +183,7 @@ Test projects (consolidated, one per type, under `tests/`):
 
 ## 10. Language and git
 
-- The maintainer writes in Spanish; answer the maintainer in Spanish. Code, comments, documentation and commit messages are **English only**; translate any Spanish comment you touch.
+- The maintainer writes in Spanish; answer the maintainer in Spanish. Code, comments, documentation and commit messages are **English only**; translate to English any Spanish comment you encounter in code while editing.
 - NEVER force-push `main`/`master`. Commit messages are clear, descriptive English.
 - NEVER add AI attribution: no `Co-Authored-By: Claude...`, no "Generated with ..." lines, no reference to AI assistance in commits or PRs. Commits appear authored solely by the repository owner.
 - GitHub Actions `permissions:` are declared per job, never at workflow level. (why: Sonar S8264, #896)
@@ -207,7 +209,7 @@ Test projects (consolidated, one per type, under `tests/`):
 - An issue body uses the headers of its template **verbatim and in order**, every section filled and the applicable checkboxes ticked (`[x]`); read the template first. `technical_debt`: Type, Description, Location, Current Behavior, Expected Behavior, Root Cause, Proposed Fix, Priority, Effort Estimate, Related Issues. `bug_report`: Description, Steps to Reproduce, Expected Behavior, Actual Behavior, Environment, Code Sample, Stack Trace, Additional Context (plus Root Cause when known). House style: #1050 (`[DEBT]`), #949 (`[BUG]`).
 - A `[FEATURE]` issue of any size gets an implementation plan at `docs/plans/{feature}-implementation-plan-{issue}.md`, generated with [the plan prompt](docs/engineering/prompts/implementation-plan-prompt.md) (style: `docs/plans/dsr-implementation-plan-404.md`) and linked from the issue before implementation starts.
 - Workflow: issue → plan (features) → assign and move to In Progress → reference it in the commit or PR (`Fixes #123` or `Closes #123`) → it closes on merge.
-- Changelog: NEVER edit `CHANGELOG.md` by hand. A user-visible change adds `changelog.d/<issue>-<slug>.<section>.md` (section: `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`; see `changelog.d/README.md`). Releases fold fragments with `dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title]` (maintainer only).
+- Changelog: NEVER edit the `[Unreleased]` section of `CHANGELOG.md` by hand. A completed feature or other user-visible change adds `changelog.d/<issue>-<slug>.<section>.md` (section: `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`; see `changelog.d/README.md`). Releases fold fragments with `dotnet run .github/scripts/changelog-fragments.cs -- --release <version> <yyyy-MM-dd> [title]` (maintainer only).
 - Other records: `ROADMAP.md` (roadmap), `docs/releases/vX.Y.Z/README.md` (update after a major implementation phase), `docs/architecture/adr/` (after an architectural decision), `docs/roadmap-documentacion.md` (documentation roadmap).
 
 ## 12. When doing X, read Y
