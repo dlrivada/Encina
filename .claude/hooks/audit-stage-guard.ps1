@@ -106,15 +106,17 @@ try {
         if (-not $done) { $nextStage = $stage; break }
     }
 
-    # Resolve the verifier's artifact name from pipeline.json (the stage whose agent is audit-verifier),
-    # the same way tools/ai/audit/_audit-lib.ps1's Test-LastVerdictFail does, instead of hard-coding
-    # 'verification.md' (#1345).
+    # Resolve the verifier's artifact name from pipeline.json (the stage whose agent is audit-verifier), the
+    # same way tools/ai/audit/_audit-lib.ps1's Test-LastVerdictFail does, instead of hard-coding a file name
+    # (#1345). No such stage in pipeline.json: nothing to check, so no re-run exception applies.
     $verifierStage = @($pipeline.stages) | Where-Object { [string]$_.agent -eq 'audit-verifier' } | Select-Object -First 1
-    $verificationFile = if ($verifierStage) { Join-Path $stagesDir $verifierStage.artifact } else { Join-Path $stagesDir 'verification.md' }
     $lastVerdictFail = $false
-    if (Test-Path -LiteralPath $verificationFile) {
-        $firstLine = Get-Content -LiteralPath $verificationFile -TotalCount 1
-        $lastVerdictFail = $firstLine -eq 'Verdict: FAIL'
+    if ($verifierStage) {
+        $verificationFile = Join-Path $stagesDir $verifierStage.artifact
+        if (Test-Path -LiteralPath $verificationFile) {
+            $firstLine = Get-Content -LiteralPath $verificationFile -TotalCount 1
+            $lastVerdictFail = $firstLine -eq 'Verdict: FAIL'
+        }
     }
     if ($lastVerdictFail) { exit 0 }
 
