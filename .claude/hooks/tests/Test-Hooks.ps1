@@ -1166,6 +1166,125 @@ try {
         Test-CommitStageCase 'refuses when the recorded author is the wrong agent' $false
         @{ code = @{ agent = 'issue-auditor'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\.authors.json')
         Test-CommitStageCase 'commits when the recorded author matches pipeline.json' $true
+
+        # ================================================================================================
+        # #1374 (appended last, its own delimited block, to minimise conflicts with #1375's own audit-stage
+        # cases): two concurrent enforce-path-ownership.ps1 instances writing .authors.json for two different
+        # stages must never leave it invalid; an unreadable sidecar must be reported loudly by the hook and
+        # by audit-commit-stage.ps1, never silently swallowed; audit-stage.ps1 -RepairAuthors is the one
+        # sanctioned repair for an open audit.
+        # ================================================================================================
+
+        # (a) Two real, concurrent enforce-path-ownership.ps1 processes (Start-Process -PassThru, not two
+        # sequential Invoke-HookCase calls) writing DIFFERENT stages of the same sidecar, run 5 times: the
+        # result must always be one valid JSON object with both entries, never the two-concatenated-objects
+        # corruption #1374 reports.
+        $concurrentWt = Join-Path $work 'ConcurrentAuthorsWt'
+        if (Test-Path $concurrentWt) { Remove-Item -Recurse -Force $concurrentWt }
+        New-Item -ItemType Directory -Force (Join-Path $concurrentWt 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $concurrentWt 'artifacts\knowledge\stages') | Out-Null
+        Set-Content (Join-Path $concurrentWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
+        $concurrentAuthorsPath = Join-Path $concurrentWt 'artifacts\knowledge\stages\.authors.json'
+        $concurrentArchivistPayload = @{ tool_name = 'Write'; cwd = $concurrentWt; tool_input = @{ file_path = "$concurrentWt\artifacts\knowledge\stages\archivist.md" }; agent_type = 'issue-archivist'; agent_id = 'a1' } | ConvertTo-Json -Compress
+        $concurrentCodePayload = @{ tool_name = 'Write'; cwd = $concurrentWt; tool_input = @{ file_path = "$concurrentWt\artifacts\knowledge\stages\code.md" }; agent_type = 'issue-auditor'; agent_id = 'a2' } | ConvertTo-Json -Compress
+        $concurrentArchivistStdin = Join-Path $concurrentWt 'archivist-payload.json'
+        $concurrentCodeStdin = Join-Path $concurrentWt 'code-payload.json'
+        Set-Content -LiteralPath $concurrentArchivistStdin -Value $concurrentArchivistPayload -NoNewline
+        Set-Content -LiteralPath $concurrentCodeStdin -Value $concurrentCodePayload -NoNewline
+        $env:CLAUDE_PROJECT_DIR = $concurrentWt
+
+        $concurrentFailures = [System.Collections.Generic.List[string]]::new()
+        for ($round = 1; $round -le 5; $round++) {
+            if (Test-Path $concurrentAuthorsPath) { Remove-Item -Force $concurrentAuthorsPath }
+            $out1 = Join-Path $concurrentWt "out1-$round.txt"
+            $err1 = Join-Path $concurrentWt "err1-$round.txt"
+            $out2 = Join-Path $concurrentWt "out2-$round.txt"
+            $err2 = Join-Path $concurrentWt "err2-$round.txt"
+            $p1 = Start-Process pwsh -ArgumentList @('-NoProfile', '-File', $ownership, '-Agent', 'issue-archivist') -RedirectStandardInput $concurrentArchivistStdin -RedirectStandardOutput $out1 -RedirectStandardError $err1 -PassThru -WindowStyle Hidden
+            $p2 = Start-Process pwsh -ArgumentList @('-NoProfile', '-File', $ownership, '-Agent', 'issue-auditor') -RedirectStandardInput $concurrentCodeStdin -RedirectStandardOutput $out2 -RedirectStandardError $err2 -PassThru -WindowStyle Hidden
+            $p1.WaitForExit()
+            $p2.WaitForExit()
+            if (-not (Test-Path $concurrentAuthorsPath)) { $concurrentFailures.Add("round $round`: sidecar missing"); continue }
+            try {
+                $parsed = Get-Content -LiteralPath $concurrentAuthorsPath -Raw | ConvertFrom-Json -AsHashtable
+                $ok = $null -ne $parsed -and $parsed.ContainsKey('archivist') -and [string]$parsed['archivist'].agent -eq 'issue-archivist' -and $parsed.ContainsKey('code') -and [string]$parsed['code'].agent -eq 'issue-auditor'
+                if (-not $ok) { $concurrentFailures.Add("round $round`: missing an entry") }
+            }
+            catch { $concurrentFailures.Add("round $round`: invalid JSON - $($_.Exception.Message)") }
+        }
+        $script:total++
+        if ($concurrentFailures.Count -eq 0) { 'PASS enforce-path-ownership.ps1: 5 rounds of two concurrent instances leave one valid sidecar with both entries (#1374)' }
+        else { $script:failed++; "FAIL enforce-path-ownership.ps1: concurrent sidecar writes (#1374): $($concurrentFailures -join '; ')" }
+
+        # (b) An unparseable sidecar (two concatenated objects, as observed in #1374) denies the write with
+        # the repair instruction on stderr, instead of the old silent `catch { }`.
+        function Test-OwnershipDenialCase([string]$Json, [string]$HookAgent, [string]$Label, [string]$Pattern) {
+            $output = $Json | pwsh -NoProfile -File $ownership -Agent $HookAgent 2>&1
+            $code = $LASTEXITCODE
+            $text = ($output | ForEach-Object { "$_" }) -join "`n"
+            $ok = ($code -eq 2) -and ($text -match $Pattern)
+            $script:total++
+            if ($ok) { "PASS enforce-path-ownership.ps1: $Label" } else { $script:failed++; "FAIL enforce-path-ownership.ps1: $Label (exit $code): $text" }
+        }
+        if (Test-Path $concurrentAuthorsPath) { Remove-Item -Force $concurrentAuthorsPath }
+        Set-Content -LiteralPath $concurrentAuthorsPath -Value '{"code":{"agent":"audit-verifier","utc":"2026-01-01T00:00:00Z"}}{"code":{"agent":"audit-verifier","utc":"2026-01-01T00:00:00Z"}}'
+        Test-OwnershipDenialCase $concurrentArchivistPayload 'issue-archivist' 'an unparseable sidecar denies the write with the parse error and the repair instruction (#1374)' '(?s)(?=.*not valid JSON)(?=.*RepairAuthors)'
+
+        # (c) audit-commit-stage.ps1 distinguishes an unreadable sidecar from "no recorded author" (#1374):
+        # reusing $commitWt, whose .authors.json is currently a valid entry for 'code' from the case above.
+        Set-Content -LiteralPath (Join-Path $commitWt 'artifacts\knowledge\stages\.authors.json') '{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"}}{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"}}'
+        $unreadableResult = Invoke-CommitStage
+        $script:total++
+        if ($unreadableResult.Code -ne 0 -and $unreadableResult.Output -match 'unreadable' -and $unreadableResult.Output -notmatch 'no recorded author') {
+            'PASS audit-commit-stage.ps1: an unparseable sidecar is reported as unreadable with the parse error, not "no recorded author" (#1374)'
+        }
+        else {
+            $script:failed++
+            "FAIL audit-commit-stage.ps1: unreadable-sidecar distinction (#1374) (exit $($unreadableResult.Code)): $($unreadableResult.Output)"
+        }
+
+        # (d) audit-stage.ps1 -RepairAuthors restores the sidecar from the committed version at HEAD and lists
+        # the stage entries the working-tree copy had that the committed copy lacks. A standalone, self-
+        # referential audit worktree (its own current-audit.json points at itself), like $commitWt above.
+        $repairWt = Join-Path $work 'RepairAuthorsWt'
+        if (Test-Path $repairWt) { Remove-Item -Recurse -Force $repairWt }
+        New-Item -ItemType Directory -Force (Join-Path $repairWt 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $repairWt 'artifacts\knowledge\stages') | Out-Null
+        Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\audit-stage.ps1') (Join-Path $repairWt 'tools\ai\audit\audit-stage.ps1')
+        Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\_audit-lib.ps1') (Join-Path $repairWt 'tools\ai\audit\_audit-lib.ps1')
+        function Invoke-RepairWtGit { & git -C $repairWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RepairWtGit init -q -b main
+        Invoke-RepairWtGit config user.name hooks
+        Invoke-RepairWtGit config user.email hooks@example.invalid
+        Invoke-RepairWtGit commit -q --allow-empty -m base
+        Set-Content (Join-Path $repairWt 'artifacts\knowledge\stages\code.md') 'x'
+        @{ code = @{ agent = 'issue-auditor'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $repairWt 'artifacts\knowledge\stages\.authors.json')
+        Invoke-RepairWtGit add -f 'artifacts/knowledge'
+        Invoke-RepairWtGit commit -q -m 'audit #78: code stage' -m 'Stage: code'
+        # Corrupt the working tree: a 'tests' entry recorded but never committed, mangled into two
+        # concatenated objects (the exact #1374 shape).
+        $repairCorrupt = '{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"},"tests":{"agent":"test-auditor","utc":"2026-01-02T00:00:00Z"}}{"code":{"agent":"issue-auditor","utc":"2026-01-01T00:00:00Z"},"tests":{"agent":"test-auditor","utc":"2026-01-02T00:00:00Z"}}'
+        Set-Content (Join-Path $repairWt 'artifacts\knowledge\stages\.authors.json') $repairCorrupt
+        @{ issue = 78; worktree = $repairWt; branch = 'audit/78'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $repairWt 'artifacts\knowledge\current-audit.json')
+        $repairOutput = & pwsh -NoProfile -File (Join-Path $repairWt 'tools\ai\audit\audit-stage.ps1') -RepairAuthors 2>&1
+        $repairCode = $LASTEXITCODE
+        $repairResultRaw = Get-Content -LiteralPath (Join-Path $repairWt 'artifacts\knowledge\stages\.authors.json') -Raw
+        $repairOk = $false
+        try {
+            $repairParsed = $repairResultRaw | ConvertFrom-Json -AsHashtable
+            $repairOk = $repairCode -eq 0 -and $null -ne $repairParsed -and $repairParsed.Count -eq 1 -and [string]$repairParsed['code'].agent -eq 'issue-auditor' -and ($repairOutput -join "`n") -match 'tests'
+        }
+        catch { $repairOk = $false }
+        $script:total++
+        if ($repairOk) { 'PASS audit-stage.ps1: -RepairAuthors restores the committed sidecar and lists the dropped stage entries (#1374)' }
+        else { $script:failed++; "FAIL audit-stage.ps1: -RepairAuthors (#1374) (exit $repairCode): $(($repairOutput -join ' ')); sidecar now: $repairResultRaw" }
+
+        # -RepairAuthors refuses when no audit is open, same as -Next.
+        Remove-Item -Force (Join-Path $repairWt 'artifacts\knowledge\current-audit.json')
+        $noAuditOutput = & pwsh -NoProfile -File (Join-Path $repairWt 'tools\ai\audit\audit-stage.ps1') -RepairAuthors 2>&1
+        $script:total++
+        if ($LASTEXITCODE -ne 0) { 'PASS audit-stage.ps1: -RepairAuthors refuses when no audit is open' }
+        else { $script:failed++; "FAIL audit-stage.ps1: -RepairAuthors should refuse when no audit is open: $noAuditOutput" }
     }
     else {
         'SKIP audit-stage-guard.ps1: git is not on PATH'

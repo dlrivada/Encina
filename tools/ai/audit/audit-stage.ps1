@@ -13,6 +13,12 @@
 # their assigned agent through the Write/Edit tool to be recorded again, since this command only ever writes
 # content that was already committed and so cannot be used to fabricate an author. Refuses when no audit is
 # open, same as -Next.
+#
+# The working-tree copy is scanned leniently (a regex over `"<stage>": { "agent": "<name>" ...`), not with a
+# strict JSON parse: the whole point of this command is to run against a sidecar that may be exactly the
+# corrupted, unparseable file #1374 describes (two concatenated JSON objects), so a stage name it can still
+# recognise inside that garbage is more useful to report than giving up because the file as a whole is not
+# valid JSON.
 
 param([switch]$Next, [switch]$RepairAuthors)
 
@@ -28,16 +34,15 @@ if ($RepairAuthors) {
     $n = [string]$audit.issue
     $authorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
 
-    # The working-tree entries before repair, so the report below can name the stages the committed copy is
-    # about to drop (an unreadable/corrupted sidecar counts as recording nothing here, on purpose: there is
-    # nothing trustworthy to preserve from it).
+    # The working-tree entries before repair (stage name -> agent), so the report below can name the stages
+    # the committed copy is about to drop. Scanned leniently rather than with a strict JSON parse: see the
+    # header comment above.
     $workingEntries = @{}
     if (Test-Path -LiteralPath $authorsPath) {
-        try {
-            $parsed = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable
-            if ($null -ne $parsed) { $workingEntries = $parsed }
+        $rawWorking = Get-Content -LiteralPath $authorsPath -Raw
+        foreach ($m in [regex]::Matches($rawWorking, '"(?<stage>[^"]+)"\s*:\s*\{\s*"agent"\s*:\s*"(?<agent>[^"]*)"')) {
+            $workingEntries[$m.Groups['stage'].Value] = $m.Groups['agent'].Value
         }
-        catch { $workingEntries = @{} }
     }
 
     $committedRaw = & git -C $wt show 'HEAD:artifacts/knowledge/stages/.authors.json' 2>$null
