@@ -26,6 +26,10 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent test-auditor'
+    - matcher: "Agent"
+      hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1" -Agent test-auditor'
 ---
 
 - Read `.claude/agents/lessons/test-auditor.md` first.

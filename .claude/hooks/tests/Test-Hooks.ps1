@@ -205,7 +205,12 @@ $spawnCases = @(
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
-    @('pr-watcher', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted'),
+    @('claude-code-guide', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted'),
+    @('pr-watcher', $null, 'general-purpose', 2, 'pr-watcher: read-only specialist never delegates (#1345)'),
+    @('issue-archivist', $null, 'mechanical-fixer', 2, 'issue-archivist: no delegation (stage agent, #1345)'),
+    @('issue-auditor', $null, 'mechanical-fixer', 2, 'issue-auditor: no delegation (stage agent, #1345)'),
+    @('test-auditor', $null, 'mechanical-fixer', 2, 'test-auditor: no delegation (stage agent, #1345)'),
+    @('audit-verifier', $null, 'mechanical-fixer', 2, 'audit-verifier: no delegation (stage agent, #1345)'),
     # M1: the orchestrator's allowlist (settings.json, -Agent orchestrator).
     @('orchestrator', $null, 'issue-worker', 0, 'orchestrator: issue-worker is allowed'),
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),

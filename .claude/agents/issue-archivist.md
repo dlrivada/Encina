@@ -26,6 +26,10 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent issue-archivist'
+    - matcher: "Agent"
+      hooks:
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1" -Agent issue-archivist'
 ---
 
 - Read `.claude/agents/lessons/issue-archivist.md` first.

@@ -12,6 +12,10 @@
 #                     directly, without going through docs-writer)
 #   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore
 #   mechanical-fixer  ci-diagnoser, Explore
+#   issue-archivist, issue-auditor, test-auditor, audit-verifier, docs-reviewer, adversarial-reviewer,
+#   ci-diagnoser, pr-watcher   empty (#1345). Each is either a SPEC-003 audit stage agent (single-owner,
+#                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
+#                     spawn they attempt is denied.
 #
 # The orchestrator (the main session) spawns the specialists and the read-only research agents. It may spawn
 # general-purpose for research: whether that agent only reads cannot be enforced here, but
@@ -42,10 +46,18 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'     = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
-        'issue-worker'     = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
-        'docs-writer'      = @('mechanical-fixer', 'docs-reviewer', 'Explore')
-        'mechanical-fixer' = @('ci-diagnoser', 'Explore')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
+        'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
+        'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore')
+        'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
+        'issue-archivist'       = @()
+        'issue-auditor'         = @()
+        'test-auditor'          = @()
+        'audit-verifier'        = @()
+        'docs-reviewer'         = @()
+        'adversarial-reviewer'  = @()
+        'ci-diagnoser'          = @()
+        'pr-watcher'            = @()
     }
 
     $caller = [string]$payload.agent_type
@@ -54,6 +66,11 @@ try {
     $allowed = $allowlists[$caller]
     $definition = if ($caller -eq 'orchestrator') { '.claude/agents/README.md, Delegation' } else { ".claude/agents/$caller.md" }
     $instead = if ($caller -eq 'orchestrator') { 'Use the specialist that owns the step.' } else { 'Report the step to the orchestrator instead.' }
+
+    if ($allowed.Count -eq 0) {
+        [Console]::Error.WriteLine("Blocked: $caller cannot spawn any subagent - a stage agent or a read-only specialist never delegates (#1345). See $definition. $instead")
+        exit 2
+    }
 
     $subagentType = [string]$payload.tool_input.subagent_type
     if ([string]::IsNullOrWhiteSpace($subagentType)) {
