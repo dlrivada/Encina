@@ -112,10 +112,17 @@ static List<string> ValidateRecord(string file, string repoRoot)
 
     void Err(string msg) => errors.Add($"{name}: {msg}");
 
+    // Fields already reported as missing by the loops below are not re-checked for format below:
+    // a record missing 'schema' entirely should get ONE error ("missing required field"), not two
+    // ("missing required field" followed by "must be 1 (found 'None')" for the same absence).
+    var missingScalarFields = new HashSet<string>(StringComparer.Ordinal);
     foreach (var field in RecordSchema.RequiredScalarFields)
     {
         if (!front.TryGetValue(field, out var fieldVal) || fieldVal is null || (fieldVal is string s0 && s0.Length == 0))
+        {
             Err($"missing required field '{field}'");
+            missingScalarFields.Add(field);
+        }
     }
     foreach (var field in RecordSchema.RequiredListFields)
     {
@@ -123,13 +130,13 @@ static List<string> ValidateRecord(string file, string repoRoot)
             Err($"missing required field '{field}'");
     }
 
-    if (!front.TryGetValue("schema", out var schemaVal) || !int.TryParse(AsScalar(schemaVal), out var schemaVersion) || schemaVersion != RecordSchema.SupportedVersion)
+    if (!missingScalarFields.Contains("schema") && (!int.TryParse(AsScalar(front.GetValueOrDefault("schema")), out var schemaVersion) || schemaVersion != RecordSchema.SupportedVersion))
         Err($"'schema' must be {RecordSchema.SupportedVersion} (found '{AsScalar(front.GetValueOrDefault("schema"))}')");
 
     if (front.TryGetValue("nav_exclude", out var nx) && AsScalar(nx) != "true")
         Err("'nav_exclude' must be true");
 
-    if (!front.TryGetValue("issue", out var issueVal) || !int.TryParse(AsScalar(issueVal), out _))
+    if (!missingScalarFields.Contains("issue") && !int.TryParse(AsScalar(front.GetValueOrDefault("issue")), out _))
         Err("'issue' must be an integer");
 
     CheckEnum(front, "state_reason", RecordSchema.StateReasons, Err);
@@ -154,9 +161,12 @@ static List<string> ValidateRecord(string file, string repoRoot)
     }
     else
     {
-        if (!audit.ContainsKey("unit")) Err("'audit.unit' is required");
+        // SPEC-003 §3.1: the audit unit is the issue itself (§15.4, DECIDED), so no separate
+        // 'unit' field is required; the map is 'checklist', 'date', 'verdict', 'record'.
         if (!audit.ContainsKey("checklist")) Err("'audit.checklist' is required");
         if (!audit.ContainsKey("date")) Err("'audit.date' is required");
+        if (!audit.ContainsKey("record") || string.IsNullOrWhiteSpace(AsScalar(audit.GetValueOrDefault("record"))))
+            Err("'audit.record' is required (link to docs/knowledge/audits/issue-<n>.md, REQ-011)");
         CheckEnumIn(audit, "verdict", RecordSchema.AuditVerdicts, msg => Err($"audit.{msg}"));
     }
 
@@ -185,9 +195,33 @@ static List<string> ValidateRecord(string file, string repoRoot)
             {
                 foreach (var s in sources)
                 {
+                    if (s is Dictionary<string, object?> unquotedMap)
+                    {
+                        // An unquoted list item like `- quote: some text with: a colon` parses as a
+                        // one-key map (ParseSeq's looksLikeMapEntry), not the plain string the schema
+                        // expects. Name the fix instead of failing the marker check with an empty string.
+                        var mapKey = unquotedMap.Keys.FirstOrDefault() ?? "?";
+                        Err($"{where}.sources entry must be a quoted string, not an unquoted '{mapKey}:' value — wrap the whole source in double quotes (REQ-002)");
+                        continue;
+                    }
+
                     var text = AsScalar(s) ?? "";
-                    if (!text.Contains("quote:", StringComparison.Ordinal) && !text.Contains("paraphrase:", StringComparison.Ordinal))
+                    var hasMarker = text.Contains("quote:", StringComparison.Ordinal) || text.Contains("paraphrase:", StringComparison.Ordinal);
+                    if (!hasMarker)
+                    {
                         Err($"{where}.sources entry must be marked 'quote:' or 'paraphrase:' (REQ-002): '{text}'");
+                        continue;
+                    }
+
+                    var hasLink = text.Contains("http://", StringComparison.OrdinalIgnoreCase)
+                        || text.Contains("https://", StringComparison.OrdinalIgnoreCase)
+                        || System.Text.RegularExpressions.Regex.IsMatch(text, @"#\d+");
+                    if (!hasLink)
+                        Err($"{where}.sources entry must include a link (URL or #issue/#pr) (REQ-002): '{text}'");
+
+                    var hasDate = System.Text.RegularExpressions.Regex.IsMatch(text, @"\d{4}-\d{2}-\d{2}");
+                    if (!hasDate)
+                        Err($"{where}.sources entry must include the source's date (yyyy-MM-dd) (REQ-002): '{text}'");
                 }
             }
 
@@ -409,28 +443,33 @@ static string Unquote(string s)
 // Generation (REQ-015, REQ-016): deterministic, from the records alone, stamped as generated.
 // ---------------------------------------------------------------------------------------------
 
+// AppendLine() writes Environment.NewLine, which is \r\n on Windows and \n on Linux CI — the same
+// records would then generate byte-different files depending on which OS ran --generate (SPEC-003
+// AC-004 requires byte-identical output). Ln() always appends '\n' regardless of platform.
+static void Ln(StringBuilder sb, string s = "") => sb.Append(s).Append('\n');
+
 static void WriteIndex(string path, List<Dictionary<string, object?>> records, string[] files)
 {
     var sb = new StringBuilder();
-    sb.AppendLine("<!-- GENERATED FILE — do not edit by hand.");
-    sb.AppendLine("     Produced by .github/scripts/knowledge-records.cs --generate from docs/knowledge/issues/*.md (SPEC-003). -->");
-    sb.AppendLine();
-    sb.AppendLine("# Knowledge record index");
-    sb.AppendLine();
+    Ln(sb, "<!-- GENERATED FILE — do not edit by hand.");
+    Ln(sb, "     Produced by .github/scripts/knowledge-records.cs --generate from docs/knowledge/issues/*.md (SPEC-003). -->");
+    Ln(sb);
+    Ln(sb, "# Knowledge record index");
+    Ln(sb);
     foreach (var area in RecordSchema.Areas)
     {
         var inArea = records.Where(r => AsScalar(r.GetValueOrDefault("area")) == area).ToList();
         if (inArea.Count == 0) continue;
-        sb.AppendLine($"## {area}");
-        sb.AppendLine();
+        Ln(sb, $"## {area}");
+        Ln(sb);
         foreach (var r in inArea.OrderBy(r => int.TryParse(AsScalar(r.GetValueOrDefault("issue")), out var n) ? n : 0))
         {
             var issue = AsScalar(r.GetValueOrDefault("issue"));
             var title = AsScalar(r.GetValueOrDefault("title"));
             var outcome = AsScalar(r.GetValueOrDefault("outcome"));
-            sb.AppendLine($"- [#{issue}]({issue}.md) {title} — {outcome}");
+            Ln(sb, $"- [#{issue}]({issue}.md) {title} — {outcome}");
         }
-        sb.AppendLine();
+        Ln(sb);
     }
     File.WriteAllText(path, sb.ToString());
 }
@@ -438,18 +477,18 @@ static void WriteIndex(string path, List<Dictionary<string, object?>> records, s
 static void WriteProjectHistory(string path, List<Dictionary<string, object?>> records, string[] files)
 {
     var sb = new StringBuilder();
-    sb.AppendLine("<!-- GENERATED FILE — do not edit by hand.");
-    sb.AppendLine("     Produced by .github/scripts/knowledge-records.cs --generate from docs/knowledge/issues/*.md (SPEC-003, REQ-015/REQ-016). -->");
-    sb.AppendLine();
-    sb.AppendLine("# Project history");
-    sb.AppendLine();
+    Ln(sb, "<!-- GENERATED FILE — do not edit by hand.");
+    Ln(sb, "     Produced by .github/scripts/knowledge-records.cs --generate from docs/knowledge/issues/*.md (SPEC-003, REQ-015/REQ-016). -->");
+    Ln(sb);
+    Ln(sb, "# Project history");
+    Ln(sb);
 
     foreach (var area in RecordSchema.Areas)
     {
         var inArea = records.Where(r => AsScalar(r.GetValueOrDefault("area")) == area).ToList();
         if (inArea.Count == 0) continue;
-        sb.AppendLine($"## {area}");
-        sb.AppendLine();
+        Ln(sb, $"## {area}");
+        Ln(sb);
         foreach (var kind in RecordSchema.KnowledgeKinds)
         {
             var items = new List<(int Issue, string Statement)>();
@@ -466,13 +505,13 @@ static void WriteProjectHistory(string path, List<Dictionary<string, object?>> r
                 }
             }
             if (items.Count == 0) continue;
-            sb.AppendLine($"### {ToTitle(kind)}");
-            sb.AppendLine();
+            Ln(sb, $"### {ToTitle(kind)}");
+            Ln(sb);
             foreach (var (issue, statement) in items.OrderBy(i => i.Issue))
             {
-                sb.AppendLine($"- {statement} (#{issue})");
+                Ln(sb, $"- {statement} (#{issue})");
             }
-            sb.AppendLine();
+            Ln(sb);
         }
     }
     File.WriteAllText(path, sb.ToString());
