@@ -40,7 +40,7 @@ Why is this epic needed? What business or technical value does it deliver?
 
 ## Cross-Cutting Integration
 
-> Per CLAUDE.md Cross-Cutting Integration Rule: Verify that child issues collectively address all 12 transversal functions where applicable.
+> Per `AGENTS.md` §6 (Cross-cutting integration check): Verify that child issues collectively address all 12 transversal functions where applicable.
 > Mark: ✅ Covered by child issue(s) | ⏭️ Deferred (separate issue) | ❌ N/A
 
 | # | Function | Status | Child Issue(s) |

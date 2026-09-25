@@ -27,7 +27,7 @@ This document outlines the vision, current status, and future direction of Encin
 | Observability | ✅ Production |
 | Developer Tooling | ✅ Production |
 
-Per-category package counts are not repeated here to avoid drifting from `src/`; see [docs/INVENTORY.md](docs/INVENTORY.md) or `CLAUDE.md`'s provider tables for the current set.
+Per-category package counts are not repeated here to avoid drifting from `src/`; see [docs/INVENTORY.md](docs/INVENTORY.md) or the provider tables in `AGENTS.md` §5 for the current set.
 
 ### Quality Metrics
 

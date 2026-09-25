@@ -68,7 +68,7 @@ The fixed part is the same for both agents; for a `docs-writer` read it with the
 | May spawn | `ci-diagnoser`, `mechanical-fixer`, `Explore`, `adversarial-reviewer`, `docs-writer` | `mechanical-fixer`, `docs-reviewer`, `Explore` |
 | Self-review | `adversarial-reviewer` when production code changed | `docs-reviewer` when documentation changed |
 | Verification (§3) | the row for the kind of change | the Documentation row |
-| Rules of the craft | the brief and `CLAUDE.md` | the `encina-docs` skill, read in full first |
+| Rules of the craft | the brief, `AGENTS.md` and `CLAUDE.md` | the `encina-docs` skill, read in full first |
 
 ## 3. Verification by kind of change
 

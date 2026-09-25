@@ -328,4 +328,4 @@ public async Task<bool> EvaluateSimple()
 ```
 
 Use `--filter "*EEL*"` with `BenchmarkSwitcher` per the project's
-[BenchmarkDotNet guidelines](../../../../CLAUDE.md).
+[BenchmarkDotNet guidelines](../../../../AGENTS.md#9-testing-obligations).

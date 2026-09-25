@@ -17,7 +17,7 @@ Verified on 2026-09-21 against the repository:
 | Coverage analysis | `off` (AllTests mode) | `.github/stryker-config.json` |
 | Cost control | Per-folder `test-case-filter` patched into the config before each run (#1027), 17-shard GitHub Actions matrix with `fail-fast: false` (#1028) | `mutation-tests.yml` |
 | Thresholds | `high: 80`, `low: 60`, **`break: 0`** — no run fails on score | `.github/stryker-config.json` |
-| Project-wide target | None; results accumulate per file via `mutation-history.cs --merge-from` and are published at <https://dlrivada.github.io/Encina/mutations/> | `CLAUDE.md`, `docs/testing/mutation-measurement-methodology.md` |
+| Project-wide target | None; results accumulate per file via `mutation-history.cs --merge-from` and are published at <https://dlrivada.github.io/Encina/mutations/> | `AGENTS.md` §9, `docs/testing/mutation-measurement-methodology.md` |
 
 So the two concerns raised in the original note, "running Stryker over ~23,000 tests would be dangerous" and "a possibly wrong mutation score must not be a gate", are already addressed by the existing setup: sharding keeps each mutant to ~20–500 tests, and the score is informational only.
 
@@ -52,7 +52,7 @@ The conclusion of `ENCINA-1.0-RECONCILIATION.md` §6.1 stands: **do not wait for
 | Reproducible execution | ✅ Weekly matrix workflow + `run-stryker.cs` for local runs |
 | Exact Stryker / .NET / xUnit versions recorded | ✅ Tool manifest pins 4.14.0; .NET/xUnit pinned via CPM |
 | Results verified as plausible | 🟡 Per-file accumulation exists; no explicit plausibility check (e.g. flagging shards with 0 killed) |
-| Known upstream limitations documented | ✅ `CLAUDE.md`, methodology doc, #1026, this note |
+| Known upstream limitations documented | ✅ `AGENTS.md` §9, methodology doc, #1026, this note |
 | No potentially incorrect mutation score used as a quality gate | ✅ `break: 0`, no project-wide target |
 | Re-evaluate the gate when upstream is stable | 🟡 Opened as #1087 |
 

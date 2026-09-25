@@ -5,7 +5,7 @@ description: Open a GitHub issue in dlrivada/Encina in the house format - the ri
 
 # Open an issue
 
-Every identified problem is either fixed now or recorded as an issue before moving on (CLAUDE.md, When to Create Issues). The `check-issue-template` hook blocks `gh issue create` calls that break the format below.
+Every identified problem is either fixed now or recorded as an issue before moving on (`AGENTS.md` §11, Issues, plans and changelog). The `check-issue-template` hook blocks `gh issue create` calls that break the format below.
 
 Main session (orchestrator) only. An `issue-worker` or `docs-writer` does not run this skill; it writes each follow-up as an issue file and lists the paths in its report (§5).
 
@@ -29,7 +29,7 @@ Never use `[TECH-DEBT]`, `[TESTING]`, `[ARCHITECTURE]`, `[DECISION]`, `[REVIEW]`
 1. Read the template file in `.github/ISSUE_TEMPLATE/` now; do not work from memory.
 2. Keep every `##` header verbatim and in order. Fill every section; write "None" or "Not applicable" with a reason rather than dropping one.
 3. Tick the checkboxes that apply (`[x]`) and replace the template's placeholder text.
-4. Be concrete: file paths with line numbers, the failing command or log excerpt, the rule or requirement broken (CLAUDE.md section, SPEC/ADR id).
+4. Be concrete: file paths with line numbers, the failing command or log excerpt, the rule or requirement broken (`AGENTS.md` section, SPEC/ADR id).
 5. For a `[BUG]` whose cause is known, add a Root Cause paragraph under Additional Context.
 
 House-style references: #1050 (`[DEBT]`) and #949 (`[BUG]`).

@@ -59,10 +59,10 @@ Which Encina packages would this feature affect?
 
 ## Provider Implementation Matrix
 
-> Per CLAUDE.md Multi-Provider Implementation Rule: All provider-dependent features MUST be implemented for ALL applicable providers.
+> Per `AGENTS.md` §5 (Providers): All provider-dependent features MUST be implemented for ALL applicable providers.
 > **Note**: Omit this section if the feature does not touch provider-specific code.
 
-Use the "Provider Applicability Matrix" in CLAUDE.md to determine which provider categories apply to this issue:
+Use the applicability matrix in `AGENTS.md` §5 to determine which provider categories apply to this issue:
 
 - Database features (stores, repositories, UoW, persistence): 10 database providers required
 - Caching features: 8 caching providers
@@ -92,7 +92,7 @@ Example of 10 database providers matrix:
 
 ## Cross-Cutting Integration
 
-> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Per `AGENTS.md` §6 (Cross-cutting integration check): Every new feature MUST be evaluated against ALL 12 transversal functions.
 > Mark each: ✅ Included in this feature | ⏭️ Deferred (separate issue) | ❌ N/A (explain why)
 
 | # | Function | Status | Notes |
@@ -122,7 +122,7 @@ Example of 10 database providers matrix:
 
 ## Test Matrix
 
-> Per CLAUDE.md Testing Standards: All applicable test types must be implemented or justified.
+> Per `AGENTS.md` §9 (Testing obligations): All applicable test types must be implemented or justified.
 
 | Test Type | Required? | Scope | Notes |
 |-----------|:---------:|-------|-------|

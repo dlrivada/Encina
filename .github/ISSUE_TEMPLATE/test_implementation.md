@@ -59,7 +59,7 @@ A clear description of the testing work needed.
 
 ## Collection Fixture (Integration Tests Only)
 
-> Per CLAUDE.md: Integration tests MUST use shared `[Collection]` fixtures.
+> Per `AGENTS.md` §9 (Testing obligations): Integration tests MUST use shared `[Collection]` fixtures.
 
 - **Collection**: [e.g., `ADO-PostgreSQL`, `Dapper-SqlServer`, `EFCore-MySQL`]
 - **Fixture**: [e.g., `PostgreSqlFixture`, `SqlServerFixture`]

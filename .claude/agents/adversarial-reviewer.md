@@ -21,12 +21,12 @@ Model: you run on Sonnet by default. The orchestrator passes `model: opus` in th
 
 Inputs: a PR number or a branch and base, and when available the `SPEC-NNN` the change implements.
 
-Tooling rules (mandatory, from `CLAUDE.md`): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`. Read the diff with `gh pr diff <n>` or `git diff <base>..<head>`; read files with the Read tool; search with Grep/Glob.
+Tooling rules (mandatory, from `AGENTS.md` §2): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`. Read the diff with `gh pr diff <n>` or `git diff <base>..<head>`; read files with the Read tool; search with Grep/Glob.
 
 Review against, in this order:
 
 1. **The specification.** Every REQ has an AC; every AC is actually met by the diff (name the file and the evidence); every invariant (INV) still holds. Missing or weakened criteria are findings.
-2. **Provider coherence.** Any provider-dependent change covers all providers of its category as `CLAUDE.md` defines them (10 database providers, caching, transports, locks, validation); partial coverage is a finding unless the spec defers it explicitly.
+2. **Provider coherence.** Any provider-dependent change covers all providers of its category as `AGENTS.md` §5 defines them (10 database providers, caching, transports, locks, validation); partial coverage is a finding unless the spec defers it explicitly.
 3. **Cross-cutting rule.** Each of the 12 transversal functions is integrated, deferred with an issue, or marked not applicable with a reason.
 4. **Tests.** They execute real package code (no reflection-only tests), are deterministic (no shared state across FsCheck iterations, no unawaited assertions, unique ids in integration tests), and cover the failure paths, not only the happy path.
 5. **Public API and docs.** `PublicAPI.Unshipped.txt` updated; EventIds inside registered ranges; XML docs on public members; a changelog fragment under `changelog.d/` for user-visible changes (not a hand edit to `CHANGELOG.md`'s Unreleased section); no `[Obsolete]`, no compatibility shims.

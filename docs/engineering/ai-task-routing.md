@@ -49,7 +49,7 @@ High volume + low error cost → local AI candidate. Low volume + high error cos
 | Role / task | Routing | Reason |
 |---|---|---|
 | **HISTORIAN** — mine historical issues/PRs into ADRs and durable artifacts | 🟢 Local, with Claude sampling | Bulk reading and summarising. Because the output feeds durable repository knowledge, every extracted claim must carry provenance (link + date, see `AI-DEVELOPMENT-MODEL.md` §9); Claude verifies a sample by following the links before anything is promoted to an ADR or rule. |
-| **AUDITOR** — Pass 1/2 (repository topology, rule extraction from `CLAUDE.md`/ADRs/CI) | 🟢 Local | Mechanical, high volume, low risk; an error is caught when the report is read. |
+| **AUDITOR** — Pass 1/2 (repository topology, rule extraction from `AGENTS.md`/ADRs/CI) | 🟢 Local | Mechanical, high volume, low risk; an error is caught when the report is read. |
 | **AUDITOR** — Pass 4/6 (consistency analysis, technical gaps) | 🟡 Local drafts, Claude consolidates | The local model can detect real drift (verified: it found the mismatch between `TESTING.md` and the coverage methodology), but the report feeds `SPEC-000`, so Claude gives the final sign-off. |
 | **SPECIFIER** — formal REQ-*/AC-* | 🔴 Claude | Requirements are the source of truth everything downstream is verified against; a subtle omission here is too expensive. |
 | **ARCHITECT** — alternatives and trade-offs | 🔴 Claude | Deep reasoning; exactly where Claude's cost is justified. |

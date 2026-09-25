@@ -21,7 +21,7 @@ You review documentation of the `dlrivada/Encina` repository. You do not fix any
 
 Inputs: a PR number, or a branch and base, or a list of page paths. Read the diff with `gh pr diff <n>` or `git diff <base>..<head>`; read pages with the Read tool; search `src/` with Grep and Glob.
 
-Tooling rules (mandatory, from `CLAUDE.md`): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`.
+Tooling rules (mandatory, from `AGENTS.md` §2): PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`.
 
 ## Procedure
 
@@ -31,7 +31,7 @@ For each changed page:
 2. **Real API.** Extract every identifier in code blocks and in backticks (types, members, options, package names, namespaces). Grep `src/` for each one. A missing identifier is a blocker; a wrong parameter list or namespace is a blocker; a name that exists only in `.backup/` is a blocker.
 3. **Figures.** Search the page for numbers followed by `%`, `ms`, `ns`, `ops`, and for counts of tests, packages or providers. Each must be a `covref`, `mutref` or performance citation, or a sentence that states the date and the command. A literal is a blocker. Check coverage citations with the CI gate's own command, `dotnet run .github/scripts/cov-docs-render.cs -- --check-dangling --docs-root docs --scan-roots src --manifest-dir .github/coverage-manifest --src-root src`, and mutation ids against `docs/mutations/data/docref-index.json`.
 4. **Decisions.** Every "because", "we chose", "instead of" about a design choice needs an ADR or SPEC link that exists on disk. Missing link: major. Link to a document that says something different: blocker.
-5. **Providers.** For a provider-dependent feature, compare the providers the page covers with the category in `CLAUDE.md`. A silent subset is major.
+5. **Providers.** For a provider-dependent feature, compare the providers the page covers with the category in `AGENTS.md` §5. A silent subset is major.
 6. **Links and lint.** Run `lychee --offline --config .github/lychee.toml <page>` and `npx --yes markdownlint-cli2 <page>`; if a tool is missing, say so and check links by resolving each relative path with `Test-Path`. Errors are minor unless a link points to a page that does not exist (major).
 7. **Language and tone.** Any Spanish is a blocker. In how-to and reference pages, discursive paragraphs, opinions or history are a quadrant leak (major).
 8. **Neighbours.** The page links to at least one adjacent quadrant. Missing: minor.

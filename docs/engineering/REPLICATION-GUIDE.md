@@ -52,7 +52,7 @@ For your own project, copy from the root: `Directory.Build.props` (analyzers, `T
 
 These are files, not habits; the automation of steps 3 and 4 depends on them.
 
-1. **The rules file.** `CLAUDE.md` at the root is read by the paid assistant on every session and is the contract for every contributor: philosophy, the scripting policy (PowerShell or C# file-based apps only), provider rules, cross-cutting rule, naming, testing standards, EventId registry, issue process. Start yours from this one and delete what does not apply; keep it in English.
+1. **The rules file.** `AGENTS.md` at the root is the tool-agnostic contract for every contributor and every agent (opencode, Codex, Cursor and the paid assistant all read it natively): philosophy, the scripting policy (PowerShell or C# file-based apps only), provider rules, cross-cutting rule, naming, testing standards, EventId registry, issue process. The root `CLAUDE.md` imports it with `@AGENTS.md` and adds only what is specific to Claude Code (active plans, orchestration and delegation, model routing, CodeRabbit). Start yours from `AGENTS.md` and delete what does not apply; keep it in English.
 2. **Issue templates and prefixes.** Copy `.github/ISSUE_TEMPLATE/` (nine templates: `bug_report.md`, `feature_request.md`, `technical_debt.md`, `test_implementation.md`, `architecture_spike.md`, `epic.md`, `refactoring.md`, `infrastructure.md`, `config.yml`). Titles carry the prefix (`[BUG]`, `[FEATURE]`, `[DEBT]`, `[TEST]`, `[SPIKE]`, `[EPIC]`, `[REFACTOR]`, `[INFRA]`).
 3. **Labels.** Create at least: `epic`, `ai:local-candidate`, `ai:claude-required`, `deferred-1.0`, `p0-mandatory`, `p1-recommended`, `p2-post-1.0`, `p3-obsolete`, plus your area labels. `tools/ai/apply-priority-labels.ps1` creates the four priority labels if missing.
 4. **Specifications and decisions.** Create `docs/specifications/` with a `README.md` index and write `SPEC-000` first: what the next release is, requirements `REQ-`, acceptance criteria `AC-`, invariants `INV-`, and a decision table `DEC-` with options, recommendation and the human's choice. Use [`SPEC-000`](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) as the template. Create `docs/architecture/adr/` with an `index.md`; number ADRs sequentially.
@@ -147,7 +147,7 @@ Audit every workflow that pushes to `main` afterwards; a release workflow that c
 
 Claude Code (desktop app or CLI) opened on the repository root. What to copy:
 
-- `CLAUDE.md` (step 2) is the session contract.
+- `AGENTS.md` (step 2) is the rules contract; `CLAUDE.md` imports it with `@AGENTS.md` and adds the Claude Code-specific session contract on top.
 - `.claude/agents/` (versioned; `.gitignore` excludes the rest of `.claude/`): `pr-watcher` (Haiku, low effort), `ci-diagnoser` (Sonnet, medium), `mechanical-fixer` (Sonnet, low), `adversarial-reviewer` (Opus, high). Each file pins model, effort, tools and whether it may write. See [`.claude/agents/README.md`](../../.claude/agents/README.md).
 - `tools/ai/watch-pr-events.ps1`: the token-free pull-request watcher. Run it under a monitor (or a terminal) as `pwsh -NoProfile -File tools/ai/watch-pr-events.ps1 -Pr <n>`; it emits one line per event (`CHECK-FAIL`, `REVIEW-COMMENT`, `REVIEW`, `CHECKS-DONE`, `PR-MERGED`).
 - The assistant's persistent memory lives outside the repository (its own project directory); keep a "handoff" note there with branches, open PRs, pending commands and next steps, so that a cut session resumes cleanly.

@@ -46,7 +46,7 @@ That knowledge currently exists in several places:
 - documentation;
 - ADRs;
 - plans;
-- `CLAUDE.md`;
+- `AGENTS.md` and `CLAUDE.md`;
 - `.opencode` agent definitions;
 - issue templates;
 - pull request templates;
@@ -123,9 +123,9 @@ Read these before forming any opinion about Encina coverage, in this order:
 1. `.github/coverage-manifest/{Package}.json` — per file, which test types (flags) apply, and per package, the target percentage of each flag.
 2. `.github/scripts/coverage-report.cs` — the computation. It implements the **obligations model**: each (flag × coverable line) is one obligation, and every flag is measured independently. A line covered only by unit tests does not count toward the guard, contract, property or integration flag.
 3. The coverage dashboard at <https://dlrivada.github.io/Encina/coverage/> — the published result; a package is green only when every applicable flag reaches its own target.
-4. `CLAUDE.md` § "Per-Flag Coverage System (Obligations Model)" — the human-readable summary.
+4. `AGENTS.md` §9 "Testing obligations" — the human-readable summary.
 
-There is **no single project-wide percentage**. Statements such as "≥85% line coverage" that survived in `CLAUDE.md` and `docs/en/guides/TESTING.md` were documentation drift from an earlier category-based model; they were corrected on 2026-09-21. If you find another one, treat it as drift, not as a rule.
+There is **no single project-wide percentage**. Statements such as "≥85% line coverage" that survived in the old `CLAUDE.md` (now the frozen [engineering handbook](ENGINEERING-HANDBOOK.md)) and `docs/en/guides/TESTING.md` were documentation drift from an earlier category-based model; they were corrected on 2026-09-21. If you find another one, treat it as drift, not as a rule.
 
 ---
 
@@ -366,7 +366,7 @@ Sources may include:
 - docs;
 - ADRs;
 - plans;
-- `CLAUDE.md`;
+- `AGENTS.md` and `CLAUDE.md`;
 - `.opencode`;
 - CI;
 - GitHub issues;
@@ -782,6 +782,8 @@ First audit what already exists.
 
 Avoid duplicating information that is already correctly represented.
 
+**Update 2026-09-25 (#1353): implemented.** The root `AGENTS.md` now holds the operative, tool-agnostic engineering rules; it is read natively by opencode, Codex and Cursor. The root `CLAUDE.md` imports it with `@AGENTS.md` and adds only what is specific to Claude Code (Active Plans, orchestration and delegation, model routing, the closed-issue audit, CodeRabbit). The maintainer chose to keep the pre-2026-09-25 `CLAUDE.md` verbatim as a frozen human reference rather than deleting it: it was moved with `git mv` to [`docs/engineering/ENGINEERING-HANDBOOK.md`](ENGINEERING-HANDBOOK.md) with a one-line snapshot banner, its relative links were not fixed, and it is not maintained going forward. Every heading and rule of that frozen snapshot is traced to its destination in [`docs/engineering/agents-md-traceability.md`](agents-md-traceability.md).
+
 ### 2026-09-23 review of the agent system ([#1181](https://github.com/dlrivada/Encina/issues/1181))
 
 A review of the 2026-09-22 and 2026-09-23 sessions (about 20 PRs and 40 issues run by an orchestrator with one `issue-worker` per issue) changed the agent system as follows. Details live in `.claude/agents/README.md` and the agent definitions.
@@ -888,7 +890,7 @@ Understand:
 
 Extract the actual rules from:
 
-- `CLAUDE.md`;
+- `AGENTS.md` and `CLAUDE.md`;
 - other agent instructions;
 - ADRs;
 - plans;
