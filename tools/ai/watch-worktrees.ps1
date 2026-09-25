@@ -21,7 +21,9 @@ param(
 $ErrorActionPreference = 'Continue'
 
 function Get-Worktrees([string]$Root) {
-    $prefix = (Join-Path $Root '.claude\worktrees') -replace '\\', '/'
+    # Trailing separator so a sibling directory whose name merely starts with "worktrees" (e.g.
+    # .claude\worktrees-backup\) is never matched as a segment-boundary prefix.
+    $prefix = ((Join-Path $Root '.claude\worktrees') -replace '\\', '/') + '/'
     $lines = & git -C $Root worktree list --porcelain 2>$null
     $result = @{}
     $path = $null

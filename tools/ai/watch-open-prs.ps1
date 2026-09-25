@@ -21,6 +21,9 @@ $ErrorActionPreference = 'Continue'
 $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $open = [System.Collections.Generic.HashSet[int]]::new()
 $first = $true
+$repoParts = $Repo -split '/', 2
+$repoOwner = $repoParts[0]
+$repoName = $repoParts[1]
 while ($true) {
     try {
         $prs = gh pr list --repo $Repo --state open --limit 50 --json number,title | ConvertFrom-Json
@@ -41,7 +44,7 @@ while ($true) {
                     if ($seen.Add("$n|fail|$($c.name)|$($c.detailsUrl)") -and -not $first) { Write-Output "PR #$n CHECK-FAIL $($c.name) $($c.detailsUrl)" }
                 }
             }
-            $q = 'query { repository(owner:"dlrivada", name:"Encina") { pullRequest(number: ' + $n + ') { reviewThreads(first: 100) { nodes { id isResolved comments(first: 1) { nodes { author { login } path } } } } } } }'
+            $q = 'query { repository(owner:"' + $repoOwner + '", name:"' + $repoName + '") { pullRequest(number: ' + $n + ') { reviewThreads(first: 100) { nodes { id isResolved comments(first: 1) { nodes { author { login } path } } } } } } }'
             $t = gh api graphql -f query=$q 2>$null | ConvertFrom-Json
             foreach ($th in @($t.data.repository.pullRequest.reviewThreads.nodes | Where-Object { -not $_.isResolved })) {
                 if ($seen.Add("$n|thread|$($th.id)")) {
