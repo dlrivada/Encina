@@ -32,6 +32,14 @@ Never sleep in the foreground and never ask a watcher to report at the end. Star
 pwsh -NoProfile -File tools/ai/watch-pr-events.ps1 -Pr <n>
 ```
 
+When more than one PR is open, run one multi-PR monitor instead of one `watch-pr-events.ps1` per PR:
+
+```powershell
+pwsh -NoProfile -File tools/ai/watch-open-prs.ps1
+```
+
+Never exclude `check-links` from either watcher's failure bucket: ignoring it hid a real failure from 2026-09-23 to 2026-09-26.
+
 React to each event as it arrives:
 
 | Event | Action |
