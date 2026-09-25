@@ -403,9 +403,9 @@ This is the one exception swarm-forge's constitution allows: a single `switch` o
 
 Compiler-generated members (async state machines, lambdas, property accessors reported under a synthesized name) cannot be reliably matched back to a source declaration and are therefore never eligible for the exemption — only a hand-written method with a findable declaration line can carry the comment.
 
-### Not yet wired into CI
+### Wired into CI
 
-`crap-gate.cs` exists and was verified manually against the fixtures under `.github/scripts/testdata/crap-gate/` during development (diff parsing, the exemption comment, `--report`/`--enforce` exit codes); there is no automated test that runs it yet (see the open question in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md#5-open-questions--follow-ups)), and no workflow invokes it yet. Wiring it into `ci.yml` — which coverage artifacts feed it, and the `--report` → `--enforce` rollout — is a separate decision, recorded in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md).
+`.github/scripts/crap-gate-selftest.ps1` is an automated self-test that runs `crap-gate.cs` against the fixtures under `.github/scripts/testdata/crap-gate/` and asserts diff parsing, the exemption comment, and the `--report`/`--enforce` exit codes (closes #1354). The `crap-gate` job in `ci.yml` runs this self-test first, then downloads the flag jobs' Cobertura artifacts and runs `dotnet run --file .github/scripts/crap-gate.cs -- --enforce --threshold 10` against the pull request's diff. The job is in `ci-result`'s `needs:` list, so it blocks a merge on a violation from day one — the rollout went straight to `--enforce`, with no intermediate `--report`-only period. See [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md) for the CI-wiring detail (maintainer decision 2026-09-25).
 
 ### Citation status
 
@@ -437,4 +437,4 @@ The document is living because the methodology is living. Honesty about what we 
 - [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md) (sibling methodology — mutation testing)
 - Scripts: `.github/scripts/coverage-report.cs`, `.github/scripts/coverage-history.cs`, `.github/scripts/coverage-recalculate.cs`, `.github/scripts/generate-coverage-manifest.cs`, `.github/scripts/crap-gate.cs`
 - Dashboard: <https://dlrivada.github.io/Encina/coverage/>
-- [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md) — how `crap-gate.cs` wires into CI (design note, not yet decided)
+- [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md) — how `crap-gate.cs` wires into CI (design note; the `crap-gate` job in `ci.yml` implements it and gates `ci-result`)
