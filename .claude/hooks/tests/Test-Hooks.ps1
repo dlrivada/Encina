@@ -1052,6 +1052,14 @@ try {
         Set-Content (Join-Path $commitWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
         function Invoke-CommitWtGit { & git -C $commitWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
         Invoke-CommitWtGit init -q -b main
+        # Local (not -c, which is invocation-scoped only) repo identity: audit-commit-stage.ps1's own `git
+        # commit` call intentionally passes no -c override (production assumes a configured committer, like
+        # every other git call in this codebase), so this fixture must give the ephemeral repo a real identity
+        # or that commit fails with "Please tell me who you are" whenever the ambient global config is not
+        # visible to the child process (observed specifically when this suite runs long enough to be moved to
+        # the background: #1345).
+        Invoke-CommitWtGit config user.name hooks
+        Invoke-CommitWtGit config user.email hooks@example.invalid
         Invoke-CommitWtGit commit -q --allow-empty -m base
         New-Item -ItemType Directory -Force (Join-Path $commitWt 'artifacts\knowledge\stages') | Out-Null
         @{ issue = 77; worktree = $commitWt; branch = 'audit/77'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\current-audit.json')
