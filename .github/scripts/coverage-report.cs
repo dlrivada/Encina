@@ -172,6 +172,11 @@ TestType ClassifyDirectory(string dirName)
 // line coverage: file → lineNumber → hits (max across applicable reports)
 var coverageByFlag = new Dictionary<TestType, Dictionary<string, Dictionary<int, int>>>();
 
+// CRAP (Change Risk Anti-Patterns) raw method data: flag → methodKey → MethodRaw.
+// methodKey = "relFile|className|name+signature". Populated alongside coverageByFlag
+// from the same <method> elements Cobertura already emits (complexity attribute + <lines>).
+var methodsByFlag = new Dictionary<TestType, Dictionary<string, MethodRaw>>();
+
 Console.WriteLine($"Scanning {inputDir} for coverage reports...");
 
 if (!Directory.Exists(inputDir))
@@ -254,6 +259,47 @@ foreach (var xmlFile in xmlFiles)
                 else
                     fileLines[num] = hits;
             }
+
+            // Per-method data for CRAP: Cobertura nests one <methods><method> per direct
+            // method of this class (compiler-generated state machines/lambdas are their
+            // own <class>, so this does not double-count nested types). Build-generated
+            // sources under obj/ (source generators: regex, JSON context, etc.) are excluded —
+            // nobody edits them and their complexity is not a signal about hand-written risk.
+            // This only narrows the new CRAP data; the pre-existing line-coverage aggregation
+            // above is untouched, so the base coverage percentages stay byte-for-byte the same.
+            var className = cls.Attribute("name")?.Value ?? "";
+            var methodsEl = cls.Element(ns + "methods");
+            if (methodsEl is not null && !relFile.Contains("/obj/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!methodsByFlag.TryGetValue(flag, out var flagMethods))
+                    methodsByFlag[flag] = flagMethods = new Dictionary<string, MethodRaw>(StringComparer.Ordinal);
+
+                foreach (var m in methodsEl.Elements(ns + "method"))
+                {
+                    var mName = m.Attribute("name")?.Value ?? "";
+                    var mSignature = m.Attribute("signature")?.Value ?? "";
+                    var complexity = int.Parse(m.Attribute("complexity")?.Value ?? "1", CultureInfo.InvariantCulture);
+                    var methodKey = $"{relFile}|{className}|{mName}{mSignature}";
+
+                    if (!flagMethods.TryGetValue(methodKey, out var raw))
+                    {
+                        raw = new MethodRaw(relFile, className, mName, mSignature, complexity);
+                        flagMethods[methodKey] = raw;
+                    }
+
+                    foreach (var mLine in m.Descendants(ns + "line"))
+                    {
+                        var num = int.Parse(mLine.Attribute("number")?.Value ?? "0", CultureInfo.InvariantCulture);
+                        var hits = int.Parse(mLine.Attribute("hits")?.Value ?? "0", CultureInfo.InvariantCulture);
+                        if (num <= 0) continue;
+
+                        if (raw.Lines.TryGetValue(num, out var existingHits))
+                            raw.Lines[num] = Math.Max(existingHits, hits);
+                        else
+                            raw.Lines[num] = hits;
+                    }
+                }
+            }
         }
     }
     catch (Exception ex)
@@ -263,6 +309,52 @@ foreach (var xmlFile in xmlFiles)
 }
 
 Console.WriteLine($"\nLoaded data from {coverageByFlag.Count} test type(s): {string.Join(", ", coverageByFlag.Keys)}");
+
+// ─── CRAP per method (combined coverage across ALL flags) ────────────────────
+//
+// CRAP(m) = comp(m)^2 * (1 - cov(m))^3 + comp(m), comp = Cobertura's <method complexity="">,
+// cov = the method's line coverage in [0,1].
+//
+// Coverage here is deliberately the COMBINED coverage of every flag (unit, guard, contract,
+// property, integration) — the union of covered lines across all reports — not filtered by
+// the per-file manifest applicability used for the obligations model above. CRAP measures the
+// risk of shipping untested complex code; a method proven safe by an integration test is not
+// risky merely because integration tests aren't its assigned obligation. See
+// docs/testing/coverage-measurement-methodology.md (CRAP section) for the rationale.
+var combinedMethods = new Dictionary<string, MethodCrapInfo>(StringComparer.Ordinal);
+foreach (var flagMethods in methodsByFlag.Values)
+{
+    foreach (var (methodKey, raw) in flagMethods)
+    {
+        if (!combinedMethods.TryGetValue(methodKey, out var info))
+        {
+            info = new MethodCrapInfo(raw.RelFile, raw.ClassName, raw.Name, raw.Signature, raw.Complexity);
+            combinedMethods[methodKey] = info;
+        }
+
+        foreach (var (num, hits) in raw.Lines)
+        {
+            if (info.Lines.TryGetValue(num, out var existingHits))
+                info.Lines[num] = Math.Max(existingHits, hits);
+            else
+                info.Lines[num] = hits;
+        }
+    }
+}
+
+foreach (var info in combinedMethods.Values)
+{
+    var total = info.Lines.Count;
+    var covered = info.Lines.Values.Count(h => h > 0);
+    info.Coverage = total > 0 ? covered / (double)total : 1.0;
+    info.Crap = (info.Complexity * (double)info.Complexity * Math.Pow(1 - info.Coverage, 3)) + info.Complexity;
+}
+
+var methodsByRelFile = combinedMethods.Values
+    .GroupBy(m => m.RelFile)
+    .ToDictionary(g => g.Key, g => g.OrderByDescending(m => m.Crap).ToList());
+
+Console.WriteLine($"CRAP: computed for {combinedMethods.Count} method(s) across {methodsByRelFile.Count} file(s)");
 
 // ─── Merge coverage per file using only applicable flags ─────────────────────
 
@@ -327,7 +419,8 @@ foreach (var file in allFiles)
     double coveredEquivalent = metObligations;
     double pct = totalObligations > 0 ? Math.Round(metObligations * 100.0 / totalObligations, 2) : 0;
 
-    fileResults.Add(new FileCoverage(file, packageName, totalLines, coveredEquivalent, pct, perFlag));
+    var fileMethods = methodsByRelFile.TryGetValue(file, out var mList) ? mList : [];
+    fileResults.Add(new FileCoverage(file, packageName, totalLines, coveredEquivalent, pct, perFlag, fileMethods));
 }
 
 // ─── Aggregate by package ────────────────────────────────────────────────────
@@ -428,12 +521,13 @@ foreach (var pkg in packageResults.OrderBy(p => p.Name))
 {
     md.AppendLine($"### {pkg.Name} ({pkg.Percentage:F1}%)");
     md.AppendLine();
-    md.AppendLine("| File | Lines | Covered | Coverage |");
-    md.AppendLine("|------|:-----:|:-------:|:--------:|");
+    md.AppendLine("| File | Lines | Covered | Coverage | Max CRAP |");
+    md.AppendLine("|------|:-----:|:-------:|:--------:|:--------:|");
     foreach (var file in pkg.Files)
     {
         var shortName = file.RelativePath.Replace($"src/{pkg.Name}/", "");
-        md.AppendLine($"| {shortName} | {file.TotalLines} | {file.CoveredEquivalent:F1} | {file.Percentage:F1}% |");
+        var maxCrap = file.Methods.Count > 0 ? file.Methods.Max(m => m.Crap) : 0;
+        md.AppendLine($"| {shortName} | {file.TotalLines} | {file.CoveredEquivalent:F1} | {file.Percentage:F1}% | {maxCrap:F1} |");
     }
     md.AppendLine();
 }
@@ -467,7 +561,24 @@ var jsonData = new
             .ToDictionary(
             kv => kv.Key.ToString().ToLowerInvariant(),
             kv => new { total = kv.Value.Total, covered = kv.Value.Covered,
-                        coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 })
+                        coverage = kv.Value.Total > 0 ? Math.Round(kv.Value.Covered * 100.0 / kv.Value.Total, 2) : 0 }),
+        // Top methods by CRAP (Change Risk Anti-Patterns), combined coverage across all flags.
+        // Capped at 25/package: the full per-method detail for every method in the solution
+        // would make this file unwieldy; the crap-gate.cs script computes CRAP directly from
+        // the raw Cobertura files for the methods a PR diff actually touches.
+        methods = p.Files.SelectMany(f => f.Methods)
+            .OrderByDescending(m => m.Crap)
+            .Take(25)
+            .Select(m => new
+            {
+                file = m.RelFile.Replace($"src/{p.Name}/", ""),
+                className = m.ClassName,
+                method = m.Name,
+                signature = m.Signature,
+                complexity = m.Complexity,
+                coverage = Math.Round(m.Coverage * 100.0, 2),
+                crap = Math.Round(m.Crap, 2)
+            })
     }),
     untrackedPackages = untrackedPackages.Count > 0 ? untrackedPackages : null
 };
@@ -875,7 +986,32 @@ enum TestType
 }
 
 record FileCoverage(string RelativePath, string Package, int TotalLines,
-    double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag);
+    double CoveredEquivalent, double Percentage, Dictionary<TestType, (int Total, int Covered)> PerFlag,
+    List<MethodCrapInfo> Methods);
+
+// Raw per-method data collected from a single Cobertura report (one flag).
+sealed class MethodRaw(string relFile, string className, string name, string signature, int complexity)
+{
+    public string RelFile { get; } = relFile;
+    public string ClassName { get; } = className;
+    public string Name { get; } = name;
+    public string Signature { get; } = signature;
+    public int Complexity { get; } = complexity;
+    public Dictionary<int, int> Lines { get; } = new();
+}
+
+// Combined (all-flags) per-method CRAP data.
+sealed class MethodCrapInfo(string relFile, string className, string name, string signature, int complexity)
+{
+    public string RelFile { get; } = relFile;
+    public string ClassName { get; } = className;
+    public string Name { get; } = name;
+    public string Signature { get; } = signature;
+    public int Complexity { get; } = complexity;
+    public Dictionary<int, int> Lines { get; } = new();
+    public double Coverage { get; set; }
+    public double Crap { get; set; }
+}
 
 record PackageCoverage(string Name, int TotalLines, double CoveredEquivalent, double Percentage,
     Dictionary<TestType, (int Total, int Covered)> PerFlag,
