@@ -220,6 +220,28 @@ All under `tools/ai/`, most reading their inputs from `artifacts/local-ai/` and 
 
 Every verdict that leads to closing an issue, promoting a rule or moving work is reviewed by a person before it is applied; the scripts never close, label or move on their own except `apply-priority-labels.ps1` and the milestone script, which run only after explicit approval.
 
+The SPEC-003 closed-issue audit pipeline (#1345, `HOW-ENCINA-IS-BUILT.md` §2.6, `.claude/skills/issue-audit/SKILL.md`) adds its own scripts under `tools/ai/audit/`, all driven by the shared library `_audit-lib.ps1` and `pipeline.json` (stage order, agent and artifact name; never hard-coded in a caller):
+
+| Script | Purpose | Input | Output |
+|---|---|---|---|
+| `_audit-lib.ps1` | Shared library: the pipeline definition and the paths of the audit's persistent state, dot-sourced by every other script here and by `audit-stage-guard.ps1` | `pipeline.json` | none (library functions only) |
+| `audit-next.ps1` | Starts one audit: queue discipline, refuses a second open audit or a stray leftover worktree | `-Issue <n>` or `artifacts/knowledge/audit-queue.txt` / `progress.csv` | `.claude/worktrees/wia-<n>` on branch `audit/<n>`, `artifacts/knowledge/current-audit.json`, the local-model pre-draft |
+| `audit-stage.ps1 -Next` | Prints the next stage due for the open audit, in `pipeline.json` order | `current-audit.json`, the stage artifacts already committed | the next stage's name (stdout) |
+| `audit-commit-stage.ps1 -Stage <name>` | Commits one stage's artifact on the audit branch, after checking `.authors.json` records the assigned agent as its last writer | `-Stage <name>`, the stage artifact, `artifacts/knowledge/stages/.authors.json` | a commit on `audit/<n>` with trailer `Stage: <name>` |
+| `audit-draft-remediation.ps1` | The remediation stage: drafts one issue file per finding group with the free local model | the `## Findings` sections of `code.md`, `tests.md`, `docs.md` | `artifacts/knowledge/remediation/<n>-<slug>.md`, `stages/remediation.md` |
+| `audit-lessons.ps1` | Collects every stage's `## Lessons for the pipeline` section into one file with an `Applied: TODO` line per bullet | every stage artifact under `stages/` | `stages/lessons.md` |
+| `audit-done.ps1` | Closes the audit: refuses unless every stage is committed, the verdict is PASS and every lesson is resolved | the stage artifacts, `progress.csv` | records copied into the main `artifacts/knowledge/`, `wia-<n>` worktree and `audit/<n>` branch removed |
+| `classify-scope.ps1 -Issue <n>` | Classifies how many of an issue's touched files still exist at HEAD | `artifacts/knowledge/predraft/raw/<n>.txt`, GitHub API | one classification line (stdout) |
+| `open-remediation.ps1 -Issue <n>` | Opens the collected remediation drafts as real GitHub issues, the one script in the pipeline that publishes | `artifacts/knowledge/remediation/<n>-*.md` | issues opened on GitHub, `remediation/opened.csv` |
+| `qwen-predraft.ps1 [-Issue <n> \| -QueueFile <path>]` | Pre-drafts the knowledge-record content with the free local model, ahead of the archivist stage; waits on a `PAUSE` file to share the one llama-server slot with a worker | closed-issue body/comments/linked PRs, `artifacts/knowledge/predraft-queue.txt` | `artifacts/knowledge/predraft/<n>.md` |
+
+Two more watchers, next to `watch-pr-events.ps1` above, cost no model tokens either:
+
+| Script | Purpose | Input | Output |
+|---|---|---|---|
+| `watch-open-prs.ps1` | Polls every open pull request of the repository and emits one line per new event | GitHub API (`gh pr list`, `gh pr view`) | `PR #n CHECK-FAIL`/`NEW-THREAD`/`MERGED`/`CLOSED`, `WATCHING PRs`, `WARN` (stdout) |
+| `watch-worktrees.ps1` | Polls the worktrees under `.claude/worktrees/` and reports when one stops changing | `git worktree list`, filesystem timestamps under each worktree's `artifacts/` | `WATCHING worktrees`, `STALLED`, `RESUMED`, `REMOVED` (stdout) |
+
 ## 7. First run
 
 1. Write `SPEC-000` for your project and take its decisions with the human, one by one; record them in the decision table.

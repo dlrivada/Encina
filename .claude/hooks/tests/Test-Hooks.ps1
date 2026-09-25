@@ -17,6 +17,8 @@ $prohibited = Join-Path $hooks 'block-prohibited-commands.ps1'
 $ownership = Join-Path $hooks 'enforce-path-ownership.ps1'
 $gate = Join-Path $hooks 'require-specialists.ps1'
 $orchestrator = Join-Path $hooks 'guard-orchestrator-writes.ps1'
+$auditGuard = Join-Path $hooks 'audit-stage-guard.ps1'
+$noBg = Join-Path $hooks 'no-background-specialists.ps1'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "encina-hook-tests-$PID"
 $sub = Join-Path $work 'sub dir'
@@ -188,7 +190,7 @@ $spawnCases = @(
     @('issue-worker', $null, 'Explore', 0, 'issue-worker: Explore is allowed'),
     @('issue-worker', $null, 'adversarial-reviewer', 0, 'issue-worker: adversarial-reviewer is allowed (self-review)'),
     @('issue-worker', $null, 'docs-writer', 0, 'issue-worker: docs-writer is allowed (documentation)'),
-    @('issue-worker', $null, 'docs-reviewer', 2, 'issue-worker: docs-reviewer is blocked (docs-writer runs it)'),
+    @('issue-worker', $null, 'docs-reviewer', 0, 'issue-worker: docs-reviewer is allowed (#1345: the audit pipeline docs stage)'),
     @('issue-worker', $null, 'Adversarial-Reviewer', 2, 'issue-worker: subagent_type is case-sensitive'),
     @('docs-writer', $null, 'mechanical-fixer', 0, 'docs-writer: mechanical-fixer is allowed'),
     @('docs-writer', $null, 'docs-reviewer', 0, 'docs-writer: docs-reviewer is allowed (self-review)'),
@@ -203,7 +205,15 @@ $spawnCases = @(
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
-    @('pr-watcher', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted'),
+    @('claude-code-guide', $null, 'general-purpose', 0, 'agent without an allowlist: not restricted'),
+    @('pr-watcher', $null, 'general-purpose', 2, 'pr-watcher: read-only specialist never delegates (#1345)'),
+    @('issue-archivist', $null, 'mechanical-fixer', 2, 'issue-archivist: no delegation (stage agent, #1345)'),
+    @('issue-auditor', $null, 'mechanical-fixer', 2, 'issue-auditor: no delegation (stage agent, #1345)'),
+    @('test-auditor', $null, 'mechanical-fixer', 2, 'test-auditor: no delegation (stage agent, #1345)'),
+    @('audit-verifier', $null, 'mechanical-fixer', 2, 'audit-verifier: no delegation (stage agent, #1345)'),
+    @('docs-reviewer', $null, 'mechanical-fixer', 2, 'docs-reviewer: read-only specialist never delegates (#1345)'),
+    @('adversarial-reviewer', $null, 'mechanical-fixer', 2, 'adversarial-reviewer: read-only specialist never delegates (#1345)'),
+    @('ci-diagnoser', $null, 'mechanical-fixer', 2, 'ci-diagnoser: read-only specialist never delegates (#1345)'),
     # M1: the orchestrator's allowlist (settings.json, -Agent orchestrator).
     @('orchestrator', $null, 'issue-worker', 0, 'orchestrator: issue-worker is allowed'),
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
@@ -233,10 +243,12 @@ $msysWt = ConvertTo-Msys $wt
 $scriptWritesSrc = Join-Path $work 'script-writes-src.cs'
 $scriptWritesDocs = Join-Path $work 'script-writes-docs.cs'
 $scriptWritesTestsPs1 = Join-Path $work 'script-writes-tests.ps1'
+$scriptWritesDocsPs1 = Join-Path $work 'script-writes-docs.ps1'
 $scriptMissing = Join-Path $work 'script-missing.cs'
 Set-Content $scriptWritesSrc 'File.WriteAllText("src/x.cs", "y");'
 Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
+Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
 
 # tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)[, environment overrides[, stdout regex]]]
 $warned = 'additionalContext'
@@ -305,6 +317,16 @@ $writeCases = @(
     @('PowerShell', @{ command = "dotnet run --file '$scriptWritesSrc'" }, $main, 2, 'dotnet run --file of a script that writes src/'),
     @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, 2, 'pwsh -File of a script that writes tests/'),
     @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, 0, 'dotnet run of a script the hook cannot read: allowed for a worker'),
+    # #1345: the script's own Base (after a prior Set-Location), not the tool call's raw cwd, decides whether
+    # the launching statement runs from the main checkout.
+    @('PowerShell', @{ command = "Set-Location '$wt'; dotnet run --file '$scriptWritesSrc'" }, $main, 0, 'Set-Location into the worktree before dotnet run --file: allowed'),
+    @('PowerShell', @{ command = "Set-Location '$main'; dotnet run --file '$scriptWritesSrc'" }, $wt, 2, 'Set-Location into the main checkout before dotnet run --file: blocked'),
+    @('PowerShell', @{ command = "Set-Location '$wt'; pwsh -File '$scriptWritesTestsPs1'" }, $main, 0, 'Set-Location into the worktree before pwsh -File: allowed'),
+    @('PowerShell', @{ command = "Set-Location '$main'; pwsh -File '$scriptWritesTestsPs1'" }, $wt, 2, 'Set-Location into the main checkout before pwsh -File: blocked'),
+    # #1345: a blocked `pwsh -File` replayed with the call operator or dot-sourcing must be seen too (#1190).
+    @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, 2, 'call operator of a script that writes tests/, from the main checkout'),
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, 2, 'dot-source of a script that writes tests/, from the main checkout'),
+    @('PowerShell', @{ command = "& '$scriptWritesDocsPs1'" }, $main, 0, 'call operator of a script that writes only docs/, from the main checkout'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
@@ -482,6 +504,13 @@ $workerDefinition = Get-Content (Join-Path $repo '.claude\agents\issue-worker.md
 $hookSource = Get-Content $mainCheckout -Raw
 $hookExtensions = ([regex]::Match($hookSource, "\`$SourceExtensions = '(?<e>[^']+)'").Groups['e'].Value -replace '\?', '') -split '\|'
 
+# #1345: a tools/ai/audit/pipeline.json fixture under $wt so the stage-ownership (fabrication-gap) check has
+# a pipeline to resolve stage -> agent from, matching the one tools/ai/audit/pipeline.json actually ships.
+$ownershipPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model (script tools/ai/audit/audit-draft-remediation.ps1)","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+$ownershipAuthorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
+New-Item -ItemType Directory -Force (Join-Path $wt 'tools\ai\audit') | Out-Null
+Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') $ownershipPipelineJson
+
 # agent (-Agent), tool, path, cwd, expected, label[, payload agent_type]
 $ownershipCases = @(
     @('issue-worker', 'Write', "$wt\docs\en\guides\x.md", $wt, 2, 'issue-worker: docs page'),
@@ -532,7 +561,66 @@ $ownershipCases = @(
     # SPEC-003 DEC-005 (#1311): docs/knowledge/** moves to the issue-worker allowlist; docs-writer keeps access.
     @('issue-worker', 'Write', "$wt\docs\knowledge\issues\1311.md", $wt, 0, 'issue-worker: knowledge record'),
     @('issue-worker', 'Write', "$wt\docs\knowledge\audits\Encina.Messaging.md", $wt, 0, 'issue-worker: audit result'),
-    @('docs-writer', 'Edit', "$wt\docs\knowledge\issues\1311.md", $wt, 0, 'docs-writer: knowledge record still allowed')
+    @('docs-writer', 'Edit', "$wt\docs\knowledge\issues\1311.md", $wt, 0, 'docs-writer: knowledge record still allowed'),
+    # #1345: the four SPEC-003 audit-stage agents write only under their audit worktree's artifacts/ folder.
+    @('issue-archivist', 'Write', "$wt\artifacts\knowledge\issues\1345.md", $wt, 0, 'issue-archivist: its own knowledge record'),
+    @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\archivist.md", $wt, 0, 'issue-archivist: its own stage artifact'),
+    @('issue-archivist', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'issue-archivist: source file is denied'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 0, 'issue-auditor: its own stage artifact'),
+    @('issue-auditor', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'issue-auditor: documentation is denied'),
+    @('test-auditor', 'Write', "$wt\artifacts\knowledge\stages\tests.md", $wt, 0, 'test-auditor: its own stage artifact'),
+    @('test-auditor', 'Edit', "$wt\tests\Encina.UnitTests\X.cs", $wt, 2, 'test-auditor: test file is denied'),
+    @('audit-verifier', 'Write', "$wt\artifacts\knowledge\stages\verification.md", $wt, 0, 'audit-verifier: its own stage artifact'),
+    @('audit-verifier', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'audit-verifier: CLAUDE.md is denied'),
+    # #1345 fabrication gap: a stage artifact is written ONLY by the agent pipeline.json assigns to it —
+    # never the orchestrator (no -Agent/agent_type at all) and never a different stage's agent.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: the orchestrator writing code.md is denied'),
+    @('test-auditor', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: test-auditor writing code.md is denied'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 0, 'fabrication gap: issue-auditor writing code.md is allowed'),
+    # The gap this closes is exactly a caller OTHER than the assigned agent, no matter its own identity: an
+    # ungoverned agent (mechanical-fixer has no path-ownership hook of its own) fabricating the code stage via
+    # the globally-wired instance of this hook (no -Agent, its agent_type from the payload; #1345 review).
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: mechanical-fixer (no dedicated ownership hook) writing code.md is denied by the global wiring', 'mechanical-fixer'),
+    @('docs-reviewer', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 0, 'docs-reviewer: its own stage artifact (audit mode)'),
+    @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 2, 'fabrication gap: issue-archivist writing the docs stage is denied'),
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'the remediation stage artifact is written only by its own script, never via the Write/Edit tool, even by the orchestrator'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'fabrication gap: an agent may not fabricate the script-owned remediation stage via Write'),
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 0, 'lessons.md is not a pipeline stage: the orchestrator writes it'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 2, 'lessons.md is denied to a stage agent'),
+    # #1345 review blocker: the stage-ownership match must not evade case-insensitively (the filesystem this
+    # project runs on is case-insensitive, so 'Artifacts\Knowledge\Stages\code.md' is the very same on-disk
+    # file as 'artifacts\knowledge\stages\code.md').
+    @($null, 'Write', "$wt\Artifacts\Knowledge\Stages\code.md", $wt, 2, 'fabrication gap: mixed-case path still matches the stage-artifact rule'),
+    # #1345 review blocker: the authorship sidecar has exactly one legitimate writer (this hook's own
+    # Set-Content, invoked internally when it allows a stage-artifact write) — never a tool call, not even the
+    # orchestrator's, which previously fell through to the default allow.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: the orchestrator writing .authors.json directly is denied'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied')
+)
+
+# agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
+$noBgCases = @(
+    @('issue-worker', 'a1', 'adversarial-reviewer', $true, 2, 'no-background-specialists: worker background spawn is blocked'),
+    @('issue-worker', 'a1', 'adversarial-reviewer', $false, 0, 'no-background-specialists: worker foreground spawn is allowed'),
+    @($null, $null, 'issue-worker', $true, 0, 'no-background-specialists: main session background spawn is allowed'),
+    @('docs-writer', 'a2', 'docs-reviewer', $true, 2, 'no-background-specialists: docs-writer background spawn is blocked'),
+    @('issue-archivist', 'a3', 'issue-auditor', $true, 2, 'no-background-specialists: audit-stage agent background spawn is blocked'),
+    # m1: a blank/missing agent_type falls back to -Agent (frontmatter wiring), not a single point of trust.
+    @($null, $null, 'adversarial-reviewer', $true, 2, 'no-background-specialists: blank agent_type falls back to -Agent', 'issue-worker'),
+    @($null, $null, 'adversarial-reviewer', $false, 0, 'no-background-specialists: -Agent fallback, foreground is allowed', 'issue-worker'),
+    @('docs-writer', 'a2', 'docs-reviewer', $true, 0, 'no-background-specialists: -Agent for a different agent than agent_type is not this agent stopping', 'issue-worker')
+)
+
+# #1345: the same hook also denies run_in_background: true on a subagent's OWN Bash/PowerShell tool call (not
+# just on the Agent/Task calls it makes), because a worker that backgrounds a shell command and ends its turn
+# waiting on it stalls exactly like a backgrounded specialist spawn.
+# agent_type (payload), agent_id, tool (Bash/PowerShell), run_in_background, expected, label[, -Agent]
+$noBgShellCases = @(
+    @('issue-worker', 'a1', 'PowerShell', $true, 2, 'no-background-specialists: worker PowerShell background command is blocked'),
+    @('issue-worker', 'a1', 'PowerShell', $false, 0, 'no-background-specialists: worker PowerShell foreground command is allowed'),
+    @($null, $null, 'PowerShell', $true, 0, 'no-background-specialists: main session background command is allowed'),
+    @($null, $null, 'PowerShell', $true, 2, 'no-background-specialists: blank agent_type falls back to -Agent for a shell command', 'issue-worker'),
+    @('issue-archivist', 'a3', 'Bash', $true, 2, 'no-background-specialists: audit-stage agent Bash background command is blocked')
 )
 
 $srcPatch = Join-Path $work 'src.patch'
@@ -601,7 +689,10 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -File '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: pwsh -File of a script that writes tests/'),
     @('PowerShell', @{ command = "dotnet run '$scriptMissing'" }, $main, $null, 2, 'main session: dotnet run of a script the hook cannot read: denied'),
     @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 2, 'general-purpose subagent: dotnet run of a script that writes src/', 'general-purpose'),
-    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer')
+    @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer'),
+    # #1345: the same call-operator / dot-source detection applies with no -Agent (guard-orchestrator-writes).
+    @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: call operator of a script that writes tests/'),
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/')
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
@@ -759,6 +850,78 @@ try {
     }
     Invoke-HookCase $ownership 'not json' 0 'malformed payload' 'issue-worker'
 
+    # #1345: every allowed stage-artifact write above recorded its author in the sidecar, and the sidecar
+    # names the CORRECT agent for each stage (not just "something" — a stale/wrong entry would defeat the
+    # audit-commit-stage.ps1 check that reads it).
+    $script:total++
+    if (Test-Path -LiteralPath $ownershipAuthorsPath) {
+        $recordedAuthors = Get-Content -LiteralPath $ownershipAuthorsPath -Raw | ConvertFrom-Json
+        $expectedAuthors = @{ archivist = 'issue-archivist'; code = 'issue-auditor'; tests = 'test-auditor'; verification = 'audit-verifier'; docs = 'docs-reviewer' }
+        $mismatches = @($expectedAuthors.Keys | Where-Object { [string]$recordedAuthors.$_.agent -ne $expectedAuthors[$_] })
+        if ($mismatches.Count -eq 0) { 'PASS enforce-path-ownership.ps1: .authors.json records the correct agent for every stage' }
+        else { $script:failed++; "FAIL enforce-path-ownership.ps1: .authors.json mismatches for $($mismatches -join ', ')" }
+    }
+    else { $script:failed++; 'FAIL enforce-path-ownership.ps1: .authors.json was never written despite allowed stage-artifact writes' }
+
+    # #1345 review blocker: block-main-checkout-writes.ps1's "Edit tool only for source files" rule explicitly
+    # excludes artifacts/ (Test-RepoFile), so before this fix a stage agent's own PowerShell/Bash tool could
+    # fabricate another stage's artifact via Set-Content/redirection, bypassing enforce-path-ownership.ps1
+    # entirely (it only ran on Write|Edit|MultiEdit|NotebookEdit). These cases exercise the hook's own
+    # Bash|PowerShell handling directly.
+    $shellCodePath = "$wt\artifacts\knowledge\stages\code.md"
+    $shellCases = @(
+        @('test-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'fabricated'", 2, 'shell vector: Set-Content by the wrong stage agent is denied'),
+        @('issue-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'legitimate'", 0, 'shell vector: Set-Content by the correct stage agent is allowed'),
+        @($null, 'PowerShell', "[IO.File]::WriteAllText('$shellCodePath', 'fabricated')", 2, 'shell vector: [IO.File]::WriteAllText by the orchestrator is denied', 'mechanical-fixer'),
+        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied')
+    )
+    foreach ($case in $shellCases) {
+        $hookAgent, $tool, $command, $expected, $label, $agentType = $case
+        $payload = @{ tool_name = $tool; cwd = $wt; tool_input = @{ command = $command } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = 'a1' }
+        Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+
+    # #1345 review blocker: git itself is a bypass vector for the stage-ownership check — `git checkout <rev>
+    # -- <path>` / `git restore <path>` can overwrite a stage artifact's content without going through the
+    # Write/Edit tool or any of the shell-write APIs above; `git commit`/`apply`/`am`, run as the command's own
+    # top-level git invocation instead of through tools/ai/audit/audit-commit-stage.ps1 (the only script that
+    # checks .authors.json), would let anyone commit a fabricated stage artifact. These cases need no real git
+    # repository: Get-ShellWrites tokenises the command text; it never runs git.
+    $wiaWt = Join-Path $main '.claude\worktrees\wia-777'
+    $gitOwnershipCases = @(
+        @('test-auditor', "git -C '$wt' checkout HEAD -- artifacts/knowledge/stages/code.md", 2, 'git vector: checkout of a stage artifact by the wrong stage agent is denied'),
+        @('issue-auditor', "git -C '$wt' checkout HEAD -- artifacts/knowledge/stages/code.md", 0, 'git vector: checkout of a stage artifact by the correct stage agent is allowed'),
+        @('test-auditor', "git -C '$wt' restore artifacts/knowledge/stages/code.md", 2, 'git vector: restore of a stage artifact by the wrong stage agent is denied'),
+        @($null, "git -C '$wiaWt' commit -m x -m 'Stage: code'", 2, 'git vector: a bare commit inside an open audit worktree is denied for every caller'),
+        @('issue-auditor', "git -C '$wiaWt' commit -m x -m 'Stage: code'", 2, 'git vector: a bare commit inside an open audit worktree is denied even for the stage''s own agent'),
+        @($null, "git -C '$wiaWt' apply patch.diff", 2, 'git vector: apply inside an open audit worktree is denied'),
+        @($null, "git -C '$wiaWt' am patch.mbox", 2, 'git vector: am inside an open audit worktree is denied'),
+        @($null, "git -C '$wt' commit -m x", 0, 'git vector: a bare commit outside an audit worktree is not restricted'),
+        @($null, "git -C '$wiaWt' add -f artifacts/knowledge", 0, 'git vector: add alone (no commit) is not restricted')
+    )
+    foreach ($case in $gitOwnershipCases) {
+        $hookAgent, $command, $expected, $label = $case
+        $payload = @{ tool_name = 'PowerShell'; cwd = $wt; tool_input = @{ command = $command } }
+        if ($hookAgent) { $payload.agent_type = $hookAgent; $payload.agent_id = 'a1' }
+        Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+
+    foreach ($case in $noBgCases) {
+        $agentType, $agentId, $subagentType, $runInBackground, $expected, $label, $hookAgentArg = $case
+        $payload = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $subagentType; run_in_background = $runInBackground } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = $agentId }
+        Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label $hookAgentArg
+    }
+    Invoke-HookCase $noBg 'not json' 0 'malformed payload'
+
+    foreach ($case in $noBgShellCases) {
+        $agentType, $agentId, $tool, $runInBackground, $expected, $label, $hookAgentArg = $case
+        $payload = @{ tool_name = $tool; cwd = $work; tool_input = @{ command = 'dotnet test'; run_in_background = $runInBackground } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = $agentId }
+        Invoke-HookCase $noBg ($payload | ConvertTo-Json -Compress) $expected $label $hookAgentArg
+    }
+
     foreach ($case in $orchestratorCases) {
         $tool, $toolInput, $caseCwd, $agentId, $expected, $label, $agentType = $case
         $payload = @{ tool_name = $tool; cwd = $caseCwd; tool_input = $toolInput }
@@ -813,10 +976,199 @@ try {
             }
             Invoke-HookCase $gate ($payload | ConvertTo-Json -Compress) 0 $label $hookAgent $pattern
         }
+
+        # #1345 item 5: the diff base is the branch's own upstream fork point (`git merge-base HEAD
+        # @{upstream}`), not always origin/main, so a branch stacked on another PR's branch is judged on its
+        # own commits only — the parent branch's own docs change must not require docs-writer here.
+        Invoke-Git checkout -q -B parent refs/remotes/origin/main
+        Write-GateFile 'docs/en/guide.md'
+        Invoke-Git add -A
+        Invoke-Git commit -q -m 'parent change'
+        Invoke-Git checkout -q -B feature-stacked parent
+        Invoke-Git branch --set-upstream-to=parent feature-stacked
+        Write-GateFile 'src/Encina/X.cs'
+        Invoke-Git add -A
+        Invoke-Git commit -q -m 'own change'
+        if (Test-Path $sessionDir) { Remove-Item -Recurse -Force $sessionDir }
+        Write-Transcript $agentTranscript @() 'Issue #1. Implement the brief.' 'Agent' $null $null
+        $stackedPayload = [ordered]@{
+            hook_event_name       = 'SubagentStop'
+            stop_hook_active      = $false
+            cwd                   = $gateWt
+            transcript_path       = $sessionFile
+            agent_id              = 'g1agent'
+            agent_type            = 'issue-worker'
+            agent_transcript_path = $agentTranscript
+        }
+        Invoke-HookCase $gate ($stackedPayload | ConvertTo-Json -Compress) 0 "require-specialists: a branch stacked on another PR's branch is judged on its own commits only" 'issue-worker' '(?s)^(?=.*"decision":"block")(?=.*adversarial-reviewer)(?!.*docs-writer)'
+
+        # #1345 review: the normal case once GitHub deletes a merged branch is that @{upstream} no longer
+        # resolves at all (not merely "moved ahead") — reproduced here by deleting the local 'parent' branch
+        # after 'feature-stacked' branched from it. The fork point must still come from feature-stacked's own
+        # reflog ('branch: Created from parent'), not from widening the diff to origin/main, which would pick
+        # up 'parent''s own docs change again.
+        Invoke-Git branch -D parent
+        if (Test-Path $sessionDir) { Remove-Item -Recurse -Force $sessionDir }
+        Write-Transcript $agentTranscript @() 'Issue #1. Implement the brief.' 'Agent' $null $null
+        Invoke-HookCase $gate ($stackedPayload | ConvertTo-Json -Compress) 0 "require-specialists: a stacked branch whose upstream branch was deleted still uses its own reflog fork point, not origin/main" 'issue-worker' '(?s)^(?=.*"decision":"block")(?=.*adversarial-reviewer)(?!.*docs-writer)'
+
         Invoke-HookCase $gate 'not json' 0 'malformed payload' 'issue-worker' '^$'
     }
     else {
         'SKIP require-specialists.ps1: git is not on PATH'
+    }
+
+    # audit-stage-guard.ps1 (#1345) needs a real git repository at the "audit worktree" so it can check
+    # `git log --grep "Stage: <name>"`, and its own pipeline.json (the guard never hard-codes the order).
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $auditMain = Join-Path $work 'AuditMain'
+        $auditN = 42
+        $auditWt = Join-Path $auditMain ".claude\worktrees\wia-$auditN"
+        $auditCurrentPath = Join-Path $auditMain 'artifacts\knowledge\current-audit.json'
+        $defaultPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        # Reordered: 'code' runs before 'archivist' — proves the guard reads pipeline.json, not a hard-coded order.
+        $reorderedPipelineJson = '{"stages":[{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        # #1345 review: the verifier artifact name must be resolved from pipeline.json (the stage whose agent
+        # is audit-verifier), not hard-coded as 'verification.md' — proven by renaming it here.
+        $renamedVerifierPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verdict.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+
+        function Invoke-AuditGit { & git -C $auditWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+
+        function Initialize-AuditWorktree([string]$PipelineJson) {
+            if (Test-Path $auditWt) { Remove-Item -Recurse -Force $auditWt }
+            New-Item -ItemType Directory -Force $auditWt | Out-Null
+            Invoke-AuditGit init -q -b main
+            Invoke-AuditGit commit -q --allow-empty -m base
+            New-Item -ItemType Directory -Force (Join-Path $auditWt 'tools\ai\audit') | Out-Null
+            Set-Content (Join-Path $auditWt 'tools\ai\audit\pipeline.json') $PipelineJson
+            New-Item -ItemType Directory -Force (Join-Path $auditWt 'artifacts\knowledge\stages') | Out-Null
+        }
+
+        function Write-AuditStage([string]$StageName, [string]$ArtifactName, [switch]$Commit) {
+            Set-Content (Join-Path $auditWt "artifacts\knowledge\stages\$ArtifactName") "x`n## Lessons for the pipeline`n- none`n"
+            if ($Commit) {
+                Invoke-AuditGit add -f "artifacts/knowledge/stages/$ArtifactName"
+                Invoke-AuditGit commit -q -m "audit #$auditN`: $StageName stage" -m "Stage: $StageName"
+            }
+        }
+
+        function Set-AuditOpen([bool]$Open) {
+            if ($Open) {
+                New-Item -ItemType Directory -Force (Split-Path -Parent $auditCurrentPath) | Out-Null
+                @{ issue = $auditN; worktree = $auditWt; branch = "audit/$auditN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content $auditCurrentPath
+            }
+            elseif (Test-Path $auditCurrentPath) { Remove-Item -Force $auditCurrentPath }
+        }
+
+        function Invoke-AuditCase([string]$Subagent, [string]$Prompt, [string]$Model, [int]$Expected, [string]$Label) {
+            $toolInput = @{ subagent_type = $Subagent; prompt = $Prompt }
+            if ($Model) { $toolInput.model = $Model }
+            $payload = @{ tool_name = 'Agent'; cwd = $auditWt; tool_input = $toolInput }
+            $env:CLAUDE_PROJECT_DIR = $auditWt
+            Invoke-HookCase $auditGuard ($payload | ConvertTo-Json -Compress) $Expected $Label
+        }
+
+        Initialize-AuditWorktree $defaultPipelineJson
+        Set-AuditOpen $false
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN." $null 2 'audit-stage-guard: no open audit'
+
+        Set-AuditOpen $true
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN, no worktree named." $null 2 'audit-stage-guard: prompt missing wia-<n>'
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN, also see wia-7 for comparison." $null 2 'audit-stage-guard: another wia-<m> mentioned (batching)'
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN." $null 0 'audit-stage-guard: first stage, correct agent'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage." $null 2 'audit-stage-guard: code stage before archivist is committed'
+
+        Write-AuditStage 'archivist' 'archivist.md'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage." $null 2 'audit-stage-guard: archivist artifact exists but is not committed'
+
+        Write-AuditStage 'archivist' 'archivist.md' -Commit
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage." $null 0 'audit-stage-guard: code stage after archivist is committed'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage." 'haiku' 2 'audit-stage-guard: haiku is blocked even at the correct stage'
+
+        Write-AuditStage 'code' 'code.md' -Commit
+        Write-AuditStage 'tests' 'tests.md' -Commit
+        Invoke-AuditCase 'docs-reviewer' "Audit #$auditN in worktree wia-$auditN, docs stage." $null 0 'audit-stage-guard: docs-reviewer at its own stage'
+
+        Set-AuditOpen $false
+        Invoke-AuditCase 'docs-reviewer' 'A normal documentation self-review, no audit context.' $null 0 'audit-stage-guard: docs-reviewer without wia-<n> is not an audit stage'
+        Set-AuditOpen $true
+
+        Invoke-AuditCase 'issue-worker' "Run the SPEC-003 audit for #$auditN end to end." $null 2 'audit-stage-guard: issue-worker SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'general-purpose' "Run the SPEC-003 audit for #$auditN." $null 2 'audit-stage-guard: general-purpose SPEC-003 audit coordinator path is closed'
+
+        Write-AuditStage 'docs' 'docs.md' -Commit
+        Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify." $null 2 'audit-stage-guard: remediation stage still pending, agent spawn is out of order'
+
+        Write-AuditStage 'remediation' 'remediation.md' -Commit
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: PASS`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditGit add -f 'artifacts/knowledge/stages/verification.md'
+        Invoke-AuditGit commit -q -m "audit #$auditN`: verification stage" -m 'Stage: verification'
+        Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify again." $null 2 'audit-stage-guard: all stages complete with a PASS verdict, no more spawns'
+
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage." $null 0 'audit-stage-guard: earlier stage re-run allowed after a Verdict: FAIL'
+
+        Initialize-AuditWorktree $renamedVerifierPipelineJson
+        Set-AuditOpen $true
+        Write-AuditStage 'archivist' 'archivist.md' -Commit
+        Write-AuditStage 'code' 'code.md' -Commit
+        Write-AuditStage 'tests' 'tests.md' -Commit
+        Write-AuditStage 'docs' 'docs.md' -Commit
+        Write-AuditStage 'remediation' 'remediation.md' -Commit
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verdict.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage (renamed verifier artifact)." $null 0 'audit-stage-guard: FAIL verdict resolved from pipeline.json artifact name (verdict.md), re-run still allowed'
+
+        Initialize-AuditWorktree $reorderedPipelineJson
+        Set-AuditOpen $true
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (reordered pipeline)." $null 0 'audit-stage-guard: reordered pipeline.json makes code the first stage'
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN, archivist stage (reordered pipeline)." $null 2 'audit-stage-guard: reordered pipeline.json makes archivist out of order'
+
+        Invoke-HookCase $auditGuard 'not json' 0 'audit-stage-guard: malformed payload'
+
+        # #1345: audit-commit-stage.ps1 refuses an artifact whose last recorded author (the sidecar
+        # enforce-path-ownership.ps1 maintains) does not match the agent pipeline.json assigns to that stage.
+        # A standalone repo, self-referential (its own current-audit.json points at itself), carrying its own
+        # copy of the real script so $PSScriptRoot resolves inside the fixture, not the real checkout.
+        $commitWt = Join-Path $work 'CommitWt'
+        if (Test-Path $commitWt) { Remove-Item -Recurse -Force $commitWt }
+        New-Item -ItemType Directory -Force (Join-Path $commitWt 'tools\ai\audit') | Out-Null
+        Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\audit-commit-stage.ps1') (Join-Path $commitWt 'tools\ai\audit\audit-commit-stage.ps1')
+        Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\_audit-lib.ps1') (Join-Path $commitWt 'tools\ai\audit\_audit-lib.ps1')
+        Set-Content (Join-Path $commitWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
+        function Invoke-CommitWtGit { & git -C $commitWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-CommitWtGit init -q -b main
+        # Local (not -c, which is invocation-scoped only) repo identity: audit-commit-stage.ps1's own `git
+        # commit` call intentionally passes no -c override (production assumes a configured committer, like
+        # every other git call in this codebase), so this fixture must give the ephemeral repo a real identity
+        # or that commit fails with "Please tell me who you are" whenever the ambient global config is not
+        # visible to the child process (observed specifically when this suite runs long enough to be moved to
+        # the background: #1345).
+        Invoke-CommitWtGit config user.name hooks
+        Invoke-CommitWtGit config user.email hooks@example.invalid
+        Invoke-CommitWtGit commit -q --allow-empty -m base
+        New-Item -ItemType Directory -Force (Join-Path $commitWt 'artifacts\knowledge\stages') | Out-Null
+        @{ issue = 77; worktree = $commitWt; branch = 'audit/77'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\current-audit.json')
+        Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\code.md') "x`n## Lessons for the pipeline`n- none`n"
+
+        function Invoke-CommitStage {
+            $output = & pwsh -NoProfile -File (Join-Path $commitWt 'tools\ai\audit\audit-commit-stage.ps1') -Stage code 2>&1
+            [pscustomobject]@{ Code = $LASTEXITCODE; Output = ($output -join "`n") }
+        }
+        function Test-CommitStageCase([string]$Label, [bool]$ExpectSuccess) {
+            $r = Invoke-CommitStage
+            $ok = if ($ExpectSuccess) { $r.Code -eq 0 } else { $r.Code -ne 0 }
+            $script:total++
+            if ($ok) { "PASS audit-commit-stage.ps1: $Label" } else { $script:failed++; "FAIL audit-commit-stage.ps1: $Label (exit $($r.Code)): $($r.Output)" }
+        }
+
+        Test-CommitStageCase 'refuses when .authors.json does not exist' $false
+        @{ code = @{ agent = 'test-auditor'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\.authors.json')
+        Test-CommitStageCase 'refuses when the recorded author is the wrong agent' $false
+        @{ code = @{ agent = 'issue-auditor'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\.authors.json')
+        Test-CommitStageCase 'commits when the recorded author matches pipeline.json' $true
+    }
+    else {
+        'SKIP audit-stage-guard.ps1: git is not on PATH'
     }
     $env:CLAUDE_PROJECT_DIR = $repo
 

@@ -20,7 +20,7 @@ $doneAnnounced = $false
 
 function Short([string]$s) {
     $t = ($s -replace '\s+', ' ').Trim()
-    if ($t.Length -gt 160) { $t = $t.Substring(0, 160) + '…' }
+    if ($t.Length -gt 160) { $t = $t.Substring(0, 160) + '...' }
     return $t
 }
 

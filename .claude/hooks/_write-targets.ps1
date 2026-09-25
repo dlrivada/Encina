@@ -28,12 +28,21 @@
 # `pwsh -File` case below), Remove-Item / rm (deletions), Rename-Item, and redirections attached to a word
 # (x>f).
 #
-# Scripts: `dotnet run <file>.cs` / `dotnet run --file <file>.cs` and `pwsh`/`powershell -File <file>.ps1`
-# name a script the statement's own write-target analysis cannot see into (#1181; ADR/hooks docs note this as
-# a bypass: `Get-WrappedCommand` in _command-text.ps1 does not read a `pwsh -File` script either). Each match
-# becomes a Scripts entry (Full, Raw, Kind); the caller reads the file's own text and decides, since only it
-# knows which path is guarded (src/tests for the orchestrator, the main checkout root for a worker) and how
-# to react when the path cannot be resolved or the file cannot be read.
+# Scripts: `dotnet run <file>.cs` / `dotnet run --file <file>.cs`, `pwsh`/`powershell -File <file>.ps1`, the
+# PowerShell call operator (`& '<file>.ps1'`) and dot-sourcing (`. '<file>.ps1'`) name a script the statement's
+# own write-target analysis cannot see into (#1181; ADR/hooks docs note this as a bypass: `Get-WrappedCommand`
+# in _command-text.ps1 does not read a `pwsh -File` script either). Each match becomes a Scripts entry (Full,
+# Raw, Kind, Base); the caller reads the file's own text and decides, since only it knows which path is guarded
+# (src/tests for the orchestrator, the main checkout root for a worker) and how to react when the path cannot
+# be resolved or the file cannot be read. Base is the directory the launching statement runs in (followed
+# through a prior `cd`/`Set-Location`, same as every other write target): a script launched after
+# `Set-Location <worktree>; dotnet run --file <script>` runs with the worktree as its own process directory, so
+# the caller tests Base, not the tool call's raw cwd, to decide whether the statement runs from the main
+# checkout (#1345; block-main-checkout-writes.ps1 tested the tool call's cwd and so still blocked a script
+# launched after a Set-Location into a worktree). A `pwsh -Command "& '<file>.ps1'"` wrapper needs no separate
+# handling here: Split-CommandStatements (_command-text.ps1) already re-tokenises the wrapper's -Command text
+# as its own statement, so the call-operator detection below sees it there (#1345, a blocked `pwsh -File`
+# script launch replayed as `& '<path>.ps1'` and the hooks let it through — #1190).
 
 $script:ValueParameters = @(
     '-value', '-encoding', '-itemtype', '-type', '-name', '-stream', '-filter', '-include', '-exclude', '-width',
@@ -251,6 +260,15 @@ function Get-ShellWrites {
         $k = Resolve-Executable $tokens
         $name = if ($k -ge 0 -and -not $tokens[$k].Dynamic) { (Get-ExecutableName $tokens[$k].Value) } else { '' }
 
+        # PowerShell call operator (`& '<file>.ps1'`) / dot-source (`. '<file>.ps1'`): the operator is the
+        # statement's first token and Resolve-Executable skips it, so $k lands on the script token (#1345).
+        if (-not $Bash -and $k -gt 0 -and $k -lt $tokens.Count -and -not $tokens[0].Quoted -and -not $tokens[$k].Dynamic -and $tokens[$k].Value -match '\.ps1$') {
+            $opKind = if ($tokens[0].Value -eq '&') { 'call operator' } elseif ($tokens[0].Value -eq '.') { 'dot-source' } else { $null }
+            if ($null -ne $opKind) {
+                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $tokens[$k] $current $Bash); Raw = $tokens[$k].Value; Kind = $opKind; Base = $current })
+            }
+        }
+
         foreach ($t in $tokens) {
             if ((-not $t.Quoted -and $t.Value.StartsWith('-')) -or $t.Value.Length -lt 2) { continue }
             $full = Resolve-TargetPath $t $current $Bash
@@ -326,12 +344,12 @@ function Get-ShellWrites {
                     if ($t.Value -match '\.cs$') { $fileToken = $t; break }
                     break
                 }
-                if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'dotnet run' }) }
+                if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'dotnet run'; Base = $current }) }
             }
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
             $fileToken = Get-NamedArgument $tokens ($k + 1) @('-file')
-            if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File' }) }
+            if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $current }) }
         }
         elseif ($name -eq 'git') {
             $dir = $current

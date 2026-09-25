@@ -22,6 +22,7 @@ Before starting work, read the plan of your area and continue from where the las
 - Workers never push, open or edit PRs, or open or comment on issues; they write follow-up issue files and the orchestrator opens them (`open-issue` skill).
 - Every step goes to the specialist that owns it (#1181): `mechanical-fixer` for decided edits, changelog fragments, PublicAPI lines and coverage manifests; `docs-writer` for pages under `docs/`, READMEs and CONTRIBUTING; `ci-diagnoser` for failures; `adversarial-reviewer` for self-review and PR review. Spawn specialists in the foreground and name the worktree's absolute path.
 - Agent definitions, the delegation table and the hooks that enforce these rules (prohibited commands, main-checkout writes, path ownership, AI attribution, issue templates) are described in `.claude/agents/README.md`; hooks live in `.claude/hooks/` with their tests in `.claude/hooks/tests/Test-Hooks.ps1`.
+- Never work around a hook: a blocked step stops and is reported with the hook's message; a false positive is fixed in the hook (#1345).
 
 ## Model routing
 

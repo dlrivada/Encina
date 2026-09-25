@@ -16,6 +16,7 @@ Main session (orchestrator) only; an `issue-worker` reports instead of running t
 - Write the PR body to a file in the scratchpad and pass it with `--body-file`; multi-line text inside a PowerShell command breaks quoting.
 - The body links the issue (`Fixes #N`) and ends with the cross-cutting checklist of ADR-018: each of the 12 functions integrated, deferred to an issue, or not applicable with one sentence. Tooling-only PRs may say so in one line.
 - A user-visible change adds a changelog fragment instead of editing `CHANGELOG.md` directly: `changelog.d/<issue>-<slug>.<section>.md` (section one of `added`, `changed`, `deprecated`, `removed`, `fixed`, `security`; see `changelog.d/README.md`). `dotnet run .github/scripts/changelog-fragments.cs -- --check` validates it and runs in CI on every PR.
+- **Record step (SPEC-003 REQ-031):** a PR that closes an issue (`Fixes #n`) adds that issue's knowledge record `docs/knowledge/issues/<n>.md` in the same PR, written by the issue-worker (DEC-005), with the PR's own audit outcomes, and validated with `dotnet run --file .github/scripts/knowledge-records.cs -- --check`; the `knowledge-records` CI job validates it.
 
 ```powershell
 gh pr create --repo dlrivada/Encina --base main --head <branch> --title "<type(scope): summary>" --body-file <file>
@@ -31,6 +32,16 @@ Never sleep in the foreground and never ask a watcher to report at the end. Star
 ```powershell
 pwsh -NoProfile -File tools/ai/watch-pr-events.ps1 -Pr <n>
 ```
+
+When more than one PR is open, also run the multi-PR monitor — it complements the per-PR watcher, it does not replace it:
+
+```powershell
+pwsh -NoProfile -File tools/ai/watch-open-prs.ps1
+```
+
+`watch-open-prs.ps1` emits `CHECK-FAIL` (including a failure already present on the first poll), `NEW-THREAD` (a new unresolved review thread, which covers CodeRabbit inline comments) and `MERGED`/`CLOSED` for every open PR. `REVIEW`, `ISSUE-COMMENT` and `CHECKS-DONE` still come only from `watch-pr-events.ps1 -Pr <n>`, so keep one per-PR watcher running for every PR whose events you must react to, and use the multi-PR one to notice failures and merges across all of them without polling each one yourself.
+
+Never exclude `check-links` from either watcher's failure bucket: ignoring it hid a real failure from 2026-09-23 to 2026-09-26.
 
 React to each event as it arrives:
 

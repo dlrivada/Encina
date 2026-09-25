@@ -18,10 +18,15 @@
 #      text and denies when it both references src/ or tests/ and contains a file-write API
 #      (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath) while the statement runs from
 #      the main checkout — the same #1159 vector (a relative path resolving against the process directory),
-#      reached through a launched script instead of an inline command. A script path the hook cannot resolve,
-#      or cannot read, is allowed for a worker (it already writes only in its own worktree by protocol; a
-#      false block on every unreadable script would cost more than it catches). This only partially closes the
-#      gap, since it is a text heuristic, not an execution of the script (#1181).
+#      reached through a launched script instead of an inline command. "Runs from the main checkout" is
+#      tested against the script's own Base (the directory a prior `cd`/`Set-Location` in the same command
+#      left it in, from _write-targets.ps1's Scripts entries), falling back to the tool call's raw cwd only
+#      when Base is empty: a `Set-Location <worktree>; dotnet run --file <script>` runs the script with the
+#      worktree as its process directory, so it is not the main-checkout vector even when the tool call's own
+#      cwd is the main checkout (#1345). A script path the hook cannot resolve, or cannot read, is allowed for
+#      a worker (it already writes only in its own worktree by protocol; a false block on every unreadable
+#      script would cost more than it catches). This only partially closes the gap, since it is a text
+#      heuristic, not an execution of the script (#1181).
 #    When $CLAUDE_PROJECT_DIR is itself a worktree, the main checkout is the part before \.claude\worktrees\.
 #
 # 2. Edit tool only for source files. Repo files with a source extension ($SourceExtensions below) are never
@@ -108,11 +113,12 @@ try {
     # allowed for a worker (see the header comment); only a script the hook can read, that writes src/ or
     # tests/, while the statement runs from the main checkout, is the #1159 vector this closes.
     foreach ($s in $scan.Scripts) {
-        if ($null -eq $s.Full -or -not (Test-MainCheckout $cwd $layout)) { continue }
+        $scriptBase = if ([string]::IsNullOrEmpty($s.Base)) { $cwd } else { $s.Base }
+        if ($null -eq $s.Full -or -not (Test-MainCheckout $scriptBase $layout)) { continue }
         $text = $null
         try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { continue }
         if ((Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
-            Write-MainCheckoutBlock "'$($s.Kind)' of '$($s.Full)', which references src/ or tests/ and writes files, while this command" $cwd
+            Write-MainCheckoutBlock "'$($s.Kind)' of '$($s.Full)', which references src/ or tests/ and writes files, while this command" $scriptBase
         }
     }
 

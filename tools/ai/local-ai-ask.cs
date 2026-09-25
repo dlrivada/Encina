@@ -3,12 +3,18 @@
 // Usage:
 //   dotnet run tools/ai/local-ai-ask.cs -- --task <name> --brief <file> [--input <file>]... [--out <file>]
 //                                              [--system <file>] [--max-tokens 8192] [--url http://127.0.0.1:8080]
+//                                              [--health-attempts 6] [--health-wait-seconds 20]
 //
 // - The brief is the user message; each --input file is appended as a fenced block (path + content).
 // - Thinking is disabled per request (chat_template_kwargs.enable_thinking=false), as the maintainer's trials require.
 // - The reply is written to --out (default artifacts/local-ai/out/<task>.md) and a CSV line is appended to
 //   artifacts/local-ai/ledger.csv: timestampUtc, task, promptTokens, completionTokens, seconds, tokensPerSecond, outFile.
-// - Exit code 0 on success, 1 on any failure (server down, HTTP error, empty reply).
+// - The health check is retried up to --health-attempts times (default 6), --health-wait-seconds apart
+//   (default 20s, so ~2 minutes total): the pre-draft queue and a worker can share one llama-server slot, and
+//   a busy server must not be reported as "down" from a single failed probe (#1345). Each attempt uses a 15s
+//   timeout; a timeout, exception or non-"ok" status prints "llama-server busy or unreachable ... retrying in
+//   <w> s" to stderr and waits before the next attempt. Only the last attempt's failure is fatal.
+// - Exit code 0 on success, 1 on any failure (server down after every retry, HTTP error, empty reply).
 //
 // This is for "read -> produce an artifact" work (classification, summaries, drafts). Agentic coding tasks that must
 // edit files and run builds still go through opencode; their token usage is read from the llama-server log instead.
@@ -38,6 +44,8 @@ var url = (Get("--url") ?? "http://127.0.0.1:8080").TrimEnd('/');
 var maxTokens = int.Parse(Get("--max-tokens") ?? "8192", CultureInfo.InvariantCulture);
 var outPath = Get("--out") ?? Path.Combine("artifacts", "local-ai", "out", task + ".md");
 var systemPath = Get("--system");
+var healthAttempts = int.Parse(Get("--health-attempts") ?? "6", CultureInfo.InvariantCulture);
+var healthWaitSeconds = int.Parse(Get("--health-wait-seconds") ?? "20", CultureInfo.InvariantCulture);
 var ledgerPath = Get("--ledger") ?? Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath))!, "..", "ledger.csv"));
 
 var sb = new StringBuilder(File.ReadAllText(briefPath));
@@ -54,18 +62,39 @@ var systemPrompt = systemPath is null
 
 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
 
-try
+var healthy = false;
+for (var attempt = 1; attempt <= healthAttempts; attempt++)
 {
-    var health = JsonNode.Parse(await http.GetStringAsync($"{url}/health"));
-    if (health?["status"]?.ToString() != "ok")
+    string? reason = null;
+    try
     {
-        Console.Error.WriteLine($"llama-server not healthy at {url}: {health}");
-        return 1;
+        using var healthCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var health = JsonNode.Parse(await http.GetStringAsync($"{url}/health", healthCts.Token));
+        if (health?["status"]?.ToString() == "ok") { healthy = true; break; }
+        reason = $"status={health}";
+    }
+    catch (OperationCanceledException)
+    {
+        reason = "timed out after 15s";
+    }
+    catch (Exception ex)
+    {
+        reason = ex.Message;
+    }
+
+    if (attempt < healthAttempts)
+    {
+        Console.Error.WriteLine($"llama-server busy or unreachable at {url} (attempt {attempt}/{healthAttempts}): {reason}; retrying in {healthWaitSeconds} s");
+        await Task.Delay(TimeSpan.FromSeconds(healthWaitSeconds));
+    }
+    else
+    {
+        Console.Error.WriteLine($"llama-server unreachable at {url}: {reason}");
     }
 }
-catch (Exception ex)
+
+if (!healthy)
 {
-    Console.Error.WriteLine($"llama-server unreachable at {url}: {ex.Message}");
     return 1;
 }
 

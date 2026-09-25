@@ -16,6 +16,10 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent issue-worker'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent issue-worker'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command
@@ -26,6 +30,8 @@ hooks:
       hooks:
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-worker-spawn.ps1" -Agent issue-worker'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent issue-worker'
   Stop:
     - hooks:
         - type: command
@@ -47,6 +53,7 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 - Stay out of the shared hot spots the brief reserves for the orchestrator (typically `.github/workflows/*`).
 - When the task changes nature (scope grows, the root cause is elsewhere, a design choice the brief does not cover, tests you cannot make pass), stop and report with evidence. Do not improvise.
 - Only spawn `ci-diagnoser`, `mechanical-fixer`, `Explore` (read-only research), `adversarial-reviewer` (self-review, see Method) or `docs-writer` (documentation); never another `issue-worker` or a general-purpose agent. The `block-worker-spawn` hook enforces this list (the `Agent(...)` list in `tools:` documents it; Claude Code ignores such a list inside a subagent).
+- Never work around a hook. When a hook blocks a command or an edit, do not rephrase the command, split it, route it through another tool, build the output another way (for example `dotnet build` plus running the dll instead of `dotnet run`) or ask a specialist to do it for you: stop that step and report the hook's exact message with what you were trying to do. A false positive is fixed in the hook, by the orchestrator's decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-writes` on 2026-09-25).
 
 ## Method
 
