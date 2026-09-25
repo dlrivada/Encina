@@ -25,6 +25,7 @@ const Encina.Compliance.Consent.ConsentErrors.MissingConsentCode = "consent.miss
 const Encina.Compliance.Consent.ConsentErrors.RequiresReconsentCode = "consent.requires_reconsent" -> string!
 const Encina.Compliance.Consent.ConsentErrors.ServiceErrorCode = "consent.service_error" -> string!
 const Encina.Compliance.Consent.ConsentErrors.VersionMismatchCode = "consent.version_mismatch" -> string!
+const Encina.Compliance.Consent.ConsentErrors.TenantRequiredCode = "consent.tenant_required" -> string!
 static Encina.Compliance.Consent.Aggregates.ConsentAggregate.Grant(System.Guid id, string! dataSubjectId, string! purpose, string! consentVersionId, string! source, string? ipAddress, string? proofOfConsent, System.Collections.Generic.IReadOnlyDictionary<string!, object?>! metadata, System.DateTimeOffset? expiresAtUtc, string! grantedBy, System.DateTimeOffset occurredAtUtc, string? tenantId = null, string? moduleId = null) -> Encina.Compliance.Consent.Aggregates.ConsentAggregate!
 static Encina.Compliance.Consent.ConsentErrors.ConsentExpired(string! subjectId, string! purpose, System.DateTimeOffset expiredAtUtc) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.ConsentNotFound(System.Guid consentId) -> Encina.EncinaError
@@ -35,6 +36,7 @@ static Encina.Compliance.Consent.ConsentErrors.MissingConsent(string! subjectId,
 static Encina.Compliance.Consent.ConsentErrors.RequiresReconsent(string! subjectId, string! purpose, string! currentVersionId, string! consentedVersionId) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.ServiceError(string! operation, System.Exception! exception) -> Encina.EncinaError
 static Encina.Compliance.Consent.ConsentErrors.VersionMismatch(string! subjectId, string! purpose, string! expectedVersionId, string! actualVersionId) -> Encina.EncinaError
+static Encina.Compliance.Consent.ConsentErrors.TenantRequired(string! operation) -> Encina.EncinaError
 Encina.Compliance.Consent.Aggregates.ConsentAggregate
 Encina.Compliance.Consent.Aggregates.ConsentAggregate.ConsentAggregate() -> void
 Encina.Compliance.Consent.Aggregates.ConsentAggregate.ChangeVersion(string! newVersionId, string! description, bool requiresReconsent, string! changedBy, System.DateTimeOffset occurredAtUtc) -> void
@@ -204,6 +206,8 @@ Encina.Compliance.Consent.ConsentOptions.PurposeDefinitionEntry.RequiresExplicit
 Encina.Compliance.Consent.ConsentOptions.PurposeDefinitionEntry.RequiresExplicitOptIn.set -> void
 Encina.Compliance.Consent.ConsentOptions.RequireExplicitConsent.get -> bool
 Encina.Compliance.Consent.ConsentOptions.RequireExplicitConsent.set -> void
+Encina.Compliance.Consent.ConsentOptions.RequireTenantContext.get -> bool?
+Encina.Compliance.Consent.ConsentOptions.RequireTenantContext.set -> void
 Encina.Compliance.Consent.ConsentPurposes
 const Encina.Compliance.Consent.ConsentPurposes.Analytics = "analytics" -> string!
 const Encina.Compliance.Consent.ConsentPurposes.CrossBorderTransfer = "cross-border-transfer" -> string!

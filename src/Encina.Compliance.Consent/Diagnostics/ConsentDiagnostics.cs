@@ -59,7 +59,9 @@ internal static class ConsentDiagnostics
             description: "Total number of consents that expired.");
 
     // Tag names
-    internal const string TagSubjectId = "consent.subject_id";
+    // Note: no subject-id tag is exposed here. A data subject's own identifier must never appear
+    // as a trace or metric tag (it is high-cardinality personal data); correlate via the request
+    // type, purpose and consent id instead (#1314).
     internal const string TagPurpose = "consent.purpose";
     internal const string TagOutcome = "consent.outcome";
     internal const string TagRequestType = "consent.request_type";
