@@ -1,3 +1,4 @@
+> **Snapshot of CLAUDE.md as of 2026-09-25**, kept for the reasoning behind each rule. The operative rules are in [AGENTS.md](../../AGENTS.md); this file is not maintained.
 # Claude Code - Encina Guidelines
 
 ## Active Plans
