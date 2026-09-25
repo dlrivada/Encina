@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.CrossBorderTransfer.TransferValidatorBenchmarks-20260925-105837</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 3.00GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Validate: adequacy decision (fast path)&#39;</td><td>2.441 &mu;s</td><td>1.219 &mu;s</td><td>0.0668 &mu;s</td><td>1.00</td><td>0.03</td><td>1</td><td>0.0114</td><td>0.0076</td><td>992 B</td><td>1.00</td>
+</tr><tr><td>&#39;Validate: approved transfer&#39;</td><td>3.927 &mu;s</td><td>4.745 &mu;s</td><td>0.2601 &mu;s</td><td>1.61</td><td>0.10</td><td>2</td><td>0.0153</td><td>0.0076</td><td>1872 B</td><td>1.89</td>
+</tr><tr><td>&#39;Validate: SCC agreement&#39;</td><td>7.665 &mu;s</td><td>1.685 &mu;s</td><td>0.0924 &mu;s</td><td>3.14</td><td>0.08</td><td>3</td><td>0.0305</td><td>0.0229</td><td>2640 B</td><td>2.66</td>
+</tr><tr><td>&#39;Validate: TIA (deep cascade)&#39;</td><td>7.749 &mu;s</td><td>6.265 &mu;s</td><td>0.3434 &mu;s</td><td>3.18</td><td>0.14</td><td>3</td><td>0.0305</td><td>0.0153</td><td>2960 B</td><td>2.98</td>
+</tr><tr><td>&#39;Validate: block (full cascade)&#39;</td><td>6.880 &mu;s</td><td>4.289 &mu;s</td><td>0.2351 &mu;s</td><td>2.82</td><td>0.11</td><td>3</td><td>0.0305</td><td>0.0153</td><td>2944 B</td><td>2.97</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -1,0 +1,961 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 10 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/publish/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1
+// command took 2.62 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/" /p:OutDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:OutputPath="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" /p:PublishDir="/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/publish/" --output "/home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0/" in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1
+// command took 133.29 sec and exited with 0
+// ***** Done, took 00:02:16 (136.1 sec)   *****
+// Found 10 benchmarks:
+//   DatabaseRoutingBenchmarks.'Nested scopes (Read → ForceWrite)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.'Read CurrentIntent (AsyncLocal)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForRead(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.'Read EffectiveIntent (null-coalesce)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.'Read HasIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.'Read IsReadIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.'Read IsWriteIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForForceWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+//   DatabaseRoutingBenchmarks.DatabaseRoutingContext.Clear(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Nested scopes (Read → ForceWrite)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Scope_Nested --job ShortRun --benchmarkId 0 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 121226.00 ns, 121.2260 us/op
+WorkloadJitting  1: 1 op, 1280446.00 ns, 1.2804 ms/op
+
+OverheadWarmup   1: 1 op, 249.00 ns, 249.0000 ns/op
+OverheadWarmup   2: 1 op, 218.00 ns, 218.0000 ns/op
+OverheadWarmup   3: 1 op, 141.00 ns, 141.0000 ns/op
+OverheadWarmup   4: 1 op, 116.00 ns, 116.0000 ns/op
+OverheadWarmup   5: 1 op, 170.00 ns, 170.0000 ns/op
+OverheadWarmup   6: 1 op, 148.00 ns, 148.0000 ns/op
+OverheadWarmup   7: 1 op, 119.00 ns, 119.0000 ns/op
+OverheadWarmup   8: 1 op, 134.00 ns, 134.0000 ns/op
+OverheadWarmup   9: 1 op, 119.00 ns, 119.0000 ns/op
+
+OverheadActual   1: 1 op, 218.00 ns, 218.0000 ns/op
+OverheadActual   2: 1 op, 241.00 ns, 241.0000 ns/op
+OverheadActual   3: 1 op, 241.00 ns, 241.0000 ns/op
+OverheadActual   4: 1 op, 201.00 ns, 201.0000 ns/op
+OverheadActual   5: 1 op, 220.00 ns, 220.0000 ns/op
+OverheadActual   6: 1 op, 129.00 ns, 129.0000 ns/op
+OverheadActual   7: 1 op, 140.00 ns, 140.0000 ns/op
+OverheadActual   8: 1 op, 118.00 ns, 118.0000 ns/op
+OverheadActual   9: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual  10: 1 op, 85.00 ns, 85.0000 ns/op
+OverheadActual  11: 1 op, 101.00 ns, 101.0000 ns/op
+OverheadActual  12: 1 op, 112.00 ns, 112.0000 ns/op
+OverheadActual  13: 1 op, 134.00 ns, 134.0000 ns/op
+OverheadActual  14: 1 op, 122.00 ns, 122.0000 ns/op
+OverheadActual  15: 1 op, 169.00 ns, 169.0000 ns/op
+OverheadActual  16: 1 op, 140.00 ns, 140.0000 ns/op
+OverheadActual  17: 1 op, 132.00 ns, 132.0000 ns/op
+OverheadActual  18: 1 op, 249.00 ns, 249.0000 ns/op
+OverheadActual  19: 1 op, 210.00 ns, 210.0000 ns/op
+OverheadActual  20: 1 op, 160.00 ns, 160.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 9217.00 ns, 9.2170 us/op
+WorkloadWarmup   2: 1 op, 4053.00 ns, 4.0530 us/op
+WorkloadWarmup   3: 1 op, 2075.00 ns, 2.0750 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 6822.00 ns, 6.8220 us/op
+WorkloadActual   2: 1 op, 4188.00 ns, 4.1880 us/op
+WorkloadActual   3: 1 op, 2607.00 ns, 2.6070 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 6682.00 ns, 6.6820 us/op
+WorkloadResult   2: 1 op, 4048.00 ns, 4.0480 us/op
+WorkloadResult   3: 1 op, 2467.00 ns, 2.4670 us/op
+// GC:  0 0 0 840 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3578 has exited with code 0.
+
+Mean = 4.399 μs, StdErr = 1.229 μs (27.95%), N = 3, StdDev = 2.129 μs
+Min = 2.467 μs, Q1 = 3.257 μs, Median = 4.048 μs, Q3 = 5.365 μs, Max = 6.682 μs
+IQR = 2.107 μs, LowerFence = 0.096 μs, UpperFence = 8.526 μs
+ConfidenceInterval = [-34.448 μs; 43.246 μs] (CI 99.9%), Margin = 38.847 μs (883.08% of Mean)
+Skewness = 0.16, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 9 (90.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Read CurrentIntent (AsyncLocal)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Read_CurrentIntent --job ShortRun --benchmarkId 1 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 150996.00 ns, 150.9960 us/op
+WorkloadJitting  1: 1 op, 531431.00 ns, 531.4310 us/op
+
+OverheadWarmup   1: 1 op, 283.00 ns, 283.0000 ns/op
+OverheadWarmup   2: 1 op, 174.00 ns, 174.0000 ns/op
+OverheadWarmup   3: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadWarmup   4: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadWarmup   5: 1 op, 133.00 ns, 133.0000 ns/op
+OverheadWarmup   6: 1 op, 139.00 ns, 139.0000 ns/op
+OverheadWarmup   7: 1 op, 125.00 ns, 125.0000 ns/op
+OverheadWarmup   8: 1 op, 97.00 ns, 97.0000 ns/op
+OverheadWarmup   9: 1 op, 89.00 ns, 89.0000 ns/op
+OverheadWarmup  10: 1 op, 101.00 ns, 101.0000 ns/op
+
+OverheadActual   1: 1 op, 298.00 ns, 298.0000 ns/op
+OverheadActual   2: 1 op, 311.00 ns, 311.0000 ns/op
+OverheadActual   3: 1 op, 317.00 ns, 317.0000 ns/op
+OverheadActual   4: 1 op, 275.00 ns, 275.0000 ns/op
+OverheadActual   5: 1 op, 286.00 ns, 286.0000 ns/op
+OverheadActual   6: 1 op, 177.00 ns, 177.0000 ns/op
+OverheadActual   7: 1 op, 118.00 ns, 118.0000 ns/op
+OverheadActual   8: 1 op, 173.00 ns, 173.0000 ns/op
+OverheadActual   9: 1 op, 142.00 ns, 142.0000 ns/op
+OverheadActual  10: 1 op, 132.00 ns, 132.0000 ns/op
+OverheadActual  11: 1 op, 1640.00 ns, 1.6400 us/op
+OverheadActual  12: 1 op, 210.00 ns, 210.0000 ns/op
+OverheadActual  13: 1 op, 451.00 ns, 451.0000 ns/op
+OverheadActual  14: 1 op, 216.00 ns, 216.0000 ns/op
+OverheadActual  15: 1 op, 121.00 ns, 121.0000 ns/op
+OverheadActual  16: 1 op, 174.00 ns, 174.0000 ns/op
+OverheadActual  17: 1 op, 152.00 ns, 152.0000 ns/op
+OverheadActual  18: 1 op, 300.00 ns, 300.0000 ns/op
+OverheadActual  19: 1 op, 166.00 ns, 166.0000 ns/op
+OverheadActual  20: 1 op, 204.00 ns, 204.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 1668.00 ns, 1.6680 us/op
+WorkloadWarmup   2: 1 op, 328.00 ns, 328.0000 ns/op
+WorkloadWarmup   3: 1 op, 238.00 ns, 238.0000 ns/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 401.00 ns, 401.0000 ns/op
+WorkloadActual   2: 1 op, 297.00 ns, 297.0000 ns/op
+WorkloadActual   3: 1 op, 228.00 ns, 228.0000 ns/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 194.00 ns, 194.0000 ns/op
+WorkloadResult   2: 1 op, 90.00 ns, 90.0000 ns/op
+WorkloadResult   3: 1 op, 21.00 ns, 21.0000 ns/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3586 has exited with code 0.
+
+Mean = 101.667 ns, StdErr = 50.280 ns (49.46%), N = 3, StdDev = 87.088 ns
+Min = 21.000 ns, Q1 = 55.500 ns, Median = 90.000 ns, Q3 = 142.000 ns, Max = 194.000 ns
+IQR = 86.500 ns, LowerFence = -74.250 ns, UpperFence = 271.750 ns
+ConfidenceInterval = [-1,487.144 ns; 1,690.477 ns] (CI 99.9%), Margin = 1,588.811 ns (1562.76% of Mean)
+Skewness = 0.13, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 8 (80.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForRead(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Scope_ForRead --job ShortRun --benchmarkId 2 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 123608.00 ns, 123.6080 us/op
+WorkloadJitting  1: 1 op, 860873.00 ns, 860.8730 us/op
+
+OverheadWarmup   1: 1 op, 236.00 ns, 236.0000 ns/op
+OverheadWarmup   2: 1 op, 174.00 ns, 174.0000 ns/op
+OverheadWarmup   3: 1 op, 128.00 ns, 128.0000 ns/op
+OverheadWarmup   4: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadWarmup   5: 1 op, 130.00 ns, 130.0000 ns/op
+OverheadWarmup   6: 1 op, 96.00 ns, 96.0000 ns/op
+OverheadWarmup   7: 1 op, 95.00 ns, 95.0000 ns/op
+OverheadWarmup   8: 1 op, 104.00 ns, 104.0000 ns/op
+OverheadWarmup   9: 1 op, 95.00 ns, 95.0000 ns/op
+
+OverheadActual   1: 1 op, 202.00 ns, 202.0000 ns/op
+OverheadActual   2: 1 op, 200.00 ns, 200.0000 ns/op
+OverheadActual   3: 1 op, 221.00 ns, 221.0000 ns/op
+OverheadActual   4: 1 op, 234.00 ns, 234.0000 ns/op
+OverheadActual   5: 1 op, 215.00 ns, 215.0000 ns/op
+OverheadActual   6: 1 op, 211.00 ns, 211.0000 ns/op
+OverheadActual   7: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadActual   8: 1 op, 113.00 ns, 113.0000 ns/op
+OverheadActual   9: 1 op, 406.00 ns, 406.0000 ns/op
+OverheadActual  10: 1 op, 713.00 ns, 713.0000 ns/op
+OverheadActual  11: 1 op, 113.00 ns, 113.0000 ns/op
+OverheadActual  12: 1 op, 123.00 ns, 123.0000 ns/op
+OverheadActual  13: 1 op, 1599.00 ns, 1.5990 us/op
+OverheadActual  14: 1 op, 140.00 ns, 140.0000 ns/op
+OverheadActual  15: 1 op, 1485.00 ns, 1.4850 us/op
+OverheadActual  16: 1 op, 141.00 ns, 141.0000 ns/op
+OverheadActual  17: 1 op, 1438.00 ns, 1.4380 us/op
+OverheadActual  18: 1 op, 1601.00 ns, 1.6010 us/op
+OverheadActual  19: 1 op, 1667.00 ns, 1.6670 us/op
+OverheadActual  20: 1 op, 1373.00 ns, 1.3730 us/op
+
+WorkloadWarmup   1: 1 op, 8403.00 ns, 8.4030 us/op
+WorkloadWarmup   2: 1 op, 4519.00 ns, 4.5190 us/op
+WorkloadWarmup   3: 1 op, 3607.00 ns, 3.6070 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 5628.00 ns, 5.6280 us/op
+WorkloadActual   2: 1 op, 4367.00 ns, 4.3670 us/op
+WorkloadActual   3: 1 op, 3922.00 ns, 3.9220 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 5410.00 ns, 5.4100 us/op
+WorkloadResult   2: 1 op, 4149.00 ns, 4.1490 us/op
+WorkloadResult   3: 1 op, 3704.00 ns, 3.7040 us/op
+// GC:  0 0 0 392 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3592 has exited with code 0.
+
+Mean = 4.421 μs, StdErr = 0.511 μs (11.56%), N = 3, StdDev = 0.885 μs
+Min = 3.704 μs, Q1 = 3.926 μs, Median = 4.149 μs, Q3 = 4.779 μs, Max = 5.410 μs
+IQR = 0.853 μs, LowerFence = 2.647 μs, UpperFence = 6.059 μs
+ConfidenceInterval = [-11.723 μs; 20.565 μs] (CI 99.9%), Margin = 16.144 μs (365.17% of Mean)
+Skewness = 0.28, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 7 (70.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Read EffectiveIntent (null-coalesce)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Read_EffectiveIntent --job ShortRun --benchmarkId 3 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 148651.00 ns, 148.6510 us/op
+WorkloadJitting  1: 1 op, 519265.00 ns, 519.2650 us/op
+
+OverheadWarmup   1: 1 op, 299.00 ns, 299.0000 ns/op
+OverheadWarmup   2: 1 op, 139.00 ns, 139.0000 ns/op
+OverheadWarmup   3: 1 op, 128.00 ns, 128.0000 ns/op
+OverheadWarmup   4: 1 op, 1342.00 ns, 1.3420 us/op
+OverheadWarmup   5: 1 op, 135.00 ns, 135.0000 ns/op
+OverheadWarmup   6: 1 op, 123.00 ns, 123.0000 ns/op
+OverheadWarmup   7: 1 op, 145.00 ns, 145.0000 ns/op
+OverheadWarmup   8: 1 op, 114.00 ns, 114.0000 ns/op
+
+OverheadActual   1: 1 op, 389.00 ns, 389.0000 ns/op
+OverheadActual   2: 1 op, 1887.00 ns, 1.8870 us/op
+OverheadActual   3: 1 op, 411.00 ns, 411.0000 ns/op
+OverheadActual   4: 1 op, 971.00 ns, 971.0000 ns/op
+OverheadActual   5: 1 op, 1810.00 ns, 1.8100 us/op
+OverheadActual   6: 1 op, 137.00 ns, 137.0000 ns/op
+OverheadActual   7: 1 op, 110.00 ns, 110.0000 ns/op
+OverheadActual   8: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadActual   9: 1 op, 109.00 ns, 109.0000 ns/op
+OverheadActual  10: 1 op, 112.00 ns, 112.0000 ns/op
+OverheadActual  11: 1 op, 116.00 ns, 116.0000 ns/op
+OverheadActual  12: 1 op, 1595.00 ns, 1.5950 us/op
+OverheadActual  13: 1 op, 146.00 ns, 146.0000 ns/op
+OverheadActual  14: 1 op, 116.00 ns, 116.0000 ns/op
+OverheadActual  15: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadActual  16: 1 op, 389.00 ns, 389.0000 ns/op
+OverheadActual  17: 1 op, 207.00 ns, 207.0000 ns/op
+OverheadActual  18: 1 op, 255.00 ns, 255.0000 ns/op
+OverheadActual  19: 1 op, 176.00 ns, 176.0000 ns/op
+OverheadActual  20: 1 op, 126.00 ns, 126.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 1420.00 ns, 1.4200 us/op
+WorkloadWarmup   2: 1 op, 266.00 ns, 266.0000 ns/op
+WorkloadWarmup   3: 1 op, 235.00 ns, 235.0000 ns/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 472.00 ns, 472.0000 ns/op
+WorkloadActual   2: 1 op, 310.00 ns, 310.0000 ns/op
+WorkloadActual   3: 1 op, 206.00 ns, 206.0000 ns/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 311.00 ns, 311.0000 ns/op
+WorkloadResult   2: 1 op, 149.00 ns, 149.0000 ns/op
+WorkloadResult   3: 1 op, 45.00 ns, 45.0000 ns/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3598 has exited with code 0.
+
+Mean = 168.333 ns, StdErr = 77.394 ns (45.98%), N = 3, StdDev = 134.050 ns
+Min = 45.000 ns, Q1 = 97.000 ns, Median = 149.000 ns, Q3 = 230.000 ns, Max = 311.000 ns
+IQR = 133.000 ns, LowerFence = -102.500 ns, UpperFence = 429.500 ns
+ConfidenceInterval = [-2,277.233 ns; 2,613.900 ns] (CI 99.9%), Margin = 2,445.566 ns (1452.81% of Mean)
+Skewness = 0.14, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 6 (60.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Read HasIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Read_HasIntent --job ShortRun --benchmarkId 4 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 164994.00 ns, 164.9940 us/op
+WorkloadJitting  1: 1 op, 539891.00 ns, 539.8910 us/op
+
+OverheadWarmup   1: 1 op, 241.00 ns, 241.0000 ns/op
+OverheadWarmup   2: 1 op, 119.00 ns, 119.0000 ns/op
+OverheadWarmup   3: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadWarmup   4: 1 op, 111.00 ns, 111.0000 ns/op
+OverheadWarmup   5: 1 op, 99.00 ns, 99.0000 ns/op
+OverheadWarmup   6: 1 op, 85.00 ns, 85.0000 ns/op
+OverheadWarmup   7: 1 op, 85.00 ns, 85.0000 ns/op
+OverheadWarmup   8: 1 op, 99.00 ns, 99.0000 ns/op
+
+OverheadActual   1: 1 op, 258.00 ns, 258.0000 ns/op
+OverheadActual   2: 1 op, 251.00 ns, 251.0000 ns/op
+OverheadActual   3: 1 op, 254.00 ns, 254.0000 ns/op
+OverheadActual   4: 1 op, 1830.00 ns, 1.8300 us/op
+OverheadActual   5: 1 op, 2263.00 ns, 2.2630 us/op
+OverheadActual   6: 1 op, 140.00 ns, 140.0000 ns/op
+OverheadActual   7: 1 op, 142.00 ns, 142.0000 ns/op
+OverheadActual   8: 1 op, 2789.00 ns, 2.7890 us/op
+OverheadActual   9: 1 op, 133.00 ns, 133.0000 ns/op
+OverheadActual  10: 1 op, 119.00 ns, 119.0000 ns/op
+OverheadActual  11: 1 op, 141.00 ns, 141.0000 ns/op
+OverheadActual  12: 1 op, 99.00 ns, 99.0000 ns/op
+OverheadActual  13: 1 op, 98.00 ns, 98.0000 ns/op
+OverheadActual  14: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadActual  15: 1 op, 139.00 ns, 139.0000 ns/op
+OverheadActual  16: 1 op, 114.00 ns, 114.0000 ns/op
+OverheadActual  17: 1 op, 137.00 ns, 137.0000 ns/op
+OverheadActual  18: 1 op, 273.00 ns, 273.0000 ns/op
+OverheadActual  19: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadActual  20: 1 op, 120.00 ns, 120.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 1625.00 ns, 1.6250 us/op
+WorkloadWarmup   2: 1 op, 281.00 ns, 281.0000 ns/op
+WorkloadWarmup   3: 1 op, 297.00 ns, 297.0000 ns/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2868.00 ns, 2.8680 us/op
+WorkloadActual   2: 1 op, 320.00 ns, 320.0000 ns/op
+WorkloadActual   3: 1 op, 1886.00 ns, 1.8860 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2728.50 ns, 2.7285 us/op
+WorkloadResult   2: 1 op, 180.50 ns, 180.5000 ns/op
+WorkloadResult   3: 1 op, 1746.50 ns, 1.7465 us/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3604 has exited with code 0.
+
+Mean = 1.552 μs, StdErr = 0.742 μs (47.81%), N = 3, StdDev = 1.285 μs
+Min = 0.180 μs, Q1 = 0.964 μs, Median = 1.746 μs, Q3 = 2.237 μs, Max = 2.728 μs
+IQR = 1.274 μs, LowerFence = -0.948 μs, UpperFence = 4.149 μs
+ConfidenceInterval = [-21.893 μs; 24.997 μs] (CI 99.9%), Margin = 23.445 μs (1510.80% of Mean)
+Skewness = -0.15, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 5 (50.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Read IsReadIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Read_IsReadIntent --job ShortRun --benchmarkId 5 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 186567.00 ns, 186.5670 us/op
+WorkloadJitting  1: 1 op, 508966.00 ns, 508.9660 us/op
+
+OverheadWarmup   1: 1 op, 243.00 ns, 243.0000 ns/op
+OverheadWarmup   2: 1 op, 207.00 ns, 207.0000 ns/op
+OverheadWarmup   3: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadWarmup   4: 1 op, 113.00 ns, 113.0000 ns/op
+OverheadWarmup   5: 1 op, 148.00 ns, 148.0000 ns/op
+OverheadWarmup   6: 1 op, 144.00 ns, 144.0000 ns/op
+OverheadWarmup   7: 1 op, 145.00 ns, 145.0000 ns/op
+OverheadWarmup   8: 1 op, 114.00 ns, 114.0000 ns/op
+
+OverheadActual   1: 1 op, 244.00 ns, 244.0000 ns/op
+OverheadActual   2: 1 op, 244.00 ns, 244.0000 ns/op
+OverheadActual   3: 1 op, 236.00 ns, 236.0000 ns/op
+OverheadActual   4: 1 op, 107.00 ns, 107.0000 ns/op
+OverheadActual   5: 1 op, 242.00 ns, 242.0000 ns/op
+OverheadActual   6: 1 op, 133.00 ns, 133.0000 ns/op
+OverheadActual   7: 1 op, 81.00 ns, 81.0000 ns/op
+OverheadActual   8: 1 op, 81.00 ns, 81.0000 ns/op
+OverheadActual   9: 1 op, 82.00 ns, 82.0000 ns/op
+OverheadActual  10: 1 op, 95.00 ns, 95.0000 ns/op
+OverheadActual  11: 1 op, 83.00 ns, 83.0000 ns/op
+OverheadActual  12: 1 op, 84.00 ns, 84.0000 ns/op
+OverheadActual  13: 1 op, 81.00 ns, 81.0000 ns/op
+OverheadActual  14: 1 op, 83.00 ns, 83.0000 ns/op
+OverheadActual  15: 1 op, 82.00 ns, 82.0000 ns/op
+OverheadActual  16: 1 op, 84.00 ns, 84.0000 ns/op
+OverheadActual  17: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual  18: 1 op, 252.00 ns, 252.0000 ns/op
+OverheadActual  19: 1 op, 125.00 ns, 125.0000 ns/op
+OverheadActual  20: 1 op, 88.00 ns, 88.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 1474.00 ns, 1.4740 us/op
+WorkloadWarmup   2: 1 op, 345.00 ns, 345.0000 ns/op
+WorkloadWarmup   3: 1 op, 291.00 ns, 291.0000 ns/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 440.00 ns, 440.0000 ns/op
+WorkloadActual   2: 1 op, 268.00 ns, 268.0000 ns/op
+WorkloadActual   3: 1 op, 196.00 ns, 196.0000 ns/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 349.50 ns, 349.5000 ns/op
+WorkloadResult   2: 1 op, 177.50 ns, 177.5000 ns/op
+WorkloadResult   3: 1 op, 105.50 ns, 105.5000 ns/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3610 has exited with code 0.
+
+Mean = 210.833 ns, StdErr = 72.382 ns (34.33%), N = 3, StdDev = 125.369 ns
+Min = 105.500 ns, Q1 = 141.500 ns, Median = 177.500 ns, Q3 = 263.500 ns, Max = 349.500 ns
+IQR = 122.000 ns, LowerFence = -41.500 ns, UpperFence = 446.500 ns
+ConfidenceInterval = [-2,076.360 ns; 2,498.027 ns] (CI 99.9%), Margin = 2,287.193 ns (1084.83% of Mean)
+Skewness = 0.25, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 4 (40.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.'Read IsWriteIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Read_IsWriteIntent --job ShortRun --benchmarkId 6 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 172583.00 ns, 172.5830 us/op
+WorkloadJitting  1: 1 op, 534456.00 ns, 534.4560 us/op
+
+OverheadWarmup   1: 1 op, 214.00 ns, 214.0000 ns/op
+OverheadWarmup   2: 1 op, 99.00 ns, 99.0000 ns/op
+OverheadWarmup   3: 1 op, 79.00 ns, 79.0000 ns/op
+OverheadWarmup   4: 1 op, 83.00 ns, 83.0000 ns/op
+OverheadWarmup   5: 1 op, 91.00 ns, 91.0000 ns/op
+OverheadWarmup   6: 1 op, 98.00 ns, 98.0000 ns/op
+OverheadWarmup   7: 1 op, 126.00 ns, 126.0000 ns/op
+OverheadWarmup   8: 1 op, 133.00 ns, 133.0000 ns/op
+OverheadWarmup   9: 1 op, 107.00 ns, 107.0000 ns/op
+OverheadWarmup  10: 1 op, 83.00 ns, 83.0000 ns/op
+
+OverheadActual   1: 1 op, 214.00 ns, 214.0000 ns/op
+OverheadActual   2: 1 op, 241.00 ns, 241.0000 ns/op
+OverheadActual   3: 1 op, 239.00 ns, 239.0000 ns/op
+OverheadActual   4: 1 op, 139.00 ns, 139.0000 ns/op
+OverheadActual   5: 1 op, 220.00 ns, 220.0000 ns/op
+OverheadActual   6: 1 op, 95.00 ns, 95.0000 ns/op
+OverheadActual   7: 1 op, 81.00 ns, 81.0000 ns/op
+OverheadActual   8: 1 op, 97.00 ns, 97.0000 ns/op
+OverheadActual   9: 1 op, 117.00 ns, 117.0000 ns/op
+OverheadActual  10: 1 op, 109.00 ns, 109.0000 ns/op
+OverheadActual  11: 1 op, 119.00 ns, 119.0000 ns/op
+OverheadActual  12: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadActual  13: 1 op, 188.00 ns, 188.0000 ns/op
+OverheadActual  14: 1 op, 125.00 ns, 125.0000 ns/op
+OverheadActual  15: 1 op, 366.00 ns, 366.0000 ns/op
+OverheadActual  16: 1 op, 156.00 ns, 156.0000 ns/op
+OverheadActual  17: 1 op, 153.00 ns, 153.0000 ns/op
+OverheadActual  18: 1 op, 212.00 ns, 212.0000 ns/op
+OverheadActual  19: 1 op, 104.00 ns, 104.0000 ns/op
+OverheadActual  20: 1 op, 104.00 ns, 104.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 1400.00 ns, 1.4000 us/op
+WorkloadWarmup   2: 1 op, 312.00 ns, 312.0000 ns/op
+WorkloadWarmup   3: 1 op, 226.00 ns, 226.0000 ns/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 355.00 ns, 355.0000 ns/op
+WorkloadActual   2: 1 op, 280.00 ns, 280.0000 ns/op
+WorkloadActual   3: 1 op, 263.00 ns, 263.0000 ns/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 223.00 ns, 223.0000 ns/op
+WorkloadResult   2: 1 op, 148.00 ns, 148.0000 ns/op
+WorkloadResult   3: 1 op, 131.00 ns, 131.0000 ns/op
+// GC:  0 0 0 0 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3616 has exited with code 0.
+
+Mean = 167.333 ns, StdErr = 28.263 ns (16.89%), N = 3, StdDev = 48.952 ns
+Min = 131.000 ns, Q1 = 139.500 ns, Median = 148.000 ns, Q3 = 185.500 ns, Max = 223.000 ns
+IQR = 46.000 ns, LowerFence = 70.500 ns, UpperFence = 254.500 ns
+ConfidenceInterval = [-725.740 ns; 1,060.407 ns] (CI 99.9%), Margin = 893.073 ns (533.71% of Mean)
+Skewness = 0.33, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 3 (30.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Scope_ForWrite --job ShortRun --benchmarkId 7 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 136777.00 ns, 136.7770 us/op
+WorkloadJitting  1: 1 op, 856329.00 ns, 856.3290 us/op
+
+OverheadWarmup   1: 1 op, 238.00 ns, 238.0000 ns/op
+OverheadWarmup   2: 1 op, 222.00 ns, 222.0000 ns/op
+OverheadWarmup   3: 1 op, 183.00 ns, 183.0000 ns/op
+OverheadWarmup   4: 1 op, 132.00 ns, 132.0000 ns/op
+OverheadWarmup   5: 1 op, 190.00 ns, 190.0000 ns/op
+OverheadWarmup   6: 1 op, 201.00 ns, 201.0000 ns/op
+OverheadWarmup   7: 1 op, 162.00 ns, 162.0000 ns/op
+OverheadWarmup   8: 1 op, 135.00 ns, 135.0000 ns/op
+OverheadWarmup   9: 1 op, 142.00 ns, 142.0000 ns/op
+OverheadWarmup  10: 1 op, 102.00 ns, 102.0000 ns/op
+
+OverheadActual   1: 1 op, 227.00 ns, 227.0000 ns/op
+OverheadActual   2: 1 op, 198.00 ns, 198.0000 ns/op
+OverheadActual   3: 1 op, 230.00 ns, 230.0000 ns/op
+OverheadActual   4: 1 op, 112.00 ns, 112.0000 ns/op
+OverheadActual   5: 1 op, 197.00 ns, 197.0000 ns/op
+OverheadActual   6: 1 op, 202.00 ns, 202.0000 ns/op
+OverheadActual   7: 1 op, 121.00 ns, 121.0000 ns/op
+OverheadActual   8: 1 op, 103.00 ns, 103.0000 ns/op
+OverheadActual   9: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadActual  10: 1 op, 108.00 ns, 108.0000 ns/op
+OverheadActual  11: 1 op, 104.00 ns, 104.0000 ns/op
+OverheadActual  12: 1 op, 114.00 ns, 114.0000 ns/op
+OverheadActual  13: 1 op, 143.00 ns, 143.0000 ns/op
+OverheadActual  14: 1 op, 173.00 ns, 173.0000 ns/op
+OverheadActual  15: 1 op, 136.00 ns, 136.0000 ns/op
+OverheadActual  16: 1 op, 94.00 ns, 94.0000 ns/op
+OverheadActual  17: 1 op, 112.00 ns, 112.0000 ns/op
+OverheadActual  18: 1 op, 229.00 ns, 229.0000 ns/op
+OverheadActual  19: 1 op, 121.00 ns, 121.0000 ns/op
+OverheadActual  20: 1 op, 102.00 ns, 102.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 9754.00 ns, 9.7540 us/op
+WorkloadWarmup   2: 1 op, 3569.00 ns, 3.5690 us/op
+WorkloadWarmup   3: 1 op, 3237.00 ns, 3.2370 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 6765.00 ns, 6.7650 us/op
+WorkloadActual   2: 1 op, 3914.00 ns, 3.9140 us/op
+WorkloadActual   3: 1 op, 3212.00 ns, 3.2120 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 6644.00 ns, 6.6440 us/op
+WorkloadResult   2: 1 op, 3793.00 ns, 3.7930 us/op
+WorkloadResult   3: 1 op, 3091.00 ns, 3.0910 us/op
+// GC:  0 0 0 392 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3622 has exited with code 0.
+
+Mean = 4.509 μs, StdErr = 1.086 μs (24.09%), N = 3, StdDev = 1.882 μs
+Min = 3.091 μs, Q1 = 3.442 μs, Median = 3.793 μs, Q3 = 5.218 μs, Max = 6.644 μs
+IQR = 1.776 μs, LowerFence = 0.777 μs, UpperFence = 7.883 μs
+ConfidenceInterval = [-29.820 μs; 38.839 μs] (CI 99.9%), Margin = 34.329 μs (761.29% of Mean)
+Skewness = 0.33, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 2 (20.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForForceWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Scope_ForForceWrite --job ShortRun --benchmarkId 8 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 117637.00 ns, 117.6370 us/op
+WorkloadJitting  1: 1 op, 919171.00 ns, 919.1710 us/op
+
+OverheadWarmup   1: 1 op, 1581.00 ns, 1.5810 us/op
+OverheadWarmup   2: 1 op, 340.00 ns, 340.0000 ns/op
+OverheadWarmup   3: 1 op, 127.00 ns, 127.0000 ns/op
+OverheadWarmup   4: 1 op, 147.00 ns, 147.0000 ns/op
+OverheadWarmup   5: 1 op, 175.00 ns, 175.0000 ns/op
+OverheadWarmup   6: 1 op, 125.00 ns, 125.0000 ns/op
+OverheadWarmup   7: 1 op, 109.00 ns, 109.0000 ns/op
+OverheadWarmup   8: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadWarmup   9: 1 op, 107.00 ns, 107.0000 ns/op
+OverheadWarmup  10: 1 op, 109.00 ns, 109.0000 ns/op
+
+OverheadActual   1: 1 op, 208.00 ns, 208.0000 ns/op
+OverheadActual   2: 1 op, 198.00 ns, 198.0000 ns/op
+OverheadActual   3: 1 op, 235.00 ns, 235.0000 ns/op
+OverheadActual   4: 1 op, 114.00 ns, 114.0000 ns/op
+OverheadActual   5: 1 op, 201.00 ns, 201.0000 ns/op
+OverheadActual   6: 1 op, 96.00 ns, 96.0000 ns/op
+OverheadActual   7: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual   8: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual   9: 1 op, 95.00 ns, 95.0000 ns/op
+OverheadActual  10: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadActual  11: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual  12: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadActual  13: 1 op, 93.00 ns, 93.0000 ns/op
+OverheadActual  14: 1 op, 96.00 ns, 96.0000 ns/op
+OverheadActual  15: 1 op, 92.00 ns, 92.0000 ns/op
+OverheadActual  16: 1 op, 95.00 ns, 95.0000 ns/op
+OverheadActual  17: 1 op, 109.00 ns, 109.0000 ns/op
+OverheadActual  18: 1 op, 241.00 ns, 241.0000 ns/op
+OverheadActual  19: 1 op, 133.00 ns, 133.0000 ns/op
+OverheadActual  20: 1 op, 93.00 ns, 93.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 9456.00 ns, 9.4560 us/op
+WorkloadWarmup   2: 1 op, 2602.00 ns, 2.6020 us/op
+WorkloadWarmup   3: 1 op, 1975.00 ns, 1.9750 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 4232.00 ns, 4.2320 us/op
+WorkloadActual   2: 1 op, 2662.00 ns, 2.6620 us/op
+WorkloadActual   3: 1 op, 2531.00 ns, 2.5310 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 4136.50 ns, 4.1365 us/op
+WorkloadResult   2: 1 op, 2566.50 ns, 2.5665 us/op
+WorkloadResult   3: 1 op, 2435.50 ns, 2.4355 us/op
+// GC:  0 0 0 392 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3628 has exited with code 0.
+
+Mean = 3.046 μs, StdErr = 0.546 μs (17.94%), N = 3, StdDev = 0.947 μs
+Min = 2.436 μs, Q1 = 2.501 μs, Median = 2.567 μs, Q3 = 3.352 μs, Max = 4.136 μs
+IQR = 0.851 μs, LowerFence = 1.225 μs, UpperFence = 4.627 μs
+ConfidenceInterval = [-14.222 μs; 20.314 μs] (CI 99.9%), Margin = 17.268 μs (566.88% of Mean)
+Skewness = 0.38, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 1 (10.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// **************************
+// Benchmark: DatabaseRoutingBenchmarks.DatabaseRoutingContext.Clear(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Encina.Benchmarks-ShortRun-1.dll --anonymousPipes 228 229 --benchmarkName Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks.Context_Clear --job ShortRun --benchmarkId 9 in /home/runner/work/Encina/Encina/tests/Encina.BenchmarkTests/Encina.Benchmarks/bin/Release/net10.0/Encina.Benchmarks-ShortRun-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX10v1,AVX512 BF16+FP16,AVX512 BITALG+VBMI2+VNNI+VPOPCNTDQ,AVX512 IFMA+VBMI,AVX512 F+BW+CD+DQ+VL,AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL,AvxVnni,SERIALIZE VectorSize=256
+// Job: ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 135669.00 ns, 135.6690 us/op
+WorkloadJitting  1: 1 op, 231761.00 ns, 231.7610 us/op
+
+OverheadWarmup   1: 1 op, 250.00 ns, 250.0000 ns/op
+OverheadWarmup   2: 1 op, 184.00 ns, 184.0000 ns/op
+OverheadWarmup   3: 1 op, 138.00 ns, 138.0000 ns/op
+OverheadWarmup   4: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadWarmup   5: 1 op, 154.00 ns, 154.0000 ns/op
+OverheadWarmup   6: 1 op, 109.00 ns, 109.0000 ns/op
+OverheadWarmup   7: 1 op, 108.00 ns, 108.0000 ns/op
+OverheadWarmup   8: 1 op, 105.00 ns, 105.0000 ns/op
+OverheadWarmup   9: 1 op, 122.00 ns, 122.0000 ns/op
+OverheadWarmup  10: 1 op, 107.00 ns, 107.0000 ns/op
+
+OverheadActual   1: 1 op, 260.00 ns, 260.0000 ns/op
+OverheadActual   2: 1 op, 248.00 ns, 248.0000 ns/op
+OverheadActual   3: 1 op, 212.00 ns, 212.0000 ns/op
+OverheadActual   4: 1 op, 229.00 ns, 229.0000 ns/op
+OverheadActual   5: 1 op, 251.00 ns, 251.0000 ns/op
+OverheadActual   6: 1 op, 185.00 ns, 185.0000 ns/op
+OverheadActual   7: 1 op, 118.00 ns, 118.0000 ns/op
+OverheadActual   8: 1 op, 103.00 ns, 103.0000 ns/op
+OverheadActual   9: 1 op, 120.00 ns, 120.0000 ns/op
+OverheadActual  10: 1 op, 118.00 ns, 118.0000 ns/op
+OverheadActual  11: 1 op, 119.00 ns, 119.0000 ns/op
+OverheadActual  12: 1 op, 106.00 ns, 106.0000 ns/op
+OverheadActual  13: 1 op, 151.00 ns, 151.0000 ns/op
+OverheadActual  14: 1 op, 157.00 ns, 157.0000 ns/op
+OverheadActual  15: 1 op, 103.00 ns, 103.0000 ns/op
+OverheadActual  16: 1 op, 105.00 ns, 105.0000 ns/op
+OverheadActual  17: 1 op, 105.00 ns, 105.0000 ns/op
+OverheadActual  18: 1 op, 247.00 ns, 247.0000 ns/op
+OverheadActual  19: 1 op, 150.00 ns, 150.0000 ns/op
+OverheadActual  20: 1 op, 115.00 ns, 115.0000 ns/op
+
+WorkloadWarmup   1: 1 op, 5329.00 ns, 5.3290 us/op
+WorkloadWarmup   2: 1 op, 4783.00 ns, 4.7830 us/op
+WorkloadWarmup   3: 1 op, 4348.00 ns, 4.3480 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 5288.00 ns, 5.2880 us/op
+WorkloadActual   2: 1 op, 1630.00 ns, 1.6300 us/op
+WorkloadActual   3: 1 op, 3059.00 ns, 3.0590 us/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 5153.00 ns, 5.1530 us/op
+WorkloadResult   2: 1 op, 1495.00 ns, 1.4950 us/op
+WorkloadResult   3: 1 op, 2924.00 ns, 2.9240 us/op
+// GC:  0 0 0 96 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 3634 has exited with code 0.
+
+Mean = 3.191 μs, StdErr = 1.064 μs (33.36%), N = 3, StdDev = 1.844 μs
+Min = 1.495 μs, Q1 = 2.209 μs, Median = 2.924 μs, Q3 = 4.038 μs, Max = 5.153 μs
+IQR = 1.829 μs, LowerFence = -0.534 μs, UpperFence = 6.782 μs
+ConfidenceInterval = [-30.442 μs; 36.823 μs] (CI 99.9%), Margin = 33.633 μs (1054.10% of Mean)
+Skewness = 0.14, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-09-25 10:48 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-report.csv
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-report-github.md
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-report.html
+  artifacts/performance/Core/results/Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-report-full-compressed.json
+
+// * Detailed results *
+DatabaseRoutingBenchmarks.'Nested scopes (Read → ForceWrite)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 4.399 μs, StdErr = 1.229 μs (27.95%), N = 3, StdDev = 2.129 μs
+Min = 2.467 μs, Q1 = 3.257 μs, Median = 4.048 μs, Q3 = 5.365 μs, Max = 6.682 μs
+IQR = 2.107 μs, LowerFence = 0.096 μs, UpperFence = 8.526 μs
+ConfidenceInterval = [-34.448 μs; 43.246 μs] (CI 99.9%), Margin = 38.847 μs (883.08% of Mean)
+Skewness = 0.16, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[1.320 μs ; 5.195 μs) | @@
+[5.195 μs ; 8.620 μs) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.'Read CurrentIntent (AsyncLocal)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 101.667 ns, StdErr = 50.280 ns (49.46%), N = 3, StdDev = 87.088 ns
+Min = 21.000 ns, Q1 = 55.500 ns, Median = 90.000 ns, Q3 = 142.000 ns, Max = 194.000 ns
+IQR = 86.500 ns, LowerFence = -74.250 ns, UpperFence = 271.750 ns
+ConfidenceInterval = [-1,487.144 ns; 1,690.477 ns] (CI 99.9%), Margin = 1,588.811 ns (1562.76% of Mean)
+Skewness = 0.13, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[ 21.000 ns ; 134.753 ns) | @@
+[134.753 ns ; 273.253 ns) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForRead(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 4.421 μs, StdErr = 0.511 μs (11.56%), N = 3, StdDev = 0.885 μs
+Min = 3.704 μs, Q1 = 3.926 μs, Median = 4.149 μs, Q3 = 4.779 μs, Max = 5.410 μs
+IQR = 0.853 μs, LowerFence = 2.647 μs, UpperFence = 6.059 μs
+ConfidenceInterval = [-11.723 μs; 20.565 μs] (CI 99.9%), Margin = 16.144 μs (365.17% of Mean)
+Skewness = 0.28, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[3.121 μs ; 4.732 μs) | @@
+[4.732 μs ; 6.215 μs) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.'Read EffectiveIntent (null-coalesce)': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 168.333 ns, StdErr = 77.394 ns (45.98%), N = 3, StdDev = 134.050 ns
+Min = 45.000 ns, Q1 = 97.000 ns, Median = 149.000 ns, Q3 = 230.000 ns, Max = 311.000 ns
+IQR = 133.000 ns, LowerFence = -102.500 ns, UpperFence = 429.500 ns
+ConfidenceInterval = [-2,277.233 ns; 2,613.900 ns] (CI 99.9%), Margin = 2,445.566 ns (1452.81% of Mean)
+Skewness = 0.14, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[ 45.000 ns ; 218.990 ns) | @@
+[218.990 ns ; 432.990 ns) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.'Read HasIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 1.552 μs, StdErr = 0.742 μs (47.81%), N = 3, StdDev = 1.285 μs
+Min = 0.180 μs, Q1 = 0.964 μs, Median = 1.746 μs, Q3 = 2.237 μs, Max = 2.728 μs
+IQR = 1.274 μs, LowerFence = -0.948 μs, UpperFence = 4.149 μs
+ConfidenceInterval = [-21.893 μs; 24.997 μs] (CI 99.9%), Margin = 23.445 μs (1510.80% of Mean)
+Skewness = -0.15, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[0.180 μs ; 1.068 μs) | @
+[1.068 μs ; 3.407 μs) | @@
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.'Read IsReadIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 210.833 ns, StdErr = 72.382 ns (34.33%), N = 3, StdDev = 125.369 ns
+Min = 105.500 ns, Q1 = 141.500 ns, Median = 177.500 ns, Q3 = 263.500 ns, Max = 349.500 ns
+IQR = 122.000 ns, LowerFence = -41.500 ns, UpperFence = 446.500 ns
+ConfidenceInterval = [-2,076.360 ns; 2,498.027 ns] (CI 99.9%), Margin = 2,287.193 ns (1084.83% of Mean)
+Skewness = 0.25, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[ 27.410 ns ; 255.590 ns) | @@
+[255.590 ns ; 463.590 ns) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.'Read IsWriteIntent': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 167.333 ns, StdErr = 28.263 ns (16.89%), N = 3, StdDev = 48.952 ns
+Min = 131.000 ns, Q1 = 139.500 ns, Median = 148.000 ns, Q3 = 185.500 ns, Max = 223.000 ns
+IQR = 46.000 ns, LowerFence = 70.500 ns, UpperFence = 254.500 ns
+ConfidenceInterval = [-725.740 ns; 1,060.407 ns] (CI 99.9%), Margin = 893.073 ns (533.71% of Mean)
+Skewness = 0.33, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[ 86.452 ns ; 184.048 ns) | @@
+[184.048 ns ; 267.548 ns) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 4.509 μs, StdErr = 1.086 μs (24.09%), N = 3, StdDev = 1.882 μs
+Min = 3.091 μs, Q1 = 3.442 μs, Median = 3.793 μs, Q3 = 5.218 μs, Max = 6.644 μs
+IQR = 1.776 μs, LowerFence = 0.777 μs, UpperFence = 7.883 μs
+ConfidenceInterval = [-29.820 μs; 38.839 μs] (CI 99.9%), Margin = 34.329 μs (761.29% of Mean)
+Skewness = 0.33, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[1.730 μs ; 5.154 μs) | @@
+[5.154 μs ; 8.356 μs) | @
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForForceWrite(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 3.046 μs, StdErr = 0.546 μs (17.94%), N = 3, StdDev = 0.947 μs
+Min = 2.436 μs, Q1 = 2.501 μs, Median = 2.567 μs, Q3 = 3.352 μs, Max = 4.136 μs
+IQR = 0.851 μs, LowerFence = 1.225 μs, UpperFence = 4.627 μs
+ConfidenceInterval = [-14.222 μs; 20.314 μs] (CI 99.9%), Margin = 17.268 μs (566.88% of Mean)
+Skewness = 0.38, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[2.425 μs ; 4.147 μs) | @@@
+---------------------------------------------------
+
+DatabaseRoutingBenchmarks.DatabaseRoutingContext.Clear(): ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
+Runtime = .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4; GC = Concurrent Workstation
+Mean = 3.191 μs, StdErr = 1.064 μs (33.36%), N = 3, StdDev = 1.844 μs
+Min = 1.495 μs, Q1 = 2.209 μs, Median = 2.924 μs, Q3 = 4.038 μs, Max = 5.153 μs
+IQR = 1.829 μs, LowerFence = -0.534 μs, UpperFence = 6.782 μs
+ConfidenceInterval = [-30.442 μs; 36.823 μs] (CI 99.9%), Margin = 33.633 μs (1054.10% of Mean)
+Skewness = 0.14, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[0.532 μs ; 3.887 μs) | @@
+[3.887 μs ; 6.831 μs) | @
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 3.54GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+
+| Method                                 | Mean       | Error       | StdDev      | Allocated |
+|--------------------------------------- |-----------:|------------:|------------:|----------:|
+| 'Nested scopes (Read → ForceWrite)'    | 4,399.0 ns | 38,846.5 ns | 2,129.31 ns |     840 B |
+| 'Read CurrentIntent (AsyncLocal)'      |   101.7 ns |  1,588.8 ns |    87.09 ns |         - |
+| DatabaseRoutingScope.ForRead()         | 4,421.0 ns | 16,144.4 ns |   884.93 ns |     392 B |
+| 'Read EffectiveIntent (null-coalesce)' |   168.3 ns |  2,445.6 ns |   134.05 ns |         - |
+| 'Read HasIntent'                       | 1,551.8 ns | 23,445.1 ns | 1,285.11 ns |         - |
+| 'Read IsReadIntent'                    |   210.8 ns |  2,287.2 ns |   125.37 ns |         - |
+| 'Read IsWriteIntent'                   |   167.3 ns |    893.1 ns |    48.95 ns |         - |
+| DatabaseRoutingScope.ForWrite()        | 4,509.3 ns | 34,329.2 ns | 1,881.70 ns |     392 B |
+| DatabaseRoutingScope.ForForceWrite()   | 3,046.2 ns | 17,268.1 ns |   946.53 ns |     392 B |
+| DatabaseRoutingContext.Clear()         | 3,190.7 ns | 33,632.7 ns | 1,843.52 ns |      96 B |
+
+// * Warnings *
+MinIterationTime
+  DatabaseRoutingBenchmarks.'Nested scopes (Read → ForceWrite)': ShortRun    -> The minimum observed iteration time is 2.607μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.'Read CurrentIntent (AsyncLocal)': ShortRun      -> The minimum observed iteration time is 228ns which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForRead(): ShortRun         -> The minimum observed iteration time is 3.922μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.'Read EffectiveIntent (null-coalesce)': ShortRun -> The minimum observed iteration time is 206ns which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.'Read HasIntent': ShortRun                       -> The minimum observed iteration time is 320ns which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.'Read IsReadIntent': ShortRun                    -> The minimum observed iteration time is 196ns which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.'Read IsWriteIntent': ShortRun                   -> The minimum observed iteration time is 263ns which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForWrite(): ShortRun        -> The minimum observed iteration time is 3.212μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.DatabaseRoutingScope.ForForceWrite(): ShortRun   -> The minimum observed iteration time is 2.531μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+  DatabaseRoutingBenchmarks.DatabaseRoutingContext.Clear(): ShortRun         -> The minimum observed iteration time is 1.63μs which is very small. It's recommended to increase it to at least 100ms using more operations.
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  StdDev    : Standard deviation of all measurements
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 ns      : 1 Nanosecond (0.000000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:02 (2.03 sec), executed benchmarks: 10
+
+Global total time: 00:02:18 (138.66 sec), executed benchmarks: 10
+// * Artifacts cleanup *
+Artifacts cleanup is finished
