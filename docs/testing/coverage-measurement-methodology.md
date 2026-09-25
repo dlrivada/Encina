@@ -405,7 +405,7 @@ Compiler-generated members (async state machines, lambdas, property accessors re
 
 ### Not yet wired into CI
 
-`crap-gate.cs` exists and is tested (see its fixtures under `.github/scripts/testdata/crap-gate/`), but no workflow invokes it yet. Wiring it into `ci.yml` — which coverage artifacts feed it, and the `--report` → `--enforce` rollout — is a separate decision, recorded in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md).
+`crap-gate.cs` exists and was verified manually against the fixtures under `.github/scripts/testdata/crap-gate/` during development (diff parsing, the exemption comment, `--report`/`--enforce` exit codes); there is no automated test that runs it yet (see the open question in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md#5-open-questions--follow-ups)), and no workflow invokes it yet. Wiring it into `ci.yml` — which coverage artifacts feed it, and the `--report` → `--enforce` rollout — is a separate decision, recorded in [`docs/engineering/crap-gate-design.md`](../engineering/crap-gate-design.md).
 
 ### Citation status
 
