@@ -187,7 +187,7 @@ Humans should intervene when the system encounters a real decision that cannot b
 
 ### What Encina adopted (2026-09-25, #1345)
 
-The SPEC-003 closed-issue audit pipeline ([`docs/specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md`](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md), [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) §2.6) is where the SwarmForge principles above became concrete Encina mechanisms:
+The SPEC-003 closed-issue audit pipeline ([`docs/specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md`](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md), [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) §2.6) is where the SwarmForge principles above became concrete Encina mechanisms, adapting [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) to Claude Code, PowerShell and C#:
 
 - **Separation of responsibility** → the four audit-stage agents, each with an explicit `Owns` / `Does not own` section in its own definition: `issue-archivist` (knowledge record and scope, never judges code or tests), `issue-auditor` (adversarial code review, never tests or docs), `test-auditor` (coverage and test quality, never production code or docs), `audit-verifier` (re-verification only, never fixes anything).
 - **Durable handoffs** → one artifact per stage under `artifacts/knowledge/stages/` (`archivist.md`, `code.md`, `tests.md`, `docs.md`, `remediation.md`, `verification.md`), committed on the audit branch by `tools/ai/audit/audit-commit-stage.ps1` before the next stage may start.
