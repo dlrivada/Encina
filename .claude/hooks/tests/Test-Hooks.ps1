@@ -570,7 +570,12 @@ $ownershipCases = @(
     # #1345 review blocker: the stage-ownership match must not evade case-insensitively (the filesystem this
     # project runs on is case-insensitive, so 'Artifacts\Knowledge\Stages\code.md' is the very same on-disk
     # file as 'artifacts\knowledge\stages\code.md').
-    @($null, 'Write', "$wt\Artifacts\Knowledge\Stages\code.md", $wt, 2, 'fabrication gap: mixed-case path still matches the stage-artifact rule')
+    @($null, 'Write', "$wt\Artifacts\Knowledge\Stages\code.md", $wt, 2, 'fabrication gap: mixed-case path still matches the stage-artifact rule'),
+    # #1345 review blocker: the authorship sidecar has exactly one legitimate writer (this hook's own
+    # Set-Content, invoked internally when it allows a stage-artifact write) — never a tool call, not even the
+    # orchestrator's, which previously fell through to the default allow.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: the orchestrator writing .authors.json directly is denied'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
@@ -839,6 +844,31 @@ try {
         $hookAgent, $tool, $command, $expected, $label, $agentType = $case
         $payload = @{ tool_name = $tool; cwd = $wt; tool_input = @{ command = $command } }
         if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = 'a1' }
+        Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+
+    # #1345 review blocker: git itself is a bypass vector for the stage-ownership check — `git checkout <rev>
+    # -- <path>` / `git restore <path>` can overwrite a stage artifact's content without going through the
+    # Write/Edit tool or any of the shell-write APIs above; `git commit`/`apply`/`am`, run as the command's own
+    # top-level git invocation instead of through tools/ai/audit/audit-commit-stage.ps1 (the only script that
+    # checks .authors.json), would let anyone commit a fabricated stage artifact. These cases need no real git
+    # repository: Get-ShellWrites tokenises the command text; it never runs git.
+    $wiaWt = Join-Path $main '.claude\worktrees\wia-777'
+    $gitOwnershipCases = @(
+        @('test-auditor', "git -C '$wt' checkout HEAD -- artifacts/knowledge/stages/code.md", 2, 'git vector: checkout of a stage artifact by the wrong stage agent is denied'),
+        @('issue-auditor', "git -C '$wt' checkout HEAD -- artifacts/knowledge/stages/code.md", 0, 'git vector: checkout of a stage artifact by the correct stage agent is allowed'),
+        @('test-auditor', "git -C '$wt' restore artifacts/knowledge/stages/code.md", 2, 'git vector: restore of a stage artifact by the wrong stage agent is denied'),
+        @($null, "git -C '$wiaWt' commit -m x -m 'Stage: code'", 2, 'git vector: a bare commit inside an open audit worktree is denied for every caller'),
+        @('issue-auditor', "git -C '$wiaWt' commit -m x -m 'Stage: code'", 2, 'git vector: a bare commit inside an open audit worktree is denied even for the stage''s own agent'),
+        @($null, "git -C '$wiaWt' apply patch.diff", 2, 'git vector: apply inside an open audit worktree is denied'),
+        @($null, "git -C '$wiaWt' am patch.mbox", 2, 'git vector: am inside an open audit worktree is denied'),
+        @($null, "git -C '$wt' commit -m x", 0, 'git vector: a bare commit outside an audit worktree is not restricted'),
+        @($null, "git -C '$wiaWt' add -f artifacts/knowledge", 0, 'git vector: add alone (no commit) is not restricted')
+    )
+    foreach ($case in $gitOwnershipCases) {
+        $hookAgent, $command, $expected, $label = $case
+        $payload = @{ tool_name = 'PowerShell'; cwd = $wt; tool_input = @{ command = $command } }
+        if ($hookAgent) { $payload.agent_type = $hookAgent; $payload.agent_id = 'a1' }
         Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
     }
 

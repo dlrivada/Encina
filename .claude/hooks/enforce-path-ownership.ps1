@@ -45,6 +45,21 @@
 # to fabricate another stage's file. Every write target Get-ShellWrites (_write-targets.ps1) recognises is
 # checked the same way as a Write/Edit target.
 #
+# git itself is also a bypass vector (#1345 review), closed two ways:
+#   - `git checkout <rev> -- <path>` / `git restore <path>` can overwrite a stage artifact's working-tree
+#     content without going through any tool this hook otherwise inspects; every path Get-ShellWrites resolves
+#     for those verbs (`.Git[].Paths`) goes through the same Test-PathOwnership check as a Write/Edit target.
+#   - `git commit` / `git apply` / `git am`, run directly instead of through tools/ai/audit/audit-commit-stage.ps1
+#     (which alone checks the .authors.json sidecar) or audit-draft-remediation.ps1, would let anyone commit a
+#     fabricated stage artifact, or apply a patch whose content this analysis cannot inspect. Since neither
+#     script has any legitimate reason to be reached any other way inside an open audit's own worktree
+#     (`.claude/worktrees/wia-<n>`), those three verbs are denied outright there for every caller when they are
+#     the command's own top-level git invocation (not when they run inside a `pwsh -File` script this hook does
+#     not execute) — fail-closed, per AGENTS.md §3, rather than trying to parse patch content.
+#   - `.authors.json` itself: its only legitimate writer is this hook's own Set-Content call below, never a
+#     tool call, so a direct Write/Edit/shell-write to it is always denied, including for the orchestrator
+#     (previously it fell through to the default allow, since it names no pipeline.stages entry).
+#
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call.
 
 param([string]$Agent)
@@ -84,6 +99,15 @@ try {
 
         $relative = $location.Relative
         $category = Get-PathCategory $relative
+
+        # #1345 review: the authorship sidecar has exactly one legitimate writer — this hook's own Set-Content
+        # call below, invoked directly by the hook process, never through a Write/Edit/shell tool call. Denied
+        # unconditionally, including for the orchestrator (an empty $Agent), which would otherwise fall through
+        # every rule below to the default allow, since '.authors.json' names no pipeline.stages entry.
+        if ($relative -match '(?i)^artifacts/knowledge/stages/\.authors\.json$') {
+            [Console]::Error.WriteLine("Blocked: '$relative' is the stage-authorship sidecar, written only by enforce-path-ownership.ps1 itself when it allows a stage-artifact write; no tool call may write it directly, including the orchestrator (#1345 review).")
+            return $false
+        }
 
         # #1345 fabrication gap: a SPEC-003 audit-stage artifact (artifacts/knowledge/stages/<file>) may be
         # written ONLY by the agent tools/ai/audit/pipeline.json assigns to that stage — never the orchestrator
@@ -197,6 +221,23 @@ try {
     foreach ($w in $scan.Writes) {
         if ($null -eq $w.Full) { continue }
         if (-not (Test-PathOwnership $w.Full)) { exit 2 }
+    }
+
+    # git as a bypass vector (#1345 review; see the header comment). `checkout <rev> -- <path>` / `restore
+    # <path>` can overwrite a stage artifact's content directly: every resolved path goes through the same
+    # ownership check. `commit` / `apply` / `am`, run as this command's own top-level git invocation (not
+    # inside a `pwsh -File` script this analysis does not execute), are denied outright inside an open audit's
+    # worktree (`.claude/worktrees/wia-<n>`) for every caller: neither verb has a legitimate direct use there
+    # (tools/ai/audit/audit-commit-stage.ps1 and audit-draft-remediation.ps1 are the only sanctioned writers,
+    # and calling one of those scripts is a `pwsh`/`dotnet` command, never a bare `git commit`/`apply`/`am`),
+    # and `apply`/`am` can touch file content this text-only analysis cannot inspect, so this fails closed.
+    $auditWorktreePattern = '[\\/]\.claude[\\/]worktrees[\\/]wia-\d+(?:[\\/]|$)'
+    foreach ($g in $scan.Git) {
+        foreach ($p in @($g.Paths)) { if (-not (Test-PathOwnership $p)) { exit 2 } }
+        if ($g.Verb -in 'commit', 'apply', 'am' -and $g.Dir -match $auditWorktreePattern) {
+            [Console]::Error.WriteLine("Blocked: 'git $($g.Verb)' inside an open audit's worktree ($($g.Dir)) is denied for every caller; only tools/ai/audit/audit-commit-stage.ps1 (which checks the .authors.json sidecar) and audit-draft-remediation.ps1 may commit or apply changes there (#1345 review: a bare git commit/apply/am would bypass the stage-authorship check entirely).")
+            exit 2
+        }
     }
     exit 0
 }
