@@ -282,7 +282,14 @@ static Dictionary<string, HashSet<int>> ParseDiff(string diffText)
                 newLine++;
                 break;
             case '-':
-                // Removed line: does not exist in the new file, does not consume a new line number.
+                // Removed line: does not exist in the new file, so it does not consume a new line
+                // number — but a hunk that is pure deletion (no '+' lines) would otherwise leave no
+                // trace at all, silently exempting a method whose body shrank from the gate (CodeRabbit
+                // review of #1346). Mark the current new-file position as touched too, so the method
+                // spanning that position is still analyzed.
+                if (!result.TryGetValue(currentFile, out var delSet))
+                    result[currentFile] = delSet = new HashSet<int>();
+                delSet.Add(newLine);
                 break;
             case ' ':
                 newLine++;
