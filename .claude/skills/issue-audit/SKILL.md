@@ -68,7 +68,7 @@ artifact file name; never hard-code it. As shipped:
 ## 1. Start the audit
 
 ```powershell
-dotnet run --file tools/ai/audit/audit-next.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-next.ps1
 ```
 
 With no `-Issue`, it takes the next entry of `artifacts/knowledge/audit-queue.txt` not already in
@@ -93,7 +93,7 @@ For every stage `audit-stage-guard.ps1` is willing to let through:
    if something is wrong, that is a finding for `audit-verifier`, not a fix you make mid-pipeline.
 3. Commit the stage:
    ```powershell
-   dotnet run --file tools/ai/audit/audit-commit-stage.ps1 -- -Stage <stage>
+   pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage <stage>
    ```
    This refuses if the artifact is missing, or if `artifacts/knowledge/stages/.authors.json` does not record
    the assigned agent as the last writer (the fabrication-gap check: only a Write/Edit call from that exact
@@ -108,8 +108,8 @@ self-review. It has no code/README to review only when the issue delivered none 
 The **remediation** stage is not an agent spawn; run the script directly once `stages/docs.md` exists:
 
 ```powershell
-dotnet run --file tools/ai/audit/audit-draft-remediation.ps1
-dotnet run --file tools/ai/audit/audit-commit-stage.ps1 -- -Stage remediation
+pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation
 ```
 
 It reads the `## Findings` sections of `code.md`, `tests.md` and `docs.md` and drafts one issue file per
@@ -134,7 +134,7 @@ anything. Its `stages/verification.md` starts with `Verdict: PASS` or `Verdict: 
 ## 4. Lessons
 
 ```powershell
-dotnet run --file tools/ai/audit/audit-lessons.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-lessons.ps1
 ```
 
 Collects every stage's "## Lessons for the pipeline" bullets into `stages/lessons.md`, each followed by
@@ -164,7 +164,7 @@ if any lesson still has `Applied: TODO`.
 ## 5. Close the audit
 
 ```powershell
-dotnet run --file tools/ai/audit/audit-done.ps1
+pwsh -NoProfile -File tools/ai/audit/audit-done.ps1
 ```
 
 Refuses when any stage artifact is missing or uncommitted, the verification verdict is not PASS, any lesson
@@ -179,7 +179,7 @@ remediation issue numbers once step 6 runs, and `meta/board.pipeline="v2"`.
 ## 6. Open remediation
 
 ```powershell
-dotnet run --file tools/ai/audit/open-remediation.ps1 -- -Issue <n>
+pwsh -NoProfile -File tools/ai/audit/open-remediation.ps1 -Issue <n>
 ```
 
 Opens every `artifacts/knowledge/remediation/<n>-*.md` draft as a real issue (title/labels/milestone from its
