@@ -18,6 +18,10 @@
 #                 artifacts/** (its issue files); never .claude/**. Everything else (src/, tests/, build files,
 #                 docs/ site code and data) is denied: spawn mechanical-fixer for an already-decided edit,
 #                 otherwise report it.
+#   the four SPEC-003 audit-stage agents (issue-archivist, issue-auditor, test-auditor, audit-verifier; #1345)
+#                 write only under their own audit worktree's artifacts/ folder (stage artifacts, the
+#                 knowledge record, remediation drafts) — never src/, tests/, docs/ or .claude/. The docs
+#                 stage runs docs-reviewer itself, which is read-only and has no write access to police.
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -81,6 +85,12 @@ try {
             $relative -match '^artifacts/')
         if (-not $allowed) {
             [Console]::Error.WriteLine("Blocked: docs-writer edits only documentation (docs/**/*.md and the images they show, READMEs, CONTRIBUTING.md), changelog fragments and its artifacts/ files; '$relative' is not one of them (#1181; .claude/agents/docs-writer.md, Delegation). Code, tests, .claude/, build files and the site's code and data under docs/ (*.js, *.html, *.json, *.yml such as docs/_config.yml) belong to others: spawn mechanical-fixer for an already-decided edit; otherwise list the change in your report for the orchestrator.")
+            exit 2
+        }
+    }
+    elseif ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier') {
+        if ($relative -notmatch '^artifacts/') {
+            [Console]::Error.WriteLine("Blocked: $Agent writes only under its audit worktree's artifacts/ folder (stage artifacts, the knowledge record, remediation drafts); '$relative' is not one of them (#1345). This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
             exit 2
         }
     }

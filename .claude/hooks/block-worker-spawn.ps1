@@ -4,7 +4,9 @@
 #
 #   orchestrator      issue-worker, mechanical-fixer, docs-writer, docs-reviewer, adversarial-reviewer,
 #                     ci-diagnoser, pr-watcher, Explore, Plan, claude-code-guide, general-purpose
-#   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer
+#   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer,
+#                     docs-reviewer (#1345: the docs stage of the SPEC-003 audit pipeline spawns docs-reviewer
+#                     directly, without going through docs-writer)
 #   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore
 #   mechanical-fixer  ci-diagnoser, Explore
 #
@@ -38,7 +40,7 @@ try {
 
     $allowlists = @{
         'orchestrator'     = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose')
-        'issue-worker'     = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer')
+        'issue-worker'     = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
         'docs-writer'      = @('mechanical-fixer', 'docs-reviewer', 'Explore')
         'mechanical-fixer' = @('ci-diagnoser', 'Explore')
     }
