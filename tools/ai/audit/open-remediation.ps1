@@ -23,7 +23,9 @@ foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
     $lab = @((([regex]::Match($h, 'labels:\s*(.+)')).Groups[1].Value -split ',\s*') | ForEach-Object { $_.Trim() } | Where-Object { $labels -contains $_ })
     if (-not $lab) { $lab = @(if ($title.StartsWith('[BUG]')) { 'bug' } elseif ($title.StartsWith('[TEST]')) { 'area-testing' } else { 'technical-debt' }) }
     $m = ([regex]::Match($h, 'milestone:\s*(.+)')).Groups[1].Value.Trim()
-    if (-not ($ms -contains $m)) { $m = if ($title.StartsWith('[BUG]')) { 'v0.14.0 — Hardening' } else { '' } }
+    # The real GitHub milestone title uses an em dash (U+2014); [char]0x2014 keeps this file's own bytes
+    # ASCII-only while still matching that title exactly, so --milestone below resolves it (#1345 review).
+    if (-not ($ms -contains $m)) { $m = if ($title.StartsWith('[BUG]')) { "v0.14.0 $([char]0x2014) Hardening" } else { '' } }
     $body = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
     $bf = Join-Path $env:TEMP "rem-$($f.BaseName).md"; Set-Content $bf $body -Encoding utf8
     $a = @('issue', 'create', '--repo', 'dlrivada/Encina', '--title', $title, '--body-file', $bf)
