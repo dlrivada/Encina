@@ -185,6 +185,16 @@ Isolation has a cost that must be paid back: a worktree that outlives its task i
 
 Humans should intervene when the system encounters a real decision that cannot be resolved mechanically.
 
+### What Encina adopted (2026-09-25, #1345)
+
+The SPEC-003 closed-issue audit pipeline ([`docs/specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md`](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md), [`HOW-ENCINA-IS-BUILT.md`](HOW-ENCINA-IS-BUILT.md) §2.6) is where the SwarmForge principles above became concrete Encina mechanisms:
+
+- **Separation of responsibility** → the four audit-stage agents, each with an explicit `Owns` / `Does not own` section in its own definition: `issue-archivist` (knowledge record and scope, never judges code or tests), `issue-auditor` (adversarial code review, never tests or docs), `test-auditor` (coverage and test quality, never production code or docs), `audit-verifier` (re-verification only, never fixes anything).
+- **Durable handoffs** → one artifact per stage under `artifacts/knowledge/stages/` (`archivist.md`, `code.md`, `tests.md`, `docs.md`, `remediation.md`, `verification.md`), committed on the audit branch by `tools/ai/audit/audit-commit-stage.ps1` before the next stage may start.
+- **Observable behavior over prompt wording** → `.claude/hooks/audit-stage-guard.ps1` and `.claude/hooks/enforce-path-ownership.ps1` check the tool calls themselves (spawn order, model, which file a Write/Edit targets), not whether an agent's prompt happens to contain the right words; the hooks' own regression suite (`.claude/hooks/tests/Test-Hooks.ps1`) is what proves the pipeline behaves as designed.
+- **Isolated changes** → one `wia-<n>` worktree per audit, on its own `audit/<n>` branch, created and removed by `tools/ai/audit/audit-next.ps1` and `audit-done.ps1`; only one audit is open at a time.
+- **Human intervention at decision boundaries** → the verifier's `Verdict: FAIL` is the gate that sends a stage back for correction instead of letting a wrong claim through, and every remediation draft the pipeline produces becomes a real issue only after a separate `tools/ai/audit/open-remediation.ps1` run the orchestrator makes once the audit is closed and verified, never automatically.
+
 ---
 
 ## 5. Specification-Driven Development
