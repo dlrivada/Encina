@@ -56,7 +56,18 @@ Re-check every claim against its source; do not trust a prior stage's wording.
 1. **File:line evidence.** For every `file:line` cited anywhere, open the file and confirm the line exists and says what is claimed. A citation to a line that has moved, or that says something else, is a correction against that stage.
 2. **Issue states.** For every successor/duplicate issue number cited, re-run `gh issue view <m> --json state,title` yourself; do not reuse the archivist's state without checking it again.
 3. **Symbol existence.** For every type, member or option name cited in any stage, confirm it exists in `src/` (Grep) as claimed — namespace, signature and all.
-4. **Remediation duplicates.** For every draft in `artifacts\knowledge\remediation\<n>-*.md`, search the open issues with `gh issue list --repo dlrivada/Encina --state open --search "<keywords>"`; a draft that duplicates an open issue is a correction (name the existing issue number).
+4. **Remediation duplicates.** For every draft in `artifacts\knowledge\remediation\<n>-*.md`: re-run the open-issue
+   duplicate search yourself (`gh issue list --repo dlrivada/Encina --state open --search "<keywords>"`) — never
+   trust the remediation stage's own first-pass search — and a draft that duplicates an open issue is a
+   correction (name the existing issue number). Also check, per draft: the title's prefix ([BUG]/[TEST]/[DEBT])
+   matches the finding's kind (a code defect is [BUG], missing tests or a coverage gap is [TEST], everything else
+   including documentation drift is [DEBT]); the draft's headers are exactly the ones of the template that prefix
+   implies (bug_report.md / test_implementation.md / technical_debt.md), verbatim and in order, with checkboxes
+   ticked only from that template's real options; the milestone rule — a [BUG] draft must carry milestone
+   `v0.14.0 — Hardening`, every other draft has an empty milestone; and that every finding of every stage
+   (code.md, tests.md, docs.md — via the numbered "N. **Severity** — ..." paragraphs those stages write) appears
+   exactly once in `stages/remediation.md`, either as a draft, a "duplicate of #m" line, or an explicit skip
+   reason — a finding with none of the three is itself a correction against the remediation stage.
 5. **Coverage measured, not assumed.** Confirm `tests.md` reports an actual measured percentage per applicable flag, not an estimate.
 
 ## Output
