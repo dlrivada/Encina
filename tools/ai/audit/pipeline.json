@@ -1,0 +1,14 @@
+{
+  "stages": [
+    { "stage": "archivist", "agent": "issue-archivist", "model": "sonnet", "artifact": "archivist.md" },
+    { "stage": "code", "agent": "issue-auditor", "model": "sonnet", "artifact": "code.md" },
+    { "stage": "tests", "agent": "test-auditor", "model": "sonnet", "artifact": "tests.md" },
+    { "stage": "docs", "agent": "docs-reviewer", "model": "sonnet", "artifact": "docs.md" },
+    { "stage": "remediation", "agent": "local-model (script tools/ai/audit/audit-draft-remediation.ps1)", "model": "qwen", "artifact": "remediation.md" },
+    { "stage": "verification", "agent": "audit-verifier", "model": "sonnet", "artifact": "verification.md" }
+  ],
+  "minModel": "sonnet",
+  "forbiddenModels": ["haiku"],
+  "verdictLine": "Verdict: PASS",
+  "lessonsHeading": "## Lessons for the pipeline"
+}
