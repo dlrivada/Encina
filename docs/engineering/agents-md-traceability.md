@@ -33,7 +33,7 @@ The table was drafted by the local model (Qwen, through `tools/ai/local-ai-ask.c
 | Architecture Decisions > Multi-Provider Implementation Rule (MANDATORY) | Every provider-dependent feature for all 10 database providers; where the rule applies | AGENTS.md §5 | |
 | Multi-Provider Implementation Rule | The 10 providers table | AGENTS.md §5 | |
 | Multi-Provider Implementation Rule | Oracle and SQLite out of the matrix | AGENTS.md §5 | ADR-009, ADR-024 |
-| Multi-Provider Implementation Rule | Provider-specific SQL differences | AGENTS.md §5 (SQL notes column) | |
+| Multi-Provider Implementation Rule | Provider-specific SQL differences | AGENTS.md §5 ("SQL differences per database") | |
 | Multi-Provider Implementation Rule | Brokers, caching and event sourcing excluded from the database rule | AGENTS.md §5 | |
 | Architecture Decisions > Specialized Provider Categories (Beyond the 10 Database Providers) | Each category has its own coherence rules | AGENTS.md §5 | |
 | Specialized Provider Categories > 1. Caching Providers (8 providers) | 8 providers; when the rules apply; Get/Set/Remove, TTL, serialization, backplane | AGENTS.md §5 | 1.0 scope from SPEC-000 REQ-027 |
@@ -109,7 +109,7 @@ The table was drafted by the local model (Qwen, through `tools/ai/local-ai-ask.c
 | Quick Reference | Section heading | AGENTS.md §3 | |
 | Quick Reference > When to Use Each Pattern | Pattern choice | AGENTS.md §3 ("Pattern choice") | |
 | Quick Reference > Scheduling vs Hangfire/Quartz | Domain messages vs infrastructure jobs | AGENTS.md §3 | |
-| Quick Reference > Common Errors to Avoid | Items 1-17 | AGENTS.md §1 (3), §3 (1, 2, 5, 6, 7), §4 (4), §5 (8-11), §9 (12-15), §7 (16, 17) | Every item is a duplicate of a rule stated earlier in the old file |
+| Quick Reference > Common Errors to Avoid | Items 1-17 | AGENTS.md §1 (3, 7), §3 (1, 2, 5, 6), §4 (4), §5 (8-11), §9 (12-15), §7 (16, 17) | Every item is a duplicate of a rule stated earlier in the old file |
 | Quick Reference > Remember | Best solution, not the compatible one | AGENTS.md §1 | |
 | Issue Tracking & Project Documentation | Section heading | AGENTS.md §11 | |
 | Issue Tracking > GitHub Issues (Primary Issue Tracker) | All bugs, features and debt are GitHub issues | AGENTS.md §11 | |
