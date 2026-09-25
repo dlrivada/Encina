@@ -47,7 +47,7 @@ The operative rules for every contributor and every AI agent, whatever the tool.
 **Database: every provider-dependent feature MUST be implemented for all 10 providers.** It applies to every store (outbox, inbox, saga, scheduled message, ...), repositories, unit of work, bulk operations, anything with database-specific SQL or connection types, and registrations in `ServiceCollectionExtensions`.
 
 | Family | Providers | SQL notes |
-|---|---|---|
+| --- | --- | --- |
 | ADO.NET | SqlServer, PostgreSQL, MySQL | SQL Server: `@param`, `TOP (@n)`, `bit`, native DateTime/GUID |
 | Dapper | SqlServer, PostgreSQL, MySQL | PostgreSQL: `@param`, `LIMIT @n`, `true/false`, case-sensitive identifiers |
 | EF Core | SqlServer, PostgreSQL, MySQL | MySQL: `@param`, `LIMIT @n`, `0/1`, backtick identifiers |
@@ -58,7 +58,7 @@ Oracle (ADR-009, code in `.backup/oracle/`) and SQLite (ADR-024, packages in `.b
 **Specialized categories: a feature that touches one MUST be consistent across every provider of that category.**
 
 | Category | Providers | 1.0 scope | Every provider MUST support |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Caching (8) | Memory (L1), Hybrid (L1+L2), Redis, Valkey, Dragonfly, Garnet, KeyDB, Memcached (planned) | all 8 (SPEC-000 REQ-027, #277) | Get/Set/Remove; TTL/expiration; serialization abstraction; pub/sub backplane where applicable. Applies to `ICacheProvider`, `IPubSubProvider`, stampede protection, eager refresh, fail-safe, tag invalidation, read/write-through |
 | Transports (10 + 6 planned) | RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC, GraphQL; planned (v0.15.0): GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr | the 10 existing | Send/Publish; subscription management; error handling and DLQ; metadata propagation. Applies to `IMessageTransport`, outbox publishing, inbox consumption, DLQ |
 | Distributed locks | InMemory (testing), Redis (Redlock), SqlServer (`sp_getapplock`), PostgreSQL (`pg_advisory_lock`, #207), MySQL (`GET_LOCK`, #208); post-1.0: Azure Blob, DynamoDB, Consul, etcd, ZooKeeper | exactly these 5; a lock feature is complete for 1.0 when they are covered (SPEC-000 DEC-003) | TryAcquire with timeout; auto-release on timeout; `CancellationToken`. Applies to `IDistributedLockProvider`, leader election, resource coordination |
@@ -70,7 +70,7 @@ Other categories: Scheduling (built-in `Encina.Messaging`, Hangfire, Quartz; app
 **Applicability matrix** (✅ required; ◐ where applicable; empty: not applicable):
 
 | Feature | Database (10) | Caching (8) | Transport | Lock | Validation (3) |
-|---|:-:|:-:|:-:|:-:|:-:|
+| --- | :-: | :-: | :-: | :-: | :-: |
 | Outbox / Inbox / Saga, Scheduled messages, Unit of Work, Audit trail | ✅ | | | | |
 | Query caching | | ✅ | | | |
 | Message publishing | | | ✅ | | |
@@ -85,7 +85,7 @@ Rule of thumb: if a feature touches provider-specific code, implement it consist
 Every feature that creates entities, stores, pipeline behaviors, background services or external integrations MUST be evaluated against all 12 functions. For each one record, in the plan or the PR: **Integrate** (implement now), **Defer** (open an issue and reference it) or **Not applicable** (one sentence why).
 
 | # | Function | Question | Integration point |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | Caching | Reads data that benefits from caching? | `ICacheProvider`, decorator, `[Cache]` |
 | 2 | OpenTelemetry | Operations worth tracing/metering? | `ActivitySource`, `Meter`, semantic attributes |
 | 3 | Structured logging | Needs operational visibility? | `Log.cs` with `[LoggerMessage]`, EventId range |
@@ -139,7 +139,7 @@ Test projects (consolidated, one per type, under `tests/`):
 **Required test types by feature category:**
 
 | Test type | Database features | Non-database features |
-|---|---|---|
+| --- | --- | --- |
 | Unit, Guard | required | required |
 | Property | required | if the logic is complex |
 | Contract | required | if public API |
@@ -192,7 +192,7 @@ Test projects (consolidated, one per type, under `tests/`):
 - Use the matching template of `.github/ISSUE_TEMPLATE/`:
 
 | Template | Prefix | Default label | Use for |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `bug_report.md` | `[BUG]` | `bug` | wrong behavior in Encina code, including failing tests caused by a code bug |
 | `feature_request.md` | `[FEATURE]` | `enhancement` | new features or enhancements |
 | `technical_debt.md` | `[DEBT]` | `technical-debt` | code that works but is messy, duplicated, incomplete or slow |
@@ -213,7 +213,7 @@ Test projects (consolidated, one per type, under `tests/`):
 ## 12. When doing X, read Y
 
 | When | Read |
-|---|---|
+| --- | --- |
 | Writing or reviewing a page under `docs/`, a README or CONTRIBUTING | `.claude/skills/encina-docs/SKILL.md`; `.opencode/agents/encina-docs.md` |
 | Opening an issue | `.claude/skills/open-issue/SKILL.md` |
 | Planning a feature | `.claude/skills/implementation-plan/SKILL.md`, the plan prompt |

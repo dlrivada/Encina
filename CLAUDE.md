@@ -9,7 +9,7 @@ The engineering rules are in `AGENTS.md` (imported above) and bind every session
 Before starting work, read the plan of your area and continue from where the last session stopped.
 
 | Plan | File | Status |
-|------|------|--------|
+| --- | --- | --- |
 | Test Consolidation | `docs/plans/test-consolidation-plan.md` | 🟡 In Progress |
 | Performance Measurement Infrastructure | `docs/plans/performance-infrastructure-plan.md` | 🟢 Phase 4 implemented (ADR-025) |
 | Encina 1.0 — Phase 0 baseline | `docs/engineering/PHASE0-BASELINE.md` | 🟢 Diagnostic done 2026-09-21; next: #1088 (build) |
