@@ -114,6 +114,39 @@ public sealed class ConsentOptions
     /// </remarks>
     public bool AddHealthCheck { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether <see cref="Abstractions.IConsentService"/> query methods
+    /// (<see cref="Abstractions.IConsentService.GetConsentAsync"/>,
+    /// <see cref="Abstractions.IConsentService.GetConsentBySubjectAndPurposeAsync"/>,
+    /// <see cref="Abstractions.IConsentService.GetAllConsentsAsync"/>,
+    /// <see cref="Abstractions.IConsentService.HasValidConsentAsync"/>) fail closed when no
+    /// tenant is present in the ambient <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every query already filters by <see cref="ReadModels.ConsentReadModel.TenantId"/> using the
+    /// ambient tenant, so a request scoped to one tenant never observes another tenant's consent
+    /// record (#1315). This flag only controls what happens when the ambient tenant itself is
+    /// missing.
+    /// </para>
+    /// <para>
+    /// The default is <c>null</c> (auto-detect, fail-closed by default in a multi-tenant
+    /// application, SPEC-002 DEC-006/DEC-009): when <c>Encina.Tenancy</c> is registered
+    /// (<c>Encina.Tenancy.ITenantProvider</c> is resolvable), a missing ambient tenant returns
+    /// <see cref="ConsentErrors.TenantRequiredCode"/> instead of silently running an unscoped
+    /// query; when tenancy is not registered at all, the query runs with a <c>null</c> tenant
+    /// filter (the behavior single-tenant applications expect without configuration).
+    /// </para>
+    /// <para>
+    /// Set explicitly to override the auto-detected behavior: <c>true</c> always fails closed,
+    /// even in an application that has not registered <c>Encina.Tenancy</c>. <c>false</c> is an
+    /// explicit opt-out that always allows an unscoped query even when multi-tenancy is enabled;
+    /// <see cref="Services.DefaultConsentService"/> logs this opt-out once at startup so it is
+    /// never silent.
+    /// </para>
+    /// </remarks>
+    public bool? RequireTenantContext { get; set; }
+
     // --- Auto-Registration ---
 
     /// <summary>

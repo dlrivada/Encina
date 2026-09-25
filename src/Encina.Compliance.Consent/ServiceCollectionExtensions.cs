@@ -92,6 +92,11 @@ public static class ServiceCollectionExtensions
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
 
+        // Ensure the request context accessor is available (AddEncina() registers it, but
+        // Encina.Compliance.Consent can also be added standalone) — DefaultConsentService needs
+        // it to scope queries by the ambient tenant (#1315).
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
         // Register default implementations (TryAdd allows override)
         services.TryAddScoped<IConsentService, DefaultConsentService>();
         services.TryAddScoped<IConsentValidator, DefaultConsentValidator>();

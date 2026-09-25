@@ -19,58 +19,61 @@ internal static class ConsentLogMessages
 {
     // -- 8200: Consent check started --
 
-    private static readonly Action<ILogger, string, string, Exception?> ConsentCheckStartedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, Exception?> ConsentCheckStartedDef =
+        LoggerMessage.Define<string>(
             LogLevel.Debug,
             new EventId(8200, nameof(ConsentCheckStarted)),
-            "Consent check started. RequestType={RequestType}, SubjectId={SubjectId}");
+            "Consent check started. RequestType={RequestType}");
 
-    internal static void ConsentCheckStarted(this ILogger logger, string requestType, string subjectId)
-        => ConsentCheckStartedDef(logger, requestType, subjectId, null);
+    // Note: none of these templates carry the data subject's own identifier — it is personal data
+    // and must never reach a log sink in plain text (#1314). Correlate via request type, purpose,
+    // consent id or error code instead.
+    internal static void ConsentCheckStarted(this ILogger logger, string requestType)
+        => ConsentCheckStartedDef(logger, requestType, null);
 
     // -- 8201: Consent check passed --
 
-    private static readonly Action<ILogger, string, string, Exception?> ConsentCheckPassedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, Exception?> ConsentCheckPassedDef =
+        LoggerMessage.Define<string>(
             LogLevel.Information,
             new EventId(8201, nameof(ConsentCheckPassed)),
-            "Consent check passed. RequestType={RequestType}, SubjectId={SubjectId}");
+            "Consent check passed. RequestType={RequestType}");
 
-    internal static void ConsentCheckPassed(this ILogger logger, string requestType, string subjectId)
-        => ConsentCheckPassedDef(logger, requestType, subjectId, null);
+    internal static void ConsentCheckPassed(this ILogger logger, string requestType)
+        => ConsentCheckPassedDef(logger, requestType, null);
 
     // -- 8202: Consent check failed --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentCheckFailedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ConsentCheckFailedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(8202, nameof(ConsentCheckFailed)),
-            "Consent check failed. RequestType={RequestType}, SubjectId={SubjectId}, Reason={Reason}");
+            "Consent check failed. RequestType={RequestType}, Reason={Reason}");
 
-    internal static void ConsentCheckFailed(this ILogger logger, string requestType, string subjectId, string reason)
-        => ConsentCheckFailedDef(logger, requestType, subjectId, reason, null);
+    internal static void ConsentCheckFailed(this ILogger logger, string requestType, string reason)
+        => ConsentCheckFailedDef(logger, requestType, reason, null);
 
     // -- 8203: Consent missing --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentMissingDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ConsentMissingDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(8203, nameof(ConsentMissing)),
-            "Consent missing for required purpose. SubjectId={SubjectId}, Purpose={Purpose}, RequestType={RequestType}");
+            "Consent missing for required purpose. Purpose={Purpose}, RequestType={RequestType}");
 
-    internal static void ConsentMissing(this ILogger logger, string subjectId, string purpose, string requestType)
-        => ConsentMissingDef(logger, subjectId, purpose, requestType, null);
+    internal static void ConsentMissing(this ILogger logger, string purpose, string requestType)
+        => ConsentMissingDef(logger, purpose, requestType, null);
 
     // -- 8204: Consent expired --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentExpiredDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ConsentExpiredDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(8204, nameof(ConsentExpired)),
-            "Consent expired for purpose. SubjectId={SubjectId}, Purpose={Purpose}, RequestType={RequestType}");
+            "Consent expired for purpose. Purpose={Purpose}, RequestType={RequestType}");
 
-    internal static void ConsentExpired(this ILogger logger, string subjectId, string purpose, string requestType)
-        => ConsentExpiredDef(logger, subjectId, purpose, requestType, null);
+    internal static void ConsentExpired(this ILogger logger, string purpose, string requestType)
+        => ConsentExpiredDef(logger, purpose, requestType, null);
 
     // -- 8205: Consent check skipped (no attribute) --
 
@@ -85,14 +88,14 @@ internal static class ConsentLogMessages
 
     // -- 8206: Consent warning (warn-only mode) --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentWarningDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ConsentWarningDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(8206, nameof(ConsentWarning)),
-            "Consent issue (warn-only mode). RequestType={RequestType}, SubjectId={SubjectId}, Warning={Warning}");
+            "Consent issue (warn-only mode). RequestType={RequestType}, Warning={Warning}");
 
-    internal static void ConsentWarning(this ILogger logger, string requestType, string subjectId, string warning)
-        => ConsentWarningDef(logger, requestType, subjectId, warning, null);
+    internal static void ConsentWarning(this ILogger logger, string requestType, string warning)
+        => ConsentWarningDef(logger, requestType, warning, null);
 
     // -- 8207: Consent enforcement disabled --
 
@@ -111,14 +114,14 @@ internal static class ConsentLogMessages
 
     // -- 8230: Consent event published --
 
-    private static readonly Action<ILogger, string, string, Exception?> ConsentEventPublishedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, Exception?> ConsentEventPublishedDef =
+        LoggerMessage.Define<string>(
             LogLevel.Debug,
             new EventId(8230, nameof(ConsentEventPublished)),
-            "Consent domain event published. EventType={EventType}, SubjectId={SubjectId}");
+            "Consent domain event published. EventType={EventType}");
 
-    internal static void ConsentEventPublished(this ILogger logger, string eventType, string subjectId)
-        => ConsentEventPublishedDef(logger, eventType, subjectId, null);
+    internal static void ConsentEventPublished(this ILogger logger, string eventType)
+        => ConsentEventPublishedDef(logger, eventType, null);
 
     // -- 8231: Consent event publish failed --
 
@@ -197,14 +200,14 @@ internal static class ConsentLogMessages
 
     // -- 8260: Consent granted (service) --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ConsentGrantedServiceDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ConsentGrantedServiceDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Information,
             new EventId(8260, nameof(ConsentGrantedService)),
-            "Consent granted. ConsentId={ConsentId}, SubjectId={SubjectId}, Purpose={Purpose}");
+            "Consent granted. ConsentId={ConsentId}, Purpose={Purpose}");
 
-    internal static void ConsentGrantedService(this ILogger logger, string consentId, string subjectId, string purpose)
-        => ConsentGrantedServiceDef(logger, consentId, subjectId, purpose, null);
+    internal static void ConsentGrantedService(this ILogger logger, string consentId, string purpose)
+        => ConsentGrantedServiceDef(logger, consentId, purpose, null);
 
     // -- 8261: Consent withdrawn (service) --
 
@@ -271,6 +274,40 @@ internal static class ConsentLogMessages
 
     internal static void ConsentCacheHit(this ILogger logger, string cacheKey, string entityType)
         => ConsentCacheHitDef(logger, cacheKey, entityType, null);
+
+    // -- 8267: Consent query rejected — no tenant in the ambient request context --
+
+    private static readonly Action<ILogger, string, Exception?> ConsentTenantContextMissingDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(8267, nameof(ConsentTenantContextMissing)),
+            "Consent query rejected: no tenant in the ambient request context. Operation={Operation}");
+
+    /// <summary>
+    /// Logs that a consent query was refused because tenant isolation is required (see
+    /// <c>ConsentOptions.RequireTenantContext</c>) and no tenant is present in the ambient
+    /// request context (#1315).
+    /// </summary>
+    internal static void ConsentTenantContextMissing(this ILogger logger, string operation)
+        => ConsentTenantContextMissingDef(logger, operation, null);
+
+    // -- 8268: Consent tenant enforcement explicitly opted out in a multi-tenant application --
+
+    private static readonly Action<ILogger, Exception?> ConsentTenantEnforcementOptedOutDef =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(8268, nameof(ConsentTenantEnforcementOptedOut)),
+            "Consent tenant context enforcement explicitly disabled (RequireTenantContext=false) "
+                + "while Encina.Tenancy is registered. A missing ambient tenant will run an unscoped "
+                + "consent query instead of failing closed.");
+
+    /// <summary>
+    /// Logs, once at startup, that a multi-tenant application explicitly opted out of consent
+    /// tenant-context enforcement (<c>ConsentOptions.RequireTenantContext = false</c>) so the
+    /// opt-out is never silent (#1315, SPEC-002 DEC-006).
+    /// </summary>
+    internal static void ConsentTenantEnforcementOptedOut(this ILogger logger)
+        => ConsentTenantEnforcementOptedOutDef(logger, null);
 
     // ========================================================================
     // Health check log messages (8250-8259)

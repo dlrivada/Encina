@@ -5,8 +5,10 @@ using Encina.Compliance.Consent.ReadModels;
 using Encina.Compliance.Consent.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
+using Encina.Tenancy;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
@@ -25,6 +27,7 @@ public class DefaultConsentServiceTests
     private readonly IReadModelRepository<ConsentReadModel> _readModelRepository;
     private readonly ICacheProvider _cache;
     private readonly FakeTimeProvider _timeProvider;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly DefaultConsentService _sut;
 
     private static readonly DateTimeOffset FixedNow = new(2026, 3, 15, 12, 0, 0, TimeSpan.Zero);
@@ -35,12 +38,15 @@ public class DefaultConsentServiceTests
         _readModelRepository = Substitute.For<IReadModelRepository<ConsentReadModel>>();
         _cache = Substitute.For<ICacheProvider>();
         _timeProvider = new FakeTimeProvider(FixedNow);
+        _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
 
         _sut = new DefaultConsentService(
             _repository,
             _readModelRepository,
             _cache,
             _timeProvider,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             NullLogger<DefaultConsentService>.Instance);
     }
 
@@ -54,6 +60,8 @@ public class DefaultConsentServiceTests
             _readModelRepository,
             _cache,
             _timeProvider,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             NullLogger<DefaultConsentService>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("repository");
@@ -67,6 +75,8 @@ public class DefaultConsentServiceTests
             null!,
             _cache,
             _timeProvider,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             NullLogger<DefaultConsentService>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("readModelRepository");
@@ -80,6 +90,8 @@ public class DefaultConsentServiceTests
             _readModelRepository,
             null!,
             _timeProvider,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             NullLogger<DefaultConsentService>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("cache");
@@ -93,9 +105,41 @@ public class DefaultConsentServiceTests
             _readModelRepository,
             _cache,
             null!,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             NullLogger<DefaultConsentService>.Instance);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
+    }
+
+    [Fact]
+    public void Constructor_NullRequestContextAccessor_ShouldThrow()
+    {
+        var act = () => new DefaultConsentService(
+            _repository,
+            _readModelRepository,
+            _cache,
+            _timeProvider,
+            null!,
+            Options.Create(new ConsentOptions()),
+            NullLogger<DefaultConsentService>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
+    }
+
+    [Fact]
+    public void Constructor_NullOptions_ShouldThrow()
+    {
+        var act = () => new DefaultConsentService(
+            _repository,
+            _readModelRepository,
+            _cache,
+            _timeProvider,
+            _requestContextAccessor,
+            null!,
+            NullLogger<DefaultConsentService>.Instance);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
 
     [Fact]
@@ -106,6 +150,8 @@ public class DefaultConsentServiceTests
             _readModelRepository,
             _cache,
             _timeProvider,
+            _requestContextAccessor,
+            Options.Create(new ConsentOptions()),
             null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
@@ -406,7 +452,7 @@ public class DefaultConsentServiceTests
     {
         // Arrange
         var model = CreateReadModel(Guid.NewGuid(), "subject-1", "marketing");
-        _cache.GetAsync<ConsentReadModel>("consent:subject:subject-1:purpose:marketing", Arg.Any<CancellationToken>())
+        _cache.GetAsync<ConsentReadModel>("consent:tenant:-:subject:subject-1:purpose:marketing", Arg.Any<CancellationToken>())
             .Returns(model);
 
         // Act
@@ -442,7 +488,7 @@ public class DefaultConsentServiceTests
             Left: _ => throw new InvalidOperationException("Expected Right"));
 
         await _cache.Received(1).SetAsync(
-            "consent:subject:subject-1:purpose:marketing",
+            "consent:tenant:-:subject:subject-1:purpose:marketing",
             Arg.Any<ConsentReadModel>(),
             TimeSpan.FromMinutes(5),
             Arg.Any<CancellationToken>());
@@ -564,6 +610,166 @@ public class DefaultConsentServiceTests
         _ = result.Match(
             Right: valid => valid.ShouldBeFalse(),
             Left: _ => throw new InvalidOperationException("Expected Right"));
+    }
+
+    #endregion
+
+    #region Tenant scoping (#1315)
+
+    [Fact]
+    public async Task GetAllConsentsAsync_SingleTenantApp_NoTenantProvider_NoAmbientTenant_ShouldRunUnscopedQuery()
+    {
+        // Arrange — no ITenantProvider registered (single-tenant app), no ambient tenant.
+        var sut = CreateServiceWithTenancy(tenantProvider: null, requireTenantContext: null);
+        _requestContextAccessor.RequestContext.Returns((IRequestContext?)null);
+        _readModelRepository.QueryAsync(
+                Arg.Any<Func<IQueryable<ConsentReadModel>, IQueryable<ConsentReadModel>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<ConsentReadModel>>(new List<ConsentReadModel>()));
+
+        // Act
+        var result = await sut.GetAllConsentsAsync("subject-1");
+
+        // Assert — no tenant registered, so the auto-detected default allows the unscoped query.
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetAllConsentsAsync_MultiTenantApp_NoAmbientTenant_ShouldFailClosed()
+    {
+        // Arrange — ITenantProvider registered (multi-tenant app), but no ambient tenant on this call.
+        var sut = CreateServiceWithTenancy(tenantProvider: Substitute.For<ITenantProvider>(), requireTenantContext: null);
+        _requestContextAccessor.RequestContext.Returns((IRequestContext?)null);
+
+        // Act
+        var result = await sut.GetAllConsentsAsync("subject-1");
+
+        // Assert — auto-detected multi-tenant application fails closed (SPEC-002 DEC-006/DEC-009).
+        result.IsLeft.ShouldBeTrue();
+        _ = result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.GetCode().IfSome(code => code.ShouldBe(ConsentErrors.TenantRequiredCode)));
+
+        await _readModelRepository.DidNotReceive().QueryAsync(
+            Arg.Any<Func<IQueryable<ConsentReadModel>, IQueryable<ConsentReadModel>>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetAllConsentsAsync_MultiTenantApp_ExplicitOptOut_ShouldRunUnscopedQuery()
+    {
+        // Arrange — application is multi-tenant, but explicitly opted out of enforcement.
+        var sut = CreateServiceWithTenancy(tenantProvider: Substitute.For<ITenantProvider>(), requireTenantContext: false);
+        _requestContextAccessor.RequestContext.Returns((IRequestContext?)null);
+        _readModelRepository.QueryAsync(
+                Arg.Any<Func<IQueryable<ConsentReadModel>, IQueryable<ConsentReadModel>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<ConsentReadModel>>(new List<ConsentReadModel>()));
+
+        // Act
+        var result = await sut.GetAllConsentsAsync("subject-1");
+
+        // Assert — the explicit opt-out is honored (and logged, see ConsentTenantEnforcementOptedOut).
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetAllConsentsAsync_SingleTenantApp_ExplicitRequireTenantContext_ShouldFailClosed()
+    {
+        // Arrange — no ITenantProvider registered, but the application explicitly forces enforcement.
+        var sut = CreateServiceWithTenancy(tenantProvider: null, requireTenantContext: true);
+        _requestContextAccessor.RequestContext.Returns((IRequestContext?)null);
+
+        // Act
+        var result = await sut.GetAllConsentsAsync("subject-1");
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _ = result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.GetCode().IfSome(code => code.ShouldBe(ConsentErrors.TenantRequiredCode)));
+    }
+
+    [Fact]
+    public async Task GetAllConsentsAsync_WithAmbientTenant_ShouldFilterByTenantId()
+    {
+        // Arrange
+        var sut = CreateServiceWithTenancy(tenantProvider: Substitute.For<ITenantProvider>(), requireTenantContext: null);
+        _requestContextAccessor.RequestContext.Returns(RequestContext.CreateForTest(tenantId: "tenant-a"));
+
+        var ownRecord = CreateReadModel(Guid.NewGuid(), "subject-1", "marketing");
+        ownRecord.TenantId = "tenant-a";
+
+        _readModelRepository.QueryAsync(
+                Arg.Any<Func<IQueryable<ConsentReadModel>, IQueryable<ConsentReadModel>>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var predicate = callInfo.Arg<Func<IQueryable<ConsentReadModel>, IQueryable<ConsentReadModel>>>();
+                var all = new List<ConsentReadModel>
+                {
+                    ownRecord,
+                    new() { Id = Guid.NewGuid(), DataSubjectId = "subject-1", Purpose = "marketing", TenantId = "tenant-b" }
+                };
+                var filtered = predicate(all.AsQueryable()).ToList();
+                return Right<EncinaError, IReadOnlyList<ConsentReadModel>>(filtered);
+            });
+
+        // Act
+        var result = await sut.GetAllConsentsAsync("subject-1");
+
+        // Assert — only the ambient tenant's record is returned; tenant-b's is never observed.
+        result.IsRight.ShouldBeTrue();
+        _ = result.Match(
+            Right: models =>
+            {
+                models.Count.ShouldBe(1);
+                models[0].TenantId.ShouldBe("tenant-a");
+            },
+            Left: _ => throw new InvalidOperationException("Expected Right"));
+    }
+
+    [Fact]
+    public async Task GetConsentAsync_CachedModelFromDifferentTenant_ShouldBeTreatedAsMiss()
+    {
+        // Arrange
+        var sut = CreateServiceWithTenancy(tenantProvider: null, requireTenantContext: null);
+        _requestContextAccessor.RequestContext.Returns(RequestContext.CreateForTest(tenantId: "tenant-a"));
+
+        var consentId = Guid.NewGuid();
+        var cachedFromOtherTenant = CreateReadModel(consentId, "subject-1", "marketing");
+        cachedFromOtherTenant.TenantId = "tenant-b";
+
+        var freshFromOwnTenant = CreateReadModel(consentId, "subject-1", "marketing");
+        freshFromOwnTenant.TenantId = "tenant-a";
+
+        _cache.GetAsync<ConsentReadModel>($"consent:{consentId}", Arg.Any<CancellationToken>())
+            .Returns(cachedFromOtherTenant);
+        _readModelRepository.GetByIdAsync(consentId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, ConsentReadModel>(freshFromOwnTenant));
+
+        // Act
+        var result = await sut.GetConsentAsync(consentId);
+
+        // Assert — the mismatched cache entry is never returned; the tenant-scoped read model is.
+        result.IsRight.ShouldBeTrue();
+        _ = result.Match(
+            Right: model => model.TenantId.ShouldBe("tenant-a"),
+            Left: _ => throw new InvalidOperationException("Expected Right"));
+    }
+
+    private DefaultConsentService CreateServiceWithTenancy(ITenantProvider? tenantProvider, bool? requireTenantContext)
+    {
+        var options = new ConsentOptions { RequireTenantContext = requireTenantContext };
+        return new DefaultConsentService(
+            _repository,
+            _readModelRepository,
+            _cache,
+            _timeProvider,
+            _requestContextAccessor,
+            Options.Create(options),
+            NullLogger<DefaultConsentService>.Instance,
+            tenantProvider);
     }
 
     #endregion

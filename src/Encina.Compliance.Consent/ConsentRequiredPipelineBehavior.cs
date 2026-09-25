@@ -123,17 +123,18 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
         if (string.IsNullOrEmpty(subjectId))
         {
             var error = ConsentErrors.MissingConsent(subjectId ?? "unknown", string.Join(", ", attribute.Purposes));
-            _logger.ConsentCheckFailed(requestTypeName, "unknown", "Subject ID could not be resolved");
+            _logger.ConsentCheckFailed(requestTypeName, "Subject ID could not be resolved");
             return Left<EncinaError, TResponse>(error);
         }
 
-        // Step 4: Start tracing and logging
+        // Step 4: Start tracing and logging. Neither the activity, the logs nor the metrics below
+        // carry the resolved subjectId — it is the data subject's own identifier and must never
+        // reach an observability sink in plain text (#1314).
         var startedAt = Stopwatch.GetTimestamp();
         using var activity = ConsentDiagnostics.StartConsentCheck(requestTypeName);
-        activity?.SetTag(ConsentDiagnostics.TagSubjectId, subjectId);
         activity?.SetTag(ConsentDiagnostics.TagPurpose, string.Join(",", attribute.Purposes));
         activity?.SetTag(ConsentDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
-        _logger.ConsentCheckStarted(requestTypeName, subjectId);
+        _logger.ConsentCheckStarted(requestTypeName);
 
         // Step 5: Validate consent for all required purposes
         var validationResult = await _validator
@@ -144,7 +145,7 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
         if (validationResult.IsLeft)
         {
             var validatorError = (EncinaError)validationResult;
-            RecordFailed(activity, startedAt, requestTypeName, subjectId, "validation_error");
+            RecordFailed(activity, startedAt, requestTypeName, "validation_error");
             return Left<EncinaError, TResponse>(validatorError);
         }
 
@@ -156,37 +157,37 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
             // Log each missing purpose
             foreach (var purpose in result.MissingPurposes)
             {
-                _logger.ConsentMissing(subjectId, purpose, requestTypeName);
+                _logger.ConsentMissing(purpose, requestTypeName);
             }
 
             if (_options.EnforcementMode == ConsentEnforcementMode.Block)
             {
                 var errorMessage = attribute.ErrorMessage
-                    ?? $"Consent missing for subject '{subjectId}': {string.Join(", ", result.MissingPurposes)}";
+                    ?? $"Consent missing for required purpose(s): {string.Join(", ", result.MissingPurposes)}";
 
-                _logger.ConsentCheckFailed(requestTypeName, subjectId, errorMessage);
+                _logger.ConsentCheckFailed(requestTypeName, errorMessage);
 
                 var error = ConsentErrors.MissingConsent(subjectId, string.Join(", ", result.MissingPurposes));
-                RecordFailed(activity, startedAt, requestTypeName, subjectId, ConsentErrors.MissingConsentCode);
+                RecordFailed(activity, startedAt, requestTypeName, ConsentErrors.MissingConsentCode);
                 return Left<EncinaError, TResponse>(error);
             }
 
             // Warn mode — log but proceed
             foreach (var errorMsg in result.Errors)
             {
-                _logger.ConsentWarning(requestTypeName, subjectId, errorMsg);
+                _logger.ConsentWarning(requestTypeName, errorMsg);
             }
         }
 
         // Step 7: Log warnings from valid-with-warnings result
         foreach (var warning in result.Warnings)
         {
-            _logger.ConsentWarning(requestTypeName, subjectId, warning);
+            _logger.ConsentWarning(requestTypeName, warning);
         }
 
         // Step 8: Record success and proceed
-        RecordPassed(activity, startedAt, requestTypeName, subjectId);
-        _logger.ConsentCheckPassed(requestTypeName, subjectId);
+        RecordPassed(activity, startedAt, requestTypeName);
+        _logger.ConsentCheckPassed(requestTypeName);
         return await nextStep().ConfigureAwait(false);
     }
 
@@ -223,13 +224,15 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
         return context.UserId;
     }
 
-    private static void RecordPassed(Activity? activity, long startedAt, string requestTypeName, string subjectId)
+    // Neither tag list below carries the subject id: metric tags are high-cardinality and would
+    // multiply per data subject, and both are personal data that must never reach an
+    // observability sink (#1314).
+    private static void RecordPassed(Activity? activity, long startedAt, string requestTypeName)
     {
         var elapsed = Stopwatch.GetElapsedTime(startedAt);
         var tags = new TagList
         {
-            { ConsentDiagnostics.TagRequestType, requestTypeName },
-            { ConsentDiagnostics.TagSubjectId, subjectId }
+            { ConsentDiagnostics.TagRequestType, requestTypeName }
         };
 
         ConsentDiagnostics.ConsentCheckTotal.Add(1, tags);
@@ -238,13 +241,12 @@ public sealed class ConsentRequiredPipelineBehavior<TRequest, TResponse> : IPipe
         ConsentDiagnostics.RecordPassed(activity);
     }
 
-    private static void RecordFailed(Activity? activity, long startedAt, string requestTypeName, string subjectId, string failureReason)
+    private static void RecordFailed(Activity? activity, long startedAt, string requestTypeName, string failureReason)
     {
         var elapsed = Stopwatch.GetElapsedTime(startedAt);
         var tags = new TagList
         {
             { ConsentDiagnostics.TagRequestType, requestTypeName },
-            { ConsentDiagnostics.TagSubjectId, subjectId },
             { ConsentDiagnostics.TagFailureReason, failureReason }
         };
 

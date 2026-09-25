@@ -9,7 +9,10 @@ namespace Encina.Compliance.Consent;
 /// </remarks>
 public static class ConsentErrors
 {
-    private const string MetadataKeySubjectId = "subjectId";
+    // Note: error metadata never carries the data subject's own identifier (personal data) — only
+    // the purpose, consent id and requirement/code are recorded (#1314). The human-readable
+    // Message may still name the subject for the caller, but Message is never logged, tagged or
+    // persisted in plaintext (see EncinaError.Message rule in CLAUDE.md).
     private const string MetadataKeyPurpose = "purpose";
     private const string MetadataKeyStage = "stage";
     private const string MetadataStageConsent = "consent_compliance";
@@ -41,6 +44,9 @@ public static class ConsentErrors
     /// <summary>Error code when consent event history is not available.</summary>
     public const string EventHistoryUnavailableCode = "consent.event_history_unavailable";
 
+    /// <summary>Error code when a consent query is refused for lack of an ambient tenant.</summary>
+    public const string TenantRequiredCode = "consent.tenant_required";
+
     /// <summary>
     /// Creates an error when consent is missing for a required processing purpose.
     /// </summary>
@@ -54,7 +60,6 @@ public static class ConsentErrors
                 + "Processing cannot proceed without valid consent (Article 6(1)(a)).",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyPurpose] = purpose,
                 [MetadataKeyStage] = MetadataStageConsent,
                 ["requirement"] = "article_6_1_a"
@@ -74,7 +79,6 @@ public static class ConsentErrors
                 + "Fresh consent is required before processing can resume.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyPurpose] = purpose,
                 [MetadataKeyStage] = MetadataStageConsent,
                 ["expiredAtUtc"] = expiredAtUtc,
@@ -95,7 +99,6 @@ public static class ConsentErrors
                 + "Processing must cease (Article 7(3)).",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyPurpose] = purpose,
                 [MetadataKeyStage] = MetadataStageConsent,
                 ["withdrawnAtUtc"] = withdrawnAtUtc,
@@ -121,7 +124,6 @@ public static class ConsentErrors
                 + $"'{consentedVersionId}' but current version is '{currentVersionId}'. Reconsent is required.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyPurpose] = purpose,
                 [MetadataKeyStage] = MetadataStageConsent,
                 ["currentVersionId"] = currentVersionId,
@@ -148,7 +150,6 @@ public static class ConsentErrors
                 + $"expected '{expectedVersionId}', found '{actualVersionId}'.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyPurpose] = purpose,
                 [MetadataKeyStage] = MetadataStageConsent,
                 ["expectedVersionId"] = expectedVersionId,
@@ -220,6 +221,26 @@ public static class ConsentErrors
             details: new Dictionary<string, object?>
             {
                 ["consentId"] = consentId.ToString(),
+                [MetadataKeyStage] = MetadataStageConsent
+            });
+
+    /// <summary>
+    /// Creates an error when a consent query is refused because no tenant is present in the
+    /// ambient request context while <c>ConsentOptions.RequireTenantContext</c> is enabled.
+    /// </summary>
+    /// <param name="operation">The consent query operation that was refused.</param>
+    /// <returns>
+    /// An error indicating the query was not run, so it can never return another tenant's
+    /// consent record (SPEC-002 DEC-006). Contains no tenant or subject identifier.
+    /// </returns>
+    public static EncinaError TenantRequired(string operation) =>
+        EncinaErrors.Create(
+            code: TenantRequiredCode,
+            message: $"Consent query '{operation}' was refused: no tenant is present in the "
+                + "ambient request context and tenant isolation is required.",
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
                 [MetadataKeyStage] = MetadataStageConsent
             });
 }
