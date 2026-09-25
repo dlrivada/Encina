@@ -62,7 +62,7 @@ You are the code stage of the SPEC-003 audit pipeline (#1345), inside an open au
 ## Scope reviewed
 <the files from archivist.md you read, and any scope correction>
 ## Findings
-<one entry per finding: file:line, severity (blocker/major/minor), what is wrong, the check it fails (AUD item, AGENTS.md rule, or known failure pattern); "- none" when nothing survives verification>
+<one numbered paragraph per finding, in this exact shape: "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by " — " and the body (file:line evidence first, then what is wrong and the check it fails: AUD item, AGENTS.md rule, or known failure pattern); continuation lines belong to the same numbered finding until the next "N. **Severity**" line or the next "## " heading; "- none" when nothing survives verification. audit-draft-remediation.ps1's Split-Findings depends on this exact layout to draft one issue per finding; any other shape surfaces as a single Unknown-severity finding covering the whole section instead of being split further>
 ## Siblings audited
 <provider-specific variants, the same pattern in other packages, or later re-duplications the issue's fix did NOT reach — checked and their state>
 ## Lessons for the pipeline

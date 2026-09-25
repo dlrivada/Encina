@@ -45,7 +45,9 @@ PAUSE, because `audit-next.ps1` needs that draft immediately to start the archiv
 
 **Deduplication.** Before a remediation draft becomes an issue, `audit-verifier` checks that it does not
 duplicate an open issue (`gh issue list --state open --search "<keywords>"`); a duplicate finding gets no new
-draft, only a reference to the existing issue number.
+draft, only a reference to the existing issue number. The remediation stage's own `gh issue list --search`
+classification call is the first pass; `audit-verifier` re-checks it independently afterward, never trusting
+that first pass's own search.
 
 Credit where it is due: the single-owner-role, mandatory-handoff and independent-QA discipline this pipeline
 enforces adapts the ideas of [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) to Claude Code,
@@ -112,9 +114,21 @@ pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1
 pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation
 ```
 
-It reads the `## Findings` sections of `code.md`, `tests.md` and `docs.md` and drafts one issue file per
-finding group into `artifacts/knowledge/remediation/<n>-<slug>.md` with the local model. `audit-verifier`
-checks each draft against the open issues before you open any of them.
+It splits each of `code.md`, `tests.md` and `docs.md`'s `## Findings` section into individual findings — the
+numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents already write — and for each surviving
+finding: (a) a short local-model call classifies it as bug/test/debt/docs and checks it against a handful of
+open-issue candidates found with `gh issue list --search` for duplicates; (b) a duplicate gets no draft, only a
+"duplicate of #m" line in `stages/remediation.md`; (c) a non-duplicate is routed to the matching issue template
+(`bug_report.md`/`[BUG]` for a code defect with milestone `v0.14.0 — Hardening`, `test_implementation.md`/`[TEST]`
+for missing tests or a coverage gap, `technical_debt.md`/`[DEBT]` for messy/incomplete code, `technical_debt.md`/
+`[DEBT]` with the "Documentation gap" type ticked for a documentation drift) and drafted into
+`artifacts/knowledge/remediation/<n>-<stage>-<id>-<slug>.md` with the chosen template's real headers and
+checkboxes embedded verbatim. `-DryRun` performs every step except the two local-model calls (writes the
+per-finding input files and briefs under `artifacts/knowledge/remediation/_dryrun-<n>/` and previews the
+routing with a deterministic fallback kind instead of the model's classification), and `-NoGh` additionally
+skips the `gh issue list` duplicate search — this is what the automated test suite exercises, so the real
+model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
+you open any of them.
 
 Update the board's `audits/<n>.stage` after each stage commits.
 
