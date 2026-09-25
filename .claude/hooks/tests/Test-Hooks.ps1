@@ -1210,6 +1210,41 @@ try {
     $unknownSplit = @(Split-Findings 'code' 'Some free-form paragraph with no numbered severity line at all.')
     Test-RemediationCase 'Split-Findings: an unrecognized non-empty section yields one Unknown finding, never silently zero' { $unknownSplit.Count -eq 1 -and $unknownSplit[0].Severity -eq 'Unknown' }
 
+    # CodeRabbit review of PR #1378 (thread 1): a repeated finding number within one stage is a malformed
+    # artifact and must be an explicit error, never a silent overwrite of the first finding.
+    Test-RemediationCase 'Split-Findings: a duplicate finding id within one stage throws' {
+        $threw = $false
+        try { [void](Split-Findings 'code' "1. **Blocker** -- a.`n1. **Major** -- b.") }
+        catch { $threw = $_.Exception.Message -match "stage 'code'" -and $_.Exception.Message -match "'1'" }
+        $threw
+    }
+
+    # CodeRabbit review of PR #1378 (thread 2): a numbered paragraph whose bold token is not one of
+    # Blocker/Major/Minor (a typo like **Critical**) still starts a NEW finding with Severity 'Unknown',
+    # whether it appears after a recognized finding or as the very first line -- never appended to the
+    # previous finding's body, and never discarded when nothing has started yet.
+    $midStreamSplit = @(Split-Findings 'code' "1. **Blocker** -- a.`n2. **Critical** -- b.`n3. **Minor** -- c.")
+    Test-RemediationCase 'Split-Findings: an unrecognized severity token mid-stream starts a new Unknown finding, not appended to the previous one' {
+        $midStreamSplit.Count -eq 3 -and $midStreamSplit[0].Severity -eq 'Blocker' -and $midStreamSplit[0].Text -notmatch 'Critical|b\.' -and $midStreamSplit[1].Severity -eq 'Unknown' -and $midStreamSplit[1].Text -match 'b\.' -and $midStreamSplit[2].Severity -eq 'Minor'
+    }
+    $firstLineUnknownSplit = @(Split-Findings 'code' "1. **Critical** -- first.`n2. **Major** -- second.")
+    Test-RemediationCase 'Split-Findings: an unrecognized severity token as the first line still starts a finding, not discarded' {
+        $firstLineUnknownSplit.Count -eq 2 -and $firstLineUnknownSplit[0].Severity -eq 'Unknown' -and $firstLineUnknownSplit[0].Text -match 'first\.' -and $firstLineUnknownSplit[1].Severity -eq 'Major'
+    }
+
+    # CodeRabbit review of PR #1378 (thread 7): Test-ValidDuplicate is extracted from audit-draft-remediation.ps1
+    # so it can be unit-tested directly -- the classification/dedup path itself needs the local model and is
+    # unreachable from -DryRun, so this is the "unit-style case around the validation helper" alternative.
+    $draftScriptText = Get-Content (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -Raw
+    $validDuplicateFuncMatch = [regex]::Match($draftScriptText, '(?ms)^function Test-ValidDuplicate.*?^\}')
+    Test-RemediationCase 'audit-draft-remediation.ps1 still defines Test-ValidDuplicate (extraction target found)' { $validDuplicateFuncMatch.Success }
+    if ($validDuplicateFuncMatch.Success) {
+        Invoke-Expression $validDuplicateFuncMatch.Value
+        Test-RemediationCase 'Test-ValidDuplicate: a duplicate-of number that IS one of the candidates is valid' { Test-ValidDuplicate '42' @('1', '42', '99') }
+        Test-RemediationCase 'Test-ValidDuplicate: a duplicate-of number that is NOT one of the candidates is rejected' { -not (Test-ValidDuplicate '7' @('1', '42', '99')) }
+        Test-RemediationCase 'Test-ValidDuplicate: no candidates at all rejects any duplicate-of' { -not (Test-ValidDuplicate '1' @()) }
+    }
+
     if (Get-Command git -ErrorAction SilentlyContinue) {
         # A self-contained repo (its own '.git', so Get-MainRoot resolves to itself -- the same trick $auditWt
         # and $commitWt use above) carrying its own copies of the real scripts, so $PSScriptRoot resolves
@@ -1276,6 +1311,34 @@ try {
         Test-RemediationCase "bug-routed brief 'code-1-brief.md' carries the 'bug' label and [BUG] prefix" { $bugBriefText -match 'labels:\s*bug\b' -and $bugBriefText -match 'title:\s*\[BUG\]' }
         $docsBriefText = Get-Content -LiteralPath (Join-Path $dryDir 'docs-1-brief.md') -Raw
         Test-RemediationCase "docs-routed brief 'docs-1-brief.md' carries the area-documentation label, [DEBT] prefix and an empty milestone" { $docsBriefText -match 'labels:\s*technical-debt,\s*area-documentation' -and $docsBriefText -match 'title:\s*\[DEBT\]' -and $docsBriefText -match '(?m)^milestone:\s*$' }
+
+        # CodeRabbit review of PR #1378 (thread 5): re-running the stage for the same audit must remove its own
+        # previous outputs (here, the _dryrun-<n> preview from the run above) before writing fresh ones, and
+        # print what it removed, rather than accumulating stale files across re-runs.
+        $remOutput2 = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $remExit2 = $LASTEXITCODE
+        Test-RemediationCase 're-running -DryRun -NoGh exits 0 and prints that it removed the previous _dryrun output' { $remExit2 -eq 0 -and ($remOutput2 -join "`n") -match "removed previous output _dryrun-$remN" }
+        $inputFilesAfterRerun = @(Get-ChildItem $dryDir -Filter '*-input.md' -ErrorAction SilentlyContinue)
+        Test-RemediationCase 're-running -DryRun -NoGh does not accumulate stale files (still 7 input files, not 14)' { $inputFilesAfterRerun.Count -eq 7 }
+
+        # CodeRabbit review of PR #1378 (thread 4): a stage artifact whose '## Findings' header is missing
+        # entirely is an error, distinct from a header present with an explicit '- none' body -- restore the
+        # file afterwards so it does not affect any later case that reuses $remWt.
+        $testsStageFile = Join-Path $remWt 'artifacts\knowledge\stages\tests.md'
+        $testsStageBackup = Get-Content -LiteralPath $testsStageFile -Raw
+        Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "No '## Findings' header here, just prose.`n## Lessons for the pipeline`n- none`n"
+        $missingHeaderOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $missingHeaderExit = $LASTEXITCODE
+        Test-RemediationCase "a stage artifact missing the '## Findings' header is an error (exit non-zero, names the file)" { $missingHeaderExit -ne 0 -and ($missingHeaderOutput -join "`n") -match [regex]::Escape('tests.md') -and ($missingHeaderOutput -join "`n") -match "## Findings' header" }
+        Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
+
+        # CodeRabbit review of PR #1378 (thread 1, end to end): a duplicate finding id within one stage
+        # artifact surfaces as Write-Error + a non-zero exit, not a silently overwritten finding.
+        Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "## Findings`n1. **Major** -- ``tests/X.cs:1`` first.`n1. **Minor** -- ``tests/Y.cs:2`` duplicate id.`n## Lessons for the pipeline`n- none`n"
+        $dupIdOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $dupIdExit = $LASTEXITCODE
+        Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupIdExit -ne 0 -and ($dupIdOutput -join "`n") -match "stage 'tests'" -and ($dupIdOutput -join "`n") -match "'1'" }
+        Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
     }
     else {
         'SKIP audit-draft-remediation.ps1: git is not on PATH'
