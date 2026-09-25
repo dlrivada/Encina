@@ -101,18 +101,30 @@ try {
         if ($resultOk.Contains($id) -and -not $resultError.Contains($id)) { [void]$spawned.Add($spawnTypes[$id]) }
     }
 
-    # The files a git work tree changed since its branch left main, or $null when $Dir is not a work tree.
+    # The files a git work tree changed since its branch's own fork point, or $null when $Dir is not a work
+    # tree. The base is the branch's configured upstream fork point (`git merge-base HEAD @{upstream}`) when
+    # an upstream is set, so a branch stacked on another PR's branch (its upstream, not origin/main) is judged
+    # on its own commits only, even if that upstream branch has since moved ahead. Falls back to
+    # origin/main / main when the branch has no upstream configured.
     function Get-ChangedFiles([string]$Dir) {
         $top = & git -C $Dir rev-parse --show-toplevel 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $top) { return $null }
         $top = [IO.Path]::GetFullPath([string]($top | Select-Object -First 1))
         $files = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        foreach ($base in 'origin/main', 'main') {
-            & git -C $top rev-parse --verify --quiet "$base^{commit}" 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                foreach ($f in (& git -C $top diff --name-only "$base...HEAD" 2>$null)) { if ($f) { [void]$files.Add($f) } }
-                break
+        $mergeBase = $null
+        & git -C $top rev-parse --verify --quiet '@{upstream}' 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            $mb = & git -C $top merge-base HEAD '@{upstream}' 2>$null | Select-Object -First 1
+            if ($LASTEXITCODE -eq 0 -and $mb) { $mergeBase = [string]$mb }
+        }
+        if (-not $mergeBase) {
+            foreach ($base in 'origin/main', 'main') {
+                & git -C $top rev-parse --verify --quiet "$base^{commit}" 2>$null | Out-Null
+                if ($LASTEXITCODE -eq 0) { $mergeBase = $base; break }
             }
+        }
+        if ($mergeBase) {
+            foreach ($f in (& git -C $top diff --name-only "$mergeBase...HEAD" 2>$null)) { if ($f) { [void]$files.Add($f) } }
         }
         foreach ($f in (& git -C $top diff --name-only HEAD 2>$null)) { if ($f) { [void]$files.Add($f) } }
         foreach ($f in (& git -C $top ls-files --others --exclude-standard 2>$null)) { if ($f) { [void]$files.Add($f) } }
