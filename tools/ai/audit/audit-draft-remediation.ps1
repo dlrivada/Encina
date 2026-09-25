@@ -3,7 +3,7 @@
 # The remediation stage: reads the 'Findings' sections of the code, tests and docs stage artifacts and asks
 # the free local model (tools/ai/local-ai-ask.cs) to draft one issue file per finding group into
 # artifacts/knowledge/remediation/<n>-<slug>.md, using the house issue-template headers verbatim. Writes
-# stages/remediation.md listing the drafts (or explaining why there were none). Requires stages/docs.md —
+# stages/remediation.md listing the drafts (or explaining why there were none). Requires stages/docs.md --
 # the docs stage must have already run, even when it found nothing to review.
 
 param()
@@ -92,10 +92,15 @@ milestone:
         $outFile = Join-Path $remediationDir "$slug.md"
         Push-Location $mainRoot
         try {
-            & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$slug" --brief $brief --input $inputFile --out $outFile | Out-Null
+            $askOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$slug" --brief $brief --input $inputFile --out $outFile 2>&1
+            $askExit = $LASTEXITCODE
         }
         finally {
             Pop-Location
+        }
+        if ($askExit -ne 0 -or -not (Test-Path -LiteralPath $outFile)) {
+            Write-Error "audit-draft-remediation: local model failed for $slug (exit $askExit, output present: $(Test-Path -LiteralPath $outFile)): $askOutput"
+            exit 1
         }
         $drafts.Add("- $slug.md (from the $($group.Source) stage findings)")
     }
