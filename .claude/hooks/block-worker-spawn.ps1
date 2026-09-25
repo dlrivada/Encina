@@ -3,7 +3,10 @@
 # caller's allowlist (#1181).
 #
 #   orchestrator      issue-worker, mechanical-fixer, docs-writer, docs-reviewer, adversarial-reviewer,
-#                     ci-diagnoser, pr-watcher, Explore, Plan, claude-code-guide, general-purpose
+#                     ci-diagnoser, pr-watcher, Explore, Plan, claude-code-guide, general-purpose,
+#                     issue-archivist, issue-auditor, test-auditor, audit-verifier (the SPEC-003 audit
+#                     pipeline's stage agents, #1345 — audit-stage-guard.ps1 enforces which one, in which
+#                     order, and for which open audit)
 #   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer,
 #                     docs-reviewer (#1345: the docs stage of the SPEC-003 audit pipeline spawns docs-reviewer
 #                     directly, without going through docs-writer)
@@ -39,7 +42,7 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'     = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose')
+        'orchestrator'     = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
         'issue-worker'     = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
         'docs-writer'      = @('mechanical-fixer', 'docs-reviewer', 'Explore')
         'mechanical-fixer' = @('ci-diagnoser', 'Explore')
