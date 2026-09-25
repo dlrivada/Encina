@@ -2,16 +2,22 @@
 # -Agent <name>: a file belongs to the specialist that owns its kind, and the other agents delegate it
 # (#1181; categories in _repo-paths.ps1, Get-PathCategory).
 #
-#   issue-worker  may not edit documentation (docs/**/*.md except docs/plans/**, the images docs pages show, the
-#                 root README.md, package READMEs and other .md under src/, CONTRIBUTING.md): spawn docs-writer.
-#                 The site's code and data under docs/ (*.js, *.html, *.json, *.yml, ...) are code: the
-#                 issue-worker edits them and self-reviews them with adversarial-reviewer.
+#   issue-worker  may not edit documentation (docs/**/*.md except docs/plans/** and docs/knowledge/**, the
+#                 images docs pages show, the root README.md, package READMEs and other .md under src/,
+#                 CONTRIBUTING.md): spawn docs-writer. The site's code and data under docs/ (*.js, *.html,
+#                 *.json, *.yml, ...) are code: the issue-worker edits them and self-reviews them with
+#                 adversarial-reviewer. docs/knowledge/** is the issue-worker's own: SPEC-003 DEC-005 has the
+#                 closing issue-worker write the per-issue knowledge record and audit result in the same pull
+#                 request that closes the issue, because it holds the facts and the audit outcomes of its own
+#                 diff; a record is structured data, not prose (#1311).
 #                 may not edit changelog.d/**, **/PublicAPI.*.txt, .github/coverage-manifest/**: spawn
 #                 mechanical-fixer with the exact lines.
-#   docs-writer   allowlist: documentation, README.md and CONTRIBUTING.md anywhere (.github/**/README.md
-#                 included), changelog.d/** (fragments the brief asks for) and artifacts/** (its issue files);
-#                 never .claude/**. Everything else (src/, tests/, build files, docs/ site code and data) is
-#                 denied: spawn mechanical-fixer for an already-decided edit, otherwise report it.
+#   docs-writer   allowlist: documentation, docs/knowledge/** (keeps access so it can still fix a record while
+#                 writing the destination page that cites it), README.md and CONTRIBUTING.md anywhere
+#                 (.github/**/README.md included), changelog.d/** (fragments the brief asks for) and
+#                 artifacts/** (its issue files); never .claude/**. Everything else (src/, tests/, build files,
+#                 docs/ site code and data) is denied: spawn mechanical-fixer for an already-decided edit,
+#                 otherwise report it.
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -58,7 +64,7 @@ try {
 
     if ($Agent -eq 'issue-worker') {
         if ($category -eq 'docs') {
-            [Console]::Error.WriteLine("Blocked: '$relative' is documentation, which docs-writer owns (#1181; .claude/agents/issue-worker.md, Delegation). Spawn docs-writer in the foreground on this worktree with the facts and decisions the page needs, and make no edits to it yourself. docs/plans/** is the only documentation an issue-worker writes.")
+            [Console]::Error.WriteLine("Blocked: '$relative' is documentation, which docs-writer owns (#1181; .claude/agents/issue-worker.md, Delegation). Spawn docs-writer in the foreground on this worktree with the facts and decisions the page needs, and make no edits to it yourself. docs/plans/** and docs/knowledge/** are the only documentation an issue-worker writes (the latter per SPEC-003 DEC-005, #1311).")
             exit 2
         }
         if ($category -in 'changelog', 'publicapi', 'manifest') {
@@ -69,7 +75,7 @@ try {
     }
     elseif ($Agent -eq 'docs-writer') {
         $allowed = $relative -notmatch '^\.claude(/|$)' -and (
-            $category -in 'docs', 'changelog' -or
+            $category -in 'docs', 'knowledge', 'changelog' -or
             $relative -match '(^|/)README\.md$' -or
             $relative -match '(^|/)CONTRIBUTING\.md$' -or
             $relative -match '^artifacts/')

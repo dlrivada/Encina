@@ -74,11 +74,14 @@ function Get-RepoLocation([string]$Full, $Layout) {
 
 # Category of a repository-relative path (case-insensitive):
 #   plan       docs/plans/**                                  (issue-scoped working documents)
+#   knowledge  docs/knowledge/**                              (SPEC-003 per-issue records and audit
+#              results: structured data the closing issue-worker writes, not prose; DEC-005, #1311)
 #   changelog  changelog.d/**
 #   publicapi  **/PublicAPI.*.txt
 #   manifest   .github/coverage-manifest/**
-#   docs       prose: docs/**/*.md and *.markdown (other than plans) with the images they show (.png, .jpg,
-#              .jpeg, .gif, .svg, .webp), **/CONTRIBUTING.md, the root README.md, src/**/*.md (package READMEs)
+#   docs       prose: docs/**/*.md and *.markdown (other than plans and knowledge) with the images
+#              they show (.png, .jpg, .jpeg, .gif, .svg, .webp), **/CONTRIBUTING.md, the root
+#              README.md, src/**/*.md (package READMEs)
 #   code       src/** (other than .md), the rest of docs/** (dashboard and site code and data: *.js, *.html,
 #              *.css, *.json, *.yml such as docs/_config.yml, *.cs, ...), .github/scripts/**, .claude/hooks/**
 #              (production code and tooling)
@@ -88,6 +91,7 @@ function Get-RepoLocation([string]$Full, $Layout) {
 function Get-PathCategory([string]$Relative) {
     $r = $Relative.Replace('\', '/').TrimStart('/')
     if ($r -match '^docs/plans/') { return 'plan' }
+    if ($r -match '^docs/knowledge/') { return 'knowledge' }
     if ($r -match '^changelog\.d/') { return 'changelog' }
     if ($r -match '(^|/)PublicAPI\.[^/]*\.txt$') { return 'publicapi' }
     if ($r -match '^\.github/coverage-manifest/') { return 'manifest' }

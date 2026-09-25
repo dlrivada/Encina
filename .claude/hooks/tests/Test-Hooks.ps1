@@ -528,7 +528,11 @@ $ownershipCases = @(
     @('docs-writer', 'Edit', "$wt\Directory.Build.props", $wt, 2, 'docs-writer: build file'),
     @('docs-writer', 'Edit', "$wt\docs\plans\x-implementation-plan-1.md", $wt, 2, 'docs-writer: a plan belongs to the issue-worker'),
     @('docs-writer', 'Write', "$wt\artifacts\issues\gap.md", $wt, 0, 'docs-writer: its issue files under artifacts'),
-    @('docs-writer', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'docs-writer: CLAUDE.md')
+    @('docs-writer', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'docs-writer: CLAUDE.md'),
+    # SPEC-003 DEC-005 (#1311): docs/knowledge/** moves to the issue-worker allowlist; docs-writer keeps access.
+    @('issue-worker', 'Write', "$wt\docs\knowledge\issues\1311.md", $wt, 0, 'issue-worker: knowledge record'),
+    @('issue-worker', 'Write', "$wt\docs\knowledge\audits\Encina.Messaging.md", $wt, 0, 'issue-worker: audit result'),
+    @('docs-writer', 'Edit', "$wt\docs\knowledge\issues\1311.md", $wt, 0, 'docs-writer: knowledge record still allowed')
 )
 
 $srcPatch = Join-Path $work 'src.patch'
