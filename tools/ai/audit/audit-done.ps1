@@ -51,13 +51,8 @@ if (Test-Path -LiteralPath $verificationFile) {
 }
 
 $lessonsFile = Join-Path $stagesDir 'lessons.md'
-if (-not (Test-Path -LiteralPath $lessonsFile)) {
-    $reasons.Add('missing stages\lessons.md (run audit-lessons.ps1)')
-}
-else {
-    $lessonsText = Get-Content -LiteralPath $lessonsFile -Raw
-    if ($lessonsText -match 'Applied:\s*TODO') { $reasons.Add('stages\lessons.md still has an unresolved "Applied: TODO" line') }
-}
+$lessonsReason = Test-LessonsResolved $lessonsFile
+if ($lessonsReason) { $reasons.Add($lessonsReason) }
 
 $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
 $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
@@ -123,8 +118,12 @@ if (Test-Path -LiteralPath $ledger) { Get-Content -LiteralPath $ledger | Select-
 $remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$n-*.md" -ErrorAction SilentlyContinue).Count
 Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`""
 
-& git -C $mainRoot worktree remove $wt --force 2>&1 | Out-Null
-if ($branch) { & git -C $mainRoot branch -D $branch 2>&1 | Out-Null }
+$rmOut = & git -C $mainRoot worktree remove $wt --force 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git worktree remove $wt failed: $rmOut"; exit 1 }
+if ($branch) {
+    $brOut = & git -C $mainRoot branch -D $branch 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git branch -D $branch failed: $brOut"; exit 1 }
+}
 Remove-Item -LiteralPath $currentAuditPath -Force
 
 "audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed)"
