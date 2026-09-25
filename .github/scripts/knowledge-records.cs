@@ -86,17 +86,25 @@ if (string.IsNullOrWhiteSpace(outDir))
 Directory.CreateDirectory(outDir);
 
 var records = new List<Dictionary<string, object?>>();
+var skipped = 0;
 foreach (var file in files)
 {
     var (front, _, parseErrors) = ParseRecordFile(file);
-    if (parseErrors.Count > 0) { continue; } // --check is the gate for malformed records; --generate skips them
+    if (parseErrors.Count > 0)
+    {
+        // --check is the gate for malformed records; --generate skips them, but silently is not
+        // acceptable — a skipped record makes index.md and PROJECT-HISTORY.md incomplete.
+        skipped++;
+        foreach (var pe in parseErrors) Console.Error.WriteLine($"{Path.GetFileName(file)}: {pe} (skipped)");
+        continue;
+    }
     records.Add(front!);
 }
 
 WriteIndex(Path.Combine(outDir, "index.md"), records, files);
 WriteProjectHistory(Path.Combine(outDir, "PROJECT-HISTORY.md"), records, files);
-Console.WriteLine($"knowledge-records --generate: {records.Count} record(s) -> {outDir}");
-return 0;
+Console.WriteLine($"knowledge-records --generate: {records.Count} record(s), {skipped} skipped -> {outDir}");
+return skipped > 0 ? 1 : 0;
 
 // ---------------------------------------------------------------------------------------------
 // Validation
@@ -118,16 +126,23 @@ static List<string> ValidateRecord(string file, string repoRoot)
     var missingScalarFields = new HashSet<string>(StringComparer.Ordinal);
     foreach (var field in RecordSchema.RequiredScalarFields)
     {
-        if (!front.TryGetValue(field, out var fieldVal) || fieldVal is null || (fieldVal is string s0 && s0.Length == 0))
+        if (!front.TryGetValue(field, out var fieldVal) || fieldVal is not string { Length: > 0 })
         {
-            Err($"missing required field '{field}'");
+            // A key with no inline value and no indented block (e.g. `closed:` alone) parses as an
+            // empty List<object?> (see ParseMap), not null — without this shape check that silently
+            // passes as "present". Only null or an empty/missing string count as genuinely absent.
+            Err(fieldVal is null or string
+                ? $"missing required field '{field}'"
+                : $"'{field}' must be a scalar value");
             missingScalarFields.Add(field);
         }
     }
     foreach (var field in RecordSchema.RequiredListFields)
     {
-        if (!front.ContainsKey(field))
+        if (!front.TryGetValue(field, out var listVal))
             Err($"missing required field '{field}'");
+        else if (listVal is not List<object?>)
+            Err($"'{field}' must be a block list (flow syntax like '[]' is not supported; use an empty key)");
     }
 
     if (!missingScalarFields.Contains("schema") && (!int.TryParse(AsScalar(front.GetValueOrDefault("schema")), out var schemaVersion) || schemaVersion != RecordSchema.SupportedVersion))
@@ -291,7 +306,12 @@ static string FindRepoRoot(string startDir)
     var dir = new DirectoryInfo(Path.GetFullPath(startDir));
     while (dir is not null)
     {
-        if (Directory.Exists(Path.Combine(dir.FullName, ".git"))) return dir.FullName;
+        // In a git worktree or submodule, .git is a file (pointing at the real gitdir), not a
+        // directory — Directory.Exists alone misses it and the search climbs past the worktree
+        // into whatever ancestor directory happens to contain a real .git, silently checking
+        // 'done' destination targets against the wrong tree.
+        var gitPath = Path.Combine(dir.FullName, ".git");
+        if (Directory.Exists(gitPath) || File.Exists(gitPath)) return dir.FullName;
         dir = dir.Parent;
     }
     return Directory.GetCurrentDirectory();
