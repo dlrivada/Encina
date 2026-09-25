@@ -16,6 +16,8 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent issue-archivist'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command
@@ -45,7 +47,7 @@ There is no previous stage. Read instead:
 - The issue and every human comment: `gh issue view <n> --repo dlrivada/Encina --comments`.
 - Its closing PRs and commits: `gh api repos/dlrivada/Encina/issues/<n>/timeline --paginate`, then `gh pr view <pr> --json files` / `git show --stat <oid>` for the files each one changed.
 - The local-model pre-draft at `artifacts\knowledge\predraft\<n>.md`.
-- `CLAUDE.md` (main checkout, read-only) and `docs/specifications/SPEC-003-...md` for the record format and the AUD checklist your scope list feeds.
+- `AGENTS.md` (main checkout, read-only) and `docs/specifications/SPEC-003-...md` for the record format and the AUD checklist your scope list feeds.
 
 ## Output
 
@@ -55,7 +57,7 @@ There is no previous stage. Read instead:
 ## Scope
 <files/packages the issue touched, mapped to where they live TODAY; follow renames and deletions with `git log --follow`; when code was removed on purpose (e.g. Oracle/SQLite), record that and scope nothing further for it>
 ## Destinations
-<for each decision the issue made: its destination (ADR, CLAUDE.md, skill, agent, hook, regression test, reviewer checklist, benchmark, manifest, docs, README, ROADMAP, SPEC invariant) and whether it is present there today — "present" or "missing" with evidence>
+<for each decision the issue made: its destination (ADR, AGENTS.md/CLAUDE.md, skill, agent, hook, regression test, reviewer checklist, benchmark, manifest, docs, README, ROADMAP, SPEC invariant) and whether it is present there today — "present" or "missing" with evidence>
 ## Successor and duplicate issues
 <for a rejected/superseded/duplicate issue: the successor or duplicate issue number and its VERIFIED state today (`gh issue view <m> --json state,title`) — an OPEN successor means the work is pending, not "implemented">
 ## Lessons for the pipeline

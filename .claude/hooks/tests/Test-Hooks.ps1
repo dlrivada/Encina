@@ -566,7 +566,11 @@ $ownershipCases = @(
     @($null, 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'the remediation stage artifact is written only by its own script, never via the Write/Edit tool, even by the orchestrator'),
     @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'fabrication gap: an agent may not fabricate the script-owned remediation stage via Write'),
     @($null, 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 0, 'lessons.md is not a pipeline stage: the orchestrator writes it'),
-    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 2, 'lessons.md is denied to a stage agent')
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 2, 'lessons.md is denied to a stage agent'),
+    # #1345 review blocker: the stage-ownership match must not evade case-insensitively (the filesystem this
+    # project runs on is case-insensitive, so 'Artifacts\Knowledge\Stages\code.md' is the very same on-disk
+    # file as 'artifacts\knowledge\stages\code.md').
+    @($null, 'Write', "$wt\Artifacts\Knowledge\Stages\code.md", $wt, 2, 'fabrication gap: mixed-case path still matches the stage-artifact rule')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
@@ -819,6 +823,25 @@ try {
     }
     else { $script:failed++; 'FAIL enforce-path-ownership.ps1: .authors.json was never written despite allowed stage-artifact writes' }
 
+    # #1345 review blocker: block-main-checkout-writes.ps1's "Edit tool only for source files" rule explicitly
+    # excludes artifacts/ (Test-RepoFile), so before this fix a stage agent's own PowerShell/Bash tool could
+    # fabricate another stage's artifact via Set-Content/redirection, bypassing enforce-path-ownership.ps1
+    # entirely (it only ran on Write|Edit|MultiEdit|NotebookEdit). These cases exercise the hook's own
+    # Bash|PowerShell handling directly.
+    $shellCodePath = "$wt\artifacts\knowledge\stages\code.md"
+    $shellCases = @(
+        @('test-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'fabricated'", 2, 'shell vector: Set-Content by the wrong stage agent is denied'),
+        @('issue-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'legitimate'", 0, 'shell vector: Set-Content by the correct stage agent is allowed'),
+        @($null, 'PowerShell', "[IO.File]::WriteAllText('$shellCodePath', 'fabricated')", 2, 'shell vector: [IO.File]::WriteAllText by the orchestrator is denied', 'mechanical-fixer'),
+        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied')
+    )
+    foreach ($case in $shellCases) {
+        $hookAgent, $tool, $command, $expected, $label, $agentType = $case
+        $payload = @{ tool_name = $tool; cwd = $wt; tool_input = @{ command = $command } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = 'a1' }
+        Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+
     foreach ($case in $noBgCases) {
         $agentType, $agentId, $subagentType, $runInBackground, $expected, $label, $hookAgentArg = $case
         $payload = @{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = $subagentType; run_in_background = $runInBackground } }
@@ -906,6 +929,16 @@ try {
             agent_transcript_path = $agentTranscript
         }
         Invoke-HookCase $gate ($stackedPayload | ConvertTo-Json -Compress) 0 "require-specialists: a branch stacked on another PR's branch is judged on its own commits only" 'issue-worker' '(?s)^(?=.*"decision":"block")(?=.*adversarial-reviewer)(?!.*docs-writer)'
+
+        # #1345 review: the normal case once GitHub deletes a merged branch is that @{upstream} no longer
+        # resolves at all (not merely "moved ahead") — reproduced here by deleting the local 'parent' branch
+        # after 'feature-stacked' branched from it. The fork point must still come from feature-stacked's own
+        # reflog ('branch: Created from parent'), not from widening the diff to origin/main, which would pick
+        # up 'parent''s own docs change again.
+        Invoke-Git branch -D parent
+        if (Test-Path $sessionDir) { Remove-Item -Recurse -Force $sessionDir }
+        Write-Transcript $agentTranscript @() 'Issue #1. Implement the brief.' 'Agent' $null $null
+        Invoke-HookCase $gate ($stackedPayload | ConvertTo-Json -Compress) 0 "require-specialists: a stacked branch whose upstream branch was deleted still uses its own reflog fork point, not origin/main" 'issue-worker' '(?s)^(?=.*"decision":"block")(?=.*adversarial-reviewer)(?!.*docs-writer)'
 
         Invoke-HookCase $gate 'not json' 0 'malformed payload' 'issue-worker' '^$'
     }

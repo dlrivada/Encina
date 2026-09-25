@@ -19,8 +19,10 @@
 # Changed files: in the agent's worktree (the hook input's cwd when it is a worktree under .claude\worktrees\;
 # else, among the worktrees named in the text of the transcript's user messages (the brief and later
 # corrections, not tool output), the first that exists and has changes, or the first that exists), the union
-# of `git diff --name-only origin/main...HEAD` (or main...HEAD), `git diff --name-only HEAD` and the untracked
-# files. The diff covers every commit of the branch since it left main, including a specialist's commits.
+# of the diff against the branch's own fork point (see Get-ChangedFiles below: `@{upstream}`, else the branch's
+# own reflog, else origin/main / main), `git diff --name-only HEAD` and the untracked files. The diff covers
+# every commit of the branch since its own fork point, including a specialist's commits, and only those — a
+# stacked branch is judged on its own commits, never on an already-reviewed ancestor's.
 #
 # When a specialist is missing, the hook answers {"decision":"block","reason":...}: the agent continues with
 # the list of specialists to run and why. When stop_hook_active is true (the agent is already continuing
@@ -104,18 +106,53 @@ try {
     # The files a git work tree changed since its branch's own fork point, or $null when $Dir is not a work
     # tree. The base is the branch's configured upstream fork point (`git merge-base HEAD @{upstream}`) when
     # an upstream is set, so a branch stacked on another PR's branch (its upstream, not origin/main) is judged
-    # on its own commits only, even if that upstream branch has since moved ahead. Falls back to
-    # origin/main / main when the branch has no upstream configured.
+    # on its own commits only, even if that upstream branch has since moved ahead.
+    #
+    # When the upstream is gone (the normal case once GitHub deletes a merged branch: `@{upstream}` fails to
+    # resolve, and a squash merge means the old branch's commits are not ancestors of origin/main either, so a
+    # blind fallback to origin/main would widen the diff to everything since a much older shared ancestor,
+    # picking up files an earlier, already-reviewed PR touched), recover the fork point from this branch's own
+    # reflog: `git branch <name>` (and worktree creation) record a `branch: Created from <ref>` entry whose
+    # commit is the exact fork point, and that commit stays reachable (and so never garbage-collected) because
+    # it is still an ancestor of HEAD. Only origin/main / main are left as the last-resort fallback, for a
+    # branch created directly off main (no such reflog entry) or with no local reflog at all (a fresh clone).
+    # $LASTEXITCODE is unreliable when a native command's output is piped straight into a cmdlet (observed
+    # directly: the identical `& git ... 2>$null | Select-Object -First 1` shape left $LASTEXITCODE empty for
+    # one command and correct for another otherwise-identical one) — PowerShell only updates it once the
+    # process has exited, and a truncating cmdlet downstream (`-First 1`) can race that. Every git call below
+    # is therefore captured into a variable first, with $LASTEXITCODE read on the very next line, before any
+    # further pipeline stage runs.
     function Get-ChangedFiles([string]$Dir) {
-        $top = & git -C $Dir rev-parse --show-toplevel 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $top) { return $null }
-        $top = [IO.Path]::GetFullPath([string]($top | Select-Object -First 1))
+        $topLines = & git -C $Dir rev-parse --show-toplevel 2>$null
+        $topExit = $LASTEXITCODE
+        if ($topExit -ne 0 -or -not $topLines) { return $null }
+        $top = [IO.Path]::GetFullPath([string](@($topLines)[0]))
         $files = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         $mergeBase = $null
         & git -C $top rev-parse --verify --quiet '@{upstream}' 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            $mb = & git -C $top merge-base HEAD '@{upstream}' 2>$null | Select-Object -First 1
-            if ($LASTEXITCODE -eq 0 -and $mb) { $mergeBase = [string]$mb }
+        $upstreamExit = $LASTEXITCODE
+        if ($upstreamExit -eq 0) {
+            $mbLines = & git -C $top merge-base HEAD '@{upstream}' 2>$null
+            $mbExit = $LASTEXITCODE
+            $mb = if ($mbLines) { [string](@($mbLines)[0]) } else { $null }
+            if ($mbExit -eq 0 -and $mb) { $mergeBase = $mb }
+        }
+        if (-not $mergeBase) {
+            $branchLines = & git -C $top rev-parse --abbrev-ref HEAD 2>$null
+            $branchExit = $LASTEXITCODE
+            $branchName = if ($branchLines) { [string](@($branchLines)[0]) } else { $null }
+            if ($branchExit -eq 0 -and $branchName -and $branchName -ne 'HEAD') {
+                $reflog = & git -C $top reflog show $branchName 2>$null
+                $reflogExit = $LASTEXITCODE
+                if ($reflogExit -eq 0 -and $reflog) {
+                    $created = @($reflog | Where-Object { $_ -match 'branch:\s*Created from' })
+                    if ($created.Count -gt 0) {
+                        $sha = ([string]$created[-1] -split '\s+', 2)[0]
+                        & git -C $top rev-parse --verify --quiet "$sha^{commit}" 2>$null | Out-Null
+                        if ($LASTEXITCODE -eq 0) { $mergeBase = $sha }
+                    }
+                }
+            }
         }
         if (-not $mergeBase) {
             foreach ($base in 'origin/main', 'main') {

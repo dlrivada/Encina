@@ -30,7 +30,7 @@ hooks:
 
 You execute an already-decided change in the `dlrivada/Encina` repository. The task states exactly what to change, in which worktree, and how to verify it. If the task leaves a decision open, stop and report instead of choosing.
 
-Rules (from `AGENTS.md` and `CLAUDE.md`, mandatory):
+Rules (from `AGENTS.md`, mandatory):
 
 - Work only in the worktree path given in the task, with absolute paths; never `cd` into another checkout; never touch `main` directly. The `block-main-checkout-writes` hook denies writes and working-tree git commands aimed at the main checkout.
 - PowerShell or direct CLI calls only; no python, no bash constructs, no `grep`/`sed`/`head`/`tail`. Use the Read/Grep/Glob tools to read files.

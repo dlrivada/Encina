@@ -16,6 +16,13 @@
 # by something the sidecar never saw). The 'remediation' stage is exempt: its "agent" is the local-model
 # script (audit-draft-remediation.ps1), which writes with Set-Content, never through the Write/Edit tool, so
 # the sidecar never gets an entry for it.
+#
+# Both git calls capture their output into a variable and read $LASTEXITCODE on the very next line, never
+# piping straight into a cmdlet (`| Out-Null`): PowerShell updates $LASTEXITCODE only once the native process
+# has exited, and a downstream cmdlet can race that, so a piped check can read a stale exit code (the same
+# gotcha require-specialists.ps1 documents for its own git calls). Test-Hooks.ps1's audit-commit-stage.ps1
+# cases caught this intermittently, since the old `2>&1 | Out-Null; if ($LASTEXITCODE -ne 0)` form sometimes
+# reported "nothing to commit" for a commit that actually raced past the check.
 
 param([Parameter(Mandatory)][string]$Stage)
 
@@ -58,12 +65,12 @@ if ($expectedAgent -in $knownStageAgents) {
     }
 }
 
-& git -C $wt add -f 'artifacts/knowledge' 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Error "audit-commit-stage: 'git add -f artifacts/knowledge' failed in $wt."; exit 1 }
+$addOutput = & git -C $wt add -f 'artifacts/knowledge' 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Error "audit-commit-stage: 'git add -f artifacts/knowledge' failed in $wt.: $addOutput"; exit 1 }
 
-& git -C $wt commit -q -m "audit #$n`: $Stage stage" -m "Stage: $Stage" 2>&1 | Out-Null
+$commitOutput = & git -C $wt commit -q -m "audit #$n`: $Stage stage" -m "Stage: $Stage" 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "audit-commit-stage: nothing to commit for stage '$Stage' in #$n (already committed, or the artifact matches what was last committed)."
+    Write-Error "audit-commit-stage: nothing to commit for stage '$Stage' in #$n (already committed, or the artifact matches what was last committed); git said: $commitOutput"
     exit 1
 }
 

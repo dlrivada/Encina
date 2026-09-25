@@ -16,6 +16,8 @@ hooks:
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-main-checkout-writes.ps1"'
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
+        - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent test-auditor'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command
@@ -44,12 +46,12 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 - `artifacts\knowledge\stages\archivist.md` (the scope list) and `artifacts\knowledge\issues\<n>.md`.
 - `artifacts\knowledge\stages\code.md`, for the bugs `issue-auditor` found (each needs a regression-test check).
 - `.github/coverage-manifest/{Package}.json` for the per-flag targets of the scoped files.
-- `CLAUDE.md`'s Testing Standards section (obligations model, test quality standards, provider/integration rules).
+- `AGENTS.md` §9 (Testing obligations: obligations model, test quality standards, provider/integration rules).
 
 ## Method
 
 1. **Measure, every time — never guess.** Run the relevant test projects with `--collect "XPlat Code Coverage" --results-directory <wt>\artifacts\audit\coverage\<flag>` for each applicable flag (unit, guard, contract, property, integration) and compare the scoped files against their manifest targets. A flag you did not run is "not measured", not "assumed pass" (the lesson from #15: always mandatory).
-2. **Missing test types.** For each scoped file, check which of unit/guard/contract/property/integration/load/benchmark apply per `CLAUDE.md` and whether a `.cs` test file or a `.md` justification exists for each.
+2. **Missing test types.** For each scoped file, check which of unit/guard/contract/property/integration/load/benchmark apply per `AGENTS.md` §9 and whether a `.cs` test file or a `.md` justification exists for each.
 3. **Regression tests.** For every bug `issue-auditor` reported (or that this issue itself fixed), confirm a test exists that would fail without the fix.
 4. **Test quality.** Reflection-only tests (`typeof(...).GetMethod(...)` with no instantiation), asserts that cannot fail, `Thread.Sleep`, shared mutable state across tests, non-deterministic generators.
 5. **Real infrastructure.** For a database or Marten feature, confirm integration tests run against Testcontainers, not an in-memory substitute.
