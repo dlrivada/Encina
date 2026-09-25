@@ -32,11 +32,13 @@ Never sleep in the foreground and never ask a watcher to report at the end. Star
 pwsh -NoProfile -File tools/ai/watch-pr-events.ps1 -Pr <n>
 ```
 
-When more than one PR is open, run one multi-PR monitor instead of one `watch-pr-events.ps1` per PR:
+When more than one PR is open, also run the multi-PR monitor — it complements the per-PR watcher, it does not replace it:
 
 ```powershell
 pwsh -NoProfile -File tools/ai/watch-open-prs.ps1
 ```
+
+`watch-open-prs.ps1` emits `CHECK-FAIL` (including a failure already present on the first poll), `NEW-THREAD` (a new unresolved review thread, which covers CodeRabbit inline comments) and `MERGED`/`CLOSED` for every open PR. `REVIEW`, `ISSUE-COMMENT` and `CHECKS-DONE` still come only from `watch-pr-events.ps1 -Pr <n>`, so keep one per-PR watcher running for every PR whose events you must react to, and use the multi-PR one to notice failures and merges across all of them without polling each one yourself.
 
 Never exclude `check-links` from either watcher's failure bucket: ignoring it hid a real failure from 2026-09-23 to 2026-09-26.
 
