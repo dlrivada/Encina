@@ -28,6 +28,11 @@
 # `pwsh -File` case below), Remove-Item / rm (deletions), Rename-Item, and redirections attached to a word
 # (x>f).
 #
+# Sanctioned scripts (#1368, #1380): Test-ScriptIsSanctioned/$SanctionedScriptPatterns below give the pipeline's
+# own scripts (the hook test suite, tools/ai/audit/*, tools/ai/*, .github/scripts/*.cs) a narrow allowlist
+# exemption from the Scripts write-API/reference heuristic, since they are the orchestrator's or a worker's own
+# sanctioned tools, not an arbitrary script that happens to mention src/ or tests/.
+#
 # Scripts: `dotnet run <file>.cs` / `dotnet run --file <file>.cs`, `pwsh`/`powershell -File <file>.ps1`, the
 # PowerShell call operator (`& '<file>.ps1'`) and dot-sourcing (`. '<file>.ps1'`) name a script the statement's
 # own write-target analysis cannot see into (#1181; ADR/hooks docs note this as a bypass: `Get-WrappedCommand`
@@ -158,6 +163,32 @@ function Test-ScriptReferencesPath([string]$Text, [string[]]$Tokens) {
 
 function Test-ScriptHasWriteApi([string]$Text) {
     return $Text -match $script:ScriptWriteApiPattern
+}
+
+# Sanctioned scripts (#1368, #1380): the audit pipeline's and the test suite's own tooling legitimately
+# mentions src/ and tests/ (in template guidance, search regexes, or test-case fixtures) while writing only
+# under artifacts/ or its own temp workspace, so it never trips Test-ScriptHasWriteApi/Test-ScriptReferencesPath
+# together on its own text. This is a narrow repository-relative path allowlist, not an analysis of what the
+# script actually writes: it deliberately trades precision for being auditable in one place, so a new sanctioned
+# script is an explicit addition here, never a broader heuristic.
+$script:SanctionedScriptPatterns = @(
+    '^\.claude/hooks/tests/Test-Hooks\.ps1$'   # the hook regression suite: the orchestrator's own verification tool, and a worker's per #1368
+    '^tools/ai/audit/[^/]+\.ps1$'              # the SPEC-003 audit pipeline stage scripts, run by the orchestrator by design (#1345, #1380)
+    '^tools/ai/[^/]+\.ps1$'                    # the rest of the local-AI/tooling scripts the orchestrator runs directly
+    '^\.github/scripts/[^/]+\.cs$'             # CI/build scripts (changelog fragments, coverage, ...) the orchestrator runs directly
+)
+
+# Whether $Full is one of the pipeline's sanctioned scripts: it must first resolve inside $RepoRoot (the main
+# checkout or the worktree the launching statement's own Base belongs to — see Get-RepoLocation), then its
+# repository-relative path (forward slashes, case-insensitive) must match one of $SanctionedScriptPatterns. A
+# script placed outside the repository under a name that matches one of the patterns (a fixture, a temp copy)
+# never matches, since it fails the $RepoRoot containment check first.
+function Test-ScriptIsSanctioned([string]$Full, [string]$RepoRoot) {
+    if ([string]::IsNullOrEmpty($Full) -or [string]::IsNullOrEmpty($RepoRoot)) { return $false }
+    if (-not (Test-Under $Full $RepoRoot)) { return $false }
+    $relative = $Full.Substring([Math]::Min($RepoRoot.TrimEnd('\', '/').Length, $Full.Length)).TrimStart('\', '/').Replace('\', '/')
+    foreach ($pattern in $script:SanctionedScriptPatterns) { if ($relative -imatch $pattern) { return $true } }
+    return $false
 }
 
 # Absolute path of a target token, or $null when it cannot be computed.

@@ -26,7 +26,11 @@
 #      cwd is the main checkout (#1345). A script path the hook cannot resolve, or cannot read, is allowed for
 #      a worker (it already writes only in its own worktree by protocol; a false block on every unreadable
 #      script would cost more than it catches). This only partially closes the gap, since it is a text
-#      heuristic, not an execution of the script (#1181).
+#      heuristic, not an execution of the script (#1181). A script matching Test-ScriptIsSanctioned
+#      (_write-targets.ps1) — the pipeline's own tooling (.claude/hooks/tests/Test-Hooks.ps1,
+#      tools/ai/audit/*.ps1, tools/ai/*.ps1, .github/scripts/*.cs), which a worker legitimately runs from its
+#      own worktree — is exempt from the write-API/reference check even when Base cannot be told apart from the
+#      main checkout (#1368, #1380).
 #    When $CLAUDE_PROJECT_DIR is itself a worktree, the main checkout is the part before \.claude\worktrees\.
 #
 # 2. Edit tool only for source files. Repo files with a source extension ($SourceExtensions below) are never
@@ -117,7 +121,9 @@ try {
         if ($null -eq $s.Full -or -not (Test-MainCheckout $scriptBase $layout)) { continue }
         $text = $null
         try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { continue }
-        if ((Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
+        $scriptLocation = Get-RepoLocation $s.Full $layout
+        $sanctioned = $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
+        if (-not $sanctioned -and (Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
             Write-MainCheckoutBlock "'$($s.Kind)' of '$($s.Full)', which references src/ or tests/ and writes files, while this command" $scriptBase
         }
     }
