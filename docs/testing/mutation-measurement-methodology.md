@@ -124,7 +124,7 @@ Operators can override via the `workflow_dispatch` inputs; any of them collapses
 | (default) | Full 17-shard matrix — every folder measured fresh. |
 | `custom_scope: "<glob>"` | Single shard with the given `--mutate` override. If the glob matches a rotation entry, its paired test-case-filter is reused; otherwise the config default applies. |
 | `diff_mode: true` | Single shard with `--since:main` — mutate only files changed vs main. Useful for PR-style validation. |
-| `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 60-minute per-shard timeout in the current configuration. |
+| `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 340-minute per-shard timeout in the current configuration. |
 
 ## Mutate filter
 
