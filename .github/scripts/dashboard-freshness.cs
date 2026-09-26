@@ -37,8 +37,9 @@ for (var i = 0; i < args.Length; i++)
             baseUrl = args[++i];
             break;
         case "--max-age-days" when hasValue:
-            if (!double.TryParse(args[++i], NumberStyles.Float, CultureInfo.InvariantCulture, out maxAgeDays) || maxAgeDays < 0)
-                return Usage($"--max-age-days must be a non-negative number, got '{args[i]}'");
+            if (!double.TryParse(args[++i], NumberStyles.Float, CultureInfo.InvariantCulture, out maxAgeDays)
+                || !double.IsFinite(maxAgeDays) || maxAgeDays <= 0)
+                return Usage($"--max-age-days must be a finite number greater than 0, got '{args[i]}'");
             break;
         case "--dashboards" when hasValue:
             dashboards = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -130,6 +131,12 @@ static async Task<Result> CheckAsync(HttpClient http, string name, string url, D
     if (!DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var timestamp))
         return Result.Error(name, $"unparseable timestamp '{raw}'");
+
+    // A timestamp ahead of the clock would give a negative age and pass as fresh; one hour
+    // of tolerance absorbs small clock skew between the publisher and this check.
+    if (timestamp - now > TimeSpan.FromHours(1))
+        return Result.Error(name,
+            $"timestamp is in the future: {timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)}");
 
     var ageDays = (now - timestamp).TotalDays;
     return new Result(name, timestamp, ageDays, ageDays > maxAgeDays ? "STALE" : "OK", "");
