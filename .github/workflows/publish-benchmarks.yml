@@ -1,9 +1,18 @@
 name: Publish Benchmarks Data
 
-# Triggered when the Benchmarks workflow completes successfully.
-# Downloads the consolidated perf-report artifact and the raw data artifact,
-# archives raw data to the `perf-raw` orphan branch, updates history.json,
-# and deploys the dashboard to GitHub Pages (coexists with publish-coverage).
+# Triggered when the Benchmarks workflow completes on main. The publish-data job
+# downloads the consolidated perf-report artifact and the raw data artifact,
+# archives raw data to the `perf-raw` orphan branch, computes the dashboard data
+# (latest.json, history.json, docref-index.json, fingerprints.json,
+# benchmark-coverage.json, badge.json) and uploads it as the artifact
+# pages-overlay-benchmarks. The deploy job then calls docs.yml, the only Pages
+# deployer (#1381), which lays that overlay over the live data of every
+# dashboard, renders the benchmark tables and deploys the whole site.
+#
+# A source run that did not succeed fails this workflow visibly instead of
+# skipping it (#1361). A successful `short` run is still skipped with a notice
+# (see "Detect source job type"); the daily dashboard-freshness check flags the
+# dashboard when no `medium` run has published for too long.
 #
 # See ADR-025 + performance-measurement-methodology.md.
 on:
@@ -17,27 +26,33 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  pages: write
-  id-token: write
-  actions: read
-  contents: write
-
 concurrency:
   group: publish-benchmarks
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+  publish-data:
+    name: Compute benchmarks dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}benchmarks/dashboard/
+    # contents: write is for the perf-raw archive push only.
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      skip: ${{ steps.jobtype.outputs.skip }}
 
     steps:
+      - name: Require a successful source run
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+        env:
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION; nothing was published"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -111,39 +126,41 @@ jobs:
               ;;
           esac
 
-      - name: Update docs/benchmarks/data
+      - name: Stage fresh benchmarks data in the Pages overlay
         if: steps.jobtype.outputs.skip != 'true'
         run: |
-          mkdir -p docs/benchmarks/data
-          cp -f perf-report-artifact/latest.json docs/benchmarks/data/latest.json
-          cp -f perf-report-artifact/docref-index.json docs/benchmarks/data/docref-index.json 2>/dev/null || true
-          # Phase 2 — persist current fingerprints so the next run can diff against them.
-          cp -f perf-report-artifact/fingerprints.json docs/benchmarks/data/fingerprints.json 2>/dev/null || true
+          # Only the files this workflow owns go into overlay/benchmarks/; docs.yml
+          # copies them over the live Pages data of every dashboard.
+          mkdir -p overlay/benchmarks/data
+          cp -f perf-report-artifact/latest.json overlay/benchmarks/data/latest.json
+          cp -f perf-report-artifact/docref-index.json overlay/benchmarks/data/docref-index.json 2>/dev/null || true
+          # Phase 2 — publish current fingerprints so the next run can diff against them.
+          cp -f perf-report-artifact/fingerprints.json overlay/benchmarks/data/fingerprints.json 2>/dev/null || true
           # Copy any archived timestamped snapshot file
           find perf-report-artifact -maxdepth 1 -name "*.json" \
             ! -name "latest.json" \
             ! -name "docref-index.json" \
             ! -name "fingerprints.json" \
-            -exec cp -f {} docs/benchmarks/data/ \;
-          ls -la docs/benchmarks/data/
+            -exec cp -f {} overlay/benchmarks/data/ \;
+          ls -la overlay/benchmarks/data/
 
       - name: Fetch live history from Pages (most complete)
         if: steps.jobtype.outputs.skip != 'true'
         run: |
-          # The repo copy of history.json may be empty or stale because
-          # git push to main is blocked by branch protection. The live
-          # Pages version is always the most current because it's written
-          # on every successful deploy. Fetch it and use whichever is larger.
+          # The copy of history.json tracked in main is stale because nothing
+          # commits it back. The live Pages version is written on every deploy.
+          # Fetch it and use whichever is larger.
+          cp -f docs/benchmarks/data/history.json overlay/benchmarks/data/history.json 2>/dev/null || echo "[]" > overlay/benchmarks/data/history.json
           PAGES_URL="https://dlrivada.github.io/Encina/benchmarks/data/history.json"
           PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
           # grep -c returns exit code 1 when count=0, so capture separately
-          REPO_ENTRIES=$(grep -c timestamp docs/benchmarks/data/history.json 2>/dev/null) || REPO_ENTRIES=0
+          REPO_ENTRIES=$(grep -c timestamp overlay/benchmarks/data/history.json 2>/dev/null) || REPO_ENTRIES=0
 
           if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
             PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > docs/benchmarks/data/history.json
+              echo "$PAGES_HISTORY" > overlay/benchmarks/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
@@ -156,23 +173,15 @@ jobs:
         run: |
           dotnet run .github/scripts/perf-history.cs -- \
             --kind benchmarks \
-            --latest docs/benchmarks/data/latest.json \
-            --history docs/benchmarks/data/history.json
+            --latest overlay/benchmarks/data/latest.json \
+            --history overlay/benchmarks/data/history.json
 
       - name: Generate regression badge
         if: steps.jobtype.outputs.skip != 'true'
         run: |
           dotnet run .github/scripts/perf-badge.cs -- \
-            --input docs/benchmarks/data/latest.json \
-            --output docs/benchmarks/badge.json
-
-      - name: Auto-generate documentation tables from DocRef index
-        if: steps.jobtype.outputs.skip != 'true'
-        continue-on-error: true
-        run: |
-          dotnet run .github/scripts/perf-docs-render.cs -- \
-            --docref-index docs/benchmarks/data/docref-index.json \
-            --docs-root docs
+            --input overlay/benchmarks/data/latest.json \
+            --output overlay/benchmarks/badge.json
 
       - name: Generate dynamic benchmark coverage scan
         if: steps.jobtype.outputs.skip != 'true'
@@ -183,7 +192,7 @@ jobs:
             --manifest-dir .github/perf-manifest \
             --nbomber-root tests/Encina.NBomber \
             --loadtests-root tests/Encina.LoadTests \
-            --output docs/benchmarks/data/benchmark-coverage.json
+            --output overlay/benchmarks/data/benchmark-coverage.json
 
       # Raw data is archived regardless of jobType so short runs can be
       # re-processed later via perf-recalculate.cs against the archived
@@ -277,78 +286,24 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Persist latest.json + history.json + docref-index.json + cited-by.json to main
+      - name: Upload Pages overlay
         if: steps.jobtype.outputs.skip != 'true'
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/benchmarks/data/
-          if git diff --cached --quiet; then
-            echo "No data changes to commit."
-          else
-            ENTRIES=$(grep -c timestamp docs/benchmarks/data/history.json 2>/dev/null || echo 0)
-            git commit -m "chore: update benchmarks data ($ENTRIES history entries)"
-            git push origin main || echo "Warning: push failed (branch protection). Data will be updated on next manual push."
-          fi
-
-      - name: Build Pages site with cross-domain live data preservation
-        if: steps.jobtype.outputs.skip != 'true'
-        run: |
-          # Multiple publish-* workflows share a single gh-pages deployment target.
-          # If this workflow copies docs/ as-is, it will ship whatever is currently in
-          # docs/coverage/data/ (potentially stale, because publish-coverage.yml updates
-          # that subtree on Pages but does NOT commit latest.json back to main). The
-          # deploy would then overwrite the live coverage data with the stale repo copy.
-          #
-          # Fix: overlay the live Pages copies of the sibling domains (coverage, load-tests)
-          # on top of our _site so their data survives this deploy untouched. Our own
-          # docs/benchmarks subtree has already been refreshed in the earlier step and
-          # is authoritative for this run.
-          rm -rf _site
-          cp -r docs _site
-
-          for domain in coverage load-tests mutations; do
-            echo "Fetching live $domain data from Pages..."
-            mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
-                echo "  ✓ $file"
-              else
-                rm -f "_site/$domain/data/$file.new"
-                echo "  - $file (not on Pages yet)"
-              fi
-            done
-            # Badges (coverage only currently, but harmless to try)
-            for badge in badge.svg badge.json; do
-              url="https://dlrivada.github.io/Encina/$domain/$badge"
-              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
-              else
-                rm -f "_site/$domain/$badge.new"
-              fi
-            done
-          done
-
-          echo ""
-          echo "Benchmarks dashboard contents:"
-          ls -la _site/benchmarks/dashboard/ 2>/dev/null || echo "(dashboard dir missing — first run)"
-          echo ""
-          echo "Benchmarks data contents:"
-          ls -la _site/benchmarks/data/ 2>/dev/null
-          echo ""
-          echo "Coverage data preserved from Pages:"
-          ls -la _site/coverage/data/ 2>/dev/null | head -20
-
-      - name: Upload Pages artifact
-        if: steps.jobtype.outputs.skip != 'true'
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
-          path: _site
+          name: pages-overlay-benchmarks
+          path: overlay/
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Deploy to GitHub Pages
-        if: steps.jobtype.outputs.skip != 'true'
-        id: deployment
-        uses: actions/deploy-pages@v5
+  deploy:
+    name: Deploy site with fresh benchmarks data
+    needs: publish-data
+    # A skipped `short`/`unknown` source run publishes nothing (see the gate above).
+    if: needs.publish-data.outputs.skip != 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      overlay-artifact: pages-overlay-benchmarks
