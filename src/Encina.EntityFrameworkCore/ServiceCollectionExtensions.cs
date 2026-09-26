@@ -152,54 +152,33 @@ public static class ServiceCollectionExtensions
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 
-        // Register enabled patterns
+        // EF Core has its own DbContext-bound TransactionPipelineBehavior (it wraps
+        // DbContext.Database transactions), unlike the generic Encina.Messaging behavior ADO.NET
+        // and Dapper share, so this pattern stays registered here instead of going through the
+        // shared helper.
         if (config.UseTransactions)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
         }
 
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreEF>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreEF>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreEF>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (config.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
+        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
+        // same registrations ADO.NET and Dapper get from AddMessagingServices, so a change to the
+        // shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher) reaches EF Core
+        // automatically instead of drifting out of sync with a hand-rolled block (#1333).
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreEF,
+            OutboxMessageFactory,
+            InboxStoreEF,
+            InboxMessageFactory,
+            SagaStoreEF,
+            SagaStateFactory,
+            ScheduledMessageStoreEF,
+            ScheduledMessageFactory,
+            OutboxProcessor>(
+            config.UseOutbox, config.OutboxOptions,
+            config.UseInbox, config.InboxOptions,
+            config.UseSagas, config.SagaOptions,
+            config.UseScheduling, config.SchedulingOptions);
 
         if (config.UseTenancy)
         {

@@ -10,6 +10,7 @@ using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
 using Encina.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -204,6 +205,153 @@ public sealed class ServiceCollectionExtensionsTests
         provider.GetService<SchedulingOptions>().ShouldNotBeNull();
         provider.GetService<IScheduledMessageStore>().ShouldNotBeNull();
         provider.GetService<IScheduledMessageFactory>().ShouldNotBeNull();
+    }
+
+    #endregion
+
+    #region Inbox Pipeline Behavior Registration (#1333)
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseInboxTrue_RegistersInboxPipelineBehavior()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseInbox = true;
+        });
+
+        // Assert - InboxPipelineBehavior is registered as open generic, matching every other
+        // provider's UseInbox registration (ADO.NET, Dapper, and now EF Core via the shared
+        // helper).
+        var descriptor = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IPipelineBehavior<,>) &&
+            d.ImplementationType == typeof(InboxPipelineBehavior<,>));
+        descriptor.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseInboxFalse_DoesNotRegisterInboxPipelineBehavior()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseInbox = false;
+        });
+
+        // Assert
+        var descriptor = services.FirstOrDefault(d =>
+            d.ServiceType == typeof(IPipelineBehavior<,>) &&
+            d.ImplementationType == typeof(InboxPipelineBehavior<,>));
+        descriptor.ShouldBeNull();
+    }
+
+    #endregion
+
+    #region Saga Runner Registration (#1333)
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseSagasTrue_ResolvesSagaRunnerAndNotFoundDispatcher()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseSagas = true;
+        });
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        // Assert - the low-ceremony saga runner and the not-found dispatcher, previously only
+        // registered by the shared ADO.NET/Dapper helper, must resolve for EF Core too (#1333).
+        scope.ServiceProvider.GetRequiredService<ISagaRunner>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithUseSagasFalse_DoesNotRegisterSagaRunner()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseSagas = false;
+        });
+        using var provider = services.BuildServiceProvider();
+
+        // Assert
+        provider.GetService<ISagaRunner>().ShouldBeNull();
+        provider.GetService<ISagaNotFoundDispatcher>().ShouldBeNull();
+    }
+
+    #endregion
+
+    #region All Messaging Patterns Validated (#1333)
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithAllMessagingPatternsEnabled_ValidatesAndResolvesEveryService()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase("TestDb"));
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config =>
+        {
+            config.UseTransactions = true;
+            config.UseOutbox = true;
+            config.UseInbox = true;
+            config.UseSagas = true;
+            config.UseScheduling = true;
+        });
+
+        // Assert - the provider builds under ValidateOnBuild/ValidateScopes (proving the DI graph
+        // for every enabled messaging pattern is complete) and every service the shared helper
+        // registers for EF Core is resolvable, closing the registration-completeness gap in #1333.
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        provider.GetService<OutboxOptions>().ShouldNotBeNull();
+        provider.GetService<InboxOptions>().ShouldNotBeNull();
+        provider.GetService<SagaOptions>().ShouldNotBeNull();
+        provider.GetService<SchedulingOptions>().ShouldNotBeNull();
+
+        scope.ServiceProvider.GetRequiredService<IOutboxStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IInboxStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IScheduledMessageStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaRunner>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>().ShouldNotBeNull();
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IPipelineBehavior<,>) &&
+            d.ImplementationType == typeof(InboxPipelineBehavior<,>));
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IPipelineBehavior<,>) &&
+            d.ImplementationType == typeof(global::Encina.EntityFrameworkCore.TransactionPipelineBehavior<,>));
     }
 
     #endregion
