@@ -97,7 +97,10 @@ catch (Exception ex) when (ex is IOException or JsonException or RegistryExcepti
 var baseUrl = baseUrlOverride ?? registry.BaseUrl;
 var root = baseUrl.TrimEnd('/');
 
-var judged = registry.Sites.Where(s => s.MaxAgeDays is not null || maxAgeDaysOverride is not null).ToList();
+// --max-age-days overrides the threshold VALUE for entries the registry already marks with
+// maxAgeDays; it never widens which entries are judged (a site with no maxAgeDays, such as
+// performance, has no data feed of its own to check for staleness).
+var judged = registry.Sites.Where(s => s.MaxAgeDays is not null).ToList();
 if (dashboardFilter is not null)
 {
     var known = new HashSet<string>(judged.Select(s => s.Id), StringComparer.Ordinal);
@@ -211,26 +214,28 @@ static SiteRegistry LoadRegistry(string path)
     using var doc = JsonDocument.Parse(json);
     var root = doc.RootElement;
 
-    if (!root.TryGetProperty("schema", out var schemaEl) || schemaEl.GetInt32() != 1)
-        throw new RegistryException("'schema' must be 1");
-    if (!root.TryGetProperty("baseUrl", out var baseUrlEl) || baseUrlEl.GetString() is not { Length: > 0 } baseUrl)
-        throw new RegistryException("'baseUrl' is required");
-    if (!root.TryGetProperty("sites", out var sitesEl) || sitesEl.ValueKind != JsonValueKind.Array)
-        throw new RegistryException("'sites' must be an array");
+    // Re-run the same structural and type checks --check-registry uses: a registry that would
+    // fail --check-registry must never reach the unchecked JsonElement getters below, which
+    // would otherwise throw an unhandled InvalidOperationException on the wrong ValueKind
+    // instead of the documented "bad input" failure mode.
+    var errors = ValidateRegistryJson(root);
+    if (errors.Count > 0)
+        throw new RegistryException(string.Join("; ", errors));
 
+    var baseUrl = root.GetProperty("baseUrl").GetString()!;
     var sites = new List<SiteEntry>();
-    foreach (var siteEl in sitesEl.EnumerateArray())
+    foreach (var siteEl in root.GetProperty("sites").EnumerateArray())
     {
-        var id = siteEl.GetProperty("id").GetString() ?? throw new RegistryException("a site entry is missing 'id'");
-        var name = siteEl.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-        var kind = siteEl.TryGetProperty("kind", out var k) ? k.GetString() ?? "" : "";
-        var sitePath = siteEl.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
-        var expectHtml = siteEl.TryGetProperty("expectHtml", out var eh) && eh.GetBoolean();
-        var dataPath = siteEl.TryGetProperty("dataPath", out var dp) ? dp.GetString() : null;
-        var timestampField = siteEl.TryGetProperty("timestampField", out var tf) ? tf.GetString() : null;
-        var publisher = siteEl.TryGetProperty("publisher", out var pub) ? pub.GetString() : null;
-        double? maxAgeDays = siteEl.TryGetProperty("maxAgeDays", out var mad) ? mad.GetDouble() : null;
-        int? trackingIssue = siteEl.TryGetProperty("trackingIssue", out var ti) ? ti.GetInt32() : null;
+        var id = siteEl.GetProperty("id").GetString()!;
+        var name = siteEl.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+        var kind = siteEl.GetProperty("kind").GetString()!;
+        var sitePath = siteEl.GetProperty("path").GetString()!;
+        var expectHtml = siteEl.TryGetProperty("expectHtml", out var eh) && eh.ValueKind == JsonValueKind.True;
+        var dataPath = siteEl.TryGetProperty("dataPath", out var dp) && dp.ValueKind == JsonValueKind.String ? dp.GetString() : null;
+        var timestampField = siteEl.TryGetProperty("timestampField", out var tf) && tf.ValueKind == JsonValueKind.String ? tf.GetString() : null;
+        var publisher = siteEl.TryGetProperty("publisher", out var pub) && pub.ValueKind == JsonValueKind.String ? pub.GetString() : null;
+        double? maxAgeDays = siteEl.TryGetProperty("maxAgeDays", out var mad) && mad.ValueKind == JsonValueKind.Number ? mad.GetDouble() : null;
+        int? trackingIssue = siteEl.TryGetProperty("trackingIssue", out var ti) && ti.ValueKind == JsonValueKind.Number ? ti.GetInt32() : null;
         sites.Add(new SiteEntry(id, name, kind, sitePath, expectHtml, dataPath, timestampField, publisher, maxAgeDays, trackingIssue));
     }
 
@@ -239,10 +244,6 @@ static SiteRegistry LoadRegistry(string path)
 
 static int ValidateRegistryFile(string path)
 {
-    var errors = new List<string>();
-    string[] knownKinds = ["docs", "api", "dashboard"];
-
-    JsonDocument doc;
     string json;
     try
     {
@@ -254,6 +255,7 @@ static int ValidateRegistryFile(string path)
         return 2;
     }
 
+    JsonDocument doc;
     try
     {
         doc = JsonDocument.Parse(json);
@@ -264,66 +266,9 @@ static int ValidateRegistryFile(string path)
         return 2;
     }
 
+    List<string> errors;
     using (doc)
-    {
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("schema", out var schemaEl) || schemaEl.ValueKind != JsonValueKind.Number || schemaEl.GetInt32() != 1)
-            errors.Add("'schema' must be 1");
-        if (!root.TryGetProperty("baseUrl", out var baseUrlEl) || baseUrlEl.GetString() is not { Length: > 0 })
-            errors.Add("'baseUrl' is required");
-
-        if (!root.TryGetProperty("sites", out var sitesEl) || sitesEl.ValueKind != JsonValueKind.Array)
-        {
-            errors.Add("'sites' must be an array");
-        }
-        else
-        {
-            var seenIds = new HashSet<string>(StringComparer.Ordinal);
-            var index = 0;
-            foreach (var siteEl in sitesEl.EnumerateArray())
-            {
-                var where = $"sites[{index}]";
-                index++;
-
-                var id = siteEl.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
-                if (string.IsNullOrEmpty(id))
-                {
-                    errors.Add($"{where}.id is required");
-                }
-                else if (!seenIds.Add(id))
-                {
-                    errors.Add($"duplicate site id '{id}'");
-                }
-
-                var kind = siteEl.TryGetProperty("kind", out var kindEl) ? kindEl.GetString() : null;
-                if (string.IsNullOrEmpty(kind) || !knownKinds.Contains(kind))
-                    errors.Add($"{where}.kind has an unknown value '{kind}' (expected one of: {string.Join(", ", knownKinds)})");
-
-                var sitePath = siteEl.TryGetProperty("path", out var pathEl) ? pathEl.GetString() : null;
-                if (sitePath is null)
-                {
-                    errors.Add($"{where}.path is required");
-                }
-                else if (sitePath.StartsWith('/'))
-                {
-                    errors.Add($"{where}.path must not start with '/': '{sitePath}'");
-                }
-
-                var hasDataPath = siteEl.TryGetProperty("dataPath", out var dataPathEl) && dataPathEl.ValueKind != JsonValueKind.Null;
-                if (hasDataPath)
-                {
-                    var dataPath = dataPathEl.GetString();
-                    if (!string.IsNullOrEmpty(dataPath) && dataPath.StartsWith('/'))
-                        errors.Add($"{where}.dataPath must not start with '/': '{dataPath}'");
-
-                    var hasMaxAge = siteEl.TryGetProperty("maxAgeDays", out var madEl) && madEl.ValueKind != JsonValueKind.Null;
-                    if (!hasMaxAge && kind != "dashboard")
-                        errors.Add($"{where}.dataPath requires either 'maxAgeDays' or kind 'dashboard' (id: {id ?? "?"})");
-                }
-            }
-        }
-    }
+        errors = ValidateRegistryJson(doc.RootElement);
 
     if (errors.Count > 0)
     {
@@ -334,6 +279,115 @@ static int ValidateRegistryFile(string path)
 
     Console.WriteLine($"Registry OK: {path}");
     return 0;
+}
+
+// Structural and type validation shared by --check-registry and LoadRegistry, so a registry
+// LoadRegistry can parse without an unhandled exception is exactly the set --check-registry
+// accepts (and vice versa).
+static List<string> ValidateRegistryJson(JsonElement root)
+{
+    var errors = new List<string>();
+    string[] knownKinds = ["docs", "api", "dashboard"];
+
+    if (!root.TryGetProperty("schema", out var schemaEl) || schemaEl.ValueKind != JsonValueKind.Number || schemaEl.GetInt32() != 1)
+        errors.Add("'schema' must be 1");
+    if (!root.TryGetProperty("baseUrl", out var baseUrlEl) || baseUrlEl.ValueKind != JsonValueKind.String || baseUrlEl.GetString() is not { Length: > 0 })
+        errors.Add("'baseUrl' is required and must be a non-empty string");
+
+    if (!root.TryGetProperty("sites", out var sitesEl) || sitesEl.ValueKind != JsonValueKind.Array)
+    {
+        errors.Add("'sites' must be an array");
+        return errors;
+    }
+
+    var seenIds = new HashSet<string>(StringComparer.Ordinal);
+    var index = 0;
+    foreach (var siteEl in sitesEl.EnumerateArray())
+    {
+        var where = $"sites[{index}]";
+        index++;
+
+        if (siteEl.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add($"{where} must be an object");
+            continue;
+        }
+
+        var idEl = siteEl.TryGetProperty("id", out var idProp) ? idProp : default;
+        var id = idEl.ValueKind == JsonValueKind.String ? idEl.GetString() : null;
+        if (idEl.ValueKind != JsonValueKind.Undefined && idEl.ValueKind != JsonValueKind.String)
+            errors.Add($"{where}.id must be a string");
+        if (string.IsNullOrEmpty(id))
+        {
+            errors.Add($"{where}.id is required");
+        }
+        else if (!seenIds.Add(id))
+        {
+            errors.Add($"duplicate site id '{id}'");
+        }
+
+        var kindEl = siteEl.TryGetProperty("kind", out var kindProp) ? kindProp : default;
+        var kind = kindEl.ValueKind == JsonValueKind.String ? kindEl.GetString() : null;
+        if (string.IsNullOrEmpty(kind) || !knownKinds.Contains(kind))
+            errors.Add($"{where}.kind has an unknown value '{kind}' (expected one of: {string.Join(", ", knownKinds)})");
+
+        var pathEl = siteEl.TryGetProperty("path", out var pathProp) ? pathProp : default;
+        var sitePath = pathEl.ValueKind == JsonValueKind.String ? pathEl.GetString() : null;
+        if (pathEl.ValueKind != JsonValueKind.Undefined && pathEl.ValueKind != JsonValueKind.String)
+            errors.Add($"{where}.path must be a string");
+        else if (sitePath is null)
+        {
+            errors.Add($"{where}.path is required");
+        }
+        else if (sitePath.StartsWith('/'))
+        {
+            errors.Add($"{where}.path must not start with '/': '{sitePath}'");
+        }
+
+        if (siteEl.TryGetProperty("expectHtml", out var expectHtmlEl)
+            && expectHtmlEl.ValueKind is not (JsonValueKind.True or JsonValueKind.False or JsonValueKind.Undefined))
+            errors.Add($"{where}.expectHtml must be a boolean");
+
+        var hasDataPath = siteEl.TryGetProperty("dataPath", out var dataPathEl) && dataPathEl.ValueKind != JsonValueKind.Null;
+        if (hasDataPath)
+        {
+            if (dataPathEl.ValueKind != JsonValueKind.String)
+            {
+                errors.Add($"{where}.dataPath must be a string");
+            }
+            else
+            {
+                var dataPath = dataPathEl.GetString();
+                if (!string.IsNullOrEmpty(dataPath) && dataPath.StartsWith('/'))
+                    errors.Add($"{where}.dataPath must not start with '/': '{dataPath}'");
+            }
+
+            var hasMaxAge = siteEl.TryGetProperty("maxAgeDays", out var madElForPairing) && madElForPairing.ValueKind != JsonValueKind.Null;
+            if (!hasMaxAge && kind != "dashboard")
+                errors.Add($"{where}.dataPath requires either 'maxAgeDays' or kind 'dashboard' (id: {id ?? "?"})");
+        }
+
+        if (siteEl.TryGetProperty("maxAgeDays", out var madEl) && madEl.ValueKind != JsonValueKind.Null)
+        {
+            if (madEl.ValueKind != JsonValueKind.Number)
+                errors.Add($"{where}.maxAgeDays must be a number");
+            else if (madEl.GetDouble() is var maxAge && (!double.IsFinite(maxAge) || maxAge <= 0))
+                errors.Add($"{where}.maxAgeDays must be a finite number greater than 0 (found '{maxAge}')");
+        }
+
+        if (siteEl.TryGetProperty("trackingIssue", out var tiEl) && tiEl.ValueKind != JsonValueKind.Null
+            && tiEl.ValueKind != JsonValueKind.Number)
+            errors.Add($"{where}.trackingIssue must be an integer");
+
+        foreach (var stringField in new[] { "name", "timestampField", "publisher" })
+        {
+            if (siteEl.TryGetProperty(stringField, out var fieldEl)
+                && fieldEl.ValueKind is not (JsonValueKind.String or JsonValueKind.Null or JsonValueKind.Undefined))
+                errors.Add($"{where}.{stringField} must be a string");
+        }
+    }
+
+    return errors;
 }
 
 static string FindRepoRoot(string startDir)
