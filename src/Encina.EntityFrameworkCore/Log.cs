@@ -55,8 +55,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 3024, Level = LogLevel.Information, Message = "Stored {Count} notifications in outbox (CorrelationId: {CorrelationId})")]
     public static partial void StoredNotificationsInOutbox(ILogger logger, int count, string correlationId);
 
-    [LoggerMessage(EventId = 3025, Level = LogLevel.Debug, Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorMessage, string correlationId);
+    [LoggerMessage(EventId = 3025, Level = LogLevel.Debug, Message = "Skipping outbox storage for {Count} notifications due to error: {ErrorCode} (CorrelationId: {CorrelationId})")]
+    public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorCode, string correlationId);
 
     // Outbox Processor: EventIds 3026-3034 were retired when the EF Core processor moved onto
     // Encina.Messaging.Outbox.OutboxProcessorBase, which logs through MessagingLog (2827-2833, 2958).
