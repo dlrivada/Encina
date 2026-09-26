@@ -284,32 +284,41 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
+      - name: Checkout site registry
+        # This job has no other checkout; the smoke check below reads the list of
+        # published sites and data feeds from the registry (#1382) instead of a
+        # hard-coded path list, so a sparse checkout of just that file is enough.
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tools/ai/sites.json
+          sparse-checkout-cone-mode: false
+
       - name: Smoke-check the published site
-        # Fails the deploy when the site root is not rendered HTML (a raw copy of
-        # docs/ like #1381), the API reference is missing, or a dashboard or its
-        # data is not served. Retries absorb Pages propagation delay.
+        # Fails the deploy when a registered site is not rendered as expected (a
+        # raw copy of docs/ like #1381), the API reference is missing, or a
+        # dashboard or its data is not served. Retries absorb Pages propagation
+        # delay. The path (and dataPath) list and the text/html expectation come
+        # from tools/ai/sites.json (#1382): adding a site means adding one entry.
         shell: bash
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           base="${PAGE_URL%/}/"
-          paths=(
-            ""
-            "api/"
-            "coverage/"
-            "mutations/"
-            "benchmarks/dashboard/"
-            "performance/"
-            "load-tests/dashboard/"
-            "coverage/data/latest.json"
-            "mutations/data/latest.json"
-            "benchmarks/data/latest.json"
-            "load-tests/data/latest.json"
-          )
+          registry="tools/ai/sites.json"
+          mapfile -t paths < <(jq -r '.sites[].path' "$registry")
+          mapfile -t expect_html < <(jq -r '.sites[] | (.expectHtml // false)' "$registry")
+          mapfile -t data_paths < <(jq -r '.sites[] | select(.dataPath != null) | .dataPath' "$registry")
+          for p in "${data_paths[@]}"; do
+            paths+=("$p")
+            expect_html+=("false")
+          done
           attempts=6
           delay=20
           failures=0
-          for path in "${paths[@]}"; do
+          for i in "${!paths[@]}"; do
+            path="${paths[$i]}"
+            want_html="${expect_html[$i]}"
             url="${base}${path}"
             status="000"
             ctype=""
@@ -318,7 +327,7 @@ jobs:
               status="${out%% *}"
               ctype="${out#* }"
               if [ "$status" = "200" ]; then
-                if [ -n "$path" ] || [[ "$ctype" == text/html* ]]; then
+                if [ "$want_html" != "true" ] || [[ "$ctype" == text/html* ]]; then
                   break
                 fi
               fi
@@ -329,7 +338,7 @@ jobs:
             if [ "$status" != "200" ]; then
               echo "::error title=Pages smoke check failed::$url returned HTTP $status after $attempts attempts"
               failures=$((failures + 1))
-            elif [ -z "$path" ] && [[ "$ctype" != text/html* ]]; then
+            elif [ "$want_html" = "true" ] && [[ "$ctype" != text/html* ]]; then
               echo "::error title=Pages smoke check failed::$url returned Content-Type '$ctype', expected text/html (unrendered site?)"
               failures=$((failures + 1))
             else
