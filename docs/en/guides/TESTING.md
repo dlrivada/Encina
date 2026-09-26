@@ -60,10 +60,10 @@ The dashboard shows:
 - Overall weighted coverage percentage (informational only; there is no project-wide target)
 - Per-category breakdown (informational only; categories have no targets of their own)
 - Per-package detail with per-test-type columns (Unit, Guard, Contract, Property, Integration) — this is the only gate: each package must reach its manifest target on every applicable flag
-- Coverage trend over time (historical data accumulated in `docs/coverage/data/history.json`)
+- Coverage trend over time (historical data accumulated in `history.json`, served live on Pages)
 - Interactive sunburst distribution chart
 
-Coverage data is committed automatically by CI to `docs/coverage/data/latest.json` after each successful run. Historical snapshots are appended to `history.json` (last 100 entries) by `.github/scripts/coverage-history.cs`.
+CI does not commit coverage data to `main`. `publish-coverage.yml` computes `latest.json` and `history.json` from each successful CI Full run and stages them as a Pages overlay artifact; its `deploy` job hands that overlay to `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — which lays it over the live dashboard data and deploys the site. The authoritative copies are the ones served live at [dlrivada.github.io/Encina/coverage/data/latest.json](https://dlrivada.github.io/Encina/coverage/data/latest.json) and `.../history.json` (last 100 entries, appended by `.github/scripts/coverage-history.cs`); the copies tracked under `docs/coverage/data/` in the repository are only a fallback seed and are not current.
 
 ### Manual (local)
 
