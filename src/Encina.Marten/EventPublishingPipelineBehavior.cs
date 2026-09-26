@@ -84,7 +84,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
                     Left: err => err,
                     Right: _ => EncinaErrors.Unknown);
 
-                Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.Message);
+                Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.GetEncinaCode());
 
                 return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                     EncinaErrors.Create(

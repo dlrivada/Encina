@@ -131,10 +131,10 @@ internal sealed class InlineProjectionRelay
             return result;
         }
 
-        var errorMessage = result.Match(
+        var errorCode = result.Match(
             Right: static _ => string.Empty,
-            Left: static error => error.Message);
-        ProjectionLog.InlineProjectionFailedAfterSave(_logger, aggregateType, streamId, errorMessage);
+            Left: static error => error.GetEncinaCode());
+        ProjectionLog.InlineProjectionFailedAfterSave(_logger, aggregateType, streamId, errorCode);
 
         return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
     }

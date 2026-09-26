@@ -117,7 +117,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
                 },
                 Left: async error =>
                 {
-                    Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, error.Message, context.CorrelationId);
+                    Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, error.GetEncinaCode(), context.CorrelationId);
 
                     await transaction.RollbackAsync(cancellationToken);
                 });

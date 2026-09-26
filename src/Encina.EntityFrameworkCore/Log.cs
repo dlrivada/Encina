@@ -23,8 +23,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 3014, Level = LogLevel.Debug, Message = "Committing transaction for request {RequestType} (CorrelationId: {CorrelationId})")]
     public static partial void CommittingTransaction(ILogger logger, string requestType, string correlationId);
 
-    [LoggerMessage(EventId = 3015, Level = LogLevel.Warning, Message = "Rolling back transaction for request {RequestType} due to error: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    public static partial void RollingBackTransactionDueToError(ILogger logger, string requestType, string errorMessage, string correlationId);
+    [LoggerMessage(EventId = 3015, Level = LogLevel.Warning, Message = "Rolling back transaction for request {RequestType} due to error: {ErrorCode} (CorrelationId: {CorrelationId})")]
+    public static partial void RollingBackTransactionDueToError(ILogger logger, string requestType, string errorCode, string correlationId);
 
     [LoggerMessage(EventId = 3016, Level = LogLevel.Error, Message = "Rolling back transaction for request {RequestType} due to exception (CorrelationId: {CorrelationId})")]
     public static partial void RollingBackTransactionDueToException(ILogger logger, Exception exception, string requestType, string correlationId);
@@ -90,8 +90,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 3043, Level = LogLevel.Debug, Message = "Skipping non-INotification domain event {EventType}")]
     public static partial void SkippingNonNotificationEvent(ILogger logger, string eventType);
 
-    [LoggerMessage(EventId = 3044, Level = LogLevel.Warning, Message = "Failed to publish domain event {EventType} (EventId: {EventId}): {ErrorMessage}")]
-    public static partial void DomainEventPublishFailed(ILogger logger, string eventType, Guid eventId, string errorMessage);
+    [LoggerMessage(EventId = 3044, Level = LogLevel.Warning, Message = "Failed to publish domain event {EventType} (EventId: {EventId}): {ErrorCode}")]
+    public static partial void DomainEventPublishFailed(ILogger logger, string eventType, Guid eventId, string errorCode);
 
     [LoggerMessage(EventId = 3045, Level = LogLevel.Error, Message = "Exception while publishing domain event {EventType} (EventId: {EventId})")]
     public static partial void DomainEventPublishException(ILogger logger, Exception exception, string eventType, Guid eventId);
