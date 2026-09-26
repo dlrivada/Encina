@@ -1388,6 +1388,10 @@ try {
         New-Item -ItemType Directory -Force (Join-Path $remWt '.github\ISSUE_TEMPLATE') | Out-Null
         Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt 'tools\ai\audit\pipeline.json')
         Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt 'tools\ai\audit\_audit-lib.ps1')
+        # #1388: audit-draft-remediation.ps1 now also dot-sources _remediation-checks.ps1 (Get-FindingAnchors,
+        # Test-DuplicateEvidence, Remove-OuterFence, Find-TemplatePlaceholders), so this fixture needs its own
+        # copy too, exactly like _audit-lib.ps1 above.
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt 'tools\ai\audit\_remediation-checks.ps1')
         Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1')
         foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
             Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt ".github\ISSUE_TEMPLATE\$t")
@@ -1476,6 +1480,107 @@ try {
         'SKIP audit-draft-remediation.ps1: git is not on PATH'
     }
     # ---- end #1375 block ----
+
+    # ---- #1388: tools/ai/audit/_remediation-checks.ps1 (duplicate evidence, outer-fence stripping, template
+    # placeholder detection) -- the three defect classes audit #16's remediation stage produced (a duplicate
+    # claim with no shared evidence, a fenced draft, a draft that kept the template's own placeholder text).
+    # Exercises the real _remediation-checks.ps1 directly: no `gh` and no local model, so this suite stays
+    # free and offline; the duplicate-evidence cases instead replay real fixture text captured once from
+    # `gh issue view` (fixtures/1388/issue-*.json) and the real code/docs stage finding paragraphs of audit #16
+    # (fixtures/1388/finding-*.md), and the placeholder cases replay the real drafts audit #16 produced
+    # (fixtures/1388/16-tests-*.md).
+    . (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1')
+    $fixtures1388 = Join-Path $repo '.claude\hooks\tests\fixtures\1388'
+
+    function Test-RemediationChecksCase([string]$Label, [scriptblock]$Check) {
+        $script:total++
+        try {
+            if (& $Check) { "PASS remediation-checks: $Label" }
+            else { $script:failed++; "FAIL remediation-checks: $Label" }
+        }
+        catch {
+            $script:failed++
+            "FAIL remediation-checks: $Label ($($_.Exception.Message))"
+        }
+    }
+
+    $findingCode1 = Get-Content -LiteralPath (Join-Path $fixtures1388 'finding-code-1.md') -Raw
+    $findingCode2 = Get-Content -LiteralPath (Join-Path $fixtures1388 'finding-code-2.md') -Raw
+    $findingCode4 = Get-Content -LiteralPath (Join-Path $fixtures1388 'finding-code-4.md') -Raw
+    $findingDocs9 = Get-Content -LiteralPath (Join-Path $fixtures1388 'finding-docs-9.md') -Raw
+    $issue1333 = Get-Content -LiteralPath (Join-Path $fixtures1388 'issue-1333.json') -Raw | ConvertFrom-Json
+    $issue1328 = Get-Content -LiteralPath (Join-Path $fixtures1388 'issue-1328.json') -Raw | ConvertFrom-Json
+    $issue1170 = Get-Content -LiteralPath (Join-Path $fixtures1388 'issue-1170.json') -Raw | ConvertFrom-Json
+    $issue1177 = Get-Content -LiteralPath (Join-Path $fixtures1388 'issue-1177.json') -Raw | ConvertFrom-Json
+
+    # (a) The four real duplicate claims from audit #16: three false (code 1 -> #1333, code 2 -> #1328,
+    # docs 9 -> #1177) and one true (code 4 -> #1170). Exact expected outcome per finding, matching the
+    # orchestrator's own confirmation in #1388's issue body.
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: code finding 1 vs #1333 is REJECTED (false duplicate claim)' {
+        -not (Test-DuplicateEvidence $findingCode1 "$($issue1333.title)`n$($issue1333.body)")
+    }
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: code finding 2 vs #1328 is REJECTED (false duplicate claim)' {
+        -not (Test-DuplicateEvidence $findingCode2 "$($issue1328.title)`n$($issue1328.body)")
+    }
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: code finding 4 vs #1170 is ACCEPTED (the one true duplicate claim)' {
+        Test-DuplicateEvidence $findingCode4 "$($issue1170.title)`n$($issue1170.body)"
+    }
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: docs finding 9 vs #1177 is REJECTED (false duplicate claim)' {
+        -not (Test-DuplicateEvidence $findingDocs9 "$($issue1177.title)`n$($issue1177.body)")
+    }
+
+    # (b) A finding with a file anchor but no backticked symbol at all can never be auto-accepted, even against
+    # a candidate that repeats the file path and every other word of the finding.
+    $noSymbolFinding = 'src/Encina.ADO.SqlServer/Sagas/SagaStoreADO.cs has a defect, but this sentence backticks nothing.'
+    $echoingCandidate = 'title: src/Encina.ADO.SqlServer/Sagas/SagaStoreADO.cs has a defect, but this sentence backticks nothing, word for word.'
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: a finding with no backticked symbol is never accepted' {
+        -not (Test-DuplicateEvidence $noSymbolFinding $echoingCandidate)
+    }
+
+    # (c) Remove-OuterFence strips exactly one outer ```markdown fence (the real 16-tests-1 draft, #1388's own
+    # reproduction of the defect) and one bare ``` fence, but leaves an inner fence and an already-unfenced
+    # draft (the real 16-tests-3 draft) untouched.
+    $fencedDraft = Get-Content -LiteralPath (Join-Path $fixtures1388 '16-tests-1-outer-fence.md') -Raw
+    $defencedDraft = Remove-OuterFence $fencedDraft
+    Test-RemediationChecksCase 'Remove-OuterFence: strips the real 16-tests-1 outer ```markdown fence' {
+        $defencedDraft.TrimStart().StartsWith('<!--') -and -not $defencedDraft.TrimEnd().EndsWith('```')
+    }
+    $tripleBacktick = [string]::new([char]0x60, 3)
+    $bareFenced = ($tripleBacktick, 'plain content', 'more content', $tripleBacktick) -join "`n"
+    $bareFencedExpected = ('plain content', 'more content') -join "`n"
+    Test-RemediationChecksCase 'Remove-OuterFence: strips a bare outer triple-backtick fence (no markdown tag)' {
+        (Remove-OuterFence $bareFenced) -eq $bareFencedExpected
+    }
+    $innerFenceOnly = ('## Description', '', 'Some text.', '', $tripleBacktick + 'csharp', 'code sample', $tripleBacktick, '', 'More text.') -join "`n"
+    Test-RemediationChecksCase 'Remove-OuterFence: leaves an inner code fence untouched' {
+        (Remove-OuterFence $innerFenceOnly) -eq $innerFenceOnly
+    }
+    $unfencedDraft = Get-Content -LiteralPath (Join-Path $fixtures1388 '16-tests-3-placeholders.md') -Raw
+    Test-RemediationChecksCase 'Remove-OuterFence: leaves an already-unfenced draft (the real 16-tests-3) untouched' {
+        (Remove-OuterFence $unfencedDraft) -eq $unfencedDraft
+    }
+
+    # (d) Find-TemplatePlaceholders finds the five placeholder lines #1388's issue body names in the real
+    # 16-tests-3 draft, and nothing at all in the real 16-tests-1 draft once its outer fence is stripped (a
+    # clean, fully-filled draft).
+    $templatesDirFor1388 = Join-Path $repo '.github\ISSUE_TEMPLATE'
+    $foundPlaceholders = Find-TemplatePlaceholders $templatesDirFor1388 $unfencedDraft
+    $expectedPlaceholderSubstrings = @(
+        '[e.g., Encina.Dapper.SqlServer, Encina.ADO.PostgreSQL]',
+        '| Example.Package | 62.3% | 85% | -22.7% |',
+        '[ ] Test 1: Description',
+        '[e.g., `ADO-PostgreSQL`, `Dapper-SqlServer`, `EFCore-MySQL`]',
+        '#___ - Description'
+    )
+    foreach ($expected in $expectedPlaceholderSubstrings) {
+        Test-RemediationChecksCase "Find-TemplatePlaceholders: the real 16-tests-3 draft still has '$expected'" {
+            @($foundPlaceholders | Where-Object { $_.Contains($expected) }).Count -gt 0
+        }
+    }
+    Test-RemediationChecksCase 'Find-TemplatePlaceholders: a clean, fully-filled draft (the real 16-tests-1, defenced) has none' {
+        (Find-TemplatePlaceholders $templatesDirFor1388 $defencedDraft).Count -eq 0
+    }
+    # ---- end #1388 block ----
 
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /

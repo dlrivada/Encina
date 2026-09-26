@@ -130,6 +130,16 @@ skips the `gh issue list` duplicate search — this is what the automated test s
 model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
 you open any of them.
 
+A model-named "duplicate-of #m" is honored only when `tools/ai/audit/_remediation-checks.ps1`'s
+`Test-DuplicateEvidence` finds the finding's own evidence (a cited file and a cited symbol) in `#m`'s real
+`gh issue view` title/body, not just a plausible-sounding candidate; a rejected claim is drafted as new with a
+"possibly related" note instead of being dropped (#1388). `audit-draft-remediation.ps1` also strips an outer
+code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still has the issue
+template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row), re-asks the
+model once, naming the offending lines; a draft that still has placeholders after that re-ask is kept (for
+inspection), its finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole
+run exits 1 at the end, naming every such draft.
+
 Update the board's `audits/<n>.stage` after each stage commits.
 
 ## 3. The verifier and its FAIL loop
