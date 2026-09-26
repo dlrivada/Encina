@@ -28,6 +28,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
+. (Join-Path $PSScriptRoot '_remediation-checks.ps1')
 
 $mainRoot = Get-MainRoot $PSScriptRoot
 $audit = Get-CurrentAudit $mainRoot
@@ -95,6 +96,20 @@ function Test-FindingsHeaderPresent([string]$Path) {
 function Test-ValidDuplicate([string]$DuplicateOf, [string[]]$CandidateNumbers) {
     if ([string]::IsNullOrWhiteSpace($DuplicateOf)) { return $false }
     return $CandidateNumbers -contains $DuplicateOf
+}
+
+# #1388 decision 2: `gh issue view <n> --json title,body`, cached per issue number for the whole run -- the
+# classifier's candidate excerpts and the duplicate-evidence check below both need a candidate's real body
+# text, and a candidate the model later names as a duplicate is one this cache already fetched while building
+# the classify prompt, so it is never fetched twice.
+function Get-CachedIssueTitleBody([string]$Number, [hashtable]$Cache, [string]$Label) {
+    if ($Cache.Contains($Number)) { return $Cache[$Number] }
+    $viewOut = & gh issue view $Number --repo dlrivada/Encina --json title,body 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-draft-remediation: 'gh issue view $Number' failed for $Label (exit $LASTEXITCODE): $viewOut"; exit 1 }
+    $parsed = $null
+    try { $parsed = $viewOut | ConvertFrom-Json } catch { $parsed = $null }
+    $Cache[$Number] = $parsed
+    return $parsed
 }
 
 function Get-DryRunKind([string]$Stage, [string]$Severity) {
@@ -174,6 +189,21 @@ Guidance:
 "@
 }
 
+# #1388 decisions 3/4: strips one outer code fence and reports remaining template placeholders for a draft
+# already written to $Path, rewriting the file in place when the fence was stripped. Returns the (possibly
+# empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList is the
+# script's own $lessons list, passed explicitly rather than captured, since this function is called once per
+# finding across the whole loop below.
+function Repair-Draft([string]$Path, [string]$Label, [System.Collections.Generic.List[string]]$LessonsList) {
+    $raw = Get-Content -LiteralPath $Path -Raw
+    $defenced = Remove-OuterFence $raw
+    if ($defenced -ne $raw) {
+        Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $defenced
+        $LessonsList.Add("$Label`: draft $(Split-Path -Leaf $Path) was wrapped in an outer code fence; stripped it before writing.")
+    }
+    return (Find-TemplatePlaceholders $templatesDir $defenced)
+}
+
 $stageNames = 'code', 'tests', 'docs'
 $allFindings = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($stageName in $stageNames) {
@@ -220,6 +250,8 @@ else {
 
 $lines = [System.Collections.Generic.List[string]]::new()
 $lessons = [System.Collections.Generic.List[string]]::new()
+$placeholderFailures = [System.Collections.Generic.List[string]]::new()
+$ghIssueCache = @{}
 
 # A finding Split-Findings could not parse into the expected numbered layout (Severity 'Unknown', the whole
 # section as its Text) is never allowed to pass through silently: the stage's own findings format drifted from
@@ -257,6 +289,25 @@ foreach ($finding in $allFindings) {
     $candidates = @($candidatesByNumber.Values | Select-Object -First 10)
     $candidateNumbers = @($candidates | ForEach-Object { [string]$_.number })
     $candidateLines = if ($candidates.Count -gt 0) { (($candidates | ForEach-Object { "#$($_.number): $($_.title)" }) -join '; ') } else { '(none found)' }
+    $possiblyRelatedNote = $null
+
+    # #1388 decision 2: the classifier also gets each candidate's own first 400 characters of body, not just
+    # its title -- a title alone is often too generic to tell two same-area bugs apart (the failure mode audit
+    # #16 hit). Fetched and cached per issue number ($ghIssueCache, declared once above the loop), so the
+    # duplicate-evidence check below reuses the same fetch instead of asking `gh` again.
+    if (-not $NoGh) {
+        foreach ($c in $candidates) {
+            [void](Get-CachedIssueTitleBody ([string]$c.number) $ghIssueCache $label)
+        }
+    }
+    $candidateLinesForClassify = if ($candidates.Count -gt 0) {
+        (($candidates | ForEach-Object {
+            $cached = $ghIssueCache[[string]$_.number]
+            $bodyExcerpt = if ($cached -and $cached.body) { ($cached.body.Substring(0, [Math]::Min(400, $cached.body.Length)) -replace '\s+', ' ').Trim() } else { '' }
+            "#$($_.number): $($_.title) -- $bodyExcerpt"
+        }) -join "`n")
+    }
+    else { '(none found)' }
 
     if ($DryRun) {
         $kind = Get-DryRunKind $finding.Stage $finding.Severity
@@ -282,8 +333,8 @@ kind: bug|test|debt|docs; duplicate-of: #m|none; keywords: k1, k2, k3
   problem as this finding; otherwise "none".
 - keywords: up to 3 short keywords for the finding.
 
-Candidate open issues (from `gh issue list --search`):
-$candidateLines
+Candidate open issues (from `gh issue list --search`, title -- first 400 characters of body):
+$candidateLinesForClassify
 "@
     $classifyOut = Join-Path $remediationDir "_classify-$n-$($finding.Stage)-$($finding.Id).md"
     Push-Location $mainRoot
@@ -326,6 +377,21 @@ $candidateLines
         $duplicateOf = $null
     }
 
+    # #1388 decision 1: a duplicate-of that named a real candidate is still only honored when the finding's
+    # own evidence (a cited file AND a cited symbol) actually appears in that candidate's title/body -- the
+    # Qwen classifier picks the closest-SOUNDING candidate, not necessarily the same defect (3 of audit #16's
+    # 4 duplicate claims were wrong even though all 4 named a real candidate). Skipped under -NoGh, where no
+    # duplicate is ever accepted regardless (unchanged from before #1388).
+    if ($duplicateOf -and -not $NoGh) {
+        $cachedCandidate = Get-CachedIssueTitleBody $duplicateOf $ghIssueCache $label
+        $candidateText = if ($cachedCandidate) { "$($cachedCandidate.title)`n$($cachedCandidate.body)" } else { '' }
+        if (-not (Test-DuplicateEvidence $finding.Text $candidateText)) {
+            $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
+            $possiblyRelatedNote = "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            $duplicateOf = $null
+        }
+    }
+
     if ($duplicateOf) {
         $lines.Add("- $label`: duplicate of #$duplicateOf")
         "$label -> duplicate of #$duplicateOf"
@@ -350,8 +416,64 @@ $candidateLines
         Write-Error "audit-draft-remediation: local model drafting failed for $label (exit $draftExit, output present: $(Test-Path -LiteralPath $outFile)): $draftOutput"
         exit 1
     }
-    $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile)")
-    "$label -> $kind draft $(Split-Path -Leaf $outFile)"
+
+    # #1388 decisions 3/4: strip an outer code fence and re-ask ONCE, naming the offending lines, when the
+    # template's own placeholder text survived into the draft. A draft that still has placeholders after the
+    # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
+    # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
+    $placeholders = Repair-Draft $outFile $label $lessons
+    if ($placeholders.Count -gt 0) {
+        $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
+        $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
+        Set-Content -LiteralPath $reaskBrief -Encoding utf8 -Value @"
+$(Build-DraftBrief $n $finding $kind $route $candidateLines)
+
+Your previous reply still contained the template's own placeholder text, unchanged, on these lines:
+$offendingLines
+
+Replace every one of them with real content drawn from the finding; never leave a bracketed example, '#___',
+an 'Example.Package' row or a literal 'Test N: Description' row untouched.
+"@
+        Push-Location $mainRoot
+        try {
+            $reaskOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$n-$($finding.Stage)-$($finding.Id)-reask" --brief $reaskBrief --input $inputFile --out $outFile 2>&1
+            $reaskExit = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+        if ($reaskExit -ne 0 -or -not (Test-Path -LiteralPath $outFile)) {
+            Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
+            exit 1
+        }
+        $placeholders = Repair-Draft $outFile $label $lessons
+    }
+
+    # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
+    # rejected is still worth a human glance -- append it to the draft's own Related Issues section.
+    if ($possiblyRelatedNote) {
+        $finalText = Get-Content -LiteralPath $outFile -Raw
+        $headerMatch = [regex]::Match($finalText, '(?m)^## Related Issues\s*$')
+        if ($headerMatch.Success) {
+            $insertAt = $headerMatch.Index + $headerMatch.Length
+            $updatedText = $finalText.Substring(0, $insertAt) + "`n" + $possiblyRelatedNote + $finalText.Substring($insertAt)
+        }
+        else {
+            $lessons.Add("$label`: could not find a '## Related Issues' header in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
+            $updatedText = $finalText.TrimEnd() + "`n$possiblyRelatedNote`n"
+        }
+        Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
+    }
+
+    if ($placeholders.Count -gt 0) {
+        $placeholderFailures.Add((Split-Path -Leaf $outFile))
+        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)")
+        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
+    }
+    else {
+        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile)")
+        "$label -> $kind draft $(Split-Path -Leaf $outFile)"
+    }
 }
 
 if ($lines.Count -eq 0) {
@@ -374,4 +496,12 @@ if ($DryRun) {
 }
 else {
     "audit-draft-remediation: wrote stages\remediation.md for #$n ($($allFindings.Count) finding(s))"
+}
+
+# #1388 decision 4: a draft that still has unfilled template placeholders after one re-ask is kept (for
+# inspection) and its finding's line in stages/remediation.md is already marked, but the run itself must not
+# report success -- the orchestrator needs to see this before audit-verifier does.
+if ($placeholderFailures.Count -gt 0) {
+    "audit-draft-remediation: $($placeholderFailures.Count) draft(s) still have unfilled template placeholders after one re-ask: $($placeholderFailures -join ', ')"
+    exit 1
 }
