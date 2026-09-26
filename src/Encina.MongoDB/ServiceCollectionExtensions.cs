@@ -87,48 +87,26 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register stores based on configuration
-        if (options.UseOutbox)
-        {
-            services.AddSingleton(options.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<Outbox.OutboxProcessor>();
-        }
-
-        if (options.UseInbox)
-        {
-            services.AddSingleton(options.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreMongoDB>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-        }
-
-        if (options.UseSagas)
-        {
-            services.AddSingleton(options.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreMongoDB>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (options.UseScheduling)
-        {
-            services.AddSingleton(options.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (options.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
+        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
+        // same registrations ADO.NET, Dapper and EF Core get from AddMessagingServices, so a
+        // change to the shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher)
+        // reaches MongoDB automatically instead of drifting out of sync with a hand-rolled block
+        // (#1333). EncinaMongoDbOptions is not a MessagingConfiguration, so the flags and options
+        // are passed individually.
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreMongoDB,
+            OutboxMessageFactory,
+            InboxStoreMongoDB,
+            InboxMessageFactory,
+            SagaStoreMongoDB,
+            SagaStateFactory,
+            ScheduledMessageStoreMongoDB,
+            ScheduledMessageFactory,
+            Outbox.OutboxProcessor>(
+            options.UseOutbox, options.OutboxOptions,
+            options.UseInbox, options.InboxOptions,
+            options.UseSagas, options.SagaOptions,
+            options.UseScheduling, options.SchedulingOptions);
 
         // Register audit log store if enabled
         if (options.UseAuditLogStore)
@@ -233,48 +211,26 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register stores based on configuration
-        if (options.UseOutbox)
-        {
-            services.AddSingleton(options.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<Outbox.OutboxProcessor>();
-        }
-
-        if (options.UseInbox)
-        {
-            services.AddSingleton(options.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreMongoDB>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-        }
-
-        if (options.UseSagas)
-        {
-            services.AddSingleton(options.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreMongoDB>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (options.UseScheduling)
-        {
-            services.AddSingleton(options.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (options.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
+        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
+        // same registrations ADO.NET, Dapper and EF Core get from AddMessagingServices, so a
+        // change to the shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher)
+        // reaches MongoDB automatically instead of drifting out of sync with a hand-rolled block
+        // (#1333). EncinaMongoDbOptions is not a MessagingConfiguration, so the flags and options
+        // are passed individually.
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreMongoDB,
+            OutboxMessageFactory,
+            InboxStoreMongoDB,
+            InboxMessageFactory,
+            SagaStoreMongoDB,
+            SagaStateFactory,
+            ScheduledMessageStoreMongoDB,
+            ScheduledMessageFactory,
+            Outbox.OutboxProcessor>(
+            options.UseOutbox, options.OutboxOptions,
+            options.UseInbox, options.InboxOptions,
+            options.UseSagas, options.SagaOptions,
+            options.UseScheduling, options.SchedulingOptions);
 
         // Register audit log store if enabled
         if (options.UseAuditLogStore)

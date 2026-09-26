@@ -57,75 +57,21 @@ public static class MessagingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
-        // Register TimeProvider for consistent timestamps across all messaging components
-        services.TryAddSingleton(TimeProvider.System);
-
-        // Register the ambient request context accessor. AddEncina() also registers it (TryAdd is
-        // idempotent), but provider packages that wire messaging without the core mediator still
-        // need it resolvable, since SagaRunner and other consumers require it.
-        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
-
-        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
-        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
-        services.TryAddDefaultMessageSerializer();
+        services.AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+            config.UseOutbox, config.OutboxOptions,
+            config.UseInbox, config.InboxOptions,
+            config.UseSagas, config.SagaOptions,
+            config.UseScheduling, config.SchedulingOptions);
 
         if (config.UseTransactions)
         {
             services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
         }
 
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, TOutboxStore>();
-            services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
-            services.AddScoped<OutboxOrchestrator>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
-            services.AddHostedService<TOutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, TInboxStore>();
-            services.AddScoped<IInboxMessageFactory, TInboxFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, TSagaStore>();
-            services.AddScoped<ISagaStateFactory, TSagaFactory>();
-            services.AddScoped<SagaOrchestrator>();
-            services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
-
-            // Low-ceremony saga runner
-            services.AddScoped<ISagaRunner, SagaRunner>();
-        }
-
         if (config.UseRoutingSlips)
         {
             services.AddSingleton(config.RoutingSlipOptions);
             services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, TScheduledStore>();
-            services.AddScoped<IScheduledMessageFactory, TScheduledFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (config.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
         }
 
         if (config.UseRecoverability)
@@ -157,6 +103,135 @@ public static class MessagingServiceCollectionExtensions
         if (config.UseSoftDelete)
         {
             RegisterSoftDeleteServices(services, config);
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the Outbox, Inbox, Saga and Scheduling patterns from individual flags and
+    /// options instances, without requiring a <see cref="MessagingConfiguration"/>.
+    /// </summary>
+    /// <typeparam name="TOutboxStore">The outbox store implementation type.</typeparam>
+    /// <typeparam name="TOutboxFactory">The outbox message factory implementation type.</typeparam>
+    /// <typeparam name="TInboxStore">The inbox store implementation type.</typeparam>
+    /// <typeparam name="TInboxFactory">The inbox message factory implementation type.</typeparam>
+    /// <typeparam name="TSagaStore">The saga store implementation type.</typeparam>
+    /// <typeparam name="TSagaFactory">The saga state factory implementation type.</typeparam>
+    /// <typeparam name="TScheduledStore">The scheduled message store implementation type.</typeparam>
+    /// <typeparam name="TScheduledFactory">The scheduled message factory implementation type.</typeparam>
+    /// <typeparam name="TOutboxProcessor">The outbox processor hosted service type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="useOutbox">Whether to register the Outbox pattern.</param>
+    /// <param name="outboxOptions">The outbox options.</param>
+    /// <param name="useInbox">Whether to register the Inbox pattern.</param>
+    /// <param name="inboxOptions">The inbox options.</param>
+    /// <param name="useSagas">Whether to register the Saga pattern.</param>
+    /// <param name="sagaOptions">The saga options.</param>
+    /// <param name="useScheduling">Whether to register the Scheduling pattern.</param>
+    /// <param name="schedulingOptions">The scheduling options.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AddMessagingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}"/>
+    /// calls this method for ADO.NET and Dapper, whose <see cref="MessagingConfiguration"/> also
+    /// drives Transactions, Routing Slips, Recoverability, Content Router, Scatter-Gather and Soft
+    /// Delete through the generic <c>Encina.Messaging.TransactionPipelineBehavior{TRequest, TResponse}</c>
+    /// and the other shared, provider-agnostic behaviors. EF Core and MongoDB call this method
+    /// directly instead: EF Core has its own DbContext-bound transaction behavior and does not
+    /// (yet) support those other patterns, and MongoDB's <c>EncinaMongoDbOptions</c> is not a
+    /// <see cref="MessagingConfiguration"/> at all, though it exposes the same Outbox, Inbox, Saga
+    /// and Scheduling flags and option types. Either way, the Outbox, Inbox and Saga
+    /// registrations - including <see cref="ISagaRunner"/> and <see cref="ISagaNotFoundDispatcher"/> -
+    /// never drift between providers (#1333).
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("SonarQube", "S2436:Classes and methods should not have too many generic parameters",
+        Justification = "Nine generic parameters are required to support provider-specific implementations for all messaging patterns (Outbox, Inbox, Saga, Scheduling). This is an internal API used by provider packages.")]
+    public static IServiceCollection AddOutboxInboxSagaSchedulingServices<TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor>(
+        this IServiceCollection services,
+        bool useOutbox,
+        OutboxOptions outboxOptions,
+        bool useInbox,
+        InboxOptions inboxOptions,
+        bool useSagas,
+        SagaOptions sagaOptions,
+        bool useScheduling,
+        SchedulingOptions schedulingOptions)
+        where TOutboxStore : class, IOutboxStore
+        where TOutboxFactory : class, IOutboxMessageFactory
+        where TInboxStore : class, IInboxStore
+        where TInboxFactory : class, IInboxMessageFactory
+        where TSagaStore : class, ISagaStore
+        where TSagaFactory : class, ISagaStateFactory
+        where TScheduledStore : class, IScheduledMessageStore
+        where TScheduledFactory : class, IScheduledMessageFactory
+        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(outboxOptions);
+        ArgumentNullException.ThrowIfNull(inboxOptions);
+        ArgumentNullException.ThrowIfNull(sagaOptions);
+        ArgumentNullException.ThrowIfNull(schedulingOptions);
+
+        // Register TimeProvider for consistent timestamps across all messaging components
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the ambient request context accessor. AddEncina() also registers it (TryAdd is
+        // idempotent), but provider packages that wire messaging without the core mediator still
+        // need it resolvable, since SagaRunner and other consumers require it.
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+
+        // Outbox, inbox, saga and scheduling components take IMessageSerializer as a required
+        // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
+        services.TryAddDefaultMessageSerializer();
+
+        if (useOutbox)
+        {
+            services.AddSingleton(outboxOptions);
+            services.AddScoped<IOutboxStore, TOutboxStore>();
+            services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
+            services.AddScoped<OutboxOrchestrator>();
+            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+            services.AddHostedService<TOutboxProcessor>();
+        }
+
+        if (useInbox)
+        {
+            services.AddSingleton(inboxOptions);
+            services.AddScoped<IInboxStore, TInboxStore>();
+            services.AddScoped<IInboxMessageFactory, TInboxFactory>();
+            services.AddScoped<InboxOrchestrator>();
+            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+        }
+
+        if (useSagas)
+        {
+            services.AddSingleton(sagaOptions);
+            services.AddScoped<ISagaStore, TSagaStore>();
+            services.AddScoped<ISagaStateFactory, TSagaFactory>();
+            services.AddScoped<SagaOrchestrator>();
+            services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
+
+            // Low-ceremony saga runner
+            services.AddScoped<ISagaRunner, SagaRunner>();
+        }
+
+        if (useScheduling)
+        {
+            services.AddSingleton(schedulingOptions);
+            services.AddScoped<IScheduledMessageStore, TScheduledStore>();
+            services.AddScoped<IScheduledMessageFactory, TScheduledFactory>();
+            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
+                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
+            services.TryAddScoped<IScheduledMessageDispatcher>(
+                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
+            services.AddScoped<SchedulerOrchestrator>();
+
+            if (schedulingOptions.EnableProcessor)
+            {
+                services.AddHostedService<ScheduledMessageProcessor>();
+            }
         }
 
         return services;
