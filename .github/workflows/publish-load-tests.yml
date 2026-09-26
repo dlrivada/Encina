@@ -1,9 +1,16 @@
 name: Publish Load Tests Data
 
-# Triggered when the Load Tests workflow completes successfully.
-# Downloads all load-test artifacts (console harness + NBomber scenarios),
-# runs perf-report.cs --kind load-tests to produce a unified snapshot,
-# archives raw data to perf-raw, and deploys the dashboard to Pages.
+# Triggered when the Load Tests workflow completes on main. The publish-data job
+# downloads all load-test artifacts (console harness + NBomber scenarios), runs
+# perf-report.cs --kind load-tests to produce a unified snapshot, archives raw
+# data to perf-raw, computes the dashboard data (latest.json, history.json,
+# docref-index.json) and uploads it as the artifact pages-overlay-load-tests.
+# The deploy job then calls docs.yml, the only Pages deployer (#1381), which
+# lays that overlay over the live data of every dashboard and deploys the
+# whole site.
+#
+# A source run that did not succeed fails this workflow visibly instead of
+# skipping it (#1361).
 #
 # Mirrors publish-benchmarks.yml; see ADR-025 for the architectural pattern.
 on:
@@ -17,27 +24,31 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  pages: write
-  id-token: write
-  actions: read
-  contents: write
-
 concurrency:
   group: publish-load-tests
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+  publish-data:
+    name: Compute load-test dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}load-tests/dashboard/
+    # contents: write is for the perf-raw archive push only.
+    permissions:
+      contents: write
+      actions: read
 
     steps:
+      - name: Require a successful source run
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+        env:
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION; nothing was published"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -131,28 +142,31 @@ jobs:
             --sha ${{ github.sha }} \
             --carry-forward-from artifacts/perf-previous/latest.json
 
-      - name: Update docs/load-tests/data
+      - name: Stage fresh load-test data in the Pages overlay
         run: |
-          mkdir -p docs/load-tests/data
-          cp -f artifacts/perf-output/latest.json docs/load-tests/data/latest.json
-          cp -f artifacts/perf-output/docref-index.json docs/load-tests/data/docref-index.json 2>/dev/null || true
+          # Only the files this workflow owns go into overlay/load-tests/; docs.yml
+          # copies them over the live Pages data of every dashboard.
+          mkdir -p overlay/load-tests/data
+          cp -f artifacts/perf-output/latest.json overlay/load-tests/data/latest.json
+          cp -f artifacts/perf-output/docref-index.json overlay/load-tests/data/docref-index.json 2>/dev/null || true
           # Copy archived timestamped snapshots
           find artifacts/perf-output -maxdepth 1 -name "*.json" \
             ! -name "latest.json" \
             ! -name "docref-index.json" \
-            -exec cp -f {} docs/load-tests/data/ \;
-          ls -la docs/load-tests/data/
+            -exec cp -f {} overlay/load-tests/data/ \;
+          ls -la overlay/load-tests/data/
 
       - name: Fetch live history from Pages (most complete)
         run: |
+          cp -f docs/load-tests/data/history.json overlay/load-tests/data/history.json 2>/dev/null || echo "[]" > overlay/load-tests/data/history.json
           PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/history.json"
           PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp docs/load-tests/data/history.json 2>/dev/null) || REPO_ENTRIES=0
+          REPO_ENTRIES=$(grep -c timestamp overlay/load-tests/data/history.json 2>/dev/null) || REPO_ENTRIES=0
           if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
             PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > docs/load-tests/data/history.json
+              echo "$PAGES_HISTORY" > overlay/load-tests/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
@@ -164,8 +178,8 @@ jobs:
         run: |
           dotnet run .github/scripts/perf-history.cs -- \
             --kind load-tests \
-            --latest docs/load-tests/data/latest.json \
-            --history docs/load-tests/data/history.json
+            --latest overlay/load-tests/data/latest.json \
+            --history overlay/load-tests/data/history.json
 
       - name: Archive raw data to perf-raw branch
         continue-on-error: true
@@ -209,61 +223,21 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Persist data to main
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/load-tests/data/
-          if git diff --cached --quiet; then
-            echo "No data changes to commit."
-          else
-            ENTRIES=$(grep -c timestamp docs/load-tests/data/history.json 2>/dev/null || echo 0)
-            git commit -m "chore: update load-tests data ($ENTRIES history entries)"
-            git push origin main || echo "Warning: push failed (branch protection)."
-          fi
-
-      - name: Build Pages site with cross-domain live data preservation
-        run: |
-          rm -rf _site
-          cp -r docs _site
-
-          # Preserve sibling domain data from live Pages (same pattern as publish-benchmarks.yml)
-          for domain in coverage benchmarks mutations; do
-            echo "Fetching live $domain data from Pages..."
-            mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
-                echo "  ✓ $file"
-              else
-                rm -f "_site/$domain/data/$file.new"
-                echo "  - $file (not on Pages yet)"
-              fi
-            done
-            for badge in badge.svg badge.json; do
-              url="https://dlrivada.github.io/Encina/$domain/$badge"
-              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
-              else
-                rm -f "_site/$domain/$badge.new"
-              fi
-            done
-          done
-
-          echo ""
-          echo "Load-tests dashboard:"
-          ls -la _site/load-tests/dashboard/ 2>/dev/null || echo "(not yet)"
-          echo ""
-          echo "Load-tests data:"
-          ls -la _site/load-tests/data/ 2>/dev/null
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Upload Pages overlay
+        uses: actions/upload-artifact@v7
         with:
-          path: _site
+          name: pages-overlay-load-tests
+          path: overlay/
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+  deploy:
+    name: Deploy site with fresh load-test data
+    needs: publish-data
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      overlay-artifact: pages-overlay-load-tests
