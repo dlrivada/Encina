@@ -1,7 +1,14 @@
 name: Publish Coverage Data
 
-# Triggered when CI completes — downloads the coverage artifact
-# and deploys it to GitHub Pages alongside the existing site.
+# Triggered when CI Full completes on main. The publish-data job downloads the
+# coverage artifact, computes the dashboard data (latest.json, history.json,
+# docref-index.json, badges) and uploads it as the artifact
+# pages-overlay-coverage. The deploy job then calls docs.yml, the only Pages
+# deployer (#1381), which lays that overlay over the live data of every
+# dashboard, renders the covref citations and deploys the whole site.
+#
+# A source run that did not succeed fails this workflow visibly instead of
+# skipping it (#1361).
 on:
   workflow_dispatch:
     inputs:
@@ -13,23 +20,30 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  pages: write
-  id-token: write
-  actions: read
-  contents: write
+concurrency:
+  group: publish-coverage
+  cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+  publish-data:
+    name: Compute coverage dashboard data
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}coverage/
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
 
     steps:
+      - name: Require a successful source run
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+        env:
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION; nothing was published"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -60,75 +74,54 @@ jobs:
           run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Pages site with fresh coverage data
+      - name: Stage fresh coverage data in the Pages overlay
+        env:
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
-          # Copy the entire docs/ directory as the Pages site
-          cp -r docs _site
+          # Only the files this workflow owns go into overlay/coverage/; docs.yml
+          # copies them over the live Pages data of every dashboard.
+          mkdir -p overlay/coverage/data
 
-          # Multiple publish-* workflows share a single gh-pages deployment target.
-          # Overlay the live Pages copies of the sibling domains (benchmarks, load-tests)
-          # so their data survives this deploy untouched. Our own coverage subtree is
-          # then overridden below with the fresh CI artifact, which is authoritative.
-          for domain in benchmarks load-tests mutations; do
-            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
-            mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
-                echo "  ✓ $file"
-              else
-                rm -f "_site/$domain/data/$file.new"
-                echo "  - $file (not on Pages yet)"
-              fi
-            done
-          done
+          if [ ! -s coverage-artifact/encina-coverage-summary.json ]; then
+            echo "::error title=Coverage summary missing::coverage-report artifact of run $RUN_ID has no encina-coverage-summary.json; nothing was published"
+            exit 1
+          fi
+          cp -f coverage-artifact/encina-coverage-summary.json overlay/coverage/data/latest.json
+          cp -f coverage-artifact/badge.svg overlay/coverage/badge.svg 2>/dev/null || true
+          cp -f coverage-artifact/badge.json overlay/coverage/badge.json 2>/dev/null || true
 
-          # Override coverage data with fresh CI artifact
-          mkdir -p _site/coverage/data
-          cp -f coverage-artifact/encina-coverage-summary.json _site/coverage/data/latest.json 2>/dev/null || true
-          cp -f coverage-artifact/badge.svg _site/coverage/badge.svg 2>/dev/null || true
-          cp -f coverage-artifact/badge.json _site/coverage/badge.json 2>/dev/null || true
-
-          # Coverage DocRef index (SPEC-001). Guard: an empty or missing candidate never
-          # replaces the index already on Pages (the overlay loop above does not fetch
-          # coverage, so fall back to the live copy explicitly).
-          # IDs come from the manifests (REQ-003), so the index is never literally empty: a run whose
-          # Cobertura collection broke still lists every file, all noData. "Empty" therefore means
-          # "no entry with data", and such a candidate must not replace the live index.
+          # Coverage DocRef index (SPEC-001). Guard: an empty candidate never replaces the
+          # index already on Pages; when it is left out of the overlay, docs.yml keeps the
+          # live copy. IDs come from the manifests (REQ-003), so the index is never literally
+          # empty: a run whose Cobertura collection broke still lists every file, all noData.
+          # "Empty" therefore means "no entry with data".
           if [ -s coverage-artifact/docref-index.json ] && [ "$(jq '[.[] | select(.noData | not)] | length' coverage-artifact/docref-index.json)" -gt 0 ]; then
-            cp -f coverage-artifact/docref-index.json _site/coverage/data/docref-index.json
-            echo "Coverage DocRef index: $(jq 'length' _site/coverage/data/docref-index.json) entries from the CI artifact"
-          elif curl -fsSL -o _site/coverage/data/docref-index.json \
-                 https://dlrivada.github.io/Encina/coverage/data/docref-index.json 2>/dev/null; then
-            echo "No usable DocRef index in the artifact; keeping the live Pages copy"
+            cp -f coverage-artifact/docref-index.json overlay/coverage/data/docref-index.json
+            echo "Coverage DocRef index: $(jq 'length' overlay/coverage/data/docref-index.json) entries from the CI artifact"
           else
-            rm -f _site/coverage/data/docref-index.json
-            echo "No DocRef index in the artifact nor on Pages yet"
+            echo "No usable DocRef index in the artifact; the live Pages copy is kept"
           fi
 
           # Inject runId into the snapshot so history can reference raw artifacts
-          RUN_ID="${{ github.event.workflow_run.id }}"
-          if command -v jq &>/dev/null; then
-            jq --argjson rid "$RUN_ID" '. + {runId: $rid}' \
-              _site/coverage/data/latest.json > _tmp.json && mv _tmp.json _site/coverage/data/latest.json
-          fi
+          jq --argjson rid "$RUN_ID" '. + {runId: $rid}' \
+            overlay/coverage/data/latest.json > _tmp.json && mv _tmp.json overlay/coverage/data/latest.json
 
           # Archive snapshot
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
-          cp -f _site/coverage/data/latest.json "_site/coverage/data/${STAMP}.json" 2>/dev/null || true
+          cp -f overlay/coverage/data/latest.json "overlay/coverage/data/${STAMP}.json"
 
-          # History strategy: fetch from live Pages (most complete), fall back to repo.
-          # The repo version may lag behind because auto-push is blocked by branch protection.
+          # History strategy: fetch from live Pages (authoritative), fall back to the
+          # copy tracked in main, which lags because nothing commits it back.
+          cp -f docs/coverage/data/history.json overlay/coverage/data/history.json 2>/dev/null || echo "[]" > overlay/coverage/data/history.json
           PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
           PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp _site/coverage/data/history.json 2>/dev/null || echo 0)
+          REPO_ENTRIES=$(grep -c timestamp overlay/coverage/data/history.json 2>/dev/null) || REPO_ENTRIES=0
 
           if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > _site/coverage/data/history.json
+              echo "$PAGES_HISTORY" > overlay/coverage/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
@@ -138,59 +131,27 @@ jobs:
 
           # Update history (appends current snapshot)
           dotnet run .github/scripts/coverage-history.cs -- \
-            --latest _site/coverage/data/latest.json \
-            --history _site/coverage/data/history.json || true
+            --latest overlay/coverage/data/latest.json \
+            --history overlay/coverage/data/history.json
 
-          echo "Coverage data updated. History entries:"
-          cat _site/coverage/data/history.json | head -5
+          echo "Overlay contents:"
+          find overlay -type f | sort
 
-      - name: Render covref markers in documentation + build cited-by.json
-        # INV-002: a rendering problem must never block the Pages deploy.
-        continue-on-error: true
-        run: |
-          if [ ! -f _site/coverage/data/docref-index.json ]; then
-            echo "No coverage DocRef index available; skipping covref rendering"
-            exit 0
-          fi
-          # Scan docs/ AND src/ (per-package READMEs may cite coverage). The renderer writes
-          # cited-by.json next to the index it reads.
-          dotnet run .github/scripts/cov-docs-render.cs -- \
-            --docref-index _site/coverage/data/docref-index.json \
-            --docs-root docs \
-            --scan-roots src
-
-          # The Pages payload was copied from docs/ before rendering: refresh the rendered pages.
-          git -c core.quotePath=false diff --name-only -- docs | while IFS= read -r f; do
-            mkdir -p "_site/$(dirname "${f#docs/}")"
-            cp -f "$f" "_site/${f#docs/}"
-          done
-
-      - name: Persist history + docref-index + cited-by + rendered docs back to repo
-        continue-on-error: true
-        run: |
-          cp -f _site/coverage/data/history.json docs/coverage/data/history.json
-          for file in docref-index.json cited-by.json; do
-            if [ -s "_site/coverage/data/$file" ]; then
-              cp -f "_site/coverage/data/$file" "docs/coverage/data/$file"
-            fi
-          done
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/coverage/data/history.json docs/coverage/data/docref-index.json docs/coverage/data/cited-by.json 2>/dev/null || true
-          git add -u docs/ src/ ./*.md 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No coverage data or doc changes to commit"
-          else
-            ENTRIES=$(grep -c timestamp docs/coverage/data/history.json || echo 0)
-            git commit -m "chore: update coverage data + render covref citations ($ENTRIES history entries)"
-            git push origin main || echo "Warning: Could not push coverage update (branch protection). The repo copy will lag; Pages is authoritative."
-          fi
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Upload Pages overlay
+        uses: actions/upload-artifact@v7
         with:
-          path: _site
+          name: pages-overlay-coverage
+          path: overlay/
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+  deploy:
+    name: Deploy site with fresh coverage data
+    needs: publish-data
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      overlay-artifact: pages-overlay-coverage

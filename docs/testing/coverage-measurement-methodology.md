@@ -193,28 +193,48 @@ This is a historical choice, calibrated to where Encina's obligations-based cove
 
 ## Data flow and the publishing pipeline
 
-The coverage pipeline has two distinct workflows with a specific coupling:
+The coverage pipeline is three workflows, only the last of which touches GitHub Pages:
 
 1. **CI Full** runs the test suites, generates Cobertura XML outputs per test type, and uploads them as artifacts (`coverage-report` consolidated plus per-type `test-results-*` artifacts).
-2. **Publish Coverage** is triggered by `workflow_run` when CI Full completes successfully on `main`, or manually via `workflow_dispatch` with an optional `run_id` input.
+2. **Publish Coverage** (`publish-coverage.yml`) is triggered by `workflow_run` when CI Full completes on `main`, or manually via `workflow_dispatch` with an optional `run_id` input. Its `publish-data` job computes the fresh coverage data and stages it as a Pages overlay artifact; it does not deploy anything itself.
+3. **`docs.yml`** is the only workflow that deploys GitHub Pages. Because Pages uses the `workflow` build type, every deploy replaces the whole site, so a raw `cp -r docs _site` copy from a publisher would wipe the Jekyll site and the DocFX API reference (#1381 — this happened before this pipeline existed). Publish Coverage's `deploy` job instead calls `docs.yml` through `workflow_call` and hands it the overlay; `docs.yml` merges it with the live data of every other dashboard before building and deploying.
 
 ### Publish Coverage steps (from `.github/workflows/publish-coverage.yml`)
 
-1. **Resolve the source run ID.** Uses the manual input if provided, the triggering workflow_run ID if automatic, or falls back to the latest successful CI Full run via `gh run list`.
-2. **Download the `coverage-report` artifact** from that run with `actions/download-artifact@v8` + `run-id:`.
-3. **Build the Pages site** by copying the entire `docs/` tree to `_site` and overwriting `_site/coverage/data/latest.json` with the fresh artifact, and `_site/coverage/badge.{svg,json}` with the fresh badges.
-4. **Inject the `runId`** into `latest.json` using `jq` so that future recalculations know which GitHub Actions run produced this snapshot.
-5. **Archive the snapshot** with a timestamped filename `{YYYY-MM-DDTHHMMSSZ}.json` under `_site/coverage/data/`, preserving the full snapshot for future recalculation and audit.
-6. **Reconcile the history file.** Fetch `history.json` from the live Pages URL and compare the entry count with the local repo's version. The more complete of the two wins. This detours around a problem where branch protection can prevent the repo version from being updated promptly — Pages is the canonical live source.
-7. **Append the new entry** to `history.json` via `coverage-history.cs`.
-8. **Publish the DocRef index.** Copy `docref-index.json` from the artifact to `_site/coverage/data/`; an empty or missing candidate never replaces the copy already on Pages (see [DocRef convention](#docref-convention)).
-9. **Render the citations.** Run `cov-docs-render.cs` over `docs/` and `src/`, which expands the `covref` markers and writes `cited-by.json` next to the index; the rendered pages are refreshed in `_site`.
-10. **Persist history, index, `cited-by.json` and the rendered documents back to the repo** with a bot commit (`continue-on-error: true` to tolerate branch protection rejections; Pages stays authoritative when the push is refused).
-11. **Upload the Pages artifact** and deploy to GitHub Pages.
+`publish-data` job:
+
+1. **Fail loud on a broken source run.** If the triggering `workflow_run` did not conclude `success`, the first step prints `::error title=Source run did not succeed::...` and exits 1 — the workflow fails visibly instead of silently concluding `skipped` as it used to (#1361). `workflow_dispatch` skips this check.
+2. **Resolve the source run ID.** Uses the manual input if provided, the triggering workflow_run ID if automatic, or falls back to the latest successful CI Full run via `gh run list`.
+3. **Download the `coverage-report` artifact** from that run with `actions/download-artifact@v8` + `run-id:`.
+4. **Stage the fresh data under `overlay/coverage/data/`**: `latest.json` from the artifact's summary, `badge.svg`/`badge.json`, and `docref-index.json` — but only when the candidate index has at least one entry with data; an empty or missing candidate leaves the index out of the overlay so `docs.yml` keeps the copy already live on Pages (see [DocRef convention](#docref-convention)).
+5. **Inject the `runId`** into `latest.json` using `jq` so that future recalculations know which GitHub Actions run produced this snapshot, then **archive the snapshot** with a timestamped filename `{YYYY-MM-DDTHHMMSSZ}.json` alongside it.
+6. **Reconcile the history file.** Fetch `history.json` from the live Pages URL and compare the entry count with the copy tracked at `docs/coverage/data/history.json` (used only as a fallback seed when Pages is unreachable). The more complete of the two wins, then `coverage-history.cs` appends the new entry.
+7. **Upload the staged files** as the artifact `pages-overlay-coverage` (`overlay/`), only the files this workflow owns.
+
+`deploy` job: calls `./.github/workflows/docs.yml` via `workflow_call` with `overlay-artifact: pages-overlay-coverage`.
+
+### `docs.yml`: the single deployer
+
+`docs.yml` builds and deploys the whole Pages site, whether triggered directly (a push to `docs/**` or `src/**`) or through one of the four publishers' `workflow_call`. On the deploy path (`main`, not a pull request):
+
+1. **Fetch the live data of all four dashboards** (coverage, mutations, benchmarks, load-tests — `latest.json`, `history.json`, `docref-index.json` and siblings, plus badges) from `https://dlrivada.github.io/Encina/<domain>/...` into a staging directory `_dashboards/`.
+2. **Download the caller's overlay artifact**, if any, and copy it on top of `_dashboards/` — the fresh data from the calling publisher wins over the live copy for its own domain.
+3. **Render the `covref`/`mutref`/`perf` citation markers** in `docs/` (and `src/` for cov/mut) against the staged `docref-index.json` files, with `cov-docs-render.cs`, `mut-docs-render.cs` and `perf-docs-render.cs`. Each rendering step is `continue-on-error: true`: a rendering problem never blocks the Pages deploy (INV-002).
+4. **Build Jekyll and DocFX**, merge the DocFX output into `_site/api/`, then copy `_dashboards/` into `_site/` so the freshly staged data (not the stale copies tracked under `docs/*/data`) is what gets served.
+5. **Upload and deploy** the Pages artifact. Pull requests build the site (steps 3-4, scoped to build correctness) and never deploy.
+6. **Smoke-check the deploy**: after `deploy-pages`, the `deploy` job requests the site root (must be HTTP 200 with `text/html`, so an unrendered raw-copy deploy fails), `/api/`, each dashboard's landing page and its `data/latest.json`, retrying up to 6 times 20 seconds apart to absorb Pages propagation delay. Any non-200 fails the deploy with one `::error` line per URL.
+
+The `pages` concurrency group lives only on `docs.yml`'s `deploy` job, so a publisher calling it through `workflow_call` never waits on a group it already holds.
+
+### Freshness check
+
+`.github/scripts/dashboard-freshness.cs` reads each dashboard's live `data/latest.json` and compares its top-level `timestamp` against `--max-age-days` (default 8). `.github/workflows/dashboard-freshness.yml` runs it daily and on `workflow_dispatch`, printing one OK/STALE/ERROR line per dashboard to the job summary and failing the workflow if any dashboard is stale, unreachable or missing a usable timestamp. Run it locally with `dotnet run --file .github/scripts/dashboard-freshness.cs`.
 
 ### The history file
 
-`history.json` lives at `docs/coverage/data/history.json` and contains at most **100 entries**. When the 101st entry is appended, the oldest entry is removed. Each entry is intentionally lightweight (the full snapshot is kept separately in the archived `{timestamp}.json` file) and contains:
+The authoritative `history.json` for each dashboard is the one served live on Pages (`https://dlrivada.github.io/Encina/coverage/data/history.json`), maintained entirely by the `publish-data` job above. The copy tracked at `docs/coverage/data/history.json` is only a fallback seed used when the live copy cannot be fetched (or has fewer entries); nothing commits the live data back to it, so **the tracked copy is not current** — do not read it as a source of today's numbers.
+
+It contains at most **100 entries**. When the 101st entry is appended, the oldest entry is removed. Each entry is intentionally lightweight (the full snapshot is kept separately in the archived `{timestamp}.json` file) and contains:
 
 | Field | Description |
 |---|---|

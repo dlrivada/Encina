@@ -1,0 +1,35 @@
+name: Dashboard Freshness
+
+# Fails when any dashboard published on GitHub Pages (coverage, mutations,
+# benchmarks, load tests) has a data/latest.json older than the threshold.
+# The publishers fail loudly when their source run fails, but a dashboard can
+# still go stale silently (for example, the benchmarks publisher skips `short`
+# runs by design). This daily check is the backstop (#1361).
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  freshness:
+    name: Check dashboard freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      DOTNET_NOLOGO: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check the age of every published dashboard
+        run: dotnet run --file .github/scripts/dashboard-freshness.cs -- --summary "$GITHUB_STEP_SUMMARY"

@@ -168,12 +168,12 @@ The `Benchmarks` workflow exposes a `job_type` input with four values that map t
 | `medium` | 15 | Yes | Yes |
 | `default` | ~20–35 (auto) | Yes | Yes |
 
-Because the stability rule forces `N < 10` into the Unstable bucket regardless of CoV, running the workflow with `job_type=short` produces ~100 % Unstable results by design. **Publishing those to the dashboard would overwrite the last good snapshot with a fake regression.** To prevent that, `publish-benchmarks.yml` reads `metadata.jobType` from `latest.json` and early-exits the publish job when the value is `short` or `dry`.
+Because the stability rule forces `N < 10` into the Unstable bucket regardless of CoV, running the workflow with `job_type=short` produces ~100 % Unstable results by design. **Publishing those to the dashboard would overwrite the last good snapshot with a fake regression.** To prevent that, `publish-benchmarks.yml`'s `publish-data` job reads `metadata.jobType` from `latest.json` and skips the staging step when the value is `short` or `dry` (with a `::notice`) or `unknown` (with a `::warning`, since it usually means a workflow misconfiguration); the daily `dashboard-freshness.yml` check flags the benchmarks dashboard if no `medium`/`default` run publishes for too long.
 
 Practical consequences:
 
-- A manual dispatch with `job_type=short` still runs (fast feedback, < 15 min for the full matrix), still archives raw BDN outputs to the `perf-raw` branch, and still uploads artifacts to the workflow run page — but **does not touch `docs/benchmarks/data/latest.json`, `history.json`, or the Pages dashboard**.
-- A manual dispatch with `job_type=medium` or `default` (the workflow_dispatch default is now `medium`) publishes normally.
+- A manual dispatch with `job_type=short` still runs (fast feedback, < 15 min for the full matrix), still archives raw BDN outputs to the `perf-raw` branch, and still uploads artifacts to the workflow run page — but **does not stage anything for the Pages overlay**, so the live `benchmarks/data/latest.json` and `history.json` on Pages (the authoritative copies; the tracked `docs/benchmarks/data/` files are only a fallback seed and are not current) are left untouched.
+- A manual dispatch with `job_type=medium` or `default` (the workflow_dispatch default is now `medium`) stages fresh data and its `deploy` job calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — with that overlay, publishing normally.
 - Scheduled Sunday runs use `medium` and publish normally.
 - Pull requests use `short` (fast validation) and are filtered out of `publish-benchmarks.yml` anyway (which only triggers on `branches: [main]`).
 

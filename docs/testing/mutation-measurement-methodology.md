@@ -197,7 +197,7 @@ Examples:
 - `mut:Encina/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs`
 - `mut:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`
 
-Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docs/mutations/data/docref-index.json` alongside `latest.json`). Each entry contains:
+Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docref-index.json` alongside `latest.json`). `publish-mutations.yml`'s `publish-data` job stages both under `overlay/mutations/data/`, and its `deploy` job hands that overlay to `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — so the live, authoritative copy ends up at `mutations/data/docref-index.json` on Pages. The copy tracked at `docs/mutations/data/docref-index.json` is only a fallback seed and is not current. Each entry contains:
 
 | Field | Meaning |
 |-------|---------|
@@ -232,7 +232,7 @@ The pattern after `mutref-table:` is a glob matched against known DocRef IDs. `*
 
 ### Cited-by index
 
-`mut-docs-render.cs` builds a reverse index at `docs/mutations/data/cited-by.json` mapping each DocRef ID to the list of `path:lineNumber` locations where it is cited (markers + free-form prose mentions). The mutation dashboard surfaces this in the "Cited in" column.
+`mut-docs-render.cs` builds a reverse index, `cited-by.json`, mapping each DocRef ID to the list of `path:lineNumber` locations where it is cited (markers + free-form prose mentions). It now runs inside `docs.yml`'s deploy build (`continue-on-error: true`, per INV-002: a rendering problem never blocks the deploy), against the `docref-index.json` staged in `_dashboards/mutations/data/`, so it writes `cited-by.json` there too and it is served live at `mutations/data/cited-by.json` on Pages. The mutation dashboard surfaces this in the "Cited in" column.
 
 This makes documentation drift visible:
 
@@ -241,7 +241,7 @@ This makes documentation drift visible:
 
 ## Recalculation
 
-If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts and as snapshot copies under `docs/mutations/data/{timestamp}.json`).
+If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts and as snapshot copies at `mutations/data/{timestamp}.json` on the live Pages site — `publish-mutations.yml`'s `publish-data` job stages them, and `docs.yml`, the only Pages deployer (#1381), publishes them; nothing commits them to `docs/mutations/data/` in the repository).
 
 The recalculation does NOT re-run Stryker. It re-applies the formulas to the same raw data so that historical numbers in the dashboard stay consistent with the current methodology.
 

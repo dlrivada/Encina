@@ -1,7 +1,14 @@
 name: Publish Mutations Data
 
-# Triggered when Mutation Tests completes — downloads the report artifact
-# and deploys it to GitHub Pages alongside the existing site.
+# Triggered when Mutation Tests completes on main. The publish-data job
+# downloads the Stryker report, computes the dashboard data (latest.json,
+# history.json, docref-index.json) and uploads it as the artifact
+# pages-overlay-mutations. The deploy job then calls docs.yml, the only Pages
+# deployer (#1381), which lays that overlay over the live data of every
+# dashboard, renders the mutref citations and deploys the whole site.
+#
+# A source run that did not succeed fails this workflow visibly instead of
+# skipping it (#1361).
 on:
   workflow_dispatch:
     inputs:
@@ -13,27 +20,32 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  pages: write
-  id-token: write
-  actions: read
-  contents: write
-
+# Not "pages": docs.yml holds that group on its deploy job, and a caller in the
+# same group would wait on itself.
 concurrency:
-  group: pages
+  group: publish-mutations
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+  publish-data:
+    name: Compute mutation dashboard data
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}mutations/
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
 
     steps:
+      - name: Require a successful source run
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+        env:
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          echo "::error title=Source run did not succeed::$SOURCE_WORKFLOW run $SOURCE_RUN_ID concluded $SOURCE_CONCLUSION; nothing was published"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -64,47 +76,13 @@ jobs:
           run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Pages site with fresh mutation data
+      - name: Stage fresh mutation data in the Pages overlay
+        env:
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
-          # Copy the entire docs/ directory as the Pages site
-          cp -r docs _site
-
-          # Preserve sibling domains from live Pages
-          for domain in coverage benchmarks load-tests; do
-            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
-            mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
-                echo "  + $file"
-              else
-                rm -f "_site/$domain/data/$file.new"
-              fi
-            done
-          done
-
-          # Read Stryker scope from config
-          SCOPE=$(grep -oP '"mutate"\s*:\s*\[\s*"([^"]+)"' .github/stryker-config.json | head -1 | sed 's/.*"\([^"]*\)"/\1/' || echo "")
-          echo "Stryker scope: $SCOPE"
-
-          # Run mutation-history.cs to convert report -> latest.json + update history
-          # Fetch live history first (most complete)
-          PAGES_URL="https://dlrivada.github.io/Encina/mutations/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp _site/mutations/data/history.json 2>/dev/null || echo 0)
-
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp || echo 0)
-            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
-              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > _site/mutations/data/history.json
-            else
-              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
-            fi
-          else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
-          fi
+          # Only the files this workflow owns go into overlay/mutations/; docs.yml
+          # copies them over the live Pages data of every dashboard.
+          mkdir -p overlay/mutations/data mutation-work
 
           # Find the mutation report JSON
           REPORT=""
@@ -115,20 +93,41 @@ jobs:
           fi
 
           if [ -z "$REPORT" ]; then
-            echo "Warning: mutation-report.json not found in artifact"
+            echo "::error title=Mutation report missing::mutation-report artifact of run $RUN_ID has no mutation-report.json; nothing was published"
             ls -R mutation-artifact/ || true
-            exit 0
+            exit 1
           fi
 
-          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+          # Read Stryker scope from config
+          SCOPE=$(grep -oP '"mutate"\s*:\s*\[\s*"([^"]+)"' .github/stryker-config.json | head -1 | sed 's/.*"\([^"]*\)"/\1/' || echo "")
+          echo "Stryker scope: $SCOPE"
+
+          # History strategy: fetch from live Pages (authoritative), fall back to the
+          # copy tracked in main, which lags because nothing commits it back.
+          cp -f docs/mutations/data/history.json overlay/mutations/data/history.json 2>/dev/null || echo "[]" > overlay/mutations/data/history.json
+          PAGES_URL="https://dlrivada.github.io/Encina/mutations/data/history.json"
+          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+          REPO_ENTRIES=$(grep -c timestamp overlay/mutations/data/history.json 2>/dev/null) || REPO_ENTRIES=0
+
+          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+              echo "$PAGES_HISTORY" > overlay/mutations/data/history.json
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+            fi
+          else
+            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+          fi
 
           # Fetch previous latest.json from live Pages for merge.
           # Each weekly run mutates a different folder; merging carries forward
           # data from files not touched by this run so the dashboard accumulates.
           MERGE_ARG=""
           PAGES_LATEST_URL="https://dlrivada.github.io/Encina/mutations/data/latest.json"
-          if curl -fsSL -o _site/mutations/data/previous-latest.json "$PAGES_LATEST_URL" 2>/dev/null; then
-            MERGE_ARG="--merge-from _site/mutations/data/previous-latest.json"
+          if curl -fsSL -o mutation-work/previous-latest.json "$PAGES_LATEST_URL" 2>/dev/null; then
+            MERGE_ARG="--merge-from mutation-work/previous-latest.json"
             echo "Will merge with previous latest.json from Pages"
           else
             echo "No previous latest.json on Pages — first run"
@@ -136,72 +135,47 @@ jobs:
 
           dotnet run .github/scripts/mutation-history.cs -- \
             --report "$REPORT" \
-            --latest _site/mutations/data/latest-candidate.json \
-            --history _site/mutations/data/history.json \
-            --docref-index _site/mutations/data/docref-index-candidate.json \
+            --latest mutation-work/latest-candidate.json \
+            --history overlay/mutations/data/history.json \
+            --docref-index mutation-work/docref-index-candidate.json \
             --src-root src/Encina \
             --run-id "$RUN_ID" \
             --scope "$SCOPE" \
             $MERGE_ARG
 
-          rm -f _site/mutations/data/previous-latest.json
-
           # Guard: do not overwrite the dashboard with an empty report.
-          # When --since filters out all mutants, total=0 — keep the existing
-          # latest.json which has the last real run's data.
-          TOTAL=$(grep -o '"total": *[0-9]*' _site/mutations/data/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
+          # When --since filters out all mutants, total=0 — leave latest.json and
+          # docref-index.json out of the overlay so docs.yml keeps the live copies,
+          # which hold the last real run's data.
+          TOTAL=$(grep -o '"total": *[0-9]*' mutation-work/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
           if [ "$TOTAL" -gt 0 ]; then
             echo "Mutation data has $TOTAL mutants — updating latest.json + docref-index.json"
-            mv _site/mutations/data/latest-candidate.json _site/mutations/data/latest.json
-            mv _site/mutations/data/docref-index-candidate.json _site/mutations/data/docref-index.json
+            mv mutation-work/latest-candidate.json overlay/mutations/data/latest.json
+            mv mutation-work/docref-index-candidate.json overlay/mutations/data/docref-index.json
             STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
-            cp -f _site/mutations/data/latest.json "_site/mutations/data/${STAMP}.json"
+            cp -f overlay/mutations/data/latest.json "overlay/mutations/data/${STAMP}.json"
           else
-            echo "No eligible mutants in report (--since filtered everything) — keeping existing latest.json"
-            rm -f _site/mutations/data/latest-candidate.json _site/mutations/data/docref-index-candidate.json
+            echo "::warning title=No eligible mutants::Run $RUN_ID produced no eligible mutants (--since filtered everything); the live latest.json is kept"
           fi
 
-      - name: Render mutref markers in documentation + build cited-by.json
-        run: |
-          # Scan docs/ AND src/ (per-package READMEs may cite mutation results).
-          dotnet run .github/scripts/mut-docs-render.cs -- \
-            --docref-index _site/mutations/data/docref-index.json \
-            --docs-root docs \
-            --scan-roots src
+          echo "Overlay contents:"
+          find overlay -type f | sort
 
-          # Copy the freshly built cited-by.json into the Pages payload.
-          if [ -f docs/mutations/data/cited-by.json ]; then
-            cp -f docs/mutations/data/cited-by.json _site/mutations/data/cited-by.json
-          fi
-
-      - name: Persist history + docref-index + rendered docs back to repo
-        continue-on-error: true
-        run: |
-          cp -f _site/mutations/data/history.json docs/mutations/data/history.json
-          if [ -f _site/mutations/data/docref-index.json ]; then
-            cp -f _site/mutations/data/docref-index.json docs/mutations/data/docref-index.json
-          fi
-          if [ -f _site/mutations/data/cited-by.json ]; then
-            cp -f _site/mutations/data/cited-by.json docs/mutations/data/cited-by.json
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Stage changes: history + index + any docs the renderer modified.
-          git add docs/mutations/data/history.json docs/mutations/data/docref-index.json docs/mutations/data/cited-by.json 2>/dev/null || true
-          git add -u docs/ src/ 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No mutation-doc changes to commit"
-          else
-            ENTRIES=$(grep -c timestamp docs/mutations/data/history.json || echo 0)
-            git commit -m "chore: update mutation data + render mutref tables ($ENTRIES history entries)"
-            git push origin main || echo "Warning: Could not push update (branch protection?)"
-          fi
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Upload Pages overlay
+        uses: actions/upload-artifact@v7
         with:
-          path: _site
+          name: pages-overlay-mutations
+          path: overlay/
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+  deploy:
+    name: Deploy site with fresh mutation data
+    needs: publish-data
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      overlay-artifact: pages-overlay-mutations

@@ -6,6 +6,18 @@ name: Documentation
 # Scopes:
 #   Jekyll  -> docs/**/*.md (just-the-docs theme, narrative content)
 #   DocFX   -> src/**/*.csproj (API reference from XML comments) -> /api/
+#
+# This is the ONLY workflow that deploys GitHub Pages (#1381). Pages uses
+# build_type "workflow", so every deploy replaces the whole site. The dashboard
+# publishers (publish-coverage/-mutations/-benchmarks/-load-tests) compute
+# their data, upload it as an artifact named pages-overlay-<domain>, and call
+# this workflow through workflow_call with `overlay-artifact`. The build then:
+#   1. fetches the live data of every dashboard from Pages into _dashboards/,
+#   2. copies the caller's overlay artifact on top (the fresh data wins),
+#   3. renders the covref/mutref/perf citation markers into docs/ from the
+#      staged docref-index files (INV-002: never blocks the deploy),
+#   4. builds Jekyll + DocFX, then copies _dashboards/ into _site/.
+# Pull requests build the site and never deploy.
 on:
   push:
     branches: [main]
@@ -16,6 +28,9 @@ on:
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - '.github/workflows/docs.yml'
+      - '.github/scripts/cov-docs-render.cs'
+      - '.github/scripts/mut-docs-render.cs'
+      - '.github/scripts/perf-docs-render.cs'
   pull_request:
     paths:
       - 'docs/**'
@@ -24,14 +39,23 @@ on:
       - 'Directory.Build.props'
       - 'Directory.Build.targets'
       - '.github/workflows/docs.yml'
+      - '.github/scripts/cov-docs-render.cs'
+      - '.github/scripts/mut-docs-render.cs'
+      - '.github/scripts/perf-docs-render.cs'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      overlay-artifact:
+        description: >-
+          Name of an artifact uploaded earlier in the caller's run whose content
+          (laid out as <domain>/...) is copied over the live dashboard data before
+          the site is built. Empty for a plain documentation build.
+        type: string
+        required: false
+        default: ''
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-permissions:
-  contents: read
+# No workflow-level concurrency: the "pages" group lives on the deploy job only,
+# so a publisher calling this workflow cannot deadlock on its own group.
 
 jobs:
   build-docs:
@@ -57,6 +81,104 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+
+      - name: Fetch live dashboard data from Pages
+        # Every deploy replaces the whole Pages site, so the dashboard data
+        # (latest.json, history.json, ...) and badges, which are published only
+        # on Pages and never committed to main, are staged here and copied
+        # into _site after the Jekyll build. Gated to the deploy path: pull
+        # requests never deploy, so they skip the network calls.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          for domain in coverage benchmarks load-tests mutations; do
+            echo "Fetching live $domain data from Pages..."
+            mkdir -p "_dashboards/$domain/data"
+            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
+              url="https://dlrivada.github.io/Encina/$domain/data/$file"
+              if curl -fsSL -o "_dashboards/$domain/data/$file.new" "$url" 2>/dev/null; then
+                mv "_dashboards/$domain/data/$file.new" "_dashboards/$domain/data/$file"
+                echo "  ✓ $domain/data/$file"
+              else
+                rm -f "_dashboards/$domain/data/$file.new"
+                echo "  - $domain/data/$file (not on Pages)"
+              fi
+            done
+            # Badges live at /<domain>/badge.{svg,json} (referenced from README).
+            for badge in badge.svg badge.json; do
+              url="https://dlrivada.github.io/Encina/$domain/$badge"
+              if curl -fsSL -o "_dashboards/$domain/$badge.new" "$url" 2>/dev/null; then
+                mv "_dashboards/$domain/$badge.new" "_dashboards/$domain/$badge"
+                echo "  ✓ $domain/$badge"
+              else
+                rm -f "_dashboards/$domain/$badge.new"
+              fi
+            done
+          done
+
+      - name: Download dashboard overlay from the caller
+        if: inputs.overlay-artifact != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.overlay-artifact }}
+          path: _overlay
+
+      - name: Apply dashboard overlay over the live data
+        # The caller's fresh data is authoritative for its own dashboard.
+        if: inputs.overlay-artifact != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          mkdir -p _dashboards
+          cp -R _overlay/. _dashboards/
+          echo "Overlay ${{ inputs.overlay-artifact }} applied:"
+          find _overlay -type f | sort
+
+      - name: Render covref markers in documentation + build cited-by.json
+        # INV-002: a rendering problem must never block the Pages deploy.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ ! -f _dashboards/coverage/data/docref-index.json ]; then
+            echo "No coverage DocRef index available; skipping covref rendering"
+            exit 0
+          fi
+          # Scan docs/ AND src/ (per-package READMEs may cite coverage). The renderer
+          # writes cited-by.json next to the index it reads (_dashboards/coverage/data).
+          dotnet run .github/scripts/cov-docs-render.cs -- \
+            --docref-index _dashboards/coverage/data/docref-index.json \
+            --docs-root docs \
+            --scan-roots src
+
+      - name: Render mutref markers in documentation + build cited-by.json
+        # INV-002: a rendering problem must never block the Pages deploy.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ ! -f _dashboards/mutations/data/docref-index.json ]; then
+            echo "No mutation DocRef index available; skipping mutref rendering"
+            exit 0
+          fi
+          # Scan docs/ AND src/ (per-package READMEs may cite mutation results).
+          dotnet run .github/scripts/mut-docs-render.cs -- \
+            --docref-index _dashboards/mutations/data/docref-index.json \
+            --docs-root docs \
+            --scan-roots src
+
+      - name: Render benchmark tables in documentation + build cited-by.json
+        # INV-002: a rendering problem must never block the Pages deploy.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ ! -f _dashboards/benchmarks/data/docref-index.json ]; then
+            echo "No benchmarks DocRef index available; skipping benchmark table rendering"
+            exit 0
+          fi
+          dotnet run .github/scripts/perf-docs-render.cs -- \
+            --docref-index _dashboards/benchmarks/data/docref-index.json \
+            --docs-root docs
 
       - name: Restore .NET tools
         run: dotnet tool restore
@@ -91,44 +213,6 @@ jobs:
         shell: bash
         run: sudo chown -R "$USER:$USER" _site
 
-      - name: Preserve sibling Pages subtrees
-        # Multiple publish-* workflows share a single gh-pages deployment target
-        # (/coverage, /benchmarks, /load-tests, /mutations). Their data files
-        # (latest.json, history.json, …) AND badge artifacts (badge.svg,
-        # badge.json) are written at deploy-time only — not committed to main.
-        # Overlay the live Pages copies so our docs deploy does not wipe them.
-        # Mirrors the pattern in publish-benchmarks.yml (lines 311-333).
-        # Gated to main-only to avoid wasting network calls on PR validation
-        # (the deploy step is also main-only, so preservation is moot on PR).
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          for domain in coverage benchmarks load-tests mutations; do
-            echo "Fetching live $domain data from Pages (to preserve across deploy)..."
-            mkdir -p "_site/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_site/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/data/$file.new" "_site/$domain/data/$file"
-                echo "  ✓ $domain/data/$file"
-              else
-                rm -f "_site/$domain/data/$file.new"
-                echo "  - $domain/data/$file (not on Pages)"
-              fi
-            done
-            # Badges live at /<domain>/badge.{svg,json} (referenced from README).
-            # Only coverage+benchmarks currently generate them, but loop harmlessly.
-            for badge in badge.svg badge.json; do
-              url="https://dlrivada.github.io/Encina/$domain/$badge"
-              if curl -fsSL -o "_site/$domain/$badge.new" "$url" 2>/dev/null; then
-                mv "_site/$domain/$badge.new" "_site/$domain/$badge"
-                echo "  ✓ $domain/$badge"
-              else
-                rm -f "_site/$domain/$badge.new"
-              fi
-            done
-          done
-
       - name: Merge DocFX API reference into Jekyll site
         shell: bash
         run: |
@@ -145,6 +229,23 @@ jobs:
           file_count=$(find _site/api -maxdepth 1 -type f | wc -l)
           echo "API reference merged into _site/api/ ($file_count files at root)"
           ls _site/api/index.html _site/api/favicon.ico
+
+      - name: Copy staged dashboard data into the site
+        # _dashboards/ holds the live Pages data, the caller's overlay and the
+        # cited-by.json files the renderers wrote. It replaces the stale copies
+        # tracked under docs/*/data that Jekyll copied into _site.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          if [ ! -d _dashboards ]; then
+            echo "::error::_dashboards/ is missing; the live dashboard fetch did not run"
+            exit 1
+          fi
+          cp -R _dashboards/. _site/
+          for domain in coverage benchmarks load-tests mutations; do
+            echo "$domain/data:"
+            ls -la "_site/$domain/data" 2>/dev/null | tail -n +2 || echo "  (none)"
+          done
 
       - name: Upload Pages artifact
         # Only upload when we intend to deploy (main branch). Skipping on PR
@@ -167,6 +268,13 @@ jobs:
       pages: write
       id-token: write
 
+    # Serializes every Pages deploy (docs pushes and the dashboard publishers,
+    # which reach this job through workflow_call). Job level, not workflow
+    # level, so a caller never waits on a group it already holds.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -175,3 +283,60 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Smoke-check the published site
+        # Fails the deploy when the site root is not rendered HTML (a raw copy of
+        # docs/ like #1381), the API reference is missing, or a dashboard or its
+        # data is not served. Retries absorb Pages propagation delay.
+        shell: bash
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          base="${PAGE_URL%/}/"
+          paths=(
+            ""
+            "api/"
+            "coverage/"
+            "mutations/"
+            "benchmarks/dashboard/"
+            "performance/"
+            "load-tests/dashboard/"
+            "coverage/data/latest.json"
+            "mutations/data/latest.json"
+            "benchmarks/data/latest.json"
+            "load-tests/data/latest.json"
+          )
+          attempts=6
+          delay=20
+          failures=0
+          for path in "${paths[@]}"; do
+            url="${base}${path}"
+            status="000"
+            ctype=""
+            for attempt in $(seq 1 "$attempts"); do
+              out=$(curl -sS -L -o /dev/null -w '%{http_code} %{content_type}' "$url" 2>/dev/null || echo "000 ")
+              status="${out%% *}"
+              ctype="${out#* }"
+              if [ "$status" = "200" ]; then
+                if [ -n "$path" ] || [[ "$ctype" == text/html* ]]; then
+                  break
+                fi
+              fi
+              if [ "$attempt" -lt "$attempts" ]; then
+                sleep "$delay"
+              fi
+            done
+            if [ "$status" != "200" ]; then
+              echo "::error title=Pages smoke check failed::$url returned HTTP $status after $attempts attempts"
+              failures=$((failures + 1))
+            elif [ -z "$path" ] && [[ "$ctype" != text/html* ]]; then
+              echo "::error title=Pages smoke check failed::$url returned Content-Type '$ctype', expected text/html (unrendered site?)"
+              failures=$((failures + 1))
+            else
+              echo "OK $status $url"
+            fi
+          done
+          if [ "$failures" -gt 0 ]; then
+            echo "$failures URL(s) failed the smoke check."
+            exit 1
+          fi
