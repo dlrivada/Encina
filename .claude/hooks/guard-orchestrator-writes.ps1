@@ -24,7 +24,11 @@
 #     reads the named script's own text and denies when it both references src/ or tests/ and contains a
 #     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath); a script path the
 #     hook cannot resolve, or cannot read, is denied too, since it cannot rule out a write there (#1181; this
-#     only partially closes the gap, since it is a text heuristic, not an execution of the script).
+#     only partially closes the gap, since it is a text heuristic, not an execution of the script). Exempt: a
+#     script matching Test-ScriptIsSanctioned (_write-targets.ps1) — the pipeline's own tooling
+#     (.claude/hooks/tests/Test-Hooks.ps1, tools/ai/audit/*.ps1, tools/ai/*.ps1, .github/scripts/*.cs), which the
+#     orchestrator runs by design and which legitimately mentions src/ or tests/ in template guidance or search
+#     regexes while writing only under artifacts/ or its own temp workspace (#1368, #1380).
 # The commands of a `pwsh -Command` / `bash -c` wrapper are analysed like the others.
 # Not seen: targets that depend on a variable, deletions, and writes by other programs (dotnet run of a script
 # that is not itself a bare or `--file` .cs argument, compiled tools, ...).
@@ -110,7 +114,9 @@ try {
         $text = $null
         try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { }
         if ($null -eq $text) { Write-Block "runs '$($s.Full)' ($($s.Kind)), which the hook could not read, so it cannot rule out writes to src/ or tests/" }
-        if ((Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
+        $scriptLocation = Get-RepoLocation $s.Full $layout
+        $sanctioned = $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
+        if (-not $sanctioned -and (Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
             Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files"
         }
     }
