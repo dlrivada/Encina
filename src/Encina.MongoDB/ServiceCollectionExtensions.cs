@@ -87,26 +87,7 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
-        // same registrations ADO.NET, Dapper and EF Core get from AddMessagingServices, so a
-        // change to the shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher)
-        // reaches MongoDB automatically instead of drifting out of sync with a hand-rolled block
-        // (#1333). EncinaMongoDbOptions is not a MessagingConfiguration, so the flags and options
-        // are passed individually.
-        services.AddOutboxInboxSagaSchedulingServices<
-            OutboxStoreMongoDB,
-            OutboxMessageFactory,
-            InboxStoreMongoDB,
-            InboxMessageFactory,
-            SagaStoreMongoDB,
-            SagaStateFactory,
-            ScheduledMessageStoreMongoDB,
-            ScheduledMessageFactory,
-            Outbox.OutboxProcessor>(
-            options.UseOutbox, options.OutboxOptions,
-            options.UseInbox, options.InboxOptions,
-            options.UseSagas, options.SagaOptions,
-            options.UseScheduling, options.SchedulingOptions);
+        RegisterMessagingPatterns(services, options);
 
         // Register audit log store if enabled
         if (options.UseAuditLogStore)
@@ -211,26 +192,7 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
-        // same registrations ADO.NET, Dapper and EF Core get from AddMessagingServices, so a
-        // change to the shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher)
-        // reaches MongoDB automatically instead of drifting out of sync with a hand-rolled block
-        // (#1333). EncinaMongoDbOptions is not a MessagingConfiguration, so the flags and options
-        // are passed individually.
-        services.AddOutboxInboxSagaSchedulingServices<
-            OutboxStoreMongoDB,
-            OutboxMessageFactory,
-            InboxStoreMongoDB,
-            InboxMessageFactory,
-            SagaStoreMongoDB,
-            SagaStateFactory,
-            ScheduledMessageStoreMongoDB,
-            ScheduledMessageFactory,
-            Outbox.OutboxProcessor>(
-            options.UseOutbox, options.OutboxOptions,
-            options.UseInbox, options.InboxOptions,
-            options.UseSagas, options.SagaOptions,
-            options.UseScheduling, options.SchedulingOptions);
+        RegisterMessagingPatterns(services, options);
 
         // Register audit log store if enabled
         if (options.UseAuditLogStore)
@@ -751,6 +713,38 @@ public static class ServiceCollectionExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the Outbox, Inbox, Saga and Scheduling patterns through the shared
+    /// <c>Encina.Messaging.MessagingServiceCollectionExtensions.AddOutboxInboxSagaSchedulingServices</c>
+    /// helper, shared by both <c>AddEncinaMongoDB</c> overloads.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The MongoDB options carrying the messaging pattern flags.</param>
+    /// <remarks>
+    /// These are the same registrations ADO.NET, Dapper and EF Core get from
+    /// <c>AddMessagingServices</c>, so a change to the shared registrations (for example
+    /// <c>ISagaRunner</c>/<c>ISagaNotFoundDispatcher</c>) reaches MongoDB automatically instead of
+    /// drifting out of sync with a hand-rolled block (#1333). <see cref="EncinaMongoDbOptions"/> is
+    /// not a <c>MessagingConfiguration</c>, so the flags and options are passed individually.
+    /// </remarks>
+    private static void RegisterMessagingPatterns(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreMongoDB,
+            OutboxMessageFactory,
+            InboxStoreMongoDB,
+            InboxMessageFactory,
+            SagaStoreMongoDB,
+            SagaStateFactory,
+            ScheduledMessageStoreMongoDB,
+            ScheduledMessageFactory,
+            Outbox.OutboxProcessor>(
+            options.UseOutbox, options.OutboxOptions,
+            options.UseInbox, options.InboxOptions,
+            options.UseSagas, options.SagaOptions,
+            options.UseScheduling, options.SchedulingOptions);
     }
 
     /// <summary>
