@@ -5,6 +5,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -304,6 +305,31 @@ public sealed class TransactionPipelineBehaviorIntegrationTests : IDisposable
         result.IsLeft.ShouldBeTrue();
         // No transaction should be active after rollback
         _dbContext.Database.CurrentTransaction.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_FailureResult_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var error = EncinaErrors.Create("test.rollback.error", $"Rollback failed: {sentinel}");
+        var logger = new FakeLogger<TransactionPipelineBehavior<TestTransactionalCommand, string>>();
+        var behavior = new TransactionPipelineBehavior<TestTransactionalCommand, string>(_dbContext, logger);
+        var command = new TestTransactionalCommand();
+
+        // Act
+        var result = await behavior.Handle(
+            command,
+            _context,
+            () => ValueTask.FromResult(Either<EncinaError, string>.Left(error)),
+            CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.rollback.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
     }
 
     #endregion

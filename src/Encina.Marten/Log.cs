@@ -57,8 +57,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 2614, Level = LogLevel.Debug, Message = "Publishing {EventCount} domain events after command {CommandType}")]
     public static partial void PublishingDomainEvents(ILogger logger, int eventCount, string commandType);
 
-    [LoggerMessage(EventId = 2615, Level = LogLevel.Error, Message = "Failed to publish domain event {EventType}: {ErrorMessage}")]
-    public static partial void FailedToPublishDomainEvent(ILogger logger, string eventType, string errorMessage);
+    [LoggerMessage(EventId = 2615, Level = LogLevel.Error, Message = "Failed to publish domain event {EventType}: {ErrorCode}")]
+    public static partial void FailedToPublishDomainEvent(ILogger logger, string eventType, string errorCode);
 
     [LoggerMessage(EventId = 2616, Level = LogLevel.Information, Message = "Successfully published {EventCount} domain events after command {CommandType}")]
     public static partial void PublishedDomainEvents(ILogger logger, int eventCount, string commandType);

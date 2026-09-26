@@ -289,7 +289,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
                             _logger,
                             domainEvent.GetType().Name,
                             domainEvent.EventId,
-                            error.Message);
+                            error.GetEncinaCode());
 
                         if (_options.StopOnFirstError)
                         {

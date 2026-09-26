@@ -1,6 +1,7 @@
 using Encina.GraphQL;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.GraphQL;
@@ -89,6 +90,29 @@ public sealed class GraphQLEncinaBridgeTests
         result.IsLeft.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task QueryAsync_EncinaReturnsError_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var error = EncinaErrors.Create("test.query.error", $"Query failed: {sentinel}");
+        _encina.Send(Arg.Any<TestQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, string>(error));
+
+        var logger = new FakeLogger<GraphQLEncinaBridge>();
+        var bridge = new GraphQLEncinaBridge(_encina, logger, Options.Create(_options));
+
+        // Act
+        var result = await bridge.QueryAsync<TestQuery, string>(new TestQuery());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.query.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
+    }
+
     #endregion
 
     #region MutateAsync
@@ -124,6 +148,29 @@ public sealed class GraphQLEncinaBridgeTests
         var result = await bridge.MutateAsync<TestMutation, string>(new TestMutation());
 
         result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task MutateAsync_EncinaReturnsError_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var error = EncinaErrors.Create("test.mutation.error", $"Mutation failed: {sentinel}");
+        _encina.Send(Arg.Any<TestMutation>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, string>(error));
+
+        var logger = new FakeLogger<GraphQLEncinaBridge>();
+        var bridge = new GraphQLEncinaBridge(_encina, logger, Options.Create(_options));
+
+        // Act
+        var result = await bridge.MutateAsync<TestMutation, string>(new TestMutation());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.mutation.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
     }
 
     #endregion

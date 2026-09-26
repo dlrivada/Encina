@@ -344,10 +344,10 @@ internal static partial class ProjectionLog
     [LoggerMessage(
         EventId = 2700,
         Level = LogLevel.Warning,
-        Message = "Inline projections failed for aggregate {AggregateType} with ID {Id} after its events were saved; read models may be stale: {ErrorMessage}")]
+        Message = "Inline projections failed for aggregate {AggregateType} with ID {Id} after its events were saved; read models may be stale: {ErrorCode}")]
     public static partial void InlineProjectionFailedAfterSave(
         ILogger logger,
         string aggregateType,
         Guid id,
-        string errorMessage);
+        string errorCode);
 }
