@@ -124,7 +124,7 @@ Operators can override via the `workflow_dispatch` inputs; any of them collapses
 | (default) | Full 17-shard matrix — every folder measured fresh. |
 | `custom_scope: "<glob>"` | Single shard with the given `--mutate` override. If the glob matches a rotation entry, its paired test-case-filter is reused; otherwise the config default applies. |
 | `diff_mode: true` | Single shard with `--since:main` — mutate only files changed vs main. Useful for PR-style validation. |
-| `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 60-minute per-shard timeout in the current configuration. |
+| `full_mode: true` | Single shard mutating the entire `**/*.cs` glob. Will exceed the 340-minute per-shard timeout in the current configuration. |
 
 ## Mutate filter
 
@@ -166,7 +166,7 @@ The mapping lives in the `FILTERS` bash array in `.github/workflows/mutation-tes
 ### Edge cases
 
 - **Root-namespace folders** (`**/Core/*.cs`, `**/Pipeline/*.cs`): source files declare `namespace Encina;` with no folder-derived segment, so the filter falls back to the explicit test-folder path (e.g. `Encina.UnitTests.Core|Encina.ContractTests.Core`). This is broader than ideal — it also runs tests for sibling source folders rooted at the same test path — but it is never *narrower* than reality, which is the safety property that matters.
-- **`**/Results/*.cs`**: same root-namespace situation, but there is no corresponding `*.Results.*` test namespace — tests for `EitherHelpers`, `EncinaErrors`, and `NullFunctionalFailureDetector` live in scattered domain folders. The FILTERS entry is intentionally empty so the run falls back to the config default (all three Stryker test projects). This sacrifices speed for correctness on the Results rotation only.
+- **`**/Results/*.cs`**: same root-namespace situation, but there is no corresponding `*.Results.*` test namespace — tests for `EitherHelpers`, `EncinaErrors`, and `NullFunctionalFailureDetector` live in scattered domain folders. The FILTERS entry is intentionally empty so the run falls back to the config default (all three Stryker test projects). This sacrifices speed for correctness on the Results rotation only. Each shard's `timeout-minutes` now comes from a `TIMEOUTS` array, kept in lock-step with `FOLDERS` and `FILTERS` in `.github/workflows/mutation-tests.yml` and sized from evidence rather than one fixed 60-minute limit for every shard; for the reason above, the Results shard is a documented exception, capped at the 340-minute ceiling instead of being computed. Fixing that properly — a real per-shard filter, or the [#1087](https://github.com/dlrivada/Encina/issues/1087) per-test coverage runner spike — is future work.
 - **Non-recursive globs**: `**/Pipeline/*.cs` matches `src/Encina/Pipeline/*.cs` only, but the filter `Pipeline` also matches `Pipeline.Behaviors` tests. Accepted — prefer false positives (extra tests) over false negatives (missed kills).
 - **Tests in unexpected locations**: `ContractTests/Database/Sharding/*` contains contract tests for routing/replica/colocation code that lives in `src/Encina/Sharding/*`. The substring `Sharding.Routing` (etc.) still matches because it is a substring of the full FQN — the mirror convention is looser than "exact namespace match".
 
