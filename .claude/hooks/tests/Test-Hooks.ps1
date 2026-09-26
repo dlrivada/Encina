@@ -751,6 +751,14 @@ $gateCases = @(
 $script:failed = 0
 $script:total = 0
 
+# Joins captured child-process output lines and collapses whitespace, so a "-match" against a multi-word
+# phrase does not depend on where the host's console width wrapped it (#1380: PowerShell re-wraps a
+# Write-Error ErrorRecord to the host width even when stderr is redirected to the parent, so the same phrase
+# can land on one line in a wide terminal and split across two in a narrow one, on the very same commit).
+function Get-FlatOutput([object[]]$Lines) {
+    return (($Lines | ForEach-Object { "$_" }) -join ' ') -replace '\s+', ' '
+}
+
 # Runs one hook: $Json on stdin, -Agent when given; checks the exit code and, when given, a regex on stdout.
 function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$Label, [string]$HookAgent, [string]$StdoutPattern) {
     $arguments = @('-NoProfile', '-File', $Hook)
@@ -1152,7 +1160,7 @@ try {
 
         function Invoke-CommitStage {
             $output = & pwsh -NoProfile -File (Join-Path $commitWt 'tools\ai\audit\audit-commit-stage.ps1') -Stage code 2>&1
-            [pscustomobject]@{ Code = $LASTEXITCODE; Output = ($output -join "`n") }
+            [pscustomobject]@{ Code = $LASTEXITCODE; Output = (Get-FlatOutput $output) }
         }
         function Test-CommitStageCase([string]$Label, [bool]$ExpectSuccess) {
             $r = Invoke-CommitStage
@@ -1226,7 +1234,7 @@ try {
         function Test-OwnershipDenialCase([string]$Json, [string]$HookAgent, [string]$Label, [string]$Pattern) {
             $output = $Json | pwsh -NoProfile -File $ownership -Agent $HookAgent 2>&1
             $code = $LASTEXITCODE
-            $text = ($output | ForEach-Object { "$_" }) -join "`n"
+            $text = Get-FlatOutput $output
             $ok = ($code -eq 2) -and ($text -match $Pattern)
             $script:total++
             if ($ok) { "PASS enforce-path-ownership.ps1: $Label" } else { $script:failed++; "FAIL enforce-path-ownership.ps1: $Label (exit $code): $text" }
@@ -1277,12 +1285,12 @@ try {
         $repairOk = $false
         try {
             $repairParsed = $repairResultRaw | ConvertFrom-Json -AsHashtable
-            $repairOk = $repairCode -eq 0 -and $null -ne $repairParsed -and $repairParsed.Count -eq 1 -and [string]$repairParsed['code'].agent -eq 'issue-auditor' -and ($repairOutput -join "`n") -match 'tests'
+            $repairOk = $repairCode -eq 0 -and $null -ne $repairParsed -and $repairParsed.Count -eq 1 -and [string]$repairParsed['code'].agent -eq 'issue-auditor' -and (Get-FlatOutput $repairOutput) -match 'tests'
         }
         catch { $repairOk = $false }
         $script:total++
         if ($repairOk) { 'PASS audit-stage.ps1: -RepairAuthors restores the committed sidecar and lists the dropped stage entries (#1374)' }
-        else { $script:failed++; "FAIL audit-stage.ps1: -RepairAuthors (#1374) (exit $repairCode): $(($repairOutput -join ' ')); sidecar now: $repairResultRaw" }
+        else { $script:failed++; "FAIL audit-stage.ps1: -RepairAuthors (#1374) (exit $repairCode): $(Get-FlatOutput $repairOutput); sidecar now: $repairResultRaw" }
 
         # -RepairAuthors refuses when no audit is open, same as -Next.
         Remove-Item -Force (Join-Path $repairWt 'artifacts\knowledge\current-audit.json')
@@ -1441,7 +1449,7 @@ try {
         # print what it removed, rather than accumulating stale files across re-runs.
         $remOutput2 = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
         $remExit2 = $LASTEXITCODE
-        Test-RemediationCase 're-running -DryRun -NoGh exits 0 and prints that it removed the previous _dryrun output' { $remExit2 -eq 0 -and ($remOutput2 -join "`n") -match "removed previous output _dryrun-$remN" }
+        Test-RemediationCase 're-running -DryRun -NoGh exits 0 and prints that it removed the previous _dryrun output' { $remExit2 -eq 0 -and (Get-FlatOutput $remOutput2) -match "removed previous output _dryrun-$remN" }
         $inputFilesAfterRerun = @(Get-ChildItem $dryDir -Filter '*-input.md' -ErrorAction SilentlyContinue)
         Test-RemediationCase 're-running -DryRun -NoGh does not accumulate stale files (still 7 input files, not 14)' { $inputFilesAfterRerun.Count -eq 7 }
 
@@ -1453,7 +1461,7 @@ try {
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "No '## Findings' header here, just prose.`n## Lessons for the pipeline`n- none`n"
         $missingHeaderOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
         $missingHeaderExit = $LASTEXITCODE
-        Test-RemediationCase "a stage artifact missing the '## Findings' header is an error (exit non-zero, names the file)" { $missingHeaderExit -ne 0 -and ($missingHeaderOutput -join "`n") -match [regex]::Escape('tests.md') -and ($missingHeaderOutput -join "`n") -match "## Findings' header" }
+        Test-RemediationCase "a stage artifact missing the '## Findings' header is an error (exit non-zero, names the file)" { $missingHeaderExit -ne 0 -and (Get-FlatOutput $missingHeaderOutput) -match [regex]::Escape('tests.md') -and (Get-FlatOutput $missingHeaderOutput) -match "## Findings' header" }
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
 
         # CodeRabbit review of PR #1378 (thread 1, end to end): a duplicate finding id within one stage
@@ -1461,13 +1469,73 @@ try {
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "## Findings`n1. **Major** -- ``tests/X.cs:1`` first.`n1. **Minor** -- ``tests/Y.cs:2`` duplicate id.`n## Lessons for the pipeline`n- none`n"
         $dupIdOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
         $dupIdExit = $LASTEXITCODE
-        Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupIdExit -ne 0 -and ($dupIdOutput -join "`n") -match "stage 'tests'" -and ($dupIdOutput -join "`n") -match "'1'" }
+        Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupIdExit -ne 0 -and (Get-FlatOutput $dupIdOutput) -match "stage 'tests'" -and (Get-FlatOutput $dupIdOutput) -match "'1'" }
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
     }
     else {
         'SKIP audit-draft-remediation.ps1: git is not on PATH'
     }
     # ---- end #1375 block ----
+
+    # ================================================================================================
+    # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /
+    # Test-ScriptReferencesPath) must not block the pipeline's own sanctioned scripts (Test-ScriptIsSanctioned)
+    # even though they legitimately mention src/ or tests/ while writing only under artifacts/; a script that
+    # merely LOOKS like a sanctioned one, placed outside the repository or outside the allowlist, still goes
+    # through the heuristic (#1368). Get-FlatOutput (added above) makes a captured-output "-match" insensitive
+    # to console width (#1380).
+    # ================================================================================================
+
+    # (a)/(b): the orchestrator's own sanctioned commands, against the REAL scripts of this checkout (no
+    # execution happens here — guard-orchestrator-writes.ps1 only reads the named script's text).
+    $realTestHooksPath = Join-Path $repo '.claude\hooks\tests\Test-Hooks.ps1'
+    $realRemediationPath = Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1'
+    Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$realTestHooksPath'" } } | ConvertTo-Json -Compress) 0 'orchestrator: pwsh -File of the hook test suite itself is allowed (#1368)'
+    Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$realRemediationPath'" } } | ConvertTo-Json -Compress) 0 'orchestrator: pwsh -File of audit-draft-remediation.ps1 is allowed (#1380)'
+
+    # (c): an issue-worker's own sanctioned command, from its worktree. block-main-checkout-writes.ps1 only
+    # applies the Scripts write-API/reference check when the launching statement's Base resolves to the main
+    # checkout, so a fixture at $wt (a worktree under the fake $main) is needed to exercise it: the worker's raw
+    # tool-call cwd resets to the main checkout between calls (see the worker protocol), so "pwsh -File
+    # <worktree absolute path>\...\Test-Hooks.ps1" with no prior Set-Location is the exact false-positive shape;
+    # "Set-Location <worktree>; pwsh -File ..." already worked before this fix (Base tracks the Set-Location).
+    $workerFixturePath = Join-Path $wt '.claude\hooks\tests\Test-Hooks.ps1'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $workerFixturePath) | Out-Null
+    Set-Content -LiteralPath $workerFixturePath -Value "# Mentions src/Foo.cs and tests/Bar.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    $env:CLAUDE_PROJECT_DIR = $main
+    Invoke-HookCase $mainCheckout (@{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "Set-Location '$wt'; pwsh -NoProfile -File '$workerFixturePath'" } } | ConvertTo-Json -Compress) 0 'issue-worker: Set-Location into the worktree then pwsh -File of Test-Hooks.ps1 is allowed'
+    Invoke-HookCase $mainCheckout (@{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$workerFixturePath'" } } | ConvertTo-Json -Compress) 0 'issue-worker: pwsh -File of Test-Hooks.ps1 with no Set-Location (raw cwd is the main checkout) is allowed (#1368)'
+    $env:CLAUDE_PROJECT_DIR = $repo
+
+    # (d): a script under <repo>\artifacts\ that is NOT one of the sanctioned paths, but does write files and
+    # reference src/, must still be blocked — the exemption is a narrow allowlist, not a blanket pass for
+    # anything under the orchestrator's own tooling folders (regression guard for the #1181 rule).
+    $nonSanctionedFixturePath = Join-Path $repo 'artifacts\x-1368-fixture.ps1'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $nonSanctionedFixturePath) | Out-Null
+    Set-Content -LiteralPath $nonSanctionedFixturePath -Value "# Mentions src/Foo.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$nonSanctionedFixturePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script under artifacts/ that writes and references src/ is still blocked (#1368 regression guard)'
+    Remove-Item -Force $nonSanctionedFixturePath -ErrorAction SilentlyContinue
+
+    # (e): a script whose name and relative shape match a sanctioned pattern, but which lives outside the
+    # repository entirely (a temp fixture root, not a worktree), still goes through the heuristic: the allowlist
+    # is deliberately a repository-relative path check, not a name match (decision 5).
+    $outsideLookalikePath = Join-Path $work 'tools\ai\audit\lookalike.ps1'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $outsideLookalikePath) | Out-Null
+    Set-Content -LiteralPath $outsideLookalikePath -Value "# Mentions tests/Bar.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$outsideLookalikePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script outside the repository is not exempt just because its path looks sanctioned (#1368 decision 5)'
+
+    # (f): Get-FlatOutput reconstructs a phrase that a narrow console wrapped across two output lines, so the
+    # "-match" cases above (and the #1374/#1375 blocks) do not depend on the host's console width (#1380).
+    $script:total++
+    $wrappedLines = @("some prefix text ## Findings'", "header some suffix text")
+    if ((Get-FlatOutput $wrappedLines) -match "## Findings' header") {
+        "PASS Get-FlatOutput: a phrase wrapped across two console lines still matches after joining and collapsing whitespace (#1380)"
+    }
+    else {
+        $script:failed++
+        "FAIL Get-FlatOutput: expected the wrapped phrase to match after flattening, got '$(Get-FlatOutput $wrappedLines)'"
+    }
+    # ---- end #1368/#1380 block ----
 
     # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
     function Test-Wiring([string]$Label, [string[]]$Problems) {
