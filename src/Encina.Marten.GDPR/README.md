@@ -99,7 +99,7 @@ var result = await keyProvider.DeleteSubjectKeysAsync("user-123");
 
 result.Match(
     Right: r => Console.WriteLine($"Forgotten: {r.KeysDeleted} keys deleted"),
-    Left:  e => Console.WriteLine($"Error: {e.Message}"));
+    Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 
 // After forgetting: Email fields show "[REDACTED]" instead of encrypted data
 ```
@@ -145,7 +145,7 @@ var result = await keyProvider.RotateSubjectKeyAsync("user-123");
 
 result.Match(
     Right: r => Console.WriteLine($"Rotated to version {r.NewVersion}"),
-    Left:  e => Console.WriteLine($"Error: {e.Message}"));
+    Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 ```
 
 After rotation:
