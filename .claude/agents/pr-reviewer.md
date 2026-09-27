@@ -15,6 +15,8 @@ hooks:
         - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/block-prohibited-commands.ps1"'
         - type: command
+          command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/enforce-path-ownership.ps1" -Agent pr-reviewer'
+        - type: command
           command: 'pwsh -NoProfile -File "$CLAUDE_PROJECT_DIR/.claude/hooks/no-background-specialists.ps1" -Agent pr-reviewer'
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:

@@ -1016,7 +1016,14 @@ try {
         @('test-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'fabricated'", 2, 'shell vector: Set-Content by the wrong stage agent is denied'),
         @('issue-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'legitimate'", 0, 'shell vector: Set-Content by the correct stage agent is allowed'),
         @($null, 'PowerShell', "[IO.File]::WriteAllText('$shellCodePath', 'fabricated')", 2, 'shell vector: [IO.File]::WriteAllText by the orchestrator is denied', 'mechanical-fixer'),
-        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied')
+        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied'),
+        # #1447 adversarial-review fix: pr-reviewer.md originally wired enforce-path-ownership.ps1 only on the
+        # Write|Edit|MultiEdit|NotebookEdit matcher, not on Bash|PowerShell; a shell write whose payload omits
+        # agent_type (the exact case the frontmatter -Agent fallback exists for) fell through every elseif
+        # branch to the default allow. These cases exercise the hook's own Bash|PowerShell handling for
+        # pr-reviewer directly, the same way the stage-agent cases above do.
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed')
     )
     foreach ($case in $shellCases) {
         $hookAgent, $tool, $command, $expected, $label, $agentType = $case
@@ -2210,7 +2217,7 @@ Some debt description.
             if (-not (Test-Path (Join-Path $hooks $m.Groups['h'].Value))) { $problems.Add("missing hook $($m.Groups['h'].Value)") }
             if ($m.Groups['a'].Success -and $m.Groups['a'].Value -ne $file.BaseName) { $problems.Add("-Agent $($m.Groups['a'].Value) in $($file.Name)") }
         }
-        if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
+        if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'site-steward', 'pr-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
         Test-Wiring "frontmatter of $($file.Name)" $problems
     }
     $settingsProblems = [System.Collections.Generic.List[string]]::new()
