@@ -115,10 +115,9 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
             _session.Store(doc);
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            _logger.LogDebug(
-                "Created initial encryption key for subject {SubjectId}, version {Version}",
-                subjectId,
-                version);
+            // The data subject's own identifier is never logged (#1429, following #1314);
+            // correlate via the key version instead.
+            _logger.LogDebug("Created initial encryption key. Version={Version}", version);
 
             return Right(keyMaterial);
         }
@@ -189,7 +188,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
-        using var activity = CryptoShreddingDiagnostics.StartForget(subjectId);
+        using var activity = CryptoShreddingDiagnostics.StartForget();
         var stopwatch = Stopwatch.GetTimestamp();
 
         try
@@ -232,7 +231,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
 
             CryptoShreddingDiagnostics.ForgetTotal.Add(1);
             CryptoShreddingDiagnostics.RecordSuccess(activity);
-            _logger.SubjectForgotten(subjectId, keysDeleted);
+            _logger.SubjectForgotten(keysDeleted);
 
             var result = new CryptoShreddingResult
             {
@@ -284,7 +283,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
-        using var activity = CryptoShreddingDiagnostics.StartKeyRotation(subjectId);
+        using var activity = CryptoShreddingDiagnostics.StartKeyRotation();
 
         try
         {
@@ -339,7 +338,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
 
             CryptoShreddingDiagnostics.KeyRotationTotal.Add(1);
             CryptoShreddingDiagnostics.RecordSuccess(activity);
-            _logger.KeyRotated(subjectId, oldVersion, newVersion);
+            _logger.KeyRotated(oldVersion, newVersion);
 
             var result = new KeyRotationResult
             {

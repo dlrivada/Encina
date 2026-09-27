@@ -46,10 +46,11 @@ public sealed class DefaultForgottenSubjectHandler : IForgottenSubjectHandler
         Type eventType,
         CancellationToken cancellationToken = default)
     {
+        // The data subject's own identifier is never logged (#1429, following #1314);
+        // correlate via the field name and event type instead.
         _logger.LogInformation(
-            "Encountered forgotten subject {SubjectId} while deserializing field '{PropertyName}' on event type {EventType}. " +
+            "Encountered forgotten subject while deserializing field '{PropertyName}' on event type {EventType}. " +
             "The field value will be returned as null",
-            subjectId,
             propertyName,
             eventType.Name);
 

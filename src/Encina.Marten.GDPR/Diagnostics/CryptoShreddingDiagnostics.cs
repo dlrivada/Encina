@@ -62,7 +62,9 @@ internal static class CryptoShreddingDiagnostics
     // Tag names
     internal const string TagEventType = "crypto.event_type";
     internal const string TagPropertyName = "crypto.property_name";
-    internal const string TagSubjectId = "crypto.subject_id";
+    // Note: no subject-id tag is exposed here. A data subject's own identifier must never appear
+    // as a trace or metric tag (it is high-cardinality personal data); correlate via the event
+    // type, property name or key version instead (#1429, following #1314).
     internal const string TagOutcome = "crypto.outcome";
     internal const string TagKeyProviderType = "crypto.key_provider_type";
     internal const string TagFailureReason = "crypto.failure_reason";
@@ -91,40 +93,36 @@ internal static class CryptoShreddingDiagnostics
         return activity;
     }
 
-    internal static Activity? StartForget(string subjectId)
+    // Note: none of these Start* methods take a subjectId parameter — the data subject's own
+    // identifier must never become an activity tag (#1429, following #1314).
+    internal static Activity? StartForget()
     {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("CryptoShredding.Forget", ActivityKind.Internal);
-        activity?.SetTag(TagSubjectId, subjectId);
-        return activity;
+        return ActivitySource.StartActivity("CryptoShredding.Forget", ActivityKind.Internal);
     }
 
-    internal static Activity? StartKeyRotation(string subjectId)
+    internal static Activity? StartKeyRotation()
     {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("CryptoShredding.KeyRotation", ActivityKind.Internal);
-        activity?.SetTag(TagSubjectId, subjectId);
-        return activity;
+        return ActivitySource.StartActivity("CryptoShredding.KeyRotation", ActivityKind.Internal);
     }
 
-    internal static Activity? StartErasure(string subjectId)
+    internal static Activity? StartErasure()
     {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("CryptoShredding.Erasure", ActivityKind.Internal);
-        activity?.SetTag(TagSubjectId, subjectId);
-        return activity;
+        return ActivitySource.StartActivity("CryptoShredding.Erasure", ActivityKind.Internal);
     }
 
     internal static void RecordSuccess(Activity? activity)

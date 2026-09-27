@@ -104,7 +104,9 @@ internal sealed class DefaultDSRService : IDSRService
         string? moduleId = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.DSRRequestStarted(rightType.ToString(), subjectId);
+        // The data subject's own identifier is never logged (#1429, following #1314); correlate
+        // via the right type instead.
+        _logger.DSRRequestStarted(rightType.ToString());
 
         try
         {
@@ -119,7 +121,7 @@ internal sealed class DefaultDSRService : IDSRService
             return result.Match<Either<EncinaError, Guid>>(
                 Right: _ =>
                 {
-                    _logger.DSRRequestCompleted(rightType.ToString(), subjectId);
+                    _logger.DSRRequestCompleted(rightType.ToString());
                     DataSubjectRightsDiagnostics.RequestsTotal.Add(1,
                         new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagRightType, rightType.ToString()),
                         new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "submitted"));
@@ -237,7 +239,7 @@ internal sealed class DefaultDSRService : IDSRService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.DSRRequestCompleted(aggregate.RightType.ToString(), aggregate.SubjectId);
+                            _logger.DSRRequestCompleted(aggregate.RightType.ToString());
                             InvalidateRequestCache(requestId);
                             InvalidateRestrictionCache(aggregate.SubjectId);
                             return Unit.Default;
@@ -395,8 +397,8 @@ internal sealed class DefaultDSRService : IDSRService
 
         var rightType = DataSubjectRight.Access;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         // Locate all personal data
@@ -426,15 +428,15 @@ internal sealed class DefaultDSRService : IDSRService
                     GeneratedAtUtc = _timeProvider.GetUtcNow()
                 };
 
-                _logger.AccessRequestCompleted(request.SubjectId, locations.Count, activities.Count);
-                _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+                _logger.AccessRequestCompleted(locations.Count, activities.Count);
+                _logger.DSRRequestCompleted(rightType.ToString());
                 RecordSuccess(activity, stopwatch, rightType);
 
                 return Right<EncinaError, AccessResponse>(response);
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), request.SubjectId, error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
                 RecordFailure(activity, stopwatch, rightType, error.Message);
 
                 return (Either<EncinaError, AccessResponse>)error;
@@ -450,8 +452,8 @@ internal sealed class DefaultDSRService : IDSRService
 
         var rightType = DataSubjectRight.Rectification;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         // Note: Actual rectification requires a provider-specific implementation.
@@ -466,8 +468,8 @@ internal sealed class DefaultDSRService : IDSRService
                 _timeProvider.GetUtcNow()),
             cancellationToken).ConfigureAwait(false);
 
-        _logger.RectificationCompleted(request.SubjectId, request.FieldName);
-        _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+        _logger.RectificationCompleted(request.FieldName);
+        _logger.DSRRequestCompleted(rightType.ToString());
         RecordSuccess(activity, stopwatch, rightType);
 
         return unit;
@@ -483,9 +485,9 @@ internal sealed class DefaultDSRService : IDSRService
         var now = _timeProvider.GetUtcNow();
         var rightType = DataSubjectRight.Erasure;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        _logger.ErasureStarted(request.SubjectId, request.Reason.ToString());
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        _logger.ErasureStarted(request.Reason.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         // Execute erasure
@@ -512,14 +514,14 @@ internal sealed class DefaultDSRService : IDSRService
                         cancellationToken).ConfigureAwait(false);
                 }
 
-                _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+                _logger.DSRRequestCompleted(rightType.ToString());
                 RecordSuccess(activity, stopwatch, rightType);
 
                 return Right<EncinaError, ErasureResult>(result);
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), request.SubjectId, error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
                 RecordFailure(activity, stopwatch, rightType, error.Message);
 
                 return Left<EncinaError, ErasureResult>(
@@ -537,8 +539,8 @@ internal sealed class DefaultDSRService : IDSRService
         var now = _timeProvider.GetUtcNow();
         var rightType = DataSubjectRight.Restriction;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -562,8 +564,8 @@ internal sealed class DefaultDSRService : IDSRService
                             now),
                         cancellationToken).ConfigureAwait(false);
 
-                    _logger.RestrictionApplied(request.SubjectId, request.Reason);
-                    _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+                    _logger.RestrictionApplied(request.Reason);
+                    _logger.DSRRequestCompleted(rightType.ToString());
                     RecordSuccess(activity, stopwatch, rightType);
                     InvalidateRestrictionCache(request.SubjectId);
 
@@ -571,7 +573,7 @@ internal sealed class DefaultDSRService : IDSRService
                 },
                 Left: error =>
                 {
-                    _logger.DSRRequestFailed(rightType.ToString(), request.SubjectId, error.Message);
+                    _logger.DSRRequestFailed(rightType.ToString(), error.Message);
                     RecordFailure(activity, stopwatch, rightType, error.Message);
                     return error;
                 });
@@ -593,8 +595,8 @@ internal sealed class DefaultDSRService : IDSRService
 
         var rightType = DataSubjectRight.Portability;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         var exportResult = await _portabilityExporter.ExportAsync(
@@ -603,14 +605,14 @@ internal sealed class DefaultDSRService : IDSRService
         return exportResult.Match(
             Right: response =>
             {
-                _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+                _logger.DSRRequestCompleted(rightType.ToString());
                 RecordSuccess(activity, stopwatch, rightType);
 
                 return Right<EncinaError, PortabilityResponse>(response);
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), request.SubjectId, error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
                 RecordFailure(activity, stopwatch, rightType, error.Message);
 
                 return Left<EncinaError, PortabilityResponse>(error);
@@ -626,8 +628,8 @@ internal sealed class DefaultDSRService : IDSRService
 
         var rightType = DataSubjectRight.Objection;
 
-        _logger.DSRRequestStarted(rightType.ToString(), request.SubjectId);
-        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType, request.SubjectId);
+        _logger.DSRRequestStarted(rightType.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartDSRRequest(rightType);
         var stopwatch = Stopwatch.StartNew();
 
         // Note: The actual decision to accept or reject the objection requires
@@ -635,8 +637,8 @@ internal sealed class DefaultDSRService : IDSRService
         // (which is absolute per Article 21(2-3)). This implementation records
         // the objection and defers the decision to the application.
 
-        _logger.ObjectionRecorded(request.SubjectId, request.ProcessingPurpose);
-        _logger.DSRRequestCompleted(rightType.ToString(), request.SubjectId);
+        _logger.ObjectionRecorded(request.ProcessingPurpose);
+        _logger.DSRRequestCompleted(rightType.ToString());
         RecordSuccess(activity, stopwatch, rightType);
 
         return ValueTask.FromResult<Either<EncinaError, Unit>>(unit);
@@ -685,7 +687,8 @@ internal sealed class DefaultDSRService : IDSRService
         string subjectId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting DSR requests for subject '{SubjectId}'", subjectId);
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.LogDebug("Getting DSR requests for subject");
 
         try
         {
@@ -761,7 +764,8 @@ internal sealed class DefaultDSRService : IDSRService
         string subjectId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Checking active restriction for subject '{SubjectId}'", subjectId);
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.LogDebug("Checking active restriction for subject");
 
         var cacheKey = $"dsr:restriction:{subjectId}";
 

@@ -62,9 +62,8 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
 
         try
         {
-            _logger.LogDebug(
-                "Locating personal data for subject {SubjectId} in Marten event store",
-                subjectId);
+            // The data subject's own identifier is never logged (#1429, following #1314).
+            _logger.LogDebug("Locating personal data in Marten event store");
 
             // Query all raw events from the store
             var allEvents = await _session.Events
@@ -76,77 +75,90 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
 
             foreach (var eventData in allEvents)
             {
-                var eventBody = eventData.Data;
-                if (eventBody is null)
+                if (eventData.Data is { } eventBody)
                 {
-                    continue;
-                }
-
-                var eventType = eventBody.GetType();
-                var fields = CryptoShreddedPropertyCache.GetFields(eventType);
-
-                if (fields.Length == 0)
-                {
-                    continue;
-                }
-
-                foreach (var field in fields)
-                {
-                    // Read the subject ID from the event's subject ID property
-                    var subjectIdProp = eventType.GetProperty(
-                        field.SubjectIdProperty,
-                        BindingFlags.Public | BindingFlags.Instance);
-
-                    if (subjectIdProp is null)
-                    {
-                        continue;
-                    }
-
-                    var eventSubjectId = subjectIdProp.GetValue(eventBody) as string;
-                    if (!string.Equals(eventSubjectId, subjectId, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
-                    // Get the PersonalData attribute for category and flags
-                    var personalDataAttr = field.Property.GetCustomAttribute<PersonalDataAttribute>();
-                    if (personalDataAttr is null)
-                    {
-                        continue;
-                    }
-
-                    var currentValue = field.GetValue(eventBody);
-
-                    locations.Add(new PersonalDataLocation
-                    {
-                        EntityType = eventType,
-                        EntityId = subjectId,
-                        FieldName = field.Property.Name,
-                        Category = personalDataAttr.Category,
-                        IsErasable = personalDataAttr.Erasable,
-                        IsPortable = personalDataAttr.Portable,
-                        HasLegalRetention = personalDataAttr.LegalRetention,
-                        CurrentValue = currentValue
-                    });
+                    locations.AddRange(LocateFieldsInEvent(eventBody, subjectId));
                 }
             }
 
-            _logger.LogDebug(
-                "Located {Count} personal data fields for subject {SubjectId}",
-                locations.Count,
-                subjectId);
+            _logger.LogDebug("Located {Count} personal data fields", locations.Count);
 
             return Right<EncinaError, IReadOnlyList<PersonalDataLocation>>(locations);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to locate personal data for subject {SubjectId}",
-                subjectId);
+            // The data subject's own identifier is never logged (#1429, following #1314).
+            _logger.LogError(ex, "Failed to locate personal data");
 
             return Left<EncinaError, IReadOnlyList<PersonalDataLocation>>(
                 CryptoShreddingErrors.KeyStoreError("LocateAllData", ex));
         }
+    }
+
+    /// <summary>
+    /// Finds every crypto-shredded field on one event body that belongs to the given subject.
+    /// </summary>
+    /// <remarks>
+    /// Internal (rather than private) and static so it can be unit-tested directly against plain
+    /// CLR objects, without mocking Marten's query pipeline — this is where the leak fixed by
+    /// #1429 lived (<c>EntityId</c> below is the subject id itself for this locator).
+    /// </remarks>
+    internal static IEnumerable<PersonalDataLocation> LocateFieldsInEvent(object eventBody, string subjectId)
+    {
+        var eventType = eventBody.GetType();
+        var fields = CryptoShreddedPropertyCache.GetFields(eventType);
+
+        foreach (var field in fields)
+        {
+            if (TryBuildLocation(eventBody, eventType, field, subjectId, out var location))
+            {
+                yield return location;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds a <see cref="PersonalDataLocation"/> for one field when it belongs to the given
+    /// subject and carries a resolvable <see cref="PersonalDataAttribute"/>.
+    /// </summary>
+    internal static bool TryBuildLocation(
+        object eventBody,
+        Type eventType,
+        CryptoShreddedFieldInfo field,
+        string subjectId,
+        out PersonalDataLocation location)
+    {
+        location = null!;
+
+        // Read the subject ID from the event's subject ID property
+        var subjectIdProp = eventType.GetProperty(
+            field.SubjectIdProperty,
+            BindingFlags.Public | BindingFlags.Instance);
+
+        var eventSubjectId = subjectIdProp?.GetValue(eventBody) as string;
+        if (!string.Equals(eventSubjectId, subjectId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // Get the PersonalData attribute for category and flags
+        var personalDataAttr = field.Property.GetCustomAttribute<PersonalDataAttribute>();
+        if (personalDataAttr is null)
+        {
+            return false;
+        }
+
+        location = new PersonalDataLocation
+        {
+            EntityType = eventType,
+            EntityId = subjectId,
+            FieldName = field.Property.Name,
+            Category = personalDataAttr.Category,
+            IsErasable = personalDataAttr.Erasable,
+            IsPortable = personalDataAttr.Portable,
+            HasLegalRetention = personalDataAttr.LegalRetention,
+            CurrentValue = field.GetValue(eventBody)
+        };
+        return true;
     }
 }

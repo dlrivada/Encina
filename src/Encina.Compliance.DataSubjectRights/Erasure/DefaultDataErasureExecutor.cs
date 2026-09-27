@@ -65,7 +65,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         ArgumentNullException.ThrowIfNull(scope);
 
-        using var activity = DataSubjectRightsDiagnostics.StartErasure(subjectId);
+        using var activity = DataSubjectRightsDiagnostics.StartErasure();
         var stopwatch = Stopwatch.StartNew();
 
         // Step 1: Locate all personal data
@@ -76,7 +76,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             {
                 if (locations.Count == 0)
                 {
-                    _logger.ErasureNoDataFound(subjectId);
+                    _logger.ErasureNoDataFound();
 
                     stopwatch.Stop();
                     DataSubjectRightsDiagnostics.RecordCompleted(activity);
@@ -99,57 +99,14 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
                 var (erasable, retained) = PartitionFields(scopedLocations);
 
                 // Step 4: Apply strategy to erasable fields
-                var erased = 0;
-                var failed = 0;
+                var (erased, failed) = await ApplyErasureStrategyAsync(erasable, cancellationToken)
+                    .ConfigureAwait(false);
 
-                foreach (var location in erasable)
-                {
-                    var eraseResult = await _strategy.EraseFieldAsync(location, cancellationToken)
-                        .ConfigureAwait(false);
+                // Step 5: Build retention details and exemptions
+                var retentionReasons = BuildRetentionReasons(retained);
+                var exemptions = ResolveExemptions(scope, retained);
 
-                    eraseResult.Match(
-                        Right: _ =>
-                        {
-                            erased++;
-                            _logger.ErasureFieldErased(
-                                location.FieldName,
-                                location.EntityType.Name,
-                                location.EntityId);
-                        },
-                        Left: error =>
-                        {
-                            failed++;
-                            _logger.ErasureFieldFailed(
-                                location.FieldName,
-                                location.EntityType.Name,
-                                location.EntityId,
-                                error.Message);
-                        });
-                }
-
-                // Step 5: Build retention details
-                var retentionReasons = retained
-                    .Select(r => new RetentionDetail
-                    {
-                        FieldName = r.FieldName,
-                        EntityType = r.EntityType,
-                        Reason = r.HasLegalRetention
-                            ? "Legal retention requirement (Article 17(3))"
-                            : "Field is not erasable"
-                    })
-                    .ToList()
-                    .AsReadOnly();
-
-                // Collect exemptions from scope or auto-detect
-                IReadOnlyList<ErasureExemption> exemptions = scope.ExemptionsToApply ?? [];
-                if (retained.Count > 0 && exemptions.Count == 0)
-                {
-                    exemptions = retained.Any(r => r.HasLegalRetention)
-                        ? [ErasureExemption.LegalObligation]
-                        : [];
-                }
-
-                _logger.ErasureCompleted(subjectId, erased, retained.Count, failed);
+                _logger.ErasureCompleted(erased, retained.Count, failed);
 
                 // Record metrics
                 stopwatch.Stop();
@@ -169,7 +126,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             },
             Left: error =>
             {
-                _logger.ErasureFailed(subjectId, error.Message);
+                _logger.ErasureFailed(error.Message);
 
                 stopwatch.Stop();
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.Message);
@@ -177,6 +134,79 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
 
                 return error;
             }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies <see cref="IDataErasureStrategy"/> to every erasable field, logging and counting
+    /// each success or failure.
+    /// </summary>
+    private async ValueTask<(int Erased, int Failed)> ApplyErasureStrategyAsync(
+        List<PersonalDataLocation> erasable,
+        CancellationToken cancellationToken)
+    {
+        var erased = 0;
+        var failed = 0;
+
+        foreach (var location in erasable)
+        {
+            var eraseResult = await _strategy.EraseFieldAsync(location, cancellationToken)
+                .ConfigureAwait(false);
+
+            // Neither log call below includes location.EntityId: for some locators (e.g. the
+            // Marten event-store locator) it is the data subject's own identifier (#1429).
+            eraseResult.Match(
+                Right: _ =>
+                {
+                    erased++;
+                    _logger.ErasureFieldErased(location.FieldName, location.EntityType.Name);
+                },
+                Left: error =>
+                {
+                    failed++;
+                    _logger.ErasureFieldFailed(location.FieldName, location.EntityType.Name, error.Message);
+                });
+        }
+
+        return (erased, failed);
+    }
+
+    /// <summary>
+    /// Builds the retention reason for each retained field, for the result's audit trail.
+    /// </summary>
+    private static System.Collections.ObjectModel.ReadOnlyCollection<RetentionDetail> BuildRetentionReasons(
+        List<PersonalDataLocation> retained) =>
+        retained
+            .Select(r => new RetentionDetail
+            {
+                FieldName = r.FieldName,
+                EntityType = r.EntityType,
+                Reason = r.HasLegalRetention
+                    ? "Legal retention requirement (Article 17(3))"
+                    : "Field is not erasable"
+            })
+            .ToList()
+            .AsReadOnly();
+
+    /// <summary>
+    /// Resolves the exemptions to report: the scope's explicit exemptions when given, otherwise
+    /// auto-detected from why fields were retained.
+    /// </summary>
+    private static IReadOnlyList<ErasureExemption> ResolveExemptions(
+        ErasureScope scope, List<PersonalDataLocation> retained)
+    {
+        if (scope.ExemptionsToApply is { Count: > 0 } explicitExemptions)
+        {
+            return explicitExemptions;
+        }
+
+        if (retained.Count == 0)
+        {
+            return [];
+        }
+
+        return retained.Any(r => r.HasLegalRetention)
+            ? [ErasureExemption.LegalObligation]
+            : [];
     }
 
     private static System.Collections.ObjectModel.ReadOnlyCollection<PersonalDataLocation> ApplyScope(

@@ -68,23 +68,23 @@ public sealed class CompositePersonalDataLocator : IPersonalDataLocator
         {
             var result = await locator.LocateAllDataAsync(subjectId, cancellationToken).ConfigureAwait(false);
 
+            // The data subject's own identifier is never logged (#1429, following #1314);
+            // correlate via the locator type instead.
             result.Match(
                 Right: locations =>
                 {
                     allLocations.AddRange(locations);
                     _logger.LogDebug(
-                        "Locator {LocatorType} found {Count} personal data locations for subject '{SubjectId}'",
+                        "Locator {LocatorType} found {Count} personal data locations",
                         locator.GetType().Name,
-                        locations.Count,
-                        subjectId);
+                        locations.Count);
                 },
                 Left: error =>
                 {
                     failedLocators++;
                     _logger.LogWarning(
-                        "Locator {LocatorType} failed for subject '{SubjectId}': {ErrorMessage}",
+                        "Locator {LocatorType} failed: {ErrorMessage}",
                         locator.GetType().Name,
-                        subjectId,
                         error.Message);
                 });
         }

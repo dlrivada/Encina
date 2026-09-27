@@ -28,7 +28,9 @@ internal static class DataSubjectRightsDiagnostics
 
     internal const string TagRightType = "dsr.right_type";
     internal const string TagOutcome = "dsr.outcome";
-    internal const string TagSubjectId = "dsr.subject_id";
+    // Note: no subject-id tag is exposed here. A data subject's own identifier must never appear
+    // as a trace or metric tag (it is high-cardinality personal data); correlate via the right
+    // type, request type or error code instead (#1429, following #1314).
     internal const string TagFormat = "dsr.format";
     internal const string TagFailureReason = "dsr.failure_reason";
     internal const string TagRequestType = "dsr.request_type";
@@ -180,9 +182,12 @@ internal static class DataSubjectRightsDiagnostics
     /// Starts a new <c>DSR.Request</c> activity for a data subject right operation.
     /// </summary>
     /// <param name="rightType">The type of data subject right being exercised.</param>
-    /// <param name="subjectId">The data subject identifier.</param>
     /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
-    internal static Activity? StartDSRRequest(DataSubjectRight rightType, string subjectId)
+    /// <remarks>
+    /// The data subject's own identifier is never tagged on this activity (#1429, following
+    /// #1314); the right type is the correlation dimension.
+    /// </remarks>
+    internal static Activity? StartDSRRequest(DataSubjectRight rightType)
     {
         if (!ActivitySource.HasListeners())
         {
@@ -191,34 +196,37 @@ internal static class DataSubjectRightsDiagnostics
 
         var activity = ActivitySource.StartActivity("DSR.Request", ActivityKind.Internal);
         activity?.SetTag(TagRightType, rightType.ToString());
-        activity?.SetTag(TagSubjectId, subjectId);
         return activity;
     }
 
     /// <summary>
     /// Starts a new <c>DSR.Erasure</c> activity for a data erasure operation.
     /// </summary>
-    /// <param name="subjectId">The data subject identifier.</param>
     /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
-    internal static Activity? StartErasure(string subjectId)
+    /// <remarks>
+    /// The data subject's own identifier is never tagged on this activity (#1429, following
+    /// #1314).
+    /// </remarks>
+    internal static Activity? StartErasure()
     {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("DSR.Erasure", ActivityKind.Internal);
-        activity?.SetTag(TagSubjectId, subjectId);
-        return activity;
+        return ActivitySource.StartActivity("DSR.Erasure", ActivityKind.Internal);
     }
 
     /// <summary>
     /// Starts a new <c>DSR.Portability.Export</c> activity for a data portability export.
     /// </summary>
-    /// <param name="subjectId">The data subject identifier.</param>
     /// <param name="format">The export format requested.</param>
     /// <returns>The started activity, or <c>null</c> when no listener is attached.</returns>
-    internal static Activity? StartPortabilityExport(string subjectId, ExportFormat format)
+    /// <remarks>
+    /// The data subject's own identifier is never tagged on this activity (#1429, following
+    /// #1314); the format is the correlation dimension.
+    /// </remarks>
+    internal static Activity? StartPortabilityExport(ExportFormat format)
     {
         if (!ActivitySource.HasListeners())
         {
@@ -226,7 +234,6 @@ internal static class DataSubjectRightsDiagnostics
         }
 
         var activity = ActivitySource.StartActivity("DSR.Portability.Export", ActivityKind.Internal);
-        activity?.SetTag(TagSubjectId, subjectId);
         activity?.SetTag(TagFormat, format.ToString());
         return activity;
     }
@@ -284,11 +291,12 @@ internal static class DataSubjectRightsDiagnostics
     /// Records a blocked outcome on an activity (restriction enforcement).
     /// </summary>
     /// <param name="activity">The activity to mark as blocked (may be <c>null</c>).</param>
-    /// <param name="subjectId">The restricted data subject identifier.</param>
-    internal static void RecordBlocked(Activity? activity, string subjectId)
+    /// <remarks>
+    /// The restricted data subject's own identifier is never tagged (#1429, following #1314).
+    /// </remarks>
+    internal static void RecordBlocked(Activity? activity)
     {
         activity?.SetTag(TagOutcome, "blocked");
-        activity?.SetTag(TagSubjectId, subjectId);
         activity?.SetStatus(ActivityStatusCode.Error, "Processing restriction active");
     }
 
@@ -296,11 +304,12 @@ internal static class DataSubjectRightsDiagnostics
     /// Records a warned outcome on an activity (restriction in warn mode).
     /// </summary>
     /// <param name="activity">The activity to mark as warned (may be <c>null</c>).</param>
-    /// <param name="subjectId">The restricted data subject identifier.</param>
-    internal static void RecordWarned(Activity? activity, string subjectId)
+    /// <remarks>
+    /// The restricted data subject's own identifier is never tagged (#1429, following #1314).
+    /// </remarks>
+    internal static void RecordWarned(Activity? activity)
     {
         activity?.SetTag(TagOutcome, "warned");
-        activity?.SetTag(TagSubjectId, subjectId);
         activity?.SetStatus(ActivityStatusCode.Ok);
     }
 }
