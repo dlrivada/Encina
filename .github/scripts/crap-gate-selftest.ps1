@@ -9,6 +9,9 @@ Runs crap-gate.cs against the hand-computed fixtures under
   1. `--report` against the violating fixture diff exits 0 and lists the RiskyMethod violation.
   2. `--enforce` against the same diff exits 1 (a non-exempt method exceeds the threshold).
   3. `--enforce` against a diff that only touches the exempt method exits 0 and prints EXEMPT.
+  4. `--report` against a diff touching a line inside a nested lambda's own body attributes only
+     the lambda, not the enclosing method whose numeric MinLine..MaxLine range spans that line too
+     (issue #1506: exact-membership attribution, not a range check).
 
 Run this as the first step of the ci.yml `crap-gate` job, before the gate is trusted to block a
 real PR: if crap-gate.cs regresses (diff parsing, the exemption comment, the exit codes), this
@@ -94,6 +97,28 @@ elseif ($result.Output -notmatch 'EXEMPT') {
 }
 else {
     Write-Host 'PASS: the exempt-only diff exits 0 and prints EXEMPT'
+}
+
+# 4. A diff touching a line inside a nested lambda's own body attributes only the lambda, not the
+#    enclosing method whose numeric MinLine..MaxLine range spans the same line (issue #1506).
+Write-Host ''
+Write-Host '--- Assertion 4: --report on a diff touching a line inside a nested lambda ---'
+$result = Invoke-CrapGate -GateArgs @('--cobertura', 'SampleLambda.cobertura.xml', '--diff', 'sample-lambda.diff', '--report')
+Write-Host $result.Output
+if ($result.ExitCode -ne 0) {
+    Write-Host "FAIL: --report should exit 0, got $($result.ExitCode)"
+    $failures++
+}
+elseif ($result.Output -match 'Enclosing\b') {
+    Write-Host 'FAIL: the enclosing method must not be attributed a line that belongs only to the nested lambda'
+    $failures++
+}
+elseif ($result.Output -notmatch 'Changed methods analyzed: 1') {
+    Write-Host 'FAIL: expected exactly one method (the lambda) to be attributed the changed line'
+    $failures++
+}
+else {
+    Write-Host 'PASS: only the lambda is attributed the changed line; the enclosing method is not'
 }
 
 Write-Host ''

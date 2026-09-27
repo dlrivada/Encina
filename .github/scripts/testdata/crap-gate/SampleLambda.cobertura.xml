@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Synthetic Cobertura fixture for crap-gate.cs's nested-lambda attribution test (issue #1506).
+  Paired with src/SampleLambda.cs and sample-lambda.diff in this same folder. Mirrors the compiled
+  shape of #1503's DPIARequiredPipelineBehavior.Handle: an enclosing method (here "Enclosing")
+  compiled with its own sequence points that skip the lambda's body, plus a separate compiled
+  method for the lambda itself ("Enclosing_Lambda", modeling the compiler-generated
+  <>c__DisplayClass.<Enclosing>b__0). Enclosing's own recorded lines are {13,15,21,22} — its
+  MinLine..MaxLine range is 13..22, which numerically spans the lambda's own lines (17,18) even
+  though Enclosing's own Lines set never contains them.
+
+  Hand-computed CRAP:
+    Enclosing:        complexity=12, 0/4 own lines covered -> cov=0 -> CRAP = 12^2*(1-0)^3 + 12 = 156 (would violate if wrongly attributed)
+    Enclosing_Lambda:  complexity=1,  2/2 own lines covered -> cov=1 -> CRAP = 1^2*(1-1)^3 + 1  = 1   (not a violation)
+-->
+<coverage line-rate="0.33" branch-rate="0" version="1.9" timestamp="1" lines-covered="2" lines-valid="6" branches-covered="0" branches-valid="0">
+  <sources>
+    <source>D:\fixture\</source>
+  </sources>
+  <packages>
+    <package name="CrapGateFixture" line-rate="0.33" branch-rate="0" complexity="13">
+      <classes>
+        <class name="CrapGateFixture.SampleLambda" filename=".github/scripts/testdata/crap-gate/src/SampleLambda.cs" line-rate="0" branch-rate="0" complexity="12">
+          <methods>
+            <method name="Enclosing" signature="(System.Int32)" line-rate="0" branch-rate="0" complexity="12">
+              <lines>
+                <line number="13" hits="0" branch="False" />
+                <line number="15" hits="0" branch="False" />
+                <line number="21" hits="0" branch="False" />
+                <line number="22" hits="0" branch="False" />
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="13" hits="0" branch="False" />
+            <line number="15" hits="0" branch="False" />
+            <line number="21" hits="0" branch="False" />
+            <line number="22" hits="0" branch="False" />
+          </lines>
+        </class>
+        <class name="CrapGateFixture.SampleLambda/&lt;&gt;c__DisplayClass0_0" filename=".github/scripts/testdata/crap-gate/src/SampleLambda.cs" line-rate="1" branch-rate="0" complexity="1">
+          <methods>
+            <method name="&lt;Enclosing&gt;b__0" signature="(System.Int32)" line-rate="1" branch-rate="0" complexity="1">
+              <lines>
+                <line number="17" hits="1" branch="False" />
+                <line number="18" hits="1" branch="False" />
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="17" hits="1" branch="False" />
+            <line number="18" hits="1" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>
