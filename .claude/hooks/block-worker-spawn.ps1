@@ -3,7 +3,7 @@
 # caller's allowlist (#1181).
 #
 #   orchestrator      issue-worker, mechanical-fixer, docs-writer, docs-reviewer, adversarial-reviewer,
-#                     ci-diagnoser, pr-watcher, Explore, Plan, claude-code-guide, general-purpose,
+#                     ci-diagnoser, pr-watcher, site-steward, Explore, Plan, claude-code-guide, general-purpose,
 #                     issue-archivist, issue-auditor, test-auditor, audit-verifier (the SPEC-003 audit
 #                     pipeline's stage agents, #1345 — audit-stage-guard.ps1 enforces which one, in which
 #                     order, and for which open audit)
@@ -12,6 +12,8 @@
 #                     directly, without going through docs-writer)
 #   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore
 #   mechanical-fixer  ci-diagnoser, Explore
+#   site-steward      ci-diagnoser (#1382): a failing publisher or freshness check goes there for root-causing;
+#                     site-steward never diagnoses it itself.
 #   issue-archivist, issue-auditor, test-auditor, audit-verifier, docs-reviewer, adversarial-reviewer,
 #   ci-diagnoser, pr-watcher   empty (#1345). Each is either a SPEC-003 audit stage agent (single-owner,
 #                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
@@ -46,10 +48,11 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
         'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
         'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
+        'site-steward'          = @('ci-diagnoser')
         'issue-archivist'       = @()
         'issue-auditor'         = @()
         'test-auditor'          = @()
