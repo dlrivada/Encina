@@ -2,14 +2,15 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Encina.IntegrationTests.Testing.WireMock.Fixtures;
 using Encina.Testing.WireMock;
-using Encina.UnitTests.Testing.WireMock.Fixtures;
 
-namespace Encina.UnitTests.Testing.WireMock;
+namespace Encina.IntegrationTests.Testing.WireMock;
 
 /// <summary>
-/// Unit tests for <see cref="WebhookTestingExtensions"/>.
+/// Integration tests for <see cref="WebhookTestingExtensions"/> against a real WireMock server.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class WebhookTestingExtensionsTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();

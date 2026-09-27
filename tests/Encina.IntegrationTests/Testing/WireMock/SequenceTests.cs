@@ -2,11 +2,12 @@ using System.Net;
 using System.Text.Json;
 using Encina.Testing.WireMock;
 
-namespace Encina.UnitTests.Testing.WireMock;
+namespace Encina.IntegrationTests.Testing.WireMock;
 
 /// <summary>
-/// Tests for verifying request/response sequences and ordering.
+/// Integration tests for verifying request/response sequences and ordering against a real WireMock server.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class SequenceTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();

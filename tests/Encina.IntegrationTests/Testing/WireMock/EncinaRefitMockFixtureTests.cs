@@ -4,11 +4,13 @@ using System.Text.Json;
 using Encina.Testing.WireMock;
 using Refit;
 
-namespace Encina.UnitTests.Testing.WireMock;
+namespace Encina.IntegrationTests.Testing.WireMock;
 
 /// <summary>
-/// Unit tests for <see cref="EncinaRefitMockFixture{TApiClient}"/>.
+/// Integration tests for <see cref="EncinaRefitMockFixture{TApiClient}"/>. Exercises the fixture
+/// against a real WireMock server through a real Refit-generated HTTP client on localhost.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class EncinaRefitMockFixtureTests : IClassFixture<EncinaRefitMockFixture<ITestApi>>
 {
     private readonly EncinaRefitMockFixture<ITestApi> _fixture;

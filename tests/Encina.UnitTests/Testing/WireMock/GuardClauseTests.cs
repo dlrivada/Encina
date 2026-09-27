@@ -1,15 +1,19 @@
 using Encina.Testing.WireMock;
+using Refit;
 namespace Encina.UnitTests.Testing.WireMock;
 
 /// <summary>
 /// Guard clause tests for validating argument null checks and parameter validation.
+/// These tests never issue an outbound HTTP request: only the fixtures' synchronous
+/// argument validation is exercised, so a local WireMock server listening on
+/// localhost is enough and no real network connection is opened.
 /// </summary>
-public sealed class GuardClauseTests : IClassFixture<EncinaWireMockFixture>, IClassFixture<EncinaRefitMockFixture<ITestApi>>
+public sealed class GuardClauseTests : IClassFixture<EncinaWireMockFixture>, IClassFixture<EncinaRefitMockFixture<IGuardClauseTestApi>>
 {
     private readonly EncinaWireMockFixture _fixture;
-    private readonly EncinaRefitMockFixture<ITestApi> _refitFixture;
+    private readonly EncinaRefitMockFixture<IGuardClauseTestApi> _refitFixture;
 
-    public GuardClauseTests(EncinaWireMockFixture fixture, EncinaRefitMockFixture<ITestApi> refitFixture)
+    public GuardClauseTests(EncinaWireMockFixture fixture, EncinaRefitMockFixture<IGuardClauseTestApi> refitFixture)
     {
         _fixture = fixture;
         _refitFixture = refitFixture;
@@ -332,4 +336,14 @@ public sealed class GuardClauseTests : IClassFixture<EncinaWireMockFixture>, ICl
     }
 
     #endregion
+}
+
+/// <summary>
+/// Minimal Refit API interface used only to instantiate <see cref="EncinaRefitMockFixture{TApiClient}"/>
+/// for guard clause tests. Its methods are never invoked.
+/// </summary>
+public interface IGuardClauseTestApi
+{
+    [Get("/test")]
+    Task<string> GetTestDataAsync();
 }
