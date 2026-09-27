@@ -1,0 +1,32 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon 6973P-C 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | WarmupCount | Mean        | Error     | StdDev    | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------ |------------:|----------:|----------:|------:|--------:|-------:|----------:|------------:|
+| Serialize_Small          | Job-YFEFPZ | 10             | Default     | 3           |    261.3 ns |   7.73 ns |   4.60 ns |  1.00 |    0.02 | 0.0010 |     112 B |        1.00 |
+| Serialize_Medium         | Job-YFEFPZ | 10             | Default     | 3           |    617.8 ns |  10.07 ns |   5.99 ns |  2.36 |    0.04 | 0.0038 |     392 B |        3.50 |
+| Serialize_Large          | Job-YFEFPZ | 10             | Default     | 3           |  1,497.8 ns |  54.74 ns |  36.21 ns |  5.73 |    0.16 | 0.0439 |    3784 B |       33.79 |
+| SerializeRoundtrip_Small | Job-YFEFPZ | 10             | Default     | 3           |    557.0 ns |  12.83 ns |   7.63 ns |  2.13 |    0.04 | 0.0019 |     232 B |        2.07 |
+| SerializeRoundtrip_Large | Job-YFEFPZ | 10             | Default     | 3           |  3,529.6 ns |  88.25 ns |  58.37 ns | 13.51 |    0.31 | 0.0916 |    7688 B |       68.64 |
+| ParseAndModify_Small     | Job-YFEFPZ | 10             | Default     | 3           |  1,009.4 ns |  66.76 ns |  44.16 ns |  3.86 |    0.17 | 0.0095 |     840 B |        7.50 |
+| MaskObject_Small         | Job-YFEFPZ | 10             | Default     | 3           |  2,600.4 ns |  27.34 ns |  14.30 ns |  9.95 |    0.17 | 0.0191 |    1752 B |       15.64 |
+| MaskObject_Medium        | Job-YFEFPZ | 10             | Default     | 3           |  9,042.6 ns | 445.96 ns | 294.98 ns | 34.62 |    1.22 | 0.0763 |    6504 B |       58.07 |
+| MaskObject_Large         | Job-YFEFPZ | 10             | Default     | 3           | 16,779.1 ns | 341.58 ns | 178.65 ns | 64.23 |    1.23 | 0.2136 |   18312 B |      163.50 |
+|                          |            |                |             |             |             |           |           |       |         |        |           |             |
+| Serialize_Small          | MediumRun  | 15             | 2           | 10          |    259.5 ns |   1.28 ns |   1.71 ns |  1.00 |    0.01 | 0.0010 |     112 B |        1.00 |
+| Serialize_Medium         | MediumRun  | 15             | 2           | 10          |    629.9 ns |   9.17 ns |  12.86 ns |  2.43 |    0.05 | 0.0038 |     392 B |        3.50 |
+| Serialize_Large          | MediumRun  | 15             | 2           | 10          |  1,506.3 ns |  25.07 ns |  35.95 ns |  5.81 |    0.14 | 0.0439 |    3784 B |       33.79 |
+| SerializeRoundtrip_Small | MediumRun  | 15             | 2           | 10          |    555.2 ns |   2.79 ns |   3.73 ns |  2.14 |    0.02 | 0.0019 |     232 B |        2.07 |
+| SerializeRoundtrip_Large | MediumRun  | 15             | 2           | 10          |  3,359.2 ns |  68.57 ns | 100.51 ns | 12.95 |    0.39 | 0.0916 |    7688 B |       68.64 |
+| ParseAndModify_Small     | MediumRun  | 15             | 2           | 10          |    965.6 ns |   8.93 ns |  12.52 ns |  3.72 |    0.05 | 0.0095 |     840 B |        7.50 |
+| MaskObject_Small         | MediumRun  | 15             | 2           | 10          |  2,610.5 ns |  22.48 ns |  31.51 ns | 10.06 |    0.14 | 0.0191 |    1752 B |       15.64 |
+| MaskObject_Medium        | MediumRun  | 15             | 2           | 10          |  9,083.2 ns | 199.33 ns | 272.84 ns | 35.00 |    1.06 | 0.0763 |    6504 B |       58.07 |
+| MaskObject_Large         | MediumRun  | 15             | 2           | 10          | 16,536.1 ns | 399.02 ns | 572.27 ns | 63.73 |    2.20 | 0.2136 |   18312 B |      163.50 |

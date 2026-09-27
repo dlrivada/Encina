@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.AntiTampering.Benchmarks.HMACSignerBenchmarks-20260927-020745</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V74 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Sign_SHA256_MediumPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.244 &mu;s</td><td>0.0159 &mu;s</td><td>0.0105 &mu;s</td><td>3.238 &mu;s</td><td>1.18</td><td>0.00</td><td>0.1068</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.376 &mu;s</td><td>0.0096 &mu;s</td><td>0.0064 &mu;s</td><td>3.374 &mu;s</td><td>1.23</td><td>0.00</td><td>0.1106</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.520 &mu;s</td><td>0.0119 &mu;s</td><td>0.0079 &mu;s</td><td>3.521 &mu;s</td><td>1.28</td><td>0.00</td><td>0.1144</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>39.134 &mu;s</td><td>0.0655 &mu;s</td><td>0.0390 &mu;s</td><td>39.147 &mu;s</td><td>14.25</td><td>0.03</td><td>0.0610</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>2.746 &mu;s</td><td>0.0089 &mu;s</td><td>0.0053 &mu;s</td><td>2.746 &mu;s</td><td>1.00</td><td>0.00</td><td>0.1068</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.764 &mu;s</td><td>0.0196 &mu;s</td><td>0.0130 &mu;s</td><td>5.767 &mu;s</td><td>2.10</td><td>0.01</td><td>0.2136</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>3.120 &mu;s</td><td>0.0115 &mu;s</td><td>0.0068 &mu;s</td><td>3.118 &mu;s</td><td>1.14</td><td>0.00</td><td>0.1106</td><td>1.81 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA256_MediumPayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.355 &mu;s</td><td>0.0168 &mu;s</td><td>0.0252 &mu;s</td><td>3.354 &mu;s</td><td>1.20</td><td>0.01</td><td>0.1068</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA384_SmallPayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.468 &mu;s</td><td>0.0549 &mu;s</td><td>0.0787 &mu;s</td><td>3.470 &mu;s</td><td>1.24</td><td>0.03</td><td>0.1106</td><td>1.82 KB</td><td>1.03</td>
+</tr><tr><td>Sign_SHA512_SmallPayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.421 &mu;s</td><td>0.0117 &mu;s</td><td>0.0176 &mu;s</td><td>3.418 &mu;s</td><td>1.23</td><td>0.01</td><td>0.1144</td><td>1.88 KB</td><td>1.07</td>
+</tr><tr><td>Sign_SHA256_LargePayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>39.266 &mu;s</td><td>0.0165 &mu;s</td><td>0.0226 &mu;s</td><td>39.262 &mu;s</td><td>14.09</td><td>0.05</td><td>0.0610</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>Sign_SHA256_SmallPayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>2.786 &mu;s</td><td>0.0073 &mu;s</td><td>0.0107 &mu;s</td><td>2.787 &mu;s</td><td>1.00</td><td>0.01</td><td>0.1068</td><td>1.77 KB</td><td>1.00</td>
+</tr><tr><td>SignAndVerify_Roundtrip</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.932 &mu;s</td><td>0.0711 &mu;s</td><td>0.1042 &mu;s</td><td>5.874 &mu;s</td><td>2.13</td><td>0.04</td><td>0.2136</td><td>3.51 KB</td><td>1.99</td>
+</tr><tr><td>Verify_SHA256_SmallPayload</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>3.121 &mu;s</td><td>0.0590 &mu;s</td><td>0.0847 &mu;s</td><td>3.179 &mu;s</td><td>1.12</td><td>0.03</td><td>0.1106</td><td>1.81 KB</td><td>1.03</td>
+</tr></tbody></table>
+</body>
+</html>

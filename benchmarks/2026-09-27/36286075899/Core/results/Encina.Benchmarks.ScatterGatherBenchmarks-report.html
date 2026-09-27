@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ScatterGatherBenchmarks-20260927-014646</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Platinum 8370C CPU 2.80GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  MediumRun  : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SingleHandler</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>4.209 &mu;s</td><td>0.0111 &mu;s</td><td>0.0066 &mu;s</td><td>4.208 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0992</td><td>-</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>6.557 &mu;s</td><td>0.0182 &mu;s</td><td>0.0120 &mu;s</td><td>6.556 &mu;s</td><td>1.56</td><td>0.00</td><td>0.1678</td><td>-</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.051 &mu;s</td><td>0.0188 &mu;s</td><td>0.0112 &mu;s</td><td>5.052 &mu;s</td><td>1.20</td><td>0.00</td><td>0.1221</td><td>-</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>7.778 &mu;s</td><td>0.0191 &mu;s</td><td>0.0114 &mu;s</td><td>7.781 &mu;s</td><td>1.85</td><td>0.00</td><td>0.2136</td><td>-</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>5.037 &mu;s</td><td>0.0206 &mu;s</td><td>0.0137 &mu;s</td><td>5.033 &mu;s</td><td>1.20</td><td>0.00</td><td>0.1373</td><td>-</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>3</td><td>24.712 &mu;s</td><td>0.0391 &mu;s</td><td>0.0232 &mu;s</td><td>24.714 &mu;s</td><td>5.87</td><td>0.01</td><td>0.7935</td><td>0.0305</td><td>19.69 KB</td><td>7.64</td>
+</tr><tr><td>SingleHandler</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.307 &mu;s</td><td>0.0335 &mu;s</td><td>0.0469 &mu;s</td><td>4.283 &mu;s</td><td>1.00</td><td>0.02</td><td>0.0992</td><td>-</td><td>2.58 KB</td><td>1.00</td>
+</tr><tr><td>FiveHandlers_Parallel</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>6.854 &mu;s</td><td>0.0558 &mu;s</td><td>0.0835 &mu;s</td><td>6.835 &mu;s</td><td>1.59</td><td>0.03</td><td>0.1678</td><td>-</td><td>4.16 KB</td><td>1.61</td>
+</tr><tr><td>FiveHandlers_Sequential</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>4.959 &mu;s</td><td>0.0109 &mu;s</td><td>0.0160 &mu;s</td><td>4.954 &mu;s</td><td>1.15</td><td>0.01</td><td>0.1221</td><td>-</td><td>3.16 KB</td><td>1.22</td>
+</tr><tr><td>TenHandlers_Quorum</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>7.841 &mu;s</td><td>0.0451 &mu;s</td><td>0.0661 &mu;s</td><td>7.868 &mu;s</td><td>1.82</td><td>0.02</td><td>0.2136</td><td>-</td><td>5.52 KB</td><td>2.14</td>
+</tr><tr><td>ThreeHandlers_WaitForFirst</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>5.083 &mu;s</td><td>0.0245 &mu;s</td><td>0.0360 &mu;s</td><td>5.058 &mu;s</td><td>1.18</td><td>0.02</td><td>0.1373</td><td>-</td><td>3.39 KB</td><td>1.32</td>
+</tr><tr><td>FiftyHandlers_Parallel</td><td>MediumRun</td><td>15</td><td>2</td><td>10</td><td>26.026 &mu;s</td><td>0.4978 &mu;s</td><td>0.7296 &mu;s</td><td>25.606 &mu;s</td><td>6.04</td><td>0.18</td><td>0.7935</td><td>0.0305</td><td>19.69 KB</td><td>7.64</td>
+</tr></tbody></table>
+</body>
+</html>
