@@ -166,9 +166,15 @@ public sealed class DeadLetterCleanupProcessorTests
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            cts.Cancel();
-            await processor.StopAsync(default);
+            try
+            {
+                await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                await cts.CancelAsync();
+                await processor.StopAsync(default);
+            }
         });
 
         // Assert - processor should start and stop without throwing
@@ -248,9 +254,15 @@ public sealed class DeadLetterCleanupProcessorTests
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            cts.Cancel();
-            await processor.StopAsync(default);
+            try
+            {
+                await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                await cts.CancelAsync();
+                await processor.StopAsync(default);
+            }
         });
 
         // Assert - should not throw despite store errors (errors are logged, not propagated)

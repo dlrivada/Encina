@@ -243,9 +243,15 @@ public sealed class CdcProcessorDeadLetterTests
         // Act - let the processor run until retries are exhausted and persisted to the DLQ:
         // fail once -> retry (1) -> fail -> retry (2) -> fail -> exceed maxRetries -> persist -> cancel
         await processor.StartAsync(cts.Token);
-        await addCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await addCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         var entries = dlqStore.GetEntries();
@@ -292,9 +298,15 @@ public sealed class CdcProcessorDeadLetterTests
 
         // Act - should not throw even when retries are exhausted and no DLQ store
         await processor.StartAsync(cts.Token);
-        await streamedAfterExhaustion.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await streamedAfterExhaustion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - no exception means the test passes
     }
@@ -345,9 +357,15 @@ public sealed class CdcProcessorDeadLetterTests
 
         // Act - processor should not crash even when DLQ store fails
         await processor.StartAsync(cts.Token);
-        await addAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await addAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - the processor continued running (didn't crash)
         // No exception means the processor was resilient to DLQ store failures

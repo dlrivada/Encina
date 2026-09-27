@@ -162,9 +162,15 @@ public sealed class ShardedCdcProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Verify dispatch was called at least once
         await dispatcher.Received().DispatchAsync(
@@ -211,9 +217,15 @@ public sealed class ShardedCdcProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Position store should never be called when tracking is disabled
         await positionStore.DidNotReceive().SavePositionAsync(
@@ -253,9 +265,15 @@ public sealed class ShardedCdcProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Position should not be saved on dispatch failure
         await positionStore.DidNotReceive().SavePositionAsync(
@@ -289,9 +307,15 @@ public sealed class ShardedCdcProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Dispatcher should not be called for Left values
         await dispatcher.DidNotReceive().DispatchAsync(
@@ -344,9 +368,15 @@ public sealed class ShardedCdcProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Should have dispatched events (may vary due to timing, but should be limited by batch size per cycle)
         dispatchCount.ShouldBeGreaterThan(0);
