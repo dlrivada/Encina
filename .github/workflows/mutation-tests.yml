@@ -58,12 +58,14 @@ jobs:
           FULL_MODE: ${{ inputs.full_mode }}
           DIFF_MODE: ${{ inputs.diff_mode }}
         run: |
-          # Keep FOLDERS and FILTERS in lock-step: each rotation entry pairs
-          # a mutation scope glob with a VSTest --test-case-filter substring
-          # (or empty to use the stryker-config.json default). See
-          # docs/testing/mutation-measurement-methodology.md for the full
-          # edge-case notes — especially the rationale for root-namespace
-          # fallbacks and overly broad substrings.
+          # Keep FOLDERS, FILTERS and TIMEOUTS in lock-step: each rotation
+          # entry pairs a mutation scope glob with a VSTest
+          # --test-case-filter substring (or empty to use the
+          # stryker-config.json default) and a per-shard job timeout in
+          # minutes. See docs/testing/mutation-measurement-methodology.md
+          # for the full edge-case notes — especially the rationale for
+          # root-namespace fallbacks, overly broad substrings, and how the
+          # TIMEOUTS values were sized from run 36089523656 (#1395).
           FOLDERS=(
             "**/Core/*.cs"
             "**/Pipeline/Behaviors/*.cs"
@@ -102,36 +104,96 @@ jobs:
             ""
             "Sharding.Health"
           )
+          # Per-shard job timeout in minutes, re-sized from run 36240706037
+          # (2026-09-26, #1395's own validation dispatch, superseding the
+          # first estimate from run 36089523656 on 2026-09-25): completed
+          # shards use max(60, ceil(round(observed minutes) x 1.5)); the one shard
+          # that was still cancelled (shard 2) is a documented exception,
+          # capped at the 340-minute ceiling rather than computed — see
+          # below.
+          # Shard 2 (Pipeline) is a documented exception (#1402-follow-up,
+          # tracked separately from #1401): it has a real test-case-filter
+          # (not empty, unlike shard 15) and a fast baseline pass, yet it
+          # has now failed to finish its 140 mutants in TWO consecutive
+          # runs at increasing budgets (60 then 72 minutes) while every
+          # other filtered shard's duration matches setup time + mutant
+          # count x the ~0.27 min/mutant pool average within a small
+          # margin. That formula predicts only ~73 min for shard 2 —
+          # almost exactly what it already failed twice — so it is capped
+          # at 340 instead of computed; see the follow-up issue tracking
+          # its root cause (a too-broad filter substring, or property/timing
+          # tests hidden inside its filtered set).
+          # Shard 15 (Results) is no longer an exception: it now has a real
+          # completed observation (73 min in run 36240706037) and its
+          # timeout is computed from the same formula as every other
+          # completed shard. Its empty test-case-filter override (every
+          # mutant reruns the full ~24k-test default suite instead of a
+          # narrow per-shard subset) remains tracked in #1401 as a
+          # correctness/efficiency follow-up, not a timeout risk.
+          TIMEOUTS=(
+            110
+            69
+            340
+            60
+            60
+            60
+            123
+            96
+            60
+            63
+            60
+            128
+            117
+            60
+            204
+            110
+            60
+          )
 
-          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ]; then
-            echo "::error::FOLDERS (${#FOLDERS[@]}) and FILTERS (${#FILTERS[@]}) must have the same length" >&2
+          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ] || [ "${#FOLDERS[@]}" -ne "${#TIMEOUTS[@]}" ]; then
+            echo "::error::FOLDERS (${#FOLDERS[@]}), FILTERS (${#FILTERS[@]}) and TIMEOUTS (${#TIMEOUTS[@]}) must have the same length" >&2
             exit 1
           fi
 
           if [ -n "$CUSTOM_SCOPE" ]; then
-            # Custom scope: reuse paired filter if the glob matches a rotation entry.
+            # Custom scope: reuse paired filter and timeout if the glob
+            # matches a rotation entry; otherwise fall back to the largest
+            # configured timeout so an arbitrary scope still gets a
+            # generous budget instead of the job's implicit default.
             FILTER=""
+            TIMEOUT=""
             for i in "${!FOLDERS[@]}"; do
               if [ "${FOLDERS[$i]}" = "$CUSTOM_SCOPE" ]; then
                 FILTER="${FILTERS[$i]}"
+                TIMEOUT="${TIMEOUTS[$i]}"
                 break
               fi
             done
-            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --arg filter "$FILTER" \
-              '[{idx: "custom", scope: $scope, filter: $filter}]')
+            if [ -z "$TIMEOUT" ]; then
+              TIMEOUT=0
+              for t in "${TIMEOUTS[@]}"; do
+                if [ "$t" -gt "$TIMEOUT" ]; then
+                  TIMEOUT="$t"
+                fi
+              done
+            fi
+            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --arg filter "$FILTER" --argjson timeout "$TIMEOUT" \
+              '[{idx: "custom", scope: $scope, filter: $filter, timeout: $timeout}]')
             MODE="custom"
           elif [ "$FULL_MODE" = "true" ]; then
-            MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", filter: ""}]')
+            # Mutates every file in one shard: always needs the largest
+            # configured budget.
+            MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", filter: "", timeout: 340}]')
             MODE="full"
           elif [ "$DIFF_MODE" = "true" ]; then
-            MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", filter: ""}]')
+            MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", filter: "", timeout: 340}]')
             MODE="diff"
           else
             # Default: emit all 17 rotation entries as matrix shards.
             ENTRIES=""
             for i in "${!FOLDERS[@]}"; do
-              ENTRY=$(jq -nc --arg idx "$i" --arg scope "${FOLDERS[$i]}" --arg filter "${FILTERS[$i]}" \
-                '{idx: $idx, scope: $scope, filter: $filter}')
+              ENTRY=$(jq -nc --arg idx "$i" --arg scope "${FOLDERS[$i]}" --arg filter "${FILTERS[$i]}" --argjson timeout "${TIMEOUTS[$i]}" \
+                '{idx: $idx, scope: $scope, filter: $filter, timeout: $timeout}')
               if [ -z "$ENTRIES" ]; then
                 ENTRIES="$ENTRY"
               else
@@ -224,7 +286,9 @@ jobs:
   run-mutation-tests:
     needs: select-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Per-shard budget from the matrix, not one fixed value: see the
+    # TIMEOUTS array in select-matrix and its sizing notes (#1395).
+    timeout-minutes: ${{ matrix.timeout }}
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -337,7 +401,7 @@ jobs:
             echo "Running diff mode (vs main)"
             dotnet run --file .github/scripts/run-stryker.cs -- --since:main "${MUTATE_ARGS[@]}"
           elif [ "$MODE" = "full" ]; then
-            echo "Running full mode (all files — will exceed the 60-min shard timeout)"
+            echo "Running full mode (all files — will exceed the 340-min shard timeout)"
             # Pass MUTATE_ARGS so the CLI exclusion list stays the single
             # source of truth; otherwise full_mode would silently drift if
             # MUTATE_ARGS gains an exclusion the config file does not have.
