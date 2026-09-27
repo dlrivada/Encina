@@ -57,6 +57,13 @@ There is no previous stage. Read instead:
 
 ## Output
 
+`artifacts\knowledge\issues\<n>.md`: the knowledge record itself, in schema-1 (SPEC-003 §3.1, amended by the
+pilot-1 `linked_prs`/split-`outcome` fields — see `.github\scripts\knowledge-records.cs`'s `RecordSchema` for
+the exact field list). `docs\knowledge\issues\1345.md` is a worked example of a complete, passing record.
+Before finishing, run `dotnet run --file .github\scripts\knowledge-records.cs -- --check --dir artifacts\knowledge\issues`
+from the audit worktree and fix every error it reports (#1457: `audit-commit-stage.ps1 -Stage archivist` runs
+the same check and refuses to commit a record that fails it).
+
 `artifacts\knowledge\stages\archivist.md`, with these sections, even when a section has nothing to report (say why):
 
 ```

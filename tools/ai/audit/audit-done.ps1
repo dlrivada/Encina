@@ -4,7 +4,9 @@
 #   - any pipeline stage's artifact is missing, or present but not committed with audit-commit-stage.ps1;
 #   - stages/verification.md does not start with the pipeline's verdict line ('Verdict: PASS');
 #   - stages/lessons.md is missing, or still has an unresolved 'Applied: TODO' line;
-#   - the worktree's knowledge-records.cs --check fails against artifacts/knowledge/issues.
+#   - the worktree's knowledge-records.cs --check fails against artifacts/knowledge/issues (#1457: this also
+#     writes artifacts/knowledge/stages/.rerun-archivist, letting audit-stage-guard.ps1 allow a re-spawn of
+#     issue-archivist to fix the record even though every stage is already committed).
 #
 # Otherwise it copies the collected records, audit results, remediation drafts, stage artifacts and ledger
 # lines into the main artifacts/knowledge, appends artifacts/knowledge/progress.csv, appends any role-tagged
@@ -56,9 +58,20 @@ if ($lessonsReason) { $reasons.Add($lessonsReason) }
 
 $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
 $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
+$rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
 if (Test-Path -LiteralPath $knowledgeScript) {
     $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir 2>&1
-    if ($LASTEXITCODE -ne 0) { $reasons.Add("knowledge-records --check failed:`n$($checkOutput -join "`n")") }
+    if ($LASTEXITCODE -ne 0) {
+        $checkText = ($checkOutput -join "`n")
+        $reasons.Add("knowledge-records --check failed:`n$checkText")
+        # #1457: the knowledge record fails validation but every stage is already committed, so
+        # audit-stage-guard.ps1's normal fixed-order rule has nothing left to re-run -- without this marker
+        # the audit deadlocks (audit-done refuses, the guard refuses to re-spawn issue-archivist). Writing it
+        # here is the one authorized way to unblock the FAIL loop for a record-format-only problem, without
+        # requiring a full verifier re-run (audit-stage-guard.ps1 checks it in addition to a FAIL verdict).
+        $timestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        Set-Content -LiteralPath $rerunArchivistMarker -Value "$checkText`n`nUTC: $timestamp`n"
+    }
 }
 else {
     $reasons.Add("$knowledgeScript not found in the audit worktree; cannot validate the knowledge record.")
@@ -66,7 +79,11 @@ else {
 
 if ($reasons.Count -gt 0) {
     $bulleted = ($reasons | ForEach-Object { "- $_" }) -join "`n"
-    Write-Error "audit-done: audit for #$n is incomplete:`n$bulleted"
+    $markerHint = if (Test-Path -LiteralPath $rerunArchivistMarker) {
+        "`nThe knowledge record failed 'knowledge-records --check'; artifacts\knowledge\stages\.rerun-archivist was written so audit-stage-guard.ps1 allows re-spawning issue-archivist to fix it (#1457). Once the archivist stage is re-committed and the record passes the check, run audit-done.ps1 again -- no verifier re-run is required when only the record format changed."
+    }
+    else { '' }
+    Write-Error "audit-done: audit for #$n is incomplete:`n$bulleted$markerHint"
     exit 1
 }
 

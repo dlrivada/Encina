@@ -14,7 +14,10 @@
 #   - the prompt also names a DIFFERENT wia-<m> (batching issues into one spawn, #1345's founding failure);
 #   - the requested model is one of pipeline.json's forbiddenModels (haiku);
 #   - the subagent is not the stage tools/ai/audit/pipeline.json (via Get-NextStage) reports as next —
-#     except: after the verifier's last verdict was FAIL, any stage may be re-run out of order.
+#     except: after the verifier's last verdict was FAIL, any stage may be re-run out of order; and (#1457)
+#     issue-archivist may be re-spawned out of order when audit-done.ps1 left an
+#     artifacts/knowledge/stages/.rerun-archivist marker (the knowledge record failed knowledge-records
+#     --check after every stage was already committed).
 #
 # Also denies any issue-worker or general-purpose spawn whose prompt mentions "SPEC-003 audit": the old
 # coordinator-does-everything path (#1345) is closed; the pipeline's own scripts and stage agents are the
@@ -118,7 +121,15 @@ try {
             $lastVerdictFail = $firstLine -eq 'Verdict: FAIL'
         }
     }
-    if ($lastVerdictFail) { exit 0 }
+    # #1457: audit-done.ps1 writes this marker when the knowledge record fails 'knowledge-records --check'
+    # after every stage is already committed -- the normal FAIL-verdict re-run rule above has nothing to
+    # re-run in that case, so without this exception the audit deadlocks (audit-done refuses to close it,
+    # this guard refuses to re-spawn issue-archivist to fix the record). audit-commit-stage.ps1 -Stage
+    # archivist deletes the marker once the re-committed record passes the check.
+    $rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
+    $archivistRerunAllowed = ($subagent -eq 'issue-archivist') -and (Test-Path -LiteralPath $rerunArchivistMarker)
+
+    if ($lastVerdictFail -or $archivistRerunAllowed) { exit 0 }
 
     if ($null -eq $nextStage) {
         [Console]::Error.WriteLine("Blocked: every pipeline stage for #$n already has a committed artifact and the last verdict was not FAIL; run tools/ai/audit/audit-done.ps1 instead of spawning another stage agent (#1345).")
