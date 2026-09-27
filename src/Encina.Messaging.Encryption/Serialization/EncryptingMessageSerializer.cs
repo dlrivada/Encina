@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Encina;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Diagnostics;
 using Encina.Messaging.Encryption.Model;
@@ -135,8 +136,9 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
             },
             Left: error =>
             {
-                _logger.EncryptionFailed(messageTypeName, error.Message);
-                MessageEncryptionDiagnostics.RecordFailure(activity, error.Message);
+                var errorCode = error.GetCode().IfNone("encina.unknown");
+                _logger.EncryptionFailed(messageTypeName, errorCode);
+                MessageEncryptionDiagnostics.RecordFailure(activity, errorCode);
 
                 if (opts.EnableMetrics)
                 {
@@ -221,8 +223,9 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
             },
             Left: error =>
             {
-                _logger.DecryptionFailed(payload.KeyId, error.Message);
-                MessageEncryptionDiagnostics.RecordFailure(activity, error.Message);
+                var errorCode = error.GetCode().IfNone("encina.unknown");
+                _logger.DecryptionFailed(payload.KeyId, errorCode);
+                MessageEncryptionDiagnostics.RecordFailure(activity, errorCode);
 
                 if (opts.EnableMetrics)
                 {

@@ -1,4 +1,5 @@
 using System.Text;
+using Encina;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Diagnostics;
 using Encina.Messaging.Encryption.Model;
@@ -96,7 +97,7 @@ public sealed class MessageEncryptionHealthCheck : IHealthCheck
 
             var encryptError = encryptResult.MatchUnsafe<string?>(
                 Right: _ => null,
-                Left: e => e.Message);
+                Left: e => e.GetCode().IfNone("encina.unknown"));
 
             if (encryptError is not null)
             {
@@ -125,7 +126,7 @@ public sealed class MessageEncryptionHealthCheck : IHealthCheck
 
                     return null;
                 },
-                Left: e => e.Message);
+                Left: e => e.GetCode().IfNone("encina.unknown"));
 
             if (decryptError is not null)
             {
