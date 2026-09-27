@@ -905,7 +905,11 @@ try {
         @("gh issue create --title `"[DEBT] x`" --body-file debt-optout-empty.md", 2, 'local-draft: refused with an opt-out without a reason'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-g.md", 2, 'local-draft: pointer to a file with no ledger line refused'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-h.md", 2, 'local-draft: ledger line older than 24h refused'),
-        @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"", 0, 'local-draft: accepted for an open-remediation draft')
+        @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"", 0, 'local-draft: accepted for an open-remediation draft'),
+        # Adversarial review of #1410: content-only remediation matching would let one legitimately drafted
+        # remediation file be replayed under any other title within the 24-hour window; the title carried in
+        # the draft's own header must also match --title.
+        @("gh issue create --title `"[DEBT] a different finding entirely`" --body-file `"$remediationTempBody`"", 2, 'local-draft: open-remediation draft content reused under a different title refused')
     )
     $savedProjectDirForLocalDraft = $env:CLAUDE_PROJECT_DIR
     $env:CLAUDE_PROJECT_DIR = $issueRoot

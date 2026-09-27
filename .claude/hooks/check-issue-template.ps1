@@ -13,14 +13,16 @@
 #   (b) the body file itself IS such a recent ledger outFile (no pointer comment needed — this is the plain
 #       "--out <this file>" case, e.g. a worker's issue file copied verbatim to a scratchpad body file); or
 #   (c) the body file's content matches (once its own leading `<!-- ... -->` header is stripped, the same way
-#       open-remediation.ps1 strips it before calling `gh`) a file under artifacts/knowledge/remediation/ that
-#       was written in the last 24 hours — the SPEC-003 remediation pipeline's own drafts, whose `--body-file`
-#       is always a stripped $env:TEMP copy, never the ledger outFile itself, so (a)/(b) alone would not
-#       recognise it.
+#       open-remediation.ps1 strips it before calling `gh`) a file under artifacts/knowledge/remediation/,
+#       whose OWN header names the SAME --title, written in the last 24 hours — the SPEC-003 remediation
+#       pipeline's own drafts, whose `--body-file` is always a stripped $env:TEMP copy, never the ledger
+#       outFile itself, so (a)/(b) alone would not recognise it. The title check keeps one legitimately
+#       drafted remediation file from being replayed under a different title within the 24-hour window.
 # An explicit, logged opt-out is also accepted: a first line `<!-- local-draft: none, reason: <text> -->` with
 # a non-empty reason, appended to <repository root>\artifacts\local-ai\opt-outs.log. Only checked on
-# `--body-file`; `--body`/inline text has no file to point evidence at and is left to the existing header
-# check alone (unchanged from before #1410, matching how a dynamic title/body already skips every check here).
+# `--body-file`, per #1410's own decision; `--body`/inline text and a dynamic title/body-file are left to the
+# existing header check alone (unchanged from before #1410 — a known, accepted gap, not evaluated further
+# here; see docs/knowledge/issues/1410.md).
 #
 # Only the arguments of the `gh issue create` statement itself are read, never the rest of the command line.
 # Allowed without checks: issues on another repository (-R/--repo), --web, --template, calls without a body,
@@ -167,10 +169,16 @@ try {
     # `<!-- title: ...; labels: ...; milestone: ... -->` header stripped, exactly the regex below) into a
     # $env:TEMP file before calling `gh issue create --body-file`, so neither (a) nor (b) can recognise it —
     # that temp copy is never itself a ledger outFile, and it carries no pointer comment. Recognised instead by
-    # content: a recent (written in the last 24 hours) file under artifacts/knowledge/remediation/ whose own
-    # header-stripped content matches $BodyText exactly (line endings and surrounding whitespace ignored).
-    function Test-RemediationDraftMatch([string]$BodyText, [string]$Root, [datetime]$Since) {
+    # content AND title together: a recent (written in the last 24 hours) file under
+    # artifacts/knowledge/remediation/ whose own header-stripped content matches $BodyText exactly (line endings
+    # and surrounding whitespace ignored) AND whose own header `title:` line equals $TitleText (the `gh issue
+    # create --title` value). The title check stops one drafted remediation file from being copied verbatim
+    # into a different issue's body-file within the same 24-hour window — a body-only match would otherwise let
+    # any later, unrelated `gh issue create` reuse one legitimately drafted file's evidence indefinitely (a
+    # real remediation draft is used exactly once, by open-remediation.ps1, for its own title).
+    function Test-RemediationDraftMatch([string]$BodyText, [string]$TitleText, [string]$Root, [datetime]$Since) {
         $normalizedBody = ($BodyText -replace "`r`n", "`n").Trim()
+        $wantedTitle = $TitleText.Trim()
         foreach ($candidateRoot in (Get-CandidateRoots $Root)) {
             $dir = Join-Path $candidateRoot 'artifacts/knowledge/remediation'
             if (-not (Test-Path -LiteralPath $dir)) { continue }
@@ -178,6 +186,8 @@ try {
                 if ($f.LastWriteTimeUtc -lt $Since) { continue }
                 $raw = $null
                 try { $raw = Get-Content -LiteralPath $f.FullName -Raw } catch { continue }
+                $titleMatch = [regex]::Match($raw, '(?m)^title:\s*(?<t>.+?)\s*$')
+                if (-not $titleMatch.Success -or $titleMatch.Groups['t'].Value.Trim() -ne $wantedTitle) { continue }
                 $stripped = ([regex]::Replace($raw, '(?s)^\s*<!--.*?-->\s*', '') -replace "`r`n", "`n").Trim()
                 if ($stripped -eq $normalizedBody) { return $true }
             }
@@ -198,19 +208,26 @@ try {
         if (-not $m.Success) { return $null }
         $reason = $m.Groups['reason'].Value.Trim()
         if ([string]::IsNullOrWhiteSpace($reason)) { return $false }
-        $logPath = Join-Path $Root 'artifacts/local-ai/opt-outs.log'
-        New-Item -ItemType Directory -Force (Split-Path -Parent $logPath) | Out-Null
-        if (-not (Test-Path -LiteralPath $logPath)) { Set-Content -LiteralPath $logPath -Encoding utf8 -Value 'timestampUtc,bodyFile,reason' }
-        $line = "$([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')),$(Format-CsvField $Path),$(Format-CsvField $reason)"
-        Add-Content -LiteralPath $logPath -Value $line
+        # The log write is best-effort: a failure here (a read-only artifacts/ folder, a locked file) must
+        # still allow the call the opt-out itself grants -- it must never fall through to the outer try/catch,
+        # whose exit-0-on-any-failure is meant for the hook's OWN failures, not for masking a real refusal
+        # elsewhere in this function as an accidental allow.
+        try {
+            $logPath = Join-Path $Root 'artifacts/local-ai/opt-outs.log'
+            New-Item -ItemType Directory -Force (Split-Path -Parent $logPath) | Out-Null
+            if (-not (Test-Path -LiteralPath $logPath)) { Set-Content -LiteralPath $logPath -Encoding utf8 -Value 'timestampUtc,bodyFile,reason' }
+            $line = "$([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')),$(Format-CsvField $Path),$(Format-CsvField $reason)"
+            Add-Content -LiteralPath $logPath -Value $line
+        }
+        catch { }
         return $true
     }
 
-    # Decides whether $Path/$Body (a `gh issue create --body-file` target) shows local-model drafting or a
-    # logged opt-out. $Root is the repository root Get-RepoRoot resolved for this statement; when it cannot be
-    # resolved at all the check is skipped (fails open, exactly like the template lookup below when no
-    # .github/ISSUE_TEMPLATE is found).
-    function Test-LocalDraftCompliance([string]$Path, [string]$Body, [string]$Root) {
+    # Decides whether $Path/$Body (a `gh issue create --body-file` target, created with --title $TitleText)
+    # shows local-model drafting or a logged opt-out. $Root is the repository root Get-RepoRoot resolved for
+    # this statement; when it cannot be resolved at all the check is skipped (fails open, exactly like the
+    # template lookup below when no .github/ISSUE_TEMPLATE is found).
+    function Test-LocalDraftCompliance([string]$Path, [string]$Body, [string]$TitleText, [string]$Root) {
         if (-not $Root) { return $true }
         $since = (Get-Date).ToUniversalTime().AddHours(-24)
         $firstLine = ((($Body -split "`r?`n") | Select-Object -First 1)); if ($null -eq $firstLine) { $firstLine = '' }
@@ -224,7 +241,7 @@ try {
 
         if (Test-LedgerOutFileMatch $Path $Root $since) { return $true }
 
-        return (Test-RemediationDraftMatch $Body $Root $since)
+        return (Test-RemediationDraftMatch $Body $TitleText $Root $since)
     }
 
     $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
@@ -256,7 +273,7 @@ try {
             $path = Resolve-CommandPath $bodyFile[0].Value $cwd
             if (-not $path) { continue }
             $body = [IO.File]::ReadAllText($path)
-            if (-not (Test-LocalDraftCompliance $path $body $root)) {
+            if (-not (Test-LocalDraftCompliance $path $body $titleText $root)) {
                 [Console]::Error.WriteLine($LocalDraftMessage)
                 exit 2
             }
