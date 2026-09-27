@@ -18,6 +18,53 @@ $script:RemediationPathPrefixes = 'src|tests|docs|tools|\.github'
 $script:RemediationPathExtensions = 'cs|ps1|md|json|yml|yaml|csproj|txt'
 $script:RemediationFilePattern = "(?:$script:RemediationPathPrefixes)/[\w./\\-]*\.(?:$script:RemediationPathExtensions)(?::\d+(?:-\d+)?)?"
 
+# #1393 decision 2: the sections of a candidate issue that say WHERE its defect is and WHAT the code does
+# today -- the only parts of a candidate's body that count as duplicate evidence (plus its title). Derived
+# from the repository's own .github/ISSUE_TEMPLATE/*.md headers:
+#   technical_debt.md     -> Location, Current Behavior
+#   bug_report.md         -> Steps to Reproduce, Actual Behavior, Code Sample, Stack Trace
+#   infrastructure.md     -> Component Affected, Current Behavior
+#   refactoring.md        -> Current Structure, Affected Files, Packages Affected
+#   test_implementation.md -> Packages / Providers Affected, Current Coverage
+#   feature_request.md    -> Affected Packages
+# Every other section (Description, Motivation, Expected Behavior, Root Cause, Proposed Fix/Solution,
+# Additional Context, Related Issues, Alternatives, Cross-Cutting Integration, ...) is where an issue quotes a
+# house rule, gives an example of some OTHER defect, lists related issues or explains background -- text that
+# MENTIONS a file or symbol without being ABOUT it. Audit #16 verification pass 5 found three false duplicates
+# built entirely from such mentions: #1393 names `InstrumentedSagaStore.cs` only in its Description, as an
+# example of a false positive; #1343 and #1299 matched only through a generic `src/` token and a generic file
+# stem ('sagas', 'README') found in prose or a directory segment.
+$script:CandidateLocationSections = @(
+    'Location', 'Current Behavior', 'Steps to Reproduce', 'Actual Behavior', 'Code Sample', 'Stack Trace',
+    'Component Affected', 'Current Structure', 'Affected Files', 'Packages Affected',
+    'Packages / Providers Affected', 'Current Coverage', 'Affected Packages'
+)
+# The bold-field equivalents (a '- **File(s)**: ...' line), wherever they appear: the templates' own fields
+# inside the sections above (technical_debt.md's '**File(s)**' and '**Package(s)**', infrastructure.md's
+# '**File(s)**', bug_report.md's '**Package(s) Affected**', test_implementation.md's '**Provider(s)**'), and the
+# same names written as a bold pseudo-heading by an issue that does not use the template's '##' headers.
+$script:CandidateLocationFields = @(
+    'File(s)', 'Files', 'File', 'Package(s)', 'Package(s) Affected', 'Provider(s)', 'Location',
+    'Component Affected', 'Affected Files', 'Packages Affected', 'Affected Packages'
+)
+
+# #1393 decision 2, second half (#1393's own proposal): a backticked token that AGENTS.md or CLAUDE.md itself
+# backticks is house-rule vocabulary (`EncinaError.Message`, `TimeProvider`, `OpenAsync`,
+# `TransactionPipelineBehavior`, ...). Findings and issues quote those rules verbatim, so the same token recurs
+# across many unrelated defects (#1168, #1173, #1259, #1274, #1319, #1322 are all separate `EncinaError.Message`
+# leaks) and identifies the RULE broken, never the specific defect. Read once when this file is dot-sourced;
+# the seed keeps the best-known case excluded even where the two files are absent (a copied test fixture).
+$script:HouseRuleTokens = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+[void]$script:HouseRuleTokens.Add('EncinaError.Message')
+foreach ($ruleFile in 'AGENTS.md', 'CLAUDE.md') {
+    $ruleFilePath = Join-Path $PSScriptRoot "..\..\..\$ruleFile"
+    if (-not (Test-Path -LiteralPath $ruleFilePath)) { continue }
+    foreach ($ruleMatch in [regex]::Matches((Get-Content -LiteralPath $ruleFilePath -Raw), '`([^`\r\n]+)`')) {
+        $ruleToken = $ruleMatch.Groups[1].Value.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($ruleToken)) { [void]$script:HouseRuleTokens.Add($ruleToken) }
+    }
+}
+
 # #1400 decision 1: every finding in the code/tests/docs stage artifacts is written as "`loc1`, `loc2`, ...:
 # narrative" -- a leading, comma/semicolon-joined list of backtick-delimited file citations (the finding's own
 # claimed defect locations), followed by a colon that opens the prose explaining the defect. That colon is
@@ -56,13 +103,12 @@ function Get-LeadingLocationText {
 # FileAnchors to the finding's leading location clause, see Get-LeadingLocationText above):
 #   FileAnchors   -- every repo path the finding cites in its own leading location clause (backticked or in
 #                    plain prose), with any trailing ':line' or ':line-line' suffix stripped, as
-#                    @{ FullPath; Stem }. Stem is the file name WITHOUT its extension: a citation still matches
-#                    a candidate that lists the same file inside a brace-expanded multi-file pattern such as
-#                    'src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/{...,Sagas/SagaStoreADO,...}.cs' (a real
-#                    issue-writing style, #1170), where the literal substring '...SagaStoreADO.cs' never
-#                    appears -- only 'SagaStoreADO' does, because the extension sits outside the brace group.
+#                    @{ FullPath; Stem; Leaf; Tail }. Leaf is the file name ('SagaStoreADO.cs'), Stem the file
+#                    name WITHOUT its extension, Tail the last two path segments ('Sagas/SagaStoreADO.cs'); see
+#                    Test-FileAnchorMatch for how each one is allowed to match (#1393).
 #   SymbolAnchors -- every backticked token of the finding's WHOLE text (unchanged by #1400) that is NOT one of
-#                    the file anchors above: a code symbol, a literal code fragment, or a quoted rule sentence.
+#                    the file anchors above and NOT one of the generic token classes below: a code symbol or a
+#                    literal code fragment specific to this defect.
 function Get-FindingAnchors {
     param([string]$FindingText)
 
@@ -72,10 +118,13 @@ function Get-FindingAnchors {
     $fileAnchors = [System.Collections.Generic.List[pscustomobject]]::new()
     $seenPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($m in [regex]::Matches($leadingText, $script:RemediationFilePattern)) {
-        $full = ($m.Value -split ':')[0]
+        $full = (($m.Value -split ':')[0]) -replace '\\', '/'
         if (-not $seenPaths.Add($full)) { continue }
-        $stem = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $full))
-        $fileAnchors.Add([pscustomobject]@{ FullPath = $full; Stem = $stem })
+        $segments = $full.Split('/')
+        $leaf = $segments[-1]
+        $stem = [IO.Path]::GetFileNameWithoutExtension($leaf)
+        $tail = if ($segments.Count -ge 2) { $segments[-2] + '/' + $leaf } else { $leaf }
+        $fileAnchors.Add([pscustomobject]@{ FullPath = $full; Stem = $stem; Leaf = $leaf; Tail = $tail })
     }
 
     $exactFilePattern = '^(?:' + $script:RemediationFilePattern + ')$'
@@ -86,13 +135,27 @@ function Get-FindingAnchors {
     # excluded from symbol evidence for the same reason 'UseXxx' is (adversarial review of #1388: this pattern
     # was found sitting in the symbol pool, unexcluded, for finding-code-1's own `MessagingConfiguration.cs`
     # and `PublicAPI.Unshipped.txt` mentions).
-    $bareFileNamePattern = '^[\w-]+\.(?:' + $script:RemediationPathExtensions + ')$'
+    # #1393 widens it to a bare file name that carries a line suffix (`SagaRunner.cs:165`, `sagas.md:419-432`,
+    # `InstrumentedSagaStore.cs:49,59`): the suffix does not make the name any less generic.
+    $bareFileNamePattern = '^[\w.-]+\.(?:' + $script:RemediationPathExtensions + ')(?::[\d,\s-]+)?$'
     $symbolAnchors = [System.Collections.Generic.List[string]]::new()
     foreach ($m in [regex]::Matches($text, '`([^`]+)`')) {
         $token = $m.Groups[1].Value.Trim()
         if ([string]::IsNullOrWhiteSpace($token)) { continue }
         if ([regex]::IsMatch($token, $exactFilePattern)) { continue }
         if ([regex]::IsMatch($token, $bareFileNamePattern)) { continue }
+        # #1393: three more generic token classes that name an AREA or a RULE, never this defect --
+        #   - a bare line reference (`:192-195`, `:355`), which only points back into a file already cited;
+        #   - a path that is not one of the file anchors: a folder (`src/`, `src/Encina`, `docs/messaging/`),
+        #     a file outside the five cited roots (`artifacts/knowledge/stages/code.md`) or a brace/glob path
+        #     pattern. A folder names an area, and a file is location evidence, which only the leading
+        #     location clause supplies (#1400). Audit #16's docs findings 1 and 4 were accepted as
+        #     duplicates of #1343 and #1299 on "`src/`" alone;
+        #   - a house-rule token that AGENTS.md or CLAUDE.md backticks (`EncinaError.Message`, ...), see
+        #     $script:HouseRuleTokens: quoting the rule a defect breaks says nothing about which defect it is.
+        if ($token -match '^:\d') { continue }
+        if ($token.Contains('/') -and $token -match '^[\w.{},*/\\-]+(?::[\d,-]+)?$') { continue }
+        if ($script:HouseRuleTokens.Contains($token)) { continue }
         # A bare 'UseXxx' token (no dot, parens or generic brackets) is AGENTS.md's own generic naming
         # convention for a messaging pattern's opt-in flag ("Every messaging pattern... is optional... Example:
         # `config.UseOutbox = true;`"), so it recurs, unqualified, across many unrelated issues in this
@@ -106,26 +169,144 @@ function Get-FindingAnchors {
     return [pscustomobject]@{ FileAnchors = $fileAnchors; SymbolAnchors = $symbolAnchors }
 }
 
-# Tests one of the finding's file anchors against the candidate's raw title+body text: either the anchor's
-# full path appears verbatim (case-insensitive), or its stem (>= 3 chars, to skip an unparsed glob leftover
-# such as '*') appears as a whole word -- the brace-expansion case Get-FindingAnchors' own doc comment
-# describes. Shared by Test-DuplicateEvidence (#1400: requires every anchor) and Test-PartialDuplicateEvidence
-# (requires only one).
+# #1393 decision 2: reduces a candidate's "title`nbody" text (the shape audit-draft-remediation.ps1 builds) to
+# the part that is ABOUT its defect: the title (first line) plus every section named in
+# $script:CandidateLocationSections and every bold field named in $script:CandidateLocationFields. A section
+# runs from its heading to the next heading of the same or a higher level (so a '###' sub-heading stays
+# inside it); headings inside a fenced code block are not headings. A bold field keeps the rest of its own
+# line plus the more-indented lines under it (the '- **File(s)**:' + nested '  - `path`' list of #1343), or,
+# when it is a bare pseudo-heading with nothing after it, the lines up to the next blank line or heading. A
+# candidate with none of these sections contributes its title only -- the strict default: an unrecognised
+# body can never supply duplicate evidence, and a real duplicate missed this way is drafted as new, which the
+# audit-verifier's own dedup pass still catches (a false accepted duplicate is never caught: it silently
+# drops the finding).
+function Get-CandidateLocationText {
+    param([string]$CandidateTitleAndBody)
+
+    if ([string]::IsNullOrEmpty($CandidateTitleAndBody)) { return '' }
+    $lines = $CandidateTitleAndBody -split "`r?`n"
+    $kept = [System.Collections.Generic.List[string]]::new()
+    $kept.Add($lines[0])
+
+    $sectionSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:CandidateLocationSections, [System.StringComparer]::OrdinalIgnoreCase)
+    $fieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:CandidateLocationFields, [System.StringComparer]::OrdinalIgnoreCase)
+    $inFence = $false
+    $sectionLevel = 0          # > 0 while inside a kept '#' section
+    $fieldIndent = -1          # >= 0 while collecting the nested lines of a kept bold field
+    $fieldUntilBlank = $false  # a bare bold pseudo-heading: collect until the next blank line or heading
+
+    for ($i = 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ($line -match '^\s*(```|~~~)') {
+            $inFence = -not $inFence
+            if ($sectionLevel -gt 0) { $kept.Add($line) }
+            continue
+        }
+        $heading = if ($inFence) { $null } else { [regex]::Match($line, '^(?<hashes>#{1,6})\s+(?<name>.+?)\s*#*\s*$') }
+        if ($heading -and $heading.Success) {
+            $fieldIndent = -1
+            $fieldUntilBlank = $false
+            $level = $heading.Groups['hashes'].Value.Length
+            if ($sectionLevel -gt 0 -and $level -gt $sectionLevel) { $kept.Add($line); continue }
+            $name = ($heading.Groups['name'].Value -replace '\s*\([^)]*\)\s*$', '' -replace ':\s*$', '' -replace '\s+', ' ').Trim()
+            $sectionLevel = if ($sectionSet.Contains($name)) { $level } else { 0 }
+            continue
+        }
+        if ($sectionLevel -gt 0) { $kept.Add($line); continue }
+        if ($inFence) { continue }
+
+        $indent = $line.Length - $line.TrimStart().Length
+        if ($fieldIndent -ge 0) {
+            if ($fieldUntilBlank) {
+                if ([string]::IsNullOrWhiteSpace($line)) { $fieldIndent = -1; $fieldUntilBlank = $false }
+                else { $kept.Add($line); continue }
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($line) -and $indent -gt $fieldIndent) { $kept.Add($line); continue }
+            else { $fieldIndent = -1 }
+        }
+        $field = [regex]::Match($line, '^\s*(?:[-*+]\s+)?\*\*(?<name>[^*]+?)\s*:?\s*\*\*\s*:?\s*(?<rest>.*)$')
+        if ($field.Success -and $fieldSet.Contains($field.Groups['name'].Value.Trim())) {
+            $rest = $field.Groups['rest'].Value
+            $kept.Add($rest)
+            $fieldIndent = $indent
+            $fieldUntilBlank = [string]::IsNullOrWhiteSpace($rest)
+        }
+    }
+    return ($kept -join "`n")
+}
+
+# Tests one of the finding's file anchors against a candidate's LOCATION text (see Get-CandidateLocationText).
+# #1393 narrows what counts as the same file, because a file name alone is often generic ('sagas', 'README',
+# 'index') and the old whole-word stem search matched a directory segment ('src/Encina.Messaging/Sagas/...'
+# for docs/messaging/sagas.md, audit #16's docs-1 vs #1343) or a stray word in prose. A match is one of:
+#   1. the full path, verbatim (case-insensitive);
+#   2. the last two path segments ('Sagas/SagaStoreADO.cs', 'Encina.Messaging/README.md') after a '/' or a
+#      non-path character -- the same file cited under a different or shortened root;
+#   3. the stem as a member of a brace group ('{...,Sagas/SagaStoreADO,...}.cs', #1170's writing style, where
+#      the literal file name never appears because the extension sits outside the braces);
+#   4. the bare file name ('InstrumentedSagaStore.cs') standing alone, not as the end of some other path, and
+#      only when its stem is a distinctive compound PascalCase name (two or more capitalised words): a bare
+#      'README.md', 'index.md' or 'sagas.md' says nothing about WHICH such file is meant.
+# Shared by Test-DuplicateEvidence (#1400: requires every anchor) and Test-PartialDuplicateEvidence.
 function Test-FileAnchorMatch {
     param([pscustomobject]$FileAnchor, [string]$Candidate)
 
+    if ([string]::IsNullOrEmpty($Candidate)) { return $false }
     if ($Candidate.IndexOf($FileAnchor.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    if ($FileAnchor.Tail -ne $FileAnchor.Leaf -and
+        [regex]::IsMatch($Candidate, '(?<![\w.-])' + [regex]::Escape($FileAnchor.Tail) + '(?![\w-])', 'IgnoreCase')) { return $true }
     if ([string]::IsNullOrWhiteSpace($FileAnchor.Stem) -or $FileAnchor.Stem.Length -lt 3) { return $false }
-    return [regex]::IsMatch($Candidate, '\b' + [regex]::Escape($FileAnchor.Stem) + '\b', 'IgnoreCase')
+    $escapedStem = [regex]::Escape($FileAnchor.Stem)
+    if ([regex]::IsMatch($Candidate, '\{[^{}\s]*(?<![\w.-])' + $escapedStem + '(?=[,}])[^{}\s]*\}', 'IgnoreCase')) { return $true }
+    if ($FileAnchor.Stem -cmatch '^[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]*)+$' -and
+        [regex]::IsMatch($Candidate, '(?<![\w./\\-])' + [regex]::Escape($FileAnchor.Leaf) + '(?![\w-])', 'IgnoreCase')) { return $true }
+    return $false
+}
+
+# #1393: the candidate's own evidence for one symbol anchor -- exact, case-insensitive equality with one of the
+# backtick-delimited tokens of its LOCATION text (see Test-DuplicateEvidence for why exact equality, not a
+# substring), or, for a plain identifier ('OpenConnectionAsync', 'IChoreographyStateStore'), a standalone
+# occurrence in the candidate's TITLE, where issues name the symbol without backticks. "Standalone" means not
+# preceded by a word character, '.' or '<' and not followed by a word character, '<', '(' or a '.member' --
+# the same longer-token guard the backtick comparison gives.
+function Test-SymbolAnchorMatch {
+    param([string]$Symbol, [System.Collections.Generic.HashSet[string]]$CandidateTokens, [string]$CandidateTitle)
+
+    if ($CandidateTokens.Contains($Symbol)) { return $true }
+    if ($Symbol -notmatch '^[A-Za-z_][\w]*(?:\.[A-Za-z_]\w*)*$' -or [string]::IsNullOrEmpty($CandidateTitle)) { return $false }
+    return [regex]::IsMatch($CandidateTitle, '(?<![\w.<])' + [regex]::Escape($Symbol) + '(?![\w<(]|\.\w)', 'IgnoreCase')
+}
+
+# The backtick-delimited tokens of a candidate's location text, as a case-insensitive set.
+function Get-CandidateTokenSet {
+    param([string]$LocationText)
+
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($m in [regex]::Matches($LocationText, '`([^`]+)`')) {
+        $tok = $m.Groups[1].Value.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($tok)) { [void]$set.Add($tok) }
+    }
+    return , $set
 }
 
 # #1388 decision 1, narrowed by #1400 decision 1: a model-named duplicate is accepted only when EVERY file
 # anchor of the finding's own leading location clause (see Get-LeadingLocationText) AND at least one SYMBOL
-# anchor both appear in the candidate's own title+body. A finding with no file anchor or no symbol anchor at
+# anchor both appear in the candidate's LOCATION text. A finding with no file anchor or no symbol anchor at
 # all can never be auto-accepted (a Minor citation-only finding, for instance, commonly has no backticked
 # symbol). Before #1400, ANY one file anchor was enough, which is exactly how audit #16's code finding 3 was
 # wrongly accepted as a duplicate of #1343: #1343 covers `SagaRunner.cs`, but the finding's own leading clause
 # also names `SagaOrchestrator.cs`, a second location #1343 never mentions.
+#
+# #1393: the candidate must be ABOUT the finding's location and symbol, not merely mention them. Both kinds of
+# anchor are looked up only in the candidate's title and location sections (Get-CandidateLocationText), never
+# in its Description, Root Cause, Proposed Fix, Additional Context, Related Issues or example text; the file
+# side uses Test-FileAnchorMatch's narrower rules; and the symbol pool no longer holds folders, line references
+# or house-rule tokens (Get-FindingAnchors). Audit #16 verification pass 5 is the reproduction: 16-code-2 was
+# accepted as a duplicate of #1393 (which cites `InstrumentedSagaStore.cs` and `EncinaError.Message` only as
+# an example in its Description), 16-docs-1 of #1343 and 16-docs-4 of #1299 (a generic `src/` token plus a
+# 'sagas'/'README' stem found in a directory segment or prose), and 16-docs-2 of #592 (a 'sagas' stem in prose;
+# #592 covers `IChoreographyStateStore`, one of the three missing pieces docs-2 names, so it is only partially
+# related -- Test-PartialDuplicateEvidence).
 #
 # The symbol side is matched by EXACT, case-insensitive equality against one of the candidate's OWN
 # backtick-delimited tokens -- not a substring/word-boundary search across the candidate's raw prose. A
@@ -138,9 +319,9 @@ function Test-FileAnchorMatch {
 # the duplicate and draft the finding as new -- a false 'new' draft is caught later by audit-verifier's own
 # dedup pass, while a false accepted duplicate silently drops the finding for good.
 #
-# The file side stays a substring/whole-token search (not exact-token equality) because file citations are
-# rarely wrapped in a candidate's OWN backtick token the same way (see the brace-expansion case above), and a
-# file path or name is specific enough on its own that a substring match carries little false-positive risk.
+# The file side is a substring search under Test-FileAnchorMatch's rules (not exact-token equality) because
+# file citations are rarely wrapped in a candidate's OWN backtick token the same way (see the brace-expansion
+# case there).
 function Test-DuplicateEvidence {
     param([string]$FindingText, [string]$CandidateTitleAndBody)
 
@@ -148,26 +329,29 @@ function Test-DuplicateEvidence {
     if ($anchors.FileAnchors.Count -eq 0 -or $anchors.SymbolAnchors.Count -eq 0) { return $false }
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
+    $title = ($candidate -split "`r?`n", 2)[0]
+    $location = Get-CandidateLocationText $candidate
 
     foreach ($fa in $anchors.FileAnchors) {
-        if (-not (Test-FileAnchorMatch $fa $candidate)) { return $false }
+        if (-not (Test-FileAnchorMatch $fa $location)) { return $false }
     }
 
-    $candidateSymbols = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($m in [regex]::Matches($candidate, '`([^`]+)`')) {
-        $tok = $m.Groups[1].Value.Trim()
-        if (-not [string]::IsNullOrWhiteSpace($tok)) { [void]$candidateSymbols.Add($tok) }
-    }
+    $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
-        if ($candidateSymbols.Contains($sa)) { return $true }
+        if (Test-SymbolAnchorMatch $sa $candidateTokens $title) { return $true }
     }
     return $false
 }
 
-# #1400 decision 1: used only to word the rejection note audit-draft-remediation.ps1 appends to a drafted
-# finding when Test-DuplicateEvidence rejects a model-named duplicate -- "partially related" (at least one of
-# the finding's own file anchors matched the candidate, so it is plausibly about the same area) versus the
-# existing, weaker "possibly related" (no file anchor matched at all). Never used to accept a duplicate: a
+# #1400 decision 1, widened by #1393 decision 3: used only to word the rejection note audit-draft-remediation.ps1
+# appends to a drafted finding when Test-DuplicateEvidence rejects a model-named duplicate -- "partially related"
+# (the candidate's location text covers at least one of the finding's own file anchors OR one of its specific
+# symbol anchors, but not enough for a duplicate) versus the existing, weaker "possibly related" (no anchor
+# matched at all). A candidate that matches only part of a multi-anchor finding is therefore "partially
+# related", never a duplicate: audit #16's docs-2 names `IChoreographyEventBus`, `IChoreographyStateStore` and
+# the missing registration surface, and #592 covers only `IChoreographyStateStore`. Uses the same location
+# text and generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a
+# shared house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a
 # finding with zero file anchors is never "partially" related to anything by definition.
 function Test-PartialDuplicateEvidence {
     param([string]$FindingText, [string]$CandidateTitleAndBody)
@@ -176,8 +360,14 @@ function Test-PartialDuplicateEvidence {
     if ($anchors.FileAnchors.Count -eq 0) { return $false }
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
+    $title = ($candidate -split "`r?`n", 2)[0]
+    $location = Get-CandidateLocationText $candidate
     foreach ($fa in $anchors.FileAnchors) {
-        if (Test-FileAnchorMatch $fa $candidate) { return $true }
+        if (Test-FileAnchorMatch $fa $location) { return $true }
+    }
+    $candidateTokens = Get-CandidateTokenSet $location
+    foreach ($sa in $anchors.SymbolAnchors) {
+        if (Test-SymbolAnchorMatch $sa $candidateTokens $title) { return $true }
     }
     return $false
 }

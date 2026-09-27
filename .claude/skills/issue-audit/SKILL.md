@@ -142,7 +142,16 @@ as new in the next, with the open issues unchanged in between). When no candidat
 anyway, that claim is drafted as new with a "partially related" or "possibly related" note instead of being
 dropped (#1388). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
 clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a
-"partially related" note instead of being accepted as the same defect (#1400). `audit-draft-remediation.ps1`
+"partially related" note instead of being accepted as the same defect (#1400). The candidate must be ABOUT the
+finding's location and symbol, not merely mention them (#1393): both anchors are looked up only in its title and
+its location sections, taken from the `.github/ISSUE_TEMPLATE` headers (Location, Current Behavior, Steps to
+Reproduce, Actual Behavior, Code Sample, Stack Trace, Component Affected, Current Structure, Affected Files,
+Packages Affected, Packages / Providers Affected, Current Coverage, Affected Packages, and the `**File(s)**`-style
+bold fields), never in its Description, Root Cause, Proposed Fix, Additional Context or Related Issues; a bare,
+generic file name (`README.md`, `sagas.md`) or a directory segment is not a file match; and a folder (`src/`), a
+line reference or a token that AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol
+evidence. A candidate that matches only some of the finding's anchors is "partially related", never a duplicate.
+`audit-draft-remediation.ps1`
 also strips an outer code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still
 has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row,
 or any other instruction line derived straight from the routed template's own body), re-asks the model once,
