@@ -156,10 +156,28 @@ foreach (var (file, changedLines) in changedLinesByFile)
 {
     if (!methodsByFile.TryGetValue(file, out var fileMethods)) continue;
 
-    foreach (var m in fileMethods)
+    foreach (var l in changedLines)
     {
-        if (changedLines.Any(l => l >= m.MinLine && l <= m.MaxLine))
-            touched.Add(m);
+        // Primary rule: a changed line belongs to every method whose own recorded Cobertura
+        // <line number="..."> set actually contains it. This is exact — it does not fire for a
+        // lambda's enclosing async state machine just because the state machine's MinLine..MaxLine
+        // range numerically spans the lambda's body (#1506).
+        var exact = fileMethods.Where(m => m.Lines.ContainsKey(l)).ToList();
+        if (exact.Count > 0)
+        {
+            touched.AddRange(exact);
+            continue;
+        }
+
+        // Fallback: no method recorded this exact line (typically a declaration or signature line
+        // with no sequence point). Attribute it to the innermost — smallest-range — method whose
+        // MinLine..MaxLine span covers it, not to every enclosing method.
+        var innermost = fileMethods
+            .Where(m => l >= m.MinLine && l <= m.MaxLine)
+            .OrderBy(m => m.MaxLine - m.MinLine)
+            .FirstOrDefault();
+        if (innermost is not null)
+            touched.Add(innermost);
     }
 }
 
