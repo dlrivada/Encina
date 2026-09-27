@@ -130,22 +130,29 @@ skips the `gh issue list` duplicate search — this is what the automated test s
 model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
 you open any of them.
 
-A model-named "duplicate-of #m" is honored only when `tools/ai/audit/_remediation-checks.ps1`'s
-`Test-DuplicateEvidence` finds the finding's own evidence (a cited file and a cited symbol) in `#m`'s real
-`gh issue view` title/body, not just a plausible-sounding candidate; a rejected claim is drafted as new with a
-"possibly related" note instead of being dropped (#1388). `Test-DuplicateEvidence` requires EVERY file anchor of
-the finding's own leading location clause to match, not just one, so a candidate that covers only part of a
-multi-location finding gets a "partially related" note instead of being accepted as the same defect (#1400).
-`audit-draft-remediation.ps1` also strips an outer code fence from the model's reply (`Remove-OuterFence`), and,
-when the stripped draft still has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched
-`Test <n>: Description` row, or any other instruction line derived straight from the routed template's own
-body), re-asks the model once, naming the offending lines; a draft that still has placeholders after that
-re-ask is kept (for inspection), its finding's line in `stages/remediation.md` is marked
-`PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the end, naming every such draft. Finally,
-`Limit-RelatedIssues` sanitizes the draft's own Related Issues section, keeping only a reference that is the
-audited issue itself, or appears in the finding's text, the candidates offered to the classifier, or the
-script's own duplicate/partially-related/possibly-related note, and logging every other reference it removes
-(#1400).
+Duplicate-vs-new is deterministic, not model-driven: `tools/ai/audit/_remediation-checks.ps1`'s
+`Find-DuplicateAmongCandidates` runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a
+cited symbol -- found in a candidate's real `gh issue view` title/body) against EVERY candidate the duplicate
+search returned, not only the one the local model happens to name. When one or more candidates pass, the
+finding is a duplicate of the lowest-numbered passing candidate regardless of what the model answered, so the
+same finding against the same set of open issues always classifies the same way; the model's own classification
+then only decides the drafted kind (bug/test/debt/docs) for a finding no candidate passes for (#1424, fixing an
+instability #1388/#1400 had left in the model's hands: the same finding classified as a duplicate in one run and
+as new in the next, with the open issues unchanged in between). When no candidate passes but the model named one
+anyway, that claim is drafted as new with a "partially related" or "possibly related" note instead of being
+dropped (#1388). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
+clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a
+"partially related" note instead of being accepted as the same defect (#1400). `audit-draft-remediation.ps1`
+also strips an outer code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still
+has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row,
+or any other instruction line derived straight from the routed template's own body), re-asks the model once,
+naming the offending lines; a draft that still has placeholders after that re-ask is kept (for inspection), its
+finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the
+end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes the draft's own Related Issues section,
+keeping only a reference that is the audited issue itself, appears in the finding's own text, or is named in one
+of the script's own already anchor-checked duplicate/partially-related/possibly-related notes -- never merely
+because it was offered as a search candidate, which is not on its own evidence of a real relation -- and logging
+every other reference it removes (#1400, narrowed by #1424).
 
 Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
 `wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there

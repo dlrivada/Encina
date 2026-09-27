@@ -1402,8 +1402,9 @@ try {
         Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt 'tools\ai\audit\pipeline.json')
         Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt 'tools\ai\audit\_audit-lib.ps1')
         # #1388: audit-draft-remediation.ps1 now also dot-sources _remediation-checks.ps1 (Get-FindingAnchors,
-        # Test-DuplicateEvidence, Remove-OuterFence, Find-TemplatePlaceholders), so this fixture needs its own
-        # copy too, exactly like _audit-lib.ps1 above.
+        # Test-DuplicateEvidence, Remove-OuterFence, Find-TemplatePlaceholders; #1424 added
+        # Find-DuplicateAmongCandidates), so this fixture needs its own copy too, exactly like _audit-lib.ps1
+        # above.
         Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt 'tools\ai\audit\_remediation-checks.ps1')
         Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1')
         foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
@@ -1664,7 +1665,7 @@ try {
     # candidate list -- while #16, the audited issue itself, is always kept.
     $findingCode5 = Get-Content -LiteralPath (Join-Path $fixtures1400 'finding-code-5.md') -Raw
     $code5Draft = Get-Content -LiteralPath (Join-Path $fixtures1400 '16-code-5-draft.md') -Raw
-    $limited = Limit-RelatedIssues $code5Draft '16' $findingCode5 '' @()
+    $limited = Limit-RelatedIssues $code5Draft '16' $findingCode5 @()
     Test-RemediationChecksCase 'Limit-RelatedIssues: removes #699, #696 and #181 from the real 16-code-5 draft (not in the finding or candidates)' {
         (@($limited.Removed) | Sort-Object) -join ',' -eq '181,696,699'
     }
@@ -1689,12 +1690,12 @@ try {
     # plausible model outputs the single 16-code-5 fixture does not exercise -- unindented sibling bullets at
     # the same list level, and a header with no trailing colon.
     $unindentedSiblingsDraft = "## Additional Context`n`n- **Related Issues**:`n- #16 (This issue)`n- #699: unrelated`n"
-    $unindentedResult = Limit-RelatedIssues $unindentedSiblingsDraft '16' '' '' @()
+    $unindentedResult = Limit-RelatedIssues $unindentedSiblingsDraft '16' '' @()
     Test-RemediationChecksCase 'Limit-RelatedIssues: removes an unverified reference from an unindented sibling bullet list' {
         (@($unindentedResult.Removed)) -contains '699'
     }
     $colonlessHeaderDraft = "## Additional Context`n`n- **Related Issues**`n  - #16 (This issue)`n  - #699: unrelated`n"
-    $colonlessResult = Limit-RelatedIssues $colonlessHeaderDraft '16' '' '' @()
+    $colonlessResult = Limit-RelatedIssues $colonlessHeaderDraft '16' '' @()
     Test-RemediationChecksCase 'Limit-RelatedIssues: recognizes a bold-bullet header with no trailing colon' {
         (@($colonlessResult.Removed)) -contains '699'
     }
@@ -1813,6 +1814,76 @@ Some debt description.
         $debtResult -eq $debtDraft
     }
     # ---- end #1409 block ----
+
+    # ---- #1424: tools/ai/audit/_remediation-checks.ps1 -- Limit-RelatedIssues no longer trusts the duplicate
+    # search's own candidate list as evidence of a real relation (Defect A: audit #16 verification pass 4 found
+    # 5 drafts citing real-but-unrelated issues that were only ever a search candidate, never mentioned by the
+    # finding or the script's own anchor-checked notes), and Find-DuplicateAmongCandidates makes duplicate-vs-new
+    # deterministic by checking EVERY candidate the search returns, not only the one the model happened to name
+    # (Defect B: the real finding 16-code-4 classified as duplicate-of-#1170 in one run and as new in the next,
+    # with #1170 unchanged in between, because the model's own reply -- not the deterministic evidence --
+    # decided). No `gh` and no local model here either; reuses the real #1388/#1400 fixtures captured from
+    # audit #16.
+
+    # (a) a number that was only ever a search candidate -- never cited by the finding's own text and never
+    # named in a script note -- is removed just like any other unverified number: being a candidate offered to
+    # the classifier is no longer, on its own, evidence of a relation (Defect A's exact false-positive shape).
+    $onlyCandidateDraft = "## Related Issues`n`n- #16 (This issue)`n- #1234 - a real open issue, offered as a search candidate but never mentioned by the finding`n"
+    $onlyCandidateResult = Limit-RelatedIssues $onlyCandidateDraft '16' 'The finding text discusses an unrelated cache eviction bug and cites no other issue number.' @()
+    Test-RemediationChecksCase '#1424 Limit-RelatedIssues: a number that was only a search candidate (never cited by the finding or a script note) is removed' {
+        (@($onlyCandidateResult.Removed)) -contains '1234'
+    }
+
+    # (b) a number named only in one of the script's own partially-related/possibly-related note lines is kept,
+    # even though the finding text itself never mentions it -- those notes are already anchor-checked by
+    # Test-PartialDuplicateEvidence before Limit-RelatedIssues ever sees them.
+    $scriptNoteDraft = "## Related Issues`n`n- #16 (This issue)`n- #1343 - partially related (it covers only part of this finding)`n"
+    $scriptNoteResult = Limit-RelatedIssues $scriptNoteDraft '16' 'The finding text discusses an unrelated cache eviction bug and cites no other issue number.' @('- #1343 - partially related (it covers only part of this finding)')
+    Test-RemediationChecksCase '#1424 Limit-RelatedIssues: a number named only in a script note line (partially related) is kept' {
+        (@($scriptNoteResult.Removed)) -notcontains '1343'
+    }
+
+    # (c) Find-DuplicateAmongCandidates: given every candidate the duplicate search returned for the real code
+    # finding 4 -- the one true duplicate #1170 alongside two real-but-false candidates #1333/#1328 -- it
+    # returns #1170. This function never looks at any model output at all, so it returns the same answer
+    # whether a "model" would have answered duplicate-of-#1170, duplicate-of-something-else, or "new".
+    $findingCode4For1424 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\finding-code-4.md') -Raw
+    $issue1170For1424 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1170.json') -Raw | ConvertFrom-Json
+    $issue1333For1424 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1333.json') -Raw | ConvertFrom-Json
+    $issue1328For1424 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1328.json') -Raw | ConvertFrom-Json
+    $candidates1424 = @(
+        [pscustomobject]@{ Number = '1333'; TitleAndBody = "$($issue1333For1424.title)`n$($issue1333For1424.body)" }
+        [pscustomobject]@{ Number = '1170'; TitleAndBody = "$($issue1170For1424.title)`n$($issue1170For1424.body)" }
+        [pscustomobject]@{ Number = '1328'; TitleAndBody = "$($issue1328For1424.title)`n$($issue1328For1424.body)" }
+    )
+    Test-RemediationChecksCase '#1424 Find-DuplicateAmongCandidates: finds the one true duplicate (#1170) among false candidates, whatever a "model" would have answered' {
+        (Find-DuplicateAmongCandidates $findingCode4For1424 $candidates1424) -eq '1170'
+    }
+
+    # (d) the same finding and the same candidate set classify identically twice, in either order -- ties are
+    # always broken by the lowest issue number, never by list order, so a re-run of the same audit against the
+    # same open issues can never flip a finding from duplicate to new or vice versa (the exact instability
+    # Defect B reported: 16-code-4 vs #1170, unchanged between two runs, classified differently each time).
+    $candidates1424Reordered = @($candidates1424[2], $candidates1424[0], $candidates1424[1])
+    Test-RemediationChecksCase '#1424 Find-DuplicateAmongCandidates: the same finding and candidates classify identically twice, in either order (deterministic)' {
+        (Find-DuplicateAmongCandidates $findingCode4For1424 $candidates1424) -eq (Find-DuplicateAmongCandidates $findingCode4For1424 $candidates1424Reordered)
+    }
+    $tieCandidatesLowFirst = @(
+        [pscustomobject]@{ Number = '100'; TitleAndBody = "$($issue1170For1424.title)`n$($issue1170For1424.body)" }
+        [pscustomobject]@{ Number = '9999'; TitleAndBody = "$($issue1170For1424.title)`n$($issue1170For1424.body)" }
+    )
+    $tieCandidatesHighFirst = @($tieCandidatesLowFirst[1], $tieCandidatesLowFirst[0])
+    Test-RemediationChecksCase '#1424 Find-DuplicateAmongCandidates: when several candidates pass, the lowest issue number always wins, not list order' {
+        (Find-DuplicateAmongCandidates $findingCode4For1424 $tieCandidatesLowFirst) -eq '100' -and
+        (Find-DuplicateAmongCandidates $findingCode4For1424 $tieCandidatesHighFirst) -eq '100'
+    }
+
+    # (e) no passing candidate at all (the two false candidates alone, #1170 excluded) -> $null, never a
+    # fabricated duplicate.
+    Test-RemediationChecksCase '#1424 Find-DuplicateAmongCandidates: returns $null when no candidate passes the evidence check' {
+        $null -eq (Find-DuplicateAmongCandidates $findingCode4For1424 @($candidates1424[0], $candidates1424[2]))
+    }
+    # ---- end #1424 block ----
 
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /

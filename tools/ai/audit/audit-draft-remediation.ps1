@@ -400,28 +400,48 @@ $candidateLinesForClassify
         $duplicateOf = $null
     }
 
-    # #1388 decision 1: a duplicate-of that named a real candidate is still only honored when the finding's
-    # own evidence (a cited file AND a cited symbol) actually appears in that candidate's title/body -- the
-    # Qwen classifier picks the closest-SOUNDING candidate, not necessarily the same defect (3 of audit #16's
-    # 4 duplicate claims were wrong even though all 4 named a real candidate). Skipped under -NoGh, where no
-    # duplicate is ever accepted regardless (unchanged from before #1388).
-    if ($duplicateOf -and -not $NoGh) {
+    # #1424 decision 2: duplicate-vs-new is decided deterministically against EVERY candidate the duplicate
+    # search returned, not only the one the model happened to name -- audit #16 verification pass 4 found the
+    # previous, model-named-only check unstable across re-runs for the very same finding and the very same open
+    # candidates (16-code-4 vs #1170). When one or more candidates pass Test-DuplicateEvidence, the finding is a
+    # duplicate of the lowest-numbered passing one, whatever the model answered; the model's own classification
+    # then only decides the drafted template kind below. Skipped under -NoGh, where no candidate body was ever
+    # fetched and no duplicate is ever accepted regardless (unchanged from before #1388).
+    $evidenceDuplicate = $null
+    if (-not $NoGh -and $candidateNumbers.Count -gt 0) {
+        $evidenceCandidates = foreach ($num in $candidateNumbers) {
+            $cached = Get-CachedIssueTitleBody $num $ghIssueCache $label
+            [pscustomobject]@{ Number = $num; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
+        }
+        $evidenceDuplicate = Find-DuplicateAmongCandidates $finding.Text $evidenceCandidates
+    }
+
+    if ($evidenceDuplicate) {
+        if ($duplicateOf -and $duplicateOf -ne $evidenceDuplicate) {
+            $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the deterministic evidence check accepted #$evidenceDuplicate instead (the lowest-numbered candidate with full anchor evidence); used #$evidenceDuplicate.")
+        }
+        elseif (-not $duplicateOf) {
+            $lessons.Add("$label`: local model did not name a duplicate, but the deterministic evidence check found #$evidenceDuplicate as a full-evidence duplicate; used it anyway.")
+        }
+        $duplicateOf = $evidenceDuplicate
+    }
+    elseif ($duplicateOf -and -not $NoGh) {
+        # #1388 decision 1 (unchanged): the model-named candidate -- like every other candidate offered for
+        # this finding -- failed the deterministic evidence check above (a cited file AND a cited symbol
+        # actually appearing in the candidate's title/body); draft as new, with a note instead of a silent drop.
         $cachedCandidate = Get-CachedIssueTitleBody $duplicateOf $ghIssueCache $label
         $candidateText = if ($cachedCandidate) { "$($cachedCandidate.title)`n$($cachedCandidate.body)" } else { '' }
-        if (-not (Test-DuplicateEvidence $finding.Text $candidateText)) {
-            $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
-            # #1400 decision 1: a candidate that covers at least one of the finding's own file anchors (just
-            # not every one -- Test-DuplicateEvidence's new, stricter bar) is worded as "partially related"
-            # rather than the weaker "possibly related", which is reserved for a candidate with no file-anchor
-            # overlap at all.
-            $possiblyRelatedNote = if (Test-PartialDuplicateEvidence $finding.Text $candidateText) {
-                "- #$duplicateOf - partially related (it covers only part of this finding)"
-            }
-            else {
-                "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
-            }
-            $duplicateOf = $null
+        $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
+        # #1400 decision 1: a candidate that covers at least one of the finding's own file anchors (just
+        # not every one -- Test-DuplicateEvidence's stricter bar) is worded as "partially related" rather than
+        # the weaker "possibly related", which is reserved for a candidate with no file-anchor overlap at all.
+        $possiblyRelatedNote = if (Test-PartialDuplicateEvidence $finding.Text $candidateText) {
+            "- #$duplicateOf - partially related (it covers only part of this finding)"
         }
+        else {
+            "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+        }
+        $duplicateOf = $null
     }
 
     if ($duplicateOf) {
@@ -497,11 +517,13 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
     }
 
-    # #1400 decision 3: sanitize the finished draft's own Related Issues section -- never let the model's free
-    # text stand unverified. $possiblyRelatedNote (just written above, if present) is itself a legitimate
-    # reference, so its own line is passed as a script note the sanitizer must keep.
+    # #1400 decision 3, narrowed by #1424 decision 1: sanitize the finished draft's own Related Issues section --
+    # never let the model's free text stand unverified, and never keep a number just because it was offered as
+    # a search candidate (being a candidate is not evidence of a real relation). $possiblyRelatedNote (just
+    # written above, if present) is itself a legitimate, already anchor-checked reference, so its own line is
+    # passed as a script note the sanitizer must keep.
     $sanitizeScriptNotes = if ($possiblyRelatedNote) { @($possiblyRelatedNote) } else { @() }
-    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $candidateLinesForClassify $sanitizeScriptNotes
+    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $sanitizeScriptNotes
     if ($sanitized.Removed.Count -gt 0) {
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $sanitized.Text
         foreach ($removedNumber in $sanitized.Removed) {

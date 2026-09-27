@@ -182,6 +182,32 @@ function Test-PartialDuplicateEvidence {
     return $false
 }
 
+# #1424 decision 2: makes duplicate-vs-new deterministic for a given finding and a given set of open candidates,
+# independent of what the local model happens to answer. Audit #16 verification pass 4 found finding 16-code-4
+# (the real SagaStoreADO OpenConnectionAsync no-op) classified as "duplicate of #1170" in one run and drafted as
+# new in the very next run, with #1170 unchanged in between, because the previous logic only ran
+# Test-DuplicateEvidence on the ONE candidate the model happened to name that run -- when the model's own reply
+# varied (it is not itself deterministic), so did the classification.
+#
+# This runs Test-DuplicateEvidence against EVERY candidate the duplicate search returned (never only the one the
+# model named), using each candidate's own real title+body text. When one or more candidates pass, the finding
+# is a duplicate of the LOWEST-numbered passing candidate -- a fixed, order-independent tie-break -- so the same
+# finding against the same open issues always classifies the same way, whatever order `gh issue list` happened
+# to return them in and whatever the model answered. Returns that candidate's number as a plain numeric string,
+# or $null when no candidate passes at all. The model's own classification is left to decide only the drafted
+# template kind (bug/test/debt/docs) for a finding this function returns $null for.
+function Find-DuplicateAmongCandidates {
+    param([string]$FindingText, [object[]]$Candidates)
+
+    $passing = [System.Collections.Generic.List[int]]::new()
+    foreach ($c in $Candidates) {
+        if ($null -eq $c -or [string]::IsNullOrWhiteSpace([string]$c.Number)) { continue }
+        if (Test-DuplicateEvidence $FindingText $c.TitleAndBody) { [void]$passing.Add([int]$c.Number) }
+    }
+    if ($passing.Count -eq 0) { return $null }
+    return [string]($passing | Sort-Object)[0]
+}
+
 # #1388 decision 3: strips exactly ONE outer code fence -- the first non-empty line is ```` ``` ```` or
 # ```` ```markdown ````/```` ```md ```` and the last non-empty line is a bare ```` ``` ````, both on their own
 # line -- and returns the text between them. Never touches an inner fence (a fenced code sample inside a
@@ -283,14 +309,19 @@ function Find-TemplatePlaceholders {
     return $found
 }
 
-# #1400 decision 3: after a draft is written and repaired (fence stripped, placeholders re-asked), its own
-# Related Issues section is sanitized -- the model is free to name a candidate as related there
-# (Build-DraftBrief's own guidance explicitly invites it), but audit #16's 16-code-5 draft showed it will also
-# invent a relation to issues nobody offered it and that have nothing to do with the finding (#699, #696, #181
-# -- real open issues about an unrelated caching/health-check feature). Two conventions exist because
-# bug_report.md, unlike technical_debt.md and test_implementation.md, has no dedicated 'Related Issues' header
-# of its own -- a bug-kind draft (like 16-code-5) puts it as a '- **Related Issues**:' bullet with indented
-# sub-bullets inside 'Additional Context' instead:
+# #1400 decision 3, narrowed by #1424 decision 1: after a draft is written and repaired (fence stripped,
+# placeholders re-asked), its own Related Issues section is sanitized -- the model is free to name a candidate
+# as related there (Build-DraftBrief's own guidance explicitly invites it), but audit #16's 16-code-5 draft
+# showed it will also invent a relation to issues nobody offered it and that have nothing to do with the
+# finding (#699, #696, #181 -- real open issues about an unrelated caching/health-check feature), and audit
+# #16 verification pass 4 found the previous version of this function was itself too permissive: it kept a
+# number just because it appeared in the duplicate search's own candidate list, even when nothing about the
+# finding actually related to it (5 drafts affected: 16-code-1, 16-code-5, 16-docs-3, 16-tests-1, 16-tests-7).
+# Being a search candidate is not evidence of a real relationship, so the candidate list is no longer part of
+# what this function trusts at all. Two conventions exist because bug_report.md, unlike technical_debt.md and
+# test_implementation.md, has no dedicated 'Related Issues' header of its own -- a bug-kind draft (like
+# 16-code-5) puts it as a '- **Related Issues**:' bullet with indented sub-bullets inside 'Additional Context'
+# instead:
 #   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
 #   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
 #     immediately-following bullet lines (indented sub-bullets '  - #n' as audit #16's real draft has, or
@@ -301,10 +332,11 @@ function Find-TemplatePlaceholders {
 # A reference (#n) inside that section survives only when n is:
 #   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
 #     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
-#   - named in the finding's own text ($FindingText);
-#   - named in the candidate list actually offered to the classifier for this finding ($CandidateText); or
+#   - named in the finding's own text ($FindingText); or
 #   - named in one of the script's own duplicate/partially-related/possibly-related note lines for this
-#     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line).
+#     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line -- these
+#     are already anchor-checked before they ever reach this function, so they are trusted evidence, unlike a
+#     bare search candidate).
 # A line with no issue reference at all (prose, a blank line) is always kept untouched; a line naming an
 # unverified number is dropped entirely (not just the number). Returns the sanitized draft text and the list of
 # removed numbers, so the caller can log them ("removed unverified related issue #n") against this finding's
@@ -314,7 +346,6 @@ function Limit-RelatedIssues {
         [string]$DraftText,
         [string]$IssueNumber,
         [string]$FindingText,
-        [string]$CandidateText,
         [string[]]$ScriptNoteLines
     )
 
@@ -352,9 +383,8 @@ function Limit-RelatedIssues {
 
     $allowed = [System.Collections.Generic.HashSet[string]]::new()
     if (-not [string]::IsNullOrWhiteSpace($IssueNumber)) { [void]$allowed.Add($IssueNumber.TrimStart('#')) }
-    foreach ($src in @($FindingText, $CandidateText)) {
-        if ($null -eq $src) { continue }
-        foreach ($m in [regex]::Matches($src, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
+    if ($null -ne $FindingText) {
+        foreach ($m in [regex]::Matches($FindingText, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
     }
     foreach ($noteLine in $ScriptNoteLines) {
         if ($null -eq $noteLine) { continue }
