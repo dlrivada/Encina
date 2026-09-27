@@ -181,7 +181,7 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
                     },
                     Left: error =>
                     {
-                        _logger.AutoRegistrationFailed(fullTypeName, new InvalidOperationException(error.Message));
+                        _logger.AutoRegistrationFailed(fullTypeName, error.GetCode().IfNone("encina.unknown"));
                     });
             }
             catch (Exception ex)

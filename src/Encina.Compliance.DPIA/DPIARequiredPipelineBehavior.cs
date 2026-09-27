@@ -215,11 +215,11 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
 
                     if (_options.EnforcementMode == DPIAEnforcementMode.Block)
                     {
-                        _logger.DPIAPipelineBlocked(requestTypeName, error.Message);
+                        _logger.DPIAPipelineBlocked(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                         return ValueTask.FromResult<Either<EncinaError, TResponse>>(Left<EncinaError, TResponse>(error));
                     }
 
-                    _logger.DPIAPipelineWarned(requestTypeName, error.Message);
+                    _logger.DPIAPipelineWarned(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                     return nextStep();
                 }).ConfigureAwait(false);
         }
