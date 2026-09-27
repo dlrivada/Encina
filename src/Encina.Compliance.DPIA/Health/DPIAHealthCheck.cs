@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
@@ -74,42 +76,12 @@ public sealed class DPIAHealthCheck : IHealthCheck
         var warnings = new List<string>();
 
         using var scope = _serviceProvider.CreateScope();
-        var scopedProvider = scope.ServiceProvider;
 
-        // 1. Verify options are valid
-        var options = scopedProvider.GetService<IOptions<DPIAOptions>>()?.Value;
-        if (options is null)
+        // 1-3. Verify options, DPIA service and assessment engine are resolvable
+        if (!TryResolveDependencies(scope.ServiceProvider, data, out var options, out var service, out var failure))
         {
-            return HealthCheckResult.Unhealthy(
-                "DPIAOptions are not configured. "
-                + "Call AddEncinaDPIA() in DI setup.");
+            return failure!.Value;
         }
-
-        data["enforcementMode"] = options.EnforcementMode.ToString();
-        data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
-        data["defaultReviewPeriodDays"] = options.DefaultReviewPeriod.TotalDays;
-
-        // 2. Verify DPIA service is resolvable
-        var service = scopedProvider.GetService<IDPIAService>();
-        if (service is null)
-        {
-            return HealthCheckResult.Unhealthy(
-                "IDPIAService is not registered.",
-                data: data);
-        }
-
-        data["serviceType"] = service.GetType().Name;
-
-        // 3. Verify assessment engine is resolvable
-        var engine = scopedProvider.GetService<IDPIAAssessmentEngine>();
-        if (engine is null)
-        {
-            return HealthCheckResult.Unhealthy(
-                "IDPIAAssessmentEngine is not registered.",
-                data: data);
-        }
-
-        data["engineType"] = engine.GetType().Name;
 
         // 4. Check for expired assessments (degraded if any)
         await CheckExpiredAssessmentsAsync(service, data, warnings, cancellationToken)
@@ -135,6 +107,61 @@ public sealed class DPIAHealthCheck : IHealthCheck
         return HealthCheckResult.Healthy(
             "DPIA infrastructure is fully configured.",
             data: data);
+    }
+
+    /// <summary>
+    /// Resolves the DPIA options, service and assessment engine from the scoped provider.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when every dependency resolved; otherwise <see langword="false"/>,
+    /// with <paramref name="failure"/> set to the <see cref="HealthCheckResult.Unhealthy(string, Exception?, IReadOnlyDictionary{string, object}?)"/>
+    /// result to return.
+    /// </returns>
+    private static bool TryResolveDependencies(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data,
+        [NotNullWhen(true)] out DPIAOptions? options,
+        [NotNullWhen(true)] out IDPIAService? service,
+        [NotNullWhen(false)] out HealthCheckResult? failure)
+    {
+        options = scopedProvider.GetService<IOptions<DPIAOptions>>()?.Value;
+        if (options is null)
+        {
+            service = null;
+            failure = HealthCheckResult.Unhealthy(
+                "DPIAOptions are not configured. "
+                + "Call AddEncinaDPIA() in DI setup.");
+            return false;
+        }
+
+        data["enforcementMode"] = options.EnforcementMode.ToString();
+        data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
+        data["defaultReviewPeriodDays"] = options.DefaultReviewPeriod.TotalDays;
+
+        service = scopedProvider.GetService<IDPIAService>();
+        if (service is null)
+        {
+            failure = HealthCheckResult.Unhealthy(
+                "IDPIAService is not registered.",
+                data: data);
+            return false;
+        }
+
+        data["serviceType"] = service.GetType().Name;
+
+        var engine = scopedProvider.GetService<IDPIAAssessmentEngine>();
+        if (engine is null)
+        {
+            failure = HealthCheckResult.Unhealthy(
+                "IDPIAAssessmentEngine is not registered.",
+                data: data);
+            return false;
+        }
+
+        data["engineType"] = engine.GetType().Name;
+
+        failure = null;
+        return true;
     }
 
     /// <summary>
