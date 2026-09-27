@@ -46,19 +46,24 @@ internal static partial class LawfulBasisLogMessages
     // Consent checks (8123-8124)
     // =====================================================
 
+    // Note: none of these templates carry the data subject's own identifier — it is personal
+    // data and must never reach a log sink in plain text (#1435, following #1314). Correlate
+    // via request type and outcome/reason instead. Reason is always a non-identifying string
+    // (a fixed phrase or an EncinaError code via GetCode()), never EncinaError.Message.
+
     /// <summary>Consent status check started for consent-based processing.</summary>
     [LoggerMessage(
         EventId = 8123,
         Level = LogLevel.Debug,
-        Message = "Consent check started. RequestType={RequestType}, SubjectId={SubjectId}")]
-    internal static partial void ConsentCheckStarted(this ILogger logger, Type requestType, string subjectId);
+        Message = "Consent check started. RequestType={RequestType}")]
+    internal static partial void ConsentCheckStarted(this ILogger logger, Type requestType);
 
     /// <summary>Consent check failed — no active consent or provider error.</summary>
     [LoggerMessage(
         EventId = 8124,
         Level = LogLevel.Warning,
-        Message = "Consent check failed. RequestType={RequestType}, SubjectId={SubjectId}, Reason={Reason}")]
-    internal static partial void ConsentCheckFailed(this ILogger logger, Type requestType, string subjectId, string reason);
+        Message = "Consent check failed. RequestType={RequestType}, Reason={Reason}")]
+    internal static partial void ConsentCheckFailed(this ILogger logger, Type requestType, string reason);
 
     // =====================================================
     // LIA checks (8125-8126)
@@ -122,8 +127,8 @@ internal static partial class LawfulBasisLogMessages
     [LoggerMessage(
         EventId = 8131,
         Level = LogLevel.Information,
-        Message = "Consent check passed. RequestType={RequestType}, SubjectId={SubjectId}")]
-    internal static partial void ConsentCheckPassed(this ILogger logger, Type requestType, string subjectId);
+        Message = "Consent check passed. RequestType={RequestType}")]
+    internal static partial void ConsentCheckPassed(this ILogger logger, Type requestType);
 
     /// <summary>LIA check passed — assessment approved.</summary>
     [LoggerMessage(

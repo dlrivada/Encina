@@ -246,14 +246,14 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
         if (string.IsNullOrWhiteSpace(subjectId))
         {
             var error = GDPRErrors.ConsentNotFound(requestType);
-            _logger.ConsentCheckFailed(requestType, "(no subject ID)", "Subject ID not extractable");
+            _logger.ConsentCheckFailed(requestType, "Subject ID not extractable");
             LawfulBasisDiagnostics.ConsentChecksTotal.Add(1,
                 new TagList { { LawfulBasisDiagnostics.TagOutcome, "failed" } });
             return ApplyEnforcement(error, requestType);
         }
 
         // Log consent check start
-        _logger.ConsentCheckStarted(requestType, subjectId);
+        _logger.ConsentCheckStarted(requestType);
 
         // Check consent status
         var consentResult = await _consentProvider
@@ -265,21 +265,21 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
             {
                 if (result.HasValidConsent)
                 {
-                    _logger.ConsentCheckPassed(requestType, subjectId);
+                    _logger.ConsentCheckPassed(requestType);
                     LawfulBasisDiagnostics.ConsentChecksTotal.Add(1,
                         new TagList { { LawfulBasisDiagnostics.TagOutcome, "passed" } });
                     return Right<EncinaError, bool>(true);
                 }
 
                 var consentError = GDPRErrors.ConsentNotFound(requestType, subjectId);
-                _logger.ConsentCheckFailed(requestType, subjectId, "No active consent found");
+                _logger.ConsentCheckFailed(requestType, "No active consent found");
                 LawfulBasisDiagnostics.ConsentChecksTotal.Add(1,
                     new TagList { { LawfulBasisDiagnostics.TagOutcome, "failed" } });
                 return ApplyEnforcement(consentError, requestType);
             },
             Left: providerError =>
             {
-                _logger.ConsentCheckFailed(requestType, subjectId, providerError.Message);
+                _logger.ConsentCheckFailed(requestType, providerError.GetCode().IfNone("encina.unknown"));
                 LawfulBasisDiagnostics.ConsentChecksTotal.Add(1,
                     new TagList { { LawfulBasisDiagnostics.TagOutcome, "failed" } });
                 return ApplyEnforcement(providerError, requestType);
@@ -328,7 +328,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
             },
             Left: error =>
             {
-                _logger.LIACheckFailed(requestType, attrInfo.LIAReference, error.Message);
+                _logger.LIACheckFailed(requestType, attrInfo.LIAReference, error.GetCode().IfNone("encina.unknown"));
                 LawfulBasisDiagnostics.LiaChecksTotal.Add(1,
                     new TagList { { LawfulBasisDiagnostics.TagOutcome, "failed" } });
                 return ApplyEnforcement(error, requestType);
@@ -347,7 +347,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
         }
 
         // Warn mode — log warning but allow processing
-        _logger.EnforcementWarning(requestType, error.Message);
+        _logger.EnforcementWarning(requestType, error.GetCode().IfNone("encina.unknown"));
         return Right<EncinaError, bool>(true);
     }
 
