@@ -1,0 +1,2 @@
+- Encina.MongoDB now registers `InboxPipelineBehavior<,>` against `IPipelineBehavior<,>` when `UseInbox` is enabled, so Inbox idempotency deduplication actually runs (previously silently never ran, #1333).
+- Encina.EntityFrameworkCore and Encina.MongoDB now register `ISagaRunner` and `ISagaNotFoundDispatcher` when `UseSagas` is enabled, matching every ADO.NET and Dapper provider (previously threw `InvalidOperationException` on first resolution, #1333).

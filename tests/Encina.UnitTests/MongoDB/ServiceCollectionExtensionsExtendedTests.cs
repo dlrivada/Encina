@@ -5,6 +5,7 @@ using Encina.Messaging.Health;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
+using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
 using Encina.MongoDB;
@@ -367,6 +368,149 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         services.ShouldContain(sd => sd.ServiceType == typeof(ISagaStateFactory));
     }
 
+    [Fact]
+    public void AddEncinaMongoDB_UseSagasTrue_ResolvesSagaRunnerAndNotFoundDispatcher()
+    {
+        // MongoDB never registered ISagaRunner/ISagaNotFoundDispatcher before #1333; the shared
+        // AddOutboxInboxSagaSchedulingServices helper now registers both, matching every ADO.NET,
+        // Dapper and EF Core provider.
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseSagas = true;
+        });
+
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = sp.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<ISagaRunner>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseSagasFalse_DoesNotRegisterSagaRunner()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseSagas = false;
+        });
+
+        using var sp = services.BuildServiceProvider();
+
+        sp.GetService<ISagaRunner>().ShouldBeNull();
+        sp.GetService<ISagaNotFoundDispatcher>().ShouldBeNull();
+    }
+
+    #endregion
+
+    #region Inbox pipeline behavior registration (#1333)
+
+    [Fact]
+    public void AddEncinaMongoDB_UseInboxTrue_RegistersInboxPipelineBehavior()
+    {
+        // MongoDB never registered InboxPipelineBehavior against IPipelineBehavior<,> before
+        // #1333, so idempotency deduplication silently never ran. The shared helper now
+        // registers it, matching every ADO.NET, Dapper and EF Core provider.
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseInbox = true;
+        });
+
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IPipelineBehavior<,>) &&
+            sd.ImplementationType == typeof(InboxPipelineBehavior<,>));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_UseInboxFalse_DoesNotRegisterInboxPipelineBehavior()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseInbox = false;
+        });
+
+        services.ShouldNotContain(sd =>
+            sd.ServiceType == typeof(IPipelineBehavior<,>) &&
+            sd.ImplementationType == typeof(InboxPipelineBehavior<,>));
+    }
+
+    [Fact]
+    public void AddEncinaMongoDB_WithClient_UseInboxTrue_RegistersInboxPipelineBehavior()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var client = Substitute.For<IMongoClient>();
+
+        services.AddEncinaMongoDB(client, opts =>
+        {
+            opts.DatabaseName = "test";
+            opts.UseInbox = true;
+        });
+
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IPipelineBehavior<,>) &&
+            sd.ImplementationType == typeof(InboxPipelineBehavior<,>));
+    }
+
+    #endregion
+
+    #region All messaging patterns validated (#1333)
+
+    [Fact]
+    public void AddEncinaMongoDB_WithAllMessagingPatternsEnabled_ValidatesAndResolvesEveryService()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaMongoDB(opts =>
+        {
+            opts.ConnectionString = "mongodb://localhost";
+            opts.UseOutbox = true;
+            opts.UseInbox = true;
+            opts.UseSagas = true;
+            opts.UseScheduling = true;
+        });
+
+        // The provider builds under ValidateOnBuild/ValidateScopes (proving the DI graph for
+        // every enabled messaging pattern is complete) and every service the shared helper
+        // registers for MongoDB is resolvable, closing the registration-completeness gap in
+        // #1333.
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = sp.CreateScope();
+
+        sp.GetService<OutboxOptions>().ShouldNotBeNull();
+        sp.GetService<InboxOptions>().ShouldNotBeNull();
+        sp.GetService<SagaOptions>().ShouldNotBeNull();
+        sp.GetService<SchedulingOptions>().ShouldNotBeNull();
+
+        scope.ServiceProvider.GetRequiredService<IOutboxStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IInboxStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IScheduledMessageStore>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaRunner>().ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>().ShouldNotBeNull();
+
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IPipelineBehavior<,>) &&
+            sd.ImplementationType == typeof(InboxPipelineBehavior<,>));
+    }
+
     #endregion
 
     #region Scheduling registration
@@ -489,6 +633,49 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         services.AddEncinaUnitOfWork();
 
         services.ShouldContain(sd => sd.ServiceType == typeof(IUnitOfWork));
+    }
+
+    #endregion
+
+    #region Functional Repository registration
+
+    [Fact]
+    public void AddEncinaRepository_NullServices_ThrowsArgumentNullException()
+    {
+        IServiceCollection? services = null;
+
+        Should.Throw<ArgumentNullException>(() =>
+            services!.AddEncinaRepository<TestEntity, Guid>(config =>
+            {
+                config.CollectionName = "test_entities";
+                config.IdProperty = e => e.Id;
+            }));
+    }
+
+    [Fact]
+    public void AddEncinaRepository_NullConfigure_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentNullException>(() =>
+            services.AddEncinaRepository<TestEntity, Guid>(null!));
+    }
+
+    [Fact]
+    public void AddEncinaRepository_ValidConfiguration_RegistersFunctionalRepository()
+    {
+        var services = new ServiceCollection();
+
+        var result = services.AddEncinaRepository<TestEntity, Guid>(config =>
+        {
+            config.CollectionName = "test_entities";
+            config.IdProperty = e => e.Id;
+        });
+
+        result.ShouldBeSameAs(services);
+        services.ShouldContain(sd => sd.ServiceType == typeof(IFunctionalRepository<TestEntity, Guid>));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IFunctionalReadRepository<TestEntity, Guid>));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IMongoCollection<TestEntity>));
     }
 
     #endregion

@@ -87,117 +87,7 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register stores based on configuration
-        if (options.UseOutbox)
-        {
-            services.AddSingleton(options.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<Outbox.OutboxProcessor>();
-        }
-
-        if (options.UseInbox)
-        {
-            services.AddSingleton(options.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreMongoDB>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-        }
-
-        if (options.UseSagas)
-        {
-            services.AddSingleton(options.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreMongoDB>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (options.UseScheduling)
-        {
-            services.AddSingleton(options.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (options.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
-
-        // Register audit log store if enabled
-        if (options.UseAuditLogStore)
-        {
-            services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
-        }
-
-        // Register read audit store if enabled
-        if (options.UseReadAuditStore)
-        {
-            services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register Anonymization token mapping store if enabled
-        if (options.UseAnonymization)
-        {
-            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
-            // store wins regardless of the order in which AddEncinaAnonymization and this
-            // provider run. A custom ITokenMappingStore the application registered itself is
-            // never removed here, so it keeps winning (#1295).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
-                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
-            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
-        }
-
-        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register ABAC Policy Store if enabled
-        if (options.UseABACPolicyStore)
-        {
-            ABAC.ABACBsonClassMapRegistration.EnsureRegistered();
-            services.AddScoped<IPolicyStore, ABAC.PolicyStoreMongo>();
-        }
-
-        // Create indexes if configured
-        if (options.CreateIndexes)
-        {
-            services.AddHostedService<MongoDbIndexCreator>();
-        }
-
-        // Register provider health check if enabled
-        if (options.ProviderHealthCheck.Enabled)
-        {
-            services.AddSingleton(options.ProviderHealthCheck);
-            services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
-        }
-
-        // Register database health monitor for resilience infrastructure
-        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
-            new MongoDbDatabaseHealthMonitor(sp));
-
-        // Register module isolation services if enabled
-        if (options.UseModuleIsolation)
-        {
-            RegisterModuleIsolationServices(services, options);
-        }
-
-        // Register read/write separation services if enabled
-        if (options.UseReadWriteSeparation)
-        {
-            RegisterReadWriteSeparationServices(services, options);
-        }
+        RegisterCommonServices(services, options);
 
         return services;
     }
@@ -233,117 +123,7 @@ public static class ServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        // Register stores based on configuration
-        if (options.UseOutbox)
-        {
-            services.AddSingleton(options.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreMongoDB>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<Outbox.OutboxProcessor>();
-        }
-
-        if (options.UseInbox)
-        {
-            services.AddSingleton(options.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreMongoDB>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-        }
-
-        if (options.UseSagas)
-        {
-            services.AddSingleton(options.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreMongoDB>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (options.UseScheduling)
-        {
-            services.AddSingleton(options.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreMongoDB>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (options.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
-
-        // Register audit log store if enabled
-        if (options.UseAuditLogStore)
-        {
-            services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
-        }
-
-        // Register read audit store if enabled
-        if (options.UseReadAuditStore)
-        {
-            services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
-        }
-
-        // Register Anonymization token mapping store if enabled
-        if (options.UseAnonymization)
-        {
-            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
-            // store wins regardless of the order in which AddEncinaAnonymization and this
-            // provider run. A custom ITokenMappingStore the application registered itself is
-            // never removed here, so it keeps winning (#1295).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
-                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
-            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
-        }
-
-        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register ABAC Policy Store if enabled
-        if (options.UseABACPolicyStore)
-        {
-            ABAC.ABACBsonClassMapRegistration.EnsureRegistered();
-            services.AddScoped<IPolicyStore, ABAC.PolicyStoreMongo>();
-        }
-
-        // Create indexes if configured
-        if (options.CreateIndexes)
-        {
-            services.AddHostedService<MongoDbIndexCreator>();
-        }
-
-        // Register provider health check if enabled
-        if (options.ProviderHealthCheck.Enabled)
-        {
-            services.AddSingleton(options.ProviderHealthCheck);
-            services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
-        }
-
-        // Register database health monitor for resilience infrastructure
-        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
-            new MongoDbDatabaseHealthMonitor(sp));
-
-        // Register module isolation services if enabled
-        if (options.UseModuleIsolation)
-        {
-            RegisterModuleIsolationServices(services, options);
-        }
-
-        // Register read/write separation services if enabled
-        if (options.UseReadWriteSeparation)
-        {
-            RegisterReadWriteSeparationServices(services, options);
-        }
+        RegisterCommonServices(services, options);
 
         return services;
     }
@@ -798,6 +578,151 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the Outbox, Inbox, Saga and Scheduling patterns through the shared
+    /// <c>Encina.Messaging.MessagingServiceCollectionExtensions.AddOutboxInboxSagaSchedulingServices</c>
+    /// helper, shared by both <c>AddEncinaMongoDB</c> overloads.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The MongoDB options carrying the messaging pattern flags.</param>
+    /// <remarks>
+    /// These are the same registrations ADO.NET, Dapper and EF Core get from
+    /// <c>AddMessagingServices</c>, so a change to the shared registrations (for example
+    /// <c>ISagaRunner</c>/<c>ISagaNotFoundDispatcher</c>) reaches MongoDB automatically instead of
+    /// drifting out of sync with a hand-rolled block (#1333). <see cref="EncinaMongoDbOptions"/> is
+    /// not a <c>MessagingConfiguration</c>, so the flags and options are passed individually.
+    /// </remarks>
+    private static void RegisterMessagingPatterns(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreMongoDB,
+            OutboxMessageFactory,
+            InboxStoreMongoDB,
+            InboxMessageFactory,
+            SagaStoreMongoDB,
+            SagaStateFactory,
+            ScheduledMessageStoreMongoDB,
+            ScheduledMessageFactory,
+            Outbox.OutboxProcessor>(
+            options.UseOutbox, options.OutboxOptions,
+            options.UseInbox, options.InboxOptions,
+            options.UseSagas, options.SagaOptions,
+            options.UseScheduling, options.SchedulingOptions);
+    }
+
+    /// <summary>
+    /// Registers every optional service both <c>AddEncinaMongoDB</c> overloads share, once the
+    /// connection (client and/or connection string) is already registered by the caller.
+    /// </summary>
+    private static void RegisterCommonServices(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        RegisterMessagingPatterns(services, options);
+        RegisterAuditLogStore(services, options);
+        RegisterReadAuditStore(services, options);
+        RegisterAnonymization(services, options);
+        RegisterABACPolicyStore(services, options);
+        RegisterIndexCreation(services, options);
+        RegisterProviderHealthCheck(services, options);
+
+        // Register database health monitor for resilience infrastructure
+        services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
+            new MongoDbDatabaseHealthMonitor(sp));
+
+        RegisterModuleIsolationServices(services, options);
+        RegisterReadWriteSeparationServices(services, options);
+    }
+
+    /// <summary>
+    /// Registers the persistent audit log store when
+    /// <see cref="EncinaMongoDbOptions.UseAuditLogStore"/> is enabled.
+    /// </summary>
+    private static void RegisterAuditLogStore(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.UseAuditLogStore) return;
+
+        services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+    }
+
+    /// <summary>
+    /// Registers the read audit trail store when <see cref="EncinaMongoDbOptions.UseReadAuditStore"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterReadAuditStore(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.UseReadAuditStore) return;
+
+        services.AddScoped<IReadAuditStore, ReadAuditStoreMongoDB>();
+    }
+
+    /// <summary>
+    /// Registers the Anonymization token mapping store when
+    /// <see cref="EncinaMongoDbOptions.UseAnonymization"/> is enabled.
+    /// </summary>
+    private static void RegisterAnonymization(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.UseAnonymization) return;
+
+        RemoveInMemoryTokenMappingStore(services);
+
+        services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreMongoDB>();
+    }
+
+    /// <summary>
+    /// Removes the in-memory default <see cref="ITokenMappingStore"/> from
+    /// <c>Encina.Compliance.Anonymization</c> so the database-backed store wins regardless of the
+    /// order in which <c>AddEncinaAnonymization</c> and this provider run. A custom
+    /// <see cref="ITokenMappingStore"/> the application registered itself is never removed here, so
+    /// it keeps winning (#1295).
+    /// </summary>
+    private static void RemoveInMemoryTokenMappingStore(IServiceCollection services)
+    {
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+            {
+                services.RemoveAt(i);
+            }
+        }
+    }
+
+    // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
+
+    /// <summary>
+    /// Registers the ABAC policy store when <see cref="EncinaMongoDbOptions.UseABACPolicyStore"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterABACPolicyStore(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.UseABACPolicyStore) return;
+
+        ABAC.ABACBsonClassMapRegistration.EnsureRegistered();
+        services.AddScoped<IPolicyStore, ABAC.PolicyStoreMongo>();
+    }
+
+    /// <summary>
+    /// Registers the background index creator when <see cref="EncinaMongoDbOptions.CreateIndexes"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterIndexCreation(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.CreateIndexes) return;
+
+        services.AddHostedService<MongoDbIndexCreator>();
+    }
+
+    /// <summary>
+    /// Registers the provider health check when
+    /// <see cref="EncinaMongoDbOptions.ProviderHealthCheck"/> is enabled.
+    /// </summary>
+    private static void RegisterProviderHealthCheck(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.ProviderHealthCheck.Enabled) return;
+
+        services.AddSingleton(options.ProviderHealthCheck);
+        services.AddSingleton<IEncinaHealthCheck, MongoDbHealthCheck>();
+    }
+
+    /// <summary>
     /// Registers module isolation services.
     /// </summary>
     /// <param name="services">The service collection.</param>
@@ -806,6 +731,8 @@ public static class ServiceCollectionExtensions
         IServiceCollection services,
         EncinaMongoDbOptions options)
     {
+        if (!options.UseModuleIsolation) return;
+
         // Register module isolation options
         services.Configure<MongoDbModuleIsolationOptions>(opt =>
         {
@@ -860,6 +787,8 @@ public static class ServiceCollectionExtensions
         IServiceCollection services,
         EncinaMongoDbOptions options)
     {
+        if (!options.UseReadWriteSeparation) return;
+
         // Register read/write separation options
         services.Configure<MongoReadWriteSeparationOptions>(opt =>
         {

@@ -81,6 +81,105 @@ public class ServiceCollectionExtensionsGuardTests
 
     #endregion
 
+    #region AddOutboxInboxSagaSchedulingServices
+
+    [Fact]
+    public void AddOutboxInboxSagaSchedulingServices_NullServices_ThrowsArgumentNullException()
+    {
+        IServiceCollection services = null!;
+
+        var act = () => services.AddOutboxInboxSagaSchedulingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(
+            useOutbox: false, new OutboxOptions(),
+            useInbox: false, new InboxOptions(),
+            useSagas: false, new SagaOptions(),
+            useScheduling: false, new SchedulingOptions());
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("services");
+    }
+
+    [Fact]
+    public void AddOutboxInboxSagaSchedulingServices_NullOutboxOptions_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddOutboxInboxSagaSchedulingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(
+            useOutbox: false, null!,
+            useInbox: false, new InboxOptions(),
+            useSagas: false, new SagaOptions(),
+            useScheduling: false, new SchedulingOptions());
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("outboxOptions");
+    }
+
+    [Fact]
+    public void AddOutboxInboxSagaSchedulingServices_NullInboxOptions_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddOutboxInboxSagaSchedulingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(
+            useOutbox: false, new OutboxOptions(),
+            useInbox: false, null!,
+            useSagas: false, new SagaOptions(),
+            useScheduling: false, new SchedulingOptions());
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inboxOptions");
+    }
+
+    [Fact]
+    public void AddOutboxInboxSagaSchedulingServices_NullSagaOptions_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddOutboxInboxSagaSchedulingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(
+            useOutbox: false, new OutboxOptions(),
+            useInbox: false, new InboxOptions(),
+            useSagas: false, null!,
+            useScheduling: false, new SchedulingOptions());
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("sagaOptions");
+    }
+
+    [Fact]
+    public void AddOutboxInboxSagaSchedulingServices_NullSchedulingOptions_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddOutboxInboxSagaSchedulingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(
+            useOutbox: false, new OutboxOptions(),
+            useInbox: false, new InboxOptions(),
+            useSagas: false, new SagaOptions(),
+            useScheduling: false, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("schedulingOptions");
+    }
+
+    #endregion
+
     #region Stub Types (minimal implementations for generic constraints)
 
     internal class StubInboxFactory : IInboxMessageFactory

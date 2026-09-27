@@ -152,258 +152,45 @@ public static class ServiceCollectionExtensions
         // Register the DbContext as DbContext (non-generic) for behaviors
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TDbContext>());
 
-        // Register enabled patterns
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
+        // EF Core has its own DbContext-bound TransactionPipelineBehavior (it wraps
+        // DbContext.Database transactions), unlike the generic Encina.Messaging behavior ADO.NET
+        // and Dapper share, so this pattern stays registered here instead of going through the
+        // shared helper.
+        RegisterTransactionBehavior(services, config.UseTransactions);
 
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, OutboxStoreEF>();
-            services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(Messaging.Outbox.OutboxPostProcessor<,>));
-            services.AddHostedService<OutboxProcessor>();
-        }
+        // Register the Outbox, Inbox, Saga and Scheduling patterns through the shared helper, the
+        // same registrations ADO.NET and Dapper get from AddMessagingServices, so a change to the
+        // shared registrations (for example ISagaRunner/ISagaNotFoundDispatcher) reaches EF Core
+        // automatically instead of drifting out of sync with a hand-rolled block (#1333).
+        services.AddOutboxInboxSagaSchedulingServices<
+            OutboxStoreEF,
+            OutboxMessageFactory,
+            InboxStoreEF,
+            InboxMessageFactory,
+            SagaStoreEF,
+            SagaStateFactory,
+            ScheduledMessageStoreEF,
+            ScheduledMessageFactory,
+            OutboxProcessor>(
+            config.UseOutbox, config.OutboxOptions,
+            config.UseInbox, config.InboxOptions,
+            config.UseSagas, config.SagaOptions,
+            config.UseScheduling, config.SchedulingOptions);
 
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, InboxStoreEF>();
-            services.AddScoped<IInboxMessageFactory, InboxMessageFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(Messaging.Inbox.InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseSagas)
-        {
-            services.AddSingleton(config.SagaOptions);
-            services.AddScoped<ISagaStore, SagaStoreEF>();
-            services.AddScoped<ISagaStateFactory, SagaStateFactory>();
-            services.AddScoped<SagaOrchestrator>();
-        }
-
-        if (config.UseScheduling)
-        {
-            services.AddSingleton(config.SchedulingOptions);
-            services.AddScoped<IScheduledMessageStore, ScheduledMessageStoreEF>();
-            services.AddScoped<IScheduledMessageFactory, ScheduledMessageFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (config.SchedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
-
-        if (config.UseTenancy)
-        {
-            // Register EF Core tenancy options based on messaging configuration
-            var efCoreTenancyOptions = new EfCoreTenancyOptions
-            {
-                AutoAssignTenantId = config.TenancyOptions.AutoAssignTenantId,
-                ValidateTenantOnSave = config.TenancyOptions.ValidateTenantOnSave,
-                UseQueryFilters = config.TenancyOptions.UseQueryFilters,
-                ThrowOnMissingTenantContext = config.TenancyOptions.ThrowOnMissingTenantContext
-            };
-            services.AddSingleton(Options.Create(efCoreTenancyOptions));
-
-            // Register core tenancy options if not already registered
-            // These are needed by DefaultTenantSchemaConfigurator
-            services.TryAddSingleton(Options.Create(new TenancyOptions()));
-
-            // Register default schema configurator if not already registered
-            services.TryAddScoped<ITenantSchemaConfigurator, DefaultTenantSchemaConfigurator>();
-
-            // Register TenantDbContextFactory for database-per-tenant scenarios
-            services.TryAddScoped<TenantDbContextFactory<TDbContext>>();
-        }
-
-        if (config.UseModuleIsolation)
-        {
-            // Register module isolation options
-            services.AddSingleton(config.ModuleIsolationOptions);
-
-            // Register core module isolation services
-            services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
-            services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
-
-            // Register the pipeline behavior that sets module context
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ModuleExecutionContextBehavior<,>));
-
-            // Register the interceptor for SQL validation
-            services.AddScoped<ModuleSchemaValidationInterceptor>();
-
-            // Register appropriate permission script generator based on configuration
-            // (Users can override this with their own generator if needed)
-            services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
-        }
-
-        if (config.UseReadWriteSeparation)
-        {
-            // Register read/write separation options
-            services.AddSingleton(config.ReadWriteSeparationOptions);
-
-            // Create and register the replica selector only if replicas are configured
-            if (config.ReadWriteSeparationOptions.ReadConnectionStrings.Count > 0)
-            {
-                var replicaSelector = ReplicaSelectorFactory.Create(config.ReadWriteSeparationOptions);
-                services.AddSingleton<IReplicaSelector>(replicaSelector);
-
-                // Register connection selector with replica support
-                services.AddSingleton<IReadWriteConnectionSelector>(sp =>
-                    new ReadWriteConnectionSelector(
-                        config.ReadWriteSeparationOptions,
-                        sp.GetRequiredService<IReplicaSelector>()));
-            }
-            else
-            {
-                // Register connection selector without replica support (uses primary for all operations)
-                services.AddSingleton<IReadWriteConnectionSelector>(
-                    new ReadWriteConnectionSelector(config.ReadWriteSeparationOptions, replicaSelector: null));
-            }
-
-            // Register DbContext factory for read/write routing
-            services.AddScoped<IReadWriteDbContextFactory<TDbContext>, ReadWriteDbContextFactory<TDbContext>>();
-
-            // Register the pipeline behavior for automatic routing
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
-
-            // Register health check for read/write separation
-            services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
-        }
-
-        if (config.UseDomainEvents)
-        {
-            // Register domain event dispatcher options
-            var dispatcherOptions = new DomainEventDispatcherOptions
-            {
-                Enabled = config.DomainEventsOptions.Enabled,
-                StopOnFirstError = config.DomainEventsOptions.StopOnFirstError,
-                RequireINotification = config.DomainEventsOptions.RequireINotification,
-                ClearEventsAfterDispatch = config.DomainEventsOptions.ClearEventsAfterDispatch
-            };
-            services.TryAddSingleton(dispatcherOptions);
-
-            // Register the interceptor as singleton
-            services.TryAddSingleton<DomainEventDispatcherInterceptor>();
-        }
-
-        if (config.UseAuditing)
-        {
-            // Register audit interceptor options
-            var auditOptions = new AuditInterceptorOptions
-            {
-                Enabled = true,
-                TrackCreatedAt = config.AuditingOptions.TrackCreatedAt,
-                TrackCreatedBy = config.AuditingOptions.TrackCreatedBy,
-                TrackModifiedAt = config.AuditingOptions.TrackModifiedAt,
-                TrackModifiedBy = config.AuditingOptions.TrackModifiedBy,
-                LogAuditChanges = config.AuditingOptions.LogAuditChanges,
-                LogChangesToStore = config.AuditingOptions.LogChangesToStore
-            };
-            services.TryAddSingleton(auditOptions);
-
-            // Register TimeProvider for consistent timestamps
-            services.TryAddSingleton(TimeProvider.System);
-
-            // Register the interceptor as singleton
-            services.TryAddSingleton<AuditInterceptor>();
-        }
-
-        if (config.UseAuditLogStore)
-        {
-            // Register persistent audit log store
-            services.AddScoped<IAuditLogStore, AuditLogStoreEF>();
-        }
-
-        if (config.UseSoftDelete)
-        {
-            // Register soft delete interceptor options
-            var softDeleteOptions = new SoftDeleteInterceptorOptions
-            {
-                Enabled = true,
-                TrackDeletedAt = config.SoftDeleteOptions.TrackDeletedAt,
-                TrackDeletedBy = config.SoftDeleteOptions.TrackDeletedBy,
-                LogSoftDeletes = config.SoftDeleteOptions.LogSoftDeletes
-            };
-            services.TryAddSingleton(softDeleteOptions);
-
-            // Register TimeProvider for consistent timestamps (if not already registered by UseAuditing)
-            services.TryAddSingleton(TimeProvider.System);
-
-            // Register the interceptor as singleton
-            services.TryAddSingleton<SoftDeleteInterceptor>();
-        }
-
-        if (config.UseSecurityAuditStore)
-        {
-            // Register security audit trail store (Encina.Security.Audit)
-            services.AddScoped<IAuditStore, AuditStoreEF>();
-        }
-
-        if (config.UseReadAuditStore)
-        {
-            // Register read audit trail store (Encina.Security.Audit)
-            services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
-        }
-
-        // Register Anonymization token mapping store if enabled
-        if (config.UseAnonymization)
-        {
-            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
-            // store wins regardless of the order in which AddEncinaAnonymization and this
-            // provider run. A custom ITokenMappingStore the application registered itself is
-            // never removed here, so it keeps winning (#1295).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
-                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
-            services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreEF>();
-        }
-
-        // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
-
-        // Register ABAC Policy Store if enabled
-        if (config.UseABACPolicyStore)
-        {
-            services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreEF>();
-        }
-
-        if (config.UseTemporalTables)
-        {
-            // Register temporal table options for point-in-time queries
-            services.TryAddSingleton(config.TemporalTableOptions);
-        }
-
-        if (config.UseQueryCache)
-        {
-            // Register query caching services, mapping messaging-level options to provider-specific options
-            services.AddQueryCaching(options =>
-            {
-                options.Enabled = config.QueryCacheOptions.Enabled;
-                options.DefaultExpiration = config.QueryCacheOptions.DefaultExpiration;
-                options.KeyPrefix = config.QueryCacheOptions.KeyPrefix;
-                options.ThrowOnCacheErrors = config.QueryCacheOptions.ThrowOnCacheErrors;
-            });
-        }
-
-        // Register provider health check if enabled
-        if (config.ProviderHealthCheck.Enabled)
-        {
-            services.AddSingleton(config.ProviderHealthCheck);
-            services.AddSingleton<IEncinaHealthCheck, EntityFrameworkCoreHealthCheck>();
-        }
+        RegisterTenancy<TDbContext>(services, config);
+        RegisterModuleIsolation(services, config);
+        RegisterReadWriteSeparation<TDbContext>(services, config);
+        RegisterDomainEvents(services, config);
+        RegisterAuditingInterceptor(services, config);
+        RegisterAuditLogStore(services, config);
+        RegisterSoftDeleteInterceptor(services, config);
+        RegisterSecurityAuditStore(services, config);
+        RegisterReadAuditStore(services, config);
+        RegisterAnonymization(services, config);
+        RegisterABACPolicyStore(services, config);
+        RegisterTemporalTables(services, config);
+        RegisterQueryCache(services, config);
+        RegisterProviderHealthCheck(services, config);
 
         // Register database health monitor for resilience infrastructure
         // EF Core shares the same underlying connection pool as the ADO.NET driver
@@ -414,6 +201,317 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ConnectionPoolMonitoringInterceptor>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers EF Core's own DbContext-bound <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/>
+    /// when <paramref name="useTransactions"/> is enabled.
+    /// </summary>
+    private static void RegisterTransactionBehavior(IServiceCollection services, bool useTransactions)
+    {
+        if (!useTransactions) return;
+
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
+    }
+
+    /// <summary>
+    /// Registers multi-tenancy services when <see cref="MessagingConfiguration.UseTenancy"/> is enabled.
+    /// </summary>
+    private static void RegisterTenancy<TDbContext>(IServiceCollection services, MessagingConfiguration config)
+        where TDbContext : DbContext
+    {
+        if (!config.UseTenancy) return;
+
+        // Register EF Core tenancy options based on messaging configuration
+        var efCoreTenancyOptions = new EfCoreTenancyOptions
+        {
+            AutoAssignTenantId = config.TenancyOptions.AutoAssignTenantId,
+            ValidateTenantOnSave = config.TenancyOptions.ValidateTenantOnSave,
+            UseQueryFilters = config.TenancyOptions.UseQueryFilters,
+            ThrowOnMissingTenantContext = config.TenancyOptions.ThrowOnMissingTenantContext
+        };
+        services.AddSingleton(Options.Create(efCoreTenancyOptions));
+
+        // Register core tenancy options if not already registered
+        // These are needed by DefaultTenantSchemaConfigurator
+        services.TryAddSingleton(Options.Create(new TenancyOptions()));
+
+        // Register default schema configurator if not already registered
+        services.TryAddScoped<ITenantSchemaConfigurator, DefaultTenantSchemaConfigurator>();
+
+        // Register TenantDbContextFactory for database-per-tenant scenarios
+        services.TryAddScoped<TenantDbContextFactory<TDbContext>>();
+    }
+
+    /// <summary>
+    /// Registers module isolation services when <see cref="MessagingConfiguration.UseModuleIsolation"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterModuleIsolation(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseModuleIsolation) return;
+
+        // Register module isolation options
+        services.AddSingleton(config.ModuleIsolationOptions);
+
+        // Register core module isolation services
+        services.TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>();
+        services.TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>();
+
+        // Register the pipeline behavior that sets module context
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ModuleExecutionContextBehavior<,>));
+
+        // Register the interceptor for SQL validation
+        services.AddScoped<ModuleSchemaValidationInterceptor>();
+
+        // Register appropriate permission script generator based on configuration
+        // (Users can override this with their own generator if needed)
+        services.TryAddSingleton<IModulePermissionScriptGenerator, SqlServerPermissionScriptGenerator>();
+    }
+
+    /// <summary>
+    /// Registers read/write separation services when
+    /// <see cref="MessagingConfiguration.UseReadWriteSeparation"/> is enabled.
+    /// </summary>
+    private static void RegisterReadWriteSeparation<TDbContext>(IServiceCollection services, MessagingConfiguration config)
+        where TDbContext : DbContext
+    {
+        if (!config.UseReadWriteSeparation) return;
+
+        // Register read/write separation options
+        services.AddSingleton(config.ReadWriteSeparationOptions);
+
+        RegisterReadWriteConnectionSelector(services, config.ReadWriteSeparationOptions);
+
+        // Register DbContext factory for read/write routing
+        services.AddScoped<IReadWriteDbContextFactory<TDbContext>, ReadWriteDbContextFactory<TDbContext>>();
+
+        // Register the pipeline behavior for automatic routing
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ReadWriteRoutingPipelineBehavior<,>));
+
+        // Register health check for read/write separation
+        services.AddSingleton<IEncinaHealthCheck, ReadWriteSeparationHealthCheck>();
+    }
+
+    /// <summary>
+    /// Registers the replica-aware or primary-only <see cref="IReadWriteConnectionSelector"/>,
+    /// depending on whether read replicas are configured.
+    /// </summary>
+    private static void RegisterReadWriteConnectionSelector(
+        IServiceCollection services, ReadWriteSeparationOptions options)
+    {
+        // Create and register the replica selector only if replicas are configured
+        if (options.ReadConnectionStrings.Count > 0)
+        {
+            var replicaSelector = ReplicaSelectorFactory.Create(options);
+            services.AddSingleton<IReplicaSelector>(replicaSelector);
+
+            // Register connection selector with replica support
+            services.AddSingleton<IReadWriteConnectionSelector>(sp =>
+                new ReadWriteConnectionSelector(options, sp.GetRequiredService<IReplicaSelector>()));
+            return;
+        }
+
+        // Register connection selector without replica support (uses primary for all operations)
+        services.AddSingleton<IReadWriteConnectionSelector>(
+            new ReadWriteConnectionSelector(options, replicaSelector: null));
+    }
+
+    /// <summary>
+    /// Registers the domain event dispatcher interceptor when
+    /// <see cref="MessagingConfiguration.UseDomainEvents"/> is enabled.
+    /// </summary>
+    private static void RegisterDomainEvents(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseDomainEvents) return;
+
+        // Register domain event dispatcher options
+        var dispatcherOptions = new DomainEventDispatcherOptions
+        {
+            Enabled = config.DomainEventsOptions.Enabled,
+            StopOnFirstError = config.DomainEventsOptions.StopOnFirstError,
+            RequireINotification = config.DomainEventsOptions.RequireINotification,
+            ClearEventsAfterDispatch = config.DomainEventsOptions.ClearEventsAfterDispatch
+        };
+        services.TryAddSingleton(dispatcherOptions);
+
+        // Register the interceptor as singleton
+        services.TryAddSingleton<DomainEventDispatcherInterceptor>();
+    }
+
+    /// <summary>
+    /// Registers the audit interceptor when <see cref="MessagingConfiguration.UseAuditing"/> is enabled.
+    /// </summary>
+    private static void RegisterAuditingInterceptor(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseAuditing) return;
+
+        // Register audit interceptor options
+        var auditOptions = new AuditInterceptorOptions
+        {
+            Enabled = true,
+            TrackCreatedAt = config.AuditingOptions.TrackCreatedAt,
+            TrackCreatedBy = config.AuditingOptions.TrackCreatedBy,
+            TrackModifiedAt = config.AuditingOptions.TrackModifiedAt,
+            TrackModifiedBy = config.AuditingOptions.TrackModifiedBy,
+            LogAuditChanges = config.AuditingOptions.LogAuditChanges,
+            LogChangesToStore = config.AuditingOptions.LogChangesToStore
+        };
+        services.TryAddSingleton(auditOptions);
+
+        // Register TimeProvider for consistent timestamps
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the interceptor as singleton
+        services.TryAddSingleton<AuditInterceptor>();
+    }
+
+    /// <summary>
+    /// Registers the persistent audit log store when
+    /// <see cref="MessagingConfiguration.UseAuditLogStore"/> is enabled.
+    /// </summary>
+    private static void RegisterAuditLogStore(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseAuditLogStore) return;
+
+        // Register persistent audit log store
+        services.AddScoped<IAuditLogStore, AuditLogStoreEF>();
+    }
+
+    /// <summary>
+    /// Registers the soft delete interceptor when <see cref="MessagingConfiguration.UseSoftDelete"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterSoftDeleteInterceptor(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseSoftDelete) return;
+
+        // Register soft delete interceptor options
+        var softDeleteOptions = new SoftDeleteInterceptorOptions
+        {
+            Enabled = true,
+            TrackDeletedAt = config.SoftDeleteOptions.TrackDeletedAt,
+            TrackDeletedBy = config.SoftDeleteOptions.TrackDeletedBy,
+            LogSoftDeletes = config.SoftDeleteOptions.LogSoftDeletes
+        };
+        services.TryAddSingleton(softDeleteOptions);
+
+        // Register TimeProvider for consistent timestamps (if not already registered by UseAuditing)
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Register the interceptor as singleton
+        services.TryAddSingleton<SoftDeleteInterceptor>();
+    }
+
+    /// <summary>
+    /// Registers the security audit trail store when
+    /// <see cref="MessagingConfiguration.UseSecurityAuditStore"/> is enabled.
+    /// </summary>
+    private static void RegisterSecurityAuditStore(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseSecurityAuditStore) return;
+
+        // Register security audit trail store (Encina.Security.Audit)
+        services.AddScoped<IAuditStore, AuditStoreEF>();
+    }
+
+    /// <summary>
+    /// Registers the read audit trail store when <see cref="MessagingConfiguration.UseReadAuditStore"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterReadAuditStore(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseReadAuditStore) return;
+
+        // Register read audit trail store (Encina.Security.Audit)
+        services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
+    }
+
+    /// <summary>
+    /// Registers the Anonymization token mapping store when
+    /// <see cref="MessagingConfiguration.UseAnonymization"/> is enabled.
+    /// </summary>
+    private static void RegisterAnonymization(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseAnonymization) return;
+
+        RemoveInMemoryTokenMappingStore(services);
+
+        services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreEF>();
+    }
+
+    /// <summary>
+    /// Removes the in-memory default <see cref="ITokenMappingStore"/> from
+    /// <c>Encina.Compliance.Anonymization</c> so the database-backed store wins regardless of the
+    /// order in which <c>AddEncinaAnonymization</c> and this provider run. A custom
+    /// <see cref="ITokenMappingStore"/> the application registered itself is never removed here, so
+    /// it keeps winning (#1295).
+    /// </summary>
+    private static void RemoveInMemoryTokenMappingStore(IServiceCollection services)
+    {
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            if (services[i].ServiceType == typeof(ITokenMappingStore) &&
+                services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
+            {
+                services.RemoveAt(i);
+            }
+        }
+    }
+
+    // Retention: migrated to Marten event sourcing (registered in Encina.Compliance.Retention)
+
+    /// <summary>
+    /// Registers the ABAC policy store when <see cref="MessagingConfiguration.UseABACPolicyStore"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterABACPolicyStore(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseABACPolicyStore) return;
+
+        services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreEF>();
+    }
+
+    /// <summary>
+    /// Registers temporal table options when <see cref="MessagingConfiguration.UseTemporalTables"/>
+    /// is enabled.
+    /// </summary>
+    private static void RegisterTemporalTables(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseTemporalTables) return;
+
+        // Register temporal table options for point-in-time queries
+        services.TryAddSingleton(config.TemporalTableOptions);
+    }
+
+    /// <summary>
+    /// Registers query caching services when <see cref="MessagingConfiguration.UseQueryCache"/> is
+    /// enabled.
+    /// </summary>
+    private static void RegisterQueryCache(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseQueryCache) return;
+
+        // Register query caching services, mapping messaging-level options to provider-specific options
+        services.AddQueryCaching(options =>
+        {
+            options.Enabled = config.QueryCacheOptions.Enabled;
+            options.DefaultExpiration = config.QueryCacheOptions.DefaultExpiration;
+            options.KeyPrefix = config.QueryCacheOptions.KeyPrefix;
+            options.ThrowOnCacheErrors = config.QueryCacheOptions.ThrowOnCacheErrors;
+        });
+    }
+
+    /// <summary>
+    /// Registers the provider health check when
+    /// <see cref="MessagingConfiguration.ProviderHealthCheck"/> is enabled.
+    /// </summary>
+    private static void RegisterProviderHealthCheck(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.ProviderHealthCheck.Enabled) return;
+
+        services.AddSingleton(config.ProviderHealthCheck);
+        services.AddSingleton<IEncinaHealthCheck, EntityFrameworkCoreHealthCheck>();
     }
 
     /// <summary>
