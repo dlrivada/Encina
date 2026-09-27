@@ -2,14 +2,21 @@
 # https://lychee.cli.rs/configuration/
 
 # Accept these status codes as valid
-# 502 included because GitHub occasionally returns it for valid issue URLs
-accept = [200, 206, 301, 302, 307, 308, 502]
+# 502, 429 and 503 are transient conditions, not broken links (#1407):
+#   502 - GitHub occasionally returns it for valid issue URLs
+#   429 - the remote site is rate-limiting our requests, not refusing them
+#   503 - the remote site is temporarily unavailable (short outage)
+accept = [200, 206, 301, 302, 307, 308, 429, 502, 503]
 
 # Timeout per request
 timeout = 20
 
 # Maximum number of retries per request
 max_retries = 3
+
+# Minimum wait time in seconds between retries, so the 3 retries span a
+# short outage instead of hammering the site within the same second (#1407)
+retry_wait_time = 10
 
 # Exclude these URLs/patterns from checking
 exclude = [
