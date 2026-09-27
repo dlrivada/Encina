@@ -112,6 +112,40 @@ public sealed class DPIAHealthCheck : IHealthCheck
         data["engineType"] = engine.GetType().Name;
 
         // 4. Check for expired assessments (degraded if any)
+        await CheckExpiredAssessmentsAsync(service, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        // 5. Check for draft assessments (informational, degraded in Block mode)
+        await CheckDraftAssessmentsAsync(service, options, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "DPIA health check completed: {Status} ({WarningCount} warnings)",
+            warnings.Count == 0 ? "Healthy" : "Degraded",
+            warnings.Count);
+
+        if (warnings.Count > 0)
+        {
+            data["warnings"] = warnings;
+            return HealthCheckResult.Degraded(
+                $"DPIA infrastructure has warnings: {string.Join("; ", warnings)}",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "DPIA infrastructure is fully configured.",
+            data: data);
+    }
+
+    /// <summary>
+    /// Queries expired DPIA assessments and records a warning when any exist or the query fails.
+    /// </summary>
+    private static async Task CheckExpiredAssessmentsAsync(
+        IDPIAService service,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var expiredResult = await service
@@ -140,8 +174,20 @@ public sealed class DPIAHealthCheck : IHealthCheck
         {
             warnings.Add($"Error querying expired assessments: {ex.GetType().Name}");
         }
+    }
 
-        // 5. Check for draft assessments (informational, degraded in Block mode)
+    /// <summary>
+    /// Queries all DPIA assessments and records a warning when draft assessments would be
+    /// blocked under the configured enforcement mode. Failures are informational and never
+    /// fail or degrade the overall result.
+    /// </summary>
+    private static async Task CheckDraftAssessmentsAsync(
+        IDPIAService service,
+        DPIAOptions options,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var allResult = await service
@@ -177,22 +223,5 @@ public sealed class DPIAHealthCheck : IHealthCheck
         {
             // Draft assessment check is informational — don't fail or degrade for this
         }
-
-        _logger.LogDebug(
-            "DPIA health check completed: {Status} ({WarningCount} warnings)",
-            warnings.Count == 0 ? "Healthy" : "Degraded",
-            warnings.Count);
-
-        if (warnings.Count > 0)
-        {
-            data["warnings"] = warnings;
-            return HealthCheckResult.Degraded(
-                $"DPIA infrastructure has warnings: {string.Join("; ", warnings)}",
-                data: data);
-        }
-
-        return HealthCheckResult.Healthy(
-            "DPIA infrastructure is fully configured.",
-            data: data);
     }
 }
