@@ -8,6 +8,14 @@ namespace Encina.UnitTests.OpenTelemetry.Resharding;
 /// <summary>
 /// Unit tests for <see cref="ReshardingActivitySource"/>.
 /// </summary>
+/// <remarks>
+/// Shares the <c>"ActivityListenerIsolation"</c> collection with
+/// <see cref="Encina.UnitTests.Sharding.Resharding.Observability.ReshardingActivitySourceTests"/>: both
+/// target the same process-global <see cref="Encina.Sharding.Resharding.ReshardingActivitySource"/>
+/// <c>ActivitySource</c>, and the other class attaches a real listener to it, so the two must never
+/// run concurrently (#1423).
+/// </remarks>
+[Collection("ActivityListenerIsolation")]
 public sealed class ReshardingActivitySourceTests
 {
     [Fact]

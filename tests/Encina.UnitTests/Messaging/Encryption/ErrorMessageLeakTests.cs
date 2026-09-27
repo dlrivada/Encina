@@ -218,13 +218,27 @@ public sealed class ErrorMessageLeakTests
         services.AddSingleton(Substitute.For<IScheduledMessageDispatcher>());
         await using var provider = services.BuildServiceProvider();
 
-        System.Diagnostics.Activity? stopped = null;
+        // The activity is selected by operation name, not merely by source name: the
+        // "Encina.Messaging.Scheduling" ActivitySource is process-global, so other tests
+        // running in parallel may start and stop unrelated activities on it while this
+        // listener is attached. "encina.scheduling.processor_cycle" is emitted only by
+        // ScheduledMessageProcessor's own cycle (SchedulingActivitySource.StartProcessingCycle),
+        // which only this test drives, so matching on it disambiguates the capture without
+        // depending on timing (#1423).
+        var cycleStopped = new TaskCompletionSource<System.Diagnostics.Activity>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         using var listener = new System.Diagnostics.ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina.Messaging.Scheduling",
             Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
                 System.Diagnostics.ActivitySamplingResult.AllData,
-            ActivityStopped = activity => stopped = activity
+            ActivityStopped = activity =>
+            {
+                if (activity.OperationName == "encina.scheduling.processor_cycle")
+                {
+                    cycleStopped.TrySetResult(activity);
+                }
+            }
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
 
@@ -234,16 +248,13 @@ public sealed class ErrorMessageLeakTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        while (stopped is null && !cts.IsCancellationRequested)
-        {
-            await Task.Delay(10, CancellationToken.None);
-        }
+        var stopped = await cycleStopped.Task.WaitAsync(cts.Token);
         await cts.CancelAsync();
         await processor.StopAsync(CancellationToken.None);
 
         // Assert - the activity SchedulingActivitySource.Failed stops carries only the error code.
         stopped.ShouldNotBeNull();
-        stopped!.Status.ShouldBe(System.Diagnostics.ActivityStatusCode.Error);
+        stopped.Status.ShouldBe(System.Diagnostics.ActivityStatusCode.Error);
         stopped.GetTagItem("error.code").ShouldBe("consent.missing");
         stopped.StatusDescription.ShouldBe("consent.missing");
 

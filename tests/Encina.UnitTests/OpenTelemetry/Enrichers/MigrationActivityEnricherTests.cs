@@ -14,7 +14,7 @@ public class MigrationActivityEnricherTests : IDisposable
     {
         _listener = new ActivityListener
         {
-            ShouldListenTo = _ => true,
+            ShouldListenTo = source => source.Name == _source.Name,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
         };
         ActivitySource.AddActivityListener(_listener);
