@@ -133,12 +133,23 @@ you open any of them.
 A model-named "duplicate-of #m" is honored only when `tools/ai/audit/_remediation-checks.ps1`'s
 `Test-DuplicateEvidence` finds the finding's own evidence (a cited file and a cited symbol) in `#m`'s real
 `gh issue view` title/body, not just a plausible-sounding candidate; a rejected claim is drafted as new with a
-"possibly related" note instead of being dropped (#1388). `audit-draft-remediation.ps1` also strips an outer
-code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still has the issue
-template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row), re-asks the
-model once, naming the offending lines; a draft that still has placeholders after that re-ask is kept (for
-inspection), its finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole
-run exits 1 at the end, naming every such draft.
+"possibly related" note instead of being dropped (#1388). `Test-DuplicateEvidence` requires EVERY file anchor of
+the finding's own leading location clause to match, not just one, so a candidate that covers only part of a
+multi-location finding gets a "partially related" note instead of being accepted as the same defect (#1400).
+`audit-draft-remediation.ps1` also strips an outer code fence from the model's reply (`Remove-OuterFence`), and,
+when the stripped draft still has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched
+`Test <n>: Description` row, or any other instruction line derived straight from the routed template's own
+body), re-asks the model once, naming the offending lines; a draft that still has placeholders after that
+re-ask is kept (for inspection), its finding's line in `stages/remediation.md` is marked
+`PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the end, naming every such draft. Finally,
+`Limit-RelatedIssues` sanitizes the draft's own Related Issues section, keeping only a reference that is the
+audited issue itself, or appears in the finding's text, the candidates offered to the classifier, or the
+script's own duplicate/partially-related/possibly-related note, and logging every other reference it removes
+(#1400).
+
+Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
+`wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there
+too.
 
 Update the board's `audits/<n>.stage` after each stage commits.
 
