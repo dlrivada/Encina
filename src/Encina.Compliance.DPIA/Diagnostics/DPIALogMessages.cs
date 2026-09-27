@@ -88,15 +88,15 @@ internal static partial class DPIALogMessages
     [LoggerMessage(
         EventId = 8807,
         Level = LogLevel.Warning,
-        Message = "DPIA pipeline blocked request. RequestType={RequestType}, ErrorCode={ErrorCode}")]
-    internal static partial void DPIAPipelineBlocked(this ILogger logger, string requestType, string errorCode);
+        Message = "DPIA pipeline blocked request. RequestType={RequestType}, ReasonCode={ReasonCode}")]
+    internal static partial void DPIAPipelineBlocked(this ILogger logger, string requestType, string reasonCode);
 
     /// <summary>DPIA pipeline issued a warning in Warn enforcement mode but allowed the request.</summary>
     [LoggerMessage(
         EventId = 8808,
         Level = LogLevel.Warning,
-        Message = "DPIA pipeline warning (request allowed). RequestType={RequestType}, ErrorCode={ErrorCode}")]
-    internal static partial void DPIAPipelineWarned(this ILogger logger, string requestType, string errorCode);
+        Message = "DPIA pipeline warning (request allowed). RequestType={RequestType}, ReasonCode={ReasonCode}")]
+    internal static partial void DPIAPipelineWarned(this ILogger logger, string requestType, string reasonCode);
 
     /// <summary>Exception occurred in the DPIA pipeline.</summary>
     [LoggerMessage(
