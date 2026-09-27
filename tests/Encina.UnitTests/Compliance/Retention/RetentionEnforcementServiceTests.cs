@@ -155,10 +155,12 @@ public sealed class RetentionEnforcementServiceTests
             Options.Create(options),
             NullLogger<RetentionEnforcementService>.Instance);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
+        // Disabled enforcement returns from ExecuteAsync before any await, so the Task that
+        // BackgroundService.StartAsync captures is already complete by the time it inspects it:
+        // awaiting StartAsync is already the deterministic signal, no delay needed to observe it.
         await sut.StartAsync(cts.Token);
-        await Task.Delay(100, CancellationToken.None);
         await sut.StopAsync(CancellationToken.None);
 
         await _recordService.DidNotReceive().GetExpiredRecordsAsync(Arg.Any<CancellationToken>());
@@ -168,12 +170,15 @@ public sealed class RetentionEnforcementServiceTests
     public async Task ExecuteAsync_EnabledEnforcement_ExecutesCycleImmediately()
     {
         GivenExpiredRecords();
+        var cycleRan = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _recordService.When(x => x.GetExpiredRecordsAsync(Arg.Any<CancellationToken>()))
+            .Do(_ => cycleRan.TrySetResult());
         var sut = CreateSut();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
         await sut.StartAsync(cts.Token);
-        await Task.Delay(500, CancellationToken.None);
+        await cycleRan.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await sut.StopAsync(CancellationToken.None);
 
         await _recordService.Received(1).GetExpiredRecordsAsync(Arg.Any<CancellationToken>());
