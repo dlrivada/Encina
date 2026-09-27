@@ -378,6 +378,112 @@ function Limit-RelatedIssues {
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
 }
 
+# #1409: bug_report.md's own '## Environment' section asks for facts (Encina version, .NET version, OS) the
+# local model has no way to know for a finding from a static-analysis stage -- it copies the template's own
+# bracketed placeholders verbatim, Find-TemplatePlaceholders flags them, and even the one re-ask above never
+# supplies real facts (the model still has no way to know them), so the draft is kept with 'PLACEHOLDERS LEFT'
+# forever (audit #16's 16-code-5 draft, reproduced in the issue this fixes). These three facts ARE deterministic
+# for a code-review finding (never observed at runtime), so audit-draft-remediation.ps1's Repair-Draft calls
+# Set-BugEnvironment to overwrite the whole '## Environment' section body AFTER the model replies (and after the
+# fence strip) but BEFORE Find-TemplatePlaceholders ever inspects the draft, for every bug_report.md-routed
+# draft -- the model's own guess at these three facts (right or wrong) is never load-bearing. 'Package(s)
+# Affected' is the one field the model can sometimes get right (it saw the finding's own file citation), so it
+# is kept when it is not itself one of the template's own bracketed placeholder shapes; otherwise it is derived
+# from the finding's own first 'src/<Package>/' path, otherwise 'Not determined'.
+
+# Reads '<VersionPrefix>'/'<VersionSuffix>' from Directory.Build.props at $RepoRoot -- the same file AGENTS.md
+# §1 and every csproj in this repository derive their NuGet version from. Returns 'Not determined' when the
+# file is missing or has no (non-blank) VersionPrefix, rather than a fabricated version string; the suffix is
+# appended with a single '-' only when it is present and non-blank (today '0.14.0-dev'; a release build with an
+# empty VersionSuffix reads as plain '0.14.0').
+function Get-EncinaVersion {
+    param([string]$RepoRoot)
+
+    $propsPath = Join-Path $RepoRoot 'Directory.Build.props'
+    if (-not (Test-Path -LiteralPath $propsPath)) { return 'Not determined' }
+    $raw = Get-Content -LiteralPath $propsPath -Raw
+    $prefixMatch = [regex]::Match($raw, '<VersionPrefix>\s*([^<]*?)\s*</VersionPrefix>')
+    if (-not $prefixMatch.Success -or [string]::IsNullOrWhiteSpace($prefixMatch.Groups[1].Value)) { return 'Not determined' }
+    $prefix = $prefixMatch.Groups[1].Value.Trim()
+    $suffixMatch = [regex]::Match($raw, '<VersionSuffix>\s*([^<]*?)\s*</VersionSuffix>')
+    $suffix = if ($suffixMatch.Success) { $suffixMatch.Groups[1].Value.Trim() } else { '' }
+    if ([string]::IsNullOrWhiteSpace($suffix)) { return $prefix }
+    return "$prefix-$suffix"
+}
+
+# The finding's own first 'src/<Package>/...' citation (backticked or plain prose), e.g. 'src/Encina.MongoDB/
+# Sagas/SagaStoreMongoDB.cs:129-132' -> 'Encina.MongoDB'. Returns $null when the finding cites no src/ path at
+# all (a tests/ or docs/ finding routed to bug_report.md would be unusual, but never guessed at).
+function Get-PackageFromFindingText {
+    param([string]$FindingText)
+
+    if ([string]::IsNullOrWhiteSpace($FindingText)) { return $null }
+    $m = [regex]::Match($FindingText, 'src[\\/]([A-Za-z0-9._-]+)[\\/]')
+    if ($m.Success) { return $m.Groups[1].Value }
+    return $null
+}
+
+# A model-filled value is trusted only when it is not itself blank and not one of the template's own bracketed
+# example shapes ('[e.g., Encina.EntityFrameworkCore, Encina.Dapper.SqlServer]') -- the exact text the model
+# copies through unchanged when it does not know the real answer.
+function Test-PlaceholderEnvironmentValue {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $true }
+    return [regex]::IsMatch($Value.Trim(), '^\[.*\]$')
+}
+
+# Replaces the whole '## Environment' section body (from the header to the next '## ' header, or end of file)
+# with the four deterministic bullets, keeping every other section of $DraftText untouched. Returns $DraftText
+# unchanged when it has no '## Environment' header at all (never the case for a real bug_report.md draft, but
+# defends against a malformed one rather than throwing).
+function Set-BugEnvironment {
+    param([string]$DraftText, [string]$RepoRoot, [string]$FindingText)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+    $headerIdx = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i].Trim() -eq '## Environment') { $headerIdx = $i; break }
+    }
+    if ($headerIdx -lt 0) { return $text }
+
+    $sectionEndLine = $lines.Count
+    for ($i = $headerIdx + 1; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
+    }
+
+    $modelPackage = $null
+    for ($i = $headerIdx + 1; $i -lt $sectionEndLine; $i++) {
+        $m = [regex]::Match($lines[$i], '^\s*-\s*\*\*Package\(s\)\s*Affected\*\*:\s*(.*)$')
+        if ($m.Success) { $modelPackage = $m.Groups[1].Value.Trim(); break }
+    }
+    $package = if ($modelPackage -and -not (Test-PlaceholderEnvironmentValue $modelPackage)) {
+        $modelPackage
+    }
+    else {
+        $derived = Get-PackageFromFindingText $FindingText
+        if ($derived) { $derived } else { 'Not determined' }
+    }
+
+    $version = Get-EncinaVersion $RepoRoot
+    $newSection = @(
+        '## Environment'
+        ''
+        "- **Encina Version**: $version"
+        '- **.NET Version**: .NET 10'
+        '- **OS**: Not applicable (found by static review of the code, not at runtime)'
+        "- **Package(s) Affected**: $package"
+        ''
+    )
+
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $headerIdx; $i++) { $newLines.Add($lines[$i]) }
+    foreach ($l in $newSection) { $newLines.Add($l) }
+    for ($i = $sectionEndLine; $i -lt $lines.Count; $i++) { $newLines.Add($lines[$i]) }
+    return ($newLines -join "`n")
+}
+
 # #1400 (adversarial review finding 1): inserts one note line (audit-draft-remediation.ps1's
 # "partially related"/"possibly related" line for a rejected duplicate-of claim) into a draft's own Related
 # Issues section, recognising the SAME two conventions Limit-RelatedIssues does. Before this function existed,
