@@ -159,7 +159,7 @@ var accessResult = await handler.HandleAccessAsync(
 
 accessResult.Match(
     Right: response => Console.WriteLine($"Found {response.Data.Count} data locations"),
-    Left: error => Console.WriteLine($"Access failed: {error.Message}"));
+    Left: error => Console.WriteLine($"Access failed: {error.GetCode().IfNone("encina.unknown")}"));
 ```
 
 ### 5. Decorate Requests for Restriction Enforcement
@@ -349,7 +349,7 @@ result.Match(
             Console.WriteLine($"{location.EntityType.Name}.{location.FieldName}: {location.CurrentValue}");
         }
     },
-    Left: error => Console.WriteLine($"Access request failed: {error.Code}"));
+    Left: error => Console.WriteLine($"Access request failed: {error.GetCode().IfNone("encina.unknown")}"));
 ```
 
 The handler uses `IPersonalDataLocator` to discover all personal data fields decorated with `[PersonalData]` and returns their locations and current values.
@@ -377,7 +377,7 @@ var result = await handler.HandleErasureAsync(
 result.Match(
     Right: r => Console.WriteLine(
         $"Erased: {r.FieldsErased}, Retained: {r.FieldsRetained}, Failed: {r.FieldsFailed}"),
-    Left: error => Console.WriteLine($"Erasure failed: {error.Code}"));
+    Left: error => Console.WriteLine($"Erasure failed: {error.GetCode().IfNone("encina.unknown")}"));
 ```
 
 ### Erasure Reasons (Article 17(1))
@@ -451,7 +451,7 @@ result.Match(
         File.WriteAllBytes(exported.FileName, exported.Content);
         Console.WriteLine($"Exported {exported.FieldCount} fields as {exported.ContentType}");
     },
-    Left: error => Console.WriteLine($"Export failed: {error.Code}"));
+    Left: error => Console.WriteLine($"Export failed: {error.GetCode().IfNone("encina.unknown")}"));
 ```
 
 ### Supported Export Formats
@@ -480,7 +480,7 @@ var result = await encina.Send(new UpdateCustomerProfileCommand("subject-123", "
 
 result.Match(
     Right: _ => Console.WriteLine("Profile updated"),
-    Left: error => Console.WriteLine($"Blocked: {error.Code}")  // "dsr.restriction_active"
+    Left: error => Console.WriteLine($"Blocked: {error.GetCode().IfNone("encina.unknown")}")  // "dsr.restriction_active"
 );
 ```
 
@@ -708,8 +708,9 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Failed: {Code} - {Message}", error.Code, error.Message);
-        // error.Details contains structured metadata (subjectId, rightType, requirement)
+        logger.LogError("Failed: {Code}", error.GetCode().IfNone("encina.unknown"));
+        // error.Details contains structured metadata such as dsrRequestId, rightType and
+        // requirement — never the data subject's own identifier (see DSRErrors)
     }
 );
 ```

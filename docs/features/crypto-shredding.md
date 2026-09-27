@@ -279,7 +279,7 @@ var result = await keyProvider.DeleteSubjectKeysAsync("user-123");
 
 result.Match(
     Right: r => Console.WriteLine($"Subject forgotten: {r.KeysDeleted} keys deleted"),
-    Left:  e => Console.WriteLine($"Error: {e.Message}"));
+    Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 
 // Verify
 var isForgotten = await keyProvider.IsSubjectForgottenAsync("user-123");
@@ -300,7 +300,7 @@ var result = await keyProvider.RotateSubjectKeyAsync("user-123");
 
 result.Match(
     Right: r => Console.WriteLine($"Rotated: v{r.PreviousVersion} → v{r.NewVersion}"),
-    Left:  e => Console.WriteLine($"Error: {e.Message}"));
+    Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 ```
 
 Key rotation behavior:
