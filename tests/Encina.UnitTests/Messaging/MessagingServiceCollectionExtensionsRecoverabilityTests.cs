@@ -15,10 +15,11 @@ using Shouldly;
 namespace Encina.UnitTests.Messaging;
 
 /// <summary>
-/// Unit tests for the Recoverability, Routing Slip, Content Router and Scatter-Gather branches of
+/// Unit tests for the Recoverability branch (including the delayed-retry sub-branch) of
 /// <see cref="MessagingServiceCollectionExtensions.AddMessagingServices{TOutboxStore, TOutboxFactory, TInboxStore, TInboxFactory, TSagaStore, TSagaFactory, TScheduledStore, TScheduledFactory, TOutboxProcessor}"/>,
 /// which the six ADO.NET/Dapper packages share but had no direct test coverage for (#1333 CRAP
-/// remediation).
+/// remediation). Routing Slip, Content Router and Scatter-Gather still have no dedicated
+/// registration tests here; see the #1333 knowledge record's backlog note.
 /// </summary>
 public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
 {
