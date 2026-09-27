@@ -9,7 +9,13 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </remarks>
 public static class DSRErrors
 {
-    private const string MetadataKeySubjectId = "subjectId";
+    // Note: neither error metadata nor the human-readable Message ever carries the data subject's
+    // own identifier (personal data) — only the request id, right type and requirement/code are
+    // recorded. Message text uses a non-identifying description ("the specified data subject")
+    // because Message reaches logs, ProblemDetails.Detail and other general-purpose sinks that
+    // must never print a direct identifier of a person (see EncinaError.Message rule in CLAUDE.md,
+    // and #1350/#1415).
+    private const string SubjectDescription = "the specified data subject";
     private const string MetadataKeyRequestId = "dsrRequestId";
     private const string MetadataKeyRight = "rightType";
     private const string MetadataKeyStageDSR = "dsr_processing";
@@ -136,11 +142,10 @@ public static class DSRErrors
     public static EncinaError RestrictionActive(string subjectId) =>
         EncinaErrors.Create(
             code: RestrictionActiveCode,
-            message: $"Processing is restricted for data subject '{subjectId}'. "
+            message: $"Processing is restricted for {SubjectDescription}. "
                 + "Per Article 18(2), restricted data may only be stored, not processed.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
                 ["requirement"] = "article_18_2_restriction"
             });
@@ -181,10 +186,9 @@ public static class DSRErrors
     public static EncinaError ErasureFailed(string subjectId, string message) =>
         EncinaErrors.Create(
             code: ErasureFailedCode,
-            message: $"Erasure failed for data subject '{subjectId}': {message}",
+            message: $"Erasure failed for {SubjectDescription}: {message}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyRight] = nameof(DataSubjectRight.Erasure),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
                 ["requirement"] = "article_17_erasure"
@@ -200,10 +204,9 @@ public static class DSRErrors
     public static EncinaError ExportFailed(string subjectId, ExportFormat format, string message) =>
         EncinaErrors.Create(
             code: ExportFailedCode,
-            message: $"Data export failed for subject '{subjectId}' in format '{format}': {message}",
+            message: $"Data export failed for {SubjectDescription} in format '{format}': {message}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyRight] = nameof(DataSubjectRight.Portability),
                 ["format"] = format.ToString(),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
@@ -263,10 +266,9 @@ public static class DSRErrors
     public static EncinaError ExemptionApplies(string subjectId, ErasureExemption exemption, string reason) =>
         EncinaErrors.Create(
             code: ExemptionAppliesCode,
-            message: $"Exemption '{exemption}' applies for data subject '{subjectId}': {reason}",
+            message: $"Exemption '{exemption}' applies for {SubjectDescription}: {reason}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 ["exemption"] = exemption.ToString(),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
                 ["requirement"] = "article_17_3_exemptions"
@@ -280,10 +282,9 @@ public static class DSRErrors
     public static EncinaError SubjectNotFound(string subjectId) =>
         EncinaErrors.Create(
             code: SubjectNotFoundCode,
-            message: $"Data subject '{subjectId}' was not found in the system.",
+            message: "The specified data subject was not found in the system.",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR
             });
 
@@ -296,10 +297,9 @@ public static class DSRErrors
     public static EncinaError LocatorFailed(string subjectId, string message) =>
         EncinaErrors.Create(
             code: LocatorFailedCode,
-            message: $"Failed to locate personal data for subject '{subjectId}': {message}",
+            message: $"Failed to locate personal data for {SubjectDescription}: {message}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR
             });
 
@@ -331,10 +331,9 @@ public static class DSRErrors
     public static EncinaError RectificationFailed(string subjectId, string fieldName, string message) =>
         EncinaErrors.Create(
             code: RectificationFailedCode,
-            message: $"Rectification of field '{fieldName}' failed for data subject '{subjectId}': {message}",
+            message: $"Rectification of field '{fieldName}' failed for {SubjectDescription}: {message}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 ["fieldName"] = fieldName,
                 [MetadataKeyRight] = nameof(DataSubjectRight.Rectification),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,
@@ -355,10 +354,9 @@ public static class DSRErrors
     public static EncinaError ObjectionRejected(string subjectId, string processingPurpose, string reason) =>
         EncinaErrors.Create(
             code: ObjectionRejectedCode,
-            message: $"Objection to processing purpose '{processingPurpose}' rejected for subject '{subjectId}': {reason}",
+            message: $"Objection to processing purpose '{processingPurpose}' rejected for {SubjectDescription}: {reason}",
             details: new Dictionary<string, object?>
             {
-                [MetadataKeySubjectId] = subjectId,
                 ["processingPurpose"] = processingPurpose,
                 [MetadataKeyRight] = nameof(DataSubjectRight.Objection),
                 [MetadataKeyStageDSR] = MetadataKeyStageDSR,

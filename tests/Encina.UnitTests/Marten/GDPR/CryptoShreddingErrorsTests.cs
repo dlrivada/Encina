@@ -15,7 +15,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.SubjectForgottenCode);
-        error.Message.ShouldContain("user-42");
+        error.Message.ShouldNotContain("user-42");
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.EncryptionFailedCode);
-        error.Message.ShouldContain("user-42");
+        error.Message.ShouldNotContain("user-42");
         error.Message.ShouldContain("Email");
     }
 
@@ -63,7 +63,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.KeyRotationFailedCode);
-        error.Message.ShouldContain("user-42");
+        error.Message.ShouldNotContain("user-42");
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.InvalidSubjectIdCode);
-        error.Message.ShouldContain("bad-id");
+        error.Message.ShouldNotContain("bad-id");
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.InvalidSubjectIdCode);
-        error.Message.ShouldContain("(null)");
+        error.Message.ShouldContain("non-empty string");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class CryptoShreddingErrorsTests
 
         // Assert
         error.GetEncinaCode().ShouldBe(CryptoShreddingErrors.KeyAlreadyExistsCode);
-        error.Message.ShouldContain("user-42");
+        error.Message.ShouldNotContain("user-42");
     }
 
     [Fact]

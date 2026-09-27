@@ -9,29 +9,29 @@ namespace Encina.UnitTests.Compliance.DataSubjectRights;
 public class DSRErrorsExtendedTests
 {
     [Fact]
-    public void RestrictionActive_MessageContainsArticle18Reference()
+    public void RestrictionActive_MessageContainsArticle18ReferenceButNeverSubjectId()
     {
         var error = DSRErrors.RestrictionActive("subject-1");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Article 18");
     }
 
     [Fact]
-    public void ErasureFailed_MessageContainsSubjectIdAndReason()
+    public void ErasureFailed_MessageContainsReasonButNeverSubjectId()
     {
         var error = DSRErrors.ErasureFailed("subject-1", "Database error");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Database error");
     }
 
     [Fact]
-    public void ExportFailed_MessageContainsFormatAndSubject()
+    public void ExportFailed_MessageContainsFormatButNeverSubjectId()
     {
         var error = DSRErrors.ExportFailed("subject-1", ExportFormat.JSON, "Serialization error");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("JSON");
         error.Message.ShouldContain("Serialization error");
     }
@@ -55,29 +55,29 @@ public class DSRErrorsExtendedTests
     }
 
     [Fact]
-    public void ExemptionApplies_MessageContainsAllDetails()
+    public void ExemptionApplies_MessageContainsDetailsButNeverSubjectId()
     {
         var error = DSRErrors.ExemptionApplies("subject-1", ErasureExemption.LegalObligation, "Tax records");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("LegalObligation");
         error.Message.ShouldContain("Tax records");
     }
 
     [Fact]
-    public void SubjectNotFound_MessageContainsSubjectId()
+    public void SubjectNotFound_MessageNeverContainsSubjectId()
     {
         var error = DSRErrors.SubjectNotFound("subject-1");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
     }
 
     [Fact]
-    public void LocatorFailed_MessageContainsSubjectAndReason()
+    public void LocatorFailed_MessageContainsReasonButNeverSubjectId()
     {
         var error = DSRErrors.LocatorFailed("subject-1", "Connection timeout");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Connection timeout");
     }
 
@@ -91,21 +91,21 @@ public class DSRErrorsExtendedTests
     }
 
     [Fact]
-    public void RectificationFailed_MessageContainsAllFields()
+    public void RectificationFailed_MessageContainsFieldsButNeverSubjectId()
     {
         var error = DSRErrors.RectificationFailed("subject-1", "Email", "Invalid format");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Email");
         error.Message.ShouldContain("Invalid format");
     }
 
     [Fact]
-    public void ObjectionRejected_MessageContainsAllFields()
+    public void ObjectionRejected_MessageContainsFieldsButNeverSubjectId()
     {
         var error = DSRErrors.ObjectionRejected("subject-1", "Marketing", "Compelling interest");
 
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Marketing");
         error.Message.ShouldContain("Compelling interest");
     }

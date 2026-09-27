@@ -33,7 +33,7 @@ namespace Encina.Compliance.DataSubjectRights;
 ///
 /// result.Match(
 ///     Right: r => Console.WriteLine($"Erased {r.FieldsErased}, retained {r.FieldsRetained}"),
-///     Left: error => Console.WriteLine($"Erasure failed: {error.Message}"));
+///     Left: error => Console.WriteLine($"Erasure failed: {error.GetCode()}"));
 /// </code>
 /// </example>
 public interface IDataErasureExecutor

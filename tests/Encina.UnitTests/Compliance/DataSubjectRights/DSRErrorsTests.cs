@@ -74,10 +74,11 @@ public class DSRErrorsTests
     }
 
     [Fact]
-    public void RestrictionActive_ShouldIncludeSubjectIdInMessage()
+    public void RestrictionActive_ShouldNeverIncludeSubjectIdInMessage()
     {
         var error = DSRErrors.RestrictionActive("subject-1");
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
+        error.Message.ShouldContain("Article 18");
     }
 
     #endregion
@@ -94,10 +95,10 @@ public class DSRErrorsTests
     }
 
     [Fact]
-    public void ErasureFailed_ShouldIncludeSubjectIdAndMessageInMessage()
+    public void ErasureFailed_ShouldNeverIncludeSubjectIdButKeepsReason()
     {
         var error = DSRErrors.ErasureFailed("subject-1", "Database error");
-        error.Message.ShouldContain("subject-1");
+        error.Message.ShouldNotContain("subject-1");
         error.Message.ShouldContain("Database error");
     }
 

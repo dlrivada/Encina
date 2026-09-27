@@ -17,6 +17,13 @@ namespace Encina.Marten.GDPR;
 /// </remarks>
 public static class CryptoShreddingErrors
 {
+    // Note: neither error metadata nor the human-readable Message ever carries the data subject's
+    // own identifier (personal data) — only the property name, operation and stage are recorded.
+    // Message text uses a non-identifying description ("the specified data subject") because
+    // Message reaches logs, ProblemDetails.Detail and other general-purpose sinks that must never
+    // print a direct identifier of a person (see EncinaError.Message rule in CLAUDE.md, and
+    // #1350/#1415).
+    private const string SubjectDescription = "the specified data subject";
     private const string MetadataKeyStage = "stage";
     private const string MetadataStageCryptoShredding = "crypto-shredding";
 
@@ -55,10 +62,10 @@ public static class CryptoShreddingErrors
     public static EncinaError SubjectForgotten(string subjectId) =>
         EncinaErrors.Create(
             code: SubjectForgottenCode,
-            message: $"Subject '{subjectId}' has been cryptographically forgotten. PII is permanently unreadable.",
+            message: "The specified data subject has been cryptographically forgotten. "
+                + "PII is permanently unreadable.",
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
 
@@ -75,11 +82,10 @@ public static class CryptoShreddingErrors
         Exception? exception = null) =>
         EncinaErrors.Create(
             code: EncryptionFailedCode,
-            message: $"Failed to encrypt PII property '{propertyName}' for subject '{subjectId}'.",
+            message: $"Failed to encrypt PII property '{propertyName}' for {SubjectDescription}.",
             exception: exception,
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 ["propertyName"] = propertyName,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
@@ -97,11 +103,10 @@ public static class CryptoShreddingErrors
         Exception? exception = null) =>
         EncinaErrors.Create(
             code: DecryptionFailedCode,
-            message: $"Failed to decrypt PII property '{propertyName}' for subject '{subjectId}'.",
+            message: $"Failed to decrypt PII property '{propertyName}' for {SubjectDescription}.",
             exception: exception,
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 ["propertyName"] = propertyName,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
@@ -117,11 +122,10 @@ public static class CryptoShreddingErrors
         Exception? exception = null) =>
         EncinaErrors.Create(
             code: KeyRotationFailedCode,
-            message: $"Key rotation failed for subject '{subjectId}'.",
+            message: $"Key rotation failed for {SubjectDescription}.",
             exception: exception,
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
 
@@ -152,10 +156,10 @@ public static class CryptoShreddingErrors
     public static EncinaError InvalidSubjectId(string? subjectId) =>
         EncinaErrors.Create(
             code: InvalidSubjectIdCode,
-            message: $"Invalid subject identifier: '{subjectId ?? "(null)"}'. Subject ID must be a non-empty string.",
+            message: $"Invalid subject identifier for {SubjectDescription}: "
+                + "the identifier must be a non-empty string.",
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
 
@@ -167,10 +171,9 @@ public static class CryptoShreddingErrors
     public static EncinaError KeyAlreadyExists(string subjectId) =>
         EncinaErrors.Create(
             code: KeyAlreadyExistsCode,
-            message: $"An active encryption key already exists for subject '{subjectId}'. Use key rotation instead.",
+            message: $"An active encryption key already exists for {SubjectDescription}. Use key rotation instead.",
             details: new Dictionary<string, object?>
             {
-                ["subjectId"] = subjectId,
                 [MetadataKeyStage] = MetadataStageCryptoShredding
             });
 
