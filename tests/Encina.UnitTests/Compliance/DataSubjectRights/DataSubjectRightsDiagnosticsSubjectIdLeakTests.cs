@@ -240,6 +240,58 @@ public sealed class DataSubjectRightsDiagnosticsSubjectIdLeakTests
     }
 
     [Fact]
+    public async Task EraseAsync_FieldsWithEntityIdEqualToSubjectId_NeverCarriesSubjectId()
+    {
+        // Mirrors Encina.Marten.GDPR's MartenEventPersonalDataLocator, where
+        // PersonalDataLocation.EntityId is set to the raw subject id — the per-field
+        // erasure logs must never leak it via EntityId either (#1429).
+        var erasedLocation = new PersonalDataLocation
+        {
+            EntityType = typeof(object),
+            EntityId = SubjectId,
+            FieldName = "Email",
+            Category = PersonalDataCategory.Contact,
+            IsErasable = true,
+            IsPortable = false,
+            HasLegalRetention = false
+        };
+        var failedLocation = new PersonalDataLocation
+        {
+            EntityType = typeof(object),
+            EntityId = SubjectId,
+            FieldName = "Phone",
+            Category = PersonalDataCategory.Contact,
+            IsErasable = true,
+            IsPortable = false,
+            HasLegalRetention = false
+        };
+
+        var locator = Substitute.For<IPersonalDataLocator>();
+        locator.LocateAllDataAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, IReadOnlyList<PersonalDataLocation>>(
+                (IReadOnlyList<PersonalDataLocation>)new List<PersonalDataLocation> { erasedLocation, failedLocation })));
+
+        var strategy = Substitute.For<IDataErasureStrategy>();
+        strategy.EraseFieldAsync(erasedLocation, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(unit));
+        strategy.EraseFieldAsync(failedLocation, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(DSRErrors.ServiceError("EraseField", new InvalidOperationException("boom"))));
+
+        var logger = new FakeLogger<DefaultDataErasureExecutor>();
+        var sut = new DefaultDataErasureExecutor(locator, strategy, logger);
+        using var capture = CreateCapture();
+
+        var result = await DiagnosticsCapture.CaptureAsync(
+            () => sut.EraseAsync(SubjectId, new ErasureScope { Reason = ErasureReason.NoLongerNecessary }).AsTask());
+
+        result.IsRight.ShouldBeTrue();
+        var erasureResult = (ErasureResult)result;
+        erasureResult.FieldsErased.ShouldBe(1);
+        erasureResult.FieldsFailed.ShouldBe(1);
+        capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
+    [Fact]
     public async Task EraseAsync_LocatorFails_NeverCarriesSubjectId()
     {
         var locator = Substitute.For<IPersonalDataLocator>();
@@ -276,6 +328,46 @@ public sealed class DataSubjectRightsDiagnosticsSubjectIdLeakTests
 
         result.IsLeft.ShouldBeTrue();
         capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
+    #endregion
+
+    #region CompositePersonalDataLocator
+
+    [Fact]
+    public async Task CompositeLocator_SuccessAndFailure_NeverCarriesSubjectId()
+    {
+        var okLocator = Substitute.For<IPersonalDataLocator>();
+        okLocator.LocateAllDataAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, IReadOnlyList<PersonalDataLocation>>(
+                (IReadOnlyList<PersonalDataLocation>)new List<PersonalDataLocation>
+                {
+                    new()
+                    {
+                        EntityType = typeof(object),
+                        EntityId = SubjectId,
+                        FieldName = "Email",
+                        Category = PersonalDataCategory.Contact,
+                        IsErasable = true,
+                        IsPortable = true,
+                        HasLegalRetention = false
+                    }
+                })));
+
+        var failingLocator = Substitute.For<IPersonalDataLocator>();
+        failingLocator.LocateAllDataAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, IReadOnlyList<PersonalDataLocation>>(
+                DSRErrors.ServiceError("LocateAllData", new InvalidOperationException("boom")))));
+
+        var logger = new FakeLogger<CompositePersonalDataLocator>();
+        var sut = new CompositePersonalDataLocator([okLocator, failingLocator], logger);
+        using var capture = CreateCapture();
+
+        var result = await DiagnosticsCapture.CaptureAsync(() => sut.LocateAllDataAsync(SubjectId).AsTask());
+
+        result.IsRight.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldAllBe(r => !r.Message.Contains(SubjectId, StringComparison.Ordinal));
     }
 
     #endregion

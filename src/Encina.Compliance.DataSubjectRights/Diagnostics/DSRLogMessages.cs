@@ -132,18 +132,28 @@ internal static partial class DSRLogMessages
     internal static partial void ErasureFailed(this ILogger logger, string reason);
 
     /// <summary>Individual field erased successfully.</summary>
+    /// <remarks>
+    /// Never logs <c>EntityId</c>: for some <see cref="IPersonalDataLocator"/> implementations
+    /// (e.g. the Marten event-store locator) it is the data subject's own identifier, so it must
+    /// never reach a log sink (#1429, following #1314).
+    /// </remarks>
     [LoggerMessage(
         EventId = 8328,
         Level = LogLevel.Debug,
-        Message = "Field erased. FieldName={FieldName}, EntityType={EntityType}, EntityId={EntityId}")]
-    internal static partial void ErasureFieldErased(this ILogger logger, string fieldName, string entityType, string entityId);
+        Message = "Field erased. FieldName={FieldName}, EntityType={EntityType}")]
+    internal static partial void ErasureFieldErased(this ILogger logger, string fieldName, string entityType);
 
     /// <summary>Individual field erasure failed.</summary>
+    /// <remarks>
+    /// Never logs <c>EntityId</c>: for some <see cref="IPersonalDataLocator"/> implementations
+    /// (e.g. the Marten event-store locator) it is the data subject's own identifier, so it must
+    /// never reach a log sink (#1429, following #1314).
+    /// </remarks>
     [LoggerMessage(
         EventId = 8329,
         Level = LogLevel.Warning,
-        Message = "Field erasure failed. FieldName={FieldName}, EntityType={EntityType}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void ErasureFieldFailed(this ILogger logger, string fieldName, string entityType, string entityId, string errorMessage);
+        Message = "Field erasure failed. FieldName={FieldName}, EntityType={EntityType}, ErrorMessage={ErrorMessage}")]
+    internal static partial void ErasureFieldFailed(this ILogger logger, string fieldName, string entityType, string errorMessage);
 
     // ========================================================================
     // Portability (8330-8333)

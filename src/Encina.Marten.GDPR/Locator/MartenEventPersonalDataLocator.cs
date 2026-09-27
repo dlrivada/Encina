@@ -62,9 +62,8 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
 
         try
         {
-            _logger.LogDebug(
-                "Locating personal data for subject {SubjectId} in Marten event store",
-                subjectId);
+            // The data subject's own identifier is never logged (#1429, following #1314).
+            _logger.LogDebug("Locating personal data in Marten event store");
 
             // Query all raw events from the store
             var allEvents = await _session.Events
@@ -131,19 +130,14 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
                 }
             }
 
-            _logger.LogDebug(
-                "Located {Count} personal data fields for subject {SubjectId}",
-                locations.Count,
-                subjectId);
+            _logger.LogDebug("Located {Count} personal data fields", locations.Count);
 
             return Right<EncinaError, IReadOnlyList<PersonalDataLocation>>(locations);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to locate personal data for subject {SubjectId}",
-                subjectId);
+            // The data subject's own identifier is never logged (#1429, following #1314).
+            _logger.LogError(ex, "Failed to locate personal data");
 
             return Left<EncinaError, IReadOnlyList<PersonalDataLocation>>(
                 CryptoShreddingErrors.KeyStoreError("LocateAllData", ex));

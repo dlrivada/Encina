@@ -152,23 +152,18 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             var eraseResult = await _strategy.EraseFieldAsync(location, cancellationToken)
                 .ConfigureAwait(false);
 
+            // Neither log call below includes location.EntityId: for some locators (e.g. the
+            // Marten event-store locator) it is the data subject's own identifier (#1429).
             eraseResult.Match(
                 Right: _ =>
                 {
                     erased++;
-                    _logger.ErasureFieldErased(
-                        location.FieldName,
-                        location.EntityType.Name,
-                        location.EntityId);
+                    _logger.ErasureFieldErased(location.FieldName, location.EntityType.Name);
                 },
                 Left: error =>
                 {
                     failed++;
-                    _logger.ErasureFieldFailed(
-                        location.FieldName,
-                        location.EntityType.Name,
-                        location.EntityId,
-                        error.Message);
+                    _logger.ErasureFieldFailed(location.FieldName, location.EntityType.Name, error.Message);
                 });
         }
 

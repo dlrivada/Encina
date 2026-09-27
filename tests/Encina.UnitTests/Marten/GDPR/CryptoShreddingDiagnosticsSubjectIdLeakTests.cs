@@ -340,6 +340,22 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
 
     #endregion
 
+    #region DefaultForgottenSubjectHandler
+
+    [Fact]
+    public async Task HandleForgottenSubjectAsync_NeverLogsSubjectId()
+    {
+        var logger = new FakeLogger<DefaultForgottenSubjectHandler>();
+        var sut = new DefaultForgottenSubjectHandler(logger);
+
+        await sut.HandleForgottenSubjectAsync(SubjectId, "Email", typeof(PiiEvent));
+
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldAllBe(r => !r.Message.Contains(SubjectId, StringComparison.Ordinal));
+    }
+
+    #endregion
+
     #region CryptoShredErasureStrategy
 
     [Fact]

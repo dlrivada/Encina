@@ -687,7 +687,8 @@ internal sealed class DefaultDSRService : IDSRService
         string subjectId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Getting DSR requests for subject '{SubjectId}'", subjectId);
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.LogDebug("Getting DSR requests for subject");
 
         try
         {
@@ -763,7 +764,8 @@ internal sealed class DefaultDSRService : IDSRService
         string subjectId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Checking active restriction for subject '{SubjectId}'", subjectId);
+        // The data subject's own identifier is never logged (#1429, following #1314).
+        _logger.LogDebug("Checking active restriction for subject");
 
         var cacheKey = $"dsr:restriction:{subjectId}";
 
