@@ -160,11 +160,14 @@ has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouch
 or any other instruction line derived straight from the routed template's own body), re-asks the model once,
 naming the offending lines; a draft that still has placeholders after that re-ask is kept (for inspection), its
 finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the
-end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes the draft's own Related Issues section,
-keeping only a reference that is the audited issue itself, appears in the finding's own text, or is named in one
-of the script's own already anchor-checked duplicate/partially-related/possibly-related notes -- never merely
-because it was offered as a search candidate, which is not on its own evidence of a real relation -- and logging
-every other reference it removes (#1400, narrowed by #1424).
+end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes the draft's own Related Issues section --
+a `## Related Issues` header, a `- **Related Issues**:` bold bullet, or a plain `Related Issues:` line (the form
+`bug_report.md` has no structural marker for, #1428) -- keeping only a reference that is the audited issue
+itself, appears in the finding's own text, or is named in one of the script's own already anchor-checked
+duplicate/partially-related/possibly-related notes -- never merely because it was offered as a search candidate,
+which is not on its own evidence of a real relation. For a draft routed to `bug_report.md`, it also sanitizes
+every reference anywhere under the draft's whole `## Additional Context` section, not only a labelled
+subsection (#1428). Every other reference it removes is logged (#1400, narrowed by #1424, widened by #1428).
 
 Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
 `wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there

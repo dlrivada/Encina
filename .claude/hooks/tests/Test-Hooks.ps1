@@ -1993,6 +1993,109 @@ Some debt description.
     }
     # ---- end #1424 block ----
 
+    # ---- #1428: tools/ai/audit/_remediation-checks.ps1 -- Limit-RelatedIssues recognizes a plain 'Related
+    # Issues:' line (no '##' header, no bold bullet) as a fourth section-start form, and, for a draft routed to
+    # bug_report.md, also sanitizes any '#n' reference found anywhere under '## Additional Context', because
+    # that template gives the model no structural marker at all for "related issues" -- it only says, in
+    # 'Additional Context', "Add any other context about the problem here (screenshots, logs, related issues)."
+    # Audit #16's real 16-code-5 draft (verification passes 4/5) used exactly this plain-line shape and kept
+    # #699/#696/#181 (real, but unrelated) across two remediation re-runs. No `gh` and no local model here
+    # either.
+
+    # (a) the plain 'Related Issues:' line, on its own (not inside a bug_report.md draft -- $IsBugReportDraft
+    # defaults to $false), still ends the section at a blank line followed by prose (not another bullet), and
+    # leaves that trailing prose untouched.
+    $plainLineDraft = @'
+## Additional Context
+
+Related Issues:
+- #16 (This issue)
+- #699: unrelated
+
+More prose after the list must survive untouched.
+'@
+    $plainLineResult = Limit-RelatedIssues $plainLineDraft '16' '' @()
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: recognizes a plain "Related Issues:" line and removes the unverified #699' {
+        (@($plainLineResult.Removed)) -contains '699'
+    }
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: keeps the allowed #16 under the plain-line form' {
+        $plainLineResult.Text -match '#16 \(This issue\)'
+    }
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: keeps the trailing prose after the plain-line section untouched' {
+        $plainLineResult.Text -match 'More prose after the list must survive untouched\.'
+    }
+
+    # (b) the plain form is case-insensitive and tolerates a missing trailing colon ('Related issues', no ':').
+    $plainNoColonDraft = "## Additional Context`n`nRelated issues`n- #16 (This issue)`n- #699: unrelated`n"
+    $plainNoColonResult = Limit-RelatedIssues $plainNoColonDraft '16' '' @()
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: recognizes "Related issues" (lower-case, no trailing colon)' {
+        (@($plainNoColonResult.Removed)) -contains '699'
+    }
+
+    # (c) a reference to an unverified issue sitting under '## Additional Context' with NO "Related Issues"
+    # label at all is untouched when the draft is not routed to bug_report.md ($IsBugReportDraft = $false, the
+    # default) -- decision 2 is additive only for bug drafts, never a general Additional Context scan.
+    $bareAdditionalContextDraft = "## Additional Context`n`n- See also #699 for context.`n- #16 is the source issue.`n"
+    $bareNonBugResult = Limit-RelatedIssues $bareAdditionalContextDraft '16' '' @()
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: a bare "#n" under Additional Context is untouched for a non-bug draft' {
+        $bareNonBugResult.Text -eq $bareAdditionalContextDraft
+    }
+
+    # (d) the same bare reference IS sanitized when the draft is routed to bug_report.md ($IsBugReportDraft =
+    # $true) -- decision 2's whole-Additional-Context scan, with no "Related Issues" label needed at all.
+    $bareBugResult = Limit-RelatedIssues $bareAdditionalContextDraft '16' '' @() $true
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: a bare "#n" under Additional Context is removed for a bug_report.md-routed draft' {
+        (@($bareBugResult.Removed)) -contains '699'
+    }
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: keeps the allowed #16 in the bug-routed bare-reference case' {
+        $bareBugResult.Text -match '#16 is the source issue\.'
+    }
+
+    # (e) the real 16-code-5 Additional Context text (copied verbatim from
+    # artifacts/knowledge/remediation/16-code-5-*.md, the actual bug_report.md-routed draft audit #16 wrote and
+    # kept unresolved across verification passes 4 and 5): its own plain 'Related Issues:' line, inside
+    # 'Additional Context', names #16 (allowed), #699, #696 and #181 (all real but unrelated). Both decision 1
+    # (the plain-line form) and decision 2 (the bug-routed whole-section scan) agree on the same outcome here.
+    $code5AdditionalContext = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1428\16-code-5-additional-context.md') -Raw
+    $code5AcResult = Limit-RelatedIssues $code5AdditionalContext '16' $findingCode5 @() $true
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: removes #699, #696 and #181 from the real 16-code-5 Additional Context text' {
+        (@($code5AcResult.Removed) | Sort-Object) -join ',' -eq '181,696,699'
+    }
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: keeps the allowed #16 in the real 16-code-5 Additional Context text' {
+        $code5AcResult.Text -match '#16: Original audit issue'
+    }
+    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: drops the unverified lines from the real 16-code-5 Additional Context text' {
+        $code5AcResult.Text -notmatch '#699' -and $code5AcResult.Text -notmatch '#696' -and $code5AcResult.Text -notmatch '#181'
+    }
+
+    # (f) Add-RelatedIssuesLine must recognize the same plain-line form Limit-RelatedIssues does (adversarial
+    # review of #1428): before this fix, a rejected duplicate-of note for a plain-line draft fell through to
+    # Add-RelatedIssuesLine's own "not found" path and was appended detached at the end of the file -- the
+    # exact structurally-malformed-draft bug #1400 fixed for the header/bold-bullet forms, reintroduced for the
+    # plain-line form this issue adds.
+    $plainLineForNote = "## Additional Context`n`nRelated Issues:`n- #16 (This issue)`n"
+    $withPlainLineNote = Add-RelatedIssuesLine $plainLineForNote '- #1343 - partially related (it covers only part of this finding)'
+    Test-RemediationChecksCase '#1428 Add-RelatedIssuesLine: finds a plain "Related Issues:" line' { $withPlainLineNote.Found }
+    Test-RemediationChecksCase '#1428 Add-RelatedIssuesLine: inserts the note right after the plain "Related Issues:" line, not detached at the end' {
+        $plainNoteLines = @($withPlainLineNote.Text -split "`r?`n")
+        $relatedIdx = [array]::IndexOf($plainNoteLines, 'Related Issues:')
+        $noteIdx = [array]::IndexOf($plainNoteLines, '- #1343 - partially related (it covers only part of this finding)')
+        $relatedIdx -ge 0 -and $noteIdx -eq $relatedIdx + 1
+    }
+
+    # (g) regression: the earlier '## Related Issues' H2 and '- **Related Issues**:' bold-bullet forms (#1400,
+    # #1424) still work exactly as before -- adding the plain-line form and the bug-routed whole-section scan
+    # never changed their own section-boundary logic.
+    Test-RemediationChecksCase '#1428 regression: the real 16-code-5 bold-bullet draft (#1400 fixture) still removes #699/#696/#181' {
+        $regressionLimited = Limit-RelatedIssues $code5Draft '16' $findingCode5 @()
+        (@($regressionLimited.Removed) | Sort-Object) -join ',' -eq '181,696,699'
+    }
+    Test-RemediationChecksCase '#1428 regression: an "## Related Issues" H2 header draft still removes an unverified number' {
+        $h2Draft = "## Related Issues`n`n- #16 (This issue)`n- #699: unrelated`n"
+        (@((Limit-RelatedIssues $h2Draft '16' '' @()).Removed)) -contains '699'
+    }
+    # ---- end #1428 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,

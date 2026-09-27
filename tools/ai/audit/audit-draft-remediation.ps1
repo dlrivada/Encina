@@ -517,13 +517,18 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
     }
 
-    # #1400 decision 3, narrowed by #1424 decision 1: sanitize the finished draft's own Related Issues section --
-    # never let the model's free text stand unverified, and never keep a number just because it was offered as
-    # a search candidate (being a candidate is not evidence of a real relation). $possiblyRelatedNote (just
-    # written above, if present) is itself a legitimate, already anchor-checked reference, so its own line is
-    # passed as a script note the sanitizer must keep.
+    # #1400 decision 3, narrowed by #1424 decision 1 and widened by #1428 decision 2: sanitize the finished
+    # draft's own Related Issues section -- never let the model's free text stand unverified, and never keep a
+    # number just because it was offered as a search candidate (being a candidate is not evidence of a real
+    # relation). $possiblyRelatedNote (just written above, if present) is itself a legitimate, already
+    # anchor-checked reference, so its own line is passed as a script note the sanitizer must keep. For a draft
+    # routed to bug_report.md, the sanitizer also scans the whole '## Additional Context' section (that
+    # template's only place to put "related issues", per its own text), not only a labelled subsection inside
+    # it -- audit #16's real 16-code-5 draft puts a plain 'Related Issues:' line there with no structural
+    # marker of its own (#1428's own reproduction).
     $sanitizeScriptNotes = if ($possiblyRelatedNote) { @($possiblyRelatedNote) } else { @() }
-    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $sanitizeScriptNotes
+    $isBugReportDraft = $route.Template -eq 'bug_report.md'
+    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $sanitizeScriptNotes $isBugReportDraft
     if ($sanitized.Removed.Count -gt 0) {
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $sanitized.Text
         foreach ($removedNumber in $sanitized.Removed) {
