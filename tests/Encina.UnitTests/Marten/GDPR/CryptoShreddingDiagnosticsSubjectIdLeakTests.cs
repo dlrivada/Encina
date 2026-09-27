@@ -102,6 +102,24 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
     }
 
     [Fact]
+    public void ToJson_NullSubjectIdValue_NeverCarriesSubjectId()
+    {
+        var mockInner = Substitute.For<ISerializer>();
+        mockInner.ToJson(Arg.Any<NullableSubjectEvent>()).Returns("{}");
+
+        var (logger, capture) = CreateCapture<CryptoShredderSerializer>();
+        using (capture)
+        {
+            var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger);
+            var evt = new NullableSubjectEvent { UserId = null, Email = "test@example.com" };
+
+            DiagnosticsCapture.Capture(() => sut.ToJson(evt));
+        }
+
+        capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
+    [Fact]
     public void WriteTo_EncryptsField_NeverCarriesSubjectId()
     {
         var mockInner = Substitute.For<ISerializer>();
@@ -369,6 +387,20 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
     public class PiiEvent
     {
         public string UserId { get; set; } = string.Empty;
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// A crypto-shredded field whose subject id property is a valid, cached string property but
+    /// holds a <c>null</c> value at runtime, so <c>GetSubjectId</c> resolves <c>null</c> and
+    /// encryption is skipped with only a warning naming the field — never a subject id (#1429).
+    /// </summary>
+    public class NullableSubjectEvent
+    {
+        public string? UserId { get; set; }
 
         [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]
