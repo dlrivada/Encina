@@ -3,7 +3,7 @@ name: docs-reviewer
 description: Independent, read-only review of Encina documentation pages against the encina-docs skill - one Diátaxis quadrant per page, every identifier exists in src/, no hand-typed figures, decisions linked to ADR/SPEC, provider coverage stated, links and lint clean. Reports verified findings only. Use on every documentation PR and on any page before it is published.
 model: sonnet
 effort: medium
-tools: Bash, PowerShell, Read, Write, Grep, Glob
+tools: PowerShell, Read, Write, Grep, Glob
 disallowedTools: Edit
 maxTurns: 40
 color: cyan

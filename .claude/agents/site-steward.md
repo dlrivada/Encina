@@ -3,7 +3,7 @@ name: site-steward
 description: Runs the site-health skill - checks every published site and feed in tools/ai/sites.json, prepares the control board's dash/* and stats/* snapshots, and drafts a tracking-issue comment or a new issue file for each failure. Read-only on the repository except its own artifacts/site-health/**; never pushes, comments or opens anything itself. Use at session start, right after the llama-server check, or whenever a site or a board tab is suspected stale or broken.
 model: haiku
 effort: low
-tools: Agent(ci-diagnoser), Bash, PowerShell, Read, Grep, Glob, Write, Edit
+tools: Agent(ci-diagnoser), PowerShell, Read, Grep, Glob, Write, Edit
 maxTurns: 40
 color: teal
 hooks:

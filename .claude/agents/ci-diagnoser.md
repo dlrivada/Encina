@@ -3,7 +3,7 @@ name: ci-diagnoser
 description: Diagnoses one failed CI job or failing test from its log and the source, and returns the root cause with a proposed minimal fix. Read-only; does not edit or push. Use when a check fails and the cause is not obvious from the first error lines.
 model: sonnet
 effort: medium
-tools: Bash, PowerShell, Read, Grep, Glob
+tools: PowerShell, Read, Grep, Glob
 disallowedTools: Write, Edit
 maxTurns: 40
 color: yellow

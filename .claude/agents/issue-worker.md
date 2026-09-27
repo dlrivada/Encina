@@ -3,7 +3,7 @@ name: issue-worker
 description: Implements one GitHub issue from a closed brief written by the orchestrator, in a worktree the orchestrator created, verifies it and reports. Delegates every step that belongs to a specialist. Never pushes, opens PRs or issues. Use for any well-specified issue that can run in parallel with others.
 model: sonnet
 effort: medium
-tools: Agent(ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer, docs-writer), Bash, PowerShell, Read, Edit, Write, Grep, Glob, Skill
+tools: Agent(ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer, docs-writer), PowerShell, Read, Edit, Write, Grep, Glob, Skill
 maxTurns: 120
 color: blue
 hooks:

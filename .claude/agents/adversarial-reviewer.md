@@ -3,7 +3,7 @@ name: adversarial-reviewer
 description: Independent, adversarial review of a pull request or a specification against its requirements and acceptance criteria (SDD Adversarial Reviewer role). Tries to break the change; reports verified findings only. Read-only.
 model: sonnet
 effort: high
-tools: Bash, PowerShell, Read, Grep, Glob
+tools: PowerShell, Read, Grep, Glob
 disallowedTools: Write, Edit
 maxTurns: 60
 color: red
