@@ -88,8 +88,11 @@ $searchCreatedSince = "created:>=$Since"
 $searchClosedSince = "closed:>=$Since"
 
 $prsRaw = gh pr list --repo $repoSlug --state all --search $searchCreatedSince --json number,createdAt,mergedAt,state --limit 500 | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw "gh pr list failed with exit code $LASTEXITCODE" }
 $issuesOpenedRaw = gh issue list --repo $repoSlug --state all --search $searchCreatedSince --json number,createdAt,state --limit 500 | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw "gh issue list (opened) failed with exit code $LASTEXITCODE" }
 $issuesClosedRaw = gh issue list --repo $repoSlug --state closed --search $searchClosedSince --json number,closedAt --limit 500 | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw "gh issue list (closed) failed with exit code $LASTEXITCODE" }
 
 $prs = @($prsRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.createdAt; merged = $_.mergedAt; state = $_.state } })
 $issuesOpened = @($issuesOpenedRaw | ForEach-Object { [ordered]@{ number = $_.number; at = $_.createdAt; state = $_.state } })
