@@ -1993,6 +1993,127 @@ Some debt description.
     }
     # ---- end #1424 block ----
 
+    # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
+    # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
+    # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
+    # Additional Context or Related Issues; folders, line references and AGENTS.md/CLAUDE.md house-rule tokens
+    # are never symbol evidence. Audit #16 verification pass 5 found four false duplicates once #1424 ran the
+    # evidence check over every candidate. Real fixtures captured once (fixtures/1393/: the findings as
+    # Split-Findings extracts them from the audit #16 stage files, and `gh issue view --json title,body` of
+    # #1393, #1299 and #592); #1343 and #1170 reuse the #1400/#1388 fixtures, unchanged on GitHub since.
+    $fixtures1393 = Join-Path $repo '.claude\hooks\tests\fixtures\1393'
+    function Get-Fixture1393Candidate([string]$Path) {
+        $issue = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        return "$($issue.title)`n$($issue.body)"
+    }
+    $findingCode2For1393 = Get-Content -LiteralPath (Join-Path $fixtures1393 'finding-code-2.md') -Raw
+    $findingCode4For1393 = Get-Content -LiteralPath (Join-Path $fixtures1393 'finding-code-4.md') -Raw
+    $findingDocs1For1393 = Get-Content -LiteralPath (Join-Path $fixtures1393 'finding-docs-1.md') -Raw
+    $findingDocs2For1393 = Get-Content -LiteralPath (Join-Path $fixtures1393 'finding-docs-2.md') -Raw
+    $findingDocs4For1393 = Get-Content -LiteralPath (Join-Path $fixtures1393 'finding-docs-4.md') -Raw
+    $candidate1393 = Get-Fixture1393Candidate (Join-Path $fixtures1393 'issue-1393.json')
+    $candidate1299 = Get-Fixture1393Candidate (Join-Path $fixtures1393 'issue-1299.json')
+    $candidate592 = Get-Fixture1393Candidate (Join-Path $fixtures1393 'issue-592.json')
+    $candidate1343For1393 = Get-Fixture1393Candidate (Join-Path $repo '.claude\hooks\tests\fixtures\1400\issue-1343.json')
+    $candidate1170For1393 = Get-Fixture1393Candidate (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1170.json')
+
+    # (a) the four false duplicates of verification pass 5, and the one true duplicate that must keep passing.
+    Test-RemediationChecksCase '#1393 16-code-2 vs #1393 is NOT a duplicate (#1393 cites InstrumentedSagaStore.cs and EncinaError.Message only as an example)' {
+        -not (Test-DuplicateEvidence $findingCode2For1393 $candidate1393)
+    }
+    Test-RemediationChecksCase '#1393 16-docs-1 vs #1343 is NOT a duplicate (only a generic `src/` token and a "Sagas/" directory segment matched)' {
+        -not (Test-DuplicateEvidence $findingDocs1For1393 $candidate1343For1393)
+    }
+    Test-RemediationChecksCase '#1393 16-docs-4 vs #1299 is NOT a duplicate (only a generic `src/` token and a bare README.md in prose matched)' {
+        -not (Test-DuplicateEvidence $findingDocs4For1393 $candidate1299)
+    }
+    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is partially related, NOT a duplicate (#592 covers IChoreographyStateStore only)' {
+        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592)
+    }
+    Test-RemediationChecksCase '#1393 16-code-4 vs #1170 is still a duplicate (the one true duplicate)' {
+        Test-DuplicateEvidence $findingCode4For1393 $candidate1170For1393
+    }
+
+    # (b) #1393's own synthetic case: a finding and a candidate that share only a coincidental file citation
+    # (in the candidate's own Location) and a verbatim house-rule quote (`EncinaError.Message`) are never the
+    # same defect; the same pair that also shares a defect-specific symbol still is, so the rule is not simply
+    # rejecting everything.
+    $syntheticFinding1393 = '`src/Encina.Messaging/Shared/SharedStore.cs:40`: `EncinaError.Message` is written to the log when the retry budget runs out. Fails AGENTS.md: "`EncinaError.Message` NEVER reaches logs".'
+    $syntheticCandidate1393 = "[BUG] SharedStore leaks the error text into the activity status`n## Description`n`nAnother leak of the same house rule.`n`n## Location`n`n- **File(s)**: ``src/Encina.Messaging/Shared/SharedStore.cs```n`n## Current Behavior`n`n``EncinaError.Message`` reaches the activity status in ``UpdateAsync``.`n"
+    Test-RemediationChecksCase '#1393 synthetic: shared file + shared house-rule quote only is NOT a duplicate' {
+        -not (Test-DuplicateEvidence $syntheticFinding1393 $syntheticCandidate1393)
+    }
+    $syntheticFindingSpecific1393 = '`src/Encina.Messaging/Shared/SharedStore.cs:40`: `UpdateAsync` writes `EncinaError.Message` into the activity status.'
+    Test-RemediationChecksCase '#1393 synthetic control: shared file + shared specific symbol (UpdateAsync) in the candidate''s Current Behavior IS a duplicate' {
+        Test-DuplicateEvidence $syntheticFindingSpecific1393 $syntheticCandidate1393
+    }
+    $syntheticCandidateMentionOnly1393 = "[DEBT] Unrelated tooling issue`n## Description`n`nFor example ``src/Encina.Messaging/Shared/SharedStore.cs`` calls ``UpdateAsync``.`n`n## Location`n`n- **File(s)**: ``tools/ai/audit/_remediation-checks.ps1```n"
+    Test-RemediationChecksCase '#1393 synthetic: the same file and symbol named only in the candidate''s Description are NOT duplicate evidence' {
+        -not (Test-DuplicateEvidence $syntheticFindingSpecific1393 $syntheticCandidateMentionOnly1393)
+    }
+
+    # (c) Find-DuplicateAmongCandidates over all five real candidates for all five real findings: only
+    # 16-code-4 resolves to a duplicate (#1170); the other four are drafted as new.
+    $candidates1393 = @(
+        [pscustomobject]@{ Number = '592'; TitleAndBody = $candidate592 }
+        [pscustomobject]@{ Number = '1170'; TitleAndBody = $candidate1170For1393 }
+        [pscustomobject]@{ Number = '1299'; TitleAndBody = $candidate1299 }
+        [pscustomobject]@{ Number = '1343'; TitleAndBody = $candidate1343For1393 }
+        [pscustomobject]@{ Number = '1393'; TitleAndBody = $candidate1393 }
+    )
+    Test-RemediationChecksCase '#1393 Find-DuplicateAmongCandidates: over all five real candidates, only 16-code-4 is a duplicate (#1170)' {
+        (Find-DuplicateAmongCandidates $findingCode4For1393 $candidates1393) -eq '1170' -and
+        $null -eq (Find-DuplicateAmongCandidates $findingCode2For1393 $candidates1393) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs1For1393 $candidates1393) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs2For1393 $candidates1393) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs4For1393 $candidates1393)
+    }
+
+    # (d) the building blocks: the location text of #1393 keeps its Location and Current Behavior but not the
+    # Description that names InstrumentedSagaStore.cs; the house-rule token set is read from AGENTS.md.
+    $location1393 = Get-CandidateLocationText $candidate1393
+    Test-RemediationChecksCase '#1393 Get-CandidateLocationText: keeps the title, Location and Current Behavior of #1393 and drops its Description' {
+        $location1393.Contains('[DEBT] Test-DuplicateEvidence still treats') -and
+        $location1393.Contains('tools/ai/audit/_remediation-checks.ps1') -and
+        $location1393.Contains('extracts every backticked token as a symbol anchor') -and
+        -not $location1393.Contains('InstrumentedSagaStore')
+    }
+    Test-RemediationChecksCase '#1393 house-rule tokens: read from AGENTS.md (EncinaError.Message and TimeProvider are excluded as symbol evidence)' {
+        $anchors = Get-FindingAnchors '`src/Encina/Foo.cs`: `EncinaError.Message`, `TimeProvider`, `src/`, `:12-14` and `SpecificSymbol`.'
+        (@($anchors.SymbolAnchors) -join ',') -eq 'SpecificSymbol'
+    }
+
+    # (e) adversarial review of #1393: the same store file name exists once per provider, so a bare file name
+    # or a brace pattern naming only ANOTHER provider is not the finding's file; a bold field under an excluded
+    # section (Root Cause, Additional Context) is a mention; emphasis around a heading name is ignored.
+    $sqlServerOutboxFinding1393 = '`src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs:80`: `GetAsync` swallows a Left result and reports success.'
+    $mySqlBareNameCandidate1393 = "[BUG] MySQL outbox retry counter never increments`n## Location`n`n- **File(s)**: ``OutboxStoreADO.cs`` (MySQL provider)`n`n## Current Behavior`n`n``GetAsync`` never increments ``RetryCount`` in the MySQL store.`n"
+    Test-RemediationChecksCase '#1393 a bare store file name (the same name exists in every provider) is NOT the finding''s file' {
+        -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $mySqlBareNameCandidate1393)
+    }
+    $mySqlBraceCandidate1393 = "[BUG] MySQL stores swallow errors`n## Location`n`n- **File(s)**: ``src/Encina.ADO.MySQL/{Outbox/OutboxStoreADO,Inbox/InboxStoreADO}.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+    Test-RemediationChecksCase '#1393 a brace pattern that expands only to another provider''s file is NOT the finding''s file' {
+        -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $mySqlBraceCandidate1393)
+    }
+    $allProvidersBraceCandidate1393 = "[BUG] ADO stores swallow errors`n## Location`n`n- **File(s)**: ``src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/Outbox/OutboxStoreADO.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+    Test-RemediationChecksCase '#1393 control: a brace pattern that expands to the finding''s own path, plus a shared symbol, IS a duplicate' {
+        Test-DuplicateEvidence $sqlServerOutboxFinding1393 $allProvidersBraceCandidate1393
+    }
+    foreach ($excludedSection in 'Root Cause', 'Additional Context') {
+        $boldUnderExcluded = "[BUG] Unrelated`n## $excludedSection`n`n- **File(s)**: ``src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+        Test-RemediationChecksCase "#1393 a **File(s)** bold field under '## $excludedSection' is NOT location evidence" {
+            -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $boldUnderExcluded)
+        }
+    }
+    $boldBeforeHeadings1393 = "[BUG] ADO outbox store swallows errors`n**Location**: ``src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs```n`n``GetAsync`` reports success on a Left.`n`n## Additional Context`n`nNone.`n"
+    Test-RemediationChecksCase '#1393 a bold **Location** field before the first heading IS location evidence (issue written without the template headers)' {
+        (Get-CandidateLocationText $boldBeforeHeadings1393).Contains('src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs')
+    }
+    Test-RemediationChecksCase '#1393 an emphasized heading (## **Location**) is still the Location section' {
+        (Get-CandidateLocationText "Title`n## **Location**`n`n- File: ``src/Encina.Foo/Bar/Widget.cs```n").Contains('src/Encina.Foo/Bar/Widget.cs')
+    }
+    # ---- end #1393 block ----
+
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /
     # Test-ScriptReferencesPath) must not block the pipeline's own sanctioned scripts (Test-ScriptIsSanctioned)
