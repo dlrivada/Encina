@@ -341,7 +341,9 @@ public static class MessagingServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers messaging services for ADO.NET providers (Outbox, Inbox, Transactions only).
+    /// Registers messaging services for ADO.NET providers: Transactions, Outbox, Inbox, Routing
+    /// Slips, Recoverability, Content Router, Scatter-Gather and Soft Delete, driven by the
+    /// individual flags on <see cref="MessagingConfiguration"/>.
     /// </summary>
     /// <typeparam name="TOutboxStore">The outbox store implementation type.</typeparam>
     /// <typeparam name="TOutboxFactory">The outbox message factory implementation type.</typeparam>
@@ -377,68 +379,14 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
-
-        if (config.UseOutbox)
-        {
-            services.AddSingleton(config.OutboxOptions);
-            services.AddScoped<IOutboxStore, TOutboxStore>();
-            services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
-            services.AddScoped<OutboxOrchestrator>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
-            services.AddHostedService<TOutboxProcessor>();
-        }
-
-        if (config.UseInbox)
-        {
-            services.AddSingleton(config.InboxOptions);
-            services.AddScoped<IInboxStore, TInboxStore>();
-            services.AddScoped<IInboxMessageFactory, TInboxFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
-        }
-
-        if (config.UseRoutingSlips)
-        {
-            services.AddSingleton(config.RoutingSlipOptions);
-            services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
-        }
-
-        if (config.UseRecoverability)
-        {
-            services.AddSingleton(config.RecoverabilityOptions);
-            services.TryAddSingleton<IErrorClassifier>(
-                config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
-
-            // Note: Delayed retries require IDelayedRetryStore which must be
-            // registered by the provider (Dapper, EF Core, ADO.NET)
-            if (config.RecoverabilityOptions.EnableDelayedRetries)
-            {
-                services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
-                services.AddHostedService<DelayedRetryProcessor>();
-            }
-        }
-
-        if (config.UseContentRouter)
-        {
-            services.AddSingleton(config.ContentRouterOptions);
-            services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
-        }
-
-        if (config.UseScatterGather)
-        {
-            services.AddSingleton(config.ScatterGatherOptions);
-            services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
-        }
-
-        if (config.UseSoftDelete)
-        {
-            RegisterSoftDeleteServices(services, config);
-        }
+        RegisterTransactions(services, config.UseTransactions);
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, config.UseOutbox, config.OutboxOptions);
+        RegisterInbox<TInboxStore, TInboxFactory>(services, config.UseInbox, config.InboxOptions);
+        RegisterRoutingSlips(services, config);
+        RegisterRecoverability(services, config);
+        RegisterContentRouter(services, config);
+        RegisterScatterGather(services, config);
+        RegisterSoftDeleteServices(services, config);
 
         return services;
     }
