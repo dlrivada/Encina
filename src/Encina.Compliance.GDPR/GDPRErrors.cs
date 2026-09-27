@@ -130,7 +130,11 @@ public static class GDPRErrors
     /// Creates an error when consent-based processing has no active consent record.
     /// </summary>
     /// <param name="requestType">The request type requiring consent.</param>
-    /// <param name="subjectId">The data subject identifier, if available.</param>
+    /// <param name="subjectId">
+    /// The data subject identifier, if available. Never included in <see cref="EncinaError.Message"/>
+    /// or in the returned error's details: the identifier is accepted for call-site symmetry with
+    /// other lawful-basis checks, but nothing here surfaces it (#1426).
+    /// </param>
     /// <returns>An error indicating consent was not found.</returns>
     public static EncinaError ConsentNotFound(Type requestType, string? subjectId = null) =>
         EncinaErrors.Create(
@@ -142,8 +146,7 @@ public static class GDPRErrors
                 [MetadataKeyRequestType] = requestType.FullName,
                 [MetadataKeyBasis] = nameof(LawfulBasis.Consent),
                 [MetadataKeyStage] = MetadataStageLawfulBasis,
-                ["requirement"] = "article_6_1_a_consent",
-                ["subjectId"] = subjectId
+                ["requirement"] = "article_6_1_a_consent"
             });
 
     /// <summary>

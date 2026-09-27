@@ -1,0 +1,3 @@
+- **GDPR error messages no longer leak data subject identifiers** (#1426). Fixes the same data-exposure pattern as #1350/#1417 and #1415, this time in `Encina.Compliance.GDPR` (`GDPRErrors`: ConsentNotFound).
+
+  The factory used to interpolate the raw data subject id directly into the error's structured `details` dictionary (`["subjectId"] = subjectId`). The fix removes the subject id entirely from `details` (no `subjectId` key remains). Factory signature and error code are unchanged. The `EncinaError.Message` property never embedded the subject id for this factory, so no message text change is required.
