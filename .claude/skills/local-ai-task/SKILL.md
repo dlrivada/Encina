@@ -54,3 +54,5 @@ Fix these in place; re-prompt only when the draft is structurally wrong.
 ## 5. Record
 
 State in the PR or document that the artifact was drafted locally and reviewed, with the ledger's token counts. SPEC-001 §10 "Routing" is the reference wording.
+
+When the artifact is a `gh issue create --body-file` body, the `check-issue-template` hook enforces this at the point of creation (#1410): keep the local model's output path as the file's first line, `<!-- local-draft: <path to the --out file> -->` (the ledger row `local-ai-ask.cs` just appended must be less than 24 hours old and name that same path as `outFile`), or pass the drafted file straight through as `--body-file` unchanged so it IS the ledger's `outFile`. When the task is a bad fit for the local model (see "When it fits" above) and you draft the body yourself, use a first line `<!-- local-draft: none, reason: <text> -->` instead — a non-empty reason, logged to `artifacts/local-ai/opt-outs.log`. A worker's own worktree ledger counts too: the hook also checks every `.claude/worktrees/*/artifacts/local-ai/ledger.csv`.
