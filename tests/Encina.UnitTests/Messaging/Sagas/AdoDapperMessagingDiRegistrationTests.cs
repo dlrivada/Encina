@@ -148,7 +148,9 @@ public sealed class AdoDapperMessagingDiRegistrationTests
         using var scope = provider.CreateScope();
 
         // Assert
-        scope.ServiceProvider.GetRequiredService<ISagaRunner>().ShouldNotBeNull(providerName);
+        var runner = scope.ServiceProvider.GetRequiredService<ISagaRunner>();
+        runner.ShouldNotBeNull(providerName);
+        runner.ShouldBeOfType<SagaRunner>(providerName);
         scope.ServiceProvider.GetRequiredService<ISagaNotFoundDispatcher>().ShouldNotBeNull(providerName);
     }
 
