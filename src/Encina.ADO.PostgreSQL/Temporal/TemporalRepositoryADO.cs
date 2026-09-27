@@ -376,51 +376,39 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             return validationResult.Map(_ => default(TEntity)!);
         }
 
-        try
+        if (_options.LogTemporalQueries)
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc);
-            }
-
-            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // PostgreSQL temporal_tables: Query current table + history table with period range check
-            var sql = $"""
-                SELECT {columns}
-                FROM (
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.TableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                    UNION ALL
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.HistoryTableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                ) AS temporal_data
-                WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
-                LIMIT 1
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@Id", id);
-            AddParameter(command, "@AsOfUtc", asOfUtc);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-            if (await ReadAsync(reader, cancellationToken))
-            {
-                return Right<RepositoryError, TEntity>(MaterializeEntity(reader));
-            }
-
-            return Left<RepositoryError, TEntity>(
-                RepositoryError.NotFound<TEntity, TId>(id!));
+            Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc);
         }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, TEntity>(
-                RepositoryError.OperationFailed<TEntity>("GetAsOf", ex));
-        }
+
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+
+        // PostgreSQL temporal_tables: Query current table + history table with period range check
+        var sql = $"""
+            SELECT {columns}
+            FROM (
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.TableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+                UNION ALL
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.HistoryTableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+            ) AS temporal_data
+            WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
+            LIMIT 1
+            """;
+
+        return await ExecuteSingleEntityQueryAsync(
+            sql,
+            command =>
+            {
+                AddParameter(command, "@Id", id);
+                AddParameter(command, "@AsOfUtc", asOfUtc);
+            },
+            "GetAsOf",
+            () => RepositoryError.NotFound<TEntity, TId>(id!),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -428,50 +416,33 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         TId id,
         CancellationToken cancellationToken = default)
     {
-        try
+        if (_options.LogTemporalQueries)
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryHistory(_logger, typeof(TEntity).Name, id?.ToString() ?? "null");
-            }
-
-            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // Query both current and history tables
-            var sql = $"""
-                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start
-                FROM (
-                    SELECT {columns}, "{_mapping.PeriodStartColumnName}"
-                    FROM {_mapping.TableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                    UNION ALL
-                    SELECT {columns}, "{_mapping.PeriodStartColumnName}"
-                    FROM {_mapping.HistoryTableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                ) AS temporal_data
-                ORDER BY period_start DESC
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@Id", id);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-
-            var results = new List<TEntity>();
-            while (await ReadAsync(reader, cancellationToken))
-            {
-                results.Add(MaterializeEntity(reader));
-            }
-
-            return Right<RepositoryError, IReadOnlyList<TEntity>>(results);
+            Log.TemporalQueryHistory(_logger, typeof(TEntity).Name, id?.ToString() ?? "null");
         }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("GetHistory", ex));
-        }
+
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+
+        // Query both current and history tables
+        var sql = $"""
+            SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start
+            FROM (
+                SELECT {columns}, "{_mapping.PeriodStartColumnName}"
+                FROM {_mapping.TableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+                UNION ALL
+                SELECT {columns}, "{_mapping.PeriodStartColumnName}"
+                FROM {_mapping.HistoryTableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+            ) AS temporal_data
+            ORDER BY period_start DESC
+            """;
+
+        return await ExecuteListQueryAsync(
+            command => AddParameter(command, "@Id", id),
+            sql,
+            "GetHistory",
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -501,49 +472,35 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
                     typeof(TEntity)));
         }
 
-        try
+        if (_options.LogTemporalQueries)
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc);
-            }
-
-            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // Query records that were active at any point during the range
-            var sql = $"""
-                SELECT {columns}
-                FROM (
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.TableName}
-                    UNION ALL
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.HistoryTableName}
-                ) AS temporal_data
-                WHERE "{_mapping.PeriodStartColumnName}" && tstzrange(@FromUtc, @ToUtc, '[]')
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@FromUtc", fromUtc);
-            AddParameter(command, "@ToUtc", toUtc);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-
-            var results = new List<TEntity>();
-            while (await ReadAsync(reader, cancellationToken))
-            {
-                results.Add(MaterializeEntity(reader));
-            }
-
-            return Right<RepositoryError, IReadOnlyList<TEntity>>(results);
+            Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc);
         }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("GetChangedBetween", ex));
-        }
+
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+
+        // Query records that were active at any point during the range
+        var sql = $"""
+            SELECT {columns}
+            FROM (
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.TableName}
+                UNION ALL
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.HistoryTableName}
+            ) AS temporal_data
+            WHERE "{_mapping.PeriodStartColumnName}" && tstzrange(@FromUtc, @ToUtc, '[]')
+            """;
+
+        return await ExecuteListQueryAsync(
+            command =>
+            {
+                AddParameter(command, "@FromUtc", fromUtc);
+                AddParameter(command, "@ToUtc", toUtc);
+            },
+            sql,
+            "GetChangedBetween",
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -560,36 +517,94 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             return validationResult.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
+        if (_options.LogTemporalQueries)
+        {
+            Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc);
+        }
+
+        var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+        var (whereClause, addSpecificationParameters) = sqlBuilder.BuildWhereClause(specification);
+
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+        var extraFilter = string.IsNullOrWhiteSpace(whereClause)
+            ? string.Empty
+            : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}";
+
+        // Build temporal query with specification filter
+        var sql = $"""
+            SELECT {columns}
+            FROM (
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.TableName}
+                UNION ALL
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.HistoryTableName}
+            ) AS temporal_data
+            WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
+            {extraFilter}
+            """;
+
+        return await ExecuteListQueryAsync(
+            command =>
+            {
+                AddParameter(command, "@AsOfUtc", asOfUtc);
+                addSpecificationParameters(command);
+            },
+            sql,
+            "ListAsOf",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    #endregion
+
+    #region Shared Query Execution
+
+    // Shared by GetAsOfAsync: opens the connection, runs the query, materializes at most one
+    // entity from the reader, and maps a missing row / a thrown exception to the caller's Either.
+    // Extracted so the four temporal query methods do not each repeat the try/catch and reader
+    // loop, which is what pushed their cyclomatic complexity into the CRAP gate (#1325 follow-up).
+    private async Task<Either<RepositoryError, TEntity>> ExecuteSingleEntityQueryAsync(
+        string sql,
+        Action<IDbCommand> addParameters,
+        string operationName,
+        Func<RepositoryError> notFoundError,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc);
-            }
-
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
-            var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
-            var (whereClause, addParameters) = sqlBuilder.BuildWhereClause(specification);
+            using var command = CreateCommand(sql);
+            addParameters(command);
 
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            if (await ReadAsync(reader, cancellationToken))
+            {
+                return Right<RepositoryError, TEntity>(MaterializeEntity(reader));
+            }
 
-            // Build temporal query with specification filter
-            var sql = $"""
-                SELECT {columns}
-                FROM (
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.TableName}
-                    UNION ALL
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.HistoryTableName}
-                ) AS temporal_data
-                WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
-                {(string.IsNullOrWhiteSpace(whereClause) ? "" : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}")}
-                """;
+            return Left<RepositoryError, TEntity>(notFoundError());
+        }
+        catch (Exception ex)
+        {
+            return Left<RepositoryError, TEntity>(
+                RepositoryError.OperationFailed<TEntity>(operationName, ex));
+        }
+    }
+
+    // Shared by GetHistoryAsync, GetChangedBetweenAsync and ListAsOfAsync: same shape as
+    // ExecuteSingleEntityQueryAsync but materializes every row into a list.
+    private async Task<Either<RepositoryError, IReadOnlyList<TEntity>>> ExecuteListQueryAsync(
+        Action<IDbCommand> addParameters,
+        string sql,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
             using var command = CreateCommand(sql);
-            AddParameter(command, "@AsOfUtc", asOfUtc);
             addParameters(command);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
@@ -605,7 +620,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         catch (Exception ex)
         {
             return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("ListAsOf", ex));
+                RepositoryError.OperationFailed<TEntity>(operationName, ex));
         }
     }
 

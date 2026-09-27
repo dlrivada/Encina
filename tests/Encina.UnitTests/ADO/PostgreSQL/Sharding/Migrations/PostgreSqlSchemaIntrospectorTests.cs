@@ -56,6 +56,102 @@ public class PostgreSqlSchemaIntrospectorTests
         result.IfRight(schema => schema.IntrospectedAtUtc.ShouldBeInRange(before.AddSeconds(-1), after.AddSeconds(1)));
     }
 
+    [Fact]
+    public async Task IntrospectAsync_TablesFoundWithoutColumns_ReturnsTablesWithNoColumns()
+    {
+        var tablesReader = Substitute.For<IDataReader>();
+        tablesReader.Read().Returns(true, true, false);
+        tablesReader.GetString(0).Returns("orders", "customers");
+
+        var command = Substitute.For<IDbCommand>();
+        command.ExecuteReader().Returns(tablesReader);
+
+        var connection = Substitute.For<IDbConnection>();
+        connection.CreateCommand().Returns(command);
+
+        var factory = Substitute.For<IShardedConnectionFactory>();
+        factory.GetConnectionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Right<EncinaError, IDbConnection>(connection)));
+
+        var introspector = new PostgreSqlSchemaIntrospector(factory);
+        var shard = new ShardInfo("shard-1", "Host=localhost;Database=test");
+
+        var result = await introspector.IntrospectAsync(shard, includeColumns: false, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(schema =>
+        {
+            schema.Tables.Count.ShouldBe(2);
+            schema.Tables.ShouldAllBe(t => t.Columns.Count == 0);
+        });
+    }
+
+    [Fact]
+    public async Task IntrospectAsync_TablesFoundWithColumns_ReadsColumnsPerTable()
+    {
+        var tablesReader = Substitute.For<IDataReader>();
+        tablesReader.Read().Returns(true, false);
+        tablesReader.GetString(0).Returns("orders");
+
+        var columnsReader = Substitute.For<IDataReader>();
+        columnsReader.Read().Returns(true, false);
+        columnsReader.GetString(0).Returns("id");
+        columnsReader.GetString(1).Returns("uuid");
+        columnsReader.GetString(2).Returns("NO");
+        columnsReader.IsDBNull(3).Returns(true);
+
+        var command = Substitute.For<IDbCommand>();
+        command.ExecuteReader().Returns(tablesReader, columnsReader);
+        command.Parameters.Returns(Substitute.For<IDataParameterCollection>());
+        command.CreateParameter().Returns(_ => Substitute.For<IDbDataParameter>());
+
+        var connection = Substitute.For<IDbConnection>();
+        connection.CreateCommand().Returns(command);
+
+        var factory = Substitute.For<IShardedConnectionFactory>();
+        factory.GetConnectionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Right<EncinaError, IDbConnection>(connection)));
+
+        var introspector = new PostgreSqlSchemaIntrospector(factory);
+        var shard = new ShardInfo("shard-1", "Host=localhost;Database=test");
+
+        var result = await introspector.IntrospectAsync(shard, includeColumns: true, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(schema =>
+        {
+            schema.Tables.Count.ShouldBe(1);
+            schema.Tables[0].Columns.Count.ShouldBe(1);
+            schema.Tables[0].Columns[0].Name.ShouldBe("id");
+            schema.Tables[0].Columns[0].IsNullable.ShouldBeFalse();
+            schema.Tables[0].Columns[0].DefaultValue.ShouldBeNull();
+        });
+    }
+
+    [Fact]
+    public async Task CompareAsync_BothShardsIntrospected_ReturnsDiff()
+    {
+        var factory = CreateFactory();
+        var introspector = new PostgreSqlSchemaIntrospector(factory);
+        var shard = new ShardInfo("shard-1", "Host=localhost;Database=test");
+        var baseline = new ShardInfo("shard-0", "Host=localhost;Database=baseline");
+
+        var result = await introspector.CompareAsync(shard, baseline, includeColumnDiffs: false, CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CompareAsync_NullShard_ThrowsArgumentNullException()
+    {
+        var factory = CreateFactory();
+        var introspector = new PostgreSqlSchemaIntrospector(factory);
+        var baseline = new ShardInfo("shard-0", "Host=localhost;Database=baseline");
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await introspector.CompareAsync(null!, baseline, includeColumnDiffs: false, CancellationToken.None));
+    }
+
     private static IShardedConnectionFactory CreateFactory()
     {
         var reader = Substitute.For<IDataReader>();
