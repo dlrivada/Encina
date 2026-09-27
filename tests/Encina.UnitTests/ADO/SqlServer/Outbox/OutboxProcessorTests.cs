@@ -130,9 +130,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await store.Received().GetPendingMessagesAsync(
@@ -184,9 +190,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         callCount.ShouldBeGreaterThan(1);
@@ -257,9 +269,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await encina.Received().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
@@ -330,9 +348,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await store.Received().MarkAsFailedAsync(
@@ -407,9 +431,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await store.Received().MarkAsFailedAsync(
@@ -463,9 +493,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         callCount.ShouldBeGreaterThan(1);

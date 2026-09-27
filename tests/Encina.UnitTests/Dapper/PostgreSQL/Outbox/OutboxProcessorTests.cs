@@ -135,9 +135,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - Should have called GetPendingMessagesAsync at least once
         await store.Received().GetPendingMessagesAsync(
@@ -189,9 +195,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - Should have called GetPendingMessagesAsync multiple times
         callCount.ShouldBeGreaterThan(1);
@@ -262,9 +274,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await encina.Received().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
@@ -334,9 +352,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await store.Received().MarkAsFailedAsync(
@@ -411,9 +435,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert
         await store.Received().MarkAsFailedAsync(
@@ -485,9 +515,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - nextRetryAtUtc should be null (exhausted retries)
         await store.Received().MarkAsFailedAsync(
@@ -541,9 +577,15 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10)); // Let it recover from error and continue
-        cts.Cancel();
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10)); // Let it recover from error and continue
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Assert - Should have called multiple times despite the first error
         callCount.ShouldBeGreaterThan(1);

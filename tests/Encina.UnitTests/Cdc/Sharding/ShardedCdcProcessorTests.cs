@@ -34,6 +34,8 @@ public sealed class ShardedCdcProcessorTests
         EnablePositionTracking = enablePositionTracking
     };
 
+    private static readonly DateTime FixedCapturedAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     private static ChangeEvent CreateChangeEvent(long positionValue) =>
         new("test_table",
             ChangeOperation.Insert,
@@ -41,7 +43,7 @@ public sealed class ShardedCdcProcessorTests
             new { Id = 1 },
             new ChangeMetadata(
                 new TestCdcPosition(positionValue),
-                DateTime.UtcNow,
+                FixedCapturedAtUtc,
                 null, null, null));
 
     private static IServiceProvider CreateServiceProvider(
@@ -110,11 +112,11 @@ public sealed class ShardedCdcProcessorTests
         var options = CreateOptions(enabled: false);
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource();
 
+        // Act - a disabled processor's ExecuteAsync returns immediately, so there is no
+        // loop iteration to wait for.
         await processor.StartAsync(cts.Token);
-        // Give it a moment to execute
-        await Task.Delay(100);
         await processor.StopAsync(CancellationToken.None);
 
         // When disabled, the connector should never be called
@@ -140,20 +142,35 @@ public sealed class ShardedCdcProcessorTests
         dispatcher.DispatchAsync(Arg.Any<ChangeEvent>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
 
+        // The position save is the last operation in the successful dispatch path,
+        // so completing the TCS there proves both dispatch and position save happened.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var positionStore = Substitute.For<IShardedCdcPositionStore>();
         positionStore.SavePositionAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CdcPosition>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Right<EncinaError, Unit>(unit)));
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult(Right<EncinaError, Unit>(unit));
+            });
 
         var sp = CreateServiceProvider(connector, dispatcher, positionStore);
         var options = CreateOptions(enabled: true);
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cts = new CancellationTokenSource();
 
+        // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(200);
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Verify dispatch was called at least once
         await dispatcher.Received().DispatchAsync(
@@ -179,9 +196,16 @@ public sealed class ShardedCdcProcessorTests
         connector.StreamAllShardsAsync(Arg.Any<CancellationToken>())
             .Returns(ToShardedAsyncEnumerable(Right<EncinaError, ShardedChangeEvent>(shardedEvent)));
 
+        // Wait for the positive signal that dispatch ran; when position tracking is disabled
+        // the SavePositionAsync branch is never reached, so this is not a race.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = Substitute.For<ICdcDispatcher>();
         dispatcher.DispatchAsync(Arg.Any<ChangeEvent>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+            .Returns(callInfo =>
+            {
+                tcs.TrySetResult();
+                return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
+            });
 
         var positionStore = Substitute.For<IShardedCdcPositionStore>();
 
@@ -189,11 +213,19 @@ public sealed class ShardedCdcProcessorTests
         var options = CreateOptions(enabled: true, enablePositionTracking: false);
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cts = new CancellationTokenSource();
 
+        // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(200);
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Position store should never be called when tracking is disabled
         await positionStore.DidNotReceive().SavePositionAsync(
@@ -211,9 +243,17 @@ public sealed class ShardedCdcProcessorTests
         connector.StreamAllShardsAsync(Arg.Any<CancellationToken>())
             .Returns(ToShardedAsyncEnumerable(Right<EncinaError, ShardedChangeEvent>(shardedEvent)));
 
+        // Wait for the positive signal that dispatch ran (and failed); position save is only
+        // reachable on a successful dispatch, so this is not a race with the assertion below.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = Substitute.For<ICdcDispatcher>();
         dispatcher.DispatchAsync(Arg.Any<ChangeEvent>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(EncinaError.New("Dispatch failed"))));
+            .Returns(callInfo =>
+            {
+                tcs.TrySetResult();
+                return new ValueTask<Either<EncinaError, Unit>>(
+                    Left<EncinaError, Unit>(EncinaError.New("Dispatch failed")));
+            });
 
         var positionStore = Substitute.For<IShardedCdcPositionStore>();
 
@@ -221,11 +261,19 @@ public sealed class ShardedCdcProcessorTests
         var options = CreateOptions(enabled: true);
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cts = new CancellationTokenSource();
 
+        // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(200);
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Position should not be saved on dispatch failure
         await positionStore.DidNotReceive().SavePositionAsync(
@@ -237,10 +285,16 @@ public sealed class ShardedCdcProcessorTests
     {
         var error = Left<EncinaError, ShardedChangeEvent>(EncinaError.New("Stream error"));
 
+        // No substitute call proves a Left value was consumed (the dispatcher is never
+        // invoked for it), so the positive signal comes from the stream finishing enumeration
+        // of the single Left item - by the time the enumerator reports completion, the
+        // consumer's await foreach body for that item has already run.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var connector = Substitute.For<IShardedCdcConnector>();
         connector.GetConnectorId().Returns("test-connector");
         connector.StreamAllShardsAsync(Arg.Any<CancellationToken>())
-            .Returns(ToShardedAsyncEnumerable(error));
+            .Returns(ToShardedAsyncEnumerable(tcs, error));
 
         var dispatcher = Substitute.For<ICdcDispatcher>();
         var positionStore = Substitute.For<IShardedCdcPositionStore>();
@@ -249,11 +303,19 @@ public sealed class ShardedCdcProcessorTests
         var options = CreateOptions(enabled: true);
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cts = new CancellationTokenSource();
 
+        // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(200);
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Dispatcher should not be called for Left values
         await dispatcher.DidNotReceive().DispatchAsync(
@@ -282,11 +344,13 @@ public sealed class ShardedCdcProcessorTests
             .Returns(ToShardedAsyncEnumerable(events));
 
         var dispatchCount = 0;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = Substitute.For<ICdcDispatcher>();
         dispatcher.DispatchAsync(Arg.Any<ChangeEvent>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 Interlocked.Increment(ref dispatchCount);
+                tcs.TrySetResult();
                 return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
             });
 
@@ -300,11 +364,19 @@ public sealed class ShardedCdcProcessorTests
         options.BatchSize = 5; // Only process 5 per cycle
 
         var processor = new ShardedCdcProcessor(sp, Logger, options);
-        var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
+        using var cts = new CancellationTokenSource();
 
+        // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
-        await processor.StopAsync(CancellationToken.None);
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(CancellationToken.None);
+        }
 
         // Should have dispatched events (may vary due to timing, but should be limited by batch size per cycle)
         dispatchCount.ShouldBeGreaterThan(0);
@@ -322,6 +394,26 @@ public sealed class ShardedCdcProcessorTests
             yield return item;
             await Task.Yield();
         }
+    }
+
+    /// <summary>
+    /// Same as <see cref="ToShardedAsyncEnumerable(Either{EncinaError, ShardedChangeEvent}[])"/>, but
+    /// completes <paramref name="enumerationCompleted"/> once every item has been yielded. Because
+    /// <c>await foreach</c> fully processes each item before requesting the next one, this signal only
+    /// fires after the consumer has finished handling the last item - a reliable positive signal for
+    /// tests that assert a substitute was <em>not</em> called while consuming these items.
+    /// </summary>
+    private static async IAsyncEnumerable<Either<EncinaError, ShardedChangeEvent>> ToShardedAsyncEnumerable(
+        TaskCompletionSource enumerationCompleted,
+        params Either<EncinaError, ShardedChangeEvent>[] items)
+    {
+        foreach (var item in items)
+        {
+            yield return item;
+            await Task.Yield();
+        }
+
+        enumerationCompleted.TrySetResult();
     }
 
     #endregion

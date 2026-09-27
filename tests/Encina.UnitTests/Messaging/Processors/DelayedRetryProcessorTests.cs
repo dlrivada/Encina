@@ -106,11 +106,17 @@ public sealed class DelayedRetryProcessorTests
         // Act - wait for one processing cycle (scope creation) to confirm the loop ran
         // with the store missing, rather than sleeping a fixed duration.
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert - should complete without throwing
-        await processor.StopAsync(default);
         Assert.True(true, "Processor completed without error when store not configured");
     }
 
@@ -147,11 +153,17 @@ public sealed class DelayedRetryProcessorTests
         // Act - wait for one processing cycle (the IEncina lookup) to confirm the loop
         // ran with Encina missing, rather than sleeping a fixed duration.
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert - should complete without throwing
-        await processor.StopAsync(default);
         Assert.True(true, "Processor completed without error when Encina not configured");
     }
 
@@ -225,11 +237,17 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert - verify store was called to get pending messages
-        await processor.StopAsync(default);
         await store.Received().GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
@@ -270,12 +288,18 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        cts.Cancel();
+        try
+        {
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert - should have polled at least once
         await store.Received().GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
-        await processor.StopAsync(default);
     }
 
     #endregion
@@ -305,9 +329,15 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await processed.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await cts.CancelAsync();
-        await processor.StopAsync(default);
+        try
+        {
+            await processed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert
         await encina.Received(1).Send(Arg.Is<IRequest<int>>(r => r is RetriedCommand && ((RetriedCommand)r).Value == 42), Arg.Any<CancellationToken>());
@@ -342,9 +372,16 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        var errorMessage = await failed.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await cts.CancelAsync();
-        await processor.StopAsync(default);
+        string errorMessage;
+        try
+        {
+            errorMessage = await failed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
 
         // Assert
         errorMessage.ShouldBe("payment.gateway.down");
