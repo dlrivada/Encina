@@ -40,9 +40,9 @@ Conclusions, updated with the #1087 measurements:
 
 ## 4. What this changes
 
-The original note ended with "check which version Encina uses and how it is configured". That is now done (§2). The actionable experiment, tracked as **#1087**, is now done too: the full measurement — all 8 runs, the 7 findings and the decision-criteria table — is at [`stryker-5-mtp-spike-1087.md`](stryker-5-mtp-spike-1087.md). Its recommendation: none of options A (5.0.0 + MTP + `perTest`), B (5.0.0 + VsTest) or C (stay on 4.14.0) yields a valid mutation measurement today; #1026 stays open, and the workflow needs a runner switch (to MTP with coverage off, redesigning sharding) plus a fix for the Verify snapshot tests before mutation testing produces a trustworthy signal again.
+The original note ended with "check which version Encina uses and how it is configured". That is now done (§2). The actionable experiment, tracked as **#1087**, is now done too: the full measurement — all 8 runs, the 7 findings and the decision-criteria table — is at [`stryker-5-mtp-spike-1087.md`](stryker-5-mtp-spike-1087.md). Its recommendation: none of options A (5.0.0 + MTP + `perTest`), B (5.0.0 + VsTest) or C (stay on 4.14.0) yields a valid mutation measurement today; #1026 stays open, and the workflow needs a runner switch (to MTP with coverage off, redesigning sharding) plus [a fix for the Verify snapshot tests](https://github.com/dlrivada/Encina/issues/1442) before mutation testing produces a trustworthy signal again.
 
-Until that follow-up work lands, nothing about the current configuration should change: it is provably not measuring anything, but switching runners without the filter and Verify fixes would make the workflow slower without making it correct.
+Until that follow-up work lands, nothing about the current configuration should change: it is provably not measuring anything, but switching runners without the filter and [Verify fixes](https://github.com/dlrivada/Encina/issues/1442) would make the workflow slower without making it correct.
 
 ## 5. Mutation testing as a 1.0 requirement
 
@@ -60,7 +60,7 @@ The conclusion of `ENCINA-1.0-RECONCILIATION.md` §6.1 stands: **do not wait for
 
 For `SPEC-000` the wording should be:
 
-> Mutation testing is part of the quality process and is reproducible, but its published scores are not currently a signal of test quality: the VsTest runner kills 0 mutants under xUnit v3 in both Stryker 4.14.0 and 5.0.0 (measured in #1087 and in CI run 36304862790, 0 killed on all 17 shards). No mutation-score threshold is a release blocker while this holds. The workflow needs a runner migration (to the MTP runner with coverage off, per the #1087 spike) and a fix for the Verify snapshot tests before scores become trustworthy again.
+> Mutation testing is part of the quality process and is reproducible, but its published scores are not currently a signal of test quality: the VsTest runner kills 0 mutants under xUnit v3 in both Stryker 4.14.0 and 5.0.0 (measured in #1087 and in CI run 36304862790, 0 killed on all 17 shards). No mutation-score threshold is a release blocker while this holds. The workflow needs a runner migration (to the MTP runner with coverage off, per the #1087 spike) and [a fix for the Verify snapshot tests](https://github.com/dlrivada/Encina/issues/1442) before scores become trustworthy again.
 
 ## 6. Result of the 5.0.0 evaluation (#1087)
 
