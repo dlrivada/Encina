@@ -6,6 +6,7 @@ Subagents the main Claude Code session can spawn for this repository, each pinne
 |---|---|---|---|
 | `pr-watcher` | Haiku 4.5 / low | Watches a PR and reports each failed check, bot review and the merge as they happen. Superseded for routine watching by `tools/ai/watch-pr-events.ps1` run as a background monitor, which costs no model tokens; keep the agent for PRs whose events need judgement to triage | No |
 | `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
+| `site-steward` | Haiku 4.5 / low | Runs the `site-health` skill (#1382): checks every entry of `tools/ai/sites.json`, prepares the control board's `dash/*`/`stats/*` snapshots, and drafts a tracking-issue comment or a new issue file for each failure. Read-only on the repository except its own report; hands a failing publisher to `ci-diagnoser` rather than diagnosing it | Yes (only `artifacts/site-health/**`, never pushes/comments/opens) |
 | `mechanical-fixer` | Haiku 4.5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
 | `adversarial-reviewer` | Sonnet 5 / high (Opus only for security, personal-data or design-changing PRs, passed by the orchestrator) | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
 | `issue-worker` | Sonnet 5 / medium (Opus only when the brief says why: unknown root cause or design-heavy task) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
@@ -55,6 +56,7 @@ The main session orchestrates: it writes a closed brief per issue (`worker-brief
 | Read-only research across many files | `Explore` | anyone |
 | Bulk drafts, classification, summaries, and the first draft of every follow-up issue file a worker writes (the worker checks and fixes the draft; when the local model is not running the worker writes the file and says so) | local model (`local-ai-task` skill) | anyone |
 | Watching PRs and runs | token-free scripts (`tools/ai/watch-pr-events.ps1` per PR, `tools/ai/watch-open-prs.ps1` for every open PR, `tools/ai/watch-worktrees.ps1` for stalled worktrees) | orchestrator |
+| Check public sites / board snapshots (`site-health` skill: freshness and smoke checks over `tools/ai/sites.json`, the control board's `dash/*`/`stats/*` snapshots, failure routing) | `site-steward` | orchestrator |
 
 Shared hot spots stay with the orchestrator: workflows, and anything two open PRs would both edit. Changelog entries go to `changelog.d/` fragments. A rebase conflict in `src/` or `tests/` is resolved by an `issue-worker` briefed through the `worker-brief` skill: the orchestrator does not edit those folders, so it hands the conflicted worktree to a worker, which resolves the conflicts, continues the rebase, verifies and reports.
 
@@ -73,6 +75,7 @@ Procedures the main session loads on demand, in `.claude/skills/<name>/SKILL.md`
 | `worker-brief` | Write a worker's brief: the fixed protocol part copied as is (worktree, absolute paths and worktree-anchored verification commands, Edit tool only, no publishing, changelog fragment, verification by kind of change, self-review, delegation, report with issue files, model choice), what differs for a `docs-writer`, plus the task's goal, scope, decisions and acceptance |
 | `encina-docs` | House rules for documentation: Diátaxis quadrants (`diataxis.md` in the skill folder), where each kind of page lives, front matter, cited figures, verification and the review checklist |
 | `issue-audit` | Run one SPEC-003 audit of a closed issue end to end: queue discipline, the fixed six-stage pipeline with single-owner agents, the verifier's FAIL loop, lessons flowing back into role memory, and the Audit board |
+| `site-health` | Check every published site and feed in `tools/ai/sites.json`, prepare the control board's `dash/*`/`stats/*` snapshots, and route each failure to a tracking-issue comment or a new issue draft; run at session start next to the llama-server check (#1382) |
 
 ## Hooks
 
