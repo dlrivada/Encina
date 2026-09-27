@@ -937,6 +937,13 @@ function Get-GroupPrimary {
 # audit-draft-remediation.ps1 only calls this when a group has more than one member. Returns the updated text
 # and whether the header was found (never missing for a real draft, but defended rather than thrown, like the
 # other Set-*/Add-* helpers in this file).
+#
+# Adversarial review of #1491: Build-DraftBrief's own $groupNote ALSO asks the model to write a "Reported by:
+# ..." line at the start of the Description section, so a model that follows that instruction leaves one there
+# already. Inserting unconditionally would then duplicate it. This skips past any blank line(s) right after the
+# header and, only when the first non-blank line there already starts with "Reported by:" (case-insensitive),
+# replaces it (and the blank lines before it) with the deterministic line instead of trusting the model's own
+# wording -- never both. When no such line is there, behavior is unchanged: insert after one blank line.
 function Add-ReportedByLine {
     param([string]$DraftText, [string]$Line)
 
@@ -946,9 +953,14 @@ function Add-ReportedByLine {
         if ($lines[$i].Trim() -eq '## Description') {
             $newLines = [System.Collections.Generic.List[string]]::new()
             for ($j = 0; $j -le $i; $j++) { $newLines.Add($lines[$j]) }
+
+            $k = $i + 1
+            while ($k -lt $lines.Count -and [string]::IsNullOrWhiteSpace($lines[$k])) { $k++ }
+            $skipThrough = if ($k -lt $lines.Count -and $lines[$k].Trim() -match '(?i)^Reported by:') { $k } else { $i }
+
             $newLines.Add('')
             $newLines.Add($Line)
-            for ($j = $i + 1; $j -lt $lines.Count; $j++) { $newLines.Add($lines[$j]) }
+            for ($j = $skipThrough + 1; $j -lt $lines.Count; $j++) { $newLines.Add($lines[$j]) }
             return [pscustomobject]@{ Text = ($newLines -join "`n"); Found = $true }
         }
     }

@@ -186,9 +186,11 @@ function Build-DraftBrief([string]$IssueNumber, [pscustomobject]$Finding, [strin
     $templateBody = Get-TemplateBody $Route.Template
     $labelsLine = $Route.Labels -join ', '
     # #1491 decision 2: when this finding's group has other members (another stage flagged the same location),
-    # tell the model so, even though audit-draft-remediation.ps1's own Add-ReportedByLine call overwrites the
-    # '## Description' section deterministically afterward regardless of what the model writes here -- the
-    # same belt-and-suspenders pattern $envNote/$priorityNote below use for a section the script also repairs.
+    # tell the model so, even though audit-draft-remediation.ps1's own Add-ReportedByLine call fixes up the
+    # '## Description' section deterministically afterward regardless of what the model writes here -- it
+    # replaces the model's own "Reported by: ..." attempt (if the model wrote one, as asked below) rather than
+    # duplicating it, the same belt-and-suspenders pattern $envNote/$priorityNote below use for a section the
+    # script also repairs.
     $groupNote = if ($OtherMembers.Count -gt 0) {
         $otherLabels = ($OtherMembers | ForEach-Object { "$($_.Stage) $($_.Id)" }) -join ', '
         "`n- This finding was ALSO reported by: $otherLabels (another audit stage flagged the same location). Add a line 'Reported by: $($Finding.Stage) $($Finding.Id), $otherLabels.' at the very start of the Description section."

@@ -2667,6 +2667,23 @@ Two SagaStoreADO test classes duplicate the same setup.
         (-not $noDescResult.Found) -and $noDescResult.Text -eq "## Type`n`nNo Description header here."
     }
 
+    # Adversarial review of #1491: Build-DraftBrief's own $groupNote asks the model to write its own "Reported
+    # by: ..." line at the start of Description -- a model that complies must not end up with the line TWICE.
+    $modelWroteOwnDraft = "## Description`n`nReported by: code 1, docs 1.`n`nA stale comment describing old behavior.`n"
+    $modelWroteOwnResult = Add-ReportedByLine $modelWroteOwnDraft 'Reported by: code 1, docs 1.'
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: when the model already wrote its own "Reported by:" line, the result has exactly ONE such line, never two' {
+        @(($modelWroteOwnResult.Text -split "`r?`n") | Where-Object { $_ -match '(?i)^Reported by:' }).Count -eq 1
+    }
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: replacing the model''s own line still keeps the rest of the Description' {
+        $modelWroteOwnResult.Text -match 'A stale comment describing old behavior\.'
+    }
+    $modelWroteDifferentWordingDraft = "## Description`n`nReported by: code 1 and docs 1, same defect.`n`nA stale comment.`n"
+    $modelWroteDifferentWordingResult = Add-ReportedByLine $modelWroteDifferentWordingDraft 'Reported by: code 1, docs 1.'
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: the model''s own DIFFERENTLY WORDED "Reported by:" line is replaced by the deterministic one, not kept alongside it' {
+        $rbLines2 = @($modelWroteDifferentWordingResult.Text -split "`r?`n")
+        (@($rbLines2 | Where-Object { $_ -match '(?i)^Reported by:' })).Count -eq 1 -and ($rbLines2 -contains 'Reported by: code 1, docs 1.')
+    }
+
     if (Get-Command git -ErrorAction SilentlyContinue) {
         # A self-contained fixture repo (own '.git', the same pattern the #1375/#1492 fixtures above use) with
         # 4 findings across the 3 stages: code-1 and docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is
