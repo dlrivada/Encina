@@ -478,10 +478,27 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
     }
 
+    # #1400 decision 3: sanitize the finished draft's own Related Issues section -- never let the model's free
+    # text stand unverified. $possiblyRelatedNote (just written above, if present) is itself a legitimate
+    # reference, so its own line is passed as a script note the sanitizer must keep.
+    $sanitizeScriptNotes = if ($possiblyRelatedNote) { @($possiblyRelatedNote) } else { @() }
+    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $candidateLinesForClassify $sanitizeScriptNotes
+    if ($sanitized.Removed.Count -gt 0) {
+        Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $sanitized.Text
+        foreach ($removedNumber in $sanitized.Removed) {
+            $lessons.Add("$label`: removed unverified related issue #$removedNumber from $(Split-Path -Leaf $outFile)'s Related Issues section (not in the finding, the candidates offered, or the script's own notes).")
+        }
+    }
+
     if ($placeholders.Count -gt 0) {
         $placeholderFailures.Add((Split-Path -Leaf $outFile))
         $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)")
         "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
+    }
+    elseif ($sanitized.Removed.Count -gt 0) {
+        $removedList = ($sanitized.Removed | ForEach-Object { "#$_" }) -join ', '
+        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (removed unverified related issue $removedList)")
+        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- removed unverified related issue $removedList"
     }
     else {
         $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile)")

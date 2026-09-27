@@ -276,3 +276,89 @@ function Find-TemplatePlaceholders {
 
     return $found
 }
+
+# #1400 decision 3: after a draft is written and repaired (fence stripped, placeholders re-asked), its own
+# Related Issues section is sanitized -- the model is free to name a candidate as related there
+# (Build-DraftBrief's own guidance explicitly invites it), but audit #16's 16-code-5 draft showed it will also
+# invent a relation to issues nobody offered it and that have nothing to do with the finding (#699, #696, #181
+# -- real open issues about an unrelated caching/health-check feature). Two conventions exist because
+# bug_report.md, unlike technical_debt.md and test_implementation.md, has no dedicated 'Related Issues' header
+# of its own -- a bug-kind draft (like 16-code-5) puts it as a '- **Related Issues**:' bullet with indented
+# sub-bullets inside 'Additional Context' instead:
+#   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
+#   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
+#     immediately-following lines indented under it (matching '^[ \t]+-'), stopping at the first line that
+#     is not one of those sub-bullets.
+# A reference (#n) inside that section survives only when n is:
+#   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
+#     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
+#   - named in the finding's own text ($FindingText);
+#   - named in the candidate list actually offered to the classifier for this finding ($CandidateText); or
+#   - named in one of the script's own duplicate/partially-related/possibly-related note lines for this
+#     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line).
+# A line with no issue reference at all (prose, a blank line) is always kept untouched; a line naming an
+# unverified number is dropped entirely (not just the number). Returns the sanitized draft text and the list of
+# removed numbers, so the caller can log them ("removed unverified related issue #n") against this finding's
+# own line in stages/remediation.md.
+function Limit-RelatedIssues {
+    param(
+        [string]$DraftText,
+        [string]$IssueNumber,
+        [string]$FindingText,
+        [string]$CandidateText,
+        [string[]]$ScriptNoteLines
+    )
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+
+    $headerIdx = -1
+    $isBoldBullet = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $isBoldBullet = $false; break }
+        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:\s*$') { $headerIdx = $i; $isBoldBullet = $true; break }
+    }
+    if ($headerIdx -lt 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
+
+    $sectionStartLine = $headerIdx + 1
+    $sectionEndLine = $lines.Count
+    if ($isBoldBullet) {
+        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^[ \t]+-') { continue }
+            $sectionEndLine = $i
+            break
+        }
+    }
+    else {
+        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
+        }
+    }
+
+    $allowed = [System.Collections.Generic.HashSet[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($IssueNumber)) { [void]$allowed.Add($IssueNumber.TrimStart('#')) }
+    foreach ($src in @($FindingText, $CandidateText)) {
+        if ($null -eq $src) { continue }
+        foreach ($m in [regex]::Matches($src, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
+    }
+    foreach ($noteLine in $ScriptNoteLines) {
+        if ($null -eq $noteLine) { continue }
+        foreach ($m in [regex]::Matches($noteLine, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
+    }
+
+    $removed = [System.Collections.Generic.List[string]]::new()
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $sectionStartLine; $i++) { $newLines.Add($lines[$i]) }
+    for ($i = $sectionStartLine; $i -lt $sectionEndLine; $i++) {
+        $line = $lines[$i]
+        $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
+        if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
+        $hasAllowedNumber = $false
+        foreach ($num in $lineNumbers) { if ($allowed.Contains($num)) { $hasAllowedNumber = $true } }
+        if ($hasAllowedNumber) { $newLines.Add($line) }
+        else { foreach ($num in $lineNumbers) { $removed.Add($num) } }
+    }
+    for ($i = $sectionEndLine; $i -lt $lines.Count; $i++) { $newLines.Add($lines[$i]) }
+
+    return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
+}
