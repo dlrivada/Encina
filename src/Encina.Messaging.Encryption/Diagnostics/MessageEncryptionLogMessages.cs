@@ -138,13 +138,6 @@ internal static partial class MessageEncryptionLogMessages
         Message = "Key resolved. KeyId={KeyId}")]
     internal static partial void KeyResolved(this ILogger logger, string keyId);
 
-    /// <summary>Key resolution failed.</summary>
-    [LoggerMessage(
-        EventId = 2467,
-        Level = LogLevel.Error,
-        Message = "Key resolution failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void KeyResolutionFailed(this ILogger logger, string errorMessage);
-
     /// <summary>Tenant-specific key resolved.</summary>
     [LoggerMessage(
         EventId = 2468,
