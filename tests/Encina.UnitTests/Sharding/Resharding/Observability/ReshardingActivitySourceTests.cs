@@ -10,6 +10,14 @@ namespace Encina.UnitTests.Sharding.Resharding.Observability;
 /// Validates the source name constant, activity creation with and without listeners,
 /// tag population, and completion status handling.
 /// </summary>
+/// <remarks>
+/// Shares the <c>"ActivityListenerIsolation"</c> collection (<see cref="ActivityListenerIsolationTestGroup"/>)
+/// with <see cref="Encina.UnitTests.OpenTelemetry.Resharding.ReshardingActivitySourceTests"/>: both target
+/// the same process-global <see cref="ActivitySource"/> (<see cref="ReshardingActivitySource.SourceName"/>),
+/// and the other class asserts on activities created without a listener attached, so the two must never
+/// run concurrently (#1423).
+/// </remarks>
+[Collection("ActivityListenerIsolation")]
 public sealed class ReshardingActivitySourceTests : IDisposable
 {
     private ActivityListener? _listener;
@@ -180,3 +188,12 @@ public sealed class ReshardingActivitySourceTests : IDisposable
 
     #endregion
 }
+
+/// <summary>
+/// xUnit collection definition to serialize tests that share the process-global
+/// <see cref="ActivitySource"/> from <see cref="ReshardingActivitySource"/>, including the
+/// "without listeners" assertions in
+/// <see cref="Encina.UnitTests.OpenTelemetry.Resharding.ReshardingActivitySourceTests"/> (#1423).
+/// </summary>
+[CollectionDefinition("ActivityListenerIsolation", DisableParallelization = true)]
+public class ActivityListenerIsolationTestGroup;
