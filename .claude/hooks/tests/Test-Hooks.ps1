@@ -2451,6 +2451,130 @@ Two SagaStoreADO test classes duplicate the same setup.
         Test-RemediationCase '#1492 -Only without a prior full regeneration is an error, not a guess' {
             $noBaselineExit -ne 0 -and (Get-FlatOutput $noBaselineOutput) -match 'requires an existing'
         }
+
+        # (e) #1492 adversarial-review regression: -Only "code 1" must never touch a DOUBLE-DIGIT sibling
+        # finding's own leftover output. Split-Findings takes a finding's Id straight from the markdown's own
+        # leading digits (not from its position in the list), so the fixture above -- findings "1" and "2" --
+        # could never have exposed a numeric-PREFIX collision even in the unfixed code: "code 1" never collided
+        # with "code 2". This fixture numbers its two findings "1." and "10." instead, so "-Only 'code 1'" runs
+        # directly against a "code 10" sibling and can prove the fix at audit-draft-remediation.ps1:339 (every
+        # narrow pattern has a literal separator immediately after $keyId, so a bare "$keyId*.md" wildcard can
+        # no longer swallow "${keyId}0...").
+        $remWt1492c = Join-Path $work 'RemediationOnlyWtCollision'
+        if (Test-Path $remWt1492c) { Remove-Item -Recurse -Force $remWt1492c }
+        New-Item -ItemType Directory -Force $remWt1492c | Out-Null
+        Copy-Item -Recurse (Join-Path $remWt1492 'tools') (Join-Path $remWt1492c 'tools')
+        Copy-Item -Recurse (Join-Path $remWt1492 '.github') (Join-Path $remWt1492c '.github')
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492c 'artifacts\knowledge\stages') | Out-Null
+        $collisionFindingsText1492 = "1. **Major** -- ``src/X.cs:10`` first finding.`n10. **Minor** -- ``src/Y.cs:20`` tenth finding."
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\code.md') "## Findings`n$collisionFindingsText1492`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        $remN1492c = 4345
+        @{ issue = $remN1492c; worktree = $remWt1492c; branch = "audit/$remN1492c"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\current-audit.json')
+        function Invoke-RemGit1492c { & git -C $remWt1492c -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1492c init -q -b main
+        Invoke-RemGit1492c commit -q --allow-empty -m base
+
+        $collisionBaselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $collisionBaselineExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 double-digit fixture: the baseline (no -Only) full run exits 0 with findings code 1 and code 10' { $collisionBaselineExit -eq 0 }
+
+        # -DryRun's own preview files for code-10 (written by the baseline run above), backdated the same way
+        # as the single-digit case, so "-Only 'code 1'" leaving them untouched is proven by more than
+        # "the deterministic content happens to match again."
+        $backdated1492c = [DateTime]::new(2020, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+        $collisionDryDir = Join-Path $remWt1492c "artifacts\knowledge\remediation\_dryrun-$remN1492c"
+        $code10DryFiles = @{
+            'dryrun-brief' = Join-Path $collisionDryDir 'code-10-brief.md'
+            'dryrun-input' = Join-Path $collisionDryDir 'code-10-input.md'
+        }
+        $code10DryContentBefore = @{}
+        foreach ($key in $code10DryFiles.Keys) {
+            (Get-Item -LiteralPath $code10DryFiles[$key]).LastWriteTimeUtc = $backdated1492c
+            $code10DryContentBefore[$key] = Get-Content -LiteralPath $code10DryFiles[$key] -Raw
+        }
+
+        # Simulate a previous REAL (non -DryRun) run's leftover output for finding "code 10" -- exactly the
+        # files "-Only 'code 1'"'s cleanup step (audit-draft-remediation.ps1:339-346) walks regardless of
+        # -DryRun, and exactly the files the pre-fix single "_brief-...-$keyId*.md" pattern could delete by
+        # accident (matching "_brief-<n>-code-10.md" and its "-reask" variant too).
+        $collisionRemDir = Join-Path $remWt1492c 'artifacts\knowledge\remediation'
+        $code10Leftovers = @{
+            'input'          = "_input-$remN1492c-code-10.md"
+            'classify-brief' = "_classify-brief-$remN1492c-code-10.md"
+            'classify'       = "_classify-$remN1492c-code-10.md"
+            'brief'          = "_brief-$remN1492c-code-10.md"
+            'brief-reask'    = "_brief-$remN1492c-code-10-reask.md"
+            'draft'          = "$remN1492c-code-10-tenth-finding.md"
+        }
+        $code10Paths = @{}
+        $code10ContentBefore = @{}
+        foreach ($key in $code10Leftovers.Keys) {
+            $path = Join-Path $collisionRemDir $code10Leftovers[$key]
+            Set-Content -LiteralPath $path -Encoding utf8 -Value "leftover content for code-10 $key"
+            (Get-Item -LiteralPath $path).LastWriteTimeUtc = $backdated1492c
+            $code10Paths[$key] = $path
+            $code10ContentBefore[$key] = Get-Content -LiteralPath $path -Raw
+        }
+
+        $collisionOnlyOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
+        $collisionOnlyExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 -Only "code 1" against a code-10 sibling exits 0' { $collisionOnlyExit -eq 0 }
+
+        # The child pwsh process above (its own OS process, separate from this test) does the actual file
+        # removal; on Windows, a just-created/just-renamed file's visibility to a SIBLING process's directory
+        # enumeration can lag the write by a few milliseconds (filesystem cache/AV scan settle time). A file
+        # that is genuinely gone stays gone through every retry, so this loop cannot mask a real regression --
+        # it only protects against a false failure from reading the directory microseconds too early.
+        function Wait-FileState1492c([string]$Path) {
+            for ($attempt = 0; $attempt -lt 10; $attempt++) {
+                if (Test-Path -LiteralPath $Path) { return $true }
+                Start-Sleep -Milliseconds 50
+            }
+            return $false
+        }
+
+        # Also assert the run's own log never claims to have removed one of code-10's files -- the same
+        # style the pre-existing single-digit case above uses (line ~2422), extended here with the never-
+        # deleted output-text check the double-digit case was missing.
+        Test-RemediationCase '#1492 -Only "code 1" never logs removing any of code-10''s own leftover output' {
+            $flatCollisionOutput = Get-FlatOutput $collisionOnlyOutput
+            $flatCollisionOutput -notmatch [regex]::Escape('code-10-brief.md') -and $flatCollisionOutput -notmatch [regex]::Escape('code-10-input.md') -and
+            (($code10Leftovers.Values | ForEach-Object { $flatCollisionOutput -notmatch [regex]::Escape($_) }) -notcontains $false)
+        }
+
+        foreach ($key in $code10DryFiles.Keys) {
+            $path = $code10DryFiles[$key]
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file with an unchanged mtime (double-digit prefix collision)" {
+                (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
+            }
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file byte-identical" {
+                (Get-Content -LiteralPath $path -Raw) -eq $code10DryContentBefore[$key]
+            }
+        }
+
+        foreach ($key in $code10Leftovers.Keys) {
+            $path = $code10Paths[$key]
+            $survived = Wait-FileState1492c $path
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file present after the run (double-digit prefix collision)" {
+                $survived
+            }
+            if ($survived) {
+                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file with an unchanged mtime" {
+                    (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
+                }
+                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file byte-identical" {
+                    (Get-Content -LiteralPath $path -Raw) -eq $code10ContentBefore[$key]
+                }
+            }
+        }
+
+        $collisionStageLines = Get-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\remediation.md')
+        $code10Line = @($collisionStageLines | Where-Object { $_ -match '^-\s+code\s+10\s+\(' })
+        Test-RemediationCase '#1492 -Only "code 1": stages\remediation.md keeps code 10''s own line after the run' {
+            $code10Line.Count -eq 1
+        }
     }
     else {
         'SKIP #1492 -Only fixture: git is not on PATH'
