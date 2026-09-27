@@ -2581,6 +2581,176 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1492 block ----
 
+    # ---- #1491: tools/ai/audit/_remediation-checks.ps1 (Get-FindingLeadingAnchor, Test-SameLocationAnchor,
+    # Group-FindingsByLocation, Get-GroupPrimary, Add-ReportedByLine) and audit-draft-remediation.ps1 -- the
+    # remediation stage drafted one remediation issue per finding even when two stages (code, tests, docs)
+    # reported the SAME defect (audit #17 verification pass 2: docs finding 7 and code finding 4 both cited
+    # `src/Encina.DomainModeling/AggregateBase.cs:20`). Findings are now grouped by their leading location
+    # anchor before drafting: same file and overlapping/equal line (range) = one group, one draft, from the
+    # group's highest-severity finding; every OTHER member's own line in stages/remediation.md says which draft
+    # covers it instead of getting a second draft of its own.
+
+    # (a) Get-FindingLeadingAnchor: only a citation with an explicit line number counts as an anchor.
+    Test-RemediationChecksCase '#1491 Get-FindingLeadingAnchor: a leading `file:line` citation is the anchor' {
+        $a = Get-FindingLeadingAnchor '`src/A.cs:20` a stale comment.'
+        $null -ne $a -and $a.FullPath -eq 'src/A.cs' -and $a.StartLine -eq 20 -and $a.EndLine -eq 20
+    }
+    Test-RemediationChecksCase '#1491 Get-FindingLeadingAnchor: a leading `file:start-end` range citation keeps both ends' {
+        $a = Get-FindingLeadingAnchor '`src/A.cs:20-25` a stale comment.'
+        $null -ne $a -and $a.StartLine -eq 20 -and $a.EndLine -eq 25
+    }
+    Test-RemediationChecksCase '#1491 Get-FindingLeadingAnchor: a file citation with NO line number is not an anchor' {
+        $null -eq (Get-FindingLeadingAnchor '`src/A.cs` a general observation about the whole file.')
+    }
+    Test-RemediationChecksCase '#1491 Get-FindingLeadingAnchor: no file citation at all is not an anchor' {
+        $null -eq (Get-FindingLeadingAnchor 'A general observation with no file citation whatsoever.')
+    }
+
+    # (b) Test-SameLocationAnchor: same file and overlapping/equal ranges match; different lines of the same
+    # file, or a different file, do not; a $null anchor never matches anything (never grouped).
+    $anchor20 = Get-FindingLeadingAnchor '`src/A.cs:20` x.'
+    $anchor20b = Get-FindingLeadingAnchor '`src/A.cs:20` y, described differently.'
+    $anchor18to22 = Get-FindingLeadingAnchor '`src/A.cs:18-22` z.'
+    $anchor99 = Get-FindingLeadingAnchor '`src/A.cs:99` w.'
+    $anchorOther = Get-FindingLeadingAnchor '`src/B.cs:20` v.'
+    Test-RemediationChecksCase '#1491 Test-SameLocationAnchor: same file, equal line, matches' { Test-SameLocationAnchor $anchor20 $anchor20b }
+    Test-RemediationChecksCase '#1491 Test-SameLocationAnchor: same file, overlapping range, matches' { Test-SameLocationAnchor $anchor20 $anchor18to22 }
+    Test-RemediationChecksCase '#1491 Test-SameLocationAnchor: same file, DIFFERENT line, does not match' { -not (Test-SameLocationAnchor $anchor20 $anchor99) }
+    Test-RemediationChecksCase '#1491 Test-SameLocationAnchor: different file, same line number, does not match' { -not (Test-SameLocationAnchor $anchor20 $anchorOther) }
+    Test-RemediationChecksCase '#1491 Test-SameLocationAnchor: a $null anchor never matches anything' { (-not (Test-SameLocationAnchor $null $anchor20)) -and (-not (Test-SameLocationAnchor $anchor20 $null)) }
+
+    # (c) Group-FindingsByLocation + Get-GroupPrimary: a finding with no anchor is always its own singleton
+    # group (decision 1's "a finding with no file anchor is never grouped"); two findings at the same location
+    # group together with the highest-severity one as primary; a tie is broken by the members' own order
+    # (stage order code/tests/docs, since $Members is given in that order).
+    $groupFindingCode1 = [pscustomobject]@{ Stage = 'code'; Id = '1'; Severity = 'Major'; Text = '`src/A.cs:20` stale doc comment (code stage).' }
+    $groupFindingDocs1 = [pscustomobject]@{ Stage = 'docs'; Id = '1'; Severity = 'Minor'; Text = '`src/A.cs:20` the same stale doc comment (docs stage).' }
+    $groupFindingDocs2 = [pscustomobject]@{ Stage = 'docs'; Id = '2'; Severity = 'Major'; Text = '`src/A.cs:99` an unrelated defect, same file, different line.' }
+    $groupFindingTests1 = [pscustomobject]@{ Stage = 'tests'; Id = '1'; Severity = 'Minor'; Text = 'A general observation with no file citation at all.' }
+    $testGroups = Group-FindingsByLocation @($groupFindingCode1, $groupFindingDocs1, $groupFindingDocs2, $groupFindingTests1)
+    Test-RemediationChecksCase '#1491 Group-FindingsByLocation: 4 findings, 2 at the same location, yield 3 groups' { $testGroups.Count -eq 3 }
+    $sameLocationGroup = @($testGroups | Where-Object { $_.Members.Count -eq 2 })
+    Test-RemediationChecksCase '#1491 Group-FindingsByLocation: exactly one group has the 2 same-location findings' { $sameLocationGroup.Count -eq 1 }
+    Test-RemediationChecksCase '#1491 Group-FindingsByLocation: the different-line finding (docs 2) is its own group' {
+        @($testGroups | Where-Object { $_.Members.Count -eq 1 -and $_.Members[0].Stage -eq 'docs' -and $_.Members[0].Id -eq '2' }).Count -eq 1
+    }
+    Test-RemediationChecksCase '#1491 Group-FindingsByLocation: the no-anchor finding (tests 1) is its own group, never merged' {
+        @($testGroups | Where-Object { $_.Members.Count -eq 1 -and $_.Members[0].Stage -eq 'tests' -and $_.Members[0].Id -eq '1' }).Count -eq 1
+    }
+    Test-RemediationChecksCase '#1491 Get-GroupPrimary: the higher-severity member (code 1, Major) is the primary over the lower one (docs 1, Minor)' {
+        $primary = Get-GroupPrimary $sameLocationGroup[0].Members
+        $primary.Stage -eq 'code' -and $primary.Id -eq '1'
+    }
+    Test-RemediationChecksCase '#1491 Get-GroupPrimary: a severity tie is broken by the members'' own order (stage order code before docs)' {
+        $tieMembers = @(
+            [pscustomobject]@{ Stage = 'code'; Id = '2'; Severity = 'Major' },
+            [pscustomobject]@{ Stage = 'docs'; Id = '9'; Severity = 'Major' }
+        )
+        $tiePrimary = Get-GroupPrimary $tieMembers
+        $tiePrimary.Stage -eq 'code' -and $tiePrimary.Id -eq '2'
+    }
+
+    # (d) Add-ReportedByLine: inserts right after '## Description', leaves the rest of the draft untouched.
+    $reportedByDraft = "## Type`n`n- [ ] Documentation gap`n`n## Description`n`nA stale comment describing old behavior.`n`n## Location`n`n- **File(s)**: ``src/A.cs```n"
+    $reportedByResult = Add-ReportedByLine $reportedByDraft 'Reported by: code 1, docs 1.'
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: found the header and inserted the line' { $reportedByResult.Found }
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: the line lands right after "## Description"' {
+        $rbLines = @($reportedByResult.Text -split "`r?`n")
+        $descIdx = [array]::IndexOf($rbLines, '## Description')
+        $descIdx -ge 0 -and $rbLines[$descIdx + 2] -eq 'Reported by: code 1, docs 1.'
+    }
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: leaves the rest of the draft (the original Description sentence) untouched' {
+        $reportedByResult.Text -match 'A stale comment describing old behavior\.'
+    }
+    Test-RemediationChecksCase '#1491 Add-ReportedByLine: a draft with no "## Description" header is returned unchanged, Found = $false' {
+        $noDescResult = Add-ReportedByLine "## Type`n`nNo Description header here." 'Reported by: code 1.'
+        (-not $noDescResult.Found) -and $noDescResult.Text -eq "## Type`n`nNo Description header here."
+    }
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        # A self-contained fixture repo (own '.git', the same pattern the #1375/#1492 fixtures above use) with
+        # 4 findings across the 3 stages: code-1 and docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is
+        # Major and must be the drafted primary); docs-2 cites a DIFFERENT line of the SAME file (`src/A.cs:99`,
+        # its own group); tests-1 cites no file at all (never grouped with anything).
+        $remWt1491 = Join-Path $work 'RemediationGroupingWt'
+        if (Test-Path $remWt1491) { Remove-Item -Recurse -Force $remWt1491 }
+        New-Item -ItemType Directory -Force (Join-Path $remWt1491 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1491 'artifacts\knowledge\stages') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1491 '.github\ISSUE_TEMPLATE') | Out-Null
+        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1491 'tools\ai\audit\pipeline.json')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1491 'tools\ai\audit\_audit-lib.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1491 'tools\ai\audit\_remediation-checks.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1')
+        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
+            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1491 ".github\ISSUE_TEMPLATE\$t")
+        }
+        function Invoke-RemGit1491 { & git -C $remWt1491 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1491 init -q -b main
+        Invoke-RemGit1491 commit -q --allow-empty -m base
+
+        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\code.md') "## Findings`n1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage).`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\tests.md') "## Findings`n1. **Minor** -- A general observation with no file citation at all.`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\docs.md') "## Findings`n1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n2. **Major** -- ``src/A.cs:99`` an unrelated defect, same file, different line.`n## Lessons for the pipeline`n- none`n"
+        $remN1491 = 4646
+        @{ issue = $remN1491; worktree = $remWt1491; branch = "audit/$remN1491"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1491 'artifacts\knowledge\current-audit.json')
+
+        $groupingOutput = & pwsh -NoProfile -File (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $groupingExit = $LASTEXITCODE
+        Test-RemediationCase '#1491 grouping fixture: the full run exits 0' { $groupingExit -eq 0 }
+
+        $groupingDryDir = Join-Path $remWt1491 "artifacts\knowledge\remediation\_dryrun-$remN1491"
+        # Two stages reporting the same file:line (code 1, docs 1) produce ONE draft: only code-1 (the
+        # higher-severity member) gets its own dry-run preview files; docs-1 gets none.
+        Test-RemediationCase '#1491 grouping fixture: the same-location primary (code 1, Major) got its own dry-run brief' {
+            Test-Path -LiteralPath (Join-Path $groupingDryDir 'code-1-brief.md')
+        }
+        Test-RemediationCase '#1491 grouping fixture: the merged sibling (docs 1, Minor, same location) never got its own dry-run brief' {
+            -not (Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-1-brief.md'))
+        }
+        # Different lines of the same file (docs 2 vs. code 1/docs 1) are different groups: docs-2 drafts its own.
+        Test-RemediationCase '#1491 grouping fixture: a different line of the same file (docs 2) got its own dry-run brief' {
+            Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-2-brief.md')
+        }
+        # A finding with no anchor (tests 1) is never merged with anything and always drafts its own.
+        Test-RemediationCase '#1491 grouping fixture: the no-anchor finding (tests 1) got its own dry-run brief' {
+            Test-Path -LiteralPath (Join-Path $groupingDryDir 'tests-1-brief.md')
+        }
+        $groupingBriefs = @(Get-ChildItem $groupingDryDir -Filter '*-brief.md' -ErrorAction SilentlyContinue)
+        Test-RemediationCase '#1491 grouping fixture: exactly 3 drafts total for 4 findings (one group merged)' { $groupingBriefs.Count -eq 3 }
+
+        $groupingStageLines = Get-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase '#1491 grouping fixture: stages/remediation.md still lists all 4 findings' {
+            @($groupingStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 4
+        }
+        Test-RemediationCase '#1491 grouping fixture: docs 1''s own line says it merged into code 1 (same location)' {
+            @($groupingStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+merged into code 1 \(same location\)$' }).Count -eq 1
+        }
+        Test-RemediationCase '#1491 grouping fixture: docs 2 and tests 1 are NOT reported as merged (each drafted its own)' {
+            (@($groupingStageLines | Where-Object { $_ -match '^-\s+docs\s+2\s+\(' }) -notmatch 'merged into') -and
+            (@($groupingStageLines | Where-Object { $_ -match '^-\s+tests\s+1\s+\(' }) -notmatch 'merged into')
+        }
+
+        # -Only on the MERGED (non-primary) finding docs-1 regenerates the group's one draft (code-1's own),
+        # never tries to draft docs-1 on its own (decision 4).
+        $onlyMergedOutput = & pwsh -NoProfile -File (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 1' 2>&1
+        $onlyMergedExit = $LASTEXITCODE
+        Test-RemediationCase '#1491 -Only "docs 1" (a merged, non-primary finding) exits 0' { $onlyMergedExit -eq 0 }
+        Test-RemediationCase '#1491 -Only "docs 1" regenerates the group''s own primary brief (code-1), not a "docs-1-brief.md" of its own' {
+            (Test-Path -LiteralPath (Join-Path $groupingDryDir 'code-1-brief.md')) -and (-not (Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-1-brief.md')))
+        }
+        $onlyMergedStageLines = Get-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase '#1491 -Only "docs 1": stages/remediation.md still lists all 4 findings after the -Only run' {
+            @($onlyMergedStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 4
+        }
+        Test-RemediationCase '#1491 -Only "docs 1": docs 1''s own line still says merged into code 1' {
+            @($onlyMergedStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+merged into code 1 \(same location\)$' }).Count -eq 1
+        }
+    }
+    else {
+        'SKIP #1491 grouping fixture: git is not on PATH'
+    }
+    # ---- end #1491 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
