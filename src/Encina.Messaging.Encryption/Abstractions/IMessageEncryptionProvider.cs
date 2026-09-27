@@ -41,7 +41,8 @@ namespace Encina.Messaging.Encryption.Abstractions;
 /// // Handle the result with pattern matching
 /// result.Match(
 ///     Right: payload => UseEncryptedPayload(payload),
-///     Left: error => logger.LogError("Encryption failed: {Error}", error.Message));
+///     // Never log error.Message: it may carry provider- or key-specific detail. Only the code.
+///     Left: error => logger.LogError("Encryption failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Decrypting back
 /// var decrypted = await provider.DecryptAsync(encrypted, context);
