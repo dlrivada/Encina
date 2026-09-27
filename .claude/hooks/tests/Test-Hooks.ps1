@@ -202,6 +202,11 @@ $spawnCases = @(
     @('mechanical-fixer', $null, 'Explore', 0, 'mechanical-fixer: Explore is allowed'),
     @('mechanical-fixer', $null, 'mechanical-fixer', 2, 'mechanical-fixer: mechanical-fixer is blocked (recursion)'),
     @('mechanical-fixer', $null, 'issue-worker', 2, 'mechanical-fixer: issue-worker is blocked'),
+    # #1382: site-steward may spawn only ci-diagnoser.
+    @('site-steward', $null, 'ci-diagnoser', 0, 'site-steward: ci-diagnoser is allowed'),
+    @('site-steward', $null, 'mechanical-fixer', 2, 'site-steward: mechanical-fixer is blocked'),
+    @('site-steward', $null, 'general-purpose', 2, 'site-steward: general-purpose is blocked'),
+    @('site-steward', $null, $null, 2, 'site-steward: missing subagent_type is blocked'),
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
@@ -218,6 +223,7 @@ $spawnCases = @(
     @('orchestrator', $null, 'issue-worker', 0, 'orchestrator: issue-worker is allowed'),
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
     @('orchestrator', $null, 'pr-watcher', 0, 'orchestrator: pr-watcher is allowed'),
+    @('orchestrator', $null, 'site-steward', 0, 'orchestrator: site-steward is allowed (#1382)'),
     @('orchestrator', $null, 'Plan', 0, 'orchestrator: Plan is allowed'),
     @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
@@ -595,7 +601,14 @@ $ownershipCases = @(
     # Set-Content, invoked internally when it allows a stage-artifact write) — never a tool call, not even the
     # orchestrator's, which previously fell through to the default allow.
     @($null, 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: the orchestrator writing .authors.json directly is denied'),
-    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied')
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied'),
+    # #1382: site-steward writes only under artifacts/site-health/**; it is read-only on the rest of the
+    # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
+    @('site-steward', 'Write', "$wt\artifacts\site-health\report.md", $wt, 0, 'site-steward: its own report under artifacts/site-health'),
+    @('site-steward', 'Write', "$wt\artifacts\site-health\issues\gap.md", $wt, 0, 'site-steward: an issue draft under artifacts/site-health'),
+    @('site-steward', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'site-steward: a repo source file is denied'),
+    @('site-steward', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'site-steward: documentation is denied'),
+    @('site-steward', 'Write', "$wt\artifacts\board\db-summary.json", $wt, 2, 'site-steward: another artifacts/ subfolder is denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
