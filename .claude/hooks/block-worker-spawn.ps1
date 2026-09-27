@@ -14,6 +14,8 @@
 #   mechanical-fixer  ci-diagnoser, Explore
 #   site-steward      ci-diagnoser (#1382): a failing publisher or freshness check goes there for root-causing;
 #                     site-steward never diagnoses it itself.
+#   pr-reviewer       Explore only (#1447): read-only cross-file research while reviewing a published PR; it
+#                     never diagnoses CI, it reviews, so ci-diagnoser is not in its allowlist.
 #   issue-archivist, issue-auditor, test-auditor, audit-verifier, docs-reviewer, adversarial-reviewer,
 #   ci-diagnoser, pr-watcher   empty (#1345). Each is either a SPEC-003 audit stage agent (single-owner,
 #                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
@@ -48,11 +50,12 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
         'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
         'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
         'site-steward'          = @('ci-diagnoser')
+        'pr-reviewer'           = @('Explore')
         'issue-archivist'       = @()
         'issue-auditor'         = @()
         'test-auditor'          = @()

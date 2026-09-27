@@ -43,6 +43,10 @@
 #                 drafts the site-health skill prepares); everything else in the repository is denied, because
 #                 the agent is read-only on the repository (it never fixes a broken workflow itself: a failing
 #                 publisher goes to ci-diagnoser).
+#   pr-reviewer   (#1447) writes ONLY under artifacts/pr-review/** (its own review of one published PR);
+#                 everything else in the repository is denied, because the agent is read-only on the
+#                 repository (it never posts to GitHub itself: the orchestrator posts its report as a PR
+#                 review).
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -293,6 +297,12 @@ try {
         elseif ($Agent -eq 'site-steward') {
             if ($relative -notmatch '^artifacts/site-health/') {
                 [Console]::Error.WriteLine("Blocked: site-steward writes only under artifacts/site-health/** (its own report and the issue/comment drafts the site-health skill prepares, #1382); '$relative' is not one of them. It is read-only on the rest of the repository: report anything else to the orchestrator, or hand a failing publisher to ci-diagnoser, instead of editing it.")
+                return $false
+            }
+        }
+        elseif ($Agent -eq 'pr-reviewer') {
+            if ($relative -notmatch '^artifacts/pr-review/') {
+                [Console]::Error.WriteLine("Blocked: pr-reviewer writes only under artifacts/pr-review/** (its own review of one published PR, #1447); '$relative' is not one of them. It is read-only on the rest of the repository: report anything else to the orchestrator instead of editing it.")
                 return $false
             }
         }

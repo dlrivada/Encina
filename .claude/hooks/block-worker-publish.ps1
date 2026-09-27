@@ -1,5 +1,6 @@
 # PreToolUse hook (Bash|PowerShell), scoped to the frontmatter of the writing and reviewing subagents
-# (issue-worker, mechanical-fixer, docs-writer, docs-reviewer): blocks publish-side git/gh actions. The
+# (issue-worker, mechanical-fixer, docs-writer, docs-reviewer, site-steward, and, since #1447, pr-reviewer):
+# blocks publish-side git/gh actions. The
 # messages name the agent from the hook input's agent_type, present for a subagent's own tool call
 # (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md); this hook only
 # runs scoped to one of these agents, so it is used solely to word the message, not to gate behaviour. The

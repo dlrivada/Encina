@@ -269,6 +269,11 @@ $spawnCases = @(
     @('site-steward', $null, 'mechanical-fixer', 2, 'site-steward: mechanical-fixer is blocked'),
     @('site-steward', $null, 'general-purpose', 2, 'site-steward: general-purpose is blocked'),
     @('site-steward', $null, $null, 2, 'site-steward: missing subagent_type is blocked'),
+    # #1447: pr-reviewer may spawn only Explore.
+    @('pr-reviewer', $null, 'Explore', 0, 'pr-reviewer: Explore is allowed'),
+    @('pr-reviewer', $null, 'mechanical-fixer', 2, 'pr-reviewer: mechanical-fixer is blocked'),
+    @('pr-reviewer', $null, 'general-purpose', 2, 'pr-reviewer: general-purpose is blocked'),
+    @('pr-reviewer', $null, $null, 2, 'pr-reviewer: missing subagent_type is blocked'),
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
@@ -286,6 +291,7 @@ $spawnCases = @(
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
     @('orchestrator', $null, 'pr-watcher', 0, 'orchestrator: pr-watcher is allowed'),
     @('orchestrator', $null, 'site-steward', 0, 'orchestrator: site-steward is allowed (#1382)'),
+    @('orchestrator', $null, 'pr-reviewer', 0, 'orchestrator: pr-reviewer is allowed (#1447)'),
     @('orchestrator', $null, 'Plan', 0, 'orchestrator: Plan is allowed'),
     @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
@@ -670,13 +676,21 @@ $ownershipCases = @(
     @('site-steward', 'Write', "$wt\artifacts\site-health\issues\gap.md", $wt, 0, 'site-steward: an issue draft under artifacts/site-health'),
     @('site-steward', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'site-steward: a repo source file is denied'),
     @('site-steward', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'site-steward: documentation is denied'),
-    @('site-steward', 'Write', "$wt\artifacts\board\db-summary.json", $wt, 2, 'site-steward: another artifacts/ subfolder is denied')
+    @('site-steward', 'Write', "$wt\artifacts\board\db-summary.json", $wt, 2, 'site-steward: another artifacts/ subfolder is denied'),
+    # #1447: pr-reviewer writes only under artifacts/pr-review/**; it is read-only on the rest of the
+    # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review\1447.md", $wt, 0, 'pr-reviewer: its own review under artifacts/pr-review'),
+    @('pr-reviewer', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'pr-reviewer: a repo source file is denied'),
+    @('pr-reviewer', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'pr-reviewer: documentation is denied'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
 $noBgCases = @(
     @('issue-worker', 'a1', 'adversarial-reviewer', $true, 2, 'no-background-specialists: worker background spawn is blocked'),
     @('issue-worker', 'a1', 'adversarial-reviewer', $false, 0, 'no-background-specialists: worker foreground spawn is allowed'),
+    @('pr-reviewer', 'a4', 'Explore', $true, 2, 'no-background-specialists: pr-reviewer background spawn is blocked (#1447)'),
+    @('pr-reviewer', 'a4', 'Explore', $false, 0, 'no-background-specialists: pr-reviewer foreground spawn is allowed (#1447)'),
     @($null, $null, 'issue-worker', $true, 0, 'no-background-specialists: main session background spawn is allowed'),
     @('docs-writer', 'a2', 'docs-reviewer', $true, 2, 'no-background-specialists: docs-writer background spawn is blocked'),
     @('issue-archivist', 'a3', 'issue-auditor', $true, 2, 'no-background-specialists: audit-stage agent background spawn is blocked'),
@@ -1002,7 +1016,14 @@ try {
         @('test-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'fabricated'", 2, 'shell vector: Set-Content by the wrong stage agent is denied'),
         @('issue-auditor', 'PowerShell', "Set-Content -LiteralPath '$shellCodePath' -Value 'legitimate'", 0, 'shell vector: Set-Content by the correct stage agent is allowed'),
         @($null, 'PowerShell', "[IO.File]::WriteAllText('$shellCodePath', 'fabricated')", 2, 'shell vector: [IO.File]::WriteAllText by the orchestrator is denied', 'mechanical-fixer'),
-        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied')
+        @('test-auditor', 'Bash', "echo fabricated > '$shellCodePath'", 2, 'shell vector: Bash redirection by the wrong stage agent is denied'),
+        # #1447 adversarial-review fix: pr-reviewer.md originally wired enforce-path-ownership.ps1 only on the
+        # Write|Edit|MultiEdit|NotebookEdit matcher, not on Bash|PowerShell; a shell write whose payload omits
+        # agent_type (the exact case the frontmatter -Agent fallback exists for) fell through every elseif
+        # branch to the default allow. These cases exercise the hook's own Bash|PowerShell handling for
+        # pr-reviewer directly, the same way the stage-agent cases above do.
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed')
     )
     foreach ($case in $shellCases) {
         $hookAgent, $tool, $command, $expected, $label, $agentType = $case
@@ -2299,7 +2320,7 @@ More prose after the list must survive untouched.
             if (-not (Test-Path (Join-Path $hooks $m.Groups['h'].Value))) { $problems.Add("missing hook $($m.Groups['h'].Value)") }
             if ($m.Groups['a'].Success -and $m.Groups['a'].Value -ne $file.BaseName) { $problems.Add("-Agent $($m.Groups['a'].Value) in $($file.Name)") }
         }
-        if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
+        if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'site-steward', 'pr-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
         Test-Wiring "frontmatter of $($file.Name)" $problems
     }
     $settingsProblems = [System.Collections.Generic.List[string]]::new()
