@@ -24,6 +24,35 @@ public sealed class CdcProcessorDeadLetterTests
 
     private static readonly DateTime FixedUtcNow = new(2026, 2, 15, 12, 0, 0, DateTimeKind.Utc);
 
+    /// <summary>
+    /// Forwards to an inner <see cref="ICdcDeadLetterStore"/> and completes a
+    /// <see cref="TaskCompletionSource"/> once <see cref="AddAsync"/> returns, giving tests a
+    /// positive signal that the dead-letter write happened instead of a fixed delay.
+    /// </summary>
+    private sealed class SignalingDeadLetterStore(ICdcDeadLetterStore inner, TaskCompletionSource addCompleted)
+        : ICdcDeadLetterStore
+    {
+        public async Task<Either<EncinaError, Unit>> AddAsync(
+            CdcDeadLetterEntry entry,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await inner.AddAsync(entry, cancellationToken).ConfigureAwait(false);
+            addCompleted.TrySetResult();
+            return result;
+        }
+
+        public Task<Either<EncinaError, IReadOnlyList<CdcDeadLetterEntry>>> GetPendingAsync(
+            int maxCount,
+            CancellationToken cancellationToken = default)
+            => inner.GetPendingAsync(maxCount, cancellationToken);
+
+        public Task<Either<EncinaError, Unit>> ResolveAsync(
+            Guid id,
+            CdcDeadLetterResolution resolution,
+            CancellationToken cancellationToken = default)
+            => inner.ResolveAsync(id, resolution, cancellationToken);
+    }
+
     private static ChangeEvent CreateTestEvent(string tableName = "Orders", long positionValue = 1)
     {
         return new ChangeEvent(
@@ -197,6 +226,8 @@ public sealed class CdcProcessorDeadLetterTests
         };
 
         var dlqStore = new FakeCdcDeadLetterStore();
+        var addCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var signalingDlqStore = new SignalingDeadLetterStore(dlqStore, addCompleted);
 
         var services = new ServiceCollection();
         services.AddSingleton(connector);
@@ -205,26 +236,16 @@ public sealed class CdcProcessorDeadLetterTests
         var serviceProvider = services.BuildServiceProvider();
 
         var logger = NullLogger<CdcProcessor>.Instance;
-        var processor = new CdcProcessor(serviceProvider, logger, options, dlqStore);
+        var processor = new CdcProcessor(serviceProvider, logger, options, signalingDlqStore);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource();
 
-        // Act - let the processor run until retries are exhausted
-        // The processor will: fail once → retry (1) → fail → retry (2) → fail → exceed maxRetries → persist to DLQ → then we cancel
-        try
-        {
-            await processor.StartAsync(cts.Token);
-            // Give time for the retry loop to exhaust and persist
-            await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
-        }
-        finally
-        {
-            await processor.StopAsync(CancellationToken.None);
-        }
+        // Act - let the processor run until retries are exhausted and persisted to the DLQ:
+        // fail once -> retry (1) -> fail -> retry (2) -> fail -> exceed maxRetries -> persist -> cancel
+        await processor.StartAsync(cts.Token);
+        await addCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        cts.Cancel();
+        await processor.StopAsync(CancellationToken.None);
 
         // Assert
         var entries = dlqStore.GetEntries();
@@ -246,30 +267,34 @@ public sealed class CdcProcessorDeadLetterTests
     public async Task ExecuteAsync_NoDlqStore_DoesNotThrow()
     {
         // Arrange
+        var streamAttempts = 0;
+        var streamedAfterExhaustion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var connector = Substitute.For<ICdcConnector>();
         connector.ConnectorId.Returns("test-connector");
         connector.StreamChangesAsync(Arg.Any<CancellationToken>())
             .Returns<IAsyncEnumerable<Either<EncinaError, ChangeEvent>>>(_ =>
-                throw new InvalidOperationException("Stream failed"));
+            {
+                // MaxRetries = 2 (see CreateProcessorWithoutDlq): the third failed attempt
+                // exhausts retries and exercises the no-DLQ-configured path once. Wait for a
+                // fourth attempt to prove the loop kept running afterward without faulting.
+                if (Interlocked.Increment(ref streamAttempts) >= 4)
+                {
+                    streamedAfterExhaustion.TrySetResult();
+                }
+
+                throw new InvalidOperationException("Stream failed");
+            });
 
         var processor = CreateProcessorWithoutDlq(connector: connector);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var cts = new CancellationTokenSource();
 
         // Act - should not throw even when retries are exhausted and no DLQ store
-        try
-        {
-            await processor.StartAsync(cts.Token);
-            await Task.Delay(TimeSpan.FromSeconds(1), cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
-        }
-        finally
-        {
-            await processor.StopAsync(CancellationToken.None);
-        }
+        await processor.StartAsync(cts.Token);
+        await streamedAfterExhaustion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        cts.Cancel();
+        await processor.StopAsync(CancellationToken.None);
 
         // Assert - no exception means the test passes
     }
@@ -282,10 +307,15 @@ public sealed class CdcProcessorDeadLetterTests
     public async Task ExecuteAsync_DlqStoreFails_ContinuesProcessing()
     {
         // Arrange - use a DLQ store that always fails
+        var addAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var failingDlqStore = Substitute.For<ICdcDeadLetterStore>();
         failingDlqStore.AddAsync(Arg.Any<CdcDeadLetterEntry>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Left<EncinaError, Unit>(
-                EncinaError.New("DLQ store failed"))));
+            .Returns(_ =>
+            {
+                addAttempted.TrySetResult();
+                return Task.FromResult(Left<EncinaError, Unit>(
+                    EncinaError.New("DLQ store failed")));
+            });
 
         var connector = Substitute.For<ICdcConnector>();
         connector.ConnectorId.Returns("test-connector");
@@ -311,22 +341,13 @@ public sealed class CdcProcessorDeadLetterTests
         var logger = NullLogger<CdcProcessor>.Instance;
         var processor = new CdcProcessor(serviceProvider, logger, options, failingDlqStore);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var cts = new CancellationTokenSource();
 
         // Act - processor should not crash even when DLQ store fails
-        try
-        {
-            await processor.StartAsync(cts.Token);
-            await Task.Delay(TimeSpan.FromSeconds(1), cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
-        }
-        finally
-        {
-            await processor.StopAsync(CancellationToken.None);
-        }
+        await processor.StartAsync(cts.Token);
+        await addAttempted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        cts.Cancel();
+        await processor.StopAsync(CancellationToken.None);
 
         // Assert - the processor continued running (didn't crash)
         // No exception means the processor was resilient to DLQ store failures
@@ -352,11 +373,11 @@ public sealed class CdcProcessorDeadLetterTests
         var logger = NullLogger<CdcProcessor>.Instance;
         var processor = new CdcProcessor(serviceProvider, logger, options, dlqStore);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        using var cts = new CancellationTokenSource();
 
-        // Act
+        // Act - a disabled processor's ExecuteAsync returns immediately, so there is no
+        // loop iteration to wait for.
         await processor.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(200), cts.Token);
         await processor.StopAsync(CancellationToken.None);
 
         // Assert
