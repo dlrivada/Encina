@@ -272,9 +272,9 @@ function Test-FileAnchorMatch {
 }
 
 # Expands a shell-style brace pattern ('a/{b,c}/{d,e}.cs' -> a/b/d.cs, a/b/e.cs, a/c/d.cs, a/c/e.cs), one
-# non-nested group at a time, left to right. Capped at 512 expansions so a pathological candidate cannot make
-# the duplicate check slow; past the cap the remaining expansions are simply not produced (no match, the
-# strict direction).
+# non-nested group at a time, left to right. Capped at about 512 expansions so a pathological candidate cannot
+# make the duplicate check slow: once the pending and finished expansions together pass the cap, the loop
+# stops and a pattern that large may return few or no expansions at all (no match, the strict direction).
 function Expand-BracePattern {
     param([string]$Pattern)
 
