@@ -129,7 +129,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
                 _logger.ErasureFailed(error.Message);
 
                 stopwatch.Stop();
-                DataSubjectRightsDiagnostics.RecordFailed(activity, error.Message);
+                DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
                 DataSubjectRightsDiagnostics.ErasureDuration.Record(stopwatch.Elapsed.TotalMilliseconds);
 
                 return error;
