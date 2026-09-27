@@ -16,7 +16,7 @@ This page is for a contributor who needs to know what was measured before touchi
 - Pilot shard: `**/Dispatchers/Strategies/*.cs`, filter `FullyQualifiedName~Dispatchers.Strategies`, concurrency 2, and the same six `--mutate:!` exclusions as `.github/workflows/mutation-tests.yml` (`Log.cs`, `LogMessages.cs`, `Diagnostics/*ActivitySource.cs`, `Diagnostics/*Metrics.cs`, `*Errors.cs`, `*Constants.cs`). In scope: 3 files (`ParallelDispatchStrategy.cs`, `ParallelWhenAllDispatchStrategy.cs`, `SequentialDispatchStrategy.cs`), 64 mutants.
 - Each run used its own copy of `.github/stryker-config.json` under `artifacts/mutation/configs/`, differing only in `test-case-filter` (patched the same way CI patches it), `coverage-analysis`, and, for the project-mode runs, removing the `solution`/`test-projects` keys and setting `project: Encina.csproj`. The tracked `.github/stryker-config.json` was not changed.
 - Solution pre-built once in Release (103 s) before run 1; Stryker itself builds Debug in every run.
-- Stryker 5.0.0 was installed through the tool manifest (`.config/dotnet-tools.json` 4.14.0 → 5.0.0) for runs 2-8.
+- Stryker 5.0.0 was installed by bumping `.config/dotnet-tools.json` from 4.14.0 to 5.0.0 on this spike branch only, for runs 2-8; the bump was reverted to 4.14.0 before merging, because merging it alone would switch CI to Stryker 5.0.0 with the VsTest runner, which still kills no mutant, and the bump belongs with the MTP runner migration follow-up.
 - The second shard (`Pipeline/Behaviors`) was **not run**: the 3-hour time box was spent on the pilot shard's option A variants (runs 3-5, 8).
 
 ## 2. Runs
