@@ -25,7 +25,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// result.Match(
 ///     Right: response => File.WriteAllBytes(
 ///         response.ExportedData.FileName, response.ExportedData.Content),
-///     Left: error => Console.WriteLine($"Export failed: {error.Message}"));
+///     Left: error => Console.WriteLine($"Export failed: {error.GetCode().IfNone("encina.unknown")}"));
 /// </code>
 /// </example>
 public interface IDataPortabilityExporter

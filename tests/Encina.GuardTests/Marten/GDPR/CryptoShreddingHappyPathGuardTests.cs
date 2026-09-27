@@ -377,7 +377,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
     public void CryptoShreddingErrors_InvalidSubjectId_NullAllowed()
     {
         var error = CryptoShreddingErrors.InvalidSubjectId(null);
-        error.Message.ShouldContain("(null)");
+        error.Message.ShouldContain("non-empty string");
     }
 
     [Fact]
@@ -437,7 +437,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
     public void CryptoShreddingErrors_KeyAlreadyExists_ReturnsError()
     {
         var error = CryptoShreddingErrors.KeyAlreadyExists("u");
-        error.Message.ShouldContain("u");
+        error.Message.ShouldContain("key rotation");
     }
 
     [Fact]
