@@ -39,6 +39,10 @@
 #                 fabricate a stage's outcome. A successful write records its author in the sidecar
 #                 artifacts/knowledge/stages/.authors.json, which audit-commit-stage.ps1 checks before
 #                 committing.
+#   site-steward  (#1382) writes ONLY under artifacts/site-health/** (its own report and the issue/comment
+#                 drafts the site-health skill prepares); everything else in the repository is denied, because
+#                 the agent is read-only on the repository (it never fixes a broken workflow itself: a failing
+#                 publisher goes to ci-diagnoser).
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -285,6 +289,12 @@ try {
             }
             [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/ and, for issue-archivist, the knowledge record under artifacts/knowledge/issues/; '$relative' is not one of them (#1345). This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
             return $false
+        }
+        elseif ($Agent -eq 'site-steward') {
+            if ($relative -notmatch '^artifacts/site-health/') {
+                [Console]::Error.WriteLine("Blocked: site-steward writes only under artifacts/site-health/** (its own report and the issue/comment drafts the site-health skill prepares, #1382); '$relative' is not one of them. It is read-only on the rest of the repository: report anything else to the orchestrator, or hand a failing publisher to ci-diagnoser, instead of editing it.")
+                return $false
+            }
         }
 
         return $true

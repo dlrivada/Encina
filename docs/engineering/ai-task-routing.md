@@ -69,6 +69,7 @@ The table above routes *roles* between the local model and Claude. Within the Cl
 |---|---|---|---|
 | `pr-watcher` | Haiku 4.5 / low | Watches a PR and reports each failed check, bot review and the merge as they happen. Superseded for routine watching by `tools/ai/watch-pr-events.ps1` run as a background monitor, which costs no model tokens; keep the agent for PRs whose events need judgement to triage | No |
 | `ci-diagnoser` | Sonnet 5 / medium | Root-causes one failed job or test and proposes the minimal fix | No |
+| `site-steward` | Haiku 4.5 / low | Checks every published site and feed in `tools/ai/sites.json`, prepares the control board's `dash/*`/`stats/*` snapshots, and drafts a tracking-issue comment or a new issue file for each failure | Yes (only `artifacts/site-health/**`) |
 | `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
 | `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
 | `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |

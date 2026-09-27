@@ -31,5 +31,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Validate the site registry
+        run: dotnet run --file .github/scripts/dashboard-freshness.cs -- --check-registry
+
       - name: Check the age of every published dashboard
         run: dotnet run --file .github/scripts/dashboard-freshness.cs -- --summary "$GITHUB_STEP_SUMMARY"
