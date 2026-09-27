@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
 using Encina.ADO.PostgreSQL.Repository;
@@ -6,7 +7,6 @@ using Encina.DomainModeling;
 using Encina.Messaging.Temporal;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using static LanguageExt.Prelude;
 
 namespace Encina.ADO.PostgreSQL.Temporal;
@@ -62,11 +62,11 @@ namespace Encina.ADO.PostgreSQL.Temporal;
 /// });
 ///
 /// // Use repository
-/// public class OrderAuditService(ITemporalRepository&lt;Order, Guid&gt; repository)
+/// public class OrderAuditService(ITemporalRepository&lt;Order, Guid&gt; repository, TimeProvider timeProvider)
 /// {
 ///     public Task&lt;Either&lt;RepositoryError, Order&gt;&gt; GetOrderStateLastWeekAsync(Guid id)
 ///     {
-///         var lastWeek = DateTime.UtcNow.AddDays(-7);
+///         var lastWeek = timeProvider.GetUtcNow().UtcDateTime.AddDays(-7);
 ///         return repository.GetAsOfAsync(id, lastWeek);
 ///     }
 /// }
@@ -127,7 +127,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     /// <inheritdoc/>
     public async Task<Option<TEntity>> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
     {
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         using var command = CreateCommand(_selectByIdSql);
         AddParameter(command, "@Id", id);
@@ -144,7 +144,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     /// <inheritdoc/>
     public async Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         using var command = CreateCommand(_selectAllSql);
         using var reader = await ExecuteReaderAsync(command, cancellationToken);
@@ -165,7 +165,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
         var (sql, addParameters) = sqlBuilder.BuildSelectStatement(_mapping.TableName, specification);
@@ -191,7 +191,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
         var (whereClause, addParameters) = sqlBuilder.BuildWhereClause(specification);
@@ -229,7 +229,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
         var (whereClause, addParameters) = sqlBuilder.BuildWhereClause(specification);
@@ -261,7 +261,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
         var (whereClause, addParameters) = sqlBuilder.BuildWhereClause(specification);
@@ -277,7 +277,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     /// <inheritdoc/>
     public async Task<int> CountAsync(CancellationToken cancellationToken = default)
     {
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         using var command = CreateCommand(_countSql);
         var result = await ExecuteScalarAsync(command, cancellationToken);
@@ -301,7 +301,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             LIMIT @PageSize OFFSET @Offset
             """;
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         using var command = CreateCommand(sql);
         AddParameter(command, "@Offset", offset);
@@ -342,7 +342,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             LIMIT @PageSize OFFSET @Offset
             """;
 
-        EnsureConnectionOpen();
+        await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
 
         using var command = CreateCommand(sql);
         addParameters(command);
@@ -370,57 +370,43 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         DateTime asOfUtc,
         CancellationToken cancellationToken = default)
     {
-        var validationResult = ValidateUtcDateTime(asOfUtc, nameof(asOfUtc));
-        if (validationResult.IsLeft)
+        var preCheck = ValidateAndLog(
+            asOfUtc,
+            nameof(asOfUtc),
+            () => Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc));
+        if (preCheck.IsLeft)
         {
-            return validationResult.Map(_ => default(TEntity)!);
+            return preCheck.Map(_ => default(TEntity)!);
         }
 
-        try
-        {
-            if (_options.LogTemporalQueries)
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+
+        // PostgreSQL temporal_tables: Query current table + history table with period range check
+        var sql = $"""
+            SELECT {columns}
+            FROM (
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.TableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+                UNION ALL
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.HistoryTableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+            ) AS temporal_data
+            WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
+            LIMIT 1
+            """;
+
+        return await ExecuteSingleEntityQueryAsync(
+            sql,
+            command =>
             {
-                Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc);
-            }
-
-            EnsureConnectionOpen();
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // PostgreSQL temporal_tables: Query current table + history table with period range check
-            var sql = $"""
-                SELECT {columns}
-                FROM (
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.TableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                    UNION ALL
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.HistoryTableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                ) AS temporal_data
-                WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
-                LIMIT 1
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@Id", id);
-            AddParameter(command, "@AsOfUtc", asOfUtc);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-            if (await ReadAsync(reader, cancellationToken))
-            {
-                return Right<RepositoryError, TEntity>(MaterializeEntity(reader));
-            }
-
-            return Left<RepositoryError, TEntity>(
-                RepositoryError.NotFound<TEntity, TId>(id!));
-        }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, TEntity>(
-                RepositoryError.OperationFailed<TEntity>("GetAsOf", ex));
-        }
+                AddParameter(command, "@Id", id);
+                AddParameter(command, "@AsOfUtc", asOfUtc);
+            },
+            "GetAsOf",
+            () => RepositoryError.NotFound<TEntity, TId>(id!),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -428,50 +414,33 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         TId id,
         CancellationToken cancellationToken = default)
     {
-        try
+        if (_options.LogTemporalQueries)
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryHistory(_logger, typeof(TEntity).Name, id?.ToString() ?? "null");
-            }
-
-            EnsureConnectionOpen();
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // Query both current and history tables
-            var sql = $"""
-                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start
-                FROM (
-                    SELECT {columns}, "{_mapping.PeriodStartColumnName}"
-                    FROM {_mapping.TableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                    UNION ALL
-                    SELECT {columns}, "{_mapping.PeriodStartColumnName}"
-                    FROM {_mapping.HistoryTableName}
-                    WHERE "{_mapping.IdColumnName}" = @Id
-                ) AS temporal_data
-                ORDER BY period_start DESC
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@Id", id);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-
-            var results = new List<TEntity>();
-            while (await ReadAsync(reader, cancellationToken))
-            {
-                results.Add(MaterializeEntity(reader));
-            }
-
-            return Right<RepositoryError, IReadOnlyList<TEntity>>(results);
+            Log.TemporalQueryHistory(_logger, typeof(TEntity).Name, id?.ToString() ?? "null");
         }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("GetHistory", ex));
-        }
+
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+
+        // Query both current and history tables
+        var sql = $"""
+            SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start
+            FROM (
+                SELECT {columns}, "{_mapping.PeriodStartColumnName}"
+                FROM {_mapping.TableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+                UNION ALL
+                SELECT {columns}, "{_mapping.PeriodStartColumnName}"
+                FROM {_mapping.HistoryTableName}
+                WHERE "{_mapping.IdColumnName}" = @Id
+            ) AS temporal_data
+            ORDER BY period_start DESC
+            """;
+
+        return await ExecuteListQueryAsync(
+            command => AddParameter(command, "@Id", id),
+            sql,
+            "GetHistory",
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -480,70 +449,39 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         DateTime toUtc,
         CancellationToken cancellationToken = default)
     {
-        var fromValidation = ValidateUtcDateTime(fromUtc, nameof(fromUtc));
-        if (fromValidation.IsLeft)
+        var preCheck = ValidateChangedBetweenRange(
+            fromUtc,
+            toUtc,
+            () => Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc));
+        if (preCheck.IsLeft)
         {
-            return fromValidation.Map(_ => (IReadOnlyList<TEntity>)[]);
+            return preCheck.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
-        var toValidation = ValidateUtcDateTime(toUtc, nameof(toUtc));
-        if (toValidation.IsLeft)
-        {
-            return toValidation.Map(_ => (IReadOnlyList<TEntity>)[]);
-        }
+        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
 
-        if (fromUtc > toUtc)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                new RepositoryError(
-                    $"Invalid time range: fromUtc ({fromUtc:O}) must be less than or equal to toUtc ({toUtc:O})",
-                    "REPOSITORY_INVALID_TIME_RANGE",
-                    typeof(TEntity)));
-        }
+        // Query records that were active at any point during the range
+        var sql = $"""
+            SELECT {columns}
+            FROM (
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.TableName}
+                UNION ALL
+                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                FROM {_mapping.HistoryTableName}
+            ) AS temporal_data
+            WHERE "{_mapping.PeriodStartColumnName}" && tstzrange(@FromUtc, @ToUtc, '[]')
+            """;
 
-        try
-        {
-            if (_options.LogTemporalQueries)
+        return await ExecuteListQueryAsync(
+            command =>
             {
-                Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc);
-            }
-
-            EnsureConnectionOpen();
-
-            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-
-            // Query records that were active at any point during the range
-            var sql = $"""
-                SELECT {columns}
-                FROM (
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.TableName}
-                    UNION ALL
-                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                    FROM {_mapping.HistoryTableName}
-                ) AS temporal_data
-                WHERE "{_mapping.PeriodStartColumnName}" && tstzrange(@FromUtc, @ToUtc, '[]')
-                """;
-
-            using var command = CreateCommand(sql);
-            AddParameter(command, "@FromUtc", fromUtc);
-            AddParameter(command, "@ToUtc", toUtc);
-
-            using var reader = await ExecuteReaderAsync(command, cancellationToken);
-
-            var results = new List<TEntity>();
-            while (await ReadAsync(reader, cancellationToken))
-            {
-                results.Add(MaterializeEntity(reader));
-            }
-
-            return Right<RepositoryError, IReadOnlyList<TEntity>>(results);
-        }
-        catch (Exception ex)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("GetChangedBetween", ex));
-        }
+                AddParameter(command, "@FromUtc", fromUtc);
+                AddParameter(command, "@ToUtc", toUtc);
+            },
+            sql,
+            "GetChangedBetween",
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -554,28 +492,33 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        var validationResult = ValidateUtcDateTime(asOfUtc, nameof(asOfUtc));
-        if (validationResult.IsLeft)
+        var preCheck = ValidateAndLog(
+            asOfUtc,
+            nameof(asOfUtc),
+            () => Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc));
+        if (preCheck.IsLeft)
         {
-            return validationResult.Map(_ => (IReadOnlyList<TEntity>)[]);
+            return preCheck.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
+        // SpecificationSqlBuilder.BuildWhereClause can throw NotSupportedException for an
+        // expression it cannot translate; build the query string inside its own try/catch so that
+        // failure is reported the same way as any other query failure (Either.Left), matching the
+        // pre-refactor behavior where this was part of the method's single try block.
+        string sql;
+        Action<IDbCommand> addParameters;
         try
         {
-            if (_options.LogTemporalQueries)
-            {
-                Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc);
-            }
-
-            EnsureConnectionOpen();
-
             var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
-            var (whereClause, addParameters) = sqlBuilder.BuildWhereClause(specification);
+            var (whereClause, addSpecificationParameters) = sqlBuilder.BuildWhereClause(specification);
 
             var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+            var extraFilter = string.IsNullOrWhiteSpace(whereClause)
+                ? string.Empty
+                : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}";
 
             // Build temporal query with specification filter
-            var sql = $"""
+            sql = $"""
                 SELECT {columns}
                 FROM (
                     SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
@@ -585,11 +528,74 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
                     FROM {_mapping.HistoryTableName}
                 ) AS temporal_data
                 WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
-                {(string.IsNullOrWhiteSpace(whereClause) ? "" : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}")}
+                {extraFilter}
                 """;
 
+            addParameters = command =>
+            {
+                AddParameter(command, "@AsOfUtc", asOfUtc);
+                addSpecificationParameters(command);
+            };
+        }
+        catch (Exception ex)
+        {
+            return Left<RepositoryError, IReadOnlyList<TEntity>>(
+                RepositoryError.OperationFailed<TEntity>("ListAsOf", ex));
+        }
+
+        return await ExecuteListQueryAsync(addParameters, sql, "ListAsOf", cancellationToken).ConfigureAwait(false);
+    }
+
+    #endregion
+
+    #region Shared Query Execution
+
+    // Shared by GetAsOfAsync: opens the connection, runs the query, materializes at most one
+    // entity from the reader, and maps a missing row / a thrown exception to the caller's Either.
+    // Extracted so the four temporal query methods do not each repeat the try/catch and reader
+    // loop, which is what pushed their cyclomatic complexity into the CRAP gate (#1325 follow-up).
+    private async Task<Either<RepositoryError, TEntity>> ExecuteSingleEntityQueryAsync(
+        string sql,
+        Action<IDbCommand> addParameters,
+        string operationName,
+        Func<RepositoryError> notFoundError,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
+
             using var command = CreateCommand(sql);
-            AddParameter(command, "@AsOfUtc", asOfUtc);
+            addParameters(command);
+
+            using var reader = await ExecuteReaderAsync(command, cancellationToken);
+            if (await ReadAsync(reader, cancellationToken))
+            {
+                return Right<RepositoryError, TEntity>(MaterializeEntity(reader));
+            }
+
+            return Left<RepositoryError, TEntity>(notFoundError());
+        }
+        catch (Exception ex)
+        {
+            return Left<RepositoryError, TEntity>(
+                RepositoryError.OperationFailed<TEntity>(operationName, ex));
+        }
+    }
+
+    // Shared by GetHistoryAsync, GetChangedBetweenAsync and ListAsOfAsync: same shape as
+    // ExecuteSingleEntityQueryAsync but materializes every row into a list.
+    private async Task<Either<RepositoryError, IReadOnlyList<TEntity>>> ExecuteListQueryAsync(
+        Action<IDbCommand> addParameters,
+        string sql,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
+
+            using var command = CreateCommand(sql);
             addParameters(command);
 
             using var reader = await ExecuteReaderAsync(command, cancellationToken);
@@ -605,7 +611,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         catch (Exception ex)
         {
             return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                RepositoryError.OperationFailed<TEntity>("ListAsOf", ex));
+                RepositoryError.OperationFailed<TEntity>(operationName, ex));
         }
     }
 
@@ -620,7 +626,7 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             return Left<RepositoryError, Unit>(
                 new RepositoryError(
                     $"DateTime parameter '{parameterName}' must be UTC. Received Kind: {dateTime.Kind}. " +
-                    $"Use DateTime.UtcNow or DateTimeOffset.UtcNow.UtcDateTime for correct behavior.",
+                    $"Use a TimeProvider's GetUtcNow().UtcDateTime for correct behavior.",
                     "REPOSITORY_INVALID_DATETIME_KIND",
                     typeof(TEntity)));
         }
@@ -628,11 +634,71 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         return Right<RepositoryError, Unit>(unit);
     }
 
-    private void EnsureConnectionOpen()
+    // Combines the UTC validation and the "log if enabled" check into a single synchronous call so
+    // the async query methods (GetAsOfAsync, ListAsOfAsync) each carry a single branch instead of two
+    // — the branching itself still happens here, in a plain method, rather than being duplicated
+    // inside every async state machine the CRAP gate measures (#1325 follow-up).
+    private Either<RepositoryError, Unit> ValidateAndLog(DateTime dateTime, string parameterName, Action logAction)
+    {
+        var validationResult = ValidateUtcDateTime(dateTime, parameterName);
+        if (validationResult.IsLeft)
+        {
+            return validationResult;
+        }
+
+        if (_options.LogTemporalQueries)
+        {
+            logAction();
+        }
+
+        return Right<RepositoryError, Unit>(unit);
+    }
+
+    // Same purpose as ValidateAndLog, for GetChangedBetweenAsync's two-date range plus its
+    // fromUtc/toUtc ordering check.
+    private Either<RepositoryError, Unit> ValidateChangedBetweenRange(DateTime fromUtc, DateTime toUtc, Action logAction)
+    {
+        var fromValidation = ValidateUtcDateTime(fromUtc, nameof(fromUtc));
+        if (fromValidation.IsLeft)
+        {
+            return fromValidation;
+        }
+
+        var toValidation = ValidateUtcDateTime(toUtc, nameof(toUtc));
+        if (toValidation.IsLeft)
+        {
+            return toValidation;
+        }
+
+        if (fromUtc > toUtc)
+        {
+            return Left<RepositoryError, Unit>(
+                new RepositoryError(
+                    $"Invalid time range: fromUtc ({fromUtc:O}) must be less than or equal to toUtc ({toUtc:O})",
+                    "REPOSITORY_INVALID_TIME_RANGE",
+                    typeof(TEntity)));
+        }
+
+        if (_options.LogTemporalQueries)
+        {
+            logAction();
+        }
+
+        return Right<RepositoryError, Unit>(unit);
+    }
+
+    private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
     {
         if (_connection.State != ConnectionState.Open)
         {
-            _connection.Open();
+            if (_connection is DbConnection dbConnection)
+            {
+                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await Task.Run(_connection.Open, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -654,32 +720,32 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is NpgsqlCommand npgsqlCommand)
+        if (command is DbCommand dbCommand)
         {
-            return await npgsqlCommand.ExecuteReaderAsync(cancellationToken);
+            return await dbCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return command.ExecuteReader();
+        return await Task.Run(command.ExecuteReader, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<object?> ExecuteScalarAsync(IDbCommand command, CancellationToken cancellationToken)
     {
-        if (command is NpgsqlCommand npgsqlCommand)
+        if (command is DbCommand dbCommand)
         {
-            return await npgsqlCommand.ExecuteScalarAsync(cancellationToken);
+            return await dbCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return command.ExecuteScalar();
+        return await Task.Run(command.ExecuteScalar, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<bool> ReadAsync(IDataReader reader, CancellationToken cancellationToken)
     {
-        if (reader is NpgsqlDataReader npgsqlReader)
+        if (reader is DbDataReader dbReader)
         {
-            return await npgsqlReader.ReadAsync(cancellationToken);
+            return await dbReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return reader.Read();
+        return await Task.Run(reader.Read, cancellationToken).ConfigureAwait(false);
     }
 
     private TEntity MaterializeEntity(IDataReader reader)

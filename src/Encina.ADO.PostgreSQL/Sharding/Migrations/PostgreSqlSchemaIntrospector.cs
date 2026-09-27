@@ -13,11 +13,13 @@ namespace Encina.ADO.PostgreSQL.Sharding.Migrations;
 internal sealed class PostgreSqlSchemaIntrospector : ISchemaIntrospector
 {
     private readonly IShardedConnectionFactory _connectionFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public PostgreSqlSchemaIntrospector(IShardedConnectionFactory connectionFactory)
+    public PostgreSqlSchemaIntrospector(IShardedConnectionFactory connectionFactory, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -69,7 +71,7 @@ internal sealed class PostgreSqlSchemaIntrospector : ISchemaIntrospector
             .ConfigureAwait(false);
     }
 
-    private static async Task<ShardSchema> ReadSchemaAsync(
+    private async Task<ShardSchema> ReadSchemaAsync(
         string shardId,
         IDbConnection connection,
         bool includeColumns,
@@ -108,7 +110,7 @@ internal sealed class PostgreSqlSchemaIntrospector : ISchemaIntrospector
             tables.Add(new TableSchema(tableName, columns));
         }
 
-        return new ShardSchema(shardId, tables, DateTimeOffset.UtcNow);
+        return new ShardSchema(shardId, tables, _timeProvider.GetUtcNow());
     }
 
     private static async Task<IReadOnlyList<ColumnSchema>> ReadColumnsAsync(

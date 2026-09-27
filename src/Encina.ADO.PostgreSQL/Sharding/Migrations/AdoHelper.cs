@@ -15,7 +15,7 @@ internal static class AdoHelper
             return await dbCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return command.ExecuteReader();
+        return await Task.Run(command.ExecuteReader, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<int> ExecuteNonQueryAsync(IDbCommand command, CancellationToken cancellationToken)
@@ -25,7 +25,7 @@ internal static class AdoHelper
             return await dbCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return command.ExecuteNonQuery();
+        return await Task.Run(command.ExecuteNonQuery, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<bool> ReadAsync(IDataReader reader, CancellationToken cancellationToken)
@@ -35,7 +35,7 @@ internal static class AdoHelper
             return await dbReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return reader.Read();
+        return await Task.Run(reader.Read, cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task CloseReaderAsync(IDataReader reader)

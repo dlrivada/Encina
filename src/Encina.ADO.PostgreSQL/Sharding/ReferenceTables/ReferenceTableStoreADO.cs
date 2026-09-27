@@ -1,7 +1,7 @@
 using System.Data;
+using System.Data.Common;
 using Encina.Sharding.ReferenceTables;
 using LanguageExt;
-using Npgsql;
 
 namespace Encina.ADO.PostgreSQL.Sharding.ReferenceTables;
 
@@ -81,9 +81,9 @@ public sealed class ReferenceTableStoreADO(IDbConnection connection) : IReferenc
 
             var results = new List<TEntity>();
 
-            if (command is NpgsqlCommand npgsqlCommand)
+            if (command is DbCommand dbCommand)
             {
-                await using var reader = await npgsqlCommand.ExecuteReaderAsync(cancellationToken)
+                await using var reader = await dbCommand.ExecuteReaderAsync(cancellationToken)
                     .ConfigureAwait(false);
 
                 while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -93,9 +93,9 @@ public sealed class ReferenceTableStoreADO(IDbConnection connection) : IReferenc
             }
             else
             {
-                using var reader = command.ExecuteReader();
+                using var reader = await Task.Run(command.ExecuteReader, cancellationToken).ConfigureAwait(false);
 
-                while (reader.Read())
+                while (await Task.Run(reader.Read, cancellationToken).ConfigureAwait(false))
                 {
                     results.Add(MapEntity<TEntity>(reader, metadata));
                 }
@@ -165,9 +165,9 @@ public sealed class ReferenceTableStoreADO(IDbConnection connection) : IReferenc
 
         command.CommandText = sql;
 
-        if (command is NpgsqlCommand npgsqlCommand)
+        if (command is DbCommand dbCommand)
         {
-            return await npgsqlCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return await dbCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return await Task.Run(command.ExecuteNonQuery, cancellationToken).ConfigureAwait(false);
