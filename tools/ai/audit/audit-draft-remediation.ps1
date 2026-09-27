@@ -167,6 +167,19 @@ function Build-DraftBrief([string]$IssueNumber, [pscustomobject]$Finding, [strin
         "`n- Priority: tick $priority (from the finding's severity: Blocker -> High, Major -> Medium, Minor/Unknown -> Low).`n- Effort Estimate: use your own judgement (Small/Medium/Large) from the finding's scope."
     }
     else { '' }
+    # #1409: the model has no way to know the real Encina/.NET version or OS for a static-analysis finding, so
+    # it otherwise copies bug_report.md's own bracketed placeholders through unchanged. The script overwrites
+    # this whole section deterministically after the model replies (Set-BugEnvironment, called from
+    # Repair-Draft below) regardless of what the model writes here, but this note still asks the model to match
+    # those same facts, so its own prose elsewhere in the draft (e.g. Additional Context) stays consistent with
+    # the section the script will actually keep.
+    $envNote = if ($Route.Template -eq 'bug_report.md') {
+        $version = Get-EncinaVersion $wt
+        $inferredPackage = Get-PackageFromFindingText $Finding.Text
+        $packageHint = if ($inferredPackage) { $inferredPackage } else { "the package the finding's file path names" }
+        "`n- Environment: this section will be overwritten deterministically after you reply, so match it rather than guessing -- Encina Version `"$version`", .NET Version `".NET 10`", OS `"Not applicable (found by static review of the code, not at runtime)`", Package(s) Affected `"$packageHint`"."
+    }
+    else { '' }
     return @"
 Draft ONE remediation issue file for a finding from the SPEC-003 audit of closed GitHub issue #$IssueNumber of
 the Encina .NET library ($($Finding.Stage) stage, finding $($Finding.Id), severity $($Finding.Severity)). Use
@@ -185,7 +198,7 @@ $templateBody
 Guidance:
 - Put the finding's file:line evidence in the Location (or Steps to Reproduce) section.
 - Related Issues: include #$IssueNumber and any of these candidate open issues that are related but are NOT
-  the same problem (a same-problem duplicate must never reach this step): $CandidateLines$priorityNote$docsNote
+  the same problem (a same-problem duplicate must never reach this step): $CandidateLines$priorityNote$docsNote$envNote
 "@
 }
 
@@ -197,15 +210,21 @@ Guidance:
 # per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
 # (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
 # finding was drafted against.
-function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList) {
+function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot) {
     $raw = Get-Content -LiteralPath $Path -Raw
     $defenced = Remove-OuterFence $raw
     if ($defenced -ne $raw) {
-        Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $defenced
         $LessonsList.Add("$Label`: draft $(Split-Path -Leaf $Path) was wrapped in an outer code fence; stripped it before writing.")
     }
+    # #1409: for a bug_report.md-routed draft, the '## Environment' section is overwritten deterministically
+    # here, BEFORE Find-TemplatePlaceholders runs below, so the model's own guess at facts it cannot know (the
+    # Encina/.NET version, the OS) is never what decides whether the draft is clean.
+    $repaired = if ($RouteTemplateFile -eq 'bug_report.md') { Set-BugEnvironment $defenced $RepoRoot $FindingText } else { $defenced }
+    if ($repaired -ne $raw) {
+        Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $repaired
+    }
     $templateText = Get-Content -LiteralPath (Join-Path $templatesDir $RouteTemplateFile) -Raw
-    return (Find-TemplatePlaceholders $templateText $defenced)
+    return (Find-TemplatePlaceholders $templateText $repaired)
 }
 
 $stageNames = 'code', 'tests', 'docs'
@@ -434,7 +453,7 @@ $candidateLinesForClassify
     # template's own placeholder text survived into the draft. A draft that still has placeholders after the
     # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
     # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $route.Template $lessons
+    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt
     if ($placeholders.Count -gt 0) {
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
@@ -459,7 +478,7 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
             Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
             exit 1
         }
-        $placeholders = Repair-Draft $outFile $label $route.Template $lessons
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt
     }
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it

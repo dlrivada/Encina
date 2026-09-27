@@ -1687,6 +1687,120 @@ try {
     }
     # ---- end #1400 block ----
 
+    # ---- #1409: tools/ai/audit/_remediation-checks.ps1 -- Set-BugEnvironment (Get-EncinaVersion,
+    # Get-PackageFromFindingText, Test-PlaceholderEnvironmentValue) fills bug_report.md's own '## Environment'
+    # section deterministically after the model replies, so a code-stage finding routed to [BUG] never keeps
+    # the template's Encina/.NET Version and OS placeholders forever -- the local model has no way to know
+    # those facts, and even the one re-ask left them unfilled on audit #16's own 16-code-5 draft (this issue's
+    # own reproduction). No `gh` and no local model here either; Get-EncinaVersion reads a small throwaway
+    # Directory.Build.props fixture under $work, never the real repository's.
+    $bugReportTemplateTextFor1409 = Get-Content -LiteralPath (Join-Path $repo '.github\ISSUE_TEMPLATE\bug_report.md') -Raw
+
+    $envFixtureRoot = Join-Path $work 'EnvFixture1409'
+    New-Item -ItemType Directory -Force $envFixtureRoot | Out-Null
+    Set-Content -LiteralPath (Join-Path $envFixtureRoot 'Directory.Build.props') -Value @'
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>0.14.0</VersionPrefix>
+    <VersionSuffix>dev</VersionSuffix>
+  </PropertyGroup>
+</Project>
+'@
+
+    $findingCode1409 = 'Finding cites `src/Encina.MongoDB/Sagas/SagaStoreMongoDB.cs:129-132` as the defect location.'
+
+    # (a) a draft with all three template placeholders in '## Environment' -> filled, none left afterward
+    # against the real bug_report.md template.
+    $draftAllPlaceholders = @'
+## Description
+
+Real description text goes here, filled in by the model.
+
+## Environment
+
+- **Encina Version**: [e.g., 0.9.0]
+- **.NET Version**: [e.g., .NET 10.0]
+- **OS**: [e.g., Windows 11, Ubuntu 24.04]
+- **Package(s) Affected**: [e.g., Encina.EntityFrameworkCore, Encina.Dapper.SqlServer]
+
+## Code Sample
+
+some real code sample text
+'@
+    $filledAll = Set-BugEnvironment $draftAllPlaceholders $envFixtureRoot $findingCode1409
+    Test-RemediationChecksCase 'Set-BugEnvironment: fills the Encina Version, .NET Version and OS placeholders' {
+        $filledAll -match [regex]::Escape('- **Encina Version**: 0.14.0-dev') -and
+        $filledAll -match [regex]::Escape('- **.NET Version**: .NET 10') -and
+        $filledAll -match [regex]::Escape('- **OS**: Not applicable (found by static review of the code, not at runtime)')
+    }
+    Test-RemediationChecksCase "Set-BugEnvironment: derives Package(s) Affected from the finding's src/ path when the model left a placeholder" {
+        $filledAll -match [regex]::Escape('- **Package(s) Affected**: Encina.MongoDB')
+    }
+    Test-RemediationChecksCase 'Set-BugEnvironment: leaves the rest of the draft (Description, Code Sample) untouched' {
+        $filledAll -match 'Real description text goes here' -and $filledAll -match 'some real code sample text'
+    }
+    Test-RemediationChecksCase 'Find-TemplatePlaceholders: a bug_report.md draft with Set-BugEnvironment applied has no Environment placeholders left' {
+        $found = Find-TemplatePlaceholders $bugReportTemplateTextFor1409 $filledAll
+        @($found | Where-Object { $_ -match '\[e\.g\.,' }).Count -eq 0
+    }
+
+    # (b) the model's own Package(s) Affected value is kept when it is not itself one of the template's
+    # bracketed placeholder shapes.
+    $draftRealPackage = @'
+## Environment
+
+- **Encina Version**: [e.g., 0.9.0]
+- **.NET Version**: [e.g., .NET 10.0]
+- **OS**: [e.g., Windows 11, Ubuntu 24.04]
+- **Package(s) Affected**: Encina.Dapper.SqlServer
+
+## Code Sample
+'@
+    $filledRealPackage = Set-BugEnvironment $draftRealPackage $envFixtureRoot $findingCode1409
+    Test-RemediationChecksCase "Set-BugEnvironment: keeps the model's own Package(s) Affected value when it is not a placeholder" {
+        $filledRealPackage -match [regex]::Escape('- **Package(s) Affected**: Encina.Dapper.SqlServer')
+    }
+
+    # (c) Get-EncinaVersion: with and without a VersionSuffix, and when Directory.Build.props is missing.
+    Test-RemediationChecksCase 'Get-EncinaVersion: appends the suffix with a single dash when VersionSuffix is present' {
+        (Get-EncinaVersion $envFixtureRoot) -eq '0.14.0-dev'
+    }
+    $envFixtureNoSuffix = Join-Path $work 'EnvFixture1409NoSuffix'
+    New-Item -ItemType Directory -Force $envFixtureNoSuffix | Out-Null
+    Set-Content -LiteralPath (Join-Path $envFixtureNoSuffix 'Directory.Build.props') -Value @'
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionSuffix></VersionSuffix>
+  </PropertyGroup>
+</Project>
+'@
+    Test-RemediationChecksCase 'Get-EncinaVersion: omits the "-suffix" entirely when VersionSuffix is empty' {
+        (Get-EncinaVersion $envFixtureNoSuffix) -eq '1.0.0'
+    }
+    Test-RemediationChecksCase 'Get-EncinaVersion: returns "Not determined" when Directory.Build.props is missing' {
+        (Get-EncinaVersion (Join-Path $work 'NoSuchRoot1409')) -eq 'Not determined'
+    }
+
+    # (d) a non-bug draft (no '## Environment' header at all -- the technical_debt.md/test_implementation.md
+    # shape) is returned completely untouched. Set-BugEnvironment is only ever called for bug_report.md-routed
+    # drafts from audit-draft-remediation.ps1's Repair-Draft, but this verifies the function itself is inert on
+    # a draft it was never meant to touch.
+    $debtDraft = @'
+## Type
+
+- [x] Code Quality
+
+## Description
+
+Some debt description.
+'@
+    $debtResult = Set-BugEnvironment $debtDraft $envFixtureRoot $findingCode1409
+    Test-RemediationChecksCase 'Set-BugEnvironment: a draft with no "## Environment" header is returned unchanged' {
+        $debtResult -eq $debtDraft
+    }
+    # ---- end #1409 block ----
+
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /
     # Test-ScriptReferencesPath) must not block the pipeline's own sanctioned scripts (Test-ScriptIsSanctioned)
