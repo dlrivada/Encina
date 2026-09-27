@@ -268,19 +268,19 @@ internal static partial class DPIALogMessages
         Message = "DPIA review reminder cycle failed.")]
     internal static partial void ReviewReminderCycleFailed(this ILogger logger, Exception exception);
 
-    /// <summary>Review reminder cycle failed because the store returned an error.</summary>
-    [LoggerMessage(
-        EventId = 8848,
-        Level = LogLevel.Error,
-        Message = "DPIA review reminder cycle failed. ErrorCode={ErrorCode}")]
-    internal static partial void ReviewReminderCycleFailed(this ILogger logger, string errorCode);
-
     /// <summary>Individual expired assessment detected during review reminder cycle.</summary>
     [LoggerMessage(
         EventId = 8847,
         Level = LogLevel.Warning,
         Message = "DPIA assessment expired: RequestType={RequestType}, AssessmentId={AssessmentId}, NextReviewAtUtc={NextReviewAtUtc}")]
     internal static partial void ReviewReminderAssessmentExpired(this ILogger logger, string requestType, Guid assessmentId, DateTimeOffset? nextReviewAtUtc);
+
+    /// <summary>Review reminder cycle failed because the store returned an error.</summary>
+    [LoggerMessage(
+        EventId = 8848,
+        Level = LogLevel.Error,
+        Message = "DPIA review reminder cycle failed. ErrorCode={ErrorCode}")]
+    internal static partial void ReviewReminderCycleFailed(this ILogger logger, string errorCode);
 
     // ========================================================================
     // Event sourcing log messages (8860-8869)
