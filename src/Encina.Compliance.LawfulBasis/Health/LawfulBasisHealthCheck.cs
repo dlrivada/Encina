@@ -99,14 +99,14 @@ public sealed class LawfulBasisHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Failed to query lawful basis service: {error.Message}");
+                    warnings.Add($"Failed to query lawful basis service: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
+            data["exception_type"] = ex.GetType().Name;
             return HealthCheckResult.Degraded(
                 "Failed to access ILawfulBasisService.",
-                exception: ex,
                 data: data);
         }
 
@@ -130,12 +130,12 @@ public sealed class LawfulBasisHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Failed to query pending LIA reviews: {error.Message}");
+                    warnings.Add($"Failed to query pending LIA reviews: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Failed to access LIA reviews: {ex.Message}");
+            warnings.Add($"Failed to access LIA reviews: {ex.GetType().Name}");
         }
 
         _logger.LawfulBasisHealthCheckCompleted(
