@@ -189,19 +189,23 @@ Guidance:
 "@
 }
 
-# #1388 decisions 3/4: strips one outer code fence and reports remaining template placeholders for a draft
-# already written to $Path, rewriting the file in place when the fence was stripped. Returns the (possibly
-# empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList is the
-# script's own $lessons list, passed explicitly rather than captured, since this function is called once per
-# finding across the whole loop below.
-function Repair-Draft([string]$Path, [string]$Label, [System.Collections.Generic.List[string]]$LessonsList) {
+# #1388 decisions 3/4 (#1400 decision 2: placeholders are now derived from the ONE routed template, not every
+# template in the directory): strips one outer code fence and reports remaining template placeholders for a
+# draft already written to $Path, rewriting the file in place when the fence was stripped. Returns the
+# (possibly empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList
+# is the script's own $lessons list, passed explicitly rather than captured, since this function is called once
+# per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
+# (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
+# finding was drafted against.
+function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList) {
     $raw = Get-Content -LiteralPath $Path -Raw
     $defenced = Remove-OuterFence $raw
     if ($defenced -ne $raw) {
         Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $defenced
         $LessonsList.Add("$Label`: draft $(Split-Path -Leaf $Path) was wrapped in an outer code fence; stripped it before writing.")
     }
-    return (Find-TemplatePlaceholders $templatesDir $defenced)
+    $templateText = Get-Content -LiteralPath (Join-Path $templatesDir $RouteTemplateFile) -Raw
+    return (Find-TemplatePlaceholders $templateText $defenced)
 }
 
 $stageNames = 'code', 'tests', 'docs'
@@ -430,7 +434,7 @@ $candidateLinesForClassify
     # template's own placeholder text survived into the draft. A draft that still has placeholders after the
     # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
     # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $lessons
+    $placeholders = Repair-Draft $outFile $label $route.Template $lessons
     if ($placeholders.Count -gt 0) {
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
@@ -455,7 +459,7 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
             Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
             exit 1
         }
-        $placeholders = Repair-Draft $outFile $label $lessons
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons
     }
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it

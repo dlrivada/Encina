@@ -205,8 +205,9 @@ function Remove-OuterFence {
     return ($inner -join "`n")
 }
 
-# #1388 decision 4: the placeholder markers a drafted issue file must not still contain, collected from the
-# templates under .github/ISSUE_TEMPLATE/ ($TemplatesDir):
+# #1388 decision 4, extended by #1400 decision 2: the placeholder markers a drafted issue file must not still
+# contain, derived from the ONE routed template's own text ($TemplateText -- the raw file, front matter
+# included; the script passes what Get-TemplateBody read for the same template it drafted against):
 #   - '[e.g., ...]' / '[How this affects ...]' -- any bracketed example value a template shows in place of a
 #     real one (test_implementation.md Package(s)/Provider(s)/Collection/Fixture, bug_report.md Environment
 #     fields, technical_debt.md Package(s), and the same idiom other templates in the directory use).
@@ -216,27 +217,48 @@ function Remove-OuterFence {
 #     real, filled-in test description never matches this -- only the bare word 'Description' as the whole
 #     remainder of the line does).
 #   - each template's own placeholder sentence under its '## Description' header ('A clear description of
-#     ...' / 'A clear and concise description of ...'), read from the templates themselves (not hard-coded)
-#     so a wording change there is picked up automatically.
+#     ...' / 'A clear and concise description of ...'), read from the template itself (not hard-coded) so a
+#     wording change there is picked up automatically.
+#   - #1400: every OTHER non-structural line of the template body -- not blank, not a '#'-level header, not a
+#     checkbox line, not a table header or separator row, and at least 20 characters long -- counts as a
+#     placeholder when it appears verbatim (trimmed) in the draft. This is what #1388's hand-written marker
+#     list missed: a template's plain-prose instruction sentence such as technical_debt.md's Related Issues
+#     line "Link any related issues here.", which a model can copy through unchanged just like a bracketed
+#     example. A table HEADER row is recognised by lookahead (its very next non-blank line is a separator row
+#     of only '|', '-', ':' and spaces); a table DATA row is not excluded here, since a genuinely filled-in
+#     data row never matches the template's own placeholder row text verbatim anyway.
 # Returns the offending lines (trimmed, one per match); an empty list means the draft is clean.
 function Find-TemplatePlaceholders {
-    param([string]$TemplatesDir, [string]$DraftText)
+    param([string]$TemplateText, [string]$DraftText)
 
     $found = [System.Collections.Generic.List[string]]::new()
     $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $template = if ($null -eq $TemplateText) { '' } else { $TemplateText }
+    $body = $template -replace '(?s)^---.*?---\r?\n', ''
+    $tLines = $body -split "`r?`n"
 
     $descriptionSentences = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    if (Test-Path -LiteralPath $TemplatesDir) {
-        foreach ($templateFile in Get-ChildItem -LiteralPath $TemplatesDir -Filter '*.md' -File) {
-            $raw = (Get-Content -LiteralPath $templateFile.FullName -Raw) -replace '(?s)^---.*?---\r?\n', ''
-            $tLines = $raw -split "`r?`n"
-            for ($i = 0; $i -lt $tLines.Count; $i++) {
-                if ($tLines[$i].Trim() -eq '## Description' -and ($i + 2) -lt $tLines.Count) {
-                    $candidateSentence = $tLines[$i + 2].Trim()
-                    if ($candidateSentence -match '^A clear( and concise)? description of ') { [void]$descriptionSentences.Add($candidateSentence) }
-                }
-            }
+    for ($i = 0; $i -lt $tLines.Count; $i++) {
+        if ($tLines[$i].Trim() -eq '## Description' -and ($i + 2) -lt $tLines.Count) {
+            $candidateSentence = $tLines[$i + 2].Trim()
+            if ($candidateSentence -match '^A clear( and concise)? description of ') { [void]$descriptionSentences.Add($candidateSentence) }
         }
+    }
+
+    $tableSeparatorPattern = '^\|[\s:|-]+\|$'
+    $derivedMarkers = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    for ($i = 0; $i -lt $tLines.Count; $i++) {
+        $tTrim = $tLines[$i].Trim()
+        if ($tTrim -eq '') { continue }
+        if ($tTrim -match '^#{1,6}\s') { continue }
+        if ($tTrim -match '^-\s*\[[ xX]\]') { continue }
+        if ($tTrim -match $tableSeparatorPattern) { continue }
+        if ($tTrim.StartsWith('|')) {
+            $nextTrim = if (($i + 1) -lt $tLines.Count) { $tLines[$i + 1].Trim() } else { '' }
+            if ($nextTrim -match $tableSeparatorPattern) { continue }  # this is the table's header row
+        }
+        if ($tTrim.Length -lt 20) { continue }
+        [void]$derivedMarkers.Add($tTrim)
     }
 
     foreach ($line in ($text -split "`r?`n")) {
@@ -249,6 +271,7 @@ function Find-TemplatePlaceholders {
         # and adds punctuation still gets caught (adversarial review of #1388).
         if ($trimmed -match '^-\s*\[[ xX]\]\s*Test\s+\d+:\s*Description\.?\s*$') { $found.Add($trimmed); continue }
         if ($descriptionSentences.Contains($trimmed)) { $found.Add($trimmed); continue }
+        if ($derivedMarkers.Contains($trimmed)) { $found.Add($trimmed); continue }
     }
 
     return $found
