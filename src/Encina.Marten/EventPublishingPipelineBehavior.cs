@@ -59,13 +59,7 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
             return result;
         }
 
-        // Get pending events from the session
-        var pendingEvents = _session.PendingChanges.Streams()
-            .SelectMany(s => s.Events)
-            .Select(e => e.Data)
-            .OfType<INotification>()
-            .ToList();
-
+        var pendingEvents = GetPendingNotifications();
         if (pendingEvents.Count == 0)
         {
             return result;
@@ -76,25 +70,49 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
         // Publish each domain event
         foreach (var domainEvent in pendingEvents)
         {
-            var publishResult = await _encina.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
-
-            if (publishResult.IsLeft)
+            var publishError = await PublishEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+            if (publishError is { } error)
             {
-                var error = publishResult.Match(
-                    Left: err => err,
-                    Right: _ => EncinaErrors.Unknown);
-
-                Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.GetEncinaCode());
-
-                return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
-                    EncinaErrors.Create(
-                        MartenErrorCodes.PublishEventsFailed,
-                        $"Failed to publish domain event {domainEvent.GetType().Name}: {error.Message}"));
+                return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
             }
         }
 
         Log.PublishedDomainEvents(_logger, pendingEvents.Count, typeof(TRequest).Name);
 
         return result;
+    }
+
+    /// <summary>
+    /// Gets the pending domain-event notifications recorded on the session since the last save.
+    /// </summary>
+    private List<INotification> GetPendingNotifications() =>
+        _session.PendingChanges.Streams()
+            .SelectMany(s => s.Events)
+            .Select(e => e.Data)
+            .OfType<INotification>()
+            .ToList();
+
+    /// <summary>
+    /// Publishes a single domain event and, on failure, logs only the error code (never
+    /// <see cref="EncinaError.Message"/>) and returns the wrapped error to report upstream.
+    /// </summary>
+    /// <returns><see langword="null"/> when the publish succeeded; otherwise the error to return.</returns>
+    private async ValueTask<EncinaError?> PublishEventAsync(INotification domainEvent, CancellationToken cancellationToken)
+    {
+        var publishResult = await _encina.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
+        if (publishResult.IsRight)
+        {
+            return null;
+        }
+
+        var error = publishResult.Match(
+            Left: err => err,
+            Right: _ => EncinaErrors.Unknown);
+
+        Log.FailedToPublishDomainEvent(_logger, domainEvent.GetType().Name, error.GetEncinaCode());
+
+        return EncinaErrors.Create(
+            MartenErrorCodes.PublishEventsFailed,
+            $"Failed to publish domain event {domainEvent.GetType().Name}: {error.Message}");
     }
 }
