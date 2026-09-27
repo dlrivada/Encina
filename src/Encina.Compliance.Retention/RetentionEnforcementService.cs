@@ -166,68 +166,14 @@ public sealed class RetentionEnforcementService : BackgroundService
             }
 
             // Step 2: Process each expired record
-            var recordsDeleted = 0;
-            var recordsFailed = 0;
-            var recordsUnderHold = 0;
-            var recordsDeferred = 0;
-            var dataEraserMissingLogged = false;
+            var tally = await ProcessExpiredRecordsAsync(
+                expiredRecords, recordService, legalHoldService, dataEraser, cancellationToken)
+                .ConfigureAwait(false);
 
-            // Records erased and marked deleted as siblings of an earlier record of this cycle; the
-            // snapshot returned by GetExpiredRecordsAsync may still list them, and they must not be
-            // erased a second time.
-            var settledSiblings = new System.Collections.Generic.HashSet<Guid>();
-
-            foreach (var record in expiredRecords)
-            {
-                if (settledSiblings.Contains(record.Id))
-                {
-                    continue;
-                }
-
-                RecordOutcome outcome;
-
-                try
-                {
-                    outcome = await ProcessRecordAsync(
-                        record, recordService, legalHoldService, dataEraser, settledSiblings, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-                {
-                    // Only the cycle's own cancellation stops the cycle. Any other exception, including a
-                    // cancellation raised inside a dependency (e.g. an HTTP timeout during erasure), fails
-                    // this record only and the cycle moves on to the next one.
-                    _logger.RetentionEnforcementCycleFailed(ex);
-                    outcome = RecordOutcome.Failed;
-                }
-
-                switch (outcome)
-                {
-                    case RecordOutcome.Deleted:
-                        recordsDeleted++;
-                        break;
-                    case RecordOutcome.Held:
-                        recordsUnderHold++;
-                        break;
-                    case RecordOutcome.Deferred:
-                        recordsDeferred++;
-                        break;
-                    case RecordOutcome.ErasureUnavailable:
-                        if (!dataEraserMissingLogged)
-                        {
-                            _logger.RetentionDataEraserMissing();
-                            dataEraserMissingLogged = true;
-                        }
-
-                        recordsFailed++;
-                        break;
-                    default:
-                        recordsFailed++;
-                        break;
-                }
-            }
-
-            recordsDeleted += settledSiblings.Count;
+            var recordsDeleted = tally.Deleted;
+            var recordsFailed = tally.Failed;
+            var recordsUnderHold = tally.Held;
+            var recordsDeferred = tally.Deferred;
             var totalEvaluated = recordsDeleted + recordsFailed + recordsUnderHold + recordsDeferred;
 
             _logger.RetentionEnforcementCycleCompleted(recordsDeleted, recordsFailed, recordsUnderHold, recordsDeferred);
@@ -274,6 +220,107 @@ public sealed class RetentionEnforcementService : BackgroundService
             RetentionDiagnostics.EnforcementDuration.Record(elapsedMs);
         }
     }
+
+    /// <summary>
+    /// Processes every expired record of one enforcement cycle and tallies the outcomes.
+    /// </summary>
+    /// <remarks>
+    /// Extracted from <see cref="ExecuteEnforcementCycleAsync"/> to keep that method's cyclomatic
+    /// complexity under the CRAP gate (AGENTS.md §9); the per-record try/catch and outcome
+    /// classification below account for most of the original method's complexity.
+    /// </remarks>
+    private async Task<RecordProcessingTally> ProcessExpiredRecordsAsync(
+        IReadOnlyList<ReadModels.RetentionRecordReadModel> expiredRecords,
+        IRetentionRecordService recordService,
+        ILegalHoldService legalHoldService,
+        IRetentionDataEraser? dataEraser,
+        CancellationToken cancellationToken)
+    {
+        var recordsDeleted = 0;
+        var recordsFailed = 0;
+        var recordsUnderHold = 0;
+        var recordsDeferred = 0;
+        var dataEraserMissingLogged = false;
+
+        // Records erased and marked deleted as siblings of an earlier record of this cycle; the
+        // snapshot returned by GetExpiredRecordsAsync may still list them, and they must not be
+        // erased a second time.
+        var settledSiblings = new System.Collections.Generic.HashSet<Guid>();
+
+        foreach (var record in expiredRecords)
+        {
+            if (settledSiblings.Contains(record.Id))
+            {
+                continue;
+            }
+
+            var outcome = await ProcessAndClassifyRecordAsync(
+                record, recordService, legalHoldService, dataEraser, settledSiblings, cancellationToken)
+                .ConfigureAwait(false);
+
+            switch (outcome)
+            {
+                case RecordOutcome.Deleted:
+                    recordsDeleted++;
+                    break;
+                case RecordOutcome.Held:
+                    recordsUnderHold++;
+                    break;
+                case RecordOutcome.Deferred:
+                    recordsDeferred++;
+                    break;
+                case RecordOutcome.ErasureUnavailable:
+                    if (!dataEraserMissingLogged)
+                    {
+                        _logger.RetentionDataEraserMissing();
+                        dataEraserMissingLogged = true;
+                    }
+
+                    recordsFailed++;
+                    break;
+                default:
+                    recordsFailed++;
+                    break;
+            }
+        }
+
+        recordsDeleted += settledSiblings.Count;
+        return new RecordProcessingTally(recordsDeleted, recordsFailed, recordsUnderHold, recordsDeferred);
+    }
+
+    /// <summary>
+    /// Runs <see cref="ProcessRecordAsync"/> for one record, converting an unhandled exception into
+    /// <see cref="RecordOutcome.Failed"/> so a single record's failure never stops the cycle.
+    /// </summary>
+    private async ValueTask<RecordOutcome> ProcessAndClassifyRecordAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        ILegalHoldService legalHoldService,
+        IRetentionDataEraser? dataEraser,
+        System.Collections.Generic.HashSet<Guid> settledSiblings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ProcessRecordAsync(
+                record, recordService, legalHoldService, dataEraser, settledSiblings, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Only the cycle's own cancellation stops the cycle. Any other exception, including a
+            // cancellation raised inside a dependency (e.g. an HTTP timeout during erasure), fails
+            // this record only and the cycle moves on to the next one.
+            _logger.RetentionEnforcementCycleFailed(ex);
+            return RecordOutcome.Failed;
+        }
+    }
+
+    /// <summary>
+    /// Tallies one enforcement cycle's record outcomes, returned by
+    /// <see cref="ProcessExpiredRecordsAsync"/>.
+    /// </summary>
+    private readonly record struct RecordProcessingTally(int Deleted, int Failed, int Held, int Deferred);
 
     /// <summary>
     /// Moves one expired record through <c>Active → Expired → Deleted</c>, erasing its data in between.
