@@ -1974,6 +1974,36 @@ Some debt description.
         $anchors = Get-FindingAnchors '`src/Encina/Foo.cs`: `EncinaError.Message`, `TimeProvider`, `src/`, `:12-14` and `SpecificSymbol`.'
         (@($anchors.SymbolAnchors) -join ',') -eq 'SpecificSymbol'
     }
+
+    # (e) adversarial review of #1393: the same store file name exists once per provider, so a bare file name
+    # or a brace pattern naming only ANOTHER provider is not the finding's file; a bold field under an excluded
+    # section (Root Cause, Additional Context) is a mention; emphasis around a heading name is ignored.
+    $sqlServerOutboxFinding1393 = '`src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs:80`: `GetAsync` swallows a Left result and reports success.'
+    $mySqlBareNameCandidate1393 = "[BUG] MySQL outbox retry counter never increments`n## Location`n`n- **File(s)**: ``OutboxStoreADO.cs`` (MySQL provider)`n`n## Current Behavior`n`n``GetAsync`` never increments ``RetryCount`` in the MySQL store.`n"
+    Test-RemediationChecksCase '#1393 a bare store file name (the same name exists in every provider) is NOT the finding''s file' {
+        -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $mySqlBareNameCandidate1393)
+    }
+    $mySqlBraceCandidate1393 = "[BUG] MySQL stores swallow errors`n## Location`n`n- **File(s)**: ``src/Encina.ADO.MySQL/{Outbox/OutboxStoreADO,Inbox/InboxStoreADO}.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+    Test-RemediationChecksCase '#1393 a brace pattern that expands only to another provider''s file is NOT the finding''s file' {
+        -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $mySqlBraceCandidate1393)
+    }
+    $allProvidersBraceCandidate1393 = "[BUG] ADO stores swallow errors`n## Location`n`n- **File(s)**: ``src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/Outbox/OutboxStoreADO.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+    Test-RemediationChecksCase '#1393 control: a brace pattern that expands to the finding''s own path, plus a shared symbol, IS a duplicate' {
+        Test-DuplicateEvidence $sqlServerOutboxFinding1393 $allProvidersBraceCandidate1393
+    }
+    foreach ($excludedSection in 'Root Cause', 'Additional Context') {
+        $boldUnderExcluded = "[BUG] Unrelated`n## $excludedSection`n`n- **File(s)**: ``src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs```n`n## Current Behavior`n`n``GetAsync`` reports success on a Left.`n"
+        Test-RemediationChecksCase "#1393 a **File(s)** bold field under '## $excludedSection' is NOT location evidence" {
+            -not (Test-DuplicateEvidence $sqlServerOutboxFinding1393 $boldUnderExcluded)
+        }
+    }
+    $boldBeforeHeadings1393 = "[BUG] ADO outbox store swallows errors`n**Location**: ``src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs```n`n``GetAsync`` reports success on a Left.`n`n## Additional Context`n`nNone.`n"
+    Test-RemediationChecksCase '#1393 a bold **Location** field before the first heading IS location evidence (issue written without the template headers)' {
+        (Get-CandidateLocationText $boldBeforeHeadings1393).Contains('src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs')
+    }
+    Test-RemediationChecksCase '#1393 an emphasized heading (## **Location**) is still the Location section' {
+        (Get-CandidateLocationText "Title`n## **Location**`n`n- File: ``src/Encina.Foo/Bar/Widget.cs```n").Contains('src/Encina.Foo/Bar/Widget.cs')
+    }
     # ---- end #1393 block ----
 
     # ================================================================================================

@@ -146,11 +146,14 @@ clause to match, not just one, so a candidate that covers only part of a multi-l
 finding's location and symbol, not merely mention them (#1393): both anchors are looked up only in its title and
 its location sections, taken from the `.github/ISSUE_TEMPLATE` headers (Location, Current Behavior, Steps to
 Reproduce, Actual Behavior, Code Sample, Stack Trace, Component Affected, Current Structure, Affected Files,
-Packages Affected, Packages / Providers Affected, Current Coverage, Affected Packages, and the `**File(s)**`-style
-bold fields), never in its Description, Root Cause, Proposed Fix, Additional Context or Related Issues; a bare,
-generic file name (`README.md`, `sagas.md`) or a directory segment is not a file match; and a folder (`src/`), a
-line reference or a token that AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol
-evidence. A candidate that matches only some of the finding's anchors is "partially related", never a duplicate.
+Packages Affected, Packages / Providers Affected, Current Coverage, Affected Packages, plus `**File(s)**`-style
+bold fields written before the first heading or under Environment), never in its Description, Root Cause,
+Proposed Fix, Additional Context or Related Issues; a file matches only by its full path, its path without the
+root, or a brace pattern that expands to it, never by a bare file name (`README.md`, `OutboxStoreADO.cs` exists
+once per provider) or a directory segment; and a folder (`src/`), a line reference or a token that
+AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol evidence. A candidate whose location
+text matches at least one of the finding's anchors but not the full duplicate bar is "partially related", never
+a duplicate.
 `audit-draft-remediation.ps1`
 also strips an outer code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still
 has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row,

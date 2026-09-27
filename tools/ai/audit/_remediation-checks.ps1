@@ -103,9 +103,9 @@ function Get-LeadingLocationText {
 # FileAnchors to the finding's leading location clause, see Get-LeadingLocationText above):
 #   FileAnchors   -- every repo path the finding cites in its own leading location clause (backticked or in
 #                    plain prose), with any trailing ':line' or ':line-line' suffix stripped, as
-#                    @{ FullPath; Stem; Leaf; Tail }. Leaf is the file name ('SagaStoreADO.cs'), Stem the file
-#                    name WITHOUT its extension, Tail the last two path segments ('Sagas/SagaStoreADO.cs'); see
-#                    Test-FileAnchorMatch for how each one is allowed to match (#1393).
+#                    @{ FullPath; RootlessPath }. RootlessPath is the path without its first segment
+#                    ('Encina.ADO.SqlServer/Sagas/SagaStoreADO.cs'), or $null when that would leave a bare file
+#                    name; see Test-FileAnchorMatch for how each one is allowed to match (#1393).
 #   SymbolAnchors -- every backticked token of the finding's WHOLE text (unchanged by #1400) that is NOT one of
 #                    the file anchors above and NOT one of the generic token classes below: a code symbol or a
 #                    literal code fragment specific to this defect.
@@ -121,10 +121,8 @@ function Get-FindingAnchors {
         $full = (($m.Value -split ':')[0]) -replace '\\', '/'
         if (-not $seenPaths.Add($full)) { continue }
         $segments = $full.Split('/')
-        $leaf = $segments[-1]
-        $stem = [IO.Path]::GetFileNameWithoutExtension($leaf)
-        $tail = if ($segments.Count -ge 2) { $segments[-2] + '/' + $leaf } else { $leaf }
-        $fileAnchors.Add([pscustomobject]@{ FullPath = $full; Stem = $stem; Leaf = $leaf; Tail = $tail })
+        $rootless = if ($segments.Count -ge 3) { ($segments[1..($segments.Count - 1)]) -join '/' } else { $null }
+        $fileAnchors.Add([pscustomobject]@{ FullPath = $full; RootlessPath = $rootless })
     }
 
     $exactFilePattern = '^(?:' + $script:RemediationFilePattern + ')$'
@@ -173,10 +171,14 @@ function Get-FindingAnchors {
 # the part that is ABOUT its defect: the title (first line) plus every section named in
 # $script:CandidateLocationSections and every bold field named in $script:CandidateLocationFields. A section
 # runs from its heading to the next heading of the same or a higher level (so a '###' sub-heading stays
-# inside it); headings inside a fenced code block are not headings. A bold field keeps the rest of its own
-# line plus the more-indented lines under it (the '- **File(s)**:' + nested '  - `path`' list of #1343), or,
-# when it is a bare pseudo-heading with nothing after it, the lines up to the next blank line or heading. A
-# candidate with none of these sections contributes its title only -- the strict default: an unrecognised
+# inside it); headings inside a fenced code block are not headings, and emphasis around a heading's name
+# ('## **Location**') is ignored. A bold field counts only where no section decides otherwise: before the
+# body's first heading (an issue written without the template's headers) or inside bug_report.md's
+# '## Environment' (its '**Package(s) Affected**'); a bold field under any other heading (Root Cause,
+# Additional Context, Related Issues, ...) is as much a mention as the rest of that section. It keeps the
+# rest of its own line plus the more-indented lines under it (the '- **File(s)**:' + nested '  - `path`' list
+# of #1343), or, when it is a bare pseudo-heading with nothing after it, the lines up to the next blank line
+# or heading. A candidate with none of these sections contributes its title only -- the strict default: an unrecognised
 # body can never supply duplicate evidence, and a real duplicate missed this way is drafted as new, which the
 # audit-verifier's own dedup pass still catches (a false accepted duplicate is never caught: it silently
 # drops the finding).
@@ -192,6 +194,7 @@ function Get-CandidateLocationText {
     $fieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:CandidateLocationFields, [System.StringComparer]::OrdinalIgnoreCase)
     $inFence = $false
     $sectionLevel = 0          # > 0 while inside a kept '#' section
+    $fieldsAllowed = $true     # bold fields count before the first heading and under '## Environment' only
     $fieldIndent = -1          # >= 0 while collecting the nested lines of a kept bold field
     $fieldUntilBlank = $false  # a bare bold pseudo-heading: collect until the next blank line or heading
 
@@ -208,12 +211,13 @@ function Get-CandidateLocationText {
             $fieldUntilBlank = $false
             $level = $heading.Groups['hashes'].Value.Length
             if ($sectionLevel -gt 0 -and $level -gt $sectionLevel) { $kept.Add($line); continue }
-            $name = ($heading.Groups['name'].Value -replace '\s*\([^)]*\)\s*$', '' -replace ':\s*$', '' -replace '\s+', ' ').Trim()
+            $name = ($heading.Groups['name'].Value -replace '[*_]', '' -replace '\s*\([^)]*\)\s*$', '' -replace ':\s*$', '' -replace '\s+', ' ').Trim()
             $sectionLevel = if ($sectionSet.Contains($name)) { $level } else { 0 }
+            $fieldsAllowed = $name -eq 'Environment'
             continue
         }
         if ($sectionLevel -gt 0) { $kept.Add($line); continue }
-        if ($inFence) { continue }
+        if ($inFence -or -not $fieldsAllowed) { continue }
 
         $indent = $line.Length - $line.TrimStart().Length
         if ($fieldIndent -ge 0) {
@@ -238,29 +242,54 @@ function Get-CandidateLocationText {
 # Tests one of the finding's file anchors against a candidate's LOCATION text (see Get-CandidateLocationText).
 # #1393 narrows what counts as the same file, because a file name alone is often generic ('sagas', 'README',
 # 'index') and the old whole-word stem search matched a directory segment ('src/Encina.Messaging/Sagas/...'
-# for docs/messaging/sagas.md, audit #16's docs-1 vs #1343) or a stray word in prose. A match is one of:
+# for docs/messaging/sagas.md, audit #16's docs-1 vs #1343) or a stray word in prose. A bare file name is
+# never enough either: 'README.md' or 'sagas.md' says nothing about WHICH such file is meant, and every store
+# exists once per provider under the same name ('OutboxStoreADO.cs' in the SqlServer, PostgreSQL and MySQL
+# packages), so a bare name would let a finding about one provider "duplicate" a bug in another. A match is:
 #   1. the full path, verbatim (case-insensitive);
-#   2. the last two path segments ('Sagas/SagaStoreADO.cs', 'Encina.Messaging/README.md') after a '/' or a
-#      non-path character -- the same file cited under a different or shortened root;
-#   3. the stem as a member of a brace group ('{...,Sagas/SagaStoreADO,...}.cs', #1170's writing style, where
-#      the literal file name never appears because the extension sits outside the braces);
-#   4. the bare file name ('InstrumentedSagaStore.cs') standing alone, not as the end of some other path, and
-#      only when its stem is a distinctive compound PascalCase name (two or more capitalised words): a bare
-#      'README.md', 'index.md' or 'sagas.md' says nothing about WHICH such file is meant.
+#   2. the path without its root ('Encina.ADO.SqlServer/Sagas/SagaStoreADO.cs'), standing alone rather than
+#      as the end of some other path -- the same file cited with its root left out; or
+#   3. the full path as one of the expansions of a brace pattern in the candidate
+#      ('src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/{...,Sagas/SagaStoreADO,...}.cs', #1170's writing style,
+#      where the literal path never appears). The pattern is expanded completely, so a group that names only
+#      another provider does not match.
 # Shared by Test-DuplicateEvidence (#1400: requires every anchor) and Test-PartialDuplicateEvidence.
 function Test-FileAnchorMatch {
     param([pscustomobject]$FileAnchor, [string]$Candidate)
 
     if ([string]::IsNullOrEmpty($Candidate)) { return $false }
     if ($Candidate.IndexOf($FileAnchor.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
-    if ($FileAnchor.Tail -ne $FileAnchor.Leaf -and
-        [regex]::IsMatch($Candidate, '(?<![\w.-])' + [regex]::Escape($FileAnchor.Tail) + '(?![\w-])', 'IgnoreCase')) { return $true }
-    if ([string]::IsNullOrWhiteSpace($FileAnchor.Stem) -or $FileAnchor.Stem.Length -lt 3) { return $false }
-    $escapedStem = [regex]::Escape($FileAnchor.Stem)
-    if ([regex]::IsMatch($Candidate, '\{[^{}\s]*(?<![\w.-])' + $escapedStem + '(?=[,}])[^{}\s]*\}', 'IgnoreCase')) { return $true }
-    if ($FileAnchor.Stem -cmatch '^[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]*)+$' -and
-        [regex]::IsMatch($Candidate, '(?<![\w./\\-])' + [regex]::Escape($FileAnchor.Leaf) + '(?![\w-])', 'IgnoreCase')) { return $true }
+    if ($FileAnchor.RootlessPath -and
+        [regex]::IsMatch($Candidate, '(?<![\w./\\-])' + [regex]::Escape($FileAnchor.RootlessPath) + '(?![\w-])', 'IgnoreCase')) { return $true }
+    foreach ($pattern in [regex]::Matches($Candidate, '[\w./\\-]*(?:\{[^{}\s`]*\}[\w./\\-]*)+')) {
+        foreach ($expanded in (Expand-BracePattern $pattern.Value)) {
+            $normalized = $expanded -replace '\\', '/'
+            if ([string]::Equals($normalized, $FileAnchor.FullPath, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+            if ($FileAnchor.RootlessPath -and [string]::Equals($normalized, $FileAnchor.RootlessPath, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        }
+    }
     return $false
+}
+
+# Expands a shell-style brace pattern ('a/{b,c}/{d,e}.cs' -> a/b/d.cs, a/b/e.cs, a/c/d.cs, a/c/e.cs), one
+# non-nested group at a time, left to right. Capped at 512 expansions so a pathological candidate cannot make
+# the duplicate check slow; past the cap the remaining expansions are simply not produced (no match, the
+# strict direction).
+function Expand-BracePattern {
+    param([string]$Pattern)
+
+    $results = [System.Collections.Generic.List[string]]::new()
+    $pending = [System.Collections.Generic.Queue[string]]::new()
+    $pending.Enqueue($Pattern)
+    while ($pending.Count -gt 0 -and ($results.Count + $pending.Count) -le 512) {
+        $current = $pending.Dequeue()
+        $group = [regex]::Match($current, '\{([^{}]*)\}')
+        if (-not $group.Success) { $results.Add($current); continue }
+        $prefix = $current.Substring(0, $group.Index)
+        $suffix = $current.Substring($group.Index + $group.Length)
+        foreach ($option in $group.Groups[1].Value.Split(',')) { $pending.Enqueue($prefix + $option + $suffix) }
+    }
+    return , $results
 }
 
 # #1393: the candidate's own evidence for one symbol anchor -- exact, case-insensitive equality with one of the
