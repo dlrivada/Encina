@@ -528,19 +528,19 @@ function Find-TemplatePlaceholders {
     return $found
 }
 
-# #1400 decision 3, narrowed by #1424 decision 1: after a draft is written and repaired (fence stripped,
-# placeholders re-asked), its own Related Issues section is sanitized -- the model is free to name a candidate
-# as related there (Build-DraftBrief's own guidance explicitly invites it), but audit #16's 16-code-5 draft
-# showed it will also invent a relation to issues nobody offered it and that have nothing to do with the
-# finding (#699, #696, #181 -- real open issues about an unrelated caching/health-check feature), and audit
-# #16 verification pass 4 found the previous version of this function was itself too permissive: it kept a
-# number just because it appeared in the duplicate search's own candidate list, even when nothing about the
+# #1400 decision 3, narrowed by #1424 decision 1 and #1428 decisions 1/2: after a draft is written and repaired
+# (fence stripped, placeholders re-asked), its own Related Issues section is sanitized -- the model is free to
+# name a candidate as related there (Build-DraftBrief's own guidance explicitly invites it), but audit #16's
+# 16-code-5 draft showed it will also invent a relation to issues nobody offered it and that have nothing to do
+# with the finding (#699, #696, #181 -- real open issues about an unrelated caching/health-check feature), and
+# audit #16 verification pass 4 found the previous version of this function was itself too permissive: it kept
+# a number just because it appeared in the duplicate search's own candidate list, even when nothing about the
 # finding actually related to it (5 drafts affected: 16-code-1, 16-code-5, 16-docs-3, 16-tests-1, 16-tests-7).
 # Being a search candidate is not evidence of a real relationship, so the candidate list is no longer part of
-# what this function trusts at all. Two conventions exist because bug_report.md, unlike technical_debt.md and
-# test_implementation.md, has no dedicated 'Related Issues' header of its own -- a bug-kind draft (like
-# 16-code-5) puts it as a '- **Related Issues**:' bullet with indented sub-bullets inside 'Additional Context'
-# instead:
+# what this function trusts at all. THREE conventions name a "Related Issues" section, because bug_report.md,
+# unlike technical_debt.md and test_implementation.md, has no dedicated 'Related Issues' header of its own; the
+# first one found wins (in this order), and only that one section's lines are collected via the two branches
+# below:
 #   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
 #   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
 #     immediately-following bullet lines (indented sub-bullets '  - #n' as audit #16's real draft has, or
@@ -548,7 +548,22 @@ function Find-TemplatePlaceholders {
 #     blank line, a new '## ' header, a new sibling bold field ('- **Something Else**:'), or any other line
 #     that is not itself a bullet. The header line itself tolerates an optional trailing colon
 #     ('**Related Issues**' or '**Related Issues**:') and an optional leading '- '.
-# A reference (#n) inside that section survives only when n is:
+#   - #1428 decision 1: a plain 'Related Issues:' (or 'Related issues', case-insensitive, optional trailing
+#     colon, optional '**' bold markers -- audit #16's real 16-code-5 draft (verification passes 4/5) writes
+#     exactly this, inside bug_report.md's 'Additional Context', because that template gives the model no
+#     structural marker to reach for at all) line: the section is the run of bullet lines that follows, ending
+#     at the next '## ' header, or at the first blank line that is NOT immediately followed by another bullet
+#     line (a model that puts one blank line between two related-issue bullets should not split the section in
+#     two; a blank line that starts prose again ends it).
+# #1428 decision 2: for a draft routed to bug_report.md ($IsBugReportDraft), the SAME allowed-set rule is also
+# applied to every '#n' reference anywhere under the draft's own '## Additional Context' section (to the next
+# '## ' header or end of file), regardless of whether a labelled Related Issues subsection was found inside it
+# -- bug_report.md's own template text tells the model to put "related issues" there
+# ("Add any other context about the problem here (screenshots, logs, related issues)."), with no promise it
+# will ever use one of the three labelled forms above. This is additive: the two scans are merged into one set
+# of line indexes (a line inside both a labelled subsection and the wider Additional Context section is
+# checked, and can be removed, only once).
+# A reference (#n) inside a scanned line survives only when n is:
 #   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
 #     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
 #   - named in the finding's own text ($FindingText); or
@@ -565,40 +580,76 @@ function Limit-RelatedIssues {
         [string]$DraftText,
         [string]$IssueNumber,
         [string]$FindingText,
-        [string[]]$ScriptNoteLines
+        [string[]]$ScriptNoteLines,
+        [bool]$IsBugReportDraft
     )
 
     $text = if ($null -eq $DraftText) { '' } else { $DraftText }
     $lines = @($text -split "`r?`n")
+    $sanitizeLineIndexes = [System.Collections.Generic.HashSet[int]]::new()
 
     $headerIdx = -1
-    $isBoldBullet = $false
+    $sectionKind = $null
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $isBoldBullet = $false; break }
-        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $headerIdx = $i; $isBoldBullet = $true; break }
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $sectionKind = 'header'; break }
+        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $headerIdx = $i; $sectionKind = 'bold'; break }
+        if ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$') { $headerIdx = $i; $sectionKind = 'plain'; break }
     }
-    if ($headerIdx -lt 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
 
-    $sectionStartLine = $headerIdx + 1
-    $sectionEndLine = $lines.Count
-    if ($isBoldBullet) {
-        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-            $l = $lines[$i]
-            if ($l.Trim() -eq '') { $sectionEndLine = $i; break }
-            if ($l -match '^##\s') { $sectionEndLine = $i; break }
-            # a new sibling bold field at the same list level ('- **Location**:', '- **Priority**:', ...) ends
-            # this section; a bullet naming an issue never itself looks like that.
-            if ($l -match '^\s*-\s*\*\*[^*]+\*\*:') { $sectionEndLine = $i; break }
-            if ($l -match '^[ \t]*-') { continue }  # an indented sub-bullet or an unindented sibling bullet
-            $sectionEndLine = $i
-            break
+    if ($headerIdx -ge 0) {
+        $sectionStartLine = $headerIdx + 1
+        $sectionEndLine = $lines.Count
+        if ($sectionKind -eq 'bold') {
+            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+                $l = $lines[$i]
+                if ($l.Trim() -eq '') { $sectionEndLine = $i; break }
+                if ($l -match '^##\s') { $sectionEndLine = $i; break }
+                # a new sibling bold field at the same list level ('- **Location**:', '- **Priority**:', ...) ends
+                # this section; a bullet naming an issue never itself looks like that.
+                if ($l -match '^\s*-\s*\*\*[^*]+\*\*:') { $sectionEndLine = $i; break }
+                if ($l -match '^[ \t]*-') { continue }  # an indented sub-bullet or an unindented sibling bullet
+                $sectionEndLine = $i
+                break
+            }
+        }
+        elseif ($sectionKind -eq 'plain') {
+            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+                $l = $lines[$i]
+                if ($l -match '^##\s') { $sectionEndLine = $i; break }
+                if ($l.Trim() -eq '') {
+                    $j = $i + 1
+                    while ($j -lt $lines.Count -and $lines[$j].Trim() -eq '') { $j++ }
+                    if ($j -ge $lines.Count -or $lines[$j] -notmatch '^[ \t]*-') { $sectionEndLine = $i; break }
+                    continue  # a blank line immediately followed by another bullet stays inside the section
+                }
+                if ($l -match '^[ \t]*-') { continue }
+                $sectionEndLine = $i
+                break
+            }
+        }
+        else {
+            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
+            }
+        }
+        for ($i = $sectionStartLine; $i -lt $sectionEndLine; $i++) { [void]$sanitizeLineIndexes.Add($i) }
+    }
+
+    if ($IsBugReportDraft) {
+        $acIdx = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^##\s*Additional Context\s*$') { $acIdx = $i; break }
+        }
+        if ($acIdx -ge 0) {
+            $acEndLine = $lines.Count
+            for ($i = $acIdx + 1; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match '^##\s') { $acEndLine = $i; break }
+            }
+            for ($i = $acIdx + 1; $i -lt $acEndLine; $i++) { [void]$sanitizeLineIndexes.Add($i) }
         }
     }
-    else {
-        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
-        }
-    }
+
+    if ($sanitizeLineIndexes.Count -eq 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
 
     $allowed = [System.Collections.Generic.HashSet[string]]::new()
     if (-not [string]::IsNullOrWhiteSpace($IssueNumber)) { [void]$allowed.Add($IssueNumber.TrimStart('#')) }
@@ -612,9 +663,9 @@ function Limit-RelatedIssues {
 
     $removed = [System.Collections.Generic.List[string]]::new()
     $newLines = [System.Collections.Generic.List[string]]::new()
-    for ($i = 0; $i -lt $sectionStartLine; $i++) { $newLines.Add($lines[$i]) }
-    for ($i = $sectionStartLine; $i -lt $sectionEndLine; $i++) {
+    for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
+        if (-not $sanitizeLineIndexes.Contains($i)) { $newLines.Add($line); continue }
         $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
         if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
         $hasAllowedNumber = $false
@@ -622,7 +673,6 @@ function Limit-RelatedIssues {
         if ($hasAllowedNumber) { $newLines.Add($line) }
         else { foreach ($num in $lineNumbers) { $removed.Add($num) } }
     }
-    for ($i = $sectionEndLine; $i -lt $lines.Count; $i++) { $newLines.Add($lines[$i]) }
 
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
 }
@@ -733,15 +783,15 @@ function Set-BugEnvironment {
     return ($newLines -join "`n")
 }
 
-# #1400 (adversarial review finding 1): inserts one note line (audit-draft-remediation.ps1's
+# #1400 (adversarial review finding 1), widened by #1428: inserts one note line (audit-draft-remediation.ps1's
 # "partially related"/"possibly related" line for a rejected duplicate-of claim) into a draft's own Related
-# Issues section, recognising the SAME two conventions Limit-RelatedIssues does. Before this function existed,
+# Issues section, recognising the SAME three conventions Limit-RelatedIssues does. Before this function existed,
 # audit-draft-remediation.ps1 looked only for the '## Related Issues' H2 and, for a bug-kind draft
-# (bug_report.md has no such header -- only the '- **Related Issues**:' bold-bullet convention), fell back to
-# appending the note at the very end of the file, detached from the section it names and from what
-# Limit-RelatedIssues actually scans -- a structurally malformed draft. Returns the updated text and whether a
-# section was found at all; when neither convention is found, the text is returned unchanged so the caller can
-# fall back and log a lesson, exactly as before.
+# (bug_report.md has no such header -- only the '- **Related Issues**:' bold-bullet convention, or #1428's plain
+# 'Related Issues:' line), fell back to appending the note at the very end of the file, detached from the
+# section it names and from what Limit-RelatedIssues actually scans -- a structurally malformed draft. Returns
+# the updated text and whether a section was found at all; when none of the three conventions is found, the
+# text is returned unchanged so the caller can fall back and log a lesson, exactly as before.
 function Add-RelatedIssuesLine {
     param([string]$DraftText, [string]$Line)
 
@@ -752,6 +802,10 @@ function Add-RelatedIssuesLine {
         $insertedLine = $null
         if ($lines[$i] -match '^##\s*Related Issues\s*$') { $insertedLine = $Line }
         elseif ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $insertedLine = "  $Line" }
+        # #1428: the plain 'Related Issues:' form's own bullets are unindented top-level bullets (the real
+        # 16-code-5 draft's own '- #16: ...' lines under it), not nested sub-bullets like the bold-bullet form,
+        # so the note is inserted as-is, with no extra indent.
+        elseif ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$') { $insertedLine = $Line }
         if ($null -eq $insertedLine) { continue }
 
         $newLines = [System.Collections.Generic.List[string]]::new()
