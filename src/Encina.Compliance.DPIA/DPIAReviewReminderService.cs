@@ -138,7 +138,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
                 Left: error =>
                 {
                     _logger.ReviewReminderCycleFailed(
-                        new InvalidOperationException(error.Message));
+                        error.GetCode().IfNone("encina.unknown"));
 
                     DPIADiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
                     DPIADiagnostics.ReviewReminderCyclesTotal.Add(1,

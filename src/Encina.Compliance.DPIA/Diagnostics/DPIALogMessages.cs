@@ -88,15 +88,15 @@ internal static partial class DPIALogMessages
     [LoggerMessage(
         EventId = 8807,
         Level = LogLevel.Warning,
-        Message = "DPIA pipeline blocked request. RequestType={RequestType}, Reason={Reason}")]
-    internal static partial void DPIAPipelineBlocked(this ILogger logger, string requestType, string reason);
+        Message = "DPIA pipeline blocked request. RequestType={RequestType}, ReasonCode={ReasonCode}")]
+    internal static partial void DPIAPipelineBlocked(this ILogger logger, string requestType, string reasonCode);
 
     /// <summary>DPIA pipeline issued a warning in Warn enforcement mode but allowed the request.</summary>
     [LoggerMessage(
         EventId = 8808,
         Level = LogLevel.Warning,
-        Message = "DPIA pipeline warning (request allowed). RequestType={RequestType}, Reason={Reason}")]
-    internal static partial void DPIAPipelineWarned(this ILogger logger, string requestType, string reason);
+        Message = "DPIA pipeline warning (request allowed). RequestType={RequestType}, ReasonCode={ReasonCode}")]
+    internal static partial void DPIAPipelineWarned(this ILogger logger, string requestType, string reasonCode);
 
     /// <summary>Exception occurred in the DPIA pipeline.</summary>
     [LoggerMessage(
@@ -155,12 +155,19 @@ internal static partial class DPIALogMessages
         Message = "DPIA auto-registration: skipped (assessment exists). RequestType={RequestType}")]
     internal static partial void AutoRegistrationSkipped(this ILogger logger, string requestType);
 
-    /// <summary>Auto-registration failed for a request type.</summary>
+    /// <summary>Auto-registration failed for a request type because of an unhandled exception.</summary>
     [LoggerMessage(
         EventId = 8824,
         Level = LogLevel.Warning,
         Message = "DPIA auto-registration: failed to create draft. RequestType={RequestType}")]
     internal static partial void AutoRegistrationFailed(this ILogger logger, string requestType, Exception exception);
+
+    /// <summary>Auto-registration failed for a request type because the store returned an error.</summary>
+    [LoggerMessage(
+        EventId = 8825,
+        Level = LogLevel.Warning,
+        Message = "DPIA auto-registration: failed to create draft. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void AutoRegistrationFailed(this ILogger logger, string requestType, string errorCode);
 
     // ========================================================================
     // Assessment engine log messages (8830-8839)
@@ -254,7 +261,7 @@ internal static partial class DPIALogMessages
         Message = "DPIA review reminder cycle was cancelled.")]
     internal static partial void ReviewReminderCycleCancelled(this ILogger logger);
 
-    /// <summary>Review reminder cycle failed with an exception.</summary>
+    /// <summary>Review reminder cycle failed with an unhandled exception.</summary>
     [LoggerMessage(
         EventId = 8846,
         Level = LogLevel.Error,
@@ -267,6 +274,13 @@ internal static partial class DPIALogMessages
         Level = LogLevel.Warning,
         Message = "DPIA assessment expired: RequestType={RequestType}, AssessmentId={AssessmentId}, NextReviewAtUtc={NextReviewAtUtc}")]
     internal static partial void ReviewReminderAssessmentExpired(this ILogger logger, string requestType, Guid assessmentId, DateTimeOffset? nextReviewAtUtc);
+
+    /// <summary>Review reminder cycle failed because the store returned an error.</summary>
+    [LoggerMessage(
+        EventId = 8848,
+        Level = LogLevel.Error,
+        Message = "DPIA review reminder cycle failed. ErrorCode={ErrorCode}")]
+    internal static partial void ReviewReminderCycleFailed(this ILogger logger, string errorCode);
 
     // ========================================================================
     // Event sourcing log messages (8860-8869)

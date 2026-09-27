@@ -1,0 +1,3 @@
+- **EncinaError.Message no longer leaks into logger calls in Encina.Compliance.DPIA** (#1503). Prevents the raw error message from reaching structured logs and observability pipelines.
+
+  The affected call sites — `DPIAPipelineBlocked`, `DPIAPipelineWarned` and related diagnostics in `DPIARequiredPipelineBehavior`, `DPIAAutoRegistrationHostedService` and `DPIAReviewReminderService` — previously logged `EncinaError.Message` directly or wrapped it in an exception only to pass it to the logger. The fix records only the error code (`EncinaError.GetCode()`) instead, preventing sensitive data from reaching operational logs. New EventId-specific overloads for `AutoRegistrationFailed` and `ReviewReminderCycleFailed` avoid the exception-wrapping anti-pattern.
