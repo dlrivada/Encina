@@ -162,8 +162,9 @@ internal static class GDPRLogMessages
 
     // =====================================================
     // Lawful Basis DI & Auto-Registration (8113–8115)
-    // Note: Validation events 8120–8133 are now in
-    // LawfulBasisLogMessages (source-generated).
+    // Note: lawful basis validation events live in
+    // Encina.Compliance.LawfulBasis.Diagnostics.LawfulBasisLogMessages
+    // (EventIds 8350-8399, ComplianceLawfulBasis range).
     // =====================================================
 
     // -- 8113: Lawful basis auto-registration completed --
