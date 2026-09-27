@@ -17,6 +17,12 @@
 # script (audit-draft-remediation.ps1), which writes with Set-Content, never through the Write/Edit tool, so
 # the sidecar never gets an entry for it.
 #
+# #1457: -Stage archivist additionally refuses when the knowledge record it just wrote
+# (artifacts\knowledge\issues\<n>.md) fails `dotnet run --file .github/scripts/knowledge-records.cs --
+# --check`, printing the validator output -- catching a non-schema-1 record here, before audit-done.ps1 hits
+# it with no way to fix it (path ownership assigns that file to issue-archivist). A successful archivist
+# commit also clears any artifacts\knowledge\stages\.rerun-archivist marker audit-done.ps1 left behind.
+#
 # -Lessons commits stages\lessons.md instead of a pipeline.json stage: it is not one of pipeline.json's
 # stages (the orchestrator hand-edits it to resolve each 'Applied: TODO'), so the -Stage path above does not
 # apply to it, and enforce-path-ownership.ps1 blocks a bare `git commit` for every caller inside an open
@@ -102,6 +108,33 @@ if ($expectedAgent -in $knownStageAgents) {
         Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: pipeline.json assigns it to $expectedAgent, but artifacts\knowledge\stages\.authors.json has $found. The artifact must be written by $expectedAgent through the Write/Edit tool (enforce-path-ownership.ps1 records authorship there); a hand-edited or fabricated artifact is not accepted (#1345)."
         exit 1
     }
+}
+
+# #1457: the archivist stage's whole job is the knowledge record (artifacts\knowledge\issues\<n>.md), so this
+# is the one place that can catch a non-schema-1 record before it reaches audit-done.ps1 -- which cannot fix
+# it (path ownership assigns that file to issue-archivist) and, before this change, left the audit deadlocked
+# because audit-stage-guard.ps1 also refused to re-spawn issue-archivist once every stage was committed.
+if ($Stage -eq 'archivist') {
+    $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
+    $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
+    if (-not (Test-Path -LiteralPath $knowledgeScript)) {
+        Write-Error "audit-commit-stage: refusing to commit 'archivist' for #${n}: $knowledgeScript not found in $wt; cannot validate the knowledge record."
+        exit 1
+    }
+    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "audit-commit-stage: refusing to commit 'archivist' for #${n}: the knowledge record under $recordsDir does not pass 'knowledge-records --check':`n$($checkOutput -join "`n")"
+        exit 1
+    }
+
+    # The check just passed, so a previous audit-done.ps1 rerun-archivist marker (see audit-done.ps1) no
+    # longer applies. Removed HERE -- before 'git add -f artifacts/knowledge' below, not after the commit --
+    # because that add is recursive over the whole (gitignored) artifacts\knowledge tree: removing the marker
+    # afterward would leave it already committed as part of this stage, with its deletion then unstaged and
+    # liable to be folded into whatever OTHER stage's commit runs next (the exact kind of untracked,
+    # misattributed change the .authors.json fabrication-gap check above exists to prevent, #1345).
+    $rerunMarker = Join-Path (Get-StagesDir $wt) '.rerun-archivist'
+    if (Test-Path -LiteralPath $rerunMarker) { Remove-Item -LiteralPath $rerunMarker -Force }
 }
 
 $addOutput = & git -C $wt add -f 'artifacts/knowledge' 2>&1

@@ -1255,6 +1255,18 @@ try {
         Invoke-AuditGit commit -q -m "audit #$auditN`: verification stage" -m 'Stage: verification'
         Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify again." $null 2 'audit-stage-guard: all stages complete with a PASS verdict, no more spawns'
 
+        # #1457: without a .rerun-archivist marker, issue-archivist stays blocked after a PASS verdict too
+        # (the deadlock this issue closes was audit-done refusing while the guard also refused the re-spawn
+        # that would fix it) -- but audit-done.ps1 writing that marker (a record-schema failure with every
+        # stage already committed) is the one condition that lets it through anyway.
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN, redo archivist to fix the record." $null 2 'audit-stage-guard: PASS verdict, no .rerun-archivist marker, issue-archivist still blocked (#1457)'
+
+        $rerunArchivistMarker = Join-Path $auditWt 'artifacts\knowledge\stages\.rerun-archivist'
+        Set-Content $rerunArchivistMarker "knowledge-records --check failed: fixture error`n`nUTC: 2026-01-01T00:00:00Z`n"
+        Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN, redo archivist to fix the record." $null 0 'audit-stage-guard: .rerun-archivist marker allows issue-archivist even after a PASS verdict (#1457)'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage instead." $null 2 'audit-stage-guard: the .rerun-archivist marker only exempts issue-archivist, not another stage agent (#1457)'
+        Remove-Item -Force $rerunArchivistMarker
+
         Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage." $null 0 'audit-stage-guard: earlier stage re-run allowed after a Verdict: FAIL'
 
@@ -1316,6 +1328,132 @@ try {
         Test-CommitStageCase 'refuses when the recorded author is the wrong agent' $false
         @{ code = @{ agent = 'issue-auditor'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $commitWt 'artifacts\knowledge\stages\.authors.json')
         Test-CommitStageCase 'commits when the recorded author matches pipeline.json' $true
+
+        # ================================================================================================
+        # #1457: audit-commit-stage.ps1 -Stage archivist additionally runs the real knowledge-records --check
+        # against the knowledge record the archivist stage wrote (artifacts\knowledge\issues\<n>.md), refusing
+        # to commit a non-schema-1 record and clearing any .rerun-archivist marker once a valid one commits.
+        # A standalone fixture (its own repo, self-referential current-audit.json), like $commitWt above, but
+        # carrying a real copy of .github\scripts\knowledge-records.cs so the check runs for real (no gh, no
+        # local model, no network -- dotnet run --file is the same tool AGENTS.md requires for this repo).
+        if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+            $archivistWt = Join-Path $work 'ArchivistCommitWt'
+            if (Test-Path $archivistWt) { Remove-Item -Recurse -Force $archivistWt }
+            New-Item -ItemType Directory -Force (Join-Path $archivistWt 'tools\ai\audit') | Out-Null
+            New-Item -ItemType Directory -Force (Join-Path $archivistWt '.github\scripts') | Out-Null
+            New-Item -ItemType Directory -Force (Join-Path $archivistWt 'artifacts\knowledge\stages') | Out-Null
+            New-Item -ItemType Directory -Force (Join-Path $archivistWt 'artifacts\knowledge\issues') | Out-Null
+            Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\audit-commit-stage.ps1') (Join-Path $archivistWt 'tools\ai\audit\audit-commit-stage.ps1')
+            Copy-Item (Join-Path $hooks '..\..\tools\ai\audit\_audit-lib.ps1') (Join-Path $archivistWt 'tools\ai\audit\_audit-lib.ps1')
+            Copy-Item (Join-Path $repo '.github\scripts\knowledge-records.cs') (Join-Path $archivistWt '.github\scripts\knowledge-records.cs')
+            Set-Content (Join-Path $archivistWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
+            function Invoke-ArchivistWtGit { & git -C $archivistWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+            Invoke-ArchivistWtGit init -q -b main
+            Invoke-ArchivistWtGit config user.name hooks
+            Invoke-ArchivistWtGit config user.email hooks@example.invalid
+            Invoke-ArchivistWtGit commit -q --allow-empty -m base
+            $archivistN = 4242
+            @{ issue = $archivistN; worktree = $archivistWt; branch = "audit/$archivistN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $archivistWt 'artifacts\knowledge\current-audit.json')
+            Set-Content (Join-Path $archivistWt 'artifacts\knowledge\stages\archivist.md') "x`n## Lessons for the pipeline`n- none`n"
+            @{ archivist = @{ agent = 'issue-archivist'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $archivistWt 'artifacts\knowledge\stages\.authors.json')
+
+            $recordPath = Join-Path $archivistWt "artifacts\knowledge\issues\$archivistN.md"
+            $nonSchemaRecord = @"
+---
+issue: $archivistN
+title: "Ad hoc record"
+type: infra
+outcome: delivered
+closed_at: 2026-09-27
+---
+
+## Decisions
+- something
+"@
+            $validRecord = @"
+---
+schema: 1
+nav_exclude: true
+issue: $archivistN
+title: "Test knowledge record (#1457 fixture)"
+closed: 2026-09-27
+state_reason: completed
+outcome: delivered
+type: infra
+area: ci-process
+review: draft
+packages:
+prs:
+linked_prs:
+knowledge:
+remediation:
+audit:
+  checklist: 0
+  date: 2026-09-27
+  verdict: not-audited
+  record: "not written yet"
+---
+
+## Asked
+Test.
+## Outcome
+Test.
+"@
+
+            function Invoke-ArchivistCommitStage {
+                $output = & pwsh -NoProfile -File (Join-Path $archivistWt 'tools\ai\audit\audit-commit-stage.ps1') -Stage archivist 2>&1
+                [pscustomobject]@{ Code = $LASTEXITCODE; Output = (Get-FlatOutput $output) }
+            }
+            function Test-ArchivistCommitCase([string]$Label, [bool]$ExpectSuccess, [string]$Pattern) {
+                $r = Invoke-ArchivistCommitStage
+                $ok = if ($ExpectSuccess) { $r.Code -eq 0 } else { $r.Code -ne 0 }
+                if ($ok -and $Pattern) { $ok = $r.Output -match $Pattern }
+                $script:total++
+                if ($ok) { "PASS audit-commit-stage.ps1: $Label" } else { $script:failed++; "FAIL audit-commit-stage.ps1: $Label (exit $($r.Code)): $($r.Output)" }
+            }
+
+            Set-Content -LiteralPath $recordPath -Value $nonSchemaRecord
+            Test-ArchivistCommitCase 'refuses to commit the archivist stage when the knowledge record fails knowledge-records --check (#1457)' $false 'knowledge-records --check'
+
+            # A prior audit-done.ps1 run had already left the .rerun-archivist marker (a record-schema
+            # failure discovered after every stage was committed) -- committing a now-valid record must clear
+            # it, or audit-stage-guard.ps1 would keep allowing an issue-archivist re-spawn forever.
+            $archivistRerunMarker = Join-Path $archivistWt 'artifacts\knowledge\stages\.rerun-archivist'
+            Set-Content $archivistRerunMarker "knowledge-records --check failed: fixture error`n`nUTC: 2026-01-01T00:00:00Z`n"
+
+            Set-Content -LiteralPath $recordPath -Value $validRecord
+            Test-ArchivistCommitCase 'commits the archivist stage once the knowledge record passes knowledge-records --check (#1457)' $true $null
+
+            $script:total++
+            if (-not (Test-Path -LiteralPath $archivistRerunMarker)) {
+                'PASS audit-commit-stage.ps1: a successful archivist commit removes the .rerun-archivist marker (#1457)'
+            }
+            else {
+                $script:failed++
+                'FAIL audit-commit-stage.ps1: .rerun-archivist marker was not removed after a successful archivist commit (#1457)'
+            }
+
+            # Adversarial review of the first #1457 diff: the marker must be removed BEFORE 'git add -f
+            # artifacts/knowledge', not after the commit -- an add -f over the whole (gitignored) tree would
+            # otherwise sweep the still-present marker into the archivist commit itself, leaving its later
+            # on-disk removal as an unstaged, unrelated deletion that the NEXT stage's own 'git add -f' would
+            # silently fold into a commit that never touched it. Checking file presence alone (the case above)
+            # cannot catch that: the marker genuinely disappears from disk either way. Assert directly that no
+            # commit on the branch ever carried the marker, and that the working tree is clean afterward.
+            $script:total++
+            $markerCommits = & git -C $archivistWt log --all --name-only --pretty=format: -- 'artifacts/knowledge/stages/.rerun-archivist' 2>&1
+            $markerStatus = & git -C $archivistWt status --porcelain -- 'artifacts/knowledge' 2>&1
+            if ([string]::IsNullOrWhiteSpace(($markerCommits | Select-Object -First 1)) -and [string]::IsNullOrWhiteSpace(($markerStatus | Select-Object -First 1))) {
+                'PASS audit-commit-stage.ps1: the .rerun-archivist marker was never committed and the audit worktree is clean after the archivist commit (#1457)'
+            }
+            else {
+                $script:failed++
+                "FAIL audit-commit-stage.ps1: the .rerun-archivist marker leaked into git history or left the worktree dirty (#1457): commits=$(Get-FlatOutput $markerCommits); status=$(Get-FlatOutput $markerStatus)"
+            }
+        }
+        else {
+            'SKIP audit-commit-stage.ps1: dotnet is not on PATH (#1457 knowledge-records --check cases)'
+        }
 
         # ================================================================================================
         # #1374 (appended last, its own delimited block, to minimise conflicts with #1375's own audit-stage
