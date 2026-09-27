@@ -464,17 +464,17 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
     # rejected is still worth a human glance -- append it to the draft's own Related Issues section.
+    # #1400 (adversarial review finding 1): Add-RelatedIssuesLine understands both conventions
+    # Limit-RelatedIssues does (the '## Related Issues' H2, and bug_report.md's own bold-bullet convention),
+    # so the note lands inside the section it names -- and inside what Limit-RelatedIssues itself scans below
+    # -- for every routed template, not only technical_debt.md/test_implementation.md.
     if ($possiblyRelatedNote) {
         $finalText = Get-Content -LiteralPath $outFile -Raw
-        $headerMatch = [regex]::Match($finalText, '(?m)^## Related Issues\s*$')
-        if ($headerMatch.Success) {
-            $insertAt = $headerMatch.Index + $headerMatch.Length
-            $updatedText = $finalText.Substring(0, $insertAt) + "`n" + $possiblyRelatedNote + $finalText.Substring($insertAt)
+        $inserted = Add-RelatedIssuesLine $finalText $possiblyRelatedNote
+        if (-not $inserted.Found) {
+            $lessons.Add("$label`: could not find a Related Issues section in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
         }
-        else {
-            $lessons.Add("$label`: could not find a '## Related Issues' header in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
-            $updatedText = $finalText.TrimEnd() + "`n$possiblyRelatedNote`n"
-        }
+        $updatedText = if ($inserted.Found) { $inserted.Text } else { $finalText.TrimEnd() + "`n$possiblyRelatedNote`n" }
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
     }
 

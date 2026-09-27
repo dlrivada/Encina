@@ -1661,6 +1661,30 @@ try {
     Test-RemediationChecksCase 'Limit-RelatedIssues: drops the unverified lines from the sanitized draft text' {
         $limited.Text -notmatch '#699' -and $limited.Text -notmatch '#696' -and $limited.Text -notmatch '#181'
     }
+
+    # (e) adversarial review finding 1: Add-RelatedIssuesLine places the "partially related" note inside the
+    # real 16-code-5 draft's own bold-bullet Related Issues section (bug_report.md has no H2 header), not
+    # detached at the end of the file -- so Limit-RelatedIssues (which runs right after, in
+    # audit-draft-remediation.ps1) can actually see and verify it.
+    $withNote = Add-RelatedIssuesLine $code5Draft '- #1343 - partially related (it covers only part of this finding)'
+    Test-RemediationChecksCase 'Add-RelatedIssuesLine: finds the real 16-code-5 draft''s bold-bullet Related Issues section' { $withNote.Found }
+    Test-RemediationChecksCase 'Add-RelatedIssuesLine: inserts the note as an indented sub-bullet right after the bold-bullet header' {
+        ($withNote.Text -split "`r?`n") -contains '  - #1343 - partially related (it covers only part of this finding)'
+    }
+
+    # (f) adversarial review finding 2: Limit-RelatedIssues' bold-bullet convention also tolerates two other
+    # plausible model outputs the single 16-code-5 fixture does not exercise -- unindented sibling bullets at
+    # the same list level, and a header with no trailing colon.
+    $unindentedSiblingsDraft = "## Additional Context`n`n- **Related Issues**:`n- #16 (This issue)`n- #699: unrelated`n"
+    $unindentedResult = Limit-RelatedIssues $unindentedSiblingsDraft '16' '' '' @()
+    Test-RemediationChecksCase 'Limit-RelatedIssues: removes an unverified reference from an unindented sibling bullet list' {
+        (@($unindentedResult.Removed)) -contains '699'
+    }
+    $colonlessHeaderDraft = "## Additional Context`n`n- **Related Issues**`n  - #16 (This issue)`n  - #699: unrelated`n"
+    $colonlessResult = Limit-RelatedIssues $colonlessHeaderDraft '16' '' '' @()
+    Test-RemediationChecksCase 'Limit-RelatedIssues: recognizes a bold-bullet header with no trailing colon' {
+        (@($colonlessResult.Removed)) -contains '699'
+    }
     # ---- end #1400 block ----
 
     # ================================================================================================

@@ -293,8 +293,11 @@ function Find-TemplatePlaceholders {
 # sub-bullets inside 'Additional Context' instead:
 #   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
 #   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
-#     immediately-following lines indented under it (matching '^[ \t]+-'), stopping at the first line that
-#     is not one of those sub-bullets.
+#     immediately-following bullet lines (indented sub-bullets '  - #n' as audit #16's real draft has, or
+#     unindented siblings '- #n' at the same level -- both plausible model output), stopping at the first
+#     blank line, a new '## ' header, a new sibling bold field ('- **Something Else**:'), or any other line
+#     that is not itself a bullet. The header line itself tolerates an optional trailing colon
+#     ('**Related Issues**' or '**Related Issues**:') and an optional leading '- '.
 # A reference (#n) inside that section survives only when n is:
 #   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
 #     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
@@ -322,7 +325,7 @@ function Limit-RelatedIssues {
     $isBoldBullet = $false
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $isBoldBullet = $false; break }
-        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:\s*$') { $headerIdx = $i; $isBoldBullet = $true; break }
+        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $headerIdx = $i; $isBoldBullet = $true; break }
     }
     if ($headerIdx -lt 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
 
@@ -330,7 +333,13 @@ function Limit-RelatedIssues {
     $sectionEndLine = $lines.Count
     if ($isBoldBullet) {
         for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^[ \t]+-') { continue }
+            $l = $lines[$i]
+            if ($l.Trim() -eq '') { $sectionEndLine = $i; break }
+            if ($l -match '^##\s') { $sectionEndLine = $i; break }
+            # a new sibling bold field at the same list level ('- **Location**:', '- **Priority**:', ...) ends
+            # this section; a bullet naming an issue never itself looks like that.
+            if ($l -match '^\s*-\s*\*\*[^*]+\*\*:') { $sectionEndLine = $i; break }
+            if ($l -match '^[ \t]*-') { continue }  # an indented sub-bullet or an unindented sibling bullet
             $sectionEndLine = $i
             break
         }
@@ -367,4 +376,35 @@ function Limit-RelatedIssues {
     for ($i = $sectionEndLine; $i -lt $lines.Count; $i++) { $newLines.Add($lines[$i]) }
 
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
+}
+
+# #1400 (adversarial review finding 1): inserts one note line (audit-draft-remediation.ps1's
+# "partially related"/"possibly related" line for a rejected duplicate-of claim) into a draft's own Related
+# Issues section, recognising the SAME two conventions Limit-RelatedIssues does. Before this function existed,
+# audit-draft-remediation.ps1 looked only for the '## Related Issues' H2 and, for a bug-kind draft
+# (bug_report.md has no such header -- only the '- **Related Issues**:' bold-bullet convention), fell back to
+# appending the note at the very end of the file, detached from the section it names and from what
+# Limit-RelatedIssues actually scans -- a structurally malformed draft. Returns the updated text and whether a
+# section was found at all; when neither convention is found, the text is returned unchanged so the caller can
+# fall back and log a lesson, exactly as before.
+function Add-RelatedIssuesLine {
+    param([string]$DraftText, [string]$Line)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $insertedLine = $null
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $insertedLine = $Line }
+        elseif ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $insertedLine = "  $Line" }
+        if ($null -eq $insertedLine) { continue }
+
+        $newLines = [System.Collections.Generic.List[string]]::new()
+        for ($j = 0; $j -le $i; $j++) { $newLines.Add($lines[$j]) }
+        $newLines.Add($insertedLine)
+        for ($j = $i + 1; $j -lt $lines.Count; $j++) { $newLines.Add($lines[$j]) }
+        return [pscustomobject]@{ Text = ($newLines -join "`n"); Found = $true }
+    }
+
+    return [pscustomobject]@{ Text = $text; Found = $false }
 }
