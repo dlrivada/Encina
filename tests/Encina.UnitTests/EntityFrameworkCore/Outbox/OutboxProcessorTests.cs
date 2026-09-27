@@ -87,8 +87,9 @@ public sealed class OutboxProcessorTests
         // Act
         var exception = await Record.ExceptionAsync(async () =>
         {
+            // The 10-minute processing interval means the loop never ticks before
+            // cancellation, so there is no processor event to wait for here.
             await processor.StartAsync(cts.Token);
-            await Task.Delay(10);
             cts.Cancel();
             await processor.StopAsync(CancellationToken.None);
         });

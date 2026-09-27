@@ -13,6 +13,8 @@ namespace Encina.UnitTests.ADO.SqlServer.Outbox;
 /// </summary>
 public sealed class OutboxProcessorTests
 {
+    private static readonly DateTime FixedCreatedAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     #region Constructor Tests
 
     [Fact]
@@ -81,11 +83,9 @@ public sealed class OutboxProcessorTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act - Start and give it some time to process
+        // Act - a disabled processor's ExecuteAsync returns immediately, so there is no
+        // loop iteration to wait for.
         await processor.StartAsync(cts.Token);
-
-        // Wait a bit and stop
-        await Task.Delay(50);
         await processor.StopAsync(cts.Token);
 
         // Assert - Should complete without processing anything
@@ -95,10 +95,15 @@ public sealed class OutboxProcessorTests
     public async Task ExecuteAsync_WhenCancellationRequested_StopsProcessing()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, IEnumerable<IOutboxMessage>>>(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>())))
-            .AndDoes(_ => Thread.Sleep(10));
+            .AndDoes(_ =>
+            {
+                Thread.Sleep(10);
+                tcs.TrySetResult();
+            });
 
         var encina = Substitute.For<IEncina>();
         var scope = Substitute.For<IServiceScope>();
@@ -125,7 +130,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -141,11 +146,16 @@ public sealed class OutboxProcessorTests
     {
         // Arrange
         var callCount = 0;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 callCount++;
+                if (callCount >= 2)
+                {
+                    tcs.TrySetResult();
+                }
                 return Task.FromResult<Either<EncinaError, IEnumerable<IOutboxMessage>>>(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
 
@@ -174,7 +184,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -192,11 +202,12 @@ public sealed class OutboxProcessorTests
             Id = messageId,
             NotificationType = typeof(TestOutboxNotification).AssemblyQualifiedName!,
             Content = "{\"Value\":\"test\"}",
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = FixedCreatedAtUtc,
             RetryCount = 0
         };
 
         var messagesReturned = false;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -212,7 +223,11 @@ public sealed class OutboxProcessorTests
         store.MarkAsProcessedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+            });
 
         var encina = Substitute.For<IEncina>();
         encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
@@ -242,7 +257,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -262,11 +277,12 @@ public sealed class OutboxProcessorTests
             Id = messageId,
             NotificationType = "NonExistent.Type, NonExistent",
             Content = "{}",
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = FixedCreatedAtUtc,
             RetryCount = 0
         };
 
         var messagesReturned = false;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -280,7 +296,11 @@ public sealed class OutboxProcessorTests
             });
 
         store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+            });
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
@@ -310,7 +330,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -332,11 +352,12 @@ public sealed class OutboxProcessorTests
             Id = messageId,
             NotificationType = typeof(TestOutboxNotification).AssemblyQualifiedName!,
             Content = "{\"Value\":\"test\"}",
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = FixedCreatedAtUtc,
             RetryCount = 0
         };
 
         var messagesReturned = false;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -349,7 +370,11 @@ public sealed class OutboxProcessorTests
                 return Task.FromResult<Either<EncinaError, IEnumerable<IOutboxMessage>>>(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
         store.MarkAsFailedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+            });
         store.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
@@ -382,7 +407,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
@@ -399,6 +424,7 @@ public sealed class OutboxProcessorTests
     {
         // Arrange
         var callCount = 0;
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IOutboxStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -408,6 +434,7 @@ public sealed class OutboxProcessorTests
                 {
                     throw new InvalidOperationException("Simulated error");
                 }
+                tcs.TrySetResult();
                 return Task.FromResult<Either<EncinaError, IEnumerable<IOutboxMessage>>>(Either<EncinaError, IEnumerable<IOutboxMessage>>.Right(Enumerable.Empty<IOutboxMessage>()));
             });
 
@@ -436,7 +463,7 @@ public sealed class OutboxProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
         await processor.StopAsync(CancellationToken.None);
 
