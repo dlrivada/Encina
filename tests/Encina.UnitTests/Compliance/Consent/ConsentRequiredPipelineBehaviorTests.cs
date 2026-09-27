@@ -285,7 +285,8 @@ public class ConsentRequiredPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
-        error.Message.ShouldContain("user-1");
+        error.Message.ShouldNotContain("user-1");
+        error.Message.ShouldContain("marketing");
     }
 
     [Fact]

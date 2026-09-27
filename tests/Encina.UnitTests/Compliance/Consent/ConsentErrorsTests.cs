@@ -43,13 +43,13 @@ public class ConsentErrorsTests
     #region MissingConsent Factory
 
     [Fact]
-    public void MissingConsent_ShouldContainSubjectIdAndPurpose()
+    public void MissingConsent_ShouldContainPurposeButNeverSubjectId()
     {
         // Act
         var error = ConsentErrors.MissingConsent("user-123", "marketing");
 
         // Assert
-        error.Message.ShouldContain("user-123");
+        error.Message.ShouldNotContain("user-123");
         error.Message.ShouldContain("marketing");
         error.Message.ShouldContain("Article 6(1)(a)");
     }
@@ -59,7 +59,7 @@ public class ConsentErrorsTests
     #region ConsentExpired Factory
 
     [Fact]
-    public void ConsentExpired_ShouldContainSubjectIdPurposeAndTimestamp()
+    public void ConsentExpired_ShouldContainPurposeAndTimestampButNeverSubjectId()
     {
         // Arrange
         var expiredAt = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
@@ -68,7 +68,7 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ConsentExpired("user-456", "analytics", expiredAt);
 
         // Assert
-        error.Message.ShouldContain("user-456");
+        error.Message.ShouldNotContain("user-456");
         error.Message.ShouldContain("analytics");
         error.Message.ShouldContain("2026-01-15");
     }
@@ -78,7 +78,7 @@ public class ConsentErrorsTests
     #region ConsentWithdrawn Factory
 
     [Fact]
-    public void ConsentWithdrawn_ShouldContainSubjectIdPurposeAndTimestamp()
+    public void ConsentWithdrawn_ShouldContainPurposeAndTimestampButNeverSubjectId()
     {
         // Arrange
         var withdrawnAt = new DateTimeOffset(2026, 2, 1, 8, 0, 0, TimeSpan.Zero);
@@ -87,7 +87,7 @@ public class ConsentErrorsTests
         var error = ConsentErrors.ConsentWithdrawn("user-789", "profiling", withdrawnAt);
 
         // Assert
-        error.Message.ShouldContain("user-789");
+        error.Message.ShouldNotContain("user-789");
         error.Message.ShouldContain("profiling");
         error.Message.ShouldContain("Article 7(3)");
     }
@@ -97,13 +97,13 @@ public class ConsentErrorsTests
     #region RequiresReconsent Factory
 
     [Fact]
-    public void RequiresReconsent_ShouldContainVersionInfo()
+    public void RequiresReconsent_ShouldContainVersionInfoButNeverSubjectId()
     {
         // Act
         var error = ConsentErrors.RequiresReconsent("user-100", "marketing", "v3", "v1");
 
         // Assert
-        error.Message.ShouldContain("user-100");
+        error.Message.ShouldNotContain("user-100");
         error.Message.ShouldContain("marketing");
         error.Message.ShouldContain("v3");
         error.Message.ShouldContain("v1");
@@ -114,13 +114,13 @@ public class ConsentErrorsTests
     #region VersionMismatch Factory
 
     [Fact]
-    public void VersionMismatch_ShouldContainExpectedAndActualVersions()
+    public void VersionMismatch_ShouldContainExpectedAndActualVersionsButNeverSubjectId()
     {
         // Act
         var error = ConsentErrors.VersionMismatch("user-200", "analytics", "v5", "v2");
 
         // Assert
-        error.Message.ShouldContain("user-200");
+        error.Message.ShouldNotContain("user-200");
         error.Message.ShouldContain("analytics");
         error.Message.ShouldContain("v5");
         error.Message.ShouldContain("v2");
