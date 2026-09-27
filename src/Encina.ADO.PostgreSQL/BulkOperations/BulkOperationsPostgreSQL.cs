@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -372,13 +373,13 @@ public sealed class BulkOperationsPostgreSQL<TEntity, TId> : IBulkOperations<TEn
     {
         if (_connection.State != ConnectionState.Open)
         {
-            if (_connection is NpgsqlConnection npgsqlConnection)
+            if (_connection is DbConnection dbConnection)
             {
-                await npgsqlConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                _connection.Open();
+                await Task.Run(_connection.Open, cancellationToken).ConfigureAwait(false);
             }
         }
     }

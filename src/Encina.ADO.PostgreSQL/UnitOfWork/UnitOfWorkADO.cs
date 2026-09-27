@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Data.Common;
 using Encina;
 using Encina.ADO.PostgreSQL.Repository;
 using Encina.DomainModeling;
 using LanguageExt;
-using Npgsql;
 using static LanguageExt.Prelude;
 
 namespace Encina.ADO.PostgreSQL.UnitOfWork;
@@ -150,7 +150,7 @@ public sealed class UnitOfWorkADO : IUnitOfWork
         try
         {
             await EnsureConnectionOpenAsync(cancellationToken).ConfigureAwait(false);
-            _transaction = _connection.BeginTransaction();
+            _transaction = await BeginTransactionInternalAsync(cancellationToken).ConfigureAwait(false);
 
             return Right<EncinaError, Unit>(Unit.Default);
         }
@@ -161,36 +161,35 @@ public sealed class UnitOfWorkADO : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public Task<Either<EncinaError, Unit>> CommitAsync(CancellationToken cancellationToken = default)
+    public async Task<Either<EncinaError, Unit>> CommitAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (_transaction is null)
         {
-            return Task.FromResult(Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction()));
+            return Left<EncinaError, Unit>(UnitOfWorkErrors.NoActiveTransaction());
         }
 
         try
         {
-            _transaction.Commit();
+            await CommitTransactionInternalAsync(cancellationToken).ConfigureAwait(false);
             DisposeTransaction();
 
-            return Task.FromResult(Right<EncinaError, Unit>(Unit.Default));
+            return Right<EncinaError, Unit>(Unit.Default);
         }
         catch (Exception ex)
         {
-            RollbackInternal();
-            return Task.FromResult(Left<EncinaError, Unit>(UnitOfWorkErrors.CommitFailed(ex)));
+            await RollbackInternalAsync(CancellationToken.None).ConfigureAwait(false);
+            return Left<EncinaError, Unit>(UnitOfWorkErrors.CommitFailed(ex));
         }
     }
 
     /// <inheritdoc/>
-    public Task RollbackAsync(CancellationToken cancellationToken = default)
+    public async Task RollbackAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        RollbackInternal();
-        return Task.CompletedTask;
+        await RollbackInternalAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -225,22 +224,21 @@ public sealed class UnitOfWorkADO : IUnitOfWork
     }
 
     /// <inheritdoc/>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         _disposed = true;
 
         // Auto-rollback uncommitted transaction
-        RollbackInternal();
+        await RollbackInternalAsync(CancellationToken.None).ConfigureAwait(false);
 
         _repositories.Clear();
 
         GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
     }
 
     private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
@@ -248,9 +246,9 @@ public sealed class UnitOfWorkADO : IUnitOfWork
         if (_connection.State == ConnectionState.Open)
             return;
 
-        if (_connection is NpgsqlConnection npgsqlConnection)
+        if (_connection is DbConnection dbConnection)
         {
-            await npgsqlConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -258,7 +256,28 @@ public sealed class UnitOfWorkADO : IUnitOfWork
         }
     }
 
-    private void RollbackInternal()
+    private async Task<IDbTransaction> BeginTransactionInternalAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is DbConnection dbConnection)
+        {
+            return await dbConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return await Task.Run(_connection.BeginTransaction, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task CommitTransactionInternalAsync(CancellationToken cancellationToken)
+    {
+        if (_transaction is DbTransaction dbTransaction)
+        {
+            await dbTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await Task.Run(_transaction!.Commit, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RollbackInternalAsync(CancellationToken cancellationToken)
     {
         if (_transaction is null)
         {
@@ -267,7 +286,14 @@ public sealed class UnitOfWorkADO : IUnitOfWork
 
         try
         {
-            _transaction.Rollback();
+            if (_transaction is DbTransaction dbTransaction)
+            {
+                await dbTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await Task.Run(_transaction.Rollback, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch
         {

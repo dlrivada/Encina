@@ -1,5 +1,4 @@
 using System.Data;
-using System.Data.Common;
 using Encina.Sharding;
 using Encina.Sharding.Data;
 using Encina.Sharding.Migrations;
@@ -44,14 +43,7 @@ internal sealed class AdoMigrationExecutor : IMigrationExecutor
                     using var cmd = connection.CreateCommand();
                     cmd.CommandText = sql;
 
-                    if (cmd is DbCommand dbCmd)
-                    {
-                        await dbCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
+                    await AdoHelper.ExecuteNonQueryAsync(cmd, cancellationToken).ConfigureAwait(false);
 
                     return Unit.Default;
                 })

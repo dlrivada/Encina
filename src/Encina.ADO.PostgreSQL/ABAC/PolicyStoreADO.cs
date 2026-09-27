@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
 using LanguageExt;
@@ -429,10 +430,10 @@ public sealed class PolicyStoreADO : IPolicyStore
     {
         if (_connection.State != ConnectionState.Open)
         {
-            if (_connection is NpgsqlConnection npgsqlConnection)
-                await npgsqlConnection.OpenAsync(cancellationToken);
+            if (_connection is DbConnection dbConnection)
+                await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
             else
-                _connection.Open();
+                await Task.Run(_connection.Open, cancellationToken).ConfigureAwait(false);
         }
     }
 

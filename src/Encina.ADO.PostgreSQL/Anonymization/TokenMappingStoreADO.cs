@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Encina.Compliance.Anonymization;
 using Encina.Compliance.Anonymization.Model;
 using Encina.Messaging;
@@ -243,13 +244,13 @@ public sealed class TokenMappingStoreADO : ITokenMappingStore
 
     private async Task OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        if (_connection is NpgsqlConnection npgsqlConnection)
+        if (_connection is DbConnection dbConnection)
         {
-            await npgsqlConnection.OpenAsync(cancellationToken);
+            await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        _connection.Open();
+        await Task.Run(_connection.Open, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<IDataReader> ExecuteReaderAsync(IDbCommand command, CancellationToken cancellationToken)

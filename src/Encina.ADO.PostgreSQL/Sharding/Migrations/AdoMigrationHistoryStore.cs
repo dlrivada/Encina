@@ -16,11 +16,13 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
     private const string HistoryTableName = "__encina_migration_history";
 
     private readonly IShardedConnectionFactory _connectionFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public AdoMigrationHistoryStore(IShardedConnectionFactory connectionFactory)
+    public AdoMigrationHistoryStore(IShardedConnectionFactory connectionFactory, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -79,7 +81,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
                 AddParam(cmd, "@MigrationId", script.Id);
                 AddParam(cmd, "@Description", script.Description);
                 AddParam(cmd, "@Checksum", script.Checksum);
-                AddParam(cmd, "@AppliedAtUtc", DateTime.UtcNow);
+                AddParam(cmd, "@AppliedAtUtc", _timeProvider.GetUtcNow().UtcDateTime);
                 AddParam(cmd, "@DurationMs", (long)duration.TotalMilliseconds);
                 await AdoHelper.ExecuteNonQueryAsync(cmd, cancellationToken).ConfigureAwait(false);
                 return Unit.Default;
@@ -113,7 +115,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
                 using var cmd = connection.CreateCommand();
                 cmd.CommandText = sql;
                 AddParam(cmd, "@MigrationId", migrationId);
-                AddParam(cmd, "@RolledBackAtUtc", DateTime.UtcNow);
+                AddParam(cmd, "@RolledBackAtUtc", _timeProvider.GetUtcNow().UtcDateTime);
                 await AdoHelper.ExecuteNonQueryAsync(cmd, cancellationToken).ConfigureAwait(false);
                 return Unit.Default;
             }).ConfigureAwait(false);
@@ -188,7 +190,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
                     AddParam(cmd, "@MigrationId", script.Id);
                     AddParam(cmd, "@Description", script.Description);
                     AddParam(cmd, "@Checksum", script.Checksum);
-                    AddParam(cmd, "@AppliedAtUtc", DateTime.UtcNow);
+                    AddParam(cmd, "@AppliedAtUtc", _timeProvider.GetUtcNow().UtcDateTime);
                     await AdoHelper.ExecuteNonQueryAsync(cmd, cancellationToken).ConfigureAwait(false);
                 }
 

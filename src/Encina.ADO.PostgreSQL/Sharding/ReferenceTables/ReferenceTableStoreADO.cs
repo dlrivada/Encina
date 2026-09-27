@@ -93,9 +93,9 @@ public sealed class ReferenceTableStoreADO(IDbConnection connection) : IReferenc
             }
             else
             {
-                using var reader = command.ExecuteReader();
+                using var reader = await Task.Run(command.ExecuteReader, cancellationToken).ConfigureAwait(false);
 
-                while (reader.Read())
+                while (await Task.Run(reader.Read, cancellationToken).ConfigureAwait(false))
                 {
                     results.Add(MapEntity<TEntity>(reader, metadata));
                 }
