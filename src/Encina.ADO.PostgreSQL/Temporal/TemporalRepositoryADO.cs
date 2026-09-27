@@ -370,15 +370,13 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         DateTime asOfUtc,
         CancellationToken cancellationToken = default)
     {
-        var validationResult = ValidateUtcDateTime(asOfUtc, nameof(asOfUtc));
-        if (validationResult.IsLeft)
+        var preCheck = ValidateAndLog(
+            asOfUtc,
+            nameof(asOfUtc),
+            () => Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc));
+        if (preCheck.IsLeft)
         {
-            return validationResult.Map(_ => default(TEntity)!);
-        }
-
-        if (_options.LogTemporalQueries)
-        {
-            Log.TemporalQueryAsOf(_logger, typeof(TEntity).Name, id?.ToString() ?? "null", asOfUtc);
+            return preCheck.Map(_ => default(TEntity)!);
         }
 
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
@@ -451,30 +449,13 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
         DateTime toUtc,
         CancellationToken cancellationToken = default)
     {
-        var fromValidation = ValidateUtcDateTime(fromUtc, nameof(fromUtc));
-        if (fromValidation.IsLeft)
+        var preCheck = ValidateChangedBetweenRange(
+            fromUtc,
+            toUtc,
+            () => Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc));
+        if (preCheck.IsLeft)
         {
-            return fromValidation.Map(_ => (IReadOnlyList<TEntity>)[]);
-        }
-
-        var toValidation = ValidateUtcDateTime(toUtc, nameof(toUtc));
-        if (toValidation.IsLeft)
-        {
-            return toValidation.Map(_ => (IReadOnlyList<TEntity>)[]);
-        }
-
-        if (fromUtc > toUtc)
-        {
-            return Left<RepositoryError, IReadOnlyList<TEntity>>(
-                new RepositoryError(
-                    $"Invalid time range: fromUtc ({fromUtc:O}) must be less than or equal to toUtc ({toUtc:O})",
-                    "REPOSITORY_INVALID_TIME_RANGE",
-                    typeof(TEntity)));
-        }
-
-        if (_options.LogTemporalQueries)
-        {
-            Log.TemporalQueryBetween(_logger, typeof(TEntity).Name, fromUtc, toUtc);
+            return preCheck.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
@@ -511,15 +492,13 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        var validationResult = ValidateUtcDateTime(asOfUtc, nameof(asOfUtc));
-        if (validationResult.IsLeft)
+        var preCheck = ValidateAndLog(
+            asOfUtc,
+            nameof(asOfUtc),
+            () => Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc));
+        if (preCheck.IsLeft)
         {
-            return validationResult.Map(_ => (IReadOnlyList<TEntity>)[]);
-        }
-
-        if (_options.LogTemporalQueries)
-        {
-            Log.TemporalQueryListAsOf(_logger, typeof(TEntity).Name, asOfUtc);
+            return preCheck.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
         var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
@@ -638,6 +617,59 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
                     $"Use a TimeProvider's GetUtcNow().UtcDateTime for correct behavior.",
                     "REPOSITORY_INVALID_DATETIME_KIND",
                     typeof(TEntity)));
+        }
+
+        return Right<RepositoryError, Unit>(unit);
+    }
+
+    // Combines the UTC validation and the "log if enabled" check into a single synchronous call so
+    // the async query methods (GetAsOfAsync, ListAsOfAsync) each carry a single branch instead of two
+    // — the branching itself still happens here, in a plain method, rather than being duplicated
+    // inside every async state machine the CRAP gate measures (#1325 follow-up).
+    private Either<RepositoryError, Unit> ValidateAndLog(DateTime dateTime, string parameterName, Action logAction)
+    {
+        var validationResult = ValidateUtcDateTime(dateTime, parameterName);
+        if (validationResult.IsLeft)
+        {
+            return validationResult;
+        }
+
+        if (_options.LogTemporalQueries)
+        {
+            logAction();
+        }
+
+        return Right<RepositoryError, Unit>(unit);
+    }
+
+    // Same purpose as ValidateAndLog, for GetChangedBetweenAsync's two-date range plus its
+    // fromUtc/toUtc ordering check.
+    private Either<RepositoryError, Unit> ValidateChangedBetweenRange(DateTime fromUtc, DateTime toUtc, Action logAction)
+    {
+        var fromValidation = ValidateUtcDateTime(fromUtc, nameof(fromUtc));
+        if (fromValidation.IsLeft)
+        {
+            return fromValidation;
+        }
+
+        var toValidation = ValidateUtcDateTime(toUtc, nameof(toUtc));
+        if (toValidation.IsLeft)
+        {
+            return toValidation;
+        }
+
+        if (fromUtc > toUtc)
+        {
+            return Left<RepositoryError, Unit>(
+                new RepositoryError(
+                    $"Invalid time range: fromUtc ({fromUtc:O}) must be less than or equal to toUtc ({toUtc:O})",
+                    "REPOSITORY_INVALID_TIME_RANGE",
+                    typeof(TEntity)));
+        }
+
+        if (_options.LogTemporalQueries)
+        {
+            logAction();
         }
 
         return Right<RepositoryError, Unit>(unit);
