@@ -12,6 +12,11 @@ Runs crap-gate.cs against the hand-computed fixtures under
   4. `--report` against a diff touching a line inside a nested lambda's own body attributes only
      the lambda, not the enclosing method whose numeric MinLine..MaxLine range spans that line too
      (issue #1506: exact-membership attribution, not a range check).
+  5. `--enforce` against a diff touching an unsequenced line (no method's own recorded lines contain
+     it) that sits inside both a small nested closure's range AND a large, poorly-covered enclosing
+     method's range still reports the enclosing method's violation (issue #1506, PR #1508 review: the
+     range-check fallback must attribute to every covering method, not only the innermost one, or a
+     real violation in the enclosing method silently escapes).
 
 Run this as the first step of the ci.yml `crap-gate` job, before the gate is trusted to block a
 real PR: if crap-gate.cs regresses (diff parsing, the exemption comment, the exit codes), this
@@ -119,6 +124,25 @@ elseif ($result.Output -notmatch 'Changed methods analyzed: 1') {
 }
 else {
     Write-Host 'PASS: only the lambda is attributed the changed line; the enclosing method is not'
+}
+
+# 5. An unsequenced line inside both a small nested closure's range and a large, poorly-covered
+#    enclosing method's range must still report the enclosing method's violation under the range
+#    fallback (issue #1506, PR #1508 review: no under-reporting).
+Write-Host ''
+Write-Host '--- Assertion 5: --enforce on a diff touching an unsequenced line shared by a closure and its poorly-covered enclosing method ---'
+$result = Invoke-CrapGate -GateArgs @('--cobertura', 'SparseEscape.cobertura.xml', '--diff', 'sparse-escape.diff', '--enforce')
+Write-Host $result.Output
+if ($result.ExitCode -ne 1) {
+    Write-Host "FAIL: --enforce should exit 1 (the Enclosing violation must not escape), got $($result.ExitCode)"
+    $failures++
+}
+elseif ($result.Output -notmatch 'VIOLATION.*Enclosing') {
+    Write-Host 'FAIL: --enforce output does not list the Enclosing violation'
+    $failures++
+}
+else {
+    Write-Host 'PASS: the enclosing method''s violation is still reported for the shared unsequenced line'
 }
 
 Write-Host ''

@@ -170,14 +170,18 @@ foreach (var (file, changedLines) in changedLinesByFile)
         }
 
         // Fallback: no method recorded this exact line (typically a declaration or signature line
-        // with no sequence point). Attribute it to the innermost — smallest-range — method whose
-        // MinLine..MaxLine span covers it, not to every enclosing method.
-        var innermost = fileMethods
+        // with no sequence point, but also possibly a comment/blank line inside a nested closure's
+        // own textual span with no sequence point of its own). Attribute it to EVERY method whose
+        // MinLine..MaxLine range covers it — narrowing to only the innermost candidate would let a
+        // real violation in a large, poorly-covered enclosing method silently escape whenever the
+        // unsequenced line also happens to sit inside a small nested closure's numeric range (#1508
+        // found this: a gate may over-report on an unsequenced line, it must never under-report).
+        // OrderBy gives deterministic output ordering only; every match is still attributed.
+        var enclosing = fileMethods
             .Where(m => l >= m.MinLine && l <= m.MaxLine)
-            .OrderBy(m => m.MaxLine - m.MinLine)
-            .FirstOrDefault();
-        if (innermost is not null)
-            touched.Add(innermost);
+            .OrderBy(m => m.Key, StringComparer.Ordinal)
+            .ToList();
+        touched.AddRange(enclosing);
     }
 }
 
