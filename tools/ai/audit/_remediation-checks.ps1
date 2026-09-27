@@ -18,24 +18,60 @@ $script:RemediationPathPrefixes = 'src|tests|docs|tools|\.github'
 $script:RemediationPathExtensions = 'cs|ps1|md|json|yml|yaml|csproj|txt'
 $script:RemediationFilePattern = "(?:$script:RemediationPathPrefixes)/[\w./\\-]*\.(?:$script:RemediationPathExtensions)(?::\d+(?:-\d+)?)?"
 
-# Splits a finding's raw text into its two kinds of anchor (#1388 decision 1a/1b):
-#   FileAnchors   -- every repo path the finding cites (backticked or in plain prose), with any trailing
-#                    ':line' or ':line-line' suffix stripped, as @{ FullPath; Stem }. Stem is the file name
-#                    WITHOUT its extension: a citation still matches a candidate that lists the same file
-#                    inside a brace-expanded multi-file pattern such as
+# #1400 decision 1: every finding in the code/tests/docs stage artifacts is written as "`loc1`, `loc2`, ...:
+# narrative" -- a leading, comma/semicolon-joined list of backtick-delimited file citations (the finding's own
+# claimed defect locations), followed by a colon that opens the prose explaining the defect. That colon is
+# never inside a backtick span or a parenthetical aside (a citation's own "(`snippet`)" or "(persisted at
+# `:355` via `_store.UpdateAsync`)" gloss) -- it is the first ':' at backtick-depth 0 and paren-depth 0. Returns
+# the text before that boundary; when no such boundary is found (a malformed or free-form finding), the whole
+# text is returned, which makes Get-FindingAnchors treat every citation as a required location -- the safer,
+# stricter default when the convention is not followed.
+#
+# This distinction matters because a finding's prose commonly cites OTHER files too (a masking test fixture, a
+# sibling registration file) that are supporting evidence, not the defect's own location -- a duplicate
+# candidate that fails to mention those incidental files is still coverage of the finding's actual defect (the
+# real code-4 finding of audit #16 cites its 3 SagaStoreADO.cs files up front, then a fixture and a test file
+# later in the prose; the true duplicate #1170 only had to cover the first 3). A file mentioned only later,
+# alongside a DIFFERENT top-level location added after a semicolon (the real code-3 finding of audit #16 cites
+# `SagaRunner.cs` AND `SagaOrchestrator.cs` both before its boundary colon), is exactly the kind of second
+# location a partial candidate misses -- issue #1400's own reproduction of the "partial duplicate" defect.
+function Get-LeadingLocationText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrEmpty($Text)) { return $Text }
+    $inBacktick = $false
+    $parenDepth = 0
+    for ($i = 0; $i -lt $Text.Length; $i++) {
+        $ch = $Text[$i]
+        if ($ch -eq '`') { $inBacktick = -not $inBacktick; continue }
+        if ($inBacktick) { continue }
+        if ($ch -eq '(') { $parenDepth++; continue }
+        if ($ch -eq ')') { if ($parenDepth -gt 0) { $parenDepth-- }; continue }
+        if ($ch -eq ':' -and $parenDepth -eq 0) { return $Text.Substring(0, $i) }
+    }
+    return $Text
+}
+
+# Splits a finding's raw text into its two kinds of anchor (#1388 decision 1a/1b; #1400 decision 1 narrows
+# FileAnchors to the finding's leading location clause, see Get-LeadingLocationText above):
+#   FileAnchors   -- every repo path the finding cites in its own leading location clause (backticked or in
+#                    plain prose), with any trailing ':line' or ':line-line' suffix stripped, as
+#                    @{ FullPath; Stem }. Stem is the file name WITHOUT its extension: a citation still matches
+#                    a candidate that lists the same file inside a brace-expanded multi-file pattern such as
 #                    'src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/{...,Sagas/SagaStoreADO,...}.cs' (a real
 #                    issue-writing style, #1170), where the literal substring '...SagaStoreADO.cs' never
 #                    appears -- only 'SagaStoreADO' does, because the extension sits outside the brace group.
-#   SymbolAnchors -- every backticked token of the finding that is NOT one of the file anchors above: a code
-#                    symbol, a literal code fragment, or a quoted rule sentence.
+#   SymbolAnchors -- every backticked token of the finding's WHOLE text (unchanged by #1400) that is NOT one of
+#                    the file anchors above: a code symbol, a literal code fragment, or a quoted rule sentence.
 function Get-FindingAnchors {
     param([string]$FindingText)
 
     $text = if ($null -eq $FindingText) { '' } else { $FindingText }
+    $leadingText = Get-LeadingLocationText $text
 
     $fileAnchors = [System.Collections.Generic.List[pscustomobject]]::new()
     $seenPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($m in [regex]::Matches($text, $script:RemediationFilePattern)) {
+    foreach ($m in [regex]::Matches($leadingText, $script:RemediationFilePattern)) {
         $full = ($m.Value -split ':')[0]
         if (-not $seenPaths.Add($full)) { continue }
         $stem = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $full))
@@ -70,10 +106,26 @@ function Get-FindingAnchors {
     return [pscustomobject]@{ FileAnchors = $fileAnchors; SymbolAnchors = $symbolAnchors }
 }
 
-# #1388 decision 1: a model-named duplicate is accepted only when at least one FILE anchor AND at least one
-# SYMBOL anchor of the finding both appear in the candidate's own title+body. A finding with no file anchor or
-# no symbol anchor at all can never be auto-accepted (a Minor citation-only finding, for instance, commonly
-# has no backticked symbol).
+# Tests one of the finding's file anchors against the candidate's raw title+body text: either the anchor's
+# full path appears verbatim (case-insensitive), or its stem (>= 3 chars, to skip an unparsed glob leftover
+# such as '*') appears as a whole word -- the brace-expansion case Get-FindingAnchors' own doc comment
+# describes. Shared by Test-DuplicateEvidence (#1400: requires every anchor) and Test-PartialDuplicateEvidence
+# (requires only one).
+function Test-FileAnchorMatch {
+    param([pscustomobject]$FileAnchor, [string]$Candidate)
+
+    if ($Candidate.IndexOf($FileAnchor.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    if ([string]::IsNullOrWhiteSpace($FileAnchor.Stem) -or $FileAnchor.Stem.Length -lt 3) { return $false }
+    return [regex]::IsMatch($Candidate, '\b' + [regex]::Escape($FileAnchor.Stem) + '\b', 'IgnoreCase')
+}
+
+# #1388 decision 1, narrowed by #1400 decision 1: a model-named duplicate is accepted only when EVERY file
+# anchor of the finding's own leading location clause (see Get-LeadingLocationText) AND at least one SYMBOL
+# anchor both appear in the candidate's own title+body. A finding with no file anchor or no symbol anchor at
+# all can never be auto-accepted (a Minor citation-only finding, for instance, commonly has no backticked
+# symbol). Before #1400, ANY one file anchor was enough, which is exactly how audit #16's code finding 3 was
+# wrongly accepted as a duplicate of #1343: #1343 covers `SagaRunner.cs`, but the finding's own leading clause
+# also names `SagaOrchestrator.cs`, a second location #1343 never mentions.
 #
 # The symbol side is matched by EXACT, case-insensitive equality against one of the candidate's OWN
 # backtick-delimited tokens -- not a substring/word-boundary search across the candidate's raw prose. A
@@ -97,15 +149,9 @@ function Test-DuplicateEvidence {
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
 
-    $fileMatch = $false
     foreach ($fa in $anchors.FileAnchors) {
-        if ($candidate.IndexOf($fa.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $fileMatch = $true; break }
-        # A stem shorter than 3 characters (an unparsed glob leftover such as '*') is too generic to trust as
-        # evidence on its own; skip it rather than risk a spurious match.
-        if ([string]::IsNullOrWhiteSpace($fa.Stem) -or $fa.Stem.Length -lt 3) { continue }
-        if ([regex]::IsMatch($candidate, '\b' + [regex]::Escape($fa.Stem) + '\b', 'IgnoreCase')) { $fileMatch = $true; break }
+        if (-not (Test-FileAnchorMatch $fa $candidate)) { return $false }
     }
-    if (-not $fileMatch) { return $false }
 
     $candidateSymbols = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($m in [regex]::Matches($candidate, '`([^`]+)`')) {
@@ -114,6 +160,24 @@ function Test-DuplicateEvidence {
     }
     foreach ($sa in $anchors.SymbolAnchors) {
         if ($candidateSymbols.Contains($sa)) { return $true }
+    }
+    return $false
+}
+
+# #1400 decision 1: used only to word the rejection note audit-draft-remediation.ps1 appends to a drafted
+# finding when Test-DuplicateEvidence rejects a model-named duplicate -- "partially related" (at least one of
+# the finding's own file anchors matched the candidate, so it is plausibly about the same area) versus the
+# existing, weaker "possibly related" (no file anchor matched at all). Never used to accept a duplicate: a
+# finding with zero file anchors is never "partially" related to anything by definition.
+function Test-PartialDuplicateEvidence {
+    param([string]$FindingText, [string]$CandidateTitleAndBody)
+
+    $anchors = Get-FindingAnchors $FindingText
+    if ($anchors.FileAnchors.Count -eq 0) { return $false }
+
+    $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
+    foreach ($fa in $anchors.FileAnchors) {
+        if (Test-FileAnchorMatch $fa $candidate) { return $true }
     }
     return $false
 }

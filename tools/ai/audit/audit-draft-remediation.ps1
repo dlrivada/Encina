@@ -387,7 +387,16 @@ $candidateLinesForClassify
         $candidateText = if ($cachedCandidate) { "$($cachedCandidate.title)`n$($cachedCandidate.body)" } else { '' }
         if (-not (Test-DuplicateEvidence $finding.Text $candidateText)) {
             $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
-            $possiblyRelatedNote = "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            # #1400 decision 1: a candidate that covers at least one of the finding's own file anchors (just
+            # not every one -- Test-DuplicateEvidence's new, stricter bar) is worded as "partially related"
+            # rather than the weaker "possibly related", which is reserved for a candidate with no file-anchor
+            # overlap at all.
+            $possiblyRelatedNote = if (Test-PartialDuplicateEvidence $finding.Text $candidateText) {
+                "- #$duplicateOf - partially related (it covers only part of this finding)"
+            }
+            else {
+                "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            }
             $duplicateOf = $null
         }
     }
