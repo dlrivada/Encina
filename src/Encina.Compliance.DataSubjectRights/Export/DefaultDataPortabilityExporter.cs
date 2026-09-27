@@ -69,8 +69,8 @@ public sealed class DefaultDataPortabilityExporter : IDataPortabilityExporter
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
 
-        _logger.PortabilityExportStarted(subjectId, format.ToString());
-        using var activity = DataSubjectRightsDiagnostics.StartPortabilityExport(subjectId, format);
+        _logger.PortabilityExportStarted(format.ToString());
+        using var activity = DataSubjectRightsDiagnostics.StartPortabilityExport(format);
         var stopwatch = Stopwatch.StartNew();
 
         // Resolve the writer for the requested format
@@ -105,7 +105,7 @@ public sealed class DefaultDataPortabilityExporter : IDataPortabilityExporter
 
                 return writeResult.Map(exportedData =>
                 {
-                    _logger.PortabilityExportCompleted(subjectId, format.ToString(), portableData.Count, locations.Count);
+                    _logger.PortabilityExportCompleted(format.ToString(), portableData.Count, locations.Count);
 
                     stopwatch.Stop();
                     DataSubjectRightsDiagnostics.RecordCompleted(activity);
@@ -124,7 +124,7 @@ public sealed class DefaultDataPortabilityExporter : IDataPortabilityExporter
             },
             Left: error =>
             {
-                _logger.PortabilityExportFailed(subjectId, format.ToString(), error.Message);
+                _logger.PortabilityExportFailed(format.ToString(), error.Message);
 
                 stopwatch.Stop();
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.Message);

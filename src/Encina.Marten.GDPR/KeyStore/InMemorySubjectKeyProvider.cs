@@ -116,10 +116,9 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                 state.Keys.Add(new SubjectKeyEntry(keyId, keyMaterial, version, SubjectKeyStatus.Active, now));
                 state.CreatedAtUtc = now;
 
-                _logger.LogDebug(
-                    "Created initial encryption key for subject {SubjectId}, version {Version}",
-                    subjectId,
-                    version);
+                // The data subject's own identifier is never logged (#1429, following #1314);
+                // correlate via the key version instead.
+                _logger.LogDebug("Created initial encryption key. Version={Version}", version);
 
                 return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(keyMaterial));
             }
@@ -198,7 +197,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                 Left(CryptoShreddingErrors.KeyStoreError("DeleteSubjectKeys")));
         }
 
-        using var activity = CryptoShreddingDiagnostics.StartForget(subjectId);
+        using var activity = CryptoShreddingDiagnostics.StartForget();
         var stopwatch = Stopwatch.GetTimestamp();
 
         try
@@ -228,7 +227,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 CryptoShreddingDiagnostics.ForgetTotal.Add(1);
                 CryptoShreddingDiagnostics.RecordSuccess(activity);
-                _logger.SubjectForgotten(subjectId, keysDeleted);
+                _logger.SubjectForgotten(keysDeleted);
 
                 var result = new CryptoShreddingResult
                 {
@@ -291,7 +290,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                 Left(CryptoShreddingErrors.KeyStoreError("RotateSubjectKey")));
         }
 
-        using var activity = CryptoShreddingDiagnostics.StartKeyRotation(subjectId);
+        using var activity = CryptoShreddingDiagnostics.StartKeyRotation();
 
         try
         {
@@ -335,7 +334,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 CryptoShreddingDiagnostics.KeyRotationTotal.Add(1);
                 CryptoShreddingDiagnostics.RecordSuccess(activity);
-                _logger.KeyRotated(subjectId, oldVersion, newVersion);
+                _logger.KeyRotated(oldVersion, newVersion);
 
                 var result = new KeyRotationResult
                 {

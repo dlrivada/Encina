@@ -16,6 +16,10 @@ namespace Encina.Compliance.DataSubjectRights.Diagnostics;
 /// </remarks>
 internal static partial class DSRLogMessages
 {
+    // Note: none of these templates carry the data subject's own identifier — it is personal data
+    // and must never reach a log sink in plain text (#1429, following #1314). Correlate via
+    // right type, request type, request id, field name or error code instead.
+
     // ========================================================================
     // Auto-registration log messages (8300-8309)
     // ========================================================================
@@ -67,22 +71,22 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8320,
         Level = LogLevel.Information,
-        Message = "DSR request started. RightType={RightType}, SubjectId={SubjectId}")]
-    internal static partial void DSRRequestStarted(this ILogger logger, string rightType, string subjectId);
+        Message = "DSR request started. RightType={RightType}")]
+    internal static partial void DSRRequestStarted(this ILogger logger, string rightType);
 
     /// <summary>DSR request completed successfully.</summary>
     [LoggerMessage(
         EventId = 8321,
         Level = LogLevel.Information,
-        Message = "DSR request completed. RightType={RightType}, SubjectId={SubjectId}")]
-    internal static partial void DSRRequestCompleted(this ILogger logger, string rightType, string subjectId);
+        Message = "DSR request completed. RightType={RightType}")]
+    internal static partial void DSRRequestCompleted(this ILogger logger, string rightType);
 
     /// <summary>DSR request failed.</summary>
     [LoggerMessage(
         EventId = 8322,
         Level = LogLevel.Warning,
-        Message = "DSR request failed. RightType={RightType}, SubjectId={SubjectId}, Reason={Reason}")]
-    internal static partial void DSRRequestFailed(this ILogger logger, string rightType, string subjectId, string reason);
+        Message = "DSR request failed. RightType={RightType}, Reason={Reason}")]
+    internal static partial void DSRRequestFailed(this ILogger logger, string rightType, string reason);
 
     // ========================================================================
     // Access (8323-8324)
@@ -92,8 +96,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8323,
         Level = LogLevel.Information,
-        Message = "Access request completed. SubjectId={SubjectId}, DataLocations={DataLocations}, ProcessingActivities={ProcessingActivities}")]
-    internal static partial void AccessRequestCompleted(this ILogger logger, string subjectId, int dataLocations, int processingActivities);
+        Message = "Access request completed. DataLocations={DataLocations}, ProcessingActivities={ProcessingActivities}")]
+    internal static partial void AccessRequestCompleted(this ILogger logger, int dataLocations, int processingActivities);
 
     /// <summary>Failed to retrieve processing activities for access response.</summary>
     [LoggerMessage(
@@ -110,22 +114,22 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8325,
         Level = LogLevel.Information,
-        Message = "Erasure started. SubjectId={SubjectId}, Reason={Reason}")]
-    internal static partial void ErasureStarted(this ILogger logger, string subjectId, string reason);
+        Message = "Erasure started. Reason={Reason}")]
+    internal static partial void ErasureStarted(this ILogger logger, string reason);
 
     /// <summary>Erasure operation completed.</summary>
     [LoggerMessage(
         EventId = 8326,
         Level = LogLevel.Information,
-        Message = "Erasure completed. SubjectId={SubjectId}, FieldsErased={FieldsErased}, FieldsRetained={FieldsRetained}, FieldsFailed={FieldsFailed}")]
-    internal static partial void ErasureCompleted(this ILogger logger, string subjectId, int fieldsErased, int fieldsRetained, int fieldsFailed);
+        Message = "Erasure completed. FieldsErased={FieldsErased}, FieldsRetained={FieldsRetained}, FieldsFailed={FieldsFailed}")]
+    internal static partial void ErasureCompleted(this ILogger logger, int fieldsErased, int fieldsRetained, int fieldsFailed);
 
     /// <summary>Erasure operation failed.</summary>
     [LoggerMessage(
         EventId = 8327,
         Level = LogLevel.Warning,
-        Message = "Erasure failed. SubjectId={SubjectId}, Reason={Reason}")]
-    internal static partial void ErasureFailed(this ILogger logger, string subjectId, string reason);
+        Message = "Erasure failed. Reason={Reason}")]
+    internal static partial void ErasureFailed(this ILogger logger, string reason);
 
     /// <summary>Individual field erased successfully.</summary>
     [LoggerMessage(
@@ -149,22 +153,22 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8330,
         Level = LogLevel.Information,
-        Message = "Portability export started. SubjectId={SubjectId}, Format={Format}")]
-    internal static partial void PortabilityExportStarted(this ILogger logger, string subjectId, string format);
+        Message = "Portability export started. Format={Format}")]
+    internal static partial void PortabilityExportStarted(this ILogger logger, string format);
 
     /// <summary>Portability export completed.</summary>
     [LoggerMessage(
         EventId = 8331,
         Level = LogLevel.Information,
-        Message = "Portability export completed. SubjectId={SubjectId}, Format={Format}, PortableFields={PortableFields}, TotalFields={TotalFields}")]
-    internal static partial void PortabilityExportCompleted(this ILogger logger, string subjectId, string format, int portableFields, int totalFields);
+        Message = "Portability export completed. Format={Format}, PortableFields={PortableFields}, TotalFields={TotalFields}")]
+    internal static partial void PortabilityExportCompleted(this ILogger logger, string format, int portableFields, int totalFields);
 
     /// <summary>Portability export failed.</summary>
     [LoggerMessage(
         EventId = 8332,
         Level = LogLevel.Warning,
-        Message = "Portability export failed. SubjectId={SubjectId}, Format={Format}, Reason={Reason}")]
-    internal static partial void PortabilityExportFailed(this ILogger logger, string subjectId, string format, string reason);
+        Message = "Portability export failed. Format={Format}, Reason={Reason}")]
+    internal static partial void PortabilityExportFailed(this ILogger logger, string format, string reason);
 
     /// <summary>Requested export format is not supported.</summary>
     [LoggerMessage(
@@ -181,8 +185,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8334,
         Level = LogLevel.Information,
-        Message = "Rectification completed. SubjectId={SubjectId}, FieldName={FieldName}")]
-    internal static partial void RectificationCompleted(this ILogger logger, string subjectId, string fieldName);
+        Message = "Rectification completed. FieldName={FieldName}")]
+    internal static partial void RectificationCompleted(this ILogger logger, string fieldName);
 
     // ========================================================================
     // Restriction (8335-8337)
@@ -192,22 +196,22 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8335,
         Level = LogLevel.Information,
-        Message = "Processing restriction applied. SubjectId={SubjectId}, Reason={Reason}")]
-    internal static partial void RestrictionApplied(this ILogger logger, string subjectId, string reason);
+        Message = "Processing restriction applied. Reason={Reason}")]
+    internal static partial void RestrictionApplied(this ILogger logger, string reason);
 
     /// <summary>Processing blocked due to active restriction (Block mode).</summary>
     [LoggerMessage(
         EventId = 8336,
         Level = LogLevel.Warning,
-        Message = "Processing blocked for restricted data subject. SubjectId={SubjectId}, RequestType={RequestType}")]
-    internal static partial void RestrictionBlocked(this ILogger logger, string subjectId, string requestType);
+        Message = "Processing blocked for restricted data subject. RequestType={RequestType}")]
+    internal static partial void RestrictionBlocked(this ILogger logger, string requestType);
 
     /// <summary>Active restriction detected but processing allowed (Warn mode).</summary>
     [LoggerMessage(
         EventId = 8337,
         Level = LogLevel.Warning,
-        Message = "Processing restriction active — proceeding in Warn mode. SubjectId={SubjectId}, RequestType={RequestType}")]
-    internal static partial void RestrictionWarned(this ILogger logger, string subjectId, string requestType);
+        Message = "Processing restriction active — proceeding in Warn mode. RequestType={RequestType}")]
+    internal static partial void RestrictionWarned(this ILogger logger, string requestType);
 
     // ========================================================================
     // Objection (8338)
@@ -217,8 +221,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8338,
         Level = LogLevel.Information,
-        Message = "Objection recorded. SubjectId={SubjectId}, ProcessingPurpose={ProcessingPurpose}")]
-    internal static partial void ObjectionRecorded(this ILogger logger, string subjectId, string processingPurpose);
+        Message = "Objection recorded. ProcessingPurpose={ProcessingPurpose}")]
+    internal static partial void ObjectionRecorded(this ILogger logger, string processingPurpose);
 
     // ========================================================================
     // Pipeline / restriction check (8339-8341)
@@ -278,8 +282,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8345,
         Level = LogLevel.Information,
-        Message = "No personal data found for subject during erasure. SubjectId={SubjectId}")]
-    internal static partial void ErasureNoDataFound(this ILogger logger, string subjectId);
+        Message = "No personal data found for subject during erasure.")]
+    internal static partial void ErasureNoDataFound(this ILogger logger);
 
     // ========================================================================
     // Restriction service error (8346)
@@ -289,8 +293,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8346,
         Level = LogLevel.Warning,
-        Message = "Restriction check service error — proceeding without check. SubjectId={SubjectId}, RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RestrictionCheckStoreError(this ILogger logger, string subjectId, string requestType, string errorMessage);
+        Message = "Restriction check service error — proceeding without check. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
+    internal static partial void RestrictionCheckStoreError(this ILogger logger, string requestType, string errorMessage);
 
     // ========================================================================
     // Service-level errors (8347-8349)

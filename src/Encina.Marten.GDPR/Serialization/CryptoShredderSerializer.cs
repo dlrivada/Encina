@@ -322,6 +322,8 @@ public sealed class CryptoShredderSerializer : ISerializer
                 var subjectId = GetSubjectId(document, eventType, field);
                 if (subjectId is null)
                 {
+                    // The data subject's own identifier is never logged (#1429, following #1314);
+                    // the configured property name is the identifying-but-safe correlation here.
                     _logger.LogWarning(
                         "Cannot extract subject ID from property '{SubjectIdProperty}' on event type '{EventType}'. Skipping encryption for field '{FieldName}'",
                         field.SubjectIdProperty,
@@ -335,7 +337,7 @@ public sealed class CryptoShredderSerializer : ISerializer
                 {
                     field.SetValue(document, encryptedJson);
                     CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
-                    _logger.PiiFieldEncrypted(subjectId, field.Property.Name, eventTypeName);
+                    _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
                 }
             }
 
@@ -430,14 +432,14 @@ public sealed class CryptoShredderSerializer : ISerializer
                 Left: error =>
                 {
                     CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-                    _logger.EncryptionFailed(subjectId, propertyName, eventType.Name);
+                    _logger.EncryptionFailed(propertyName, eventType.Name);
                     return null;
                 });
         }
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-            _logger.EncryptionFailed(subjectId, propertyName, eventType.Name, ex);
+            _logger.EncryptionFailed(propertyName, eventType.Name, ex);
             return null;
         }
     }
@@ -543,12 +545,12 @@ public sealed class CryptoShredderSerializer : ISerializer
                 if (decrypted == _anonymizedPlaceholder)
                 {
                     CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
-                    _logger.ForgottenSubjectAccessed(subjectId, field.Property.Name, eventTypeName);
+                    _logger.ForgottenSubjectAccessed(field.Property.Name, eventTypeName);
                 }
                 else
                 {
                     CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
-                    _logger.PiiFieldDecrypted(subjectId, field.Property.Name, eventTypeName);
+                    _logger.PiiFieldDecrypted(field.Property.Name, eventTypeName);
                 }
             }
 
@@ -600,12 +602,12 @@ public sealed class CryptoShredderSerializer : ISerializer
                 if (decrypted == _anonymizedPlaceholder)
                 {
                     CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
-                    _logger.ForgottenSubjectAccessed(subjectId, field.Property.Name, eventTypeName);
+                    _logger.ForgottenSubjectAccessed(field.Property.Name, eventTypeName);
                 }
                 else
                 {
                     CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
-                    _logger.PiiFieldDecrypted(subjectId, field.Property.Name, eventTypeName);
+                    _logger.PiiFieldDecrypted(field.Property.Name, eventTypeName);
                 }
             }
 
@@ -660,7 +662,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(subjectId, propertyName, eventType.Name, ex);
+            _logger.DecryptionFailed(propertyName, eventType.Name, ex);
             return _anonymizedPlaceholder;
         }
     }
@@ -707,7 +709,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(subjectId, propertyName, eventType.Name, ex);
+            _logger.DecryptionFailed(propertyName, eventType.Name, ex);
             return _anonymizedPlaceholder;
         }
     }
@@ -773,11 +775,9 @@ public sealed class CryptoShredderSerializer : ISerializer
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Forgotten subject handler failed for subject '{SubjectId}', field '{FieldName}'",
-                subjectId,
-                propertyName);
+            // The data subject's own identifier is never logged (#1429, following #1314);
+            // correlate via the field name instead.
+            _logger.LogWarning(ex, "Forgotten subject handler failed for field '{FieldName}'", propertyName);
         }
     }
 
@@ -798,11 +798,9 @@ public sealed class CryptoShredderSerializer : ISerializer
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Forgotten subject handler failed for subject '{SubjectId}', field '{FieldName}'",
-                subjectId,
-                propertyName);
+            // The data subject's own identifier is never logged (#1429, following #1314);
+            // correlate via the field name instead.
+            _logger.LogWarning(ex, "Forgotten subject handler failed for field '{FieldName}'", propertyName);
         }
     }
 }

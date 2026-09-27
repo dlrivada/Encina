@@ -17,82 +17,86 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// </remarks>
 internal static class CryptoShreddingLogMessages
 {
+    // Note: none of these templates carry the data subject's own identifier — it is personal data
+    // and must never reach a log sink in plain text (#1429, following #1314). Correlate via
+    // property name, event type or key version instead.
+
     // -- 8450: PII field encrypted --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> PiiFieldEncryptedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> PiiFieldEncryptedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Debug,
             new EventId(8450, nameof(PiiFieldEncrypted)),
-            "PII field encrypted. SubjectId={SubjectId}, PropertyName={PropertyName}, EventType={EventType}");
+            "PII field encrypted. PropertyName={PropertyName}, EventType={EventType}");
 
-    internal static void PiiFieldEncrypted(this ILogger logger, string subjectId, string propertyName, string eventType)
-        => PiiFieldEncryptedDef(logger, subjectId, propertyName, eventType, null);
+    internal static void PiiFieldEncrypted(this ILogger logger, string propertyName, string eventType)
+        => PiiFieldEncryptedDef(logger, propertyName, eventType, null);
 
     // -- 8451: PII field decrypted --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> PiiFieldDecryptedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> PiiFieldDecryptedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Debug,
             new EventId(8451, nameof(PiiFieldDecrypted)),
-            "PII field decrypted. SubjectId={SubjectId}, PropertyName={PropertyName}, EventType={EventType}");
+            "PII field decrypted. PropertyName={PropertyName}, EventType={EventType}");
 
-    internal static void PiiFieldDecrypted(this ILogger logger, string subjectId, string propertyName, string eventType)
-        => PiiFieldDecryptedDef(logger, subjectId, propertyName, eventType, null);
+    internal static void PiiFieldDecrypted(this ILogger logger, string propertyName, string eventType)
+        => PiiFieldDecryptedDef(logger, propertyName, eventType, null);
 
     // -- 8452: Subject forgotten --
 
-    private static readonly Action<ILogger, string, int, Exception?> SubjectForgottenDef =
-        LoggerMessage.Define<string, int>(
+    private static readonly Action<ILogger, int, Exception?> SubjectForgottenDef =
+        LoggerMessage.Define<int>(
             LogLevel.Information,
             new EventId(8452, nameof(SubjectForgotten)),
-            "Subject forgotten (crypto-shredded). SubjectId={SubjectId}, KeysDeleted={KeysDeleted}");
+            "Subject forgotten (crypto-shredded). KeysDeleted={KeysDeleted}");
 
-    internal static void SubjectForgotten(this ILogger logger, string subjectId, int keysDeleted)
-        => SubjectForgottenDef(logger, subjectId, keysDeleted, null);
+    internal static void SubjectForgotten(this ILogger logger, int keysDeleted)
+        => SubjectForgottenDef(logger, keysDeleted, null);
 
     // -- 8453: Key rotated --
 
-    private static readonly Action<ILogger, string, int, int, Exception?> KeyRotatedDef =
-        LoggerMessage.Define<string, int, int>(
+    private static readonly Action<ILogger, int, int, Exception?> KeyRotatedDef =
+        LoggerMessage.Define<int, int>(
             LogLevel.Information,
             new EventId(8453, nameof(KeyRotated)),
-            "Encryption key rotated. SubjectId={SubjectId}, OldVersion={OldVersion}, NewVersion={NewVersion}");
+            "Encryption key rotated. OldVersion={OldVersion}, NewVersion={NewVersion}");
 
-    internal static void KeyRotated(this ILogger logger, string subjectId, int oldVersion, int newVersion)
-        => KeyRotatedDef(logger, subjectId, oldVersion, newVersion, null);
+    internal static void KeyRotated(this ILogger logger, int oldVersion, int newVersion)
+        => KeyRotatedDef(logger, oldVersion, newVersion, null);
 
     // -- 8454: Forgotten subject accessed --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> ForgottenSubjectAccessedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> ForgottenSubjectAccessedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Warning,
             new EventId(8454, nameof(ForgottenSubjectAccessed)),
-            "Attempt to decrypt data for forgotten subject. SubjectId={SubjectId}, PropertyName={PropertyName}, EventType={EventType}");
+            "Attempt to decrypt data for forgotten subject. PropertyName={PropertyName}, EventType={EventType}");
 
-    internal static void ForgottenSubjectAccessed(this ILogger logger, string subjectId, string propertyName, string eventType)
-        => ForgottenSubjectAccessedDef(logger, subjectId, propertyName, eventType, null);
+    internal static void ForgottenSubjectAccessed(this ILogger logger, string propertyName, string eventType)
+        => ForgottenSubjectAccessedDef(logger, propertyName, eventType, null);
 
     // -- 8455: Encryption failed --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionFailedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> EncryptionFailedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Error,
             new EventId(8455, nameof(EncryptionFailed)),
-            "Failed to encrypt PII field. SubjectId={SubjectId}, PropertyName={PropertyName}, EventType={EventType}");
+            "Failed to encrypt PII field. PropertyName={PropertyName}, EventType={EventType}");
 
-    internal static void EncryptionFailed(this ILogger logger, string subjectId, string propertyName, string eventType, Exception? exception = null)
-        => EncryptionFailedDef(logger, subjectId, propertyName, eventType, exception);
+    internal static void EncryptionFailed(this ILogger logger, string propertyName, string eventType, Exception? exception = null)
+        => EncryptionFailedDef(logger, propertyName, eventType, exception);
 
     // -- 8456: Decryption failed --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> DecryptionFailedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, Exception?> DecryptionFailedDef =
+        LoggerMessage.Define<string, string>(
             LogLevel.Error,
             new EventId(8456, nameof(DecryptionFailed)),
-            "Failed to decrypt PII field. SubjectId={SubjectId}, PropertyName={PropertyName}, EventType={EventType}");
+            "Failed to decrypt PII field. PropertyName={PropertyName}, EventType={EventType}");
 
-    internal static void DecryptionFailed(this ILogger logger, string subjectId, string propertyName, string eventType, Exception? exception = null)
-        => DecryptionFailedDef(logger, subjectId, propertyName, eventType, exception);
+    internal static void DecryptionFailed(this ILogger logger, string propertyName, string eventType, Exception? exception = null)
+        => DecryptionFailedDef(logger, propertyName, eventType, exception);
 
     // -- 8457: Key store error --
 
@@ -173,23 +177,23 @@ internal static class CryptoShreddingLogMessages
 
     // -- 8464: Key rotation scheduled --
 
-    private static readonly Action<ILogger, string, int, Exception?> KeyRotationScheduledDef =
-        LoggerMessage.Define<string, int>(
+    private static readonly Action<ILogger, int, Exception?> KeyRotationScheduledDef =
+        LoggerMessage.Define<int>(
             LogLevel.Information,
             new EventId(8464, nameof(KeyRotationScheduled)),
-            "Key rotation scheduled. SubjectId={SubjectId}, CurrentVersion={CurrentVersion}");
+            "Key rotation scheduled. CurrentVersion={CurrentVersion}");
 
-    internal static void KeyRotationScheduled(this ILogger logger, string subjectId, int currentVersion)
-        => KeyRotationScheduledDef(logger, subjectId, currentVersion, null);
+    internal static void KeyRotationScheduled(this ILogger logger, int currentVersion)
+        => KeyRotationScheduledDef(logger, currentVersion, null);
 
     // -- 8465: Re-encryption started --
 
-    private static readonly Action<ILogger, string, int, Exception?> ReEncryptionStartedDef =
-        LoggerMessage.Define<string, int>(
+    private static readonly Action<ILogger, int, Exception?> ReEncryptionStartedDef =
+        LoggerMessage.Define<int>(
             LogLevel.Information,
             new EventId(8465, nameof(ReEncryptionStarted)),
-            "Re-encryption started for subject after key rotation. SubjectId={SubjectId}, NewVersion={NewVersion}");
+            "Re-encryption started after key rotation. NewVersion={NewVersion}");
 
-    internal static void ReEncryptionStarted(this ILogger logger, string subjectId, int newVersion)
-        => ReEncryptionStartedDef(logger, subjectId, newVersion, null);
+    internal static void ReEncryptionStarted(this ILogger logger, int newVersion)
+        => ReEncryptionStartedDef(logger, newVersion, null);
 }

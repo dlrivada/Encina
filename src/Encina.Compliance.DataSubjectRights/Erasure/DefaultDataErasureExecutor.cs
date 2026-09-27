@@ -65,7 +65,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         ArgumentNullException.ThrowIfNull(scope);
 
-        using var activity = DataSubjectRightsDiagnostics.StartErasure(subjectId);
+        using var activity = DataSubjectRightsDiagnostics.StartErasure();
         var stopwatch = Stopwatch.StartNew();
 
         // Step 1: Locate all personal data
@@ -76,7 +76,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             {
                 if (locations.Count == 0)
                 {
-                    _logger.ErasureNoDataFound(subjectId);
+                    _logger.ErasureNoDataFound();
 
                     stopwatch.Stop();
                     DataSubjectRightsDiagnostics.RecordCompleted(activity);
@@ -149,7 +149,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
                         : [];
                 }
 
-                _logger.ErasureCompleted(subjectId, erased, retained.Count, failed);
+                _logger.ErasureCompleted(erased, retained.Count, failed);
 
                 // Record metrics
                 stopwatch.Stop();
@@ -169,7 +169,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             },
             Left: error =>
             {
-                _logger.ErasureFailed(subjectId, error.Message);
+                _logger.ErasureFailed(error.Message);
 
                 stopwatch.Stop();
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.Message);

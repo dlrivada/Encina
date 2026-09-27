@@ -67,11 +67,12 @@ public sealed class CryptoShredErasureStrategy : IDataErasureStrategy
         ArgumentNullException.ThrowIfNull(location);
 
         var subjectId = location.EntityId;
-        using var activity = CryptoShreddingDiagnostics.StartErasure(subjectId);
+        using var activity = CryptoShreddingDiagnostics.StartErasure();
 
+        // The data subject's own identifier is never logged (#1429, following #1314); correlate
+        // via the field name and entity type instead.
         _logger.LogDebug(
-            "Crypto-shredding erasure for subject {SubjectId}, field '{FieldName}' on entity {EntityType}",
-            subjectId,
+            "Crypto-shredding erasure for field '{FieldName}' on entity {EntityType}",
             location.FieldName,
             location.EntityType.Name);
 

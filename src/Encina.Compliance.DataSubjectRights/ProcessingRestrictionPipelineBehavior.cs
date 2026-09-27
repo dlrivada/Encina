@@ -214,8 +214,9 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
             },
             LeftAsync: async error =>
             {
-                // Store error — log and proceed (fail-open to avoid blocking all requests)
-                _logger.RestrictionCheckStoreError(subjectId, requestTypeName, error.Message);
+                // Store error — log and proceed (fail-open to avoid blocking all requests). The
+                // data subject's own identifier is never logged (#1429, following #1314).
+                _logger.RestrictionCheckStoreError(requestTypeName, error.Message);
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.Message);
                 DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "error"));
@@ -263,17 +264,18 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
 
         if (_options.RestrictionEnforcementMode == DSREnforcementMode.Block)
         {
-            // Step 6: Block mode — return error
-            _logger.RestrictionBlocked(subjectId, requestTypeName);
-            DataSubjectRightsDiagnostics.RecordBlocked(activity, subjectId);
+            // Step 6: Block mode — return error. The restricted data subject's own identifier is
+            // never logged or tagged (#1429, following #1314).
+            _logger.RestrictionBlocked(requestTypeName);
+            DataSubjectRightsDiagnostics.RecordBlocked(activity);
             DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
                 new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "blocked"));
             return Left<EncinaError, bool>(error);
         }
 
         // Step 7: Warn mode — log warning but allow processing
-        _logger.RestrictionWarned(subjectId, requestTypeName);
-        DataSubjectRightsDiagnostics.RecordWarned(activity, subjectId);
+        _logger.RestrictionWarned(requestTypeName);
+        DataSubjectRightsDiagnostics.RecordWarned(activity);
         DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
             new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "warned"));
         return Right<EncinaError, bool>(true);
