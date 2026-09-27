@@ -444,6 +444,21 @@ public class TemporalRepositoryADOTests
         result.IsLeft.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task ListAsOfAsync_UnsupportedSpecification_ReturnsLeftInsteadOfThrowing()
+    {
+        // Regression test: SpecificationSqlBuilder.BuildWhereClause throws NotSupportedException for
+        // an expression it cannot translate. ListAsOfAsync builds the WHERE clause before calling the
+        // shared query helper, so that build step needs its own try/catch to keep the ROP contract
+        // (Either, never an exception) instead of letting the exception escape uncaught.
+        var repository = CreateRepository();
+
+        var result = await repository.ListAsOfAsync(new UnsupportedTemporalEntitySpec(), DateTime.UtcNow);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.ErrorCode.ShouldBe("REPOSITORY_OPERATION_FAILED"));
+    }
+
     #endregion
 }
 
@@ -458,6 +473,16 @@ public class TestTemporalEntity : IEntity<Guid>
 public class ActiveTemporalEntitySpec : Specification<TestTemporalEntity>
 {
     public override Expression<Func<TestTemporalEntity, bool>> ToExpression() => e => e.Name != string.Empty;
+}
+
+/// <summary>
+/// Specification whose expression the SQL builder cannot translate (a string method call), used to
+/// prove <c>ListAsOfAsync</c> converts the resulting <see cref="NotSupportedException"/> into
+/// <c>Either.Left</c> instead of letting it escape.
+/// </summary>
+public class UnsupportedTemporalEntitySpec : Specification<TestTemporalEntity>
+{
+    public override Expression<Func<TestTemporalEntity, bool>> ToExpression() => e => e.Name.Replace("a", "b") == "test";
 }
 
 #endregion

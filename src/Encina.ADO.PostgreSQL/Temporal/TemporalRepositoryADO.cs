@@ -501,37 +501,49 @@ public sealed class TemporalRepositoryADO<TEntity, TId> : ITemporalRepository<TE
             return preCheck.Map(_ => (IReadOnlyList<TEntity>)[]);
         }
 
-        var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
-        var (whereClause, addSpecificationParameters) = sqlBuilder.BuildWhereClause(specification);
+        // SpecificationSqlBuilder.BuildWhereClause can throw NotSupportedException for an
+        // expression it cannot translate; build the query string inside its own try/catch so that
+        // failure is reported the same way as any other query failure (Either.Left), matching the
+        // pre-refactor behavior where this was part of the method's single try block.
+        string sql;
+        Action<IDbCommand> addParameters;
+        try
+        {
+            var sqlBuilder = new SpecificationSqlBuilder<TEntity>(_mapping.ColumnMappings);
+            var (whereClause, addSpecificationParameters) = sqlBuilder.BuildWhereClause(specification);
 
-        var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
-        var extraFilter = string.IsNullOrWhiteSpace(whereClause)
-            ? string.Empty
-            : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}";
+            var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"\"{c}\""));
+            var extraFilter = string.IsNullOrWhiteSpace(whereClause)
+                ? string.Empty
+                : $"AND {whereClause.Replace("WHERE ", "", StringComparison.OrdinalIgnoreCase)}";
 
-        // Build temporal query with specification filter
-        var sql = $"""
-            SELECT {columns}
-            FROM (
-                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                FROM {_mapping.TableName}
-                UNION ALL
-                SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
-                FROM {_mapping.HistoryTableName}
-            ) AS temporal_data
-            WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
-            {extraFilter}
-            """;
+            // Build temporal query with specification filter
+            sql = $"""
+                SELECT {columns}
+                FROM (
+                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                    FROM {_mapping.TableName}
+                    UNION ALL
+                    SELECT {columns}, lower("{_mapping.PeriodStartColumnName}") as period_start, upper("{_mapping.PeriodStartColumnName}") as period_end
+                    FROM {_mapping.HistoryTableName}
+                ) AS temporal_data
+                WHERE period_start <= @AsOfUtc AND (period_end IS NULL OR period_end > @AsOfUtc)
+                {extraFilter}
+                """;
 
-        return await ExecuteListQueryAsync(
-            command =>
+            addParameters = command =>
             {
                 AddParameter(command, "@AsOfUtc", asOfUtc);
                 addSpecificationParameters(command);
-            },
-            sql,
-            "ListAsOf",
-            cancellationToken).ConfigureAwait(false);
+            };
+        }
+        catch (Exception ex)
+        {
+            return Left<RepositoryError, IReadOnlyList<TEntity>>(
+                RepositoryError.OperationFailed<TEntity>("ListAsOf", ex));
+        }
+
+        return await ExecuteListQueryAsync(addParameters, sql, "ListAsOf", cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
