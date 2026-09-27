@@ -65,21 +65,11 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
             return result;
         }
 
-        Log.PublishingDomainEvents(_logger, pendingEvents.Count, typeof(TRequest).Name);
+        var publishError = await PublishPendingEventsAsync(pendingEvents, cancellationToken)
+            .ConfigureAwait(false);
 
-        // Publish each domain event
-        foreach (var domainEvent in pendingEvents)
-        {
-            var publishError = await PublishEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
-            if (publishError is { } error)
-            {
-                return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
-            }
-        }
-
-        Log.PublishedDomainEvents(_logger, pendingEvents.Count, typeof(TRequest).Name);
-
-        return result;
+        // NOSONAR S6966: LanguageExt Left is a pure function
+        return publishError is { } error ? Left<EncinaError, TResponse>(error) : result;
     }
 
     /// <summary>
@@ -91,6 +81,29 @@ public sealed class EventPublishingPipelineBehavior<TRequest, TResponse> : IPipe
             .Select(e => e.Data)
             .OfType<INotification>()
             .ToList();
+
+    /// <summary>
+    /// Publishes every pending domain event in order, stopping at the first failure.
+    /// </summary>
+    /// <returns><see langword="null"/> when every event published; otherwise the first failure.</returns>
+    private async ValueTask<EncinaError?> PublishPendingEventsAsync(
+        List<INotification> pendingEvents, CancellationToken cancellationToken)
+    {
+        Log.PublishingDomainEvents(_logger, pendingEvents.Count, typeof(TRequest).Name);
+
+        foreach (var domainEvent in pendingEvents)
+        {
+            var publishError = await PublishEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+            if (publishError is not null)
+            {
+                return publishError;
+            }
+        }
+
+        Log.PublishedDomainEvents(_logger, pendingEvents.Count, typeof(TRequest).Name);
+
+        return null;
+    }
 
     /// <summary>
     /// Publishes a single domain event and, on failure, logs only the error code (never
