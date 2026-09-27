@@ -269,6 +269,11 @@ $spawnCases = @(
     @('site-steward', $null, 'mechanical-fixer', 2, 'site-steward: mechanical-fixer is blocked'),
     @('site-steward', $null, 'general-purpose', 2, 'site-steward: general-purpose is blocked'),
     @('site-steward', $null, $null, 2, 'site-steward: missing subagent_type is blocked'),
+    # #1447: pr-reviewer may spawn only Explore.
+    @('pr-reviewer', $null, 'Explore', 0, 'pr-reviewer: Explore is allowed'),
+    @('pr-reviewer', $null, 'mechanical-fixer', 2, 'pr-reviewer: mechanical-fixer is blocked'),
+    @('pr-reviewer', $null, 'general-purpose', 2, 'pr-reviewer: general-purpose is blocked'),
+    @('pr-reviewer', $null, $null, 2, 'pr-reviewer: missing subagent_type is blocked'),
     @($null, 'issue-worker', 'general-purpose', 2, 'no -Agent: agent_type from the hook input'),
     @('issue-worker', 'docs-writer', 'docs-reviewer', 0, 'agent_type of the input wins over -Agent (inherited hook)'),
     @($null, $null, 'general-purpose', 0, 'no agent known: not restricted (fail open)'),
@@ -286,6 +291,7 @@ $spawnCases = @(
     @('orchestrator', $null, 'docs-reviewer', 0, 'orchestrator: docs-reviewer is allowed'),
     @('orchestrator', $null, 'pr-watcher', 0, 'orchestrator: pr-watcher is allowed'),
     @('orchestrator', $null, 'site-steward', 0, 'orchestrator: site-steward is allowed (#1382)'),
+    @('orchestrator', $null, 'pr-reviewer', 0, 'orchestrator: pr-reviewer is allowed (#1447)'),
     @('orchestrator', $null, 'Plan', 0, 'orchestrator: Plan is allowed'),
     @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
@@ -670,13 +676,21 @@ $ownershipCases = @(
     @('site-steward', 'Write', "$wt\artifacts\site-health\issues\gap.md", $wt, 0, 'site-steward: an issue draft under artifacts/site-health'),
     @('site-steward', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'site-steward: a repo source file is denied'),
     @('site-steward', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'site-steward: documentation is denied'),
-    @('site-steward', 'Write', "$wt\artifacts\board\db-summary.json", $wt, 2, 'site-steward: another artifacts/ subfolder is denied')
+    @('site-steward', 'Write', "$wt\artifacts\board\db-summary.json", $wt, 2, 'site-steward: another artifacts/ subfolder is denied'),
+    # #1447: pr-reviewer writes only under artifacts/pr-review/**; it is read-only on the rest of the
+    # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review\1447.md", $wt, 0, 'pr-reviewer: its own review under artifacts/pr-review'),
+    @('pr-reviewer', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'pr-reviewer: a repo source file is denied'),
+    @('pr-reviewer', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'pr-reviewer: documentation is denied'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
 $noBgCases = @(
     @('issue-worker', 'a1', 'adversarial-reviewer', $true, 2, 'no-background-specialists: worker background spawn is blocked'),
     @('issue-worker', 'a1', 'adversarial-reviewer', $false, 0, 'no-background-specialists: worker foreground spawn is allowed'),
+    @('pr-reviewer', 'a4', 'Explore', $true, 2, 'no-background-specialists: pr-reviewer background spawn is blocked (#1447)'),
+    @('pr-reviewer', 'a4', 'Explore', $false, 0, 'no-background-specialists: pr-reviewer foreground spawn is allowed (#1447)'),
     @($null, $null, 'issue-worker', $true, 0, 'no-background-specialists: main session background spawn is allowed'),
     @('docs-writer', 'a2', 'docs-reviewer', $true, 2, 'no-background-specialists: docs-writer background spawn is blocked'),
     @('issue-archivist', 'a3', 'issue-auditor', $true, 2, 'no-background-specialists: audit-stage agent background spawn is blocked'),
