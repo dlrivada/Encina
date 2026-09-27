@@ -100,77 +100,80 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
 
         try
         {
-            // 1. Resolve template if not already provided on the context.
-            var template = context.Template;
-            if (template is null && context.ProcessingType is not null)
-            {
-                var templateResult = await _templateProvider.GetTemplateAsync(
-                    context.ProcessingType, cancellationToken);
-
-                if (templateResult.IsRight)
-                {
-                    template = (DPIATemplate)templateResult;
-                    _logger.TemplateResolved(context.ProcessingType!, template.Name);
-                }
-                // Template not found is non-fatal — proceed without template.
-            }
-
-            // 2. Evaluate all criteria with fault isolation.
-            var identifiedRisks = await EvaluateCriteriaAsync(context, cancellationToken);
-
-            // 3. Compute overall risk (conservative: maximum of all identified risk levels).
-            var overallRisk = identifiedRisks.Count > 0
-                ? identifiedRisks.Max(r => r.Level)
-                : RiskLevel.Low;
-
-            // 4. Build proposed mitigations from template and individual criteria suggestions.
-            var mitigations = BuildProposedMitigations(identifiedRisks, template);
-
-            // 5. Determine prior consultation requirement (Art. 36).
-            var requiresPriorConsultation = overallRisk >= RiskLevel.VeryHigh
-                && !mitigations.All(m => m.IsImplemented);
-
-            if (requiresPriorConsultation)
-            {
-                _logger.PriorConsultationRequired(requestTypeName, overallRisk.ToString());
-            }
-
-            // 6. Build the result.
-            var nowUtc = _timeProvider.GetUtcNow();
-            var result = new DPIAResult
-            {
-                OverallRisk = overallRisk,
-                IdentifiedRisks = identifiedRisks,
-                ProposedMitigations = mitigations,
-                RequiresPriorConsultation = requiresPriorConsultation,
-                AssessedAtUtc = nowUtc,
-            };
-
-            _logger.AssessmentCompleted(
-                requestTypeName, overallRisk.ToString(),
-                identifiedRisks.Count, mitigations.Count, requiresPriorConsultation);
-
-            // 7. Record metrics and activity.
-            var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
-            var tags = new TagList
-            {
-                { DPIADiagnostics.TagRequestType, requestTypeName },
-                { DPIADiagnostics.TagRiskLevel, overallRisk.ToString() },
-            };
-
-            DPIADiagnostics.AssessmentTotal.Add(1, tags);
-            DPIADiagnostics.AssessmentDuration.Record(elapsedMs, tags);
-            DPIADiagnostics.RecordAssessmentCompleted(activity, overallRisk.ToString());
-
-            return result;
+            return await BuildAssessmentAsync(context, requestTypeName, activity, startedAt, cancellationToken);
         }
         catch (Exception ex)
         {
             var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
             DPIADiagnostics.AssessmentDuration.Record(elapsedMs);
-            DPIADiagnostics.RecordAssessmentFailed(activity, ex.Message);
+            DPIADiagnostics.RecordAssessmentFailed(activity, ex.GetType().Name);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Resolves the template, evaluates every risk criterion, aggregates the overall risk and
+    /// builds the final <see cref="DPIAResult"/>. Extracted from <see cref="AssessAsync"/> so the
+    /// outer method stays a thin try/catch wrapper (AGENTS.md CRAP gate, #1488).
+    /// </summary>
+    private async ValueTask<DPIAResult> BuildAssessmentAsync(
+        DPIAContext context,
+        string requestTypeName,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        // 1. Resolve template if not already provided on the context.
+        var template = await ResolveTemplateAsync(context, cancellationToken);
+
+        // 2. Evaluate all criteria with fault isolation.
+        var identifiedRisks = await EvaluateCriteriaAsync(context, cancellationToken);
+
+        // 3. Compute overall risk (conservative: maximum of all identified risk levels).
+        var overallRisk = identifiedRisks.Count > 0
+            ? identifiedRisks.Max(r => r.Level)
+            : RiskLevel.Low;
+
+        // 4. Build proposed mitigations from template and individual criteria suggestions.
+        var mitigations = BuildProposedMitigations(identifiedRisks, template);
+
+        // 5. Determine prior consultation requirement (Art. 36).
+        var requiresPriorConsultation = overallRisk >= RiskLevel.VeryHigh
+            && !mitigations.All(m => m.IsImplemented);
+
+        if (requiresPriorConsultation)
+        {
+            _logger.PriorConsultationRequired(requestTypeName, overallRisk.ToString());
+        }
+
+        // 6. Build the result.
+        var nowUtc = _timeProvider.GetUtcNow();
+        var result = new DPIAResult
+        {
+            OverallRisk = overallRisk,
+            IdentifiedRisks = identifiedRisks,
+            ProposedMitigations = mitigations,
+            RequiresPriorConsultation = requiresPriorConsultation,
+            AssessedAtUtc = nowUtc,
+        };
+
+        _logger.AssessmentCompleted(
+            requestTypeName, overallRisk.ToString(),
+            identifiedRisks.Count, mitigations.Count, requiresPriorConsultation);
+
+        // 7. Record metrics and activity.
+        var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        var tags = new TagList
+        {
+            { DPIADiagnostics.TagRequestType, requestTypeName },
+            { DPIADiagnostics.TagRiskLevel, overallRisk.ToString() },
+        };
+
+        DPIADiagnostics.AssessmentTotal.Add(1, tags);
+        DPIADiagnostics.AssessmentDuration.Record(elapsedMs, tags);
+        DPIADiagnostics.RecordAssessmentCompleted(activity, overallRisk.ToString());
+
+        return result;
     }
 
     /// <inheritdoc />
@@ -186,6 +189,34 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves the template already on the context, or looks one up for the context's processing
+    /// type. A missing template is non-fatal — the assessment proceeds without one. Extracted from
+    /// <see cref="BuildAssessmentAsync"/> so that method stays within the AGENTS.md CRAP gate (#1488).
+    /// </summary>
+    private async ValueTask<DPIATemplate?> ResolveTemplateAsync(
+        DPIAContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.Template is not null || context.ProcessingType is null)
+        {
+            return context.Template;
+        }
+
+        var templateResult = await _templateProvider.GetTemplateAsync(
+            context.ProcessingType, cancellationToken);
+
+        if (!templateResult.IsRight)
+        {
+            // Template not found is non-fatal — proceed without template.
+            return null;
+        }
+
+        var template = (DPIATemplate)templateResult;
+        _logger.TemplateResolved(context.ProcessingType, template.Name);
+        return template;
+    }
 
     private async ValueTask<List<RiskItem>> EvaluateCriteriaAsync(
         DPIAContext context,
