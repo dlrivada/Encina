@@ -109,6 +109,20 @@ public class UnitOfWorkADOTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BeginTransactionAsync_NonDbConnectionClosed_OpensConnectionSynchronouslyBeforeBeginningTransaction()
+    {
+        _mockConnection.State.Returns(ConnectionState.Closed);
+        var mockTransaction = Substitute.For<IDbTransaction>();
+        _mockConnection.BeginTransaction().Returns(mockTransaction);
+
+        var result = await _unitOfWork.BeginTransactionAsync();
+
+        result.IsRight.ShouldBeTrue();
+        _mockConnection.Received(1).Open();
+        _mockConnection.Received(1).BeginTransaction();
+    }
+
+    [Fact]
     public async Task BeginTransactionAsync_TransactionAlreadyActive_ReturnsError()
     {
         _mockConnection.State.Returns(ConnectionState.Open);
