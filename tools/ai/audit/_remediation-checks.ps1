@@ -528,42 +528,18 @@ function Find-TemplatePlaceholders {
     return $found
 }
 
-# #1400 decision 3, narrowed by #1424 decision 1 and #1428 decisions 1/2: after a draft is written and repaired
-# (fence stripped, placeholders re-asked), its own Related Issues section is sanitized -- the model is free to
-# name a candidate as related there (Build-DraftBrief's own guidance explicitly invites it), but audit #16's
-# 16-code-5 draft showed it will also invent a relation to issues nobody offered it and that have nothing to do
-# with the finding (#699, #696, #181 -- real open issues about an unrelated caching/health-check feature), and
-# audit #16 verification pass 4 found the previous version of this function was itself too permissive: it kept
-# a number just because it appeared in the duplicate search's own candidate list, even when nothing about the
-# finding actually related to it (5 drafts affected: 16-code-1, 16-code-5, 16-docs-3, 16-tests-1, 16-tests-7).
-# Being a search candidate is not evidence of a real relationship, so the candidate list is no longer part of
-# what this function trusts at all. THREE conventions name a "Related Issues" section, because bug_report.md,
-# unlike technical_debt.md and test_implementation.md, has no dedicated 'Related Issues' header of its own; the
-# first one found wins (in this order), and only that one section's lines are collected via the two branches
-# below:
-#   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
-#   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
-#     immediately-following bullet lines (indented sub-bullets '  - #n' as audit #16's real draft has, or
-#     unindented siblings '- #n' at the same level -- both plausible model output), stopping at the first
-#     blank line, a new '## ' header, a new sibling bold field ('- **Something Else**:'), or any other line
-#     that is not itself a bullet. The header line itself tolerates an optional trailing colon
-#     ('**Related Issues**' or '**Related Issues**:') and an optional leading '- '.
-#   - #1428 decision 1: a plain 'Related Issues:' (or 'Related issues', case-insensitive, optional trailing
-#     colon, optional '**' bold markers -- audit #16's real 16-code-5 draft (verification passes 4/5) writes
-#     exactly this, inside bug_report.md's 'Additional Context', because that template gives the model no
-#     structural marker to reach for at all) line: the section is the run of bullet lines that follows, ending
-#     at the next '## ' header, or at the first blank line that is NOT immediately followed by another bullet
-#     line (a model that puts one blank line between two related-issue bullets should not split the section in
-#     two; a blank line that starts prose again ends it).
-# #1428 decision 2: for a draft routed to bug_report.md ($IsBugReportDraft), the SAME allowed-set rule is also
-# applied to every '#n' reference anywhere under the draft's own '## Additional Context' section (to the next
-# '## ' header or end of file), regardless of whether a labelled Related Issues subsection was found inside it
-# -- bug_report.md's own template text tells the model to put "related issues" there
-# ("Add any other context about the problem here (screenshots, logs, related issues)."), with no promise it
-# will ever use one of the three labelled forms above. This is additive: the two scans are merged into one set
-# of line indexes (a line inside both a labelled subsection and the wider Additional Context section is
-# checked, and can be removed, only once).
-# A reference (#n) inside a scanned line survives only when n is:
+# #1492 decision 2: the allowed-set rule now applies to every '#n' reference anywhere in the draft body, not
+# only a labelled 'Related Issues' section or (for a bug_report.md-routed draft) '## Additional Context' --
+# audit #17 pass 4 found a draft citing #1372 (an unrelated package-count issue) in prose the model wrote
+# elsewhere in the draft, which the previous, section-scoped version of this function never looked at (history:
+# #1400/#1424/#1428 built up the section-scoped version this replaces -- the H2 header, the bold-bullet
+# convention, the plain 'Related Issues:' line, and the bug-only Additional Context scan; all four shapes are
+# still sanitized correctly, because they are just prose the global scan below also covers).
+#
+# Scans every line of the whole draft, skipping a fenced code block (Code Sample, Stack Trace -- a stack trace
+# or C# sample is never prose the model writes freely) and the header HTML comment block Build-DraftBrief asks
+# the model to reproduce verbatim (title/labels/milestone), for a '#n' reference. A reference survives only
+# when its number is:
 #   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
 #     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
 #   - named in the finding's own text ($FindingText); or
@@ -571,10 +547,14 @@ function Find-TemplatePlaceholders {
 #     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line -- these
 #     are already anchor-checked before they ever reach this function, so they are trusted evidence, unlike a
 #     bare search candidate).
-# A line with no issue reference at all (prose, a blank line) is always kept untouched; a line naming an
-# unverified number is dropped entirely (not just the number). Returns the sanitized draft text and the list of
-# removed numbers, so the caller can log them ("removed unverified related issue #n") against this finding's
-# own line in stages/remediation.md.
+# A disallowed reference is removed with Remove-InlineIssueReference, which strips only the '#n' token itself
+# (and a bare enclosing "(...)"/"(see ...)" wrapper when the reference is the wrapper's only content), leaving
+# the rest of the line -- a Related Issues bullet or a sentence of prose alike -- readable, rather than
+# dropping the whole line as the section-scoped version used to for a labelled Related Issues bullet.
+# $IsBugReportDraft is kept for call-site compatibility (audit-draft-remediation.ps1 still passes it) but no
+# longer changes scope: the global scan already covers a bug_report.md draft's own Additional Context section,
+# labelled or not. Returns the sanitized draft text and the list of removed numbers, so the caller can log them
+# ("removed unverified related issue #n") against this finding's own line in stages/remediation.md.
 function Limit-RelatedIssues {
     param(
         [string]$DraftText,
@@ -586,70 +566,6 @@ function Limit-RelatedIssues {
 
     $text = if ($null -eq $DraftText) { '' } else { $DraftText }
     $lines = @($text -split "`r?`n")
-    $sanitizeLineIndexes = [System.Collections.Generic.HashSet[int]]::new()
-
-    $headerIdx = -1
-    $sectionKind = $null
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $sectionKind = 'header'; break }
-        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $headerIdx = $i; $sectionKind = 'bold'; break }
-        if ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$') { $headerIdx = $i; $sectionKind = 'plain'; break }
-    }
-
-    if ($headerIdx -ge 0) {
-        $sectionStartLine = $headerIdx + 1
-        $sectionEndLine = $lines.Count
-        if ($sectionKind -eq 'bold') {
-            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-                $l = $lines[$i]
-                if ($l.Trim() -eq '') { $sectionEndLine = $i; break }
-                if ($l -match '^##\s') { $sectionEndLine = $i; break }
-                # a new sibling bold field at the same list level ('- **Location**:', '- **Priority**:', ...) ends
-                # this section; a bullet naming an issue never itself looks like that.
-                if ($l -match '^\s*-\s*\*\*[^*]+\*\*:') { $sectionEndLine = $i; break }
-                if ($l -match '^[ \t]*-') { continue }  # an indented sub-bullet or an unindented sibling bullet
-                $sectionEndLine = $i
-                break
-            }
-        }
-        elseif ($sectionKind -eq 'plain') {
-            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-                $l = $lines[$i]
-                if ($l -match '^##\s') { $sectionEndLine = $i; break }
-                if ($l.Trim() -eq '') {
-                    $j = $i + 1
-                    while ($j -lt $lines.Count -and $lines[$j].Trim() -eq '') { $j++ }
-                    if ($j -ge $lines.Count -or $lines[$j] -notmatch '^[ \t]*-') { $sectionEndLine = $i; break }
-                    continue  # a blank line immediately followed by another bullet stays inside the section
-                }
-                if ($l -match '^[ \t]*-') { continue }
-                $sectionEndLine = $i
-                break
-            }
-        }
-        else {
-            for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
-                if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
-            }
-        }
-        for ($i = $sectionStartLine; $i -lt $sectionEndLine; $i++) { [void]$sanitizeLineIndexes.Add($i) }
-    }
-
-    if ($IsBugReportDraft) {
-        $acIdx = -1
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^##\s*Additional Context\s*$') { $acIdx = $i; break }
-        }
-        if ($acIdx -ge 0) {
-            $acEndLine = $lines.Count
-            for ($i = $acIdx + 1; $i -lt $lines.Count; $i++) {
-                if ($lines[$i] -match '^##\s') { $acEndLine = $i; break }
-            }
-            for ($i = $acIdx + 1; $i -lt $acEndLine; $i++) { [void]$sanitizeLineIndexes.Add($i) }
-        }
-    }
-
-    if ($sanitizeLineIndexes.Count -eq 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
 
     $allowed = [System.Collections.Generic.HashSet[string]]::new()
     if (-not [string]::IsNullOrWhiteSpace($IssueNumber)) { [void]$allowed.Add($IssueNumber.TrimStart('#')) }
@@ -663,18 +579,128 @@ function Limit-RelatedIssues {
 
     $removed = [System.Collections.Generic.List[string]]::new()
     $newLines = [System.Collections.Generic.List[string]]::new()
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
-        if (-not $sanitizeLineIndexes.Contains($i)) { $newLines.Add($line); continue }
+    $inFence = $false
+    $inHeaderComment = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*(```|~~~)') { $inFence = -not $inFence; $newLines.Add($line); continue }
+        if (-not $inHeaderComment -and $line.Contains('<!--')) { $inHeaderComment = $true }
+        $skip = $inFence -or $inHeaderComment
+        if ($inHeaderComment -and $line.Contains('-->')) { $inHeaderComment = $false }
+        if ($skip) { $newLines.Add($line); continue }
+
         $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
         if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
-        $hasAllowedNumber = $false
-        foreach ($num in $lineNumbers) { if ($allowed.Contains($num)) { $hasAllowedNumber = $true } }
-        if ($hasAllowedNumber) { $newLines.Add($line) }
-        else { foreach ($num in $lineNumbers) { $removed.Add($num) } }
+
+        $cleaned = $line
+        foreach ($num in $lineNumbers) {
+            if ($allowed.Contains($num)) { continue }
+            $cleaned = Remove-InlineIssueReference $cleaned $num
+            $removed.Add($num)
+        }
+        $newLines.Add($cleaned)
     }
 
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
+}
+
+# #1492: removes one disallowed '#n' reference from a line for Limit-RelatedIssues, leaving the rest of the
+# sentence readable (decision 2) instead of dropping the whole line. Collapses a bare "(#n)" or "(see #n)"
+# wrapper (case-insensitive 'see') entirely when the reference is the wrapper's only content, drops a bare
+# "see #n" with no parentheses, and otherwise removes just the '#n' token; then tidies the leftover
+# spacing/punctuation a removal can leave behind (a double space, a space before a comma or period, an empty
+# "()" pair, a run of stray commas).
+function Remove-InlineIssueReference {
+    param([string]$Line, [string]$Number)
+
+    $ref = '#' + [regex]::Escape($Number) + '(?!\d)'
+    $result = [regex]::Replace($Line, '\(\s*[Ss]ee\s+' + $ref + '\s*\)', '')
+    if ($result -eq $Line) { $result = [regex]::Replace($Line, '\(\s*' + $ref + '\s*\)', '') }
+    if ($result -eq $Line) { $result = [regex]::Replace($Line, '(?i)\bsee\s+' + $ref, '') }
+    if ($result -eq $Line) { $result = [regex]::Replace($Line, $ref, '') }
+
+    $result = $result -replace '\(\s*\)', ''
+    $result = $result -replace '[ \t]{2,}', ' '
+    $result = $result -replace '[ \t]+([.,;:!?])', '$1'
+    $result = $result -replace '(,\s*){2,}', ', '
+    return $result.TrimEnd()
+}
+
+# #1492 decision 1: the template's own '## Type' checkbox (technical_debt.md is the only routed template that
+# has one -- bug_report.md has none, test_implementation.md has 'Test Category' instead, a different section
+# with different values) is decided deterministically from the finding's ORIGINATING STAGE and, for a
+# code-stage finding, the classifier's own kind -- never left to the model, which re-rolled a different box on
+# every regeneration (audit #17 passes 3 and 4: a duplicate-test-classes finding ticked "Documentation gap"
+# once, and a stale .vscode/tasks.json label ticked "Incorrect implementation" while its siblings ticked
+# "Documentation gap"):
+#   - a docs-stage finding always ticks "Documentation gap" (it IS a documentation gap by definition of the
+#     stage that found it);
+#   - a tests-stage finding ticks "Missing tests", unless its own text talks about duplicating, consolidating
+#     or refactoring existing tests (the audit #17 pass-3 case), in which case it ticks "Refactoring needed"
+#     instead -- a duplicate-test-classes finding is a refactor of existing tests, not a gap in coverage;
+#   - a code-stage finding uses the classifier's own kind: "bug" never reaches this function in practice
+#     (bug_report.md has no '## Type' section, so a bug-kind finding is never routed to technical_debt.md);
+#     "docs" (a code-stage finding the model itself classified as documentation drift, e.g. a stale label or
+#     comment) ticks "Documentation gap"; "debt" ticks "Code quality (warnings, analyzers)" (the template's own
+#     exact label -- Set-DebtType matches by equality, so a shorter string ticks nothing), unless the finding's
+#     own text is about a stale piece of text -- a label, comment or string literal that no longer matches the
+#     code -- in which case it ticks "Documentation gap" too (the audit #17 pass-4 case: a stale label in
+#     .vscode/tasks.json).
+function Get-DeterministicDebtType {
+    param([string]$Stage, [string]$Kind, [string]$FindingText)
+
+    $text = if ($null -eq $FindingText) { '' } else { $FindingText }
+    if ($Stage -eq 'docs') { return 'Documentation gap' }
+    if ($Stage -eq 'tests') {
+        if ($text -match '(?i)\b(duplicate\w*|consolidat\w*|refactor\w*)\b') { return 'Refactoring needed' }
+        return 'Missing tests'
+    }
+    # Code stage: the classifier's own kind decides. 'bug' and 'test' never reach here -- their routed
+    # templates (bug_report.md, test_implementation.md) have no '## Type' section, so audit-draft-remediation.ps1
+    # never calls Set-DebtType for them at all.
+    if ($Kind -eq 'docs') { return 'Documentation gap' }
+    if ($text -match '(?i)\bstale\s+(text|label|comment|string)\b') { return 'Documentation gap' }
+    # The real technical_debt.md checkbox text is "Code quality (warnings, analyzers)", not a bare "Code
+    # quality" -- Set-DebtType matches a checkbox's label by exact equality (after stripping bold markers), so
+    # returning anything shorter here would tick nothing at all and silently clear every box in the section
+    # (adversarial review of #1492: the first version of this function returned the bare label and left the
+    # whole '## Type' section unticked for the single most common code-stage debt finding).
+    return 'Code quality (warnings, analyzers)'
+}
+
+# #1492 decision 1: overwrites the whole '## Type' section's checkboxes with exactly one ticked box -- the
+# label Get-DeterministicDebtType returned -- clearing whatever the model itself ticked first (or nothing, if
+# it ticked none). Only technical_debt.md has a '## Type' section among the three routed templates, so this is
+# only ever meaningful for a technical_debt.md-routed draft; audit-draft-remediation.ps1's own Repair-Draft call
+# site only invokes it for that template. Matches a checkbox line tolerant of bold markers around the label (a
+# model sometimes emphasises its own tick); returns $DraftText unchanged when it has no '## Type' header at
+# all, or when $Type is blank (defends a malformed draft/call rather than throwing, like Set-BugEnvironment
+# does for '## Environment').
+function Set-DebtType {
+    param([string]$DraftText, [string]$Type)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    if ([string]::IsNullOrWhiteSpace($Type)) { return $text }
+    $lines = @($text -split "`r?`n")
+    $headerIdx = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i].Trim() -eq '## Type') { $headerIdx = $i; break }
+    }
+    if ($headerIdx -lt 0) { return $text }
+
+    $sectionEndLine = $lines.Count
+    for ($i = $headerIdx + 1; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
+    }
+
+    for ($i = $headerIdx + 1; $i -lt $sectionEndLine; $i++) {
+        $m = [regex]::Match($lines[$i], '^(?<prefix>\s*-\s*\[)[ xX](?<rest>\]\s*.*)$')
+        if (-not $m.Success) { continue }
+        $label = (($m.Groups['rest'].Value -replace '^\]\s*', '') -replace '\*', '').Trim()
+        $mark = if ([string]::Equals($label, $Type, [System.StringComparison]::OrdinalIgnoreCase)) { 'x' } else { ' ' }
+        $lines[$i] = $m.Groups['prefix'].Value + $mark + $m.Groups['rest'].Value
+    }
+
+    return ($lines -join "`n")
 }
 
 # #1409: bug_report.md's own '## Environment' section asks for facts (Encina version, .NET version, OS) the

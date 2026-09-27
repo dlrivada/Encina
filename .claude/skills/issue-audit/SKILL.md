@@ -121,7 +121,7 @@ open-issue candidates found with `gh issue list --search` for duplicates; (b) a 
 "duplicate of #m" line in `stages/remediation.md`; (c) a non-duplicate is routed to the matching issue template
 (`bug_report.md`/`[BUG]` for a code defect with milestone `v0.14.0 — Hardening`, `test_implementation.md`/`[TEST]`
 for missing tests or a coverage gap, `technical_debt.md`/`[DEBT]` for messy/incomplete code, `technical_debt.md`/
-`[DEBT]` with the "Documentation gap" type ticked for a documentation drift) and drafted into
+`[DEBT]` for a documentation drift) and drafted into
 `artifacts/knowledge/remediation/<n>-<stage>-<id>-<slug>.md` with the chosen template's real headers and
 checkboxes embedded verbatim. `-DryRun` performs every step except the two local-model calls (writes the
 per-finding input files and briefs under `artifacts/knowledge/remediation/_dryrun-<n>/` and previews the
@@ -129,6 +129,23 @@ routing with a deterministic fallback kind instead of the model's classification
 skips the `gh issue list` duplicate search — this is what the automated test suite exercises, so the real
 model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
 you open any of them.
+
+A `technical_debt.md`-routed draft's `## Type` checkbox is never left to the model: the script ticks it itself,
+deterministically, from the finding's stage and (for a code-stage finding) the classifier's own kind
+(`Get-DeterministicDebtType`/`Set-DebtType` in `_remediation-checks.ps1`) -- a docs-stage finding always ticks
+"Documentation gap"; a tests-stage finding ticks "Missing tests", or "Refactoring needed" when its own text is
+about duplicating/consolidating/refactoring existing tests; a code-stage "debt" finding ticks the template's own
+exact "Code quality (warnings, analyzers)" label, or "Documentation gap" when its own text is about a stale
+label/comment/string, and a code-stage "docs" finding
+ticks "Documentation gap" too. This closes the exact instability audit #17 hit: regenerating every draft to fix
+one detail used to re-roll every other draft's own Type tick as well (#1492).
+
+Regenerating just one or two findings' drafts (a verifier `FAIL` naming only those) does not have to re-roll
+every other draft's own already-correct model choices: `-Only "<stage> <n>"` (repeatable, e.g.
+`-Only "code 3" -Only "tests 1"`) regenerates only the named finding(s), leaving every other finding's own draft,
+input, brief and `stages/remediation.md` line completely untouched, byte-identical (#1492 decision 3). It
+requires `stages/remediation.md` to already carry a line for every OTHER currently-parsed finding (i.e. a full
+regeneration ran at least once); otherwise it errors rather than guessing.
 
 Duplicate-vs-new is deterministic, not model-driven: `tools/ai/audit/_remediation-checks.ps1`'s
 `Find-DuplicateAmongCandidates` runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a
@@ -160,14 +177,16 @@ has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouch
 or any other instruction line derived straight from the routed template's own body), re-asks the model once,
 naming the offending lines; a draft that still has placeholders after that re-ask is kept (for inspection), its
 finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the
-end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes the draft's own Related Issues section --
-a `## Related Issues` header, a `- **Related Issues**:` bold bullet, or a plain `Related Issues:` line (the form
-`bug_report.md` has no structural marker for, #1428) -- keeping only a reference that is the audited issue
-itself, appears in the finding's own text, or is named in one of the script's own already anchor-checked
+end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes every `#n` reference anywhere in the
+draft's WHOLE body -- not only a labelled Related Issues section (a `## Related Issues` header, a
+`- **Related Issues**:` bold bullet, or a plain `Related Issues:` line), but any other section too (Description,
+Current Behavior, Additional Context, ...) -- keeping only a reference that is the audited issue itself, appears
+in the finding's own text, or is named in one of the script's own already anchor-checked
 duplicate/partially-related/possibly-related notes -- never merely because it was offered as a search candidate,
-which is not on its own evidence of a real relation. For a draft routed to `bug_report.md`, it also sanitizes
-every reference anywhere under the draft's whole `## Additional Context` section, not only a labelled
-subsection (#1428). Every other reference it removes is logged (#1400, narrowed by #1424, widened by #1428).
+which is not on its own evidence of a real relation. A removed reference inside ordinary prose drops just the
+`#n` token (and a bare enclosing `(...)`/`(see ...)` wrapper), leaving the rest of the sentence readable, rather
+than the whole line. Every removed reference is logged (#1400, narrowed by #1424, widened by #1428, made
+whole-body by #1492).
 
 Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
 `wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there
