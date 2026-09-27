@@ -166,12 +166,32 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
 
         _logger.RetentionPipelineStarted(requestTypeName, responseTypeName, attrInfo.Fields.Length);
 
+        return await TrackAllRetentionRecordsAsync(
+            response!, attrInfo, requestTypeName, responseTypeName, activity, startTimestamp,
+            context, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Tracks a retention record for every decorated field, returning the response on success or
+    /// the enforcement-mode-appropriate error/pass-through on failure. Extracted from
+    /// <see cref="Handle"/> so the outer method stays within the AGENTS.md CRAP gate (#1488).
+    /// </summary>
+    private async ValueTask<Either<EncinaError, TResponse>> TrackAllRetentionRecordsAsync(
+        TResponse response,
+        RetentionAttributeInfo attrInfo,
+        string requestTypeName,
+        string responseTypeName,
+        Activity? activity,
+        long startTimestamp,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
         try
         {
             foreach (var field in attrInfo.Fields)
             {
                 var recordResult = await TrackRetentionRecordAsync(
-                    response!, field, responseTypeName, context, cancellationToken).ConfigureAwait(false);
+                    response, field, responseTypeName, context, cancellationToken).ConfigureAwait(false);
 
                 if (recordResult.IsLeft)
                 {
@@ -192,7 +212,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             RetentionDiagnostics.PipelineDuration.Record(
                 Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
 
-            return Right<EncinaError, TResponse>(response!);
+            return Right<EncinaError, TResponse>(response);
         }
         catch (Exception ex)
         {
@@ -210,7 +230,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             }
 
             // Warn mode — log and allow through
-            return Right<EncinaError, TResponse>(response!);
+            return Right<EncinaError, TResponse>(response);
         }
     }
 
