@@ -49,10 +49,10 @@ React to each event as it arrives:
 |---|---|
 | `CHECK-FAIL` | Read the failed job log (`gh run view <id> --log-failed`). If the cause is not obvious from the first errors, spawn `ci-diagnoser` with the job URL. |
 | CodeRabbit inline comment | Verify the claim against the code before acting. Fix what is right; reply in the thread with the reason for anything declined. Every real finding outside the PR's scope becomes an issue (see the `open-issue` skill). |
-| CodeRabbit "Review rate limited" | Do not wait for it. Run `adversarial-reviewer` on the PR instead, and record in the PR that the external review was skipped. |
+| CodeRabbit "Review rate limited" (or no review posted after the normal wait) | Do not wait for it. Spawn `pr-reviewer` with the PR number in the foreground. Post its `artifacts/pr-review/<n>.md` as one PR review (`gh pr review --repo dlrivada/Encina <n> --comment --body-file artifacts/pr-review/<n>.md`) and add inline comments only for findings with an exact `file:line`. Record in the PR that CodeRabbit was skipped. A PR that also touches gates, CI workflows or `.github/scripts` still gets an `adversarial-reviewer` pass too (existing rule below, unchanged). This replaces the manual step first improvised on PR #1408. |
 | `CHECKS-DONE` with failures | Fix, push, request `@coderabbitai review` again. |
 
-Mechanical follow-ups (formatting, a config exclusion, replying to threads with decided text) go to `mechanical-fixer`. A PR that touches gates, CI workflows or `.github/scripts`, or that merges without a CodeRabbit review, gets an `adversarial-reviewer` pass before or right after the merge.
+Mechanical follow-ups (formatting, a config exclusion, replying to threads with decided text) go to `mechanical-fixer`. A PR that touches gates, CI workflows or `.github/scripts`, or that merges without a CodeRabbit review, gets an `adversarial-reviewer` pass before or right after the merge — `pr-reviewer` and `adversarial-reviewer` can both legitimately run on the same PR, since they check different things (a published PR against its linked issue and `.coderabbit.yaml`, vs. gates/CI/`.github/scripts` specifically).
 
 ## 3. Merge
 
