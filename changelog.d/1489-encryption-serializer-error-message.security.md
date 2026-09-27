@@ -1,0 +1,1 @@
+- `EncryptingMessageSerializer` and `MessageEncryptionHealthCheck` (`Encina.Messaging.Encryption`) now log and tag only the `EncinaError` code, never the raw error message, on encryption/decryption failures.

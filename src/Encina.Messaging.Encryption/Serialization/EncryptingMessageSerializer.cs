@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Encina;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Diagnostics;
 using Encina.Messaging.Encryption.Model;
@@ -118,34 +119,48 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
         var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 
         return result.Match(
-            Right: payload =>
-            {
-                var formatted = EncryptedPayloadFormatter.Format(payload);
+            Right: payload => OnEncryptSucceeded(payload, messageTypeName, activity, opts, durationMs),
+            Left: error => OnEncryptFailed(error, messageTypeName, activity, opts));
+    }
 
-                _logger.EncryptionCompleted(messageTypeName, payload.KeyId, durationMs);
-                MessageEncryptionDiagnostics.RecordSuccess(activity, payload.KeyId, payload.Algorithm);
+    private string OnEncryptSucceeded(
+        EncryptedPayload payload,
+        string messageTypeName,
+        Activity? activity,
+        MessageEncryptionOptions opts,
+        double durationMs)
+    {
+        var formatted = EncryptedPayloadFormatter.Format(payload);
 
-                if (opts.EnableMetrics)
-                {
-                    MessageEncryptionDiagnostics.RecordOperationMetrics(
-                        "encrypt", messageTypeName, payload.KeyId, durationMs, payload.Ciphertext.Length);
-                }
+        _logger.EncryptionCompleted(messageTypeName, payload.KeyId, durationMs);
+        MessageEncryptionDiagnostics.RecordSuccess(activity, payload.KeyId, payload.Algorithm);
 
-                return formatted;
-            },
-            Left: error =>
-            {
-                _logger.EncryptionFailed(messageTypeName, error.Message);
-                MessageEncryptionDiagnostics.RecordFailure(activity, error.Message);
+        if (opts.EnableMetrics)
+        {
+            MessageEncryptionDiagnostics.RecordOperationMetrics(
+                "encrypt", messageTypeName, payload.KeyId, durationMs, payload.Ciphertext.Length);
+        }
 
-                if (opts.EnableMetrics)
-                {
-                    MessageEncryptionDiagnostics.RecordFailureMetrics("encrypt", messageTypeName);
-                }
+        return formatted;
+    }
 
-                throw new InvalidOperationException(
-                    $"Message encryption failed for type '{messageTypeName}': {error.Message}");
-            });
+    private string OnEncryptFailed(
+        EncinaError error,
+        string messageTypeName,
+        Activity? activity,
+        MessageEncryptionOptions opts)
+    {
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        _logger.EncryptionFailed(messageTypeName, errorCode);
+        MessageEncryptionDiagnostics.RecordFailure(activity, errorCode);
+
+        if (opts.EnableMetrics)
+        {
+            MessageEncryptionDiagnostics.RecordFailureMetrics("encrypt", messageTypeName);
+        }
+
+        throw new InvalidOperationException(
+            $"Message encryption failed for type '{messageTypeName}': {error.Message}");
     }
 
     /// <inheritdoc />
@@ -199,39 +214,53 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
         var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 
         return result.Match(
-            Right: decryptedBytes =>
-            {
-                var json = Encoding.UTF8.GetString(decryptedBytes.AsSpan());
+            Right: decryptedBytes => OnDecryptSucceeded(decryptedBytes, payload, activity, opts, durationMs),
+            Left: error => OnDecryptFailed(error, payload, activity, opts));
+    }
 
-                _logger.DecryptionCompleted(payload.KeyId, durationMs);
-                MessageEncryptionDiagnostics.RecordSuccess(activity, payload.KeyId, payload.Algorithm);
+    private string OnDecryptSucceeded(
+        System.Collections.Immutable.ImmutableArray<byte> decryptedBytes,
+        EncryptedPayload payload,
+        Activity? activity,
+        MessageEncryptionOptions opts,
+        double durationMs)
+    {
+        var json = Encoding.UTF8.GetString(decryptedBytes.AsSpan());
 
-                if (opts.EnableMetrics)
-                {
-                    MessageEncryptionDiagnostics.RecordOperationMetrics(
-                        "decrypt", "unknown", payload.KeyId, durationMs, payload.Ciphertext.Length);
-                }
+        _logger.DecryptionCompleted(payload.KeyId, durationMs);
+        MessageEncryptionDiagnostics.RecordSuccess(activity, payload.KeyId, payload.Algorithm);
 
-                if (opts.AuditDecryption)
-                {
-                    _logger.DecryptionAudit(payload.KeyId, "unknown");
-                }
+        if (opts.EnableMetrics)
+        {
+            MessageEncryptionDiagnostics.RecordOperationMetrics(
+                "decrypt", "unknown", payload.KeyId, durationMs, payload.Ciphertext.Length);
+        }
 
-                return json;
-            },
-            Left: error =>
-            {
-                _logger.DecryptionFailed(payload.KeyId, error.Message);
-                MessageEncryptionDiagnostics.RecordFailure(activity, error.Message);
+        if (opts.AuditDecryption)
+        {
+            _logger.DecryptionAudit(payload.KeyId, "unknown");
+        }
 
-                if (opts.EnableMetrics)
-                {
-                    MessageEncryptionDiagnostics.RecordFailureMetrics("decrypt", "unknown");
-                }
+        return json;
+    }
 
-                throw new InvalidOperationException(
-                    $"Message decryption failed with key '{payload.KeyId}': {error.Message}");
-            });
+    private string OnDecryptFailed(
+        EncinaError error,
+        EncryptedPayload payload,
+        Activity? activity,
+        MessageEncryptionOptions opts)
+    {
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        _logger.DecryptionFailed(payload.KeyId, errorCode);
+        MessageEncryptionDiagnostics.RecordFailure(activity, errorCode);
+
+        if (opts.EnableMetrics)
+        {
+            MessageEncryptionDiagnostics.RecordFailureMetrics("decrypt", "unknown");
+        }
+
+        throw new InvalidOperationException(
+            $"Message decryption failed with key '{payload.KeyId}': {error.Message}");
     }
 
     private static bool ShouldEncrypt(Type messageType, MessageEncryptionOptions options)

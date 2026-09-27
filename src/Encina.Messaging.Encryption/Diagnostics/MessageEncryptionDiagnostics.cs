@@ -130,7 +130,13 @@ internal static class MessageEncryptionDiagnostics
     /// <summary>
     /// Records a failed operation on the activity.
     /// </summary>
-    internal static void RecordFailure(Activity? activity, string errorMessage)
+    /// <remarks>
+    /// <paramref name="errorCode"/> MUST be an error code (typically
+    /// <c>EncinaError.GetCode().IfNone("encina.unknown")</c>), never <c>EncinaError.Message</c>:
+    /// it becomes both the activity tag and the <see cref="ActivityStatusCode.Error"/> status
+    /// description (#1489, following #1454).
+    /// </remarks>
+    internal static void RecordFailure(Activity? activity, string errorCode)
     {
         if (activity is null)
         {
@@ -138,7 +144,7 @@ internal static class MessageEncryptionDiagnostics
         }
 
         activity.SetTag(TagOutcome, "failure");
-        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+        activity.SetStatus(ActivityStatusCode.Error, errorCode);
     }
 
     // ========================================================================

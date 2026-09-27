@@ -1,3 +1,4 @@
+using Encina;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Messaging.Encryption.Diagnostics;
@@ -38,11 +39,15 @@ internal static partial class MessageEncryptionLogMessages
     internal static partial void MessageEncrypted(this ILogger logger, string messageType, string keyId);
 
     /// <summary>Message encryption failed.</summary>
+    /// <remarks>
+    /// The <c>errorCode</c> parameter carries <see cref="EncinaErrorExtensions.GetCode"/>, never
+    /// <c>EncinaError.Message</c> (#1489, following #1454).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2451,
         Level = LogLevel.Error,
-        Message = "Message encryption failed. MessageType={MessageType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void EncryptionFailed(this ILogger logger, string messageType, string errorMessage);
+        Message = "Message encryption failed. MessageType={MessageType}, ErrorCode={ErrorCode}")]
+    internal static partial void EncryptionFailed(this ILogger logger, string messageType, string errorCode);
 
     /// <summary>Encryption skipped because it is globally disabled.</summary>
     [LoggerMessage(
@@ -84,11 +89,15 @@ internal static partial class MessageEncryptionLogMessages
     internal static partial void MessageDecrypted(this ILogger logger, string keyId);
 
     /// <summary>Message decryption failed.</summary>
+    /// <remarks>
+    /// The <c>errorCode</c> parameter carries <see cref="EncinaErrorExtensions.GetCode"/>, never
+    /// <c>EncinaError.Message</c> (#1489, following #1454).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2461,
         Level = LogLevel.Error,
-        Message = "Message decryption failed. KeyId={KeyId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void DecryptionFailed(this ILogger logger, string keyId, string errorMessage);
+        Message = "Message decryption failed. KeyId={KeyId}, ErrorCode={ErrorCode}")]
+    internal static partial void DecryptionFailed(this ILogger logger, string keyId, string errorCode);
 
     /// <summary>Decryption audit event logged for compliance.</summary>
     [LoggerMessage(
@@ -129,13 +138,6 @@ internal static partial class MessageEncryptionLogMessages
         Message = "Key resolved. KeyId={KeyId}")]
     internal static partial void KeyResolved(this ILogger logger, string keyId);
 
-    /// <summary>Key resolution failed.</summary>
-    [LoggerMessage(
-        EventId = 2467,
-        Level = LogLevel.Error,
-        Message = "Key resolution failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void KeyResolutionFailed(this ILogger logger, string errorMessage);
-
     /// <summary>Tenant-specific key resolved.</summary>
     [LoggerMessage(
         EventId = 2468,
@@ -162,11 +164,16 @@ internal static partial class MessageEncryptionLogMessages
     internal static partial void HealthCheckPassed(this ILogger logger, string keyId, string algorithm);
 
     /// <summary>Health check failed.</summary>
+    /// <remarks>
+    /// The <c>reason</c> parameter is a fixed, non-identifying phrase or an
+    /// <see cref="EncinaErrorExtensions.GetCode"/> value, never <c>EncinaError.Message</c>
+    /// (#1489, following #1454).
+    /// </remarks>
     [LoggerMessage(
         EventId = 2471,
         Level = LogLevel.Warning,
-        Message = "Message encryption health check failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void HealthCheckFailed(this ILogger logger, string errorMessage);
+        Message = "Message encryption health check failed. Reason={Reason}")]
+    internal static partial void HealthCheckFailed(this ILogger logger, string reason);
 
     /// <summary>Health check failed with an exception.</summary>
     [LoggerMessage(
