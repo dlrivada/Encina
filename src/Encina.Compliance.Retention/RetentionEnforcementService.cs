@@ -236,11 +236,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         IRetentionDataEraser? dataEraser,
         CancellationToken cancellationToken)
     {
-        var recordsDeleted = 0;
-        var recordsFailed = 0;
-        var recordsUnderHold = 0;
-        var recordsDeferred = 0;
-        var dataEraserMissingLogged = false;
+        var counts = new RecordOutcomeCounts();
 
         // Records erased and marked deleted as siblings of an earlier record of this cycle; the
         // snapshot returned by GetExpiredRecordsAsync may still list them, and they must not be
@@ -258,34 +254,61 @@ public sealed class RetentionEnforcementService : BackgroundService
                 record, recordService, legalHoldService, dataEraser, settledSiblings, cancellationToken)
                 .ConfigureAwait(false);
 
+            counts.Track(outcome, _logger);
+        }
+
+        return counts.ToTally(settledSiblings.Count);
+    }
+
+    /// <summary>
+    /// Mutable per-cycle tally of <see cref="RecordOutcome"/> values, with the one-time
+    /// "no eraser registered" log side effect factored out of
+    /// <see cref="ProcessExpiredRecordsAsync"/>'s loop (AGENTS.md §9 CRAP gate).
+    /// </summary>
+    private sealed class RecordOutcomeCounts
+    {
+        private int _deleted;
+        private int _failed;
+        private int _held;
+        private int _deferred;
+        private bool _dataEraserMissingLogged;
+
+        public void Track(RecordOutcome outcome, ILogger logger)
+        {
             switch (outcome)
             {
                 case RecordOutcome.Deleted:
-                    recordsDeleted++;
+                    _deleted++;
                     break;
                 case RecordOutcome.Held:
-                    recordsUnderHold++;
+                    _held++;
                     break;
                 case RecordOutcome.Deferred:
-                    recordsDeferred++;
+                    _deferred++;
                     break;
                 case RecordOutcome.ErasureUnavailable:
-                    if (!dataEraserMissingLogged)
-                    {
-                        _logger.RetentionDataEraserMissing();
-                        dataEraserMissingLogged = true;
-                    }
-
-                    recordsFailed++;
+                    LogDataEraserMissingOnce(logger);
+                    _failed++;
                     break;
                 default:
-                    recordsFailed++;
+                    _failed++;
                     break;
             }
         }
 
-        recordsDeleted += settledSiblings.Count;
-        return new RecordProcessingTally(recordsDeleted, recordsFailed, recordsUnderHold, recordsDeferred);
+        public RecordProcessingTally ToTally(int settledSiblingCount) =>
+            new(_deleted + settledSiblingCount, _failed, _held, _deferred);
+
+        private void LogDataEraserMissingOnce(ILogger logger)
+        {
+            if (_dataEraserMissingLogged)
+            {
+                return;
+            }
+
+            logger.RetentionDataEraserMissing();
+            _dataEraserMissingLogged = true;
+        }
     }
 
     /// <summary>
