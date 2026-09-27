@@ -132,12 +132,13 @@ public sealed class DPIAHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query expired assessments: {error.Message}");
+                    warnings.Add(
+                        $"Unable to query expired assessments: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying expired assessments: {ex.Message}");
+            warnings.Add($"Error querying expired assessments: {ex.GetType().Name}");
         }
 
         // 5. Check for draft assessments (informational, degraded in Block mode)
