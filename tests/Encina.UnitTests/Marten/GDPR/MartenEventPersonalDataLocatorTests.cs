@@ -91,6 +91,21 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
             () => sut.LocateAllDataAsync("   ").AsTask());
     }
 
+    [Fact]
+    public async Task LocateAllDataAsync_SessionFailure_ReturnsErrorWithoutLoggingSubjectId()
+    {
+        // _mockSession.Events is unconfigured (null), so querying it throws — exercising the
+        // fail-closed catch path without needing to mock Marten's full query pipeline.
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<MartenEventPersonalDataLocator>();
+        var sut = new MartenEventPersonalDataLocator(_mockSession, logger);
+
+        var result = await sut.LocateAllDataAsync("subject-1");
+
+        result.IsLeft.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldAllBe(r => !r.Message.Contains("subject-1", StringComparison.Ordinal));
+    }
+
     // Note: Behavioral tests of the full LocateAllDataAsync (actual event-store scanning) are
     // covered by integration tests, because mocking the deep Marten event store pipeline
     // (IEventStore, IMartenQueryable) is fragile and version-dependent. The per-event field
