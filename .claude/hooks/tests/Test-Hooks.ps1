@@ -25,6 +25,19 @@ $sub = Join-Path $work 'sub dir'
 New-Item -ItemType Directory -Force $sub | Out-Null
 $env:CLAUDE_PROJECT_DIR = $repo
 
+# #1410: two isolated fake repository roots for check-issue-template's local-draft evidence checks, so those
+# tests never read or write the real worktree's own artifacts/ folder. Both copy the real .github/ISSUE_TEMPLATE
+# so the header/order checks still run against the real templates.
+$issueRoot = Join-Path $work 'IssueRepo'
+New-Item -ItemType Directory -Force (Join-Path $issueRoot '.github') | Out-Null
+Copy-Item -Recurse -Force (Join-Path $repo '.github/ISSUE_TEMPLATE') (Join-Path $issueRoot '.github/ISSUE_TEMPLATE')
+New-Item -ItemType Directory -Force (Join-Path $issueRoot 'artifacts/local-ai/out') | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $issueRoot 'artifacts/knowledge/remediation') | Out-Null
+
+$optOutRoot = Join-Path $work 'OptOutRepo'
+New-Item -ItemType Directory -Force (Join-Path $optOutRoot '.github') | Out-Null
+Copy-Item -Recurse -Force (Join-Path $repo '.github/ISSUE_TEMPLATE') (Join-Path $optOutRoot '.github/ISSUE_TEMPLATE')
+
 # Assembled so this file never contains the literal patterns the attribution hook blocks.
 $trailer = 'Co-Authored-By: ' + 'Claude Opus <noreply@' + 'anthropic.com>'
 $generated = 'Generated with ' + '[Claude Code](https://claude.com/claude-code)'
@@ -33,7 +46,7 @@ Set-Content (Join-Path $work 'msg-bad.txt') "fix: thing`n`n$trailer"
 Set-Content (Join-Path $work 'msg-ok.txt') "fix: thing`n`nPlain body."
 Set-Content (Join-Path $sub 'msg-bad.txt') "fix: thing`n`n$trailer"
 
-$debt = @'
+$debtCore = @'
 ## Type
 - [x] Code smell
 ## Description
@@ -55,6 +68,11 @@ p
 ## Related Issues
 - #1
 '@
+# #1410: every pre-existing $debt-derived fixture now needs local-draft evidence too, since it is passed with
+# --body-file; a logged opt-out is the simplest fixture-wide fix and does not depend on any ledger/candidate
+# root. $debtCore (no opt-out line) is kept separately for the #1410 remediation-draft fixture below, whose
+# content must match a real draft file byte-for-byte once headers are stripped.
+$debt = "<!-- local-draft: none, reason: hook test fixture, not a drafting task -->`n$debtCore"
 Set-Content (Join-Path $work 'debt-ok.md') $debt
 Set-Content (Join-Path $work 'debt-missing.md') ($debt -replace '## Root Cause\r?\nr\r?\n', '')
 Set-Content (Join-Path $work 'debt-order.md') ($debt -replace '## Type', '## TMP' -replace '## Related Issues', '## Type' -replace '## TMP', '## Related Issues')
@@ -64,6 +82,50 @@ Set-Content (Join-Path $work 'free.md') "## Summary`nx`n## Proposed fix`ny"
 # A line starting with ``` whose info string contains a backtick is inline code, not a fence (CommonMark).
 Set-Content (Join-Path $work 'debt-infostring.md') ($debt -replace '(## Description\r?\n)d', "`$1`````` inline ``code`` ``````")
 Set-Content (Join-Path $work 'free-fenced.md') "Free form.`n``````md`n$($debt)`n``````"
+
+# #1410 local-draft evidence fixtures (all under $issueRoot / $work; $env:CLAUDE_PROJECT_DIR is swapped to
+# $issueRoot only while $localDraftCases runs below, so Get-RepoRoot's fallback resolves there).
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-a.md') 'drafted by the local model (case a, pointer target)'
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-g.md') 'drafted by the local model (case g, no ledger line)'
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-h.md') 'drafted by the local model (case h, stale ledger line)'
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-b.md') $debtCore
+
+$ledgerNow = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+$ledgerStale = (Get-Date).ToUniversalTime().AddHours(-48).ToString('yyyy-MM-ddTHH:mm:ssZ')
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/ledger.csv') @"
+timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile
+$ledgerNow,case-a,10,20,1.0,20.0,artifacts/local-ai/out/case-a.md
+$ledgerNow,case-b,10,20,1.0,20.0,artifacts/local-ai/out/case-b.md
+$ledgerStale,case-h,10,20,1.0,20.0,artifacts/local-ai/out/case-h.md
+"@
+
+Set-Content (Join-Path $work 'draft-pointer-a.md') "<!-- local-draft: artifacts/local-ai/out/case-a.md -->`n$debtCore"
+Set-Content (Join-Path $work 'draft-pointer-g.md') "<!-- local-draft: artifacts/local-ai/out/case-g.md -->`n$debtCore"
+Set-Content (Join-Path $work 'draft-pointer-h.md') "<!-- local-draft: artifacts/local-ai/out/case-h.md -->`n$debtCore"
+# A distinct body (not byte-for-byte $debtCore) so it can never accidentally content-match the #1410
+# remediation-draft fixture below and pass evidence it does not actually have.
+Set-Content (Join-Path $work 'debt-no-evidence.md') ($debtCore -replace '(?m)^d\r?$', 'no local-draft evidence at all')
+Set-Content (Join-Path $work 'debt-optout-empty.md') "<!-- local-draft: none, reason:  -->`n$debtCore"
+Set-Content (Join-Path $work 'debt-optout.md') "<!-- local-draft: none, reason: hook test opt-out -->`n$debtCore"
+
+# Mirrors tools/ai/audit/open-remediation.ps1: a draft under artifacts/knowledge/remediation/ carries a
+# '<!-- title: ...; labels: ...; milestone: ... -->' header the script strips before writing a $env:TEMP copy
+# and calling `gh issue create --body-file` on THAT copy -- never the ledger outFile itself, so this fixture's
+# temp body is built the same way (the exact regex check-issue-template.ps1 also uses), not hand-duplicated.
+$remediationTitle = '[DEBT] Remediation finding x'
+$remediationDraft = @"
+<!--
+title: $remediationTitle
+labels: technical-debt
+milestone:
+-->
+
+$debtCore
+"@
+Set-Content -LiteralPath (Join-Path $issueRoot 'artifacts/knowledge/remediation/9001-code-1-foo.md') -Value $remediationDraft
+$remediationBody = [regex]::Replace($remediationDraft, '(?s)^\s*<!--.*?-->\s*', '').Trim()
+$remediationTempBody = Join-Path $work 'rem-9001-code-1-foo.md'
+Set-Content -LiteralPath $remediationTempBody -Value $remediationBody
 
 $cases = @(
     # hook, tool, command, expected, label
@@ -831,6 +893,48 @@ try {
         $hook, $tool, $command, $expected, $label = $case
         $json = if ($command -eq 'not json') { 'not json' } else { @{ tool_name = $tool; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress }
         Invoke-HookCase $hook $json $expected $label
+    }
+
+    # #1410: check-issue-template's local-draft evidence check, run against $issueRoot (see the fixtures above)
+    # so Get-RepoRoot's $env:CLAUDE_PROJECT_DIR fallback resolves there instead of the real worktree.
+    $caseBPath = Join-Path $issueRoot 'artifacts/local-ai/out/case-b.md'
+    $localDraftCases = @(
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-a.md", 0, 'local-draft: accepted with pointer + ledger line'),
+        @("gh issue create --title `"[DEBT] x`" --body-file `"$caseBPath`"", 0, 'local-draft: accepted when the body file is itself a ledger outFile'),
+        @("gh issue create --title `"[DEBT] x`" --body-file debt-no-evidence.md", 2, 'local-draft: refused with no evidence'),
+        @("gh issue create --title `"[DEBT] x`" --body-file debt-optout-empty.md", 2, 'local-draft: refused with an opt-out without a reason'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-g.md", 2, 'local-draft: pointer to a file with no ledger line refused'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-h.md", 2, 'local-draft: ledger line older than 24h refused'),
+        @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"", 0, 'local-draft: accepted for an open-remediation draft')
+    )
+    $savedProjectDirForLocalDraft = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $issueRoot
+    try {
+        foreach ($case in $localDraftCases) {
+            $command, $expected, $label = $case
+            $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress
+            Invoke-HookCase $issue $json $expected $label
+        }
+    }
+    finally {
+        $env:CLAUDE_PROJECT_DIR = $savedProjectDirForLocalDraft
+    }
+
+    # #1410: the opt-out route also logs a line to artifacts/local-ai/opt-outs.log; a dedicated, isolated root
+    # so the assertion below reads only what this one case wrote.
+    $savedProjectDirForOptOut = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $optOutRoot
+    try {
+        $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-optout.md' } } | ConvertTo-Json -Compress
+        Invoke-HookCase $issue $json 0 'local-draft: accepted with a logged opt-out (temp main root)'
+        $optOutLog = Join-Path $optOutRoot 'artifacts/local-ai/opt-outs.log'
+        $optOutLogOk = (Test-Path -LiteralPath $optOutLog) -and ((Get-Content -Raw -LiteralPath $optOutLog) -match 'hook test opt-out')
+        $script:total++
+        if (-not $optOutLogOk) { $script:failed++ }
+        "{0} [n/a] check-issue-template.ps1: {1}" -f $(if ($optOutLogOk) { 'PASS' } else { 'FAIL' }), 'opt-out reason logged to artifacts/local-ai/opt-outs.log'
+    }
+    finally {
+        $env:CLAUDE_PROJECT_DIR = $savedProjectDirForOptOut
     }
 
     foreach ($case in $spawnCases) {

@@ -1,8 +1,26 @@
 # PreToolUse hook (Bash|PowerShell): validates `gh issue create` against .github/ISSUE_TEMPLATE.
 #
-# CLAUDE.md, "Issue Body Format (MANDATORY)": an issue title starts with its template prefix ([BUG], [DEBT], ...)
-# and the body uses that template's level-2 headers verbatim (case included) and in order. The templates are
-# read at run time, so the hook never drifts from them.
+# CLAUDE.md, "Issue Body Format (MANDATORY)": an issue title starts with its template prefix ([BUG], [DEBT],
+# ...) and the body uses that template's level-2 headers verbatim (case included) and in order. The templates
+# are read at run time, so the hook never drifts from them.
+#
+# #1410: a `--body-file` call must also show the body was drafted by the free local model
+# (tools/ai/local-ai-ask.cs), never paid tokens, before the header check even runs. One of:
+#   (a) the file's first line is `<!-- local-draft: <path> -->` (<path> relative to the repository root, or
+#       absolute) where <path> exists AND a row of a local-ai/ledger.csv from the last 24 hours (the
+#       repository root's own, or any .claude/worktrees/*/artifacts/local-ai/ledger.csv) names <path> as its
+#       outFile (paths compared normalised: slash direction, relative/absolute, case);
+#   (b) the body file itself IS such a recent ledger outFile (no pointer comment needed — this is the plain
+#       "--out <this file>" case, e.g. a worker's issue file copied verbatim to a scratchpad body file); or
+#   (c) the body file's content matches (once its own leading `<!-- ... -->` header is stripped, the same way
+#       open-remediation.ps1 strips it before calling `gh`) a file under artifacts/knowledge/remediation/ that
+#       was written in the last 24 hours — the SPEC-003 remediation pipeline's own drafts, whose `--body-file`
+#       is always a stripped $env:TEMP copy, never the ledger outFile itself, so (a)/(b) alone would not
+#       recognise it.
+# An explicit, logged opt-out is also accepted: a first line `<!-- local-draft: none, reason: <text> -->` with
+# a non-empty reason, appended to <repository root>\artifacts\local-ai\opt-outs.log. Only checked on
+# `--body-file`; `--body`/inline text has no file to point evidence at and is left to the existing header
+# check alone (unchanged from before #1410, matching how a dynamic title/body already skips every check here).
 #
 # Only the arguments of the `gh issue create` statement itself are read, never the rest of the command line.
 # Allowed without checks: issues on another repository (-R/--repo), --web, --template, calls without a body,
@@ -22,7 +40,10 @@ try {
     $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
     $statements = Split-CommandStatements -Text $command -Bash:($payload.tool_name -eq 'Bash')
 
-    function Get-Templates([string]$StartDir) {
+    # The repository root: walked up from $StartDir looking for .github/ISSUE_TEMPLATE, falling back to
+    # $env:CLAUDE_PROJECT_DIR. Shared by the template lookup and the #1410 local-draft evidence check below,
+    # so both agree on the same root (and the same set of candidate ledger/remediation locations).
+    function Get-RepoRoot([string]$StartDir) {
         $root = $StartDir
         while ($root -and -not (Test-Path -LiteralPath (Join-Path $root '.github/ISSUE_TEMPLATE'))) {
             $parent = Split-Path -Parent $root
@@ -30,9 +51,14 @@ try {
             $root = $parent
         }
         if (-not $root -and $env:CLAUDE_PROJECT_DIR) { $root = $env:CLAUDE_PROJECT_DIR }
-        $dir = if ($root) { Join-Path $root '.github/ISSUE_TEMPLATE' } else { $null }
+        return $root
+    }
+
+    function Get-Templates([string]$Root) {
         $templates = @{}
-        if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { return $templates }
+        if (-not $Root) { return $templates }
+        $dir = Join-Path $Root '.github/ISSUE_TEMPLATE'
+        if (-not (Test-Path -LiteralPath $dir)) { return $templates }
         foreach ($file in Get-ChildItem -LiteralPath $dir -Filter '*.md') {
             $lines = Get-Content -LiteralPath $file.FullName
             $titleLine = $lines | Where-Object { $_ -match '^title:\s*"(\[[A-Z]+\])' } | Select-Object -First 1
@@ -60,6 +86,149 @@ try {
         return , $headers
     }
 
+    # #1410 local-draft evidence -----------------------------------------------------------------------------
+
+    # $Root itself, plus every .claude/worktrees/<name> directory under it — a worker drafts and records its
+    # ledger line in its own worktree, never the main checkout's.
+    function Get-CandidateRoots([string]$Root) {
+        $roots = [System.Collections.Generic.List[string]]::new()
+        if (-not $Root) { return $roots }
+        $roots.Add($Root)
+        $wtDir = Join-Path $Root '.claude/worktrees'
+        if (Test-Path -LiteralPath $wtDir) {
+            foreach ($d in (Get-ChildItem -LiteralPath $wtDir -Directory -ErrorAction SilentlyContinue)) { $roots.Add($d.FullName) }
+        }
+        return , $roots
+    }
+
+    # Parses a ledger timestampUtc value ("yyyy-MM-ddTHH:mm:ssZ") as UTC regardless of the host's own locale
+    # or timezone.
+    function ConvertFrom-LedgerTimestamp([string]$Value) {
+        $dt = [datetime]::MinValue
+        $styles = [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal
+        if (-not [datetime]::TryParse($Value, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$dt)) { return $null }
+        return $dt
+    }
+
+    function Get-RecentLedgerRows([string]$Root, [datetime]$Since) {
+        $rows = [System.Collections.Generic.List[object]]::new()
+        $ledger = Join-Path $Root 'artifacts/local-ai/ledger.csv'
+        if (-not (Test-Path -LiteralPath $ledger)) { return $rows }
+        $parsed = $null
+        try { $parsed = Import-Csv -LiteralPath $ledger } catch { return $rows }
+        foreach ($row in $parsed) {
+            $ts = ConvertFrom-LedgerTimestamp ([string]$row.timestampUtc)
+            if ($null -eq $ts -or $ts -lt $Since) { continue }
+            $rows.Add($row)
+        }
+        return $rows
+    }
+
+    # A path normalised for comparison: resolved to a full, lowercase, forward-slash path. $Value is resolved
+    # against $Root when it is not itself rooted (a ledger outFile is normally written relative to the root the
+    # process ran from; a pointer comment's path is relative to the repository root, AGENTS.md/decision 1).
+    function Resolve-NormalizedPath([string]$Value, [string]$Root) {
+        if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+        $v = $Value.Trim()
+        try {
+            $full = if ([IO.Path]::IsPathRooted($v)) { $v } else { Join-Path $Root $v }
+            return ([IO.Path]::GetFullPath($full)).ToLowerInvariant().Replace('\', '/')
+        }
+        catch { return $null }
+    }
+
+    # Case (b): $TargetPath (already an absolute, resolved path) is itself a ledger outFile from the last 24
+    # hours, in the root's own ledger or any worktree's.
+    function Test-LedgerOutFileMatch([string]$TargetPath, [string]$Root, [datetime]$Since) {
+        $targetNorm = ([IO.Path]::GetFullPath($TargetPath)).ToLowerInvariant().Replace('\', '/')
+        foreach ($candidateRoot in (Get-CandidateRoots $Root)) {
+            foreach ($row in (Get-RecentLedgerRows $candidateRoot $Since)) {
+                $rowNorm = Resolve-NormalizedPath ([string]$row.outFile) $candidateRoot
+                if ($rowNorm -and $rowNorm -eq $targetNorm) { return $true }
+            }
+        }
+        return $false
+    }
+
+    # Case (a): a `<!-- local-draft: <path> -->` pointer. <path> must exist AND be a recent ledger outFile.
+    function Test-PointerEvidence([string]$PointerValue, [string]$Root, [datetime]$Since) {
+        $v = $PointerValue.Trim()
+        $resolved = $null
+        try {
+            $resolved = if ([IO.Path]::IsPathRooted($v)) { $v } else { Join-Path $Root $v }
+            $resolved = [IO.Path]::GetFullPath($resolved)
+        }
+        catch { return $false }
+        if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) { return $false }
+        return (Test-LedgerOutFileMatch $resolved $Root $Since)
+    }
+
+    # Case (c): tools/ai/audit/open-remediation.ps1 copies a drafted remediation file's body (its own leading
+    # `<!-- title: ...; labels: ...; milestone: ... -->` header stripped, exactly the regex below) into a
+    # $env:TEMP file before calling `gh issue create --body-file`, so neither (a) nor (b) can recognise it —
+    # that temp copy is never itself a ledger outFile, and it carries no pointer comment. Recognised instead by
+    # content: a recent (written in the last 24 hours) file under artifacts/knowledge/remediation/ whose own
+    # header-stripped content matches $BodyText exactly (line endings and surrounding whitespace ignored).
+    function Test-RemediationDraftMatch([string]$BodyText, [string]$Root, [datetime]$Since) {
+        $normalizedBody = ($BodyText -replace "`r`n", "`n").Trim()
+        foreach ($candidateRoot in (Get-CandidateRoots $Root)) {
+            $dir = Join-Path $candidateRoot 'artifacts/knowledge/remediation'
+            if (-not (Test-Path -LiteralPath $dir)) { continue }
+            foreach ($f in (Get-ChildItem -LiteralPath $dir -Filter '*.md' -File -ErrorAction SilentlyContinue)) {
+                if ($f.LastWriteTimeUtc -lt $Since) { continue }
+                $raw = $null
+                try { $raw = Get-Content -LiteralPath $f.FullName -Raw } catch { continue }
+                $stripped = ([regex]::Replace($raw, '(?s)^\s*<!--.*?-->\s*', '') -replace "`r`n", "`n").Trim()
+                if ($stripped -eq $normalizedBody) { return $true }
+            }
+        }
+        return $false
+    }
+
+    function Format-CsvField([string]$Value) {
+        if ($Value -match '[",\n]') { return '"' + ($Value -replace '"', '""') + '"' }
+        return $Value
+    }
+
+    # A first-line opt-out with a non-empty reason is logged and accepted unconditionally; the reason is not
+    # otherwise judged (#1410 decision 2: "server down" is one legitimate reason among others, never the only
+    # one accepted).
+    function Test-OptOut([string]$FirstLine, [string]$Path, [string]$Root) {
+        $m = [regex]::Match($FirstLine, '^<!--\s*local-draft:\s*none\s*,\s*reason:\s*(?<reason>.*?)\s*-->$')
+        if (-not $m.Success) { return $null }
+        $reason = $m.Groups['reason'].Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($reason)) { return $false }
+        $logPath = Join-Path $Root 'artifacts/local-ai/opt-outs.log'
+        New-Item -ItemType Directory -Force (Split-Path -Parent $logPath) | Out-Null
+        if (-not (Test-Path -LiteralPath $logPath)) { Set-Content -LiteralPath $logPath -Encoding utf8 -Value 'timestampUtc,bodyFile,reason' }
+        $line = "$([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')),$(Format-CsvField $Path),$(Format-CsvField $reason)"
+        Add-Content -LiteralPath $logPath -Value $line
+        return $true
+    }
+
+    # Decides whether $Path/$Body (a `gh issue create --body-file` target) shows local-model drafting or a
+    # logged opt-out. $Root is the repository root Get-RepoRoot resolved for this statement; when it cannot be
+    # resolved at all the check is skipped (fails open, exactly like the template lookup below when no
+    # .github/ISSUE_TEMPLATE is found).
+    function Test-LocalDraftCompliance([string]$Path, [string]$Body, [string]$Root) {
+        if (-not $Root) { return $true }
+        $since = (Get-Date).ToUniversalTime().AddHours(-24)
+        $firstLine = ((($Body -split "`r?`n") | Select-Object -First 1)); if ($null -eq $firstLine) { $firstLine = '' }
+        $firstLine = $firstLine.Trim()
+
+        $optOut = Test-OptOut $firstLine $Path $Root
+        if ($null -ne $optOut) { return $optOut }
+
+        $pointer = [regex]::Match($firstLine, '^<!--\s*local-draft:\s*(?<path>(?!none\b).+?)\s*-->$')
+        if ($pointer.Success -and (Test-PointerEvidence $pointer.Groups['path'].Value $Root $since)) { return $true }
+
+        if (Test-LedgerOutFileMatch $Path $Root $since) { return $true }
+
+        return (Test-RemediationDraftMatch $Body $Root $since)
+    }
+
+    $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
+
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
 
@@ -77,6 +246,8 @@ try {
         if ($title.Count -eq 0 -or $title[0].Dynamic) { continue }
         $titleText = $title[0].Value
 
+        $root = Get-RepoRoot $cwd
+
         $body = $null
         $bodyFile = Get-OptionValues $options @('-F', '--body-file')
         $bodyInline = Get-OptionValues $options @('-b', '--body')
@@ -85,6 +256,10 @@ try {
             $path = Resolve-CommandPath $bodyFile[0].Value $cwd
             if (-not $path) { continue }
             $body = [IO.File]::ReadAllText($path)
+            if (-not (Test-LocalDraftCompliance $path $body $root)) {
+                [Console]::Error.WriteLine($LocalDraftMessage)
+                exit 2
+            }
         }
         elseif ($bodyInline.Count -gt 0) {
             $body = $bodyInline[0].Value
@@ -92,7 +267,7 @@ try {
         }
         else { continue }
 
-        $templates = Get-Templates $cwd
+        $templates = Get-Templates $root
         if ($templates.Count -eq 0) { continue }
 
         $prefix = [regex]::Match($titleText, '^\[[A-Z]+\]')

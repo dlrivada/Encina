@@ -42,6 +42,7 @@ Write the body to a scratchpad file and pass it by path, so the hook can read it
 gh issue create --repo dlrivada/Encina --title "[DEBT] <specific title>" --body-file <file> --label technical-debt --milestone "<milestone>"
 ```
 
+- The `check-issue-template` hook also refuses a `--body-file` with no evidence it was drafted by the free local model (#1410): draft the body with `local-ai-task` first and keep its first line `<!-- local-draft: <path to the local-ai output> -->` in the scratchpad copy, or, when the local model genuinely cannot do the task, use a first line `<!-- local-draft: none, reason: <text> -->` (a non-empty reason; it is logged to `artifacts/local-ai/opt-outs.log`). Either line stays out of the published issue body — GitHub renders an HTML comment as nothing.
 - Use the template's default label plus the area labels that apply (`gh label list` when unsure).
 - Pick the milestone from SPEC-000's release scope. Post-1.0 work goes to a post-1.0 milestone, never to the current one by default.
 - A `[FEATURE]` gets an implementation plan before work starts (see the `implementation-plan` skill).
