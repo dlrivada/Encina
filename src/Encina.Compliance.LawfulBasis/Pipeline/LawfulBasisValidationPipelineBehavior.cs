@@ -271,7 +271,7 @@ public sealed class LawfulBasisValidationPipelineBehavior<TRequest, TResponse> :
                     return Right<EncinaError, bool>(true);
                 }
 
-                var consentError = GDPRErrors.ConsentNotFound(requestType, subjectId);
+                var consentError = GDPRErrors.ConsentNotFound(requestType);
                 _logger.ConsentCheckFailed(requestType, "No active consent found");
                 LawfulBasisDiagnostics.ConsentChecksTotal.Add(1,
                     new TagList { { LawfulBasisDiagnostics.TagOutcome, "failed" } });
