@@ -146,7 +146,7 @@ public sealed class RetentionEnforcementService : BackgroundService
             {
                 var error = (EncinaError)expiredResult;
                 _logger.RetentionEnforcementCycleFailed(new InvalidOperationException(error.Message));
-                RetentionDiagnostics.RecordFailed(activity, error.Message);
+                RetentionDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
                 RetentionDiagnostics.EnforcementCyclesTotal.Add(1,
                     new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
                 return;
