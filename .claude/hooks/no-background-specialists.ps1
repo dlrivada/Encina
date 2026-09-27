@@ -1,7 +1,8 @@
 # PreToolUse hook (Agent|Task, wired unconditionally in the project .claude/settings.json; Bash|PowerShell,
 # wired unconditionally there too), AND, with -Agent <name>, in the frontmatter of every agent that may itself
-# delegate or run shell commands (issue-worker, docs-writer, mechanical-fixer, the SPEC-003 audit-stage agents
-# issue-archivist/issue-auditor/test-auditor/audit-verifier, and docs-reviewer) (#1345): denies
+# delegate or run shell commands (issue-worker, docs-writer, mechanical-fixer, site-steward, the SPEC-003
+# audit-stage agents issue-archivist/issue-auditor/test-auditor/audit-verifier, docs-reviewer, and, since
+# #1447, pr-reviewer) (#1345): denies
 # run_in_background: true on any Agent/Task tool call made BY a subagent, AND on any Bash/PowerShell tool call
 # made BY a subagent. A specialist spawned in the background and awaited by ending the caller's turn stalls
 # for good, because its completion notice reaches the orchestrator, not the caller (2026-09-24 decision; the
