@@ -1,0 +1,35 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                   | Job        | IterationCount | LaunchCount | Mean        | Error      | StdDev    | Ratio  | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------- |----------- |--------------- |------------ |------------:|-----------:|----------:|-------:|--------:|-------:|----------:|------------:|
+| Mask_SSN                 | Job-YFEFPZ | 10             | Default     |   249.19 ns |   2.733 ns |  1.808 ns |   4.96 |    0.05 | 0.0310 |     520 B |        2.32 |
+| Mask_WithRegexPattern    | Job-YFEFPZ | 10             | Default     |   320.10 ns |   3.964 ns |  2.073 ns |   6.37 |    0.07 | 0.0248 |     416 B |        1.86 |
+| MaskObject_NoAttributes  | Job-YFEFPZ | 10             | Default     | 1,449.92 ns |  32.905 ns | 21.765 ns |  28.84 |    0.48 | 0.0591 |    1008 B |        4.50 |
+| MaskForAudit_SingleField | Job-YFEFPZ | 10             | Default     | 2,344.41 ns |  47.504 ns | 31.421 ns |  46.63 |    0.71 | 0.1030 |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | Job-YFEFPZ | 10             | Default     | 2,327.85 ns |  26.804 ns | 15.951 ns |  46.30 |    0.49 | 0.1030 |    1752 B |        7.82 |
+| Mask_CreditCard          | Job-YFEFPZ | 10             | Default     |   278.52 ns |   3.876 ns |  2.306 ns |   5.54 |    0.06 | 0.0324 |     544 B |        2.43 |
+| Mask_Email               | Job-YFEFPZ | 10             | Default     |    50.28 ns |   0.746 ns |  0.444 ns |   1.00 |    0.01 | 0.0134 |     224 B |        1.00 |
+| MaskObject_MultiField    | Job-YFEFPZ | 10             | Default     | 5,396.71 ns | 107.746 ns | 71.267 ns | 107.34 |    1.62 | 0.2975 |    5056 B |       22.57 |
+| MaskObject_SingleField   | Job-YFEFPZ | 10             | Default     | 2,358.91 ns |  39.068 ns | 25.841 ns |  46.92 |    0.63 | 0.1030 |    1752 B |        7.82 |
+| Mask_Phone               | Job-YFEFPZ | 10             | Default     |   243.29 ns |   6.866 ns |  4.542 ns |   4.84 |    0.10 | 0.0310 |     520 B |        2.32 |
+|                          |            |                |             |             |            |           |        |         |        |           |             |
+| Mask_SSN                 | ShortRun   | 3              | 1           |   233.55 ns | 215.282 ns | 11.800 ns |   4.47 |    0.20 | 0.0310 |     520 B |        2.32 |
+| Mask_WithRegexPattern    | ShortRun   | 3              | 1           |   320.72 ns |  49.827 ns |  2.731 ns |   6.14 |    0.07 | 0.0248 |     416 B |        1.86 |
+| MaskObject_NoAttributes  | ShortRun   | 3              | 1           | 1,464.26 ns | 382.609 ns | 20.972 ns |  28.01 |    0.41 | 0.0591 |    1008 B |        4.50 |
+| MaskForAudit_SingleField | ShortRun   | 3              | 1           | 2,256.16 ns | 502.471 ns | 27.542 ns |  43.16 |    0.56 | 0.1030 |    1752 B |        7.82 |
+| MaskForAudit_NonGeneric  | ShortRun   | 3              | 1           | 2,232.35 ns | 219.452 ns | 12.029 ns |  42.71 |    0.38 | 0.1030 |    1752 B |        7.82 |
+| Mask_CreditCard          | ShortRun   | 3              | 1           |   286.09 ns |  56.443 ns |  3.094 ns |   5.47 |    0.07 | 0.0324 |     544 B |        2.43 |
+| Mask_Email               | ShortRun   | 3              | 1           |    52.27 ns |   8.458 ns |  0.464 ns |   1.00 |    0.01 | 0.0134 |     224 B |        1.00 |
+| MaskObject_MultiField    | ShortRun   | 3              | 1           | 5,612.68 ns | 148.417 ns |  8.135 ns | 107.38 |    0.84 | 0.2975 |    5056 B |       22.57 |
+| MaskObject_SingleField   | ShortRun   | 3              | 1           | 2,361.00 ns | 457.356 ns | 25.069 ns |  45.17 |    0.54 | 0.1030 |    1752 B |        7.82 |
+| Mask_Phone               | ShortRun   | 3              | 1           |   249.58 ns |  59.220 ns |  3.246 ns |   4.77 |    0.07 | 0.0310 |     520 B |        2.32 |
