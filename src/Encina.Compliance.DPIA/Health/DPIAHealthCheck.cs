@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
@@ -74,44 +76,103 @@ public sealed class DPIAHealthCheck : IHealthCheck
         var warnings = new List<string>();
 
         using var scope = _serviceProvider.CreateScope();
-        var scopedProvider = scope.ServiceProvider;
 
-        // 1. Verify options are valid
-        var options = scopedProvider.GetService<IOptions<DPIAOptions>>()?.Value;
+        // 1-3. Verify options, DPIA service and assessment engine are resolvable
+        if (!TryResolveDependencies(scope.ServiceProvider, data, out var options, out var service, out var failure))
+        {
+            return failure.Value;
+        }
+
+        // 4. Check for expired assessments (degraded if any)
+        await CheckExpiredAssessmentsAsync(service, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        // 5. Check for draft assessments (informational, degraded in Block mode)
+        await CheckDraftAssessmentsAsync(service, options, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "DPIA health check completed: {Status} ({WarningCount} warnings)",
+            warnings.Count == 0 ? "Healthy" : "Degraded",
+            warnings.Count);
+
+        if (warnings.Count > 0)
+        {
+            data["warnings"] = warnings;
+            return HealthCheckResult.Degraded(
+                $"DPIA infrastructure has warnings: {string.Join("; ", warnings)}",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "DPIA infrastructure is fully configured.",
+            data: data);
+    }
+
+    /// <summary>
+    /// Resolves the DPIA options, service and assessment engine from the scoped provider.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when every dependency resolved; otherwise <see langword="false"/>,
+    /// with <paramref name="failure"/> set to the <see cref="HealthCheckResult.Unhealthy(string, Exception?, IReadOnlyDictionary{string, object}?)"/>
+    /// result to return.
+    /// </returns>
+    private static bool TryResolveDependencies(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data,
+        [NotNullWhen(true)] out DPIAOptions? options,
+        [NotNullWhen(true)] out IDPIAService? service,
+        [NotNullWhen(false)] out HealthCheckResult? failure)
+    {
+        options = scopedProvider.GetService<IOptions<DPIAOptions>>()?.Value;
         if (options is null)
         {
-            return HealthCheckResult.Unhealthy(
+            service = null;
+            failure = HealthCheckResult.Unhealthy(
                 "DPIAOptions are not configured. "
                 + "Call AddEncinaDPIA() in DI setup.");
+            return false;
         }
 
         data["enforcementMode"] = options.EnforcementMode.ToString();
         data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
         data["defaultReviewPeriodDays"] = options.DefaultReviewPeriod.TotalDays;
 
-        // 2. Verify DPIA service is resolvable
-        var service = scopedProvider.GetService<IDPIAService>();
+        service = scopedProvider.GetService<IDPIAService>();
         if (service is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IDPIAService is not registered.",
                 data: data);
+            return false;
         }
 
         data["serviceType"] = service.GetType().Name;
 
-        // 3. Verify assessment engine is resolvable
         var engine = scopedProvider.GetService<IDPIAAssessmentEngine>();
         if (engine is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IDPIAAssessmentEngine is not registered.",
                 data: data);
+            return false;
         }
 
         data["engineType"] = engine.GetType().Name;
 
-        // 4. Check for expired assessments (degraded if any)
+        failure = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Queries expired DPIA assessments and records a warning when any exist or the query fails.
+    /// </summary>
+    private static async Task CheckExpiredAssessmentsAsync(
+        IDPIAService service,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var expiredResult = await service
@@ -132,15 +193,28 @@ public sealed class DPIAHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query expired assessments: {error.Message}");
+                    warnings.Add(
+                        $"Unable to query expired assessments: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying expired assessments: {ex.Message}");
+            warnings.Add($"Error querying expired assessments: {ex.GetType().Name}");
         }
+    }
 
-        // 5. Check for draft assessments (informational, degraded in Block mode)
+    /// <summary>
+    /// Queries all DPIA assessments and records a warning when draft assessments would be
+    /// blocked under the configured enforcement mode. Failures are informational and never
+    /// fail or degrade the overall result.
+    /// </summary>
+    private static async Task CheckDraftAssessmentsAsync(
+        IDPIAService service,
+        DPIAOptions options,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var allResult = await service
@@ -176,22 +250,5 @@ public sealed class DPIAHealthCheck : IHealthCheck
         {
             // Draft assessment check is informational — don't fail or degrade for this
         }
-
-        _logger.LogDebug(
-            "DPIA health check completed: {Status} ({WarningCount} warnings)",
-            warnings.Count == 0 ? "Healthy" : "Degraded",
-            warnings.Count);
-
-        if (warnings.Count > 0)
-        {
-            data["warnings"] = warnings;
-            return HealthCheckResult.Degraded(
-                $"DPIA infrastructure has warnings: {string.Join("; ", warnings)}",
-                data: data);
-        }
-
-        return HealthCheckResult.Healthy(
-            "DPIA infrastructure is fully configured.",
-            data: data);
     }
 }

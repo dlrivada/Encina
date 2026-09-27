@@ -2192,12 +2192,19 @@ More prose after the list must survive untouched.
     }
 
     # (c) a reference to an unverified issue sitting under '## Additional Context' with NO "Related Issues"
-    # label at all is untouched when the draft is not routed to bug_report.md ($IsBugReportDraft = $false, the
-    # default) -- decision 2 is additive only for bug drafts, never a general Additional Context scan.
+    # label at all used to be untouched when the draft was not routed to bug_report.md ($IsBugReportDraft =
+    # $false, the default) -- decision 2 (as first landed) was additive only for bug drafts, never a general
+    # Additional Context scan. #1492 decision 2 supersedes this: the allowed-set rule now applies to every '#n'
+    # reference anywhere in the draft body regardless of $IsBugReportDraft, so the bare, unlabelled #699
+    # reference is removed for a non-bug draft too -- only the unverified TOKEN, leaving the rest of that
+    # bullet's own prose (and the sibling "#16 is the source issue." line) readable.
     $bareAdditionalContextDraft = "## Additional Context`n`n- See also #699 for context.`n- #16 is the source issue.`n"
     $bareNonBugResult = Limit-RelatedIssues $bareAdditionalContextDraft '16' '' @()
-    Test-RemediationChecksCase '#1428 Limit-RelatedIssues: a bare "#n" under Additional Context is untouched for a non-bug draft' {
-        $bareNonBugResult.Text -eq $bareAdditionalContextDraft
+    Test-RemediationChecksCase '#1492 Limit-RelatedIssues: a bare "#n" under Additional Context is now removed even for a non-bug draft (decision 2 is global, not bug-only)' {
+        (@($bareNonBugResult.Removed)) -contains '699'
+    }
+    Test-RemediationChecksCase '#1492 Limit-RelatedIssues: keeps the allowed #16 and the rest of the sentence when the draft is not bug-routed' {
+        $bareNonBugResult.Text -match '#16 is the source issue\.' -and $bareNonBugResult.Text -match 'See also\s+for context\.'
     }
 
     # (d) the same bare reference IS sanitized when the draft is routed to bug_report.md ($IsBugReportDraft =
@@ -2254,6 +2261,325 @@ More prose after the list must survive untouched.
         (@((Limit-RelatedIssues $h2Draft '16' '' @()).Removed)) -contains '699'
     }
     # ---- end #1428 block ----
+
+    # ---- #1492: tools/ai/audit/_remediation-checks.ps1 and audit-draft-remediation.ps1 -- the remediation
+    # FAIL loop did not converge (audit #17): regenerating every draft to fix one detail re-rolled every other
+    # draft's own already-correct model choices (the Type checkbox, and a Related Issues reference living
+    # outside any labelled section). Fixes: (1) the script ticks '## Type' itself, deterministically, instead
+    # of the model; (2) Limit-RelatedIssues' allowed-set rule now covers the whole draft body, not just a
+    # labelled section (covered by the updated #1428 test (c) above and the Description-prose case below); (3)
+    # -Only regenerates a single finding's draft without touching any other finding's own output. No `gh` and
+    # no local model anywhere in this block.
+
+    # (a) Get-DeterministicDebtType: the finding's stage decides for docs/tests; the classifier's own kind
+    # decides for code, each with its own keyword override -- the exact two audit #17 pass-3/pass-4 failures.
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a docs-stage finding always ticks "Documentation gap"' {
+        (Get-DeterministicDebtType 'docs' 'debt' 'A stale sentence in the README.') -eq 'Documentation gap'
+    }
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a tests-stage finding ticks "Missing tests" by default' {
+        (Get-DeterministicDebtType 'tests' 'test' 'No coverage exists for the new branch.') -eq 'Missing tests'
+    }
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a tests-stage finding about duplicate/consolidated tests ticks "Refactoring needed" instead (audit #17 pass 3)' {
+        (Get-DeterministicDebtType 'tests' 'debt' 'Two test classes duplicate the same setup and should be consolidated.') -eq 'Refactoring needed'
+    }
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a code-stage "debt" finding ticks the real "Code quality (warnings, analyzers)" label by default' {
+        (Get-DeterministicDebtType 'code' 'debt' 'The method has unnecessary cyclomatic complexity.') -eq 'Code quality (warnings, analyzers)'
+    }
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a code-stage "debt" finding about a stale label ticks "Documentation gap" instead (audit #17 pass 4)' {
+        (Get-DeterministicDebtType 'code' 'debt' 'The `.vscode/tasks.json` task carries a stale label that no longer matches the command it runs.') -eq 'Documentation gap'
+    }
+    Test-RemediationChecksCase '#1492 Get-DeterministicDebtType: a code-stage finding the classifier itself called "docs" ticks "Documentation gap"' {
+        (Get-DeterministicDebtType 'code' 'docs' 'A comment describing the old behavior was left in place.') -eq 'Documentation gap'
+    }
+
+    # (b) Set-DebtType: clears whatever the model itself ticked and ticks exactly the deterministic box.
+    $debtTypeDraft = @'
+## Type
+
+- [ ] Failing tests
+- [ ] Missing tests
+- [ ] Code quality (warnings, analyzers)
+- [ ] Performance optimization
+- [ ] Refactoring needed
+- [x] Documentation gap
+- [ ] Incorrect implementation
+- [ ] Other
+
+## Description
+
+Two SagaStoreADO test classes duplicate the same setup.
+'@
+    $debtTypeResult = Set-DebtType $debtTypeDraft 'Refactoring needed'
+    Test-RemediationChecksCase '#1492 Set-DebtType: ticks exactly the deterministic box' {
+        (@($debtTypeResult -split "`r?`n")) -contains '- [x] Refactoring needed'
+    }
+    Test-RemediationChecksCase "#1492 Set-DebtType: clears the model's own, different tick" {
+        (@($debtTypeResult -split "`r?`n")) -contains '- [ ] Documentation gap'
+    }
+    Test-RemediationChecksCase '#1492 Set-DebtType: leaves the rest of the draft (Description) untouched' {
+        $debtTypeResult -match 'Two SagaStoreADO test classes duplicate the same setup\.'
+    }
+
+    # Adversarial review of #1492: the first version of Get-DeterministicDebtType returned the bare 'Code
+    # quality' label, which never matches technical_debt.md's real 'Code quality (warnings, analyzers)' checkbox
+    # text -- Set-DebtType compares by exact equality, so that mismatch silently ticked NOTHING at all instead
+    # of one box. This exercises the exact real label Get-DeterministicDebtType now returns for the code-stage
+    # "debt" default, against a draft carrying the real checkbox line, and proves the box actually gets ticked.
+    $debtTypeCodeQualityResult = Set-DebtType $debtTypeDraft 'Code quality (warnings, analyzers)'
+    Test-RemediationChecksCase '#1492 Set-DebtType: the real "Code quality (warnings, analyzers)" label (Get-DeterministicDebtType''s own default) actually ticks that box' {
+        (@($debtTypeCodeQualityResult -split "`r?`n")) -contains '- [x] Code quality (warnings, analyzers)'
+    }
+    Test-RemediationChecksCase '#1492 Set-DebtType: ticking "Code quality (warnings, analyzers)" leaves every other box unticked, never all-blank' {
+        $ticked = @(($debtTypeCodeQualityResult -split "`r?`n") | Where-Object { $_ -match '^-\s*\[x\]' })
+        $ticked.Count -eq 1 -and $ticked[0] -eq '- [x] Code quality (warnings, analyzers)'
+    }
+    Test-RemediationChecksCase '#1492 Set-DebtType: a draft with no "## Type" header is returned unchanged' {
+        (Set-DebtType "## Description`n`nNo Type section here." 'Code quality (warnings, analyzers)') -eq "## Description`n`nNo Type section here."
+    }
+
+    # (c) Limit-RelatedIssues decision 2: a reference living in plain body prose (Description), not inside any
+    # Related Issues section at all, is now caught and removed too -- the audit #17 pass 4 case: a draft cited
+    # #1372, an unrelated package-count issue, in its own Description prose, which the previous section-scoped
+    # version of this function never looked at.
+    $bodyProseDraft = "## Description`n`nThe defect also resembles the pattern fixed in #1372, though that issue is unrelated to this finding.`n`n## Location`n`n- **File(s)**: ``src/A.cs```n"
+    $bodyProseResult = Limit-RelatedIssues $bodyProseDraft '17' 'The finding text cites no other issue number.' @()
+    Test-RemediationChecksCase '#1492 Limit-RelatedIssues: a reference in plain Description prose (no Related Issues section at all) is removed' {
+        (@($bodyProseResult.Removed)) -contains '1372'
+    }
+    Test-RemediationChecksCase '#1492 Limit-RelatedIssues: keeps the rest of the Description sentence readable and #1372 gone' {
+        $bodyProseResult.Text -match 'The defect also resembles the pattern fixed in' -and $bodyProseResult.Text -notmatch '#1372'
+    }
+    Test-RemediationChecksCase '#1492 Limit-RelatedIssues: the audited issue (#17) is not in scope here, and a number the finding itself cites survives' {
+        $findingCitesOther = 'The finding text cites #1234 as the origin of the pattern.'
+        $citedResult = Limit-RelatedIssues "## Description`n`nSee #1234 and #9999 for background.`n" '17' $findingCitesOther @()
+        (@($citedResult.Removed)) -eq @('9999') -and $citedResult.Text -match '#1234'
+    }
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        # (d) -Only end to end: a self-contained fixture repo (own '.git', mirroring the #1375 $remWt pattern
+        # above but kept separate so this block never depends on $remWt's own later mutations) with 2 code
+        # findings. -DryRun -NoGh never calls the model or `gh`, matching decision 4's own requirement.
+        $remWt1492 = Join-Path $work 'RemediationOnlyWt'
+        if (Test-Path $remWt1492) { Remove-Item -Recurse -Force $remWt1492 }
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492 'artifacts\knowledge\stages') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492 '.github\ISSUE_TEMPLATE') | Out-Null
+        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1492 'tools\ai\audit\pipeline.json')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1492 'tools\ai\audit\_audit-lib.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1492 'tools\ai\audit\_remediation-checks.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1')
+        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
+            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1492 ".github\ISSUE_TEMPLATE\$t")
+        }
+        function Invoke-RemGit1492 { & git -C $remWt1492 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1492 init -q -b main
+        Invoke-RemGit1492 commit -q --allow-empty -m base
+
+        $codeFindingsText1492 = "1. **Major** -- ``src/X.cs:10`` first finding.`n2. **Minor** -- ``src/Y.cs:20`` second finding."
+        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText1492`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        $remN1492 = 4343
+        @{ issue = $remN1492; worktree = $remWt1492; branch = "audit/$remN1492"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492 'artifacts\knowledge\current-audit.json')
+
+        $baselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $baselineExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 -Only fixture: the baseline (no -Only) full run exits 0' { $baselineExit -eq 0 }
+
+        $dryDir1492 = Join-Path $remWt1492 "artifacts\knowledge\remediation\_dryrun-$remN1492"
+        $untouchedFile1492 = Join-Path $dryDir1492 'code-2-brief.md'
+        Test-RemediationCase '#1492 -Only fixture: the baseline run wrote both findings'' brief files' {
+            (Test-Path -LiteralPath (Join-Path $dryDir1492 'code-1-brief.md')) -and (Test-Path -LiteralPath $untouchedFile1492)
+        }
+
+        # Backdate the finding-2 brief file's mtime and capture its bytes, so "-Only 'code 1'" leaving it
+        # untouched can be proven by more than "the deterministic content happens to match again."
+        $backdated1492 = [DateTime]::new(2020, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+        (Get-Item -LiteralPath $untouchedFile1492).LastWriteTimeUtc = $backdated1492
+        $untouchedContentBefore1492 = Get-Content -LiteralPath $untouchedFile1492 -Raw
+        $untouchedInputFile1492 = Join-Path $dryDir1492 'code-2-input.md'
+        (Get-Item -LiteralPath $untouchedInputFile1492).LastWriteTimeUtc = $backdated1492
+
+        $onlyOutput1492 = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
+        $onlyExit1492 = $LASTEXITCODE
+        Test-RemediationCase '#1492 -Only "code 1" exits 0 and never calls the model or gh' { $onlyExit1492 -eq 0 }
+
+        $untouchedAfter1492 = Get-Item -LiteralPath $untouchedFile1492
+        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run brief file with an unchanged mtime (never rewritten)' {
+            $untouchedAfter1492.LastWriteTimeUtc -eq $backdated1492
+        }
+        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run brief file byte-identical' {
+            (Get-Content -LiteralPath $untouchedFile1492 -Raw) -eq $untouchedContentBefore1492
+        }
+        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run input file with an unchanged mtime (never rewritten)' {
+            (Get-Item -LiteralPath $untouchedInputFile1492).LastWriteTimeUtc -eq $backdated1492
+        }
+        Test-RemediationCase '#1492 -Only "code 1" never logs removing finding code-2''s own output' {
+            (Get-FlatOutput $onlyOutput1492) -notmatch [regex]::Escape('code-2-brief.md') -and (Get-FlatOutput $onlyOutput1492) -notmatch [regex]::Escape('code-2-input.md')
+        }
+
+        $remStageLines1492 = @(Get-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\remediation.md') | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' })
+        Test-RemediationCase '#1492 -Only "code 1": stages\remediation.md still lists both findings'' lines after the -Only run' {
+            $remStageLines1492.Count -eq 2
+        }
+
+        # -Only with a stage/id that does not match any currently-parsed finding is an error, not a silent no-op.
+        $badOnlyOutput1492 = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 99' 2>&1
+        $badOnlyExit1492 = $LASTEXITCODE
+        Test-RemediationCase "#1492 -Only 'code 99' (no matching finding) is an error, not a silent no-op" {
+            $badOnlyExit1492 -ne 0 -and (Get-FlatOutput $badOnlyOutput1492) -match "does not match a finding"
+        }
+
+        # -Only against an audit that has never had a full regeneration (no stages\remediation.md yet) is also
+        # an error, never a guess at what the other findings' lines should say.
+        $remWt1492NoBaseline = Join-Path $work 'RemediationOnlyWtNoBaseline'
+        if (Test-Path $remWt1492NoBaseline) { Remove-Item -Recurse -Force $remWt1492NoBaseline }
+        New-Item -ItemType Directory -Force $remWt1492NoBaseline | Out-Null
+        Copy-Item -Recurse (Join-Path $remWt1492 'tools') (Join-Path $remWt1492NoBaseline 'tools')
+        Copy-Item -Recurse (Join-Path $remWt1492 '.github') (Join-Path $remWt1492NoBaseline '.github')
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages') | Out-Null
+        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText1492`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        $remN1492NoBaseline = 4344
+        @{ issue = $remN1492NoBaseline; worktree = $remWt1492NoBaseline; branch = "audit/$remN1492NoBaseline"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\current-audit.json')
+        function Invoke-RemGit1492NoBaseline { & git -C $remWt1492NoBaseline -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1492NoBaseline init -q -b main
+        Invoke-RemGit1492NoBaseline commit -q --allow-empty -m base
+        $noBaselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492NoBaseline 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
+        $noBaselineExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 -Only without a prior full regeneration is an error, not a guess' {
+            $noBaselineExit -ne 0 -and (Get-FlatOutput $noBaselineOutput) -match 'requires an existing'
+        }
+
+        # (e) #1492 adversarial-review regression: -Only "code 1" must never touch a DOUBLE-DIGIT sibling
+        # finding's own leftover output. Split-Findings takes a finding's Id straight from the markdown's own
+        # leading digits (not from its position in the list), so the fixture above -- findings "1" and "2" --
+        # could never have exposed a numeric-PREFIX collision even in the unfixed code: "code 1" never collided
+        # with "code 2". This fixture numbers its two findings "1." and "10." instead, so "-Only 'code 1'" runs
+        # directly against a "code 10" sibling and can prove the fix at audit-draft-remediation.ps1:339 (every
+        # narrow pattern has a literal separator immediately after $keyId, so a bare "$keyId*.md" wildcard can
+        # no longer swallow "${keyId}0...").
+        $remWt1492c = Join-Path $work 'RemediationOnlyWtCollision'
+        if (Test-Path $remWt1492c) { Remove-Item -Recurse -Force $remWt1492c }
+        New-Item -ItemType Directory -Force $remWt1492c | Out-Null
+        Copy-Item -Recurse (Join-Path $remWt1492 'tools') (Join-Path $remWt1492c 'tools')
+        Copy-Item -Recurse (Join-Path $remWt1492 '.github') (Join-Path $remWt1492c '.github')
+        New-Item -ItemType Directory -Force (Join-Path $remWt1492c 'artifacts\knowledge\stages') | Out-Null
+        $collisionFindingsText1492 = "1. **Major** -- ``src/X.cs:10`` first finding.`n10. **Minor** -- ``src/Y.cs:20`` tenth finding."
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\code.md') "## Findings`n$collisionFindingsText1492`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        $remN1492c = 4345
+        @{ issue = $remN1492c; worktree = $remWt1492c; branch = "audit/$remN1492c"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\current-audit.json')
+        function Invoke-RemGit1492c { & git -C $remWt1492c -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1492c init -q -b main
+        Invoke-RemGit1492c commit -q --allow-empty -m base
+
+        $collisionBaselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $collisionBaselineExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 double-digit fixture: the baseline (no -Only) full run exits 0 with findings code 1 and code 10' { $collisionBaselineExit -eq 0 }
+
+        # -DryRun's own preview files for code-10 (written by the baseline run above), backdated the same way
+        # as the single-digit case, so "-Only 'code 1'" leaving them untouched is proven by more than
+        # "the deterministic content happens to match again."
+        $backdated1492c = [DateTime]::new(2020, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+        $collisionDryDir = Join-Path $remWt1492c "artifacts\knowledge\remediation\_dryrun-$remN1492c"
+        $code10DryFiles = @{
+            'dryrun-brief' = Join-Path $collisionDryDir 'code-10-brief.md'
+            'dryrun-input' = Join-Path $collisionDryDir 'code-10-input.md'
+        }
+        $code10DryContentBefore = @{}
+        foreach ($key in $code10DryFiles.Keys) {
+            (Get-Item -LiteralPath $code10DryFiles[$key]).LastWriteTimeUtc = $backdated1492c
+            $code10DryContentBefore[$key] = Get-Content -LiteralPath $code10DryFiles[$key] -Raw
+        }
+
+        # Simulate a previous REAL (non -DryRun) run's leftover output for finding "code 10" -- exactly the
+        # files "-Only 'code 1'"'s cleanup step (audit-draft-remediation.ps1:339-346) walks regardless of
+        # -DryRun, and exactly the files the pre-fix single "_brief-...-$keyId*.md" pattern could delete by
+        # accident (matching "_brief-<n>-code-10.md" and its "-reask" variant too).
+        $collisionRemDir = Join-Path $remWt1492c 'artifacts\knowledge\remediation'
+        $code10Leftovers = @{
+            'input'          = "_input-$remN1492c-code-10.md"
+            'classify-brief' = "_classify-brief-$remN1492c-code-10.md"
+            'classify'       = "_classify-$remN1492c-code-10.md"
+            'brief'          = "_brief-$remN1492c-code-10.md"
+            'brief-reask'    = "_brief-$remN1492c-code-10-reask.md"
+            'draft'          = "$remN1492c-code-10-tenth-finding.md"
+        }
+        $code10Paths = @{}
+        $code10ContentBefore = @{}
+        foreach ($key in $code10Leftovers.Keys) {
+            $path = Join-Path $collisionRemDir $code10Leftovers[$key]
+            Set-Content -LiteralPath $path -Encoding utf8 -Value "leftover content for code-10 $key"
+            (Get-Item -LiteralPath $path).LastWriteTimeUtc = $backdated1492c
+            $code10Paths[$key] = $path
+            $code10ContentBefore[$key] = Get-Content -LiteralPath $path -Raw
+        }
+
+        $collisionOnlyOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
+        $collisionOnlyExit = $LASTEXITCODE
+        Test-RemediationCase '#1492 -Only "code 1" against a code-10 sibling exits 0' { $collisionOnlyExit -eq 0 }
+
+        # The child pwsh process above (its own OS process, separate from this test) does the actual file
+        # removal; on Windows, a just-created/just-renamed file's visibility to a SIBLING process's directory
+        # enumeration can lag the write by a few milliseconds (filesystem cache/AV scan settle time). A file
+        # that is genuinely gone stays gone through every retry, so this loop cannot mask a real regression --
+        # it only protects against a false failure from reading the directory microseconds too early.
+        function Wait-FileState1492c([string]$Path) {
+            for ($attempt = 0; $attempt -lt 10; $attempt++) {
+                if (Test-Path -LiteralPath $Path) { return $true }
+                Start-Sleep -Milliseconds 50
+            }
+            return $false
+        }
+
+        # Also assert the run's own log never claims to have removed one of code-10's files -- the same
+        # style the pre-existing single-digit case above uses (line ~2422), extended here with the never-
+        # deleted output-text check the double-digit case was missing.
+        Test-RemediationCase '#1492 -Only "code 1" never logs removing any of code-10''s own leftover output' {
+            $flatCollisionOutput = Get-FlatOutput $collisionOnlyOutput
+            $flatCollisionOutput -notmatch [regex]::Escape('code-10-brief.md') -and $flatCollisionOutput -notmatch [regex]::Escape('code-10-input.md') -and
+            (($code10Leftovers.Values | ForEach-Object { $flatCollisionOutput -notmatch [regex]::Escape($_) }) -notcontains $false)
+        }
+
+        foreach ($key in $code10DryFiles.Keys) {
+            $path = $code10DryFiles[$key]
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file with an unchanged mtime (double-digit prefix collision)" {
+                (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
+            }
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file byte-identical" {
+                (Get-Content -LiteralPath $path -Raw) -eq $code10DryContentBefore[$key]
+            }
+        }
+
+        foreach ($key in $code10Leftovers.Keys) {
+            $path = $code10Paths[$key]
+            $survived = Wait-FileState1492c $path
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file present after the run (double-digit prefix collision)" {
+                $survived
+            }
+            if ($survived) {
+                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file with an unchanged mtime" {
+                    (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
+                }
+                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file byte-identical" {
+                    (Get-Content -LiteralPath $path -Raw) -eq $code10ContentBefore[$key]
+                }
+            }
+        }
+
+        $collisionStageLines = Get-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\remediation.md')
+        $code10Line = @($collisionStageLines | Where-Object { $_ -match '^-\s+code\s+10\s+\(' })
+        Test-RemediationCase '#1492 -Only "code 1": stages\remediation.md keeps code 10''s own line after the run' {
+            $code10Line.Count -eq 1
+        }
+    }
+    else {
+        'SKIP #1492 -Only fixture: git is not on PATH'
+    }
+    # ---- end #1492 block ----
 
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual

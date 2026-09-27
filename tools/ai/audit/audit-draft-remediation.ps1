@@ -20,15 +20,42 @@
 # instead of the model's classification. No duplicate is ever assumed in -DryRun (that decision needs the
 # model), so every finding gets a routed brief. Pair it with -NoGh to also skip the `gh issue list` duplicate
 # search -- what Test-Hooks.ps1 exercises: the real model and `gh` are never called in tests.
+#
+# -Only "<stage> <n>" (repeatable, e.g. -Only "code 3" -Only "tests 1") (#1492 decision 3): regenerates ONLY the
+# named finding(s) -- an audit-verifier FAIL against one or two drafts must not re-roll every other draft's own
+# already-correct model choices (severity, kind, template placeholders, Related Issues), which is exactly why a
+# FAIL loop failed to converge (audit #17). Every other finding's own draft, input, brief and dry-run preview
+# file on disk is left completely untouched (never deleted, never rewritten), and stages/remediation.md keeps
+# every other finding's own line verbatim, taken from the file's own previous content -- only the regenerated
+# finding(s)' lines and Lessons entries are replaced. Requires stages/remediation.md to already exist (a full
+# regeneration must have run at least once) and every OTHER finding currently parsed from the stage artifacts
+# to already have a line there; otherwise this errors rather than guessing what an unprocessed finding's line
+# should say.
 
 param(
     [switch]$DryRun,
-    [switch]$NoGh
+    [switch]$NoGh,
+    [string[]]$Only
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
+
+# #1492 decision 3: parse -Only into a set of "stage|id" keys up front (independent of the findings parsed
+# below, so a malformed -Only value is reported before any other work happens).
+$onlyKeys = $null
+if ($Only -and $Only.Count -gt 0) {
+    $onlyKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($spec in $Only) {
+        $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
+        if ($specParts.Count -ne 2) {
+            Write-Error "audit-draft-remediation: -Only value '$spec' must be '<stage> <n>' (e.g. 'code 3')."
+            exit 1
+        }
+        [void]$onlyKeys.Add("$($specParts[0])|$($specParts[1])")
+    }
+}
 
 $mainRoot = Get-MainRoot $PSScriptRoot
 $audit = Get-CurrentAudit $mainRoot
@@ -210,7 +237,7 @@ Guidance:
 # per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
 # (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
 # finding was drafted against.
-function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot) {
+function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot, [string]$DebtType) {
     $raw = Get-Content -LiteralPath $Path -Raw
     $defenced = Remove-OuterFence $raw
     if ($defenced -ne $raw) {
@@ -219,7 +246,12 @@ function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile,
     # #1409: for a bug_report.md-routed draft, the '## Environment' section is overwritten deterministically
     # here, BEFORE Find-TemplatePlaceholders runs below, so the model's own guess at facts it cannot know (the
     # Encina/.NET version, the OS) is never what decides whether the draft is clean.
-    $repaired = if ($RouteTemplateFile -eq 'bug_report.md') { Set-BugEnvironment $defenced $RepoRoot $FindingText } else { $defenced }
+    # #1492 decision 1: for a technical_debt.md-routed draft, the '## Type' checkbox is overwritten the same
+    # way, with the deterministic label the caller already computed (Get-DeterministicDebtType), so the model's
+    # own tick is never what decides which box stays checked.
+    $repaired = if ($RouteTemplateFile -eq 'bug_report.md') { Set-BugEnvironment $defenced $RepoRoot $FindingText }
+    elseif ($RouteTemplateFile -eq 'technical_debt.md' -and $DebtType) { Set-DebtType $defenced $DebtType }
+    else { $defenced }
     if ($repaired -ne $raw) {
         Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $repaired
     }
@@ -248,27 +280,107 @@ foreach ($stageName in $stageNames) {
 $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
 New-Item -ItemType Directory -Force $remediationDir | Out-Null
 
-# Remove only THIS audit's previous outputs before drafting -- a re-run (e.g. after a Verdict: FAIL) must not
-# accumulate stale drafts/intermediates from an earlier run of the same audit, and must never touch another
-# audit's files (every pattern below is anchored on "$n-", never a bare wildcard).
-$cleanupPatterns = "$n-*.md", "_input-$n-*.md", "_classify-brief-$n-*.md", "_classify-$n-*.md", "_brief-$n-*.md"
-foreach ($pattern in $cleanupPatterns) {
-    foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
-        Remove-Item -LiteralPath $staleFile.FullName -Force
-        "audit-draft-remediation: removed previous output $($staleFile.Name)"
+# #1492 decision 3: -Only validation and existing-file parse, done before any cleanup so a bad -Only value or a
+# missing/incomplete stages/remediation.md is reported before anything on disk is touched.
+$existingFindingLines = @{}
+$existingLessonLines = [System.Collections.Generic.List[string]]::new()
+if ($onlyKeys) {
+    $allFindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)") }
+    foreach ($key in $onlyKeys) {
+        if (-not $allFindingKeys.Contains($key)) {
+            $keyParts = $key -split '\|', 2
+            Write-Error "audit-draft-remediation: -Only '$($keyParts[0]) $($keyParts[1])' does not match a finding currently parsed from the code, tests or docs stage artifacts."
+            exit 1
+        }
+    }
+
+    $remediationFile = StageFile 'remediation'
+    if (-not (Test-Path -LiteralPath $remediationFile)) {
+        Write-Error "audit-draft-remediation: -Only requires an existing stages\$(Split-Path -Leaf $remediationFile) to update; run a full regeneration (no -Only) first."
+        exit 1
+    }
+    $inLessonsSection = $false
+    foreach ($rawLine in (Get-Content -LiteralPath $remediationFile)) {
+        if ($rawLine -eq '## Lessons for the pipeline') { $inLessonsSection = $true; continue }
+        if ($inLessonsSection) {
+            if ($rawLine -eq '- none') { continue }
+            $existingLessonLines.Add(($rawLine -replace '^-\s*', ''))
+            continue
+        }
+        $lineMatch = [regex]::Match($rawLine, '^-\s+(?<stage>\S+)\s+(?<id>\S+)\s+\(')
+        if ($lineMatch.Success) {
+            $existingFindingLines["$($lineMatch.Groups['stage'].Value)|$($lineMatch.Groups['id'].Value)"] = $rawLine
+        }
+    }
+    foreach ($f in $allFindings) {
+        $key = "$($f.Stage)|$($f.Id)"
+        if (-not $onlyKeys.Contains($key) -and -not $existingFindingLines.ContainsKey($key)) {
+            Write-Error "audit-draft-remediation: -Only cannot find an existing line for '$($f.Stage) $($f.Id)' in stages\$(Split-Path -Leaf $remediationFile); run a full regeneration (no -Only) first."
+            exit 1
+        }
     }
 }
-$dryRunDir = Join-Path $remediationDir "_dryrun-$n"
-if (Test-Path -LiteralPath $dryRunDir) {
-    Remove-Item -LiteralPath $dryRunDir -Recurse -Force
-    "audit-draft-remediation: removed previous output _dryrun-$n\"
-}
 
-if ($DryRun) {
-    New-Item -ItemType Directory -Force $dryRunDir | Out-Null
+$findingsToProcess = if ($onlyKeys) { @($allFindings | Where-Object { $onlyKeys.Contains("$($_.Stage)|$($_.Id)") }) } else { $allFindings }
+
+if ($onlyKeys) {
+    # -Only regenerates ONLY the named finding(s): remove just their own previous outputs, never another
+    # finding's draft/input/brief/dry-run-preview file, so every other draft on disk stays byte-identical.
+    foreach ($key in $onlyKeys) {
+        $keyParts = $key -split '\|', 2
+        $keyStage = $keyParts[0]; $keyId = $keyParts[1]
+        # #1492 (adversarial review): every pattern below has a literal separator immediately after $keyId, so
+        # a numeric-id prefix collision within the same stage (-Only "code 1" vs. an existing "code 10") can
+        # never match another finding's file -- "_brief-...-$keyId*.md" (no separator before the wildcard) used
+        # to be the one exception, matching "_brief-<n>-code-10.md" too and deleting an untouched finding's
+        # brief without ever regenerating it; it is now two exact patterns (the base brief and its "-reask"
+        # variant), like the input/classify patterns already were.
+        $narrowPatterns = "$n-$keyStage-$keyId-*.md", "_input-$n-$keyStage-$keyId.md", "_classify-brief-$n-$keyStage-$keyId.md", "_classify-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId-reask.md"
+        foreach ($pattern in $narrowPatterns) {
+            foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $staleFile.FullName -Force
+                "audit-draft-remediation: removed previous output $($staleFile.Name)"
+            }
+        }
+    }
+    $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
+    if ($DryRun) {
+        New-Item -ItemType Directory -Force $dryRunDir | Out-Null
+        foreach ($key in $onlyKeys) {
+            $keyParts = $key -split '\|', 2
+            foreach ($staleFile in (Get-ChildItem -LiteralPath $dryRunDir -Filter "$($keyParts[0])-$($keyParts[1])-*.md" -File -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $staleFile.FullName -Force
+            }
+        }
+    }
+    else {
+        $dryRunDir = $null
+    }
 }
 else {
-    $dryRunDir = $null
+    # Remove only THIS audit's previous outputs before drafting -- a re-run (e.g. after a Verdict: FAIL) must not
+    # accumulate stale drafts/intermediates from an earlier run of the same audit, and must never touch another
+    # audit's files (every pattern below is anchored on "$n-", never a bare wildcard).
+    $cleanupPatterns = "$n-*.md", "_input-$n-*.md", "_classify-brief-$n-*.md", "_classify-$n-*.md", "_brief-$n-*.md"
+    foreach ($pattern in $cleanupPatterns) {
+        foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+            Remove-Item -LiteralPath $staleFile.FullName -Force
+            "audit-draft-remediation: removed previous output $($staleFile.Name)"
+        }
+    }
+    $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
+    if (Test-Path -LiteralPath $dryRunDir) {
+        Remove-Item -LiteralPath $dryRunDir -Recurse -Force
+        "audit-draft-remediation: removed previous output _dryrun-$n\"
+    }
+
+    if ($DryRun) {
+        New-Item -ItemType Directory -Force $dryRunDir | Out-Null
+    }
+    else {
+        $dryRunDir = $null
+    }
 }
 
 $lines = [System.Collections.Generic.List[string]]::new()
@@ -282,11 +394,14 @@ $ghIssueCache = @{}
 # fix if it goes unnoticed. Flag it as a pipeline lesson so the orchestrator sees it and can decide whether the
 # stage needs re-running with a corrected format, even though it still gets classified and drafted like any
 # other finding below (never dropped).
-foreach ($unknownFinding in ($allFindings | Where-Object { $_.Severity -eq 'Unknown' })) {
+# #1492 decision 3: scoped to $findingsToProcess (not $allFindings), so an -Only run never re-adds this lesson
+# for a finding it did not touch this time -- $existingLessonLines below already carries that finding's own
+# earlier copy of it forward untouched.
+foreach ($unknownFinding in ($findingsToProcess | Where-Object { $_.Severity -eq 'Unknown' })) {
     $lessons.Add("$($unknownFinding.Stage) $($unknownFinding.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
 }
 
-foreach ($finding in $allFindings) {
+foreach ($finding in $findingsToProcess) {
     $label = "$($finding.Stage) $($finding.Id) ($($finding.Severity))"
     $inputFile = if ($DryRun) { Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-input.md" } else { Join-Path $remediationDir "_input-$n-$($finding.Stage)-$($finding.Id).md" }
     Set-Content -LiteralPath $inputFile -Encoding utf8 -Value $finding.Text
@@ -452,6 +567,10 @@ $candidateLinesForClassify
 
     # Step (b): draft, routed to the matching template.
     $route = $routing[$kind]
+    # #1492 decision 1: computed once per finding, before either Repair-Draft call below, so a re-ask (which
+    # re-writes the whole draft from a fresh model reply) still gets the same deterministic Type tick applied
+    # to it the second time.
+    $debtType = if ($route.Template -eq 'technical_debt.md') { Get-DeterministicDebtType $finding.Stage $kind $finding.Text } else { $null }
     $slug = New-Slug $finding.Text
     $outFile = Join-Path $remediationDir "$n-$($finding.Stage)-$($finding.Id)-$slug.md"
     $draftBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id).md"
@@ -473,7 +592,7 @@ $candidateLinesForClassify
     # template's own placeholder text survived into the draft. A draft that still has placeholders after the
     # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
     # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt
+    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
     if ($placeholders.Count -gt 0) {
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
@@ -498,7 +617,7 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
             Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
             exit 1
         }
-        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
     }
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
@@ -556,6 +675,38 @@ if ($lines.Count -eq 0) {
     $lines.Add("No findings from the code, tests or docs stages for #$n; no remediation drafts were written.")
 }
 
+# #1492 decision 3: $lines/$lessons above only ever cover $findingsToProcess (one Add call per finding
+# processed this run, in order); under -Only, merge them with every OTHER finding's own line/lesson taken
+# verbatim from the previous stages/remediation.md ($existingFindingLines/$existingLessonLines, parsed before
+# the cleanup above), so a finding this run never touched keeps its own line and lesson(s) byte-for-byte.
+if ($onlyKeys) {
+    $computedLines = @{}
+    for ($idx = 0; $idx -lt $findingsToProcess.Count; $idx++) {
+        $computedLines["$($findingsToProcess[$idx].Stage)|$($findingsToProcess[$idx].Id)"] = $lines[$idx]
+    }
+    $mergedLines = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in $allFindings) {
+        $key = "$($f.Stage)|$($f.Id)"
+        $mergedLine = if ($computedLines.ContainsKey($key)) { $computedLines[$key] } else { $existingFindingLines[$key] }
+        $mergedLines.Add($mergedLine)
+    }
+    $lines = $mergedLines
+
+    $keptOldLessons = [System.Collections.Generic.List[string]]::new()
+    foreach ($oldLesson in $existingLessonLines) {
+        $belongsToRegenerated = $false
+        foreach ($key in $onlyKeys) {
+            $keyParts = $key -split '\|', 2
+            if ($oldLesson -match ('^' + [regex]::Escape($keyParts[0]) + '\s+' + [regex]::Escape($keyParts[1]) + '\b')) {
+                $belongsToRegenerated = $true
+                break
+            }
+        }
+        if (-not $belongsToRegenerated) { $keptOldLessons.Add($oldLesson) }
+    }
+    $lessons.InsertRange(0, $keptOldLessons)
+}
+
 $out = [System.Collections.Generic.List[string]]::new()
 $out.Add("Remediation for #$n`:")
 $out.AddRange($lines)
@@ -568,10 +719,10 @@ if ($lessons.Count -eq 0) { $out.Add('- none') } else { foreach ($lesson in $les
 # inputs, so the preview is never mistaken for a finished stage without being overwritten for real.
 Set-Content -LiteralPath (StageFile 'remediation') -Encoding utf8 -Value ($out -join "`n")
 if ($DryRun) {
-    "audit-draft-remediation: -DryRun complete for #$n ($($allFindings.Count) finding(s) routed under artifacts\knowledge\remediation\_dryrun-$n\; stages\remediation.md previewed, no model calls made)"
+    "audit-draft-remediation: -DryRun complete for #$n ($($findingsToProcess.Count) finding(s) routed under artifacts\knowledge\remediation\_dryrun-$n\; stages\remediation.md previewed, no model calls made)"
 }
 else {
-    "audit-draft-remediation: wrote stages\remediation.md for #$n ($($allFindings.Count) finding(s))"
+    "audit-draft-remediation: wrote stages\remediation.md for #$n ($($findingsToProcess.Count) finding(s))"
 }
 
 # #1388 decision 4: a draft that still has unfilled template placeholders after one re-ask is kept (for
