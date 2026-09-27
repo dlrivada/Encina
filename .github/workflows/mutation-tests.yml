@@ -104,37 +104,49 @@ jobs:
             ""
             "Sharding.Health"
           )
-          # Per-shard job timeout in minutes, sized from run 36089523656
-          # (2026-09-25, #1395): completed shards use max(60, ceil(observed
-          # minutes x 1.5)); cancelled shards use ceil(estimate x 1.3), where
-          # the estimate is setup time + (mutant count x the average
-          # per-mutant rate of the 9 completed shards, ~0.26 min/mutant).
-          # Shard 15 (Results) is a documented exception (#1401): it runs with no
-          # test-case-filter override, so every mutant reruns the full
-          # ~24k-test default suite instead of the few dozen/hundred tests
-          # other shards filter down to (confirmed: its baseline pass alone
-          # took 12.2 min vs 0.5-2.2 min for every other shard). That
-          # estimate cannot be sized reliably from the other shards' rate,
-          # so it is capped at the 340-minute ceiling rather than computed;
-          # see docs/testing/mutation-measurement-methodology.md and the
-          # follow-up issue tracking a proper filter for it.
+          # Per-shard job timeout in minutes, re-sized from run 36240706037
+          # (2026-09-26, #1395's own validation dispatch, superseding the
+          # first estimate from run 36089523656 on 2026-09-25): completed
+          # shards use max(60, ceil(observed minutes x 1.5)); the one shard
+          # that was still cancelled (shard 2) is a documented exception,
+          # capped at the 340-minute ceiling rather than computed — see
+          # below.
+          # Shard 2 (Pipeline) is a documented exception (#1402-follow-up,
+          # tracked separately from #1401): it has a real test-case-filter
+          # (not empty, unlike shard 15) and a fast baseline pass, yet it
+          # has now failed to finish its 140 mutants in TWO consecutive
+          # runs at increasing budgets (60 then 72 minutes) while every
+          # other filtered shard's duration matches setup time + mutant
+          # count x the ~0.27 min/mutant pool average within a small
+          # margin. That formula predicts only ~73 min for shard 2 —
+          # almost exactly what it already failed twice — so it is capped
+          # at 340 instead of computed; see the follow-up issue tracking
+          # its root cause (a too-broad filter substring, or property/timing
+          # tests hidden inside its filtered set).
+          # Shard 15 (Results) is no longer an exception: it now has a real
+          # completed observation (73 min in run 36240706037) and its
+          # timeout is computed from the same formula as every other
+          # completed shard. Its empty test-case-filter override (every
+          # mutant reruns the full ~24k-test default suite instead of a
+          # narrow per-shard subset) remains tracked in #1401 as a
+          # correctness/efficiency follow-up, not a timeout risk.
           TIMEOUTS=(
-            100
-            72
-            72
-            60
-            60
-            60
-            106
-            87
-            60
-            83
-            60
-            119
-            93
-            60
-            200
+            110
+            69
             340
+            60
+            60
+            60
+            123
+            96
+            60
+            63
+            60
+            128
+            117
+            60
+            204
+            110
             60
           )
 
