@@ -86,11 +86,11 @@ public sealed class DeadLetterCleanupProcessorTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act
+        // Act - cleanup disabled means ExecuteAsync returns immediately, without entering
+        // the loop, so there is no background event to wait for.
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await Task.Delay(50); // Give some time for the background task
             await processor.StopAsync(cts.Token);
         });
 
@@ -113,11 +113,11 @@ public sealed class DeadLetterCleanupProcessorTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act
+        // Act - no retention period means ExecuteAsync returns immediately, without
+        // entering the loop, so there is no background event to wait for.
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await Task.Delay(50);
             await processor.StopAsync(cts.Token);
         });
 
@@ -133,8 +133,14 @@ public sealed class DeadLetterCleanupProcessorTests
     public async Task ExecuteAsync_WhenEnabled_StartAndStopWork()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IDeadLetterStore>();
-        store.DeleteExpiredAsync(Arg.Any<CancellationToken>()).Returns(5);
+        store.DeleteExpiredAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<Either<EncinaError, int>>(5);
+            });
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDeadLetterStore)).Returns(store);
@@ -160,7 +166,7 @@ public sealed class DeadLetterCleanupProcessorTests
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await Task.Delay(100); // Allow time for cleanup loop
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
             cts.Cancel();
             await processor.StopAsync(default);
         });
@@ -209,9 +215,14 @@ public sealed class DeadLetterCleanupProcessorTests
     public async Task ExecuteAsync_WhenStoreThrows_ContinuesProcessing()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IDeadLetterStore>();
         store.DeleteExpiredAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("Database error"));
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromException<Either<EncinaError, int>>(new InvalidOperationException("Database error"));
+            });
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDeadLetterStore)).Returns(store);
@@ -237,7 +248,7 @@ public sealed class DeadLetterCleanupProcessorTests
         var exception = await Record.ExceptionAsync(async () =>
         {
             await processor.StartAsync(cts.Token);
-            await Task.Delay(50);
+            await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
             cts.Cancel();
             await processor.StopAsync(default);
         });

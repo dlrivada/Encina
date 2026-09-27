@@ -79,6 +79,7 @@ public sealed class DelayedRetryProcessorTests
     public async Task ExecuteAsync_WhenStoreNotConfigured_ContinuesWithoutError()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(null);
 
@@ -86,7 +87,11 @@ public sealed class DelayedRetryProcessorTests
         scope.ServiceProvider.Returns(serviceProvider);
 
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        scopeFactory.CreateScope().Returns(scope);
+        scopeFactory.CreateScope().Returns(_ =>
+        {
+            tcs.TrySetResult();
+            return scope;
+        });
 
         var options = new RecoverabilityOptions();
         var logger = NullLogger<DelayedRetryProcessor>.Instance;
@@ -98,9 +103,10 @@ public sealed class DelayedRetryProcessorTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act
+        // Act - wait for one processing cycle (scope creation) to confirm the loop ran
+        // with the store missing, rather than sleeping a fixed duration.
         await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
 
         // Assert - should complete without throwing
@@ -112,10 +118,15 @@ public sealed class DelayedRetryProcessorTests
     public async Task ExecuteAsync_WhenEncinaNotConfigured_ContinuesWithoutError()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IDelayedRetryStore>();
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IDelayedRetryStore)).Returns(store);
-        serviceProvider.GetService(typeof(IEncina)).Returns(null);
+        serviceProvider.GetService(typeof(IEncina)).Returns(_ =>
+        {
+            tcs.TrySetResult();
+            return null;
+        });
 
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(serviceProvider);
@@ -133,9 +144,10 @@ public sealed class DelayedRetryProcessorTests
 
         using var cts = new CancellationTokenSource();
 
-        // Act
+        // Act - wait for one processing cycle (the IEncina lookup) to confirm the loop
+        // ran with Encina missing, rather than sleeping a fixed duration.
         await processor.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
 
         // Assert - should complete without throwing
@@ -179,10 +191,15 @@ public sealed class DelayedRetryProcessorTests
     public async Task ExecuteAsync_WhenMessagesExist_ProcessesThem()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var message = CreateMockMessage();
         var store = Substitute.For<IDelayedRetryStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns([message]);
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<IEnumerable<IDelayedRetryMessage>>([message]);
+            });
 
         var encina = Substitute.For<IEncina>();
 
@@ -208,7 +225,7 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
 
         // Assert - verify store was called to get pending messages
@@ -220,9 +237,14 @@ public sealed class DelayedRetryProcessorTests
     public async Task ExecuteAsync_WhenNoMessages_ContinuesPolling()
     {
         // Arrange
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = Substitute.For<IDelayedRetryStore>();
         store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(System.Array.Empty<IDelayedRetryMessage>());
+            .Returns(_ =>
+            {
+                tcs.TrySetResult();
+                return Task.FromResult<IEnumerable<IDelayedRetryMessage>>(System.Array.Empty<IDelayedRetryMessage>());
+            });
 
         var encina = Substitute.For<IEncina>();
 
@@ -248,10 +270,10 @@ public sealed class DelayedRetryProcessorTests
 
         // Act
         await processor.StartAsync(cts.Token);
-        await Task.Delay(500);
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cts.Cancel();
 
-        // Assert - should have polled multiple times
+        // Assert - should have polled at least once
         await store.Received().GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
         await processor.StopAsync(default);
     }
@@ -405,8 +427,9 @@ public sealed class DelayedRetryProcessorTests
         message.ContextContent.Returns("{\"id\":\"00000000-0000-0000-0000-000000000000\",\"immediateRetryCount\":0,\"delayedRetryCount\":0}");
         message.CorrelationId.Returns("test-correlation");
         message.DelayedRetryAttempt.Returns(0);
-        message.ScheduledAtUtc.Returns(DateTime.UtcNow.AddMinutes(-1));
-        message.ExecuteAtUtc.Returns(DateTime.UtcNow.AddMinutes(-1));
+        var scheduledAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        message.ScheduledAtUtc.Returns(scheduledAtUtc);
+        message.ExecuteAtUtc.Returns(scheduledAtUtc);
         return message;
     }
 
