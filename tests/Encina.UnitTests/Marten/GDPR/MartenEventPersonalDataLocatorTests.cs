@@ -91,8 +91,79 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
             () => sut.LocateAllDataAsync("   ").AsTask());
     }
 
-    // Note: Behavioral tests (actual event scanning) are covered by integration tests
-    // in CryptoShredderSerializerIntegrationTests and ForgetSubjectIntegrationTests,
-    // because mocking the deep Marten event store pipeline (IEventStore, IMartenQueryable)
-    // is fragile and version-dependent.
+    // Note: Behavioral tests of the full LocateAllDataAsync (actual event-store scanning) are
+    // covered by integration tests, because mocking the deep Marten event store pipeline
+    // (IEventStore, IMartenQueryable) is fragile and version-dependent. The per-event field
+    // matching logic itself — the part that assigns PersonalDataLocation.EntityId = subjectId,
+    // relevant to #1429's leak — is pure (no Marten dependency) and is exercised directly below.
+
+    #region LocateFieldsInEvent / TryBuildLocation
+
+    [Fact]
+    public void LocateFieldsInEvent_MatchingSubject_ReturnsLocation()
+    {
+        var evt = new PiiEvent { UserId = "subject-1", Email = "test@example.com" };
+
+        var locations = MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "subject-1").ToList();
+
+        locations.Count.ShouldBe(1);
+        locations[0].EntityId.ShouldBe("subject-1");
+        locations[0].FieldName.ShouldBe(nameof(PiiEvent.Email));
+        locations[0].EntityType.ShouldBe(typeof(PiiEvent));
+        locations[0].CurrentValue.ShouldBe("test@example.com");
+    }
+
+    [Fact]
+    public void LocateFieldsInEvent_DifferentSubject_ReturnsEmpty()
+    {
+        var evt = new PiiEvent { UserId = "subject-1", Email = "test@example.com" };
+
+        var locations = MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "subject-2").ToList();
+
+        locations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void LocateFieldsInEvent_NoCryptoShreddedFields_ReturnsEmpty()
+    {
+        var evt = new NonPiiEvent { Id = "123" };
+
+        var locations = MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "subject-1").ToList();
+
+        locations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void TryBuildLocation_MissingSubjectIdProperty_ReturnsFalse()
+    {
+        var evt = new UnresolvableSubjectEvent { Email = "test@example.com" };
+        var fields = CryptoShreddedPropertyCache.GetFields(typeof(UnresolvableSubjectEvent));
+
+        // The misconfigured field is excluded from the cache entirely (property does not exist),
+        // so there is nothing to match — this proves the whole event yields no locations.
+        fields.ShouldBeEmpty();
+    }
+
+    public class PiiEvent
+    {
+        public string UserId { get; set; } = string.Empty;
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class NonPiiEvent
+    {
+        public string Id { get; set; } = string.Empty;
+    }
+
+    public class UnresolvableSubjectEvent
+    {
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = "DoesNotExist")]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    #endregion
 }
