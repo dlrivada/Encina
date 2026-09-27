@@ -3,7 +3,7 @@ name: mechanical-fixer
 description: Applies a precisely specified, low-judgement change (formatting, a config exclusion, renames, updating a doc figure or table) in a given worktree, verifies it, and commits. Use when the change is already decided and only needs executing.
 model: haiku
 effort: low
-tools: Agent(ci-diagnoser, Explore), Bash, PowerShell, Read, Edit, Write, Grep, Glob
+tools: Agent(ci-diagnoser, Explore), PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 50
 color: green
 hooks:

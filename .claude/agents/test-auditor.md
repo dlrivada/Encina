@@ -3,7 +3,7 @@ name: test-auditor
 description: Test stage of the SPEC-003 audit pipeline. Measures per-flag coverage of one closed Encina issue's scoped files against the coverage manifest, checks for missing test types, missing regression tests for bugs, test quality issues (reflection-only tests, unfalsifiable asserts, sleeps), and missing real-infrastructure integration tests for database/Marten features. Never reviews production code or docs.
 model: sonnet
 effort: high
-tools: Bash, PowerShell, Read, Edit, Write, Grep, Glob
+tools: PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 80
 color: orange
 hooks:

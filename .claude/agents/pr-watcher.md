@@ -3,7 +3,7 @@ name: pr-watcher
 description: Watches one pull request and reports, at the moment they happen, every failed check, new bot review and the merge. Report-only; never pushes, comments or edits. Use for CI/bot watching so the main session stays free.
 model: haiku
 effort: low
-tools: Bash, PowerShell, Read, SendMessage
+tools: PowerShell, Read, SendMessage
 disallowedTools: Write, Edit
 maxTurns: 60
 color: cyan

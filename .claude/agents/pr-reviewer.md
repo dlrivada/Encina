@@ -3,7 +3,7 @@ name: pr-reviewer
 description: CodeRabbit-style review of a published pull request against AGENTS.md, CLAUDE.md, the path_instructions of .coderabbit.yaml and its linked issue's acceptance criteria. Fallback for when CodeRabbit is unavailable or rate-limited. Read-only on the repository except its own artifacts/pr-review/<pr>.md.
 model: sonnet
 effort: high
-tools: Agent(Explore), Bash, PowerShell, Read, Grep, Glob, Write, Edit
+tools: Agent(Explore), PowerShell, Read, Grep, Glob, Write, Edit
 maxTurns: 60
 color: orange
 hooks:

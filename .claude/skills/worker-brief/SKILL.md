@@ -27,6 +27,7 @@ Rules:
 - Use ABSOLUTE paths for every read and write, inside the worktree only. Your shell starts in the main
   checkout: prefix every command whose output or inputs are cwd-relative with "Set-Location <wt>;", and use
   git -C <wt> for git. The block-main-checkout-writes hook denies writes it resolves to the main checkout.
+- Use the PowerShell tool for every command; your definition has no Bash tool (#1455).
 - Edit repo files (.cs, .csproj, .props, .json, .yml, .md, .txt, .sql, .ps1, .xml, ...) only with the
   Edit/Write tools; never PowerShell -replace, Set-Content, Out-File, Tee-Object or [IO.File] writes on them.
 - Commit locally, English messages, no AI attribution. Never push, open or edit PRs, open or comment on issues.

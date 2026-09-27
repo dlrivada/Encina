@@ -3,7 +3,7 @@ name: audit-verifier
 description: Independent QA stage of the SPEC-003 audit pipeline. Re-checks every claim in the archivist, code, tests and docs stage artifacts of a closed Encina issue's audit — that each file:line exists and says what is claimed, each issue state, each symbol, and that each remediation draft duplicates no open issue. Verdict is PASS or FAIL with a correction list. Never fixes anything itself.
 model: sonnet
 effort: high
-tools: Bash, PowerShell, Read, Edit, Write, Grep, Glob
+tools: PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 80
 color: cyan
 hooks:

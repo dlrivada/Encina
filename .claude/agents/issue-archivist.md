@@ -3,7 +3,7 @@ name: issue-archivist
 description: First stage of the SPEC-003 audit pipeline. Builds the knowledge record of one closed Encina issue from its pre-draft, body, comments and linked PRs, and scopes the code it touched, with successor/duplicate issue states verified against GitHub today. Never judges code or tests.
 model: sonnet
 effort: medium
-tools: Bash, PowerShell, Read, Edit, Write, Grep, Glob
+tools: PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 60
 color: purple
 hooks:

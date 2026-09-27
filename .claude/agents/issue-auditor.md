@@ -3,7 +3,7 @@ name: issue-auditor
 description: Code stage of the SPEC-003 audit pipeline. Adversarially reviews today's code in the scope of one closed Encina issue as if it were that issue's pull request today, against the SPEC-003 AUD checklist and the AGENTS.md rules, including the siblings the issue's fix did not reach. Never reviews tests, docs, or drafts remediation.
 model: sonnet
 effort: high
-tools: Bash, PowerShell, Read, Edit, Write, Grep, Glob
+tools: PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 80
 color: red
 hooks:
