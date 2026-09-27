@@ -253,6 +253,12 @@ function Find-TemplatePlaceholders {
         if ($tTrim -match '^#{1,6}\s') { continue }
         if ($tTrim -match '^-\s*\[[ xX]\]') { continue }
         if ($tTrim -match $tableSeparatorPattern) { continue }
+        # A blockquote note ('> Fill in if this is a coverage gap issue.', '> Per `AGENTS.md` §9 ...') explains
+        # the section and is meant to stay verbatim in every draft, including a fully and correctly filled one
+        # (the real 16-tests-1 draft keeps both of test_implementation.md's own '>' notes untouched) -- it is
+        # never itself the "fill in a real value" placeholder decision 2 targets, unlike a bracketed example or
+        # an unfilled table/description/related-issues line.
+        if ($tTrim.StartsWith('>')) { continue }
         if ($tTrim.StartsWith('|')) {
             $nextTrim = if (($i + 1) -lt $tLines.Count) { $tLines[$i + 1].Trim() } else { '' }
             if ($nextTrim -match $tableSeparatorPattern) { continue }  # this is the table's header row
