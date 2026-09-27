@@ -255,86 +255,130 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
 
         foreach (var domainEvent in events)
         {
-            // Check if event implements INotification
-            if (domainEvent is not INotification notification)
+            if (!TryResolveNotification(domainEvent, out var notification))
             {
-                if (_options.RequireINotification)
-                {
-                    Log.DomainEventNotNotification(
-                        _logger,
-                        domainEvent.GetType().FullName ?? domainEvent.GetType().Name);
-                    continue;
-                }
-
-                // Skip non-INotification events if not required
-                Log.SkippingNonNotificationEvent(
-                    _logger,
-                    domainEvent.GetType().FullName ?? domainEvent.GetType().Name);
                 continue;
             }
 
-            try
-            {
-                var publishResult = await encina.Publish(notification, cancellationToken)
-                    .ConfigureAwait(false);
-
-                publishResult.Match(
-                    Right: _ => Log.DomainEventPublished(
-                        _logger,
-                        domainEvent.GetType().Name,
-                        domainEvent.EventId),
-                    Left: error =>
-                    {
-                        Log.DomainEventPublishFailed(
-                            _logger,
-                            domainEvent.GetType().Name,
-                            domainEvent.EventId,
-                            error.GetEncinaCode());
-
-                        if (_options.StopOnFirstError)
-                        {
-                            // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
-                            throw new DomainEventDispatchException(
-                                $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
-                                domainEvent,
-                                error);
-                        }
-                    });
-            }
-            catch (DomainEventDispatchException)
-            {
-                // Re-throw our own exception
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Log.DomainEventPublishException(
-                    _logger,
-                    ex,
-                    domainEvent.GetType().Name,
-                    domainEvent.EventId);
-
-                if (_options.StopOnFirstError)
-                {
-                    // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
-                    throw new DomainEventDispatchException(
-                        $"Exception while dispatching domain event {domainEvent.GetType().Name}",
-                        domainEvent,
-                        ex);
-                }
-            }
+            await DispatchSingleEventAsync(encina, notification, domainEvent, cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        // Clear events from entities after dispatching
-        if (entitiesToClear is not null)
-        {
-            foreach (var entity in entitiesToClear)
-            {
-                entity.ClearDomainEvents();
-            }
-        }
+        ClearEntities(entitiesToClear);
 
         Log.DomainEventsDispatchCompleted(_logger, events.Count);
+    }
+
+    /// <summary>
+    /// Resolves <paramref name="domainEvent"/> to an <see cref="INotification"/> that can be
+    /// published, logging and skipping it when it cannot (per <see cref="DomainEventDispatcherOptions.RequireINotification"/>).
+    /// </summary>
+    private bool TryResolveNotification(IDomainEvent domainEvent, out INotification notification)
+    {
+        if (domainEvent is INotification resolved)
+        {
+            notification = resolved;
+            return true;
+        }
+
+        var eventTypeName = domainEvent.GetType().FullName ?? domainEvent.GetType().Name;
+        if (_options.RequireINotification)
+        {
+            Log.DomainEventNotNotification(_logger, eventTypeName);
+        }
+        else
+        {
+            Log.SkippingNonNotificationEvent(_logger, eventTypeName);
+        }
+
+        notification = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// Publishes a single domain event, logging only the error code (never
+    /// <see cref="EncinaError.Message"/>) on failure, and turns a failed publish or an exception
+    /// into a <see cref="DomainEventDispatchException"/> when
+    /// <see cref="DomainEventDispatcherOptions.StopOnFirstError"/> is set.
+    /// </summary>
+    private async Task DispatchSingleEventAsync(
+        IEncina encina,
+        INotification notification,
+        IDomainEvent domainEvent,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var publishResult = await encina.Publish(notification, cancellationToken)
+                .ConfigureAwait(false);
+
+            publishResult.Match(
+                Right: _ => Log.DomainEventPublished(
+                    _logger,
+                    domainEvent.GetType().Name,
+                    domainEvent.EventId),
+                Left: error => HandlePublishFailure(domainEvent, error));
+        }
+        catch (DomainEventDispatchException)
+        {
+            // Re-throw our own exception
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.DomainEventPublishException(
+                _logger,
+                ex,
+                domainEvent.GetType().Name,
+                domainEvent.EventId);
+
+            if (_options.StopOnFirstError)
+            {
+                // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
+                throw new DomainEventDispatchException(
+                    $"Exception while dispatching domain event {domainEvent.GetType().Name}",
+                    domainEvent,
+                    ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Logs the failed publish and, when configured to stop on the first error, throws to
+    /// propagate the failure through the <see cref="ISaveChangesInterceptor"/> boundary.
+    /// </summary>
+    private void HandlePublishFailure(IDomainEvent domainEvent, EncinaError error)
+    {
+        Log.DomainEventPublishFailed(
+            _logger,
+            domainEvent.GetType().Name,
+            domainEvent.EventId,
+            error.GetEncinaCode());
+
+        if (_options.StopOnFirstError)
+        {
+            // ROP boundary: ISaveChangesInterceptor requires exception-based error propagation.
+            throw new DomainEventDispatchException(
+                $"Failed to dispatch domain event {domainEvent.GetType().Name}: {error.Message}",
+                domainEvent,
+                error);
+        }
+    }
+
+    /// <summary>
+    /// Clears dispatched events from the given entities, if any.
+    /// </summary>
+    private static void ClearEntities(List<IAggregateRoot>? entitiesToClear)
+    {
+        if (entitiesToClear is null)
+        {
+            return;
+        }
+
+        foreach (var entity in entitiesToClear)
+        {
+            entity.ClearDomainEvents();
+        }
     }
 }
 
