@@ -149,14 +149,33 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
     }
 
     [Fact]
-    public void TryBuildLocation_MissingSubjectIdProperty_ReturnsFalse()
+    public void TryBuildLocation_UnresolvableSubjectIdProperty_ReturnsFalse()
     {
-        var evt = new UnresolvableSubjectEvent { Email = "test@example.com" };
-        var fields = CryptoShreddedPropertyCache.GetFields(typeof(UnresolvableSubjectEvent));
+        // CryptoShreddedPropertyCache.GetFields excludes a field whose SubjectIdProperty does
+        // not resolve, so TryBuildLocation's own null-property guard is unreachable through the
+        // cache — exercised directly here instead, by handing it a field descriptor built from
+        // the cache's own valid field but retargeted to a nonexistent SubjectIdProperty name.
+        var evt = new PiiEvent { UserId = "subject-1", Email = "test@example.com" };
+        var validField = CryptoShreddedPropertyCache.GetFields(typeof(PiiEvent)).Single();
+        var fieldWithBadSubjectIdProperty = new CryptoShreddedFieldInfo(
+            validField.Property, validField.Attribute, validField.Setter, "DoesNotExist");
 
-        // The misconfigured field is excluded from the cache entirely (property does not exist),
-        // so there is nothing to match — this proves the whole event yields no locations.
-        fields.ShouldBeEmpty();
+        var found = MartenEventPersonalDataLocator.TryBuildLocation(
+            evt, typeof(PiiEvent), fieldWithBadSubjectIdProperty, "subject-1", out _);
+
+        found.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TryBuildLocation_SubjectMismatch_ReturnsFalse()
+    {
+        var evt = new PiiEvent { UserId = "subject-1", Email = "test@example.com" };
+        var field = CryptoShreddedPropertyCache.GetFields(typeof(PiiEvent)).Single();
+
+        var found = MartenEventPersonalDataLocator.TryBuildLocation(
+            evt, typeof(PiiEvent), field, "subject-2", out _);
+
+        found.ShouldBeFalse();
     }
 
     public class PiiEvent
@@ -171,13 +190,6 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
     public class NonPiiEvent
     {
         public string Id { get; set; } = string.Empty;
-    }
-
-    public class UnresolvableSubjectEvent
-    {
-        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
-        [CryptoShredded(SubjectIdProperty = "DoesNotExist")]
-        public string Email { get; set; } = string.Empty;
     }
 
     #endregion
