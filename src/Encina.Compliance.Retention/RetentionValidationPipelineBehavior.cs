@@ -197,7 +197,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         catch (Exception ex)
         {
             _logger.RetentionPipelineError(requestTypeName, responseTypeName, ex);
-            RetentionDiagnostics.RecordFailed(activity, ex.Message);
+            RetentionDiagnostics.RecordFailed(activity, ex.GetType().Name);
             RetentionDiagnostics.PipelineExecutionsTotal.Add(1,
                 new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
             RetentionDiagnostics.PipelineDuration.Record(

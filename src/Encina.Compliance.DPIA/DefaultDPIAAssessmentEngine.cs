@@ -168,7 +168,7 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
         {
             var elapsedMs = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
             DPIADiagnostics.AssessmentDuration.Record(elapsedMs);
-            DPIADiagnostics.RecordAssessmentFailed(activity, ex.Message);
+            DPIADiagnostics.RecordAssessmentFailed(activity, ex.GetType().Name);
             throw;
         }
     }

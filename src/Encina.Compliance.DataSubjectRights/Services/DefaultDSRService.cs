@@ -581,7 +581,7 @@ internal sealed class DefaultDSRService : IDSRService
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.DSRServiceError("HandleRestriction", ex.Message, ex);
-            RecordFailure(activity, stopwatch, rightType, ex.Message);
+            RecordFailure(activity, stopwatch, rightType, ex.GetType().Name);
             return DSRErrors.ServiceError("HandleRestriction", ex);
         }
     }

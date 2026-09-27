@@ -156,7 +156,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
         {
             // Graceful error handling: log + continue, never crash the host
             _logger.ReviewReminderCycleFailed(ex);
-            DPIADiagnostics.RecordFailed(activity, ex.Message);
+            DPIADiagnostics.RecordFailed(activity, ex.GetType().Name);
             DPIADiagnostics.ReviewReminderCyclesTotal.Add(1,
                 new KeyValuePair<string, object?>(DPIADiagnostics.TagOutcome, "failed"));
         }

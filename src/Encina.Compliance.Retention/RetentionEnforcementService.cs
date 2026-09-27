@@ -210,7 +210,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         {
             // Graceful error handling: log + continue, never crash the host
             _logger.RetentionEnforcementCycleFailed(ex);
-            RetentionDiagnostics.RecordFailed(activity, ex.Message);
+            RetentionDiagnostics.RecordFailed(activity, ex.GetType().Name);
             RetentionDiagnostics.EnforcementCyclesTotal.Add(1,
                 new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
         }
