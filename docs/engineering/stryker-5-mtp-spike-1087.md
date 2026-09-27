@@ -1,0 +1,121 @@
+---
+nav_exclude: true
+---
+
+# Stryker.NET 5.0.0 MTP spike (#1087)
+
+This page is for a contributor who needs to know what was measured before touching the mutation-testing workflow: it records the environment, the eight runs, the seven findings and the decision against #1087's five criteria, so the next change starts from evidence instead of re-running the experiment. It explains why the current configuration produces no mutation signal and what would have to change before it does; for the day-to-day rules of the mutation workflow (shards, filters, score formula), see [mutation-measurement-methodology.md](../testing/mutation-measurement-methodology.md).
+
+**Status:** measured spike, closed 2026-09-27. **Issue:** #1087. **Knowledge record:** `docs/knowledge/issues/1087.md`.
+
+## 1. Environment
+
+- Machine: Windows 11 Pro 10.0.26200, 32 logical cores, .NET SDK 10.0.401.
+- Worktree base: `origin/main` at `57cb73d0` (branch `spike/stryker5-mtp-1087`).
+- Test stack: `xunit.v3` 3.2.2, `xunit.runner.visualstudio` 3.1.5, `Microsoft.NET.Test.Sdk` 18.4.0 (`Directory.Packages.props`).
+- Pilot shard: `**/Dispatchers/Strategies/*.cs`, filter `FullyQualifiedName~Dispatchers.Strategies`, concurrency 2, and the same six `--mutate:!` exclusions as `.github/workflows/mutation-tests.yml` (`Log.cs`, `LogMessages.cs`, `Diagnostics/*ActivitySource.cs`, `Diagnostics/*Metrics.cs`, `*Errors.cs`, `*Constants.cs`). In scope: 3 files (`ParallelDispatchStrategy.cs`, `ParallelWhenAllDispatchStrategy.cs`, `SequentialDispatchStrategy.cs`), 64 mutants.
+- Each run used its own copy of `.github/stryker-config.json` under `artifacts/mutation/configs/`, differing only in `test-case-filter` (patched the same way CI patches it), `coverage-analysis`, and, for the project-mode runs, removing the `solution`/`test-projects` keys and setting `project: Encina.csproj`. The tracked `.github/stryker-config.json` was not changed.
+- Solution pre-built once in Release (103 s) before run 1; Stryker itself builds Debug in every run.
+- Stryker 5.0.0 was installed through the tool manifest (`.config/dotnet-tools.json` 4.14.0 → 5.0.0) for runs 2-8.
+- The second shard (`Pipeline/Behaviors`) was **not run**: the 3-hour time box was spent on the pilot shard's option A variants (runs 3-5, 8).
+
+## 2. Runs
+
+Common suffix of every command: `--verbosity info --log-to-file --mutate:<scope> --mutate:!**/Log.cs --mutate:!**/LogMessages.cs --mutate:!**/Diagnostics/*ActivitySource.cs --mutate:!**/Diagnostics/*Metrics.cs --mutate:!**/*Errors.cs --mutate:!**/*Constants.cs` (runs 6 and 8 mutated only `SequentialDispatchStrategy.cs`).
+
+| Run | Stryker | Runner | coverage-analysis | Mode (cwd) | Scope | Tests found | Killed | Survived | Timeout | NoCoverage | Errors | Wall (Time Elapsed) | Mutant-testing phase |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 baseline | 4.14.0 | VsTest | off | solution (repo root) | shard | 34 | 0 | 64 | 0 | 0 | - | 12:20 (740.6 s) | 483 s (12:24:25-12:32:28), 7.5 s/mutant |
+| 2 option B | 5.0.0 | VsTest | off | solution (repo root) | shard | 34 | 0 | 64 | 0 | 0 | 0 | 12:08 (729.1 s) | 478 s (12:41:44-12:49:42), 7.5 s/mutant |
+| 3 option A | 5.0.0 | MTP | perTest | solution (repo root) | shard | 34978 | - | - | - | - | - | 7:25, aborted in initial test run | none |
+| 4 option A | 5.0.0 | MTP | perTest | repo root, `test-projects` = UnitTests only, no `solution` key | shard | 34978 | - | - | - | - | - | 9:35, aborted in initial test run | none |
+| 5 option A | 5.0.0 | MTP | perTest | project mode (cwd `tests/Encina.UnitTests`) | shard | 21091 | - | - | - | - | - | stopped after 25.5 min (time box) during per-test coverage capture | none |
+| 6 probe | 5.0.0 | MTP | off | project mode | `SequentialDispatchStrategy.cs` | 21091 | 4 | 0 | 0 | 0 | 0 | 9:36 (577.2 s) | 160 s for 4 mutants |
+| 7 option A-off | 5.0.0 | MTP | off | project mode | shard | 21091 | 63 | 1 | 0 | 0 | 0 | 46:18 (2778.3 s) | 2281 s (13:52:49-14:30:50), 35.6 s/mutant |
+| 8 probe | 5.0.0 | MTP | off, concurrency 1 | project mode | `SequentialDispatchStrategy.cs` | 21091 | 4 | 0 | 0 | 0 | 0 | 11:16 (677.2 s) | - |
+
+Total mutation-run wall time across runs 1-8: about 2 h 14 min, inside the 3-hour time box.
+
+Commands (all paths relative to the worktree root `<wt>`, `<suffix>` is the common suffix above):
+
+1. `dotnet tool run dotnet-stryker --config-file artifacts/mutation/configs/strategies-vstest-off.json --output <wt>/artifacts/mutation/run1-baseline-4.14-vstest-off <suffix>` (manifest at 4.14.0, cwd = worktree root)
+2. same as 1 with the manifest at 5.0.0 and `--output <wt>/artifacts/mutation/run2-optB-5.0-vstest-off`
+3. `dotnet tool run dotnet-stryker --config-file artifacts/mutation/configs/strategies-mtp-pertest.json --test-runner mtp --output <wt>/artifacts/mutation/run3-optA-5.0-mtp-pertest <suffix>` (cwd = worktree root)
+4. `... --config-file artifacts/mutation/configs/strategies-mtp-pertest-unitonly.json --test-runner mtp --output <wt>/artifacts/mutation/run4-optA-5.0-mtp-pertest-unitonly <suffix>` (cwd = worktree root)
+5. `... --config-file <wt>/artifacts/mutation/configs/strategies-mtp-pertest-projectmode.json --test-runner mtp --output <wt>/artifacts/mutation/run5-optA-5.0-mtp-pertest-projectmode <suffix>` (cwd = `<wt>/tests/Encina.UnitTests`)
+6. `... --config-file <wt>/artifacts/mutation/configs/strategies-mtp-off-projectmode.json --test-runner mtp --output <wt>/artifacts/mutation/run6-5.0-mtp-off-sequential --verbosity info --log-to-file --mutate:**/Dispatchers/Strategies/SequentialDispatchStrategy.cs` (cwd = `<wt>/tests/Encina.UnitTests`)
+7. `... --config-file <wt>/artifacts/mutation/configs/strategies-mtp-off-projectmode.json --test-runner mtp --output <wt>/artifacts/mutation/run7-5.0-mtp-off-shard <suffix>` (cwd = `<wt>/tests/Encina.UnitTests`)
+8. run 6 plus `--concurrency 1`, output `run8-5.0-mtp-off-sequential-c1`.
+
+## 3. Findings
+
+### Finding 1 - the VsTest runner kills 0 mutants under xUnit v3 (4.14.0 and 5.0.0 alike)
+
+- Runs 1 and 2: 0 killed of 64. The two JSON reports have the same 64 in-scope mutants, all `Survived`, `coveredBy` empty.
+- CI run 36304862790 (2026-09-27, Stryker 4.14.0, ubuntu) - the first complete run of the 17-shard matrix - reports Killed 0 on all 17 shards (killed/survived): Core 0/226; Pipeline/Behaviors 0/144; Pipeline 0/140; Dispatchers/Strategies 0/64; Validation 0/29; Sharding/Migrations/Strategies 0/59; Sharding/ReplicaSelection 0/153; Sharding/Routing 0/247; Sharding/Execution 0/62; Sharding/Shadow 0/116; Sharding/Colocation 0/58; Sharding/TimeBased 0/287; Sharding/Resharding/Phases 0/209; Sharding/Diagnostics 0/66; Sharding/Health 0/53; Modules/Isolation 0/552; Results 0/16. Its Dispatchers/Strategies job: Time Elapsed 00:20:42, job 08:05:05-08:31:50. The weekly runs from 2026-07-10 to 2026-09-18 failed before producing reports. `publish-mutations.yml` runs of 2026-09-11/18/25 were skipped; the published dashboard `latest.json` still carries run 24584286635 (overall score 0.89).
+- The same 4 `SequentialDispatchStrategy` mutants that survive under VsTest are all killed under MTP (runs 6 and 8), for example `ConfigureAwait(false)` → `ConfigureAwait(true)` killed by `EncinaTests.Publish_DoesNotCaptureSynchronizationContext`, and `h is not null` → `h is null` killed by `SequentialDispatchStrategyTests.DispatchAsync_WithNullHandler_SkipsNull` and 7 other strategy tests.
+- Mechanism seen in the VsTest host log (run 2, `Runner 0-log.host.*`): Stryker passes the active mutant through an in-process data collector (`InProcDataCollector` `Stryker.DataCollector.CoverageCollector`, `<Mutant id="671" .../>`, `MutantControl`) inside `testhost.dll`. xUnit v3 test projects are executables that `xunit.runner.visualstudio` 3.x runs out of process, so the static set by the collector is not the one the mutated code reads. This is a hypothesis consistent with every observation, not proven by a debugger.
+- 4.14.0 and 5.0.0 both log "is using Microsoft.Testing.Platform which is not yet supported by Stryker" ([stryker-net#3094](https://github.com/stryker-mutator/stryker-net/issues/3094)) for `ContractTests`, `PropertyTests`, `GuardTests`, `IntegrationTests`, `Testing.Examples` and `Encina.AspNetCore.Benchmarks`, so only `Encina.UnitTests` runs under VsTest (34 tests found for the pilot filter).
+
+### Finding 2 - option A (MTP + perTest) cannot run a shard as configured today
+
+- Solution mode (runs 3 and 4): the MTP runner starts a test server for every test project in the solution, ignoring `test-projects` (run 4 logged `TestProjects: [...Encina.UnitTests.csproj]` and still started servers for `ContractTests`, `GuardTests`, `IntegrationTests`, `PropertyTests`, `Testing.Examples` and `Encina.AspNetCore.Benchmarks`). It found 34978 tests. The initial test run failed ("Failed to start test server for ...Encina.AspNetCore.Benchmarks.dll", and Docker-backed `IntegrationTests` in `State: error`), and `break-on-initial-test-failure: true` stopped the run after 7:25 / 9:35.
+- Project mode (cwd `tests/Encina.UnitTests`, run 5): 21091 tests found (the whole `UnitTests` project), initial test run 13:10:31-13:14:27 (3 min 56 s), completed. Per-test coverage capture started 13:14:28 for 21091 tests. Measured throughput: 1524 tests read by 13:23:03, 2993 by 13:33:04, 3120 by 13:34:01 (about 150 tests/min). Runner `MtpRunner-1` logged "No coverage file found" then repeated 10-second "Timed out waiting for coverage relay ack ... marking as Dubious" (97 Dubious by 13:34:01) and one "Test run timed out while capturing per-test coverage". Projected capture time for 21091 tests at 150 tests/min: about 2 h 20 min, before any mutant is tested. Stopped at 25.5 min (time box). No mutant result was produced with perTest.
+
+### Finding 3 - test-case-filter is not honoured by the MTP runner ([stryker-net#3757](https://github.com/stryker-mutator/stryker-net/issues/3757))
+
+- VsTest runs: 34 tests found with `FullyQualifiedName~Dispatchers.Strategies`.
+- MTP runs with the same config value: 34978 tests (solution mode) and 21091 tests (project mode, the whole `UnitTests` project).
+- `Stryker.TestRunner.MicrosoftTestPlatform.dll` 5.0.0 contains a test-UID filter (`BuildTestUidFilter`) used for per-test runs and no test-case-filter handling (confirmed by a string search of the binary).
+- Consequence: under MTP every shard runs the full `UnitTests` project per mutant; the `FILTERS` array of `.github/workflows/mutation-tests.yml` loses its effect.
+
+### Finding 4 - MTP discovery and the 3-minute timeout ([stryker-net#3692](https://github.com/stryker-mutator/stryker-net/issues/3692)) did not reproduce
+
+- Discovery of 21091 tests took 3-5 s (13:10:28 → 13:10:31 in run 5; 13:37:19 → 13:37:24 in run 6).
+- The initial test runs lasted 3 min 56 s (run 5), 3 min 56 s (run 6: 13:37:24 → 13:41:20) and 5 min 30 s (run 7: 13:47:19 → 13:52:49), all longer than 3 minutes, and none was killed by a timeout.
+- So #3692 did not reproduce in project mode on `Encina.UnitTests`. The timeouts that did appear were in per-test coverage capture (Finding 2), which is a different mechanism.
+
+### Finding 5 - MTP with coverage-analysis off kills mutants, but Verify snapshot tests produce kills unrelated to the mutant
+
+- Run 7: 63 killed, 1 survived (`ParallelWhenAllDispatchStrategy.cs:135`, object initializer `new Dictionary<string, object?> {}`), reported score 98.44 %.
+- 38 of the 63 killed mutants have at least one killer in `Dispatchers.Strategies`; 42 have at least one killer in strategy, `Publish` or notification tests.
+- 21 of the 63 were killed only by the same 36 tests: `PostgreSqlPermissionScriptGeneratorTests` (13), `SqlServerPermissionScriptGeneratorTests` (13), `EncinaVerifyTests` (7), `AggregateVerifyTests` (2), `EncinaVerifySettingsTests` (1) - all Verify snapshot tests unrelated to the dispatch strategies (for example a `$""` string mutation in a log message of `ParallelWhenAllDispatchStrategy.cs:110`).
+- These 36 tests pass in the initial test run and fail in many mutant runs. Run 8 (concurrency 1) shows the same 36 failing for 3 of 4 mutants, so the failure does not come from two test servers running at once. The most likely cause, not proven, is state that Verify keeps per process while the MTP test server is reused between runs.
+- So the run-7 score is inflated: the 21 mutants killed only by Verify tests have no evidence that a related test kills them. The credible lower bound is 42/64 (65.6 %), the reported value 63/64 (98.44 %).
+- Equality and boolean mutants ([stryker-net#3563](https://github.com/stryker-mutator/stryker-net/issues/3563)) did not reproduce either: 10 equality mutants were in scope, all 10 killed, 9 of them by at least one `Dispatchers.Strategies` test (the tenth, `ParallelDispatchStrategy.cs:78` `errorHolder.Error is null`, only by Verify tests). No immortal equality mutant was observed. Spot check 1: `SequentialDispatchStrategy.cs:30` `h is not null` → `h is null` killed by `DispatchAsync_WithNullHandler_SkipsNull`, which asserts that handlers `[1, null, 3]` invoke `[1, 3]` - a correct kill. Spot check 2: `SequentialDispatchStrategy.cs:32` `ConfigureAwait(false)` → `true` killed by `Publish_DoesNotCaptureSynchronizationContext`, which asserts `context.PostCallCount == 0` under a recording `SynchronizationContext` - a correct kill.
+
+### Finding 6 - `mutation-history.cs --merge-from` accepts 5.0.0 reports unchanged
+
+- Command per report (copies under `artifacts/spike-1087/history-check/<run>/`): `dotnet run --file .github/scripts/mutation-history.cs -- --report <copy>/mutation-report.json --latest <copy>/latest.json --history <copy>/history.json --docref-index <copy>/docref-index.json --run-id 1087 --scope **/Dispatchers/Strategies/*.cs --merge-from <copy>/merge-source.json` where `merge-source.json` and `history.json` are copies of `docs/mutations/data/latest.json` and `history.json`.
+- Exit 0 for run 1 (4.14.0), run 2 (5.0.0 VsTest) and run 7 (5.0.0 MTP). Runs 1 and 2 produce byte-identical `latest.json` (0 differing lines). Run 7 produces per-file Killed/Survived for the three files (27/0, 32/1, 4/0).
+- Report shape: `schemaVersion` 2; top-level keys `files`, `projectRoot`, `schemaVersion`, `testFiles`, `thresholds`; mutant keys `coveredBy`, `id`, `killedBy`, `location`, `mutatorName`, `replacement`, `static`, `status`, `statusReason` - identical in 4.14.0 and 5.0.0. 5.0.0 prints a new "Errors:" line in the console summary; no new status value appeared in these reports.
+
+### Finding 7 - wall time
+
+- Pilot shard, local: 4.14.0 VsTest 12:20; 5.0.0 VsTest 12:08; 5.0.0 MTP off 46:18 (3.8x); 5.0.0 MTP perTest not finished (capture alone projected about 2 h 20 min).
+- Per mutant: VsTest 7.5 s (with 34 filtered tests, but mutants never active); MTP off 35.6 s (full 21091-test project per mutant, with `bail`).
+- Other 5.0.0 differences seen: 6147 mutants created in `src/Encina` versus 6236 in 4.14.0 (652 versus 700 compile errors); the in-scope set is the same 64.
+
+## 4. Decision criteria of #1087
+
+| Criterion | Measured answer | Evidence |
+| --- | --- | --- |
+| Killed/survived counts plausible (no mass immortal mutants, no 0-killed runs) | A (perTest): **not measured** - no mutant was tested before the time box. B: **No** (0/64). Baseline 4.14.0: **No** (0/64 locally, 0 killed on all 17 CI shards). MTP off variant (not one of A/B/C): kills are real (42/64 with a related killer) but inflated by Verify snapshot tests (21 kills with only unrelated killers). | Runs 1, 2, 5, 7, 8; CI run 36304862790 |
+| Discovery and execution complete within the MTP timeout for every shard, or a workaround exists | Discovery: **yes** (3-5 s for 21091 tests; initial runs of 3:56-5:30 not killed). perTest coverage capture: **no** (10-second relay-ack timeouts, 97 Dubious in 20 min). Solution mode: **no** (runs every test project, fails on `IntegrationTests` and the `AspNetCore.Benchmarks` exe); workaround: project mode from `tests/Encina.UnitTests`. | Runs 3, 4, 5, 6, 7 |
+| Per-mutant wall time improves versus AllTests mode | **No.** MTP off 35.6 s/mutant versus 7.5 s/mutant (VsTest); MTP perTest capture alone projected about 2 h 20 min per shard. | Runs 1, 2, 5, 7 |
+| `mutation-history.cs --merge-from` accepts the new report shape unchanged | **Yes**, for 5.0.0 VsTest and 5.0.0 MTP reports; same schema and keys. | Finding 6 |
+| test-case-filter honoured by the MTP runner ([stryker-net#3757](https://github.com/stryker-mutator/stryker-net/issues/3757)) | **No.** 34 tests under VsTest versus 21091/34978 under MTP with the same filter. | Runs 1-7, Finding 3 |
+
+## 5. Recommendation
+
+- **Option A (5.0.0 + MTP + perTest) is rejected.** It fails "per-mutant wall time improves" and "test-case-filter honoured", and "plausible counts" could not be measured because no mutant was tested before the time box.
+- **Options B and C.** 5.0.0 with VsTest regresses nothing against 4.14.0 (same 64 mutants, same statuses, identical `mutation-history` output, 12:08 versus 12:20), so by the issue's rule B would be chosen over C; but both kill 0 mutants under xUnit v3, so neither produces a valid mutation measurement and adopting B alone changes nothing that matters.
+- **The only configuration that activated mutants** was 5.0.0 + MTP + `coverage-analysis: off` in project mode (run from `tests/Encina.UnitTests`). It is not ready to adopt: 3.8x slower on the pilot shard (46:18 versus 12:08), `test-case-filter` ignored so every shard runs all 21,091 unit tests per mutant, and 21 of 63 kills came only from Verify snapshot tests that fail in the reused test server.
+- **Consequences:** #1026 stays open; every mutation score produced by the current VsTest workflow is 0 % by construction. Follow-up work: (a) switch the mutation workflow to the MTP runner with coverage off in project mode and re-design sharding (workflow change, owned by the maintainer); (b) make the Verify snapshot tests pass when the same test process runs them repeatedly; (c) the Pipeline/Behaviors second shard was not measured.
+- The second shard (`Pipeline/Behaviors`) was not run for lack of time box.
+
+## See also
+
+- [Stryker.NET and xUnit v3: status for Encina 1.0](Stryker-xUnit-v3.md) - the status note this spike updates.
+- [Mutation Measurement Methodology](../testing/mutation-measurement-methodology.md) - the day-to-day rules of the mutation workflow, with the runner caveat this spike produced.
+- `docs/knowledge/issues/1087.md` - the knowledge record for issue #1087.

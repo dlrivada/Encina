@@ -149,6 +149,8 @@ These exclude files where mutation testing has no value (logging surface, diagno
 
 Until then, `AllTests` mode is the only working configuration.
 
+> **Caveat, measured 2026-09-27 (#1087): the VsTest runner in `AllTests` mode kills 0 mutants under xUnit v3.** CI run 36304862790 — the first complete run of the 17-shard matrix on Stryker 4.14.0 — reported `Killed 0` on all 17 shards, from `Results 0/16` to `Modules/Isolation 0/552`. The #1087 spike reproduced the same result locally in both Stryker 4.14.0 and 5.0.0 on the pilot shard (`Dispatchers/Strategies`, 0 killed of 64). Every score the current workflow publishes is 0 % by construction, not a measure of test quality, until the runner is migrated (candidate: the MTP runner with coverage off, itself 3.8x slower and with its own issues — see the spike). See [`stryker-5-mtp-spike-1087.md`](../engineering/stryker-5-mtp-spike-1087.md) for the full measurement.
+
 ## Per-folder test filter
 
 `AllTests` mode is Stryker's contract, but `test-case-filter` is VSTest's. Encina exploits the latter to bypass the former: the workflow pairs each rotation folder with a test-namespace substring and patches `stryker-config.json` (the `test-case-filter` property) to `FullyQualifiedName~<substring>` before invoking Stryker. Each mutant then runs only the ~20–500 tests whose FQN matches, instead of the full ~23,000. See [#1027](https://github.com/dlrivada/Encina/issues/1027) for the rationale.
