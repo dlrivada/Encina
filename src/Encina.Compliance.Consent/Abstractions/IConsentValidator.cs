@@ -32,7 +32,7 @@ namespace Encina.Compliance.Consent;
 ///             logger.LogWarning("Missing consent for: {Purposes}",
 ///                 string.Join(", ", validationResult.MissingPurposes));
 ///     },
-///     Left: error =&gt; logger.LogError("Consent validation failed: {Error}", error.Message));
+///     Left: error =&gt; logger.LogError("Consent validation failed: {ErrorCode}", error.Code));
 /// </code>
 /// </example>
 public interface IConsentValidator

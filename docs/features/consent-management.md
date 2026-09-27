@@ -475,7 +475,7 @@ result.Match(
     Right: _ => logger.LogInformation("Consent recorded"),
     Left: error =>
     {
-        logger.LogError("Failed: {Code} - {Message}", error.Code, error.Message);
+        logger.LogError("Failed: {Code}", error.Code);
         // error.Details contains structured metadata
     }
 );

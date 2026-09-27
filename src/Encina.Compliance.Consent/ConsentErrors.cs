@@ -9,10 +9,13 @@ namespace Encina.Compliance.Consent;
 /// </remarks>
 public static class ConsentErrors
 {
-    // Note: error metadata never carries the data subject's own identifier (personal data) — only
-    // the purpose, consent id and requirement/code are recorded (#1314). The human-readable
-    // Message may still name the subject for the caller, but Message is never logged, tagged or
-    // persisted in plaintext (see EncinaError.Message rule in CLAUDE.md).
+    // Note: neither error metadata nor the human-readable Message ever carries the data subject's
+    // own identifier (personal data) — only the purpose, consent id, version and requirement/code
+    // are recorded (#1314, #1350). Message text uses a non-identifying description ("the specified
+    // data subject") because Message reaches logs, ProblemDetails.Detail and other general-purpose
+    // sinks that must never print a direct identifier of a person (see EncinaError.Message rule in
+    // CLAUDE.md).
+    private const string SubjectDescription = "the specified data subject";
     private const string MetadataKeyPurpose = "purpose";
     private const string MetadataKeyStage = "stage";
     private const string MetadataStageConsent = "consent_compliance";
@@ -56,7 +59,7 @@ public static class ConsentErrors
     public static EncinaError MissingConsent(string subjectId, string purpose) =>
         EncinaErrors.Create(
             code: MissingConsentCode,
-            message: $"No consent found for subject '{subjectId}' and purpose '{purpose}'. "
+            message: $"No consent found for {SubjectDescription} and purpose '{purpose}'. "
                 + "Processing cannot proceed without valid consent (Article 6(1)(a)).",
             details: new Dictionary<string, object?>
             {
@@ -75,7 +78,7 @@ public static class ConsentErrors
     public static EncinaError ConsentExpired(string subjectId, string purpose, DateTimeOffset expiredAtUtc) =>
         EncinaErrors.Create(
             code: ConsentExpiredCode,
-            message: $"Consent for subject '{subjectId}' and purpose '{purpose}' expired at {expiredAtUtc:O}. "
+            message: $"Consent for {SubjectDescription} and purpose '{purpose}' expired at {expiredAtUtc:O}. "
                 + "Fresh consent is required before processing can resume.",
             details: new Dictionary<string, object?>
             {
@@ -95,7 +98,7 @@ public static class ConsentErrors
     public static EncinaError ConsentWithdrawn(string subjectId, string purpose, DateTimeOffset withdrawnAtUtc) =>
         EncinaErrors.Create(
             code: ConsentWithdrawnCode,
-            message: $"Consent for subject '{subjectId}' and purpose '{purpose}' was withdrawn at {withdrawnAtUtc:O}. "
+            message: $"Consent for {SubjectDescription} and purpose '{purpose}' was withdrawn at {withdrawnAtUtc:O}. "
                 + "Processing must cease (Article 7(3)).",
             details: new Dictionary<string, object?>
             {
@@ -120,7 +123,7 @@ public static class ConsentErrors
         string consentedVersionId) =>
         EncinaErrors.Create(
             code: RequiresReconsentCode,
-            message: $"Consent for subject '{subjectId}' and purpose '{purpose}' was given under version "
+            message: $"Consent for {SubjectDescription} and purpose '{purpose}' was given under version "
                 + $"'{consentedVersionId}' but current version is '{currentVersionId}'. Reconsent is required.",
             details: new Dictionary<string, object?>
             {
@@ -146,7 +149,7 @@ public static class ConsentErrors
         string actualVersionId) =>
         EncinaErrors.Create(
             code: VersionMismatchCode,
-            message: $"Consent version mismatch for subject '{subjectId}' and purpose '{purpose}': "
+            message: $"Consent version mismatch for {SubjectDescription} and purpose '{purpose}': "
                 + $"expected '{expectedVersionId}', found '{actualVersionId}'.",
             details: new Dictionary<string, object?>
             {
