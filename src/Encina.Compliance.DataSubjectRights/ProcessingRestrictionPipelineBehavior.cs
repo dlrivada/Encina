@@ -159,28 +159,8 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
         // requests only carrying the GDPR attributes skip the check.
         if (string.IsNullOrWhiteSpace(subjectId))
         {
-            if (attrInfo.IsRestrictProcessing && _options.FailClosedOnMissingSubjectId)
-            {
-                _logger.RestrictedRequestSubjectIdMissing(requestTypeName, _options.RestrictionEnforcementMode.ToString());
-                DataSubjectRightsDiagnostics.RecordFailed(activity, DSRErrors.SubjectIdMissingCode);
-
-                if (_options.RestrictionEnforcementMode == DSREnforcementMode.Block)
-                {
-                    DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
-                        new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "blocked_missing_subject"));
-                    return Left<EncinaError, TResponse>(DSRErrors.SubjectIdMissing(requestTypeName));
-                }
-
-                DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
-                    new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "warned_missing_subject"));
-                return await nextStep().ConfigureAwait(false);
-            }
-
-            _logger.SubjectIdNotExtracted(requestTypeName);
-            DataSubjectRightsDiagnostics.RecordSkipped(activity);
-            DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
-                new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "skipped"));
-            return await nextStep().ConfigureAwait(false);
+            return await HandleMissingSubjectIdAsync(requestTypeName, attrInfo, activity, nextStep)
+                .ConfigureAwait(false);
         }
 
         // Step 5: Check for active restriction
@@ -222,6 +202,42 @@ public sealed class ProcessingRestrictionPipelineBehavior<TRequest, TResponse> :
                     new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "error"));
                 return await nextStep().ConfigureAwait(false);
             }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Handles the case where the subject id could not be resolved (Step 4): a
+    /// <see cref="RestrictProcessingAttribute"/> request fails closed (Block mode) or proceeds
+    /// with a warning (Warn mode) unless the option opts out; a request only carrying the GDPR
+    /// attributes skips the check.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, TResponse>> HandleMissingSubjectIdAsync(
+        string requestTypeName,
+        RestrictionAttributeInfo attrInfo,
+        Activity? activity,
+        RequestHandlerCallback<TResponse> nextStep)
+    {
+        if (attrInfo.IsRestrictProcessing && _options.FailClosedOnMissingSubjectId)
+        {
+            _logger.RestrictedRequestSubjectIdMissing(requestTypeName, _options.RestrictionEnforcementMode.ToString());
+            DataSubjectRightsDiagnostics.RecordFailed(activity, DSRErrors.SubjectIdMissingCode);
+
+            if (_options.RestrictionEnforcementMode == DSREnforcementMode.Block)
+            {
+                DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+                    new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "blocked_missing_subject"));
+                return Left<EncinaError, TResponse>(DSRErrors.SubjectIdMissing(requestTypeName));
+            }
+
+            DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+                new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "warned_missing_subject"));
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        _logger.SubjectIdNotExtracted(requestTypeName);
+        DataSubjectRightsDiagnostics.RecordSkipped(activity);
+        DataSubjectRightsDiagnostics.RestrictionChecksTotal.Add(1,
+            new KeyValuePair<string, object?>(DataSubjectRightsDiagnostics.TagOutcome, "skipped"));
+        return await nextStep().ConfigureAwait(false);
     }
 
     // ================================================================

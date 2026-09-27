@@ -132,6 +132,143 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
     }
 
+    [Fact]
+    public void FromJson_DecryptsField_NeverCarriesSubjectId()
+    {
+        var mockInner = Substitute.For<ISerializer>();
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+        _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = SubjectId,
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+        _mockKeyProvider.GetSubjectKeyAsync(SubjectId, 1, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+
+        var (logger, capture) = CreateCapture<CryptoShredderSerializer>();
+        using (capture)
+        {
+            var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger);
+
+            // Encrypt first, capturing the ciphertext the same way production code produces it.
+            string? encryptedEmail = null;
+            mockInner.ToJson(Arg.Any<PiiEvent>()).Returns(ci =>
+            {
+                encryptedEmail = ci.Arg<PiiEvent>().Email;
+                return "{}";
+            });
+            var plaintextEvt = new PiiEvent { UserId = SubjectId, Email = "test@example.com" };
+            DiagnosticsCapture.Capture(() => sut.ToJson(plaintextEvt));
+            encryptedEmail.ShouldStartWith("{\"__enc\":true");
+
+            // Decrypt: the inner deserializer hands back the encrypted envelope, as it would
+            // after reading it back from storage.
+            mockInner.FromJson<PiiEvent>(Arg.Any<Stream>())
+                .Returns(new PiiEvent { UserId = SubjectId, Email = encryptedEmail! });
+
+            var decrypted = DiagnosticsCapture.Capture(() => sut.FromJson<PiiEvent>(Stream.Null));
+            decrypted.Email.ShouldBe("test@example.com");
+        }
+
+        capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
+    [Fact]
+    public async Task FromJsonAsync_DecryptsField_NeverCarriesSubjectId()
+    {
+        var mockInner = Substitute.For<ISerializer>();
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+        _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = SubjectId,
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+        _mockKeyProvider.GetSubjectKeyAsync(SubjectId, 1, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+
+        var (logger, capture) = CreateCapture<CryptoShredderSerializer>();
+        using (capture)
+        {
+            var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger);
+
+            string? encryptedEmail = null;
+            mockInner.ToJson(Arg.Any<PiiEvent>()).Returns(ci =>
+            {
+                encryptedEmail = ci.Arg<PiiEvent>().Email;
+                return "{}";
+            });
+            var plaintextEvt = new PiiEvent { UserId = SubjectId, Email = "test@example.com" };
+            DiagnosticsCapture.Capture(() => sut.ToJson(plaintextEvt));
+
+            mockInner.FromJsonAsync<PiiEvent>(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromResult(new PiiEvent { UserId = SubjectId, Email = encryptedEmail! }));
+
+            var decrypted = await DiagnosticsCapture.CaptureAsync(
+                () => sut.FromJsonAsync<PiiEvent>(Stream.Null).AsTask());
+            decrypted.Email.ShouldBe("test@example.com");
+        }
+
+        capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
+    [Fact]
+    public void FromJson_ForgottenSubject_NeverCarriesSubjectId()
+    {
+        var mockInner = Substitute.For<ISerializer>();
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+        _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
+            {
+                SubjectId = SubjectId,
+                Status = SubjectStatus.Active,
+                ActiveKeyVersion = 1,
+                TotalKeyVersions = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }));
+        _mockKeyProvider.GetSubjectKeyAsync(SubjectId, 1, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, byte[]>(CryptoShreddingErrors.SubjectForgotten(SubjectId)));
+
+        var (logger, capture) = CreateCapture<CryptoShredderSerializer>();
+        using (capture)
+        {
+            var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger, "[REDACTED]");
+
+            string? encryptedEmail = null;
+            mockInner.ToJson(Arg.Any<PiiEvent>()).Returns(ci =>
+            {
+                encryptedEmail = ci.Arg<PiiEvent>().Email;
+                return "{}";
+            });
+            var plaintextEvt = new PiiEvent { UserId = SubjectId, Email = "test@example.com" };
+            DiagnosticsCapture.Capture(() => sut.ToJson(plaintextEvt));
+
+            mockInner.FromJson<PiiEvent>(Arg.Any<Stream>())
+                .Returns(new PiiEvent { UserId = SubjectId, Email = encryptedEmail! });
+
+            var decrypted = DiagnosticsCapture.Capture(() => sut.FromJson<PiiEvent>(Stream.Null));
+            decrypted.Email.ShouldBe("[REDACTED]");
+        }
+
+        capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
+    }
+
     #endregion
 
     #region InMemorySubjectKeyProvider

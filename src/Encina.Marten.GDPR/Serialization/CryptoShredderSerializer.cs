@@ -309,37 +309,7 @@ public sealed class CryptoShredderSerializer : ISerializer
 
         try
         {
-            // Encrypt each PII field
-            foreach (var field in fields)
-            {
-                var plaintext = field.GetValue(document) as string;
-                if (plaintext is null)
-                {
-                    // Null values stay null — no encryption needed
-                    continue;
-                }
-
-                var subjectId = GetSubjectId(document, eventType, field);
-                if (subjectId is null)
-                {
-                    // The data subject's own identifier is never logged (#1429, following #1314);
-                    // the configured property name is the identifying-but-safe correlation here.
-                    _logger.LogWarning(
-                        "Cannot extract subject ID from property '{SubjectIdProperty}' on event type '{EventType}'. Skipping encryption for field '{FieldName}'",
-                        field.SubjectIdProperty,
-                        eventType.Name,
-                        field.Property.Name);
-                    continue;
-                }
-
-                var encryptedJson = EncryptField(subjectId, plaintext, field.Property.Name, eventType);
-                if (encryptedJson is not null)
-                {
-                    field.SetValue(document, encryptedJson);
-                    CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
-                    _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
-                }
-            }
+            EncryptFields(document, eventType, fields, eventTypeName);
 
             var result = innerSerialize(document);
             CryptoShreddingDiagnostics.RecordSuccess(activity);
@@ -360,6 +330,46 @@ public sealed class CryptoShredderSerializer : ISerializer
 
             var elapsed = Stopwatch.GetElapsedTime(stopwatch);
             CryptoShreddingDiagnostics.EncryptionDuration.Record(elapsed.TotalMilliseconds);
+        }
+    }
+
+    /// <summary>
+    /// Encrypts each PII field on the document in place. A field without a resolvable plaintext
+    /// value or subject id is left untouched (and, for a missing subject id, the field name and
+    /// event type are logged — never the subject id itself, see #1429).
+    /// </summary>
+    private void EncryptFields(
+        object document, Type eventType, CryptoShreddedFieldInfo[] fields, string eventTypeName)
+    {
+        foreach (var field in fields)
+        {
+            var plaintext = field.GetValue(document) as string;
+            if (plaintext is null)
+            {
+                // Null values stay null — no encryption needed
+                continue;
+            }
+
+            var subjectId = GetSubjectId(document, eventType, field);
+            if (subjectId is null)
+            {
+                // The data subject's own identifier is never logged (#1429, following #1314);
+                // the configured property name is the identifying-but-safe correlation here.
+                _logger.LogWarning(
+                    "Cannot extract subject ID from property '{SubjectIdProperty}' on event type '{EventType}'. Skipping encryption for field '{FieldName}'",
+                    field.SubjectIdProperty,
+                    eventType.Name,
+                    field.Property.Name);
+                continue;
+            }
+
+            var encryptedJson = EncryptField(subjectId, plaintext, field.Property.Name, eventType);
+            if (encryptedJson is not null)
+            {
+                field.SetValue(document, encryptedJson);
+                CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
+                _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
+            }
         }
     }
 
@@ -513,6 +523,52 @@ public sealed class CryptoShredderSerializer : ISerializer
     }
 
     /// <summary>
+    /// Resolves the current encrypted value and its subject id for a field, when the field
+    /// actually holds an encrypted envelope and a subject id can be resolved for it.
+    /// </summary>
+    private static bool TryGetEncryptedFieldSubject(
+        object target, Type eventType, CryptoShreddedFieldInfo field,
+        out string currentValue, out string subjectId)
+    {
+        currentValue = string.Empty;
+        subjectId = string.Empty;
+
+        var value = field.GetValue(target) as string;
+        if (value is null || !EncryptedFieldJsonConverter.IsEncryptedField(value))
+        {
+            return false;
+        }
+
+        var resolvedSubjectId = GetSubjectId(target, eventType, field);
+        if (resolvedSubjectId is null)
+        {
+            return false;
+        }
+
+        currentValue = value;
+        subjectId = resolvedSubjectId;
+        return true;
+    }
+
+    /// <summary>
+    /// Records the outcome of decrypting one field: forgotten-subject access (placeholder
+    /// applied) or a normal successful decryption. Never logs the subject id (#1429).
+    /// </summary>
+    private void RecordDecryptedField(string? decrypted, string propertyName, string eventTypeName)
+    {
+        if (decrypted == _anonymizedPlaceholder)
+        {
+            CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
+            _logger.ForgottenSubjectAccessed(propertyName, eventTypeName);
+        }
+        else
+        {
+            CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
+            _logger.PiiFieldDecrypted(propertyName, eventTypeName);
+        }
+    }
+
+    /// <summary>
     /// Iterates PII fields and decrypts their values in-place (sync path).
     /// </summary>
     private void DecryptFields(object target, Type eventType)
@@ -527,31 +583,14 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                var currentValue = field.GetValue(target) as string;
-                if (currentValue is null || !EncryptedFieldJsonConverter.IsEncryptedField(currentValue))
-                {
-                    continue;
-                }
-
-                var subjectId = GetSubjectId(target, eventType, field);
-                if (subjectId is null)
+                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
 
                 var decrypted = DecryptField(subjectId, currentValue, field.Property.Name, eventType);
                 field.SetValue(target, decrypted);
-
-                if (decrypted == _anonymizedPlaceholder)
-                {
-                    CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
-                    _logger.ForgottenSubjectAccessed(field.Property.Name, eventTypeName);
-                }
-                else
-                {
-                    CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
-                    _logger.PiiFieldDecrypted(field.Property.Name, eventTypeName);
-                }
+                RecordDecryptedField(decrypted, field.Property.Name, eventTypeName);
             }
 
             CryptoShreddingDiagnostics.RecordSuccess(activity);
@@ -583,14 +622,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                var currentValue = field.GetValue(target) as string;
-                if (currentValue is null || !EncryptedFieldJsonConverter.IsEncryptedField(currentValue))
-                {
-                    continue;
-                }
-
-                var subjectId = GetSubjectId(target, eventType, field);
-                if (subjectId is null)
+                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
@@ -598,17 +630,7 @@ public sealed class CryptoShredderSerializer : ISerializer
                 var decrypted = await DecryptFieldAsync(subjectId, currentValue, field.Property.Name, eventType, cancellationToken)
                     .ConfigureAwait(false);
                 field.SetValue(target, decrypted);
-
-                if (decrypted == _anonymizedPlaceholder)
-                {
-                    CryptoShreddingDiagnostics.ForgottenAccessTotal.Add(1);
-                    _logger.ForgottenSubjectAccessed(field.Property.Name, eventTypeName);
-                }
-                else
-                {
-                    CryptoShreddingDiagnostics.DecryptionTotal.Add(1);
-                    _logger.PiiFieldDecrypted(field.Property.Name, eventTypeName);
-                }
+                RecordDecryptedField(decrypted, field.Property.Name, eventTypeName);
             }
 
             CryptoShreddingDiagnostics.RecordSuccess(activity);
