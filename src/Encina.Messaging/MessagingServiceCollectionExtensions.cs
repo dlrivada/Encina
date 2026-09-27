@@ -63,49 +63,101 @@ public static class MessagingServiceCollectionExtensions
             config.UseSagas, config.SagaOptions,
             config.UseScheduling, config.SchedulingOptions);
 
-        if (config.UseTransactions)
-        {
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
-        }
-
-        if (config.UseRoutingSlips)
-        {
-            services.AddSingleton(config.RoutingSlipOptions);
-            services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
-        }
-
-        if (config.UseRecoverability)
-        {
-            services.AddSingleton(config.RecoverabilityOptions);
-            services.TryAddSingleton<IErrorClassifier>(
-                config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
-
-            if (config.RecoverabilityOptions.EnableDelayedRetries)
-            {
-                services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
-                services.AddHostedService<DelayedRetryProcessor>();
-            }
-        }
-
-        if (config.UseContentRouter)
-        {
-            services.AddSingleton(config.ContentRouterOptions);
-            services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
-        }
-
-        if (config.UseScatterGather)
-        {
-            services.AddSingleton(config.ScatterGatherOptions);
-            services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
-        }
-
-        if (config.UseSoftDelete)
-        {
-            RegisterSoftDeleteServices(services, config);
-        }
+        RegisterTransactions(services, config.UseTransactions);
+        RegisterRoutingSlips(services, config);
+        RegisterRecoverability(services, config);
+        RegisterContentRouter(services, config);
+        RegisterScatterGather(services, config);
+        RegisterSoftDeleteServices(services, config);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="TransactionPipelineBehavior{TRequest, TResponse}"/> when
+    /// <paramref name="useTransactions"/> is enabled.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="useTransactions">Whether the Transactions pattern is enabled.</param>
+    private static void RegisterTransactions(IServiceCollection services, bool useTransactions)
+    {
+        if (!useTransactions) return;
+
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(TransactionPipelineBehavior<,>));
+    }
+
+    /// <summary>
+    /// Registers the Routing Slip pattern when <see cref="MessagingConfiguration.UseRoutingSlips"/>
+    /// is enabled.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The messaging configuration.</param>
+    private static void RegisterRoutingSlips(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseRoutingSlips) return;
+
+        services.AddSingleton(config.RoutingSlipOptions);
+        services.AddScoped<IRoutingSlipRunner, RoutingSlipRunner>();
+    }
+
+    /// <summary>
+    /// Registers the Recoverability pipeline when <see cref="MessagingConfiguration.UseRecoverability"/>
+    /// is enabled, including delayed retries when configured.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The messaging configuration.</param>
+    private static void RegisterRecoverability(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseRecoverability) return;
+
+        services.AddSingleton(config.RecoverabilityOptions);
+        services.TryAddSingleton<IErrorClassifier>(
+            config.RecoverabilityOptions.ErrorClassifier ?? new DefaultErrorClassifier());
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(RecoverabilityPipelineBehavior<,>));
+
+        RegisterDelayedRetries(services, config.RecoverabilityOptions);
+    }
+
+    /// <summary>
+    /// Registers the delayed retry scheduler and processor when
+    /// <see cref="RecoverabilityOptions.EnableDelayedRetries"/> is enabled.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="options">The recoverability options.</param>
+    private static void RegisterDelayedRetries(IServiceCollection services, RecoverabilityOptions options)
+    {
+        if (!options.EnableDelayedRetries) return;
+
+        services.TryAddScoped<IDelayedRetryScheduler, DelayedRetryScheduler>();
+        services.AddHostedService<DelayedRetryProcessor>();
+    }
+
+    /// <summary>
+    /// Registers the Content-Based Router pattern when
+    /// <see cref="MessagingConfiguration.UseContentRouter"/> is enabled.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The messaging configuration.</param>
+    private static void RegisterContentRouter(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseContentRouter) return;
+
+        services.AddSingleton(config.ContentRouterOptions);
+        services.AddScoped<IContentRouter, ContentRouter.ContentRouter>();
+    }
+
+    /// <summary>
+    /// Registers the Scatter-Gather pattern when <see cref="MessagingConfiguration.UseScatterGather"/>
+    /// is enabled.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="config">The messaging configuration.</param>
+    private static void RegisterScatterGather(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseScatterGather) return;
+
+        services.AddSingleton(config.ScatterGatherOptions);
+        services.AddScoped<IScatterGatherRunner, ScatterGatherRunner>();
     }
 
     /// <summary>
@@ -186,55 +238,106 @@ public static class MessagingServiceCollectionExtensions
         // dependency; TryAdd keeps a registration made by AddEncinaMessageEncryption.
         services.TryAddDefaultMessageSerializer();
 
-        if (useOutbox)
-        {
-            services.AddSingleton(outboxOptions);
-            services.AddScoped<IOutboxStore, TOutboxStore>();
-            services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
-            services.AddScoped<OutboxOrchestrator>();
-            services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
-            services.AddHostedService<TOutboxProcessor>();
-        }
-
-        if (useInbox)
-        {
-            services.AddSingleton(inboxOptions);
-            services.AddScoped<IInboxStore, TInboxStore>();
-            services.AddScoped<IInboxMessageFactory, TInboxFactory>();
-            services.AddScoped<InboxOrchestrator>();
-            services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
-        }
-
-        if (useSagas)
-        {
-            services.AddSingleton(sagaOptions);
-            services.AddScoped<ISagaStore, TSagaStore>();
-            services.AddScoped<ISagaStateFactory, TSagaFactory>();
-            services.AddScoped<SagaOrchestrator>();
-            services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
-
-            // Low-ceremony saga runner
-            services.AddScoped<ISagaRunner, SagaRunner>();
-        }
-
-        if (useScheduling)
-        {
-            services.AddSingleton(schedulingOptions);
-            services.AddScoped<IScheduledMessageStore, TScheduledStore>();
-            services.AddScoped<IScheduledMessageFactory, TScheduledFactory>();
-            services.TryAddSingleton<IScheduledMessageRetryPolicy>(
-                sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
-            services.TryAddScoped<IScheduledMessageDispatcher>(
-                sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
-            services.AddScoped<SchedulerOrchestrator>();
-
-            if (schedulingOptions.EnableProcessor)
-            {
-                services.AddHostedService<ScheduledMessageProcessor>();
-            }
-        }
+        RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(services, useOutbox, outboxOptions);
+        RegisterInbox<TInboxStore, TInboxFactory>(services, useInbox, inboxOptions);
+        RegisterSagas<TSagaStore, TSagaFactory>(services, useSagas, sagaOptions);
+        RegisterScheduling<TScheduledStore, TScheduledFactory>(services, useScheduling, schedulingOptions);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the Outbox pattern's store, factory, orchestrator and background processor when
+    /// <paramref name="useOutbox"/> is enabled.
+    /// </summary>
+    private static void RegisterOutbox<TOutboxStore, TOutboxFactory, TOutboxProcessor>(
+        IServiceCollection services, bool useOutbox, OutboxOptions outboxOptions)
+        where TOutboxStore : class, IOutboxStore
+        where TOutboxFactory : class, IOutboxMessageFactory
+        where TOutboxProcessor : class, Microsoft.Extensions.Hosting.IHostedService
+    {
+        if (!useOutbox) return;
+
+        services.AddSingleton(outboxOptions);
+        services.AddScoped<IOutboxStore, TOutboxStore>();
+        services.AddScoped<IOutboxMessageFactory, TOutboxFactory>();
+        services.AddScoped<OutboxOrchestrator>();
+        services.AddScoped(typeof(IRequestPostProcessor<,>), typeof(OutboxPostProcessor<,>));
+        services.AddHostedService<TOutboxProcessor>();
+    }
+
+    /// <summary>
+    /// Registers the Inbox pattern's store, factory, orchestrator and pipeline behavior when
+    /// <paramref name="useInbox"/> is enabled.
+    /// </summary>
+    private static void RegisterInbox<TInboxStore, TInboxFactory>(
+        IServiceCollection services, bool useInbox, InboxOptions inboxOptions)
+        where TInboxStore : class, IInboxStore
+        where TInboxFactory : class, IInboxMessageFactory
+    {
+        if (!useInbox) return;
+
+        services.AddSingleton(inboxOptions);
+        services.AddScoped<IInboxStore, TInboxStore>();
+        services.AddScoped<IInboxMessageFactory, TInboxFactory>();
+        services.AddScoped<InboxOrchestrator>();
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxPipelineBehavior<,>));
+    }
+
+    /// <summary>
+    /// Registers the Saga pattern's store, factory, orchestrator, low-ceremony runner and
+    /// not-found dispatcher when <paramref name="useSagas"/> is enabled.
+    /// </summary>
+    private static void RegisterSagas<TSagaStore, TSagaFactory>(
+        IServiceCollection services, bool useSagas, SagaOptions sagaOptions)
+        where TSagaStore : class, ISagaStore
+        where TSagaFactory : class, ISagaStateFactory
+    {
+        if (!useSagas) return;
+
+        services.AddSingleton(sagaOptions);
+        services.AddScoped<ISagaStore, TSagaStore>();
+        services.AddScoped<ISagaStateFactory, TSagaFactory>();
+        services.AddScoped<SagaOrchestrator>();
+        services.AddScoped<ISagaNotFoundDispatcher, SagaNotFoundDispatcher>();
+
+        // Low-ceremony saga runner
+        services.AddScoped<ISagaRunner, SagaRunner>();
+    }
+
+    /// <summary>
+    /// Registers the Scheduling pattern's store, factory, retry policy, dispatcher and orchestrator
+    /// when <paramref name="useScheduling"/> is enabled, including the background processor when
+    /// configured.
+    /// </summary>
+    private static void RegisterScheduling<TScheduledStore, TScheduledFactory>(
+        IServiceCollection services, bool useScheduling, SchedulingOptions schedulingOptions)
+        where TScheduledStore : class, IScheduledMessageStore
+        where TScheduledFactory : class, IScheduledMessageFactory
+    {
+        if (!useScheduling) return;
+
+        services.AddSingleton(schedulingOptions);
+        services.AddScoped<IScheduledMessageStore, TScheduledStore>();
+        services.AddScoped<IScheduledMessageFactory, TScheduledFactory>();
+        services.TryAddSingleton<IScheduledMessageRetryPolicy>(
+            sp => new ExponentialBackoffRetryPolicy(sp.GetRequiredService<SchedulingOptions>()));
+        services.TryAddScoped<IScheduledMessageDispatcher>(
+            sp => new CompiledExpressionScheduledMessageDispatcher(sp.GetRequiredService<IEncina>()));
+        services.AddScoped<SchedulerOrchestrator>();
+
+        RegisterScheduledMessageProcessor(services, schedulingOptions);
+    }
+
+    /// <summary>
+    /// Registers the background <see cref="ScheduledMessageProcessor"/> hosted service when
+    /// <see cref="SchedulingOptions.EnableProcessor"/> is enabled.
+    /// </summary>
+    private static void RegisterScheduledMessageProcessor(IServiceCollection services, SchedulingOptions schedulingOptions)
+    {
+        if (!schedulingOptions.EnableProcessor) return;
+
+        services.AddHostedService<ScheduledMessageProcessor>();
     }
 
     /// <summary>
@@ -396,6 +499,8 @@ public static class MessagingServiceCollectionExtensions
         IServiceCollection services,
         MessagingConfiguration config)
     {
+        if (!config.UseSoftDelete) return;
+
         // Register options as singleton
         services.AddSingleton(config.SoftDeleteOptions);
 

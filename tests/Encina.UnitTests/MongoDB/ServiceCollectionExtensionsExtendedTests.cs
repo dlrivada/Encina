@@ -637,6 +637,49 @@ public sealed class ServiceCollectionExtensionsExtendedTests
 
     #endregion
 
+    #region Functional Repository registration
+
+    [Fact]
+    public void AddEncinaRepository_NullServices_ThrowsArgumentNullException()
+    {
+        IServiceCollection? services = null;
+
+        Should.Throw<ArgumentNullException>(() =>
+            services!.AddEncinaRepository<TestEntity, Guid>(config =>
+            {
+                config.CollectionName = "test_entities";
+                config.IdProperty = e => e.Id;
+            }));
+    }
+
+    [Fact]
+    public void AddEncinaRepository_NullConfigure_ThrowsArgumentNullException()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentNullException>(() =>
+            services.AddEncinaRepository<TestEntity, Guid>(null!));
+    }
+
+    [Fact]
+    public void AddEncinaRepository_ValidConfiguration_RegistersFunctionalRepository()
+    {
+        var services = new ServiceCollection();
+
+        var result = services.AddEncinaRepository<TestEntity, Guid>(config =>
+        {
+            config.CollectionName = "test_entities";
+            config.IdProperty = e => e.Id;
+        });
+
+        result.ShouldBeSameAs(services);
+        services.ShouldContain(sd => sd.ServiceType == typeof(IFunctionalRepository<TestEntity, Guid>));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IFunctionalReadRepository<TestEntity, Guid>));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IMongoCollection<TestEntity>));
+    }
+
+    #endregion
+
     #region Bulk Operations registration
 
     [Fact]
