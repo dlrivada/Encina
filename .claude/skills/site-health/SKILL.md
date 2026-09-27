@@ -63,24 +63,26 @@ Read `tools/ai/sites.json` once; do not hard-code the site list.
    too); a timeout or a non-200/wrong-content-type after the retry is a failure for that entry.
 
 3. Write the combined result (per entry: OK, STALE, ERROR, UNREACHABLE, WRONG-CONTENT-TYPE, with the
-   tracking issue when the registry names one) to `artifacts/site-health/report.md` (session-steward's
+   tracking issue when the registry names one) to `artifacts/site-health/report.md` (site-steward's
    only writable path; the orchestrator running the skill directly may write anywhere, but the same path
    keeps the two runs comparable).
 
 ## 3. Control-board snapshots
 
-Prepare the board's `dash/*` and `stats/*` inputs with the script part 1/3 of #1382 versioned:
+Prepare the board's `dash/*` and `stats/*` inputs with the script part 1/3 of #1382 versioned, with
+`-OutDir` always pointed under `artifacts/site-health/` — `site-steward` may write nowhere else, and
+`enforce-path-ownership` cannot see through a launched `pwsh -File` script to catch a stray default:
 
 ```powershell
-pwsh -File tools/ai/board/build-board-stats.ps1 -Since <yyyy-MM-dd>
+pwsh -File tools/ai/board/build-board-stats.ps1 -Since <yyyy-MM-dd> -OutDir artifacts/site-health/board
 ```
 
 Inputs it needs:
 
 - `-Since` (mandatory): the ISO date the report starts from — reuse the board's last known "as of" date,
   or the start of the current week.
-- `-OutDir` (optional, default `artifacts/board`): where `db-summary.json`, `db-days.json` and
-  `db-sessions.json` land.
+- `-OutDir` (always pass it, as above; the script's own default is `artifacts/board`, outside
+  `site-steward`'s allowlist): where `db-summary.json`, `db-days.json` and `db-sessions.json` land.
 - `-ProjectDir` (optional): the Claude Code project folder; defaults to the folder derived from the main
   checkout's own path, so it is normally left unset.
 - `-SessionMeta` / `-Plan` (optional, private, never committed): the maintainer's own session titles and

@@ -46,8 +46,10 @@ Method (follow the skill's five steps in order):
 2. Run `dotnet run --file .github/scripts/dashboard-freshness.cs -- --registry tools/ai/sites.json` for the
    freshness verdict, then the smoke check (`Invoke-WebRequest` per entry's `path` and `dataPath`, status
    200, `expectHtml` content-type) the skill describes.
-3. Run `pwsh -File tools/ai/board/build-board-stats.ps1 -Since <date>` for the board snapshots; name any
-   input it needs that you were not given (`-SessionMeta`, `-Plan` are optional and private).
+3. Run `pwsh -File tools/ai/board/build-board-stats.ps1 -Since <date> -OutDir artifacts/site-health/board`
+   for the board snapshots (always pass `-OutDir`: the script's own default, `artifacts/board`, is outside
+   your allowlist); name any input it needs that you were not given (`-SessionMeta`, `-Plan` are optional
+   and private).
 4. For a failing entry: draft a tracking-issue comment (`artifacts/site-health/comments/<issue>-<date>.md`)
    when the registry names one, else a new issue file (`artifacts/site-health/issues/<slug>.md`) in the
    `open-issue` skill's exact template format. For a failing publishing workflow, spawn `ci-diagnoser` (the
