@@ -3,6 +3,7 @@ using JasperFx.Events;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -169,6 +170,31 @@ public sealed class InlineProjectionRelayTests
         var result = await sut.ProjectAsync("Agg", streamId, 0, CancellationToken.None);
 
         result.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ProjectAsync_DispatcherFails_ThrowOnProjectionErrorFalse_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var streamId = Guid.NewGuid();
+        StreamHas(streamId, Envelope(streamId, 1, new FirstEvent()));
+        _options.ThrowOnProjectionError = false;
+        _dispatcher
+            .DispatchManyAsync(Arg.Any<IEnumerable<(object Event, ProjectionContext Context)>>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("test.projection.error", $"Projection failed: {sentinel}")));
+        var logger = new FakeLogger();
+        var sut = new InlineProjectionRelay(_session, _dispatcher, _options, logger);
+
+        // Act
+        var result = await sut.ProjectAsync("Agg", streamId, 0, CancellationToken.None);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.projection.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
     }
 
     [Fact]

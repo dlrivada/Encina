@@ -1,8 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Encina.Marten;
+using JasperFx.Events;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -10,6 +13,7 @@ using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Marten;
 
+[SuppressMessage("Reliability", "CA2012:Use ValueTasks correctly", Justification = "Mock setup pattern for NSubstitute")]
 public class EventPublishingPipelineBehaviorTests
 {
     private readonly IDocumentSession _session;
@@ -130,6 +134,38 @@ public class EventPublishingPipelineBehaviorTests
         result.IsRight.ShouldBeTrue();
         await _encina.DidNotReceive().Publish(
             Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PublishFails_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var error = EncinaErrors.Create("test.publish.error", $"Publish failed: {sentinel}");
+        var logger = new FakeLogger<EventPublishingPipelineBehavior<TestCommand, TestResponse>>();
+        var sut = new EventPublishingPipelineBehavior<TestCommand, TestResponse>(
+            _session, _encina, logger, _options);
+
+        var pendingEvent = new Event<TestNotification>(new TestNotification("hello"));
+        var streamAction = StreamAction.Start(Guid.NewGuid(), pendingEvent);
+        _session.PendingChanges.Streams().Returns([streamAction]);
+
+        _encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(error)));
+
+        RequestHandlerCallback<TestResponse> next = () =>
+            new ValueTask<Either<EncinaError, TestResponse>>(
+                Right<EncinaError, TestResponse>(new TestResponse()));
+
+        // Act
+        var result = await sut.Handle(new TestCommand(), _requestContext, next, CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.publish.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
     }
 
     // Test types

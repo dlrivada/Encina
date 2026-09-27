@@ -55,7 +55,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
 
             result.IfRight(_ => Log.SuccessfullyExecutedQuery(_logger, typeof(TQuery).Name));
 
-            result.IfLeft(error => Log.QueryFailed(_logger, typeof(TQuery).Name, error.Message));
+            result.IfLeft(error => Log.QueryFailed(_logger, typeof(TQuery).Name, error.GetEncinaCode()));
 
             return result;
         }
@@ -97,7 +97,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
 
             result.IfRight(_ => Log.SuccessfullyExecutedMutation(_logger, typeof(TMutation).Name));
 
-            result.IfLeft(error => Log.MutationFailed(_logger, typeof(TMutation).Name, error.Message));
+            result.IfLeft(error => Log.MutationFailed(_logger, typeof(TMutation).Name, error.GetEncinaCode()));
 
             return result;
         }

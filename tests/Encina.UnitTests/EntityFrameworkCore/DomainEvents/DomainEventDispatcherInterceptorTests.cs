@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
 
 namespace Encina.UnitTests.EntityFrameworkCore.DomainEvents;
@@ -436,6 +437,50 @@ public class DomainEventDispatcherInterceptorTests
 
         // Assert - Both events should have been attempted
         await encina.Received(2).Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SavedChangesAsync_PublishFails_LogsOnlyTheErrorCodeNotTheMessage()
+    {
+        // Arrange - a distinctive sentinel stands in for data that must never leave the process
+        // through structured logs (AGENTS.md #3: EncinaError.Message never reaches logs; #1328).
+        const string sentinel = "SENTINEL-do-not-log-4f2a";
+        var error = EncinaErrors.Create("test.publish.error", $"Publish failed: {sentinel}");
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(error));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            StopOnFirstError = false
+        };
+        var logger = new FakeLogger<DomainEventDispatcherInterceptor>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        aggregate.RaiseEvent(new TestNotificationEvent(aggregate.Id));
+
+        context.TestAggregates.Add(aggregate);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert
+        var logs = logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("test.publish.error"));
+        logs.ShouldAllBe(r => !r.Message.Contains(sentinel));
     }
 
     #endregion

@@ -80,7 +80,9 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
 
         // Check if request requires transaction
         if (!RequiresTransaction(request))
+        {
             return await nextStep();
+        }
 
         // Check if already in transaction (nested transaction scenario)
         if (_dbContext.Database.CurrentTransaction != null)
@@ -90,6 +92,19 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             return await nextStep();
         }
 
+        return await ExecuteInNewTransactionAsync(context, nextStep, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Begins a new database transaction, runs the pipeline inside it, and commits or rolls
+    /// back based on the outcome (or on an exception).
+    /// </summary>
+    private async ValueTask<Either<EncinaError, TResponse>> ExecuteInNewTransactionAsync(
+        IRequestContext context,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         // Get isolation level from attribute or use default
         var isolationLevel = GetIsolationLevel();
 
@@ -108,26 +123,14 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
             var result = await nextStep();
 
             // Commit or rollback based on result
-            await result.Match(
-                Right: async _ =>
-                {
-                    Log.CommittingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
-
-                    await transaction.CommitAsync(cancellationToken);
-                },
-                Left: async error =>
-                {
-                    Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, error.Message, context.CorrelationId);
-
-                    await transaction.RollbackAsync(cancellationToken);
-                });
+            await CommitOrRollbackAsync(transaction, result, context, cancellationToken)
+                .ConfigureAwait(false);
 
             return result;
         }
         catch (OperationCanceledException)
         {
-            if (transaction != null)
-                await transaction.RollbackAsync(cancellationToken);
+            await RollbackIfActiveAsync(transaction, cancellationToken).ConfigureAwait(false);
 
             throw;
         }
@@ -135,14 +138,51 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         {
             Log.RollingBackTransactionDueToException(_logger, ex, typeof(TRequest).Name, context.CorrelationId);
 
-            if (transaction != null)
-                await transaction.RollbackAsync(cancellationToken);
+            await RollbackIfActiveAsync(transaction, cancellationToken).ConfigureAwait(false);
 
             return EncinaErrors.FromException("transaction.failed", ex);
         }
         finally
         {
             transaction?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Commits the transaction when the pipeline succeeded, or rolls it back and logs only the
+    /// error code (never <see cref="EncinaError.Message"/>) when it failed.
+    /// </summary>
+    private async ValueTask CommitOrRollbackAsync(
+        IDbContextTransaction transaction,
+        Either<EncinaError, TResponse> result,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        await result.Match(
+            Right: async _ =>
+            {
+                Log.CommittingTransaction(_logger, typeof(TRequest).Name, context.CorrelationId);
+
+                await transaction.CommitAsync(cancellationToken);
+            },
+            Left: async error =>
+            {
+                Log.RollingBackTransactionDueToError(_logger, typeof(TRequest).Name, error.GetEncinaCode(), context.CorrelationId);
+
+                await transaction.RollbackAsync(cancellationToken);
+            });
+    }
+
+    /// <summary>
+    /// Rolls back the transaction if one was successfully started before the failure.
+    /// </summary>
+    private static async ValueTask RollbackIfActiveAsync(
+        IDbContextTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        if (transaction != null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
         }
     }
 
