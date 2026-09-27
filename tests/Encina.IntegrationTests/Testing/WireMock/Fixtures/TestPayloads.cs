@@ -1,4 +1,4 @@
-namespace Encina.UnitTests.Testing.WireMock.Fixtures;
+namespace Encina.IntegrationTests.Testing.WireMock.Fixtures;
 
 /// <summary>
 /// Test payload for webhook body deserialization tests.

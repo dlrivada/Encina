@@ -3,11 +3,12 @@ using System.Net;
 using System.Text.Json;
 using Encina.Testing.WireMock;
 
-namespace Encina.UnitTests.Testing.WireMock;
+namespace Encina.IntegrationTests.Testing.WireMock;
 
 /// <summary>
-/// Tests for fault simulation and resilience testing with WireMock.
+/// Integration tests for fault simulation and resilience testing with a real WireMock server.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class FaultSimulationTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();

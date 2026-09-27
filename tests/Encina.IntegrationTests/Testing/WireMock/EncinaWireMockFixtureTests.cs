@@ -2,11 +2,13 @@ using System.Net;
 using System.Text.Json;
 using Encina.Testing.WireMock;
 
-namespace Encina.UnitTests.Testing.WireMock;
+namespace Encina.IntegrationTests.Testing.WireMock;
 
 /// <summary>
-/// Unit tests for <see cref="EncinaWireMockFixture"/>.
+/// Integration tests for <see cref="EncinaWireMockFixture"/>. Exercises the fixture
+/// against a real WireMock server over real HTTP connections on localhost.
 /// </summary>
+[Trait("Category", "Integration")]
 public sealed class EncinaWireMockFixtureTests : IAsyncLifetime
 {
     private readonly EncinaWireMockFixture _fixture = new();
