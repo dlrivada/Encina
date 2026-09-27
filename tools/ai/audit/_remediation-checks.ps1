@@ -18,24 +18,60 @@ $script:RemediationPathPrefixes = 'src|tests|docs|tools|\.github'
 $script:RemediationPathExtensions = 'cs|ps1|md|json|yml|yaml|csproj|txt'
 $script:RemediationFilePattern = "(?:$script:RemediationPathPrefixes)/[\w./\\-]*\.(?:$script:RemediationPathExtensions)(?::\d+(?:-\d+)?)?"
 
-# Splits a finding's raw text into its two kinds of anchor (#1388 decision 1a/1b):
-#   FileAnchors   -- every repo path the finding cites (backticked or in plain prose), with any trailing
-#                    ':line' or ':line-line' suffix stripped, as @{ FullPath; Stem }. Stem is the file name
-#                    WITHOUT its extension: a citation still matches a candidate that lists the same file
-#                    inside a brace-expanded multi-file pattern such as
+# #1400 decision 1: every finding in the code/tests/docs stage artifacts is written as "`loc1`, `loc2`, ...:
+# narrative" -- a leading, comma/semicolon-joined list of backtick-delimited file citations (the finding's own
+# claimed defect locations), followed by a colon that opens the prose explaining the defect. That colon is
+# never inside a backtick span or a parenthetical aside (a citation's own "(`snippet`)" or "(persisted at
+# `:355` via `_store.UpdateAsync`)" gloss) -- it is the first ':' at backtick-depth 0 and paren-depth 0. Returns
+# the text before that boundary; when no such boundary is found (a malformed or free-form finding), the whole
+# text is returned, which makes Get-FindingAnchors treat every citation as a required location -- the safer,
+# stricter default when the convention is not followed.
+#
+# This distinction matters because a finding's prose commonly cites OTHER files too (a masking test fixture, a
+# sibling registration file) that are supporting evidence, not the defect's own location -- a duplicate
+# candidate that fails to mention those incidental files is still coverage of the finding's actual defect (the
+# real code-4 finding of audit #16 cites its 3 SagaStoreADO.cs files up front, then a fixture and a test file
+# later in the prose; the true duplicate #1170 only had to cover the first 3). A file mentioned only later,
+# alongside a DIFFERENT top-level location added after a semicolon (the real code-3 finding of audit #16 cites
+# `SagaRunner.cs` AND `SagaOrchestrator.cs` both before its boundary colon), is exactly the kind of second
+# location a partial candidate misses -- issue #1400's own reproduction of the "partial duplicate" defect.
+function Get-LeadingLocationText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrEmpty($Text)) { return $Text }
+    $inBacktick = $false
+    $parenDepth = 0
+    for ($i = 0; $i -lt $Text.Length; $i++) {
+        $ch = $Text[$i]
+        if ($ch -eq '`') { $inBacktick = -not $inBacktick; continue }
+        if ($inBacktick) { continue }
+        if ($ch -eq '(') { $parenDepth++; continue }
+        if ($ch -eq ')') { if ($parenDepth -gt 0) { $parenDepth-- }; continue }
+        if ($ch -eq ':' -and $parenDepth -eq 0) { return $Text.Substring(0, $i) }
+    }
+    return $Text
+}
+
+# Splits a finding's raw text into its two kinds of anchor (#1388 decision 1a/1b; #1400 decision 1 narrows
+# FileAnchors to the finding's leading location clause, see Get-LeadingLocationText above):
+#   FileAnchors   -- every repo path the finding cites in its own leading location clause (backticked or in
+#                    plain prose), with any trailing ':line' or ':line-line' suffix stripped, as
+#                    @{ FullPath; Stem }. Stem is the file name WITHOUT its extension: a citation still matches
+#                    a candidate that lists the same file inside a brace-expanded multi-file pattern such as
 #                    'src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/{...,Sagas/SagaStoreADO,...}.cs' (a real
 #                    issue-writing style, #1170), where the literal substring '...SagaStoreADO.cs' never
 #                    appears -- only 'SagaStoreADO' does, because the extension sits outside the brace group.
-#   SymbolAnchors -- every backticked token of the finding that is NOT one of the file anchors above: a code
-#                    symbol, a literal code fragment, or a quoted rule sentence.
+#   SymbolAnchors -- every backticked token of the finding's WHOLE text (unchanged by #1400) that is NOT one of
+#                    the file anchors above: a code symbol, a literal code fragment, or a quoted rule sentence.
 function Get-FindingAnchors {
     param([string]$FindingText)
 
     $text = if ($null -eq $FindingText) { '' } else { $FindingText }
+    $leadingText = Get-LeadingLocationText $text
 
     $fileAnchors = [System.Collections.Generic.List[pscustomobject]]::new()
     $seenPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($m in [regex]::Matches($text, $script:RemediationFilePattern)) {
+    foreach ($m in [regex]::Matches($leadingText, $script:RemediationFilePattern)) {
         $full = ($m.Value -split ':')[0]
         if (-not $seenPaths.Add($full)) { continue }
         $stem = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $full))
@@ -70,10 +106,26 @@ function Get-FindingAnchors {
     return [pscustomobject]@{ FileAnchors = $fileAnchors; SymbolAnchors = $symbolAnchors }
 }
 
-# #1388 decision 1: a model-named duplicate is accepted only when at least one FILE anchor AND at least one
-# SYMBOL anchor of the finding both appear in the candidate's own title+body. A finding with no file anchor or
-# no symbol anchor at all can never be auto-accepted (a Minor citation-only finding, for instance, commonly
-# has no backticked symbol).
+# Tests one of the finding's file anchors against the candidate's raw title+body text: either the anchor's
+# full path appears verbatim (case-insensitive), or its stem (>= 3 chars, to skip an unparsed glob leftover
+# such as '*') appears as a whole word -- the brace-expansion case Get-FindingAnchors' own doc comment
+# describes. Shared by Test-DuplicateEvidence (#1400: requires every anchor) and Test-PartialDuplicateEvidence
+# (requires only one).
+function Test-FileAnchorMatch {
+    param([pscustomobject]$FileAnchor, [string]$Candidate)
+
+    if ($Candidate.IndexOf($FileAnchor.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    if ([string]::IsNullOrWhiteSpace($FileAnchor.Stem) -or $FileAnchor.Stem.Length -lt 3) { return $false }
+    return [regex]::IsMatch($Candidate, '\b' + [regex]::Escape($FileAnchor.Stem) + '\b', 'IgnoreCase')
+}
+
+# #1388 decision 1, narrowed by #1400 decision 1: a model-named duplicate is accepted only when EVERY file
+# anchor of the finding's own leading location clause (see Get-LeadingLocationText) AND at least one SYMBOL
+# anchor both appear in the candidate's own title+body. A finding with no file anchor or no symbol anchor at
+# all can never be auto-accepted (a Minor citation-only finding, for instance, commonly has no backticked
+# symbol). Before #1400, ANY one file anchor was enough, which is exactly how audit #16's code finding 3 was
+# wrongly accepted as a duplicate of #1343: #1343 covers `SagaRunner.cs`, but the finding's own leading clause
+# also names `SagaOrchestrator.cs`, a second location #1343 never mentions.
 #
 # The symbol side is matched by EXACT, case-insensitive equality against one of the candidate's OWN
 # backtick-delimited tokens -- not a substring/word-boundary search across the candidate's raw prose. A
@@ -97,15 +149,9 @@ function Test-DuplicateEvidence {
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
 
-    $fileMatch = $false
     foreach ($fa in $anchors.FileAnchors) {
-        if ($candidate.IndexOf($fa.FullPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $fileMatch = $true; break }
-        # A stem shorter than 3 characters (an unparsed glob leftover such as '*') is too generic to trust as
-        # evidence on its own; skip it rather than risk a spurious match.
-        if ([string]::IsNullOrWhiteSpace($fa.Stem) -or $fa.Stem.Length -lt 3) { continue }
-        if ([regex]::IsMatch($candidate, '\b' + [regex]::Escape($fa.Stem) + '\b', 'IgnoreCase')) { $fileMatch = $true; break }
+        if (-not (Test-FileAnchorMatch $fa $candidate)) { return $false }
     }
-    if (-not $fileMatch) { return $false }
 
     $candidateSymbols = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($m in [regex]::Matches($candidate, '`([^`]+)`')) {
@@ -114,6 +160,24 @@ function Test-DuplicateEvidence {
     }
     foreach ($sa in $anchors.SymbolAnchors) {
         if ($candidateSymbols.Contains($sa)) { return $true }
+    }
+    return $false
+}
+
+# #1400 decision 1: used only to word the rejection note audit-draft-remediation.ps1 appends to a drafted
+# finding when Test-DuplicateEvidence rejects a model-named duplicate -- "partially related" (at least one of
+# the finding's own file anchors matched the candidate, so it is plausibly about the same area) versus the
+# existing, weaker "possibly related" (no file anchor matched at all). Never used to accept a duplicate: a
+# finding with zero file anchors is never "partially" related to anything by definition.
+function Test-PartialDuplicateEvidence {
+    param([string]$FindingText, [string]$CandidateTitleAndBody)
+
+    $anchors = Get-FindingAnchors $FindingText
+    if ($anchors.FileAnchors.Count -eq 0) { return $false }
+
+    $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
+    foreach ($fa in $anchors.FileAnchors) {
+        if (Test-FileAnchorMatch $fa $candidate) { return $true }
     }
     return $false
 }
@@ -141,8 +205,9 @@ function Remove-OuterFence {
     return ($inner -join "`n")
 }
 
-# #1388 decision 4: the placeholder markers a drafted issue file must not still contain, collected from the
-# templates under .github/ISSUE_TEMPLATE/ ($TemplatesDir):
+# #1388 decision 4, extended by #1400 decision 2: the placeholder markers a drafted issue file must not still
+# contain, derived from the ONE routed template's own text ($TemplateText -- the raw file, front matter
+# included; the script passes what Get-TemplateBody read for the same template it drafted against):
 #   - '[e.g., ...]' / '[How this affects ...]' -- any bracketed example value a template shows in place of a
 #     real one (test_implementation.md Package(s)/Provider(s)/Collection/Fixture, bug_report.md Environment
 #     fields, technical_debt.md Package(s), and the same idiom other templates in the directory use).
@@ -152,27 +217,54 @@ function Remove-OuterFence {
 #     real, filled-in test description never matches this -- only the bare word 'Description' as the whole
 #     remainder of the line does).
 #   - each template's own placeholder sentence under its '## Description' header ('A clear description of
-#     ...' / 'A clear and concise description of ...'), read from the templates themselves (not hard-coded)
-#     so a wording change there is picked up automatically.
+#     ...' / 'A clear and concise description of ...'), read from the template itself (not hard-coded) so a
+#     wording change there is picked up automatically.
+#   - #1400: every OTHER non-structural line of the template body -- not blank, not a '#'-level header, not a
+#     checkbox line, not a table header or separator row, and at least 20 characters long -- counts as a
+#     placeholder when it appears verbatim (trimmed) in the draft. This is what #1388's hand-written marker
+#     list missed: a template's plain-prose instruction sentence such as technical_debt.md's Related Issues
+#     line "Link any related issues here.", which a model can copy through unchanged just like a bracketed
+#     example. A table HEADER row is recognised by lookahead (its very next non-blank line is a separator row
+#     of only '|', '-', ':' and spaces); a table DATA row is not excluded here, since a genuinely filled-in
+#     data row never matches the template's own placeholder row text verbatim anyway.
 # Returns the offending lines (trimmed, one per match); an empty list means the draft is clean.
 function Find-TemplatePlaceholders {
-    param([string]$TemplatesDir, [string]$DraftText)
+    param([string]$TemplateText, [string]$DraftText)
 
     $found = [System.Collections.Generic.List[string]]::new()
     $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $template = if ($null -eq $TemplateText) { '' } else { $TemplateText }
+    $body = $template -replace '(?s)^---.*?---\r?\n', ''
+    $tLines = $body -split "`r?`n"
 
     $descriptionSentences = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    if (Test-Path -LiteralPath $TemplatesDir) {
-        foreach ($templateFile in Get-ChildItem -LiteralPath $TemplatesDir -Filter '*.md' -File) {
-            $raw = (Get-Content -LiteralPath $templateFile.FullName -Raw) -replace '(?s)^---.*?---\r?\n', ''
-            $tLines = $raw -split "`r?`n"
-            for ($i = 0; $i -lt $tLines.Count; $i++) {
-                if ($tLines[$i].Trim() -eq '## Description' -and ($i + 2) -lt $tLines.Count) {
-                    $candidateSentence = $tLines[$i + 2].Trim()
-                    if ($candidateSentence -match '^A clear( and concise)? description of ') { [void]$descriptionSentences.Add($candidateSentence) }
-                }
-            }
+    for ($i = 0; $i -lt $tLines.Count; $i++) {
+        if ($tLines[$i].Trim() -eq '## Description' -and ($i + 2) -lt $tLines.Count) {
+            $candidateSentence = $tLines[$i + 2].Trim()
+            if ($candidateSentence -match '^A clear( and concise)? description of ') { [void]$descriptionSentences.Add($candidateSentence) }
         }
+    }
+
+    $tableSeparatorPattern = '^\|[\s:|-]+\|$'
+    $derivedMarkers = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    for ($i = 0; $i -lt $tLines.Count; $i++) {
+        $tTrim = $tLines[$i].Trim()
+        if ($tTrim -eq '') { continue }
+        if ($tTrim -match '^#{1,6}\s') { continue }
+        if ($tTrim -match '^-\s*\[[ xX]\]') { continue }
+        if ($tTrim -match $tableSeparatorPattern) { continue }
+        # A blockquote note ('> Fill in if this is a coverage gap issue.', '> Per `AGENTS.md` §9 ...') explains
+        # the section and is meant to stay verbatim in every draft, including a fully and correctly filled one
+        # (the real 16-tests-1 draft keeps both of test_implementation.md's own '>' notes untouched) -- it is
+        # never itself the "fill in a real value" placeholder decision 2 targets, unlike a bracketed example or
+        # an unfilled table/description/related-issues line.
+        if ($tTrim.StartsWith('>')) { continue }
+        if ($tTrim.StartsWith('|')) {
+            $nextTrim = if (($i + 1) -lt $tLines.Count) { $tLines[$i + 1].Trim() } else { '' }
+            if ($nextTrim -match $tableSeparatorPattern) { continue }  # this is the table's header row
+        }
+        if ($tTrim.Length -lt 20) { continue }
+        [void]$derivedMarkers.Add($tTrim)
     }
 
     foreach ($line in ($text -split "`r?`n")) {
@@ -185,7 +277,134 @@ function Find-TemplatePlaceholders {
         # and adds punctuation still gets caught (adversarial review of #1388).
         if ($trimmed -match '^-\s*\[[ xX]\]\s*Test\s+\d+:\s*Description\.?\s*$') { $found.Add($trimmed); continue }
         if ($descriptionSentences.Contains($trimmed)) { $found.Add($trimmed); continue }
+        if ($derivedMarkers.Contains($trimmed)) { $found.Add($trimmed); continue }
     }
 
     return $found
+}
+
+# #1400 decision 3: after a draft is written and repaired (fence stripped, placeholders re-asked), its own
+# Related Issues section is sanitized -- the model is free to name a candidate as related there
+# (Build-DraftBrief's own guidance explicitly invites it), but audit #16's 16-code-5 draft showed it will also
+# invent a relation to issues nobody offered it and that have nothing to do with the finding (#699, #696, #181
+# -- real open issues about an unrelated caching/health-check feature). Two conventions exist because
+# bug_report.md, unlike technical_debt.md and test_implementation.md, has no dedicated 'Related Issues' header
+# of its own -- a bug-kind draft (like 16-code-5) puts it as a '- **Related Issues**:' bullet with indented
+# sub-bullets inside 'Additional Context' instead:
+#   - a '## Related Issues' H2 header: the section runs to the next '## ' header or end of file;
+#   - a '- **Related Issues**:' bullet (with or without the leading '- '): the section is the run of
+#     immediately-following bullet lines (indented sub-bullets '  - #n' as audit #16's real draft has, or
+#     unindented siblings '- #n' at the same level -- both plausible model output), stopping at the first
+#     blank line, a new '## ' header, a new sibling bold field ('- **Something Else**:'), or any other line
+#     that is not itself a bullet. The header line itself tolerates an optional trailing colon
+#     ('**Related Issues**' or '**Related Issues**:') and an optional leading '- '.
+# A reference (#n) inside that section survives only when n is:
+#   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
+#     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
+#   - named in the finding's own text ($FindingText);
+#   - named in the candidate list actually offered to the classifier for this finding ($CandidateText); or
+#   - named in one of the script's own duplicate/partially-related/possibly-related note lines for this
+#     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line).
+# A line with no issue reference at all (prose, a blank line) is always kept untouched; a line naming an
+# unverified number is dropped entirely (not just the number). Returns the sanitized draft text and the list of
+# removed numbers, so the caller can log them ("removed unverified related issue #n") against this finding's
+# own line in stages/remediation.md.
+function Limit-RelatedIssues {
+    param(
+        [string]$DraftText,
+        [string]$IssueNumber,
+        [string]$FindingText,
+        [string]$CandidateText,
+        [string[]]$ScriptNoteLines
+    )
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+
+    $headerIdx = -1
+    $isBoldBullet = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $headerIdx = $i; $isBoldBullet = $false; break }
+        if ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $headerIdx = $i; $isBoldBullet = $true; break }
+    }
+    if ($headerIdx -lt 0) { return [pscustomobject]@{ Text = $text; Removed = @() } }
+
+    $sectionStartLine = $headerIdx + 1
+    $sectionEndLine = $lines.Count
+    if ($isBoldBullet) {
+        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+            $l = $lines[$i]
+            if ($l.Trim() -eq '') { $sectionEndLine = $i; break }
+            if ($l -match '^##\s') { $sectionEndLine = $i; break }
+            # a new sibling bold field at the same list level ('- **Location**:', '- **Priority**:', ...) ends
+            # this section; a bullet naming an issue never itself looks like that.
+            if ($l -match '^\s*-\s*\*\*[^*]+\*\*:') { $sectionEndLine = $i; break }
+            if ($l -match '^[ \t]*-') { continue }  # an indented sub-bullet or an unindented sibling bullet
+            $sectionEndLine = $i
+            break
+        }
+    }
+    else {
+        for ($i = $sectionStartLine; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^##\s') { $sectionEndLine = $i; break }
+        }
+    }
+
+    $allowed = [System.Collections.Generic.HashSet[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($IssueNumber)) { [void]$allowed.Add($IssueNumber.TrimStart('#')) }
+    foreach ($src in @($FindingText, $CandidateText)) {
+        if ($null -eq $src) { continue }
+        foreach ($m in [regex]::Matches($src, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
+    }
+    foreach ($noteLine in $ScriptNoteLines) {
+        if ($null -eq $noteLine) { continue }
+        foreach ($m in [regex]::Matches($noteLine, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
+    }
+
+    $removed = [System.Collections.Generic.List[string]]::new()
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $sectionStartLine; $i++) { $newLines.Add($lines[$i]) }
+    for ($i = $sectionStartLine; $i -lt $sectionEndLine; $i++) {
+        $line = $lines[$i]
+        $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
+        if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
+        $hasAllowedNumber = $false
+        foreach ($num in $lineNumbers) { if ($allowed.Contains($num)) { $hasAllowedNumber = $true } }
+        if ($hasAllowedNumber) { $newLines.Add($line) }
+        else { foreach ($num in $lineNumbers) { $removed.Add($num) } }
+    }
+    for ($i = $sectionEndLine; $i -lt $lines.Count; $i++) { $newLines.Add($lines[$i]) }
+
+    return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
+}
+
+# #1400 (adversarial review finding 1): inserts one note line (audit-draft-remediation.ps1's
+# "partially related"/"possibly related" line for a rejected duplicate-of claim) into a draft's own Related
+# Issues section, recognising the SAME two conventions Limit-RelatedIssues does. Before this function existed,
+# audit-draft-remediation.ps1 looked only for the '## Related Issues' H2 and, for a bug-kind draft
+# (bug_report.md has no such header -- only the '- **Related Issues**:' bold-bullet convention), fell back to
+# appending the note at the very end of the file, detached from the section it names and from what
+# Limit-RelatedIssues actually scans -- a structurally malformed draft. Returns the updated text and whether a
+# section was found at all; when neither convention is found, the text is returned unchanged so the caller can
+# fall back and log a lesson, exactly as before.
+function Add-RelatedIssuesLine {
+    param([string]$DraftText, [string]$Line)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $insertedLine = $null
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') { $insertedLine = $Line }
+        elseif ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') { $insertedLine = "  $Line" }
+        if ($null -eq $insertedLine) { continue }
+
+        $newLines = [System.Collections.Generic.List[string]]::new()
+        for ($j = 0; $j -le $i; $j++) { $newLines.Add($lines[$j]) }
+        $newLines.Add($insertedLine)
+        for ($j = $i + 1; $j -lt $lines.Count; $j++) { $newLines.Add($lines[$j]) }
+        return [pscustomobject]@{ Text = ($newLines -join "`n"); Found = $true }
+    }
+
+    return [pscustomobject]@{ Text = $text; Found = $false }
 }

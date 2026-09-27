@@ -189,19 +189,23 @@ Guidance:
 "@
 }
 
-# #1388 decisions 3/4: strips one outer code fence and reports remaining template placeholders for a draft
-# already written to $Path, rewriting the file in place when the fence was stripped. Returns the (possibly
-# empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList is the
-# script's own $lessons list, passed explicitly rather than captured, since this function is called once per
-# finding across the whole loop below.
-function Repair-Draft([string]$Path, [string]$Label, [System.Collections.Generic.List[string]]$LessonsList) {
+# #1388 decisions 3/4 (#1400 decision 2: placeholders are now derived from the ONE routed template, not every
+# template in the directory): strips one outer code fence and reports remaining template placeholders for a
+# draft already written to $Path, rewriting the file in place when the fence was stripped. Returns the
+# (possibly empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList
+# is the script's own $lessons list, passed explicitly rather than captured, since this function is called once
+# per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
+# (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
+# finding was drafted against.
+function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList) {
     $raw = Get-Content -LiteralPath $Path -Raw
     $defenced = Remove-OuterFence $raw
     if ($defenced -ne $raw) {
         Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $defenced
         $LessonsList.Add("$Label`: draft $(Split-Path -Leaf $Path) was wrapped in an outer code fence; stripped it before writing.")
     }
-    return (Find-TemplatePlaceholders $templatesDir $defenced)
+    $templateText = Get-Content -LiteralPath (Join-Path $templatesDir $RouteTemplateFile) -Raw
+    return (Find-TemplatePlaceholders $templateText $defenced)
 }
 
 $stageNames = 'code', 'tests', 'docs'
@@ -387,7 +391,16 @@ $candidateLinesForClassify
         $candidateText = if ($cachedCandidate) { "$($cachedCandidate.title)`n$($cachedCandidate.body)" } else { '' }
         if (-not (Test-DuplicateEvidence $finding.Text $candidateText)) {
             $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
-            $possiblyRelatedNote = "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            # #1400 decision 1: a candidate that covers at least one of the finding's own file anchors (just
+            # not every one -- Test-DuplicateEvidence's new, stricter bar) is worded as "partially related"
+            # rather than the weaker "possibly related", which is reserved for a candidate with no file-anchor
+            # overlap at all.
+            $possiblyRelatedNote = if (Test-PartialDuplicateEvidence $finding.Text $candidateText) {
+                "- #$duplicateOf - partially related (it covers only part of this finding)"
+            }
+            else {
+                "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            }
             $duplicateOf = $null
         }
     }
@@ -421,7 +434,7 @@ $candidateLinesForClassify
     # template's own placeholder text survived into the draft. A draft that still has placeholders after the
     # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
     # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $lessons
+    $placeholders = Repair-Draft $outFile $label $route.Template $lessons
     if ($placeholders.Count -gt 0) {
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
@@ -446,29 +459,46 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
             Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
             exit 1
         }
-        $placeholders = Repair-Draft $outFile $label $lessons
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons
     }
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
     # rejected is still worth a human glance -- append it to the draft's own Related Issues section.
+    # #1400 (adversarial review finding 1): Add-RelatedIssuesLine understands both conventions
+    # Limit-RelatedIssues does (the '## Related Issues' H2, and bug_report.md's own bold-bullet convention),
+    # so the note lands inside the section it names -- and inside what Limit-RelatedIssues itself scans below
+    # -- for every routed template, not only technical_debt.md/test_implementation.md.
     if ($possiblyRelatedNote) {
         $finalText = Get-Content -LiteralPath $outFile -Raw
-        $headerMatch = [regex]::Match($finalText, '(?m)^## Related Issues\s*$')
-        if ($headerMatch.Success) {
-            $insertAt = $headerMatch.Index + $headerMatch.Length
-            $updatedText = $finalText.Substring(0, $insertAt) + "`n" + $possiblyRelatedNote + $finalText.Substring($insertAt)
+        $inserted = Add-RelatedIssuesLine $finalText $possiblyRelatedNote
+        if (-not $inserted.Found) {
+            $lessons.Add("$label`: could not find a Related Issues section in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
         }
-        else {
-            $lessons.Add("$label`: could not find a '## Related Issues' header in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
-            $updatedText = $finalText.TrimEnd() + "`n$possiblyRelatedNote`n"
-        }
+        $updatedText = if ($inserted.Found) { $inserted.Text } else { $finalText.TrimEnd() + "`n$possiblyRelatedNote`n" }
         Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
+    }
+
+    # #1400 decision 3: sanitize the finished draft's own Related Issues section -- never let the model's free
+    # text stand unverified. $possiblyRelatedNote (just written above, if present) is itself a legitimate
+    # reference, so its own line is passed as a script note the sanitizer must keep.
+    $sanitizeScriptNotes = if ($possiblyRelatedNote) { @($possiblyRelatedNote) } else { @() }
+    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $candidateLinesForClassify $sanitizeScriptNotes
+    if ($sanitized.Removed.Count -gt 0) {
+        Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $sanitized.Text
+        foreach ($removedNumber in $sanitized.Removed) {
+            $lessons.Add("$label`: removed unverified related issue #$removedNumber from $(Split-Path -Leaf $outFile)'s Related Issues section (not in the finding, the candidates offered, or the script's own notes).")
+        }
     }
 
     if ($placeholders.Count -gt 0) {
         $placeholderFailures.Add((Split-Path -Leaf $outFile))
         $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)")
         "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
+    }
+    elseif ($sanitized.Removed.Count -gt 0) {
+        $removedList = ($sanitized.Removed | ForEach-Object { "#$_" }) -join ', '
+        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (removed unverified related issue $removedList)")
+        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- removed unverified related issue $removedList"
     }
     else {
         $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile)")
