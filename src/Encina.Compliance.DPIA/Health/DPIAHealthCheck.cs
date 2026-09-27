@@ -80,7 +80,7 @@ public sealed class DPIAHealthCheck : IHealthCheck
         // 1-3. Verify options, DPIA service and assessment engine are resolvable
         if (!TryResolveDependencies(scope.ServiceProvider, data, out var options, out var service, out var failure))
         {
-            return failure!.Value;
+            return failure.Value;
         }
 
         // 4. Check for expired assessments (degraded if any)
