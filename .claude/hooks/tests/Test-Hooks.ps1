@@ -1562,9 +1562,10 @@ try {
 
     # (d) Find-TemplatePlaceholders finds the five placeholder lines #1388's issue body names in the real
     # 16-tests-3 draft, and nothing at all in the real 16-tests-1 draft once its outer fence is stripped (a
-    # clean, fully-filled draft).
-    $templatesDirFor1388 = Join-Path $repo '.github\ISSUE_TEMPLATE'
-    $foundPlaceholders = Find-TemplatePlaceholders $templatesDirFor1388 $unfencedDraft
+    # clean, fully-filled draft). Both drafts route to test_implementation.md ([TEST] prefix); #1400 changed
+    # the function's signature to take that ONE routed template's text, not the whole templates directory.
+    $testTemplateTextFor1388 = Get-Content -LiteralPath (Join-Path $repo '.github\ISSUE_TEMPLATE\test_implementation.md') -Raw
+    $foundPlaceholders = Find-TemplatePlaceholders $testTemplateTextFor1388 $unfencedDraft
     $expectedPlaceholderSubstrings = @(
         '[e.g., Encina.Dapper.SqlServer, Encina.ADO.PostgreSQL]',
         '| Example.Package | 62.3% | 85% | -22.7% |',
@@ -1578,9 +1579,89 @@ try {
         }
     }
     Test-RemediationChecksCase 'Find-TemplatePlaceholders: a clean, fully-filled draft (the real 16-tests-1, defenced) has none' {
-        (Find-TemplatePlaceholders $templatesDirFor1388 $defencedDraft).Count -eq 0
+        (Find-TemplatePlaceholders $testTemplateTextFor1388 $defencedDraft).Count -eq 0
     }
     # ---- end #1388 block ----
+
+    # ---- #1400: tools/ai/audit/_remediation-checks.ps1 -- the coverage rule for a duplicate-of claim (every
+    # file anchor, not just one), template-derived placeholders (a template's own instruction sentence, not
+    # only its hand-written markers) and the Related Issues sanitizer (Limit-RelatedIssues), fixing the three
+    # defect classes audit #16's verifier still found after #1388: a partial-duplicate claim accepted, a
+    # template instruction line left in a draft, and an invented Related Issues entry. No `gh` and no local
+    # model here either; fixtures replay real audit #16 material captured once (fixtures/1400/).
+    $fixtures1400 = Join-Path $repo '.claude\hooks\tests\fixtures\1400'
+
+    # (a) The real code finding 3 of audit #16 vs the real #1343: #1343 only covers `SagaRunner.cs`, but the
+    # finding's own leading location clause also names `SagaOrchestrator.cs`, a second file #1343 never
+    # mentions -- exactly the partial-duplicate defect #1400 was filed to fix. Test-DuplicateEvidence now
+    # rejects it (previously accepted it, #1400's own reproduction), and Test-PartialDuplicateEvidence reports
+    # true because the `SagaRunner.cs` anchor DID match.
+    $findingCode3For1400 = Get-Content -LiteralPath (Join-Path $fixtures1400 'finding-code-3.md') -Raw
+    $issue1343 = Get-Content -LiteralPath (Join-Path $fixtures1400 'issue-1343.json') -Raw | ConvertFrom-Json
+    $candidate1343Text = "$($issue1343.title)`n$($issue1343.body)"
+    Test-RemediationChecksCase 'Test-DuplicateEvidence: code finding 3 vs #1343 is REJECTED (partial duplicate, not the same finding)' {
+        -not (Test-DuplicateEvidence $findingCode3For1400 $candidate1343Text)
+    }
+    Test-RemediationChecksCase 'Test-PartialDuplicateEvidence: code finding 3 vs #1343 is a partial match (SagaRunner.cs matched, SagaOrchestrator.cs did not)' {
+        Test-PartialDuplicateEvidence $findingCode3For1400 $candidate1343Text
+    }
+
+    # (b) The four real #1388 duplicate claims still give the same outcomes as before -- #1400's stricter
+    # "every file anchor" rule does not regress the one true duplicate (code finding 4 vs #1170, whose leading
+    # location clause is exactly its 3 SagaStoreADO.cs citations, all matched by candidate #1170's own brace-
+    # expanded file list) nor the three already-rejected false claims.
+    $findingCode1For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\finding-code-1.md') -Raw
+    $findingCode2For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\finding-code-2.md') -Raw
+    $findingCode4For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\finding-code-4.md') -Raw
+    $findingDocs9For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\finding-docs-9.md') -Raw
+    $issue1333For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1333.json') -Raw | ConvertFrom-Json
+    $issue1328For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1328.json') -Raw | ConvertFrom-Json
+    $issue1170For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1170.json') -Raw | ConvertFrom-Json
+    $issue1177For1400 = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1388\issue-1177.json') -Raw | ConvertFrom-Json
+    Test-RemediationChecksCase '#1400 regression: code finding 1 vs #1333 is still REJECTED' {
+        -not (Test-DuplicateEvidence $findingCode1For1400 "$($issue1333For1400.title)`n$($issue1333For1400.body)")
+    }
+    Test-RemediationChecksCase '#1400 regression: code finding 2 vs #1328 is still REJECTED' {
+        -not (Test-DuplicateEvidence $findingCode2For1400 "$($issue1328For1400.title)`n$($issue1328For1400.body)")
+    }
+    Test-RemediationChecksCase '#1400 regression: code finding 4 vs #1170 is still ACCEPTED (the one true duplicate)' {
+        Test-DuplicateEvidence $findingCode4For1400 "$($issue1170For1400.title)`n$($issue1170For1400.body)"
+    }
+    Test-RemediationChecksCase '#1400 regression: docs finding 9 vs #1177 is still REJECTED' {
+        -not (Test-DuplicateEvidence $findingDocs9For1400 "$($issue1177For1400.title)`n$($issue1177For1400.body)")
+    }
+
+    # (c) Find-TemplatePlaceholders, given the ONE routed template's own text: the real 16-docs-1 draft still
+    # has technical_debt.md's Related Issues instruction sentence "Link any related issues here." verbatim --
+    # #1388's hand-written marker list never knew this line; a clean draft (the real, defenced 16-tests-1) has
+    # none, against its own routed template (test_implementation.md).
+    $technicalDebtTemplateText = Get-Content -LiteralPath (Join-Path $repo '.github\ISSUE_TEMPLATE\technical_debt.md') -Raw
+    $docs1Draft = Get-Content -LiteralPath (Join-Path $fixtures1400 '16-docs-1-draft.md') -Raw
+    $docs1Placeholders = Find-TemplatePlaceholders $technicalDebtTemplateText $docs1Draft
+    Test-RemediationChecksCase 'Find-TemplatePlaceholders: the real 16-docs-1 draft still has "Link any related issues here."' {
+        @($docs1Placeholders | Where-Object { $_ -eq 'Link any related issues here.' }).Count -gt 0
+    }
+    Test-RemediationChecksCase 'Find-TemplatePlaceholders: a clean draft (the real 16-tests-1, defenced) has none, against its own routed template' {
+        (Find-TemplatePlaceholders $testTemplateTextFor1388 $defencedDraft).Count -eq 0
+    }
+
+    # (d) Limit-RelatedIssues on the real 16-code-5 draft (bug_report.md's '- **Related Issues**:' bullet
+    # convention, since bug_report.md has no dedicated header): #699/#696/#181 are real open issues the model
+    # invented a relation to -- they are absent from both the real finding text and an (empty, for this case)
+    # candidate list -- while #16, the audited issue itself, is always kept.
+    $findingCode5 = Get-Content -LiteralPath (Join-Path $fixtures1400 'finding-code-5.md') -Raw
+    $code5Draft = Get-Content -LiteralPath (Join-Path $fixtures1400 '16-code-5-draft.md') -Raw
+    $limited = Limit-RelatedIssues $code5Draft '16' $findingCode5 '' @()
+    Test-RemediationChecksCase 'Limit-RelatedIssues: removes #699, #696 and #181 from the real 16-code-5 draft (not in the finding or candidates)' {
+        (@($limited.Removed) | Sort-Object) -join ',' -eq '181,696,699'
+    }
+    Test-RemediationChecksCase 'Limit-RelatedIssues: keeps the allowed #16 (the audited issue itself) in the sanitized draft' {
+        $limited.Text -match '#16 \(This issue\)'
+    }
+    Test-RemediationChecksCase 'Limit-RelatedIssues: drops the unverified lines from the sanitized draft text' {
+        $limited.Text -notmatch '#699' -and $limited.Text -notmatch '#696' -and $limited.Text -notmatch '#181'
+    }
+    # ---- end #1400 block ----
 
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /
