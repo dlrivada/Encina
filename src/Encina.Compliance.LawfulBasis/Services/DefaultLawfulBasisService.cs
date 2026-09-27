@@ -127,7 +127,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid argument during RegisterAsync: {Message}", ex.Message);
+            _logger.LogWarning(ex, "Invalid argument during RegisterAsync");
             return LawfulBasisErrors.InvalidStateTransition("Register", ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -286,7 +286,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid argument during CreateLIAAsync: {Message}", ex.Message);
+            _logger.LogWarning(ex, "Invalid argument during CreateLIAAsync");
             return LawfulBasisErrors.InvalidStateTransition("CreateLIA", ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
