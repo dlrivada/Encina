@@ -124,7 +124,7 @@ public sealed class DefaultDataPortabilityExporter : IDataPortabilityExporter
             },
             Left: error =>
             {
-                _logger.PortabilityExportFailed(format.ToString(), error.Message);
+                _logger.PortabilityExportFailed(format.ToString(), error.GetCode().IfNone("encina.unknown"));
 
                 stopwatch.Stop();
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));

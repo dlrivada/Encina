@@ -83,9 +83,9 @@ public sealed class CompositePersonalDataLocator : IPersonalDataLocator
                 {
                     failedLocators++;
                     _logger.LogWarning(
-                        "Locator {LocatorType} failed: {ErrorMessage}",
+                        "Locator {LocatorType} failed: {ErrorCode}",
                         locator.GetType().Name,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
                 });
         }
 

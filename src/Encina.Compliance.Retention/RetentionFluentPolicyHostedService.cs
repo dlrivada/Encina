@@ -2,6 +2,8 @@ using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 
+using LanguageExt;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -78,7 +80,7 @@ internal sealed class RetentionFluentPolicyHostedService : IHostedService
                     Right: _ => policiesCreated++,
                     Left: error => _logger.RetentionAutoRegistrationPolicyFailed(
                         descriptor.DataCategory,
-                        new InvalidOperationException(error.Message)));
+                        error.GetCode().IfNone("encina.unknown")));
             }
             catch (Exception ex)
             {

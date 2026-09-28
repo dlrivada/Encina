@@ -299,7 +299,7 @@ public sealed class RetentionEnforcementServiceTests
     }
 
     [Fact]
-    public async Task Cycle_ErasureReturnsLeft_LogsEntityAndCategory()
+    public async Task Cycle_ErasureReturnsLeft_LogsEntityAndCategoryAndErrorCode()
     {
         var record = Record("entity-category-log");
         record.DataCategory = "clinical-record";
@@ -307,14 +307,15 @@ public sealed class RetentionEnforcementServiceTests
         GivenNoHolds();
         GivenTransitionsSucceed();
         _dataEraser.EraseAsync(Arg.Any<RetentionErasureTarget>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Unit>(EncinaError.New("clinical store unavailable")));
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create("retention.store_unavailable", "clinical store unavailable")));
 
         await CreateSut().ExecuteEnforcementCycleAsync(CancellationToken.None);
 
         var failure = _logger.Collector.GetSnapshot().Single(r => r.Id.Id == ErasureFailedEventId);
         failure.GetStructuredStateValue("EntityId").ShouldBe("entity-category-log");
         failure.GetStructuredStateValue("DataCategory").ShouldBe("clinical-record");
-        failure.GetStructuredStateValue("ErrorMessage").ShouldBe("clinical store unavailable");
+        failure.GetStructuredStateValue("ErrorCode").ShouldBe("retention.store_unavailable");
+        failure.Message.ShouldNotContain("clinical store unavailable");
     }
 
     [Fact]

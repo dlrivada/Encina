@@ -131,7 +131,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("SubmitRequest", ex.Message, ex);
+            _logger.DSRServiceError("SubmitRequest", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("SubmitRequest", ex);
         }
     }
@@ -167,12 +167,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "VerifyIdentity", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "VerifyIdentity", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("VerifyIdentity", ex.Message, ex);
+            _logger.DSRServiceError("VerifyIdentity", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("VerifyIdentity", ex);
         }
     }
@@ -208,12 +208,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "StartProcessing", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "StartProcessing", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("StartProcessing", ex.Message, ex);
+            _logger.DSRServiceError("StartProcessing", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("StartProcessing", ex);
         }
     }
@@ -250,12 +250,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "CompleteRequest", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "CompleteRequest", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("CompleteRequest", ex.Message, ex);
+            _logger.DSRServiceError("CompleteRequest", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("CompleteRequest", ex);
         }
     }
@@ -292,12 +292,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "DenyRequest", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "DenyRequest", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("DenyRequest", ex.Message, ex);
+            _logger.DSRServiceError("DenyRequest", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("DenyRequest", ex);
         }
     }
@@ -333,12 +333,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "ExtendDeadline", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "ExtendDeadline", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("ExtendDeadline", ex.Message, ex);
+            _logger.DSRServiceError("ExtendDeadline", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("ExtendDeadline", ex);
         }
     }
@@ -374,12 +374,12 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DSRInvalidStateTransition(requestId.ToString(), "ExpireRequest", ex.Message);
+            _logger.DSRInvalidStateTransition(requestId.ToString(), "ExpireRequest", ex.GetType().Name);
             return DSRErrors.InvalidRequest(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("ExpireRequest", ex.Message, ex);
+            _logger.DSRServiceError("ExpireRequest", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("ExpireRequest", ex);
         }
     }
@@ -417,7 +417,7 @@ internal sealed class DefaultDSRService : IDSRService
 
                     activitiesResult.Match(
                         Right: a => activities = a,
-                        Left: error => _logger.AccessProcessingActivitiesFailed(error.Message));
+                        Left: error => _logger.AccessProcessingActivitiesFailed(error.GetCode().IfNone("encina.unknown")));
                 }
 
                 var response = new AccessResponse
@@ -436,7 +436,7 @@ internal sealed class DefaultDSRService : IDSRService
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
                 RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
 
                 return (Either<EncinaError, AccessResponse>)error;
@@ -521,7 +521,7 @@ internal sealed class DefaultDSRService : IDSRService
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
                 RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
 
                 return Left<EncinaError, ErasureResult>(
@@ -573,14 +573,14 @@ internal sealed class DefaultDSRService : IDSRService
                 },
                 Left: error =>
                 {
-                    _logger.DSRRequestFailed(rightType.ToString(), error.Message);
+                    _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
                     RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
                     return error;
                 });
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("HandleRestriction", ex.Message, ex);
+            _logger.DSRServiceError("HandleRestriction", ex.GetType().Name, ex);
             RecordFailure(activity, stopwatch, rightType, ex.GetType().Name);
             return DSRErrors.ServiceError("HandleRestriction", ex);
         }
@@ -612,7 +612,7 @@ internal sealed class DefaultDSRService : IDSRService
             },
             Left: error =>
             {
-                _logger.DSRRequestFailed(rightType.ToString(), error.Message);
+                _logger.DSRRequestFailed(rightType.ToString(), error.GetCode().IfNone("encina.unknown"));
                 RecordFailure(activity, stopwatch, rightType, error.GetCode().IfNone("encina.unknown"));
 
                 return Left<EncinaError, PortabilityResponse>(error);
@@ -677,7 +677,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetRequest", ex.Message, ex);
+            _logger.DSRServiceError("GetRequest", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("GetRequest", ex);
         }
     }
@@ -698,7 +698,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetRequestsBySubject", ex.Message, ex);
+            _logger.DSRServiceError("GetRequestsBySubject", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("GetRequestsBySubject", ex);
         }
     }
@@ -721,7 +721,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetPendingRequests", ex.Message, ex);
+            _logger.DSRServiceError("GetPendingRequests", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("GetPendingRequests", ex);
         }
     }
@@ -754,7 +754,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetOverdueRequests", ex.Message, ex);
+            _logger.DSRServiceError("GetOverdueRequests", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("GetOverdueRequests", ex);
         }
     }
@@ -800,7 +800,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("HasActiveRestriction", ex.Message, ex);
+            _logger.DSRServiceError("HasActiveRestriction", ex.GetType().Name, ex);
             return DSRErrors.ServiceError("HasActiveRestriction", ex);
         }
     }
@@ -868,6 +868,6 @@ internal sealed class DefaultDSRService : IDSRService
 
         result.Match(
             Right: _ => _logger.NotificationPublished(typeof(TNotification).Name),
-            Left: error => _logger.NotificationPublishFailed(typeof(TNotification).Name, error.Message));
+            Left: error => _logger.NotificationPublishFailed(typeof(TNotification).Name, error.GetCode().IfNone("encina.unknown")));
     }
 }
