@@ -119,8 +119,7 @@ public sealed class ABACHealthCheck : IHealthCheck
 #pragma warning restore CA1031
         {
             return HealthCheckResult.Unhealthy(
-                "Failed to query the Policy Administration Point.",
-                exception: ex);
+                $"Failed to query the Policy Administration Point: {ex.GetType().Name}.");
         }
     }
 

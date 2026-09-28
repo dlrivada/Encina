@@ -171,7 +171,25 @@ public sealed class ABACHealthCheckTests
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Failed to query");
-        result.Exception.ShouldBeOfType<InvalidOperationException>();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_PapThrows_DoesNotLeakExceptionMessage()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, IReadOnlyList<PolicySet>>>(_ =>
+                throw new InvalidOperationException(sentinel));
+
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider());
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Exception.ShouldBeNull();
     }
 
     #endregion
