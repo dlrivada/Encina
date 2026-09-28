@@ -51,6 +51,7 @@ gh issue create --repo dlrivada/Encina --title "[DEBT] <specific title>" --body-
 
 - Link the issue from the PR or document that produced it.
 - Mention every issue opened in the final summary to the maintainer.
+- Score the new issue against the #1552 priority list: `pwsh -NoProfile -File tools/ai/priority/score-issues.ps1 -Issue <n>` (needs a prior `-All` run's `artifacts/priority/scores.json` to rank against; an `[EPIC]` title or a `Post-1.0:` milestone reports its class instead of a rank). Report "rank R of N, total T" with its top two weighted criteria in the summary to the maintainer. Re-run `score-issues.ps1 -All` weekly (or after a milestone/SPEC change) so age and unblocking stay current across the whole list, not just newly opened issues.
 
 ## 5. From a worker's issue file
 
