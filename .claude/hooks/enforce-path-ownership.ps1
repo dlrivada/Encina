@@ -39,6 +39,17 @@
 #                 fabricate a stage's outcome. A successful write records its author in the sidecar
 #                 artifacts/knowledge/stages/.authors.json, which audit-commit-stage.ps1 checks before
 #                 committing.
+#                 test-auditor and audit-verifier also share one more allowance (#1523): both may write under
+#                 artifacts/audit/coverage/** — ephemeral `dotnet test --collect "XPlat Code Coverage"` output,
+#                 git-ignored scratch, never a stage artifact — because test-auditor.md's own Method (step 1)
+#                 tells it to run coverage with `--results-directory <wt>\artifacts\audit\coverage\<flag>`, and
+#                 audit-verifier re-measures the same coverage into its own `verify-<flag>` subdirectories to
+#                 check tests.md's numbers without trusting them. Before #1523 the hook denied this path
+#                 outright for both agents (the single-owner elseif below let through only each agent's own
+#                 stage artifact and, for issue-archivist, the knowledge record), forcing test-auditor to
+#                 improvise a session scratch directory outside the repository during audit #18. No other path
+#                 under artifacts/ gains anything from this exception: it is scoped to these two agents and this
+#                 one prefix, not a broad artifacts/** allowance.
 #   site-steward  (#1382) writes ONLY under artifacts/site-health/** (its own report and the issue/comment
 #                 drafts the site-health skill prepares); everything else in the repository is denied, because
 #                 the agent is read-only on the repository (it never fixes a broken workflow itself: a failing
@@ -294,8 +305,9 @@ try {
         }
         elseif ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer') {
             # A write to its own stage artifact already returned above (the stage-ownership check runs for every
-            # caller before this branch). What is left to allow here is issue-archivist's knowledge record; anything
-            # else under artifacts/knowledge/stages/ that names no pipeline stage (e.g. lessons.md) or that lies
+            # caller before this branch). What is left to allow here is issue-archivist's knowledge record and,
+            # for test-auditor/audit-verifier only, their shared coverage-scratch prefix (#1523); anything else
+            # under artifacts/knowledge/stages/ that names no pipeline stage (e.g. lessons.md) or that lies
             # outside artifacts/knowledge/ entirely is denied for these single-owner roles.
             if ($relative -match '^artifacts/knowledge/issues/[^/]+\.md$') {
                 if ($Agent -ne 'issue-archivist') {
@@ -304,7 +316,14 @@ try {
                 }
                 return $true
             }
-            [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/ and, for issue-archivist, the knowledge record under artifacts/knowledge/issues/; '$relative' is not one of them (#1345). This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
+            # #1523: test-auditor writes `dotnet test` coverage results here (test-auditor.md Method step 1);
+            # audit-verifier re-measures the same coverage into its own verify-<flag> subdirectories to check
+            # tests.md's numbers independently (Method step 5). Git-ignored scratch, not a stage artifact — no
+            # other agent, including the other three single-owner roles above, gains anything from this prefix.
+            if ($Agent -in 'test-auditor', 'audit-verifier' -and $relative -match '^artifacts/audit/coverage/') {
+                return $true
+            }
+            [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/, for issue-archivist the knowledge record under artifacts/knowledge/issues/, and for test-auditor/audit-verifier coverage scratch under artifacts/audit/coverage/ (#1345, #1523); '$relative' is not one of them. This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
             return $false
         }
         elseif ($Agent -eq 'site-steward') {

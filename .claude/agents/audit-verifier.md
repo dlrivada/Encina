@@ -68,7 +68,7 @@ Re-check every claim against its source; do not trust a prior stage's wording.
    (code.md, tests.md, docs.md — via the numbered "N. **Severity** — ..." paragraphs those stages write) appears
    exactly once in `stages/remediation.md`, either as a draft, a "duplicate of #m" line, or an explicit skip
    reason — a finding with none of the three is itself a correction against the remediation stage.
-5. **Coverage measured, not assumed.** Confirm `tests.md` reports an actual measured percentage per applicable flag, not an estimate.
+5. **Coverage measured, not assumed.** Confirm `tests.md` reports an actual measured percentage per applicable flag, not an estimate. Re-run the same `--collect "XPlat Code Coverage"` command tests.md's flag used, with `--results-directory <wt>\artifacts\audit\coverage\verify-<flag>` (your own subdirectory, never test-auditor's), and compare the result against the reported number yourself; a mismatch is a correction against the `tests` stage.
 
 ## Output
 

@@ -646,6 +646,14 @@ $ownershipCases = @(
     @('test-auditor', 'Edit', "$wt\tests\Encina.UnitTests\X.cs", $wt, 2, 'test-auditor: test file is denied'),
     @('audit-verifier', 'Write', "$wt\artifacts\knowledge\stages\verification.md", $wt, 0, 'audit-verifier: its own stage artifact'),
     @('audit-verifier', 'Edit', "$wt\CLAUDE.md", $wt, 2, 'audit-verifier: CLAUDE.md is denied'),
+    # #1523: test-auditor and audit-verifier share one allowance beyond their own stage artifact — coverage
+    # scratch under artifacts/audit/coverage/** (test-auditor.md Method step 1; audit-verifier.md Method step 5).
+    # No other single-owner audit-stage agent gains anything from this prefix, and it stays out of the four
+    # already-covered denials above (a test/source/doc/CLAUDE.md file).
+    @('test-auditor', 'Write', "$wt\artifacts\audit\coverage\unit\x.xml", $wt, 0, 'test-auditor: coverage scratch (#1523)'),
+    @('audit-verifier', 'Write', "$wt\artifacts\audit\coverage\verify-unit\x.xml", $wt, 0, 'audit-verifier: verify- coverage scratch (#1523)'),
+    @('test-auditor', 'Write', "$wt\artifacts\audit\other.txt", $wt, 2, 'test-auditor: artifacts/audit outside coverage/ stays denied (#1523)'),
+    @('issue-auditor', 'Write', "$wt\artifacts\audit\coverage\x.xml", $wt, 2, 'issue-auditor: coverage scratch is not its allowance (#1523)'),
     # #1345 fabrication gap: a stage artifact is written ONLY by the agent pipeline.json assigns to it —
     # never the orchestrator (no -Agent/agent_type at all) and never a different stage's agent.
     @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: the orchestrator writing code.md is denied'),
@@ -1029,6 +1037,12 @@ try {
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #1523: the coverage-scratch allowance is checked through the same Test-PathOwnership path for a shell
+        # write as for a Write/Edit tool call, so redirection into artifacts/audit/coverage behaves the same as
+        # the direct Write case above (allowed for test-auditor/audit-verifier, denied for anyone else).
+        @('test-auditor', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\audit\coverage\unit\shell.xml' -Value 'ok'", 0, 'shell vector (#1523): test-auditor shell write to its own coverage scratch is allowed'),
+        @('audit-verifier', 'Bash', "echo ok > '$wt/artifacts/audit/coverage/verify-unit/shell.xml'", 0, 'shell vector (#1523): audit-verifier shell redirection to its own verify- coverage scratch is allowed'),
+        @('issue-auditor', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\audit\coverage\unit\shell.xml' -Value 'ok'", 2, 'shell vector (#1523): issue-auditor shell write to coverage scratch is denied'),
         # #1466: a direct shell write to the rerun-archivist marker is denied for every caller, the same as the
         # .authors.json sidecar; the sanctioned scripts' own internal writes never appear as a literal
         # Set-Content in the top-level command text, so they are unaffected (next case).
