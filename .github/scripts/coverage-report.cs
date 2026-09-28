@@ -38,6 +38,11 @@ for (int i = 0; i < args.Length; i++)
 var manifest = new Dictionary<string, Dictionary<string, TestType>>(StringComparer.OrdinalIgnoreCase);
 // Per-package per-flag targets from manifest (e.g., { "unit": 85, "guard": 70 })
 var manifestTargets = new Dictionary<string, Dictionary<string, double>>(StringComparer.OrdinalIgnoreCase);
+// Manifest files that failed to parse: the default report mode only warns and moves on (a
+// package simply loses its manifest-driven weighting), but --check-stale-manifest cannot
+// afford that — a JSON error would silently drop that file's keys from the check and let a
+// genuinely stale entry pass undetected.
+var manifestParseFailures = new List<string>();
 
 // Try to find manifest directory
 if (!Directory.Exists(manifestDir))
@@ -98,6 +103,7 @@ if (Directory.Exists(manifestDir))
         catch (Exception ex)
         {
             Console.WriteLine($"  WARNING: Failed to parse manifest {Path.GetFileName(mFile)}: {ex.Message}");
+            manifestParseFailures.Add(Path.GetFileName(mFile));
         }
     }
     Console.WriteLine($"Loaded {manifest.Count} package manifests with {manifest.Values.Sum(p => p.Count)} file entries");
@@ -110,19 +116,27 @@ else
 // ─── Check for stale manifest keys (#1497) ──────────────────────────────────
 // A manifest key is stale when its source file was deleted but the entry was not removed.
 // This reuses exactly the same key → path resolution as BuildDocRefIndex below
-// (src/<Package>/<relPath>, relative to the current directory), so a key considered
-// citable there is never flagged here, and vice versa. Needs no coverage data or build.
+// (src/<Package>/<relPath>), except the base directory: BuildDocRefIndex runs only from the
+// default report mode, which assumes the current directory is the repo root, but this mode
+// is meant to run standalone and early, so it resolves src/ against the repo root derived
+// from the located manifest directory (its parent's parent) instead of the current
+// directory — the same directory independent of the process's cwd. Needs no coverage data
+// or build.
 if (checkStaleManifest)
 {
     // A gate that fails CI when a manifest entry is stale must not pass vacuously when it
     // never actually read a manifest (missing/misspelled --manifest dir, or an empty one):
     // that would hide the real check behind a silent green run. Fail loudly and distinctly
-    // from "found manifests, none stale."
-    if (manifest.Count == 0)
+    // from "found manifests, none stale." A manifest directory whose files all failed to
+    // parse is reported separately below, with the files named, not folded into this case.
+    if (manifest.Count == 0 && manifestParseFailures.Count == 0)
     {
         Console.WriteLine($"\nERROR: no coverage manifest was loaded from '{manifestDir}' (or any ancestor directory). Nothing was checked.");
         Environment.Exit(1);
     }
+
+    var manifestDirFull = Path.GetFullPath(manifestDir);
+    var repoRoot = Directory.GetParent(manifestDirFull)?.Parent?.FullName ?? Directory.GetCurrentDirectory();
 
     var staleKeys = new List<string>();
     foreach (var (package, files) in manifest.OrderBy(kv => kv.Key, StringComparer.Ordinal))
@@ -130,19 +144,31 @@ if (checkStaleManifest)
         foreach (var key in files.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
             var relPath = key.Replace('\\', '/');
-            var sourcePath = $"src/{package}/{relPath}";
+            var sourcePath = Path.Combine(repoRoot, "src", package, relPath);
             if (!File.Exists(sourcePath))
                 staleKeys.Add($"{package}: {relPath}");
         }
     }
 
-    if (staleKeys.Count > 0)
+    var hasParseFailures = manifestParseFailures.Count > 0;
+    var hasStaleKeys = staleKeys.Count > 0;
+
+    if (hasParseFailures)
+    {
+        Console.WriteLine($"\nMANIFEST PARSE FAILURES ({manifestParseFailures.Count}): these files could not be parsed, so their keys were skipped and cannot be vouched for as non-stale");
+        foreach (var failedFile in manifestParseFailures)
+            Console.WriteLine($"  - {failedFile}");
+    }
+
+    if (hasStaleKeys)
     {
         Console.WriteLine($"\nSTALE MANIFEST KEYS ({staleKeys.Count}): the key names a file that does not exist under src/<Package>/");
         foreach (var staleKey in staleKeys)
             Console.WriteLine($"  - {staleKey}");
-        Environment.Exit(1);
     }
+
+    if (hasParseFailures || hasStaleKeys)
+        Environment.Exit(1);
 
     Console.WriteLine("\nNo stale manifest keys found.");
     return;
