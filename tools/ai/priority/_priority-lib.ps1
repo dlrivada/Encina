@@ -176,7 +176,10 @@ function Get-PriorityRankedList {
     for ($i = 0; $i -lt $sorted.Count; $i++) {
         $sorted[$i].Rank = $i + 1
     }
-    return $sorted
+    # PowerShell unwraps a single-element array on return, which would turn a one-issue ranked list
+    # into a bare Hashtable (whose .Count would then count its KEYS, not issues) — Write-Output
+    # -NoEnumerate keeps $sorted an array of exactly $sorted.Count items regardless of that count.
+    Write-Output -NoEnumerate $sorted
 }
 
 function Merge-PriorityOverrides {

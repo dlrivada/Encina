@@ -94,9 +94,10 @@ function Invoke-JudgedScores {
     Set-Content -Path $inputFile -Value $inputText -Encoding utf8
 
     $outFile = Join-Path $modelOutDir "$($IssueRecord.number).json"
+    $ledgerFile = Join-Path $Root 'artifacts/local-ai/ledger.csv'
     $lastError = $null
     for ($attempt = 1; $attempt -le 2; $attempt++) {
-        $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --max-tokens 1024 2>&1
+        $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --ledger $ledgerFile --max-tokens 1024 2>&1
         if ($LASTEXITCODE -ne 0) {
             $lastError = "local-ai-ask.cs exited $LASTEXITCODE`: $log"
             continue
@@ -169,8 +170,8 @@ function New-ScoredEntry {
     return [ordered]@{
         number     = $IssueRecord.number
         title      = $IssueRecord.title
-        milestone  = $IssueRecord.milestone
-        createdAt  = $IssueRecord.createdAt
+        milestone     = $IssueRecord.milestone
+        createdAtUtc  = $IssueRecord.createdAt
         flags      = $flags
         total      = Get-PriorityTotal -Scores $scores
         scores     = $scores
@@ -258,15 +259,17 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         }
     }
 
-    $rankedArr = Get-PriorityRankedList -Items @($ranked)
+    # .ToArray(), not @($ranked): wrapping a List[object] of hashtables with the @() array
+    # subexpression operator throws "Argument types do not match" in this PowerShell version.
+    $rankedArr = Get-PriorityRankedList -Items $ranked.ToArray()
 
     $scoresOut = [ordered]@{
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
         weights        = $script:PriorityWeights
         ranked         = $rankedArr
-        epics          = @($epics)
-        post10         = @($post10)
-        unscored       = @($unscored)
+        epics          = $epics.ToArray()
+        post10         = $post10.ToArray()
+        unscored       = $unscored.ToArray()
     }
     $outDir = Split-Path -Parent $ScoresFile
     if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
@@ -328,13 +331,14 @@ else {
         $unscoredList = New-Object System.Collections.Generic.List[object]
         foreach ($u in @($scoresData.unscored)) { $unscoredList.Add($u) }
         $unscoredList.Add($entry)
-        $scoresData | Add-Member -NotePropertyName unscored -NotePropertyValue @($unscoredList) -Force
+        $scoresData | Add-Member -NotePropertyName unscored -NotePropertyValue $unscoredList.ToArray() -Force
     }
     else {
         $rankedList.Add($entry)
     }
 
-    $rankedArr = Get-PriorityRankedList -Items @($rankedList)
+    # .ToArray(), not @($rankedList): see the -All branch's identical note above.
+    $rankedArr = Get-PriorityRankedList -Items $rankedList.ToArray()
     $scoresOut = [ordered]@{
         generatedAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
         weights        = $script:PriorityWeights
