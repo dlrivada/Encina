@@ -116,7 +116,7 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
             },
             Left: error =>
             {
-                warnings.Add($"Failed to check for overdue requests: {error.Message}");
+                warnings.Add($"Failed to check for overdue requests: {error.GetCode().IfNone("encina.unknown")}");
             });
 
         // 4. Verify personal data locator is resolvable (optional, degraded if missing)

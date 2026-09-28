@@ -155,6 +155,23 @@ public class DataSubjectRightsHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_OverdueCheckError_DoesNotLeakErrorMessage()
+    {
+        SetupOptions(new DataSubjectRightsOptions());
+        SetupDsrService();
+        SetupOptionalServices();
+        const string sentinel = "sensitive-connection-string-sentinel";
+        _dsrService.GetOverdueRequestsAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<DSRRequestReadModel>>(
+                EncinaErrors.Create("store.error", sentinel)));
+
+        var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("store.error");
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_MissingLocator_ReturnsDegraded()
     {
         SetupOptions(new DataSubjectRightsOptions());
