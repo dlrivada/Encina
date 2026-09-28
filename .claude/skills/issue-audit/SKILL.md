@@ -130,6 +130,21 @@ skips the `gh issue list` duplicate search — this is what the automated test s
 model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
 you open any of them.
 
+**Intra-audit deduplication (#1491).** Before drafting, the script groups the audit's OWN findings (from
+`code.md`, `tests.md` and `docs.md` together) by their leading location anchor — `Get-FindingLeadingAnchor`/
+`Group-FindingsByLocation` in `_remediation-checks.ps1`: same file and an overlapping or equal line (or line
+range) is the same group; different lines of the same file are different groups; a finding with no `file:line`
+anchor at all is never grouped. This is what audit #17 needed: docs finding 7 and code finding 4 both cited
+`src/Encina.DomainModeling/AggregateBase.cs:20`, a stale XML doc comment, and got two separate drafted issues
+for the one defect. One draft is written per group, from the group's highest-severity finding
+(`Get-GroupPrimary`: Blocker > Major > Minor > Unknown; ties broken by stage order code/tests/docs); its
+Description names every stage and finding id in the group with a deterministic `Reported by: <stage> <id>, ...`
+line (`Add-ReportedByLine`), never left to the model to remember. Every OTHER member's own line in
+`stages/remediation.md` reads `merged into <stage> <id> (same location)` instead of getting a draft of its own,
+so the verifier still sees every finding accounted for. `-Only "<stage> <n>"` on a merged (non-primary)
+finding regenerates its group's one draft — the primary's — rather than trying (and failing) to draft the
+merged finding on its own.
+
 A `technical_debt.md`-routed draft's `## Type` checkbox is never left to the model: the script ticks it itself,
 deterministically, from the finding's stage and (for a code-stage finding) the classifier's own kind
 (`Get-DeterministicDebtType`/`Set-DebtType` in `_remediation-checks.ps1`) -- a docs-stage finding always ticks

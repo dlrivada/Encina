@@ -843,3 +843,126 @@ function Add-RelatedIssuesLine {
 
     return [pscustomobject]@{ Text = $text; Found = $false }
 }
+
+# #1491: extracts the FIRST file:line citation from a finding's own leading location clause (see
+# Get-LeadingLocationText above) -- the anchor the remediation stage groups findings by, so two stages that
+# flag the SAME defect draft ONE issue instead of two (audit #17 verification pass 2: docs finding 7 and code
+# finding 4 both cited `src/Encina.DomainModeling/AggregateBase.cs:20`, a stale XML doc comment, and got two
+# separate drafted issues for it). Only a citation carrying an explicit line number (or line range) counts: a
+# file named with no line number cannot be judged "the same location" as another citation of that file, so it
+# is treated the same as having no anchor at all -- decision 1's "a finding with no file anchor is never
+# grouped" applies equally to a file anchor with no line. Returns $null when the leading clause has no such
+# citation.
+function Get-FindingLeadingAnchor {
+    param([string]$FindingText)
+
+    $text = if ($null -eq $FindingText) { '' } else { $FindingText }
+    $leadingText = Get-LeadingLocationText $text
+    $m = [regex]::Match($leadingText, $script:RemediationFilePattern)
+    if (-not $m.Success) { return $null }
+    $lineMatch = [regex]::Match($m.Value, ':(?<start>\d+)(-(?<end>\d+))?\s*$')
+    if (-not $lineMatch.Success) { return $null }
+    $full = (($m.Value -split ':')[0]) -replace '\\', '/'
+    $start = [int]$lineMatch.Groups['start'].Value
+    $end = if ($lineMatch.Groups['end'].Success) { [int]$lineMatch.Groups['end'].Value } else { $start }
+    return [pscustomobject]@{ FullPath = $full; StartLine = $start; EndLine = $end }
+}
+
+# #1491 decision 1: same file (case-insensitive) AND overlapping or equal line ranges = the same location;
+# different lines of the same file, or a different file entirely, are different locations. Used only by
+# Group-FindingsByLocation below; a $null anchor (Get-FindingLeadingAnchor found no line-numbered citation)
+# never matches anything.
+function Test-SameLocationAnchor {
+    param([object]$A, [object]$B)
+
+    if ($null -eq $A -or $null -eq $B) { return $false }
+    if (-not [string]::Equals($A.FullPath, $B.FullPath, [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    return ($A.StartLine -le $B.EndLine) -and ($B.StartLine -le $A.EndLine)
+}
+
+# #1491 decision 1: groups the audit's own findings (from Split-Findings, already in stage order
+# code/tests/docs and within-stage order -- the order audit-draft-remediation.ps1 builds $allFindings in) by
+# their leading location anchor. Each finding is compared only against the FIRST finding of each existing
+# candidate group (a group's own anchor never grows to cover a later member's range), so this stays a single,
+# order-stable pass rather than a transitive union-find. A finding with no leading file:line anchor always
+# starts (and stays alone in) its own singleton group -- decision 1's "a finding with no file anchor is never
+# grouped". Returns an ordered list of @{ Anchor; Members (ordered list of the input finding objects) }, in
+# first-appearance order.
+function Group-FindingsByLocation {
+    param([object[]]$Findings)
+
+    $groups = [System.Collections.Generic.List[pscustomobject]]::new()
+    foreach ($f in $Findings) {
+        $anchor = Get-FindingLeadingAnchor $f.Text
+        $matched = $null
+        if ($null -ne $anchor) {
+            foreach ($g in $groups) {
+                if (Test-SameLocationAnchor $g.Anchor $anchor) { $matched = $g; break }
+            }
+        }
+        if ($null -ne $matched) {
+            $matched.Members.Add($f)
+        }
+        else {
+            $newMembers = [System.Collections.Generic.List[pscustomobject]]::new()
+            $newMembers.Add($f)
+            $groups.Add([pscustomobject]@{ Anchor = $anchor; Members = $newMembers })
+        }
+    }
+    return $groups
+}
+
+# #1491 decision 2: the group's PRIMARY finding -- the one whose own text drafts the group's single
+# remediation issue -- is the highest-severity member (Blocker > Major > Minor > Unknown), ties broken by the
+# members' own order (stage order code/tests/docs, then within-stage order, since $Members is given in that
+# order and only a STRICTLY higher rank ever replaces the current best).
+function Get-GroupPrimary {
+    param([object[]]$Members)
+
+    $rank = @{ Blocker = 3; Major = 2; Minor = 1; Unknown = 0 }
+    $best = $null
+    $bestRank = -1
+    foreach ($m in $Members) {
+        $r = if ($rank.ContainsKey($m.Severity)) { $rank[$m.Severity] } else { 0 }
+        if ($r -gt $bestRank) { $bestRank = $r; $best = $m }
+    }
+    return $best
+}
+
+# #1491 decision 2: inserts one "Reported by: <stage> <id>, <stage> <id>, ..." line right after the drafted
+# template's own '## Description' header (every routed template -- bug_report.md, technical_debt.md,
+# test_implementation.md -- has one), so a merged finding's draft names every stage and finding id in its
+# group deterministically -- the same pattern Set-BugEnvironment/Set-DebtType use to overwrite a section after
+# the model replies, rather than trusting the model to remember a brief's own guidance note.
+# audit-draft-remediation.ps1 only calls this when a group has more than one member. Returns the updated text
+# and whether the header was found (never missing for a real draft, but defended rather than thrown, like the
+# other Set-*/Add-* helpers in this file).
+#
+# Adversarial review of #1491: Build-DraftBrief's own $groupNote ALSO asks the model to write a "Reported by:
+# ..." line at the start of the Description section, so a model that follows that instruction leaves one there
+# already. Inserting unconditionally would then duplicate it. This skips past any blank line(s) right after the
+# header and, only when the first non-blank line there already starts with "Reported by:" (case-insensitive),
+# replaces it (and the blank lines before it) with the deterministic line instead of trusting the model's own
+# wording -- never both. When no such line is there, behavior is unchanged: insert after one blank line.
+function Add-ReportedByLine {
+    param([string]$DraftText, [string]$Line)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i].Trim() -eq '## Description') {
+            $newLines = [System.Collections.Generic.List[string]]::new()
+            for ($j = 0; $j -le $i; $j++) { $newLines.Add($lines[$j]) }
+
+            $k = $i + 1
+            while ($k -lt $lines.Count -and [string]::IsNullOrWhiteSpace($lines[$k])) { $k++ }
+            $skipThrough = if ($k -lt $lines.Count -and $lines[$k].Trim() -match '(?i)^Reported by:') { $k } else { $i }
+
+            $newLines.Add('')
+            $newLines.Add($Line)
+            for ($j = $skipThrough + 1; $j -lt $lines.Count; $j++) { $newLines.Add($lines[$j]) }
+            return [pscustomobject]@{ Text = ($newLines -join "`n"); Found = $true }
+        }
+    }
+    return [pscustomobject]@{ Text = $text; Found = $false }
+}

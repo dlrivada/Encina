@@ -182,9 +182,20 @@ function New-Slug([string]$Text) {
     return $slug
 }
 
-function Build-DraftBrief([string]$IssueNumber, [pscustomobject]$Finding, [string]$Kind, [pscustomobject]$Route, [string]$CandidateLines) {
+function Build-DraftBrief([string]$IssueNumber, [pscustomobject]$Finding, [string]$Kind, [pscustomobject]$Route, [string]$CandidateLines, [object[]]$OtherMembers = @()) {
     $templateBody = Get-TemplateBody $Route.Template
     $labelsLine = $Route.Labels -join ', '
+    # #1491 decision 2: when this finding's group has other members (another stage flagged the same location),
+    # tell the model so, even though audit-draft-remediation.ps1's own Add-ReportedByLine call fixes up the
+    # '## Description' section deterministically afterward regardless of what the model writes here -- it
+    # replaces the model's own "Reported by: ..." attempt (if the model wrote one, as asked below) rather than
+    # duplicating it, the same belt-and-suspenders pattern $envNote/$priorityNote below use for a section the
+    # script also repairs.
+    $groupNote = if ($OtherMembers.Count -gt 0) {
+        $otherLabels = ($OtherMembers | ForEach-Object { "$($_.Stage) $($_.Id)" }) -join ', '
+        "`n- This finding was ALSO reported by: $otherLabels (another audit stage flagged the same location). Add a line 'Reported by: $($Finding.Stage) $($Finding.Id), $otherLabels.' at the very start of the Description section."
+    }
+    else { '' }
     $docsNote = if ($Kind -eq 'docs') { "`n- This is a documentation gap: tick only the 'Documentation gap' box in the Type section (leave the other Type boxes unticked)." } else { '' }
     # bug_report.md and test_implementation.md have no Priority/Effort Estimate sections -- only
     # technical_debt.md does; only that template gets this guidance line, so the brief never asks the model to
@@ -225,7 +236,7 @@ $templateBody
 Guidance:
 - Put the finding's file:line evidence in the Location (or Steps to Reproduce) section.
 - Related Issues: include #$IssueNumber and any of these candidate open issues that are related but are NOT
-  the same problem (a same-problem duplicate must never reach this step): $CandidateLines$priorityNote$docsNote$envNote
+  the same problem (a same-problem duplicate must never reach this step): $CandidateLines$priorityNote$docsNote$envNote$groupNote
 "@
 }
 
@@ -277,6 +288,20 @@ foreach ($stageName in $stageNames) {
     }
 }
 
+# #1491: group the audit's own findings by their leading location anchor BEFORE any -Only validation or
+# drafting -- two stages that flag the same defect (same file, overlapping/equal line range) draft ONE issue,
+# never two (audit #17 verification pass 2: docs finding 7 and code finding 4 both cited
+# `src/Encina.DomainModeling/AggregateBase.cs:20`). Computed from the FULL finding set, never only a later
+# -Only subset, so an -Only run always picks the same group and the same primary a full run would.
+# $groupIndexByKey maps every finding's own "stage|id" key to its group's index in $groups; each group's own
+# Primary (the finding whose text drafts the group's issue) is computed once, here.
+$groups = Group-FindingsByLocation $allFindings
+$groupIndexByKey = @{}
+for ($gi = 0; $gi -lt $groups.Count; $gi++) {
+    $groups[$gi] | Add-Member -NotePropertyName Primary -NotePropertyValue (Get-GroupPrimary $groups[$gi].Members)
+    foreach ($m in $groups[$gi].Members) { $groupIndexByKey["$($m.Stage)|$($m.Id)"] = $gi }
+}
+
 $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
 New-Item -ItemType Directory -Force $remediationDir | Out-Null
 
@@ -322,12 +347,39 @@ if ($onlyKeys) {
     }
 }
 
-$findingsToProcess = if ($onlyKeys) { @($allFindings | Where-Object { $onlyKeys.Contains("$($_.Stage)|$($_.Id)") }) } else { $allFindings }
+# #1491 decision 4: -Only resolves each requested key to its GROUP's primary finding -- naming a merged
+# (non-primary) finding regenerates the one draft its group actually produces, rather than trying (and failing)
+# to draft the merged finding on its own. $touchedGroupIndexes is the distinct, first-appearance-ordered set of
+# group indexes any requested key belongs to; a full run (no -Only) touches every group. $touchedMemberKeys is
+# every finding (primary and merged alike) inside a touched group -- this run recomputes ALL of their lines,
+# never only the primaries'. $touchedPrimaryKeys is what -Only's own cleanup below must target: the group's
+# PRIMARY finding's previous outputs, which is what actually gets regenerated, even when the user named a
+# merged sibling instead.
+$touchedGroupIndexes = if ($onlyKeys) {
+    $seenGroupIdx = [System.Collections.Generic.HashSet[int]]::new()
+    $orderedGroupIdx = [System.Collections.Generic.List[int]]::new()
+    foreach ($f in $allFindings) {
+        $key = "$($f.Stage)|$($f.Id)"
+        if ($onlyKeys.Contains($key)) {
+            $gi = $groupIndexByKey[$key]
+            if ($seenGroupIdx.Add($gi)) { $orderedGroupIdx.Add($gi) }
+        }
+    }
+    $orderedGroupIdx
+}
+elseif ($groups.Count -eq 0) { @() }
+else { @(0..($groups.Count - 1)) }
+
+$findingsToProcess = @($touchedGroupIndexes | ForEach-Object { $groups[$_].Primary })
+$touchedMemberKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($gi in $touchedGroupIndexes) { foreach ($m in $groups[$gi].Members) { [void]$touchedMemberKeys.Add("$($m.Stage)|$($m.Id)") } }
+$touchedPrimaryKeys = @($touchedGroupIndexes | ForEach-Object { $p = $groups[$_].Primary; "$($p.Stage)|$($p.Id)" })
 
 if ($onlyKeys) {
-    # -Only regenerates ONLY the named finding(s): remove just their own previous outputs, never another
-    # finding's draft/input/brief/dry-run-preview file, so every other draft on disk stays byte-identical.
-    foreach ($key in $onlyKeys) {
+    # -Only regenerates ONLY the named finding(s)' GROUP -- remove just its primary's own previous outputs,
+    # never another group's draft/input/brief/dry-run-preview file, so every other draft on disk stays
+    # byte-identical.
+    foreach ($key in $touchedPrimaryKeys) {
         $keyParts = $key -split '\|', 2
         $keyStage = $keyParts[0]; $keyId = $keyParts[1]
         # #1492 (adversarial review): every pattern below has a literal separator immediately after $keyId, so
@@ -347,7 +399,7 @@ if ($onlyKeys) {
     $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
     if ($DryRun) {
         New-Item -ItemType Directory -Force $dryRunDir | Out-Null
-        foreach ($key in $onlyKeys) {
+        foreach ($key in $touchedPrimaryKeys) {
             $keyParts = $key -split '\|', 2
             foreach ($staleFile in (Get-ChildItem -LiteralPath $dryRunDir -Filter "$($keyParts[0])-$($keyParts[1])-*.md" -File -ErrorAction SilentlyContinue)) {
                 Remove-Item -LiteralPath $staleFile.FullName -Force
@@ -383,10 +435,25 @@ else {
     }
 }
 
-$lines = [System.Collections.Generic.List[string]]::new()
+$computedLinesByKey = @{}
 $lessons = [System.Collections.Generic.List[string]]::new()
 $placeholderFailures = [System.Collections.Generic.List[string]]::new()
 $ghIssueCache = @{}
+
+# #1491 decision 3: writes $LinesByKey[$PrimaryKey] = $PrimaryLine for the group's primary finding (the one
+# this run actually classified and drafted) and, for every OTHER member of its group, a
+# "merged into <primary stage> <primary id> (same location)" line -- so stages/remediation.md still lists
+# EVERY finding this run touched, never only the primaries, with the merged ones pointing at the draft that
+# covers them instead of getting a second draft of their own.
+function Set-GroupLines {
+    param([hashtable]$LinesByKey, [string]$PrimaryKey, [string]$PrimaryLine, [object[]]$OtherMembers, [string]$PrimaryStage, [string]$PrimaryId)
+
+    $LinesByKey[$PrimaryKey] = $PrimaryLine
+    foreach ($other in $OtherMembers) {
+        $otherLabel = "$($other.Stage) $($other.Id) ($($other.Severity))"
+        $LinesByKey["$($other.Stage)|$($other.Id)"] = "- $otherLabel`: merged into $PrimaryStage $PrimaryId (same location)"
+    }
+}
 
 # A finding Split-Findings could not parse into the expected numbered layout (Severity 'Unknown', the whole
 # section as its Text) is never allowed to pass through silently: the stage's own findings format drifted from
@@ -394,15 +461,22 @@ $ghIssueCache = @{}
 # fix if it goes unnoticed. Flag it as a pipeline lesson so the orchestrator sees it and can decide whether the
 # stage needs re-running with a corrected format, even though it still gets classified and drafted like any
 # other finding below (never dropped).
-# #1492 decision 3: scoped to $findingsToProcess (not $allFindings), so an -Only run never re-adds this lesson
-# for a finding it did not touch this time -- $existingLessonLines below already carries that finding's own
-# earlier copy of it forward untouched.
-foreach ($unknownFinding in ($findingsToProcess | Where-Object { $_.Severity -eq 'Unknown' })) {
+# #1492 decision 3, widened by #1491: scoped to $touchedFindings (every finding -- primary or merged -- of a
+# group this run touched, not just $findingsToProcess's own primaries), so an -Only run never re-adds this
+# lesson for a finding it did not touch this time -- $existingLessonLines below already carries that finding's
+# own earlier copy of it forward untouched.
+$touchedFindings = @($allFindings | Where-Object { $touchedMemberKeys.Contains("$($_.Stage)|$($_.Id)") })
+foreach ($unknownFinding in ($touchedFindings | Where-Object { $_.Severity -eq 'Unknown' })) {
     $lessons.Add("$($unknownFinding.Stage) $($unknownFinding.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
 }
 
 foreach ($finding in $findingsToProcess) {
     $label = "$($finding.Stage) $($finding.Id) ($($finding.Severity))"
+    $findingKey = "$($finding.Stage)|$($finding.Id)"
+    # #1491 decision 2: the finding's own group and its OTHER members (never including itself) -- empty for a
+    # singleton group (a finding no other stage reported at the same location).
+    $group = $groups[$groupIndexByKey[$findingKey]]
+    $otherMembers = @($group.Members | Where-Object { -not ($_.Stage -eq $finding.Stage -and $_.Id -eq $finding.Id) })
     $inputFile = if ($DryRun) { Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-input.md" } else { Join-Path $remediationDir "_input-$n-$($finding.Stage)-$($finding.Id).md" }
     Set-Content -LiteralPath $inputFile -Encoding utf8 -Value $finding.Text
 
@@ -451,8 +525,8 @@ foreach ($finding in $findingsToProcess) {
         $kind = Get-DryRunKind $finding.Stage $finding.Severity
         $route = $routing[$kind]
         $briefFile = Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-brief.md"
-        Set-Content -LiteralPath $briefFile -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines)
-        $lines.Add("- $label`: would route to $kind ($($route.Template))")
+        Set-Content -LiteralPath $briefFile -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: would route to $kind ($($route.Template))" $otherMembers $finding.Stage $finding.Id
         "DRYRUN $label -> $kind ($($route.Template))"
         continue
     }
@@ -560,7 +634,7 @@ $candidateLinesForClassify
     }
 
     if ($duplicateOf) {
-        $lines.Add("- $label`: duplicate of #$duplicateOf")
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: duplicate of #$duplicateOf" $otherMembers $finding.Stage $finding.Id
         "$label -> duplicate of #$duplicateOf"
         continue
     }
@@ -574,7 +648,7 @@ $candidateLinesForClassify
     $slug = New-Slug $finding.Text
     $outFile = Join-Path $remediationDir "$n-$($finding.Stage)-$($finding.Id)-$slug.md"
     $draftBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id).md"
-    Set-Content -LiteralPath $draftBrief -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines)
+    Set-Content -LiteralPath $draftBrief -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
     Push-Location $mainRoot
     try {
         $draftOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$n-$($finding.Stage)-$($finding.Id)" --brief $draftBrief --input $inputFile --out $outFile 2>&1
@@ -597,7 +671,7 @@ $candidateLinesForClassify
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
         Set-Content -LiteralPath $reaskBrief -Encoding utf8 -Value @"
-$(Build-DraftBrief $n $finding $kind $route $candidateLines)
+$(Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
 
 Your previous reply still contained the template's own placeholder text, unchanged, on these lines:
 $offendingLines
@@ -655,48 +729,69 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
         }
     }
 
+    # #1491 decision 2: a merged group's draft names every stage and finding id it covers, deterministically --
+    # never left to the model to remember from the brief's own guidance note ($groupNote in Build-DraftBrief),
+    # the same pattern Set-BugEnvironment/Set-DebtType use for a section the script also overwrites for real.
+    if ($otherMembers.Count -gt 0) {
+        $reportedByLine = 'Reported by: ' + (($group.Members | ForEach-Object { "$($_.Stage) $($_.Id)" }) -join ', ') + '.'
+        $withReportedBy = Add-ReportedByLine (Get-Content -LiteralPath $outFile -Raw) $reportedByLine
+        if ($withReportedBy.Found) {
+            Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $withReportedBy.Text
+        }
+        else {
+            $lessons.Add("$label`: could not find a '## Description' header in $(Split-Path -Leaf $outFile) to insert the group's Reported by line.")
+        }
+    }
+
     if ($placeholders.Count -gt 0) {
         $placeholderFailures.Add((Split-Path -Leaf $outFile))
-        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)")
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)" $otherMembers $finding.Stage $finding.Id
         "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
     }
     elseif ($sanitized.Removed.Count -gt 0) {
         $removedList = ($sanitized.Removed | ForEach-Object { "#$_" }) -join ', '
-        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile) (removed unverified related issue $removedList)")
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) (removed unverified related issue $removedList)" $otherMembers $finding.Stage $finding.Id
         "$label -> $kind draft $(Split-Path -Leaf $outFile) -- removed unverified related issue $removedList"
     }
     else {
-        $lines.Add("- $label`: draft $(Split-Path -Leaf $outFile)")
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile)" $otherMembers $finding.Stage $finding.Id
         "$label -> $kind draft $(Split-Path -Leaf $outFile)"
     }
 }
 
+# #1491/#1492 decision 3: $computedLinesByKey above only ever covers $touchedMemberKeys (every finding -- a
+# processed group's primary AND its merged siblings -- whose line this run computed, keyed by "stage|id", never
+# positional); build the final, ordered $lines from EVERY finding in $allFindings, taking this run's own
+# computed line first and falling back to the previous stages/remediation.md's own line
+# ($existingFindingLines, parsed before the cleanup above, populated only under -Only) for a finding this run
+# never touched -- so a finding untouched by an -Only run keeps its own line byte-for-byte, and stages/
+# remediation.md still lists EVERY finding either way (decision 3's own "the verifier must still see every
+# finding accounted for").
+$lines = [System.Collections.Generic.List[string]]::new()
+foreach ($f in $allFindings) {
+    $lineKey = "$($f.Stage)|$($f.Id)"
+    if ($computedLinesByKey.ContainsKey($lineKey)) { $lines.Add($computedLinesByKey[$lineKey]) }
+    elseif ($existingFindingLines.ContainsKey($lineKey)) { $lines.Add($existingFindingLines[$lineKey]) }
+    else {
+        # Never reached in practice: a full run (no -Only) touches every group, and an -Only run already
+        # validated above that every OTHER finding has an existing line to fall back to.
+        throw "audit-draft-remediation: internal error -- no computed or existing line for '$lineKey'."
+    }
+}
 if ($lines.Count -eq 0) {
     $lines.Add("No findings from the code, tests or docs stages for #$n; no remediation drafts were written.")
 }
 
-# #1492 decision 3: $lines/$lessons above only ever cover $findingsToProcess (one Add call per finding
-# processed this run, in order); under -Only, merge them with every OTHER finding's own line/lesson taken
-# verbatim from the previous stages/remediation.md ($existingFindingLines/$existingLessonLines, parsed before
-# the cleanup above), so a finding this run never touched keeps its own line and lesson(s) byte-for-byte.
 if ($onlyKeys) {
-    $computedLines = @{}
-    for ($idx = 0; $idx -lt $findingsToProcess.Count; $idx++) {
-        $computedLines["$($findingsToProcess[$idx].Stage)|$($findingsToProcess[$idx].Id)"] = $lines[$idx]
-    }
-    $mergedLines = [System.Collections.Generic.List[string]]::new()
-    foreach ($f in $allFindings) {
-        $key = "$($f.Stage)|$($f.Id)"
-        $mergedLine = if ($computedLines.ContainsKey($key)) { $computedLines[$key] } else { $existingFindingLines[$key] }
-        $mergedLines.Add($mergedLine)
-    }
-    $lines = $mergedLines
-
+    # #1491 widens the "belongs to regenerated" test from $onlyKeys (the raw keys the user typed) to
+    # $touchedMemberKeys (every finding of every group this run touched, primary and merged alike) -- a merged
+    # sibling's own OLD lesson (e.g. an earlier "Unknown severity" note) must also be dropped and, if still
+    # applicable, re-added fresh above, not kept twice.
     $keptOldLessons = [System.Collections.Generic.List[string]]::new()
     foreach ($oldLesson in $existingLessonLines) {
         $belongsToRegenerated = $false
-        foreach ($key in $onlyKeys) {
-            $keyParts = $key -split '\|', 2
+        foreach ($touchedKey in $touchedMemberKeys) {
+            $keyParts = $touchedKey -split '\|', 2
             if ($oldLesson -match ('^' + [regex]::Escape($keyParts[0]) + '\s+' + [regex]::Escape($keyParts[1]) + '\b')) {
                 $belongsToRegenerated = $true
                 break
