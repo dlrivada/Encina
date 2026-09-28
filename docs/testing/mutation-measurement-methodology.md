@@ -200,7 +200,7 @@ Examples:
 - `mut:Encina/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs`
 - `mut:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`
 
-Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docref-index.json` alongside `latest.json`). `publish-mutations.yml`'s `publish-data` job stages both under `overlay/mutations/data/`, and its `deploy` job hands that overlay to `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — so the live, authoritative copy ends up at `mutations/data/docref-index.json` on Pages. The copy tracked at `docs/mutations/data/docref-index.json` is only a fallback seed and is not current. Each entry contains:
+Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docref-index.json` alongside `latest.json`). `publish-mutations.yml`'s `publish-data` job stages both under `overlay/mutations/data/` and persists them to the orphan `dashboard-data` branch (`.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations`), and its `deploy` job calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — whose `deploy` job lays that branch over the site, so the live, authoritative copy ends up at `mutations/data/docref-index.json` on Pages. The copy tracked at `docs/mutations/data/docref-index.json` is only a fallback seed and is not current. Each entry contains:
 
 | Field | Meaning |
 |-------|---------|
@@ -244,7 +244,7 @@ This makes documentation drift visible:
 
 ## Recalculation
 
-If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts and as snapshot copies at `mutations/data/{timestamp}.json` on the live Pages site — `publish-mutations.yml`'s `publish-data` job stages them, and `docs.yml`, the only Pages deployer (#1381), publishes them; nothing commits them to `docs/mutations/data/` in the repository).
+If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts; `publish-mutations.yml`'s `publish-data` job also stages a timestamped snapshot alongside `latest.json` before persisting it to the orphan `dashboard-data` branch, but `pages-dashboard-data.ps1 -Mode Persist` prunes earlier timestamped snapshots on every persist, so only the latest `mutations/data/{timestamp}.json` stays live on Pages at any time; nothing commits it to `docs/mutations/data/` in the repository).
 
 The recalculation does NOT re-run Stryker. It re-applies the formulas to the same raw data so that historical numbers in the dashboard stay consistent with the current methodology.
 

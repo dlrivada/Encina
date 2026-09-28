@@ -172,8 +172,8 @@ Because the stability rule forces `N < 10` into the Unstable bucket regardless o
 
 Practical consequences:
 
-- A manual dispatch with `job_type=short` still runs (fast feedback, < 15 min for the full matrix), still archives raw BDN outputs to the `perf-raw` branch, and still uploads artifacts to the workflow run page — but **does not stage anything for the Pages overlay**, so the live `benchmarks/data/latest.json` and `history.json` on Pages (the authoritative copies; the tracked `docs/benchmarks/data/` files are only a fallback seed and are not current) are left untouched.
-- A manual dispatch with `job_type=medium` or `default` (the workflow_dispatch default is now `medium`) stages fresh data and its `deploy` job calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — with that overlay, publishing normally.
+- A manual dispatch with `job_type=short` still runs (fast feedback, < 15 min for the full matrix), still archives raw BDN outputs to the `perf-raw` branch, and still uploads artifacts to the workflow run page — but **does not persist anything to the `dashboard-data` branch**, so the live `benchmarks/data/latest.json` and `history.json` on Pages (the authoritative copies; the tracked `docs/benchmarks/data/` files are only a fallback seed and are not current) are left untouched.
+- A manual dispatch with `job_type=medium` or `default` (the workflow_dispatch default is now `medium`) stages fresh data, persists it to the orphan `dashboard-data` branch (`.github/scripts/pages-dashboard-data.ps1 -Mode Persist`), and its `deploy` job calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — which lays that branch over the site during its `deploy` job, publishing normally.
 - Scheduled Sunday runs use `medium` and publish normally.
 - Pull requests use `short` (fast validation) and are filtered out of `publish-benchmarks.yml` anyway (which only triggers on `branches: [main]`).
 

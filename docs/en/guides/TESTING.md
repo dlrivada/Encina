@@ -63,7 +63,7 @@ The dashboard shows:
 - Coverage trend over time (historical data accumulated in `history.json`, served live on Pages)
 - Interactive sunburst distribution chart
 
-CI does not commit coverage data to `main`. `publish-coverage.yml` computes `latest.json` and `history.json` from each successful CI Full run and stages them as a Pages overlay artifact; its `deploy` job hands that overlay to `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — which lays it over the live dashboard data and deploys the site. The authoritative copies are the ones served live at [dlrivada.github.io/Encina/coverage/data/latest.json](https://dlrivada.github.io/Encina/coverage/data/latest.json) and `.../history.json` (last 100 entries, appended by `.github/scripts/coverage-history.cs`); the copies tracked under `docs/coverage/data/` in the repository are only a fallback seed and are not current.
+CI does not commit coverage data to `main`. `publish-coverage.yml` computes `latest.json` and `history.json` from each successful CI Full run and persists them to the orphan `dashboard-data` branch (`.github/scripts/pages-dashboard-data.ps1 -Mode Persist`); its `deploy` job then calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — whose `deploy` job lays that branch over the live dashboard data, inside the `pages` concurrency lock, and deploys the site. The authoritative copies are the ones served live at [dlrivada.github.io/Encina/coverage/data/latest.json](https://dlrivada.github.io/Encina/coverage/data/latest.json) and `.../history.json` (last 100 entries, appended by `.github/scripts/coverage-history.cs`); the copies tracked under `docs/coverage/data/` in the repository are only a fallback seed and are not current.
 
 ### Manual (local)
 
