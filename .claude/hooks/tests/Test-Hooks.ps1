@@ -2011,6 +2011,79 @@ Test.
     }
     # ---- end #1400 block ----
 
+    # ---- #1535: tools/ai/audit/_remediation-checks.ps1 -- Limit-RelatedIssues no longer leaves a broken list
+    # item when it strips the issue number a Related Issues bullet is ABOUT. Before this fix, removing only the
+    # '#n' token left three distinct broken shapes, all found in audit #18's live drafts: a doubled marker
+    # ('- - [TEST] title', 18-tests-1..4), a dangling colon ('-: [DEBT] title', 18-docs-13/14) and a bare '-'
+    # (18-docs-5). The fix drops the WHOLE bullet line when the removed reference is the bullet's own leading or
+    # sole reference; ordinary prose (the reference is not the first thing after the bullet marker) still gets
+    # only the token stripped, as before. A Related Issues section left with no bullets at all after this gets
+    # "None." under its own header, instead of an empty section.
+
+    # (a) "- #n - title" -> the whole bullet, not "- - title" (18-tests-1..4's own shape).
+    $dashShapeDraft = "## Related Issues`n`n- #18 - [Bug] Scope-vs-singleton lifetime bug`n- #910 - [TEST] Increase coverage for 8 mejorable modules`n"
+    $dashShapeResult = Limit-RelatedIssues $dashShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- #n - title" bullet whose #n is disallowed is dropped whole, not left as "- - title"' {
+        $dashShapeResult.Text -notmatch '(?m)^-\s+-\s'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n - title" case still records 910 as removed' {
+        (@($dashShapeResult.Removed)) -contains '910'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n - title" case keeps the allowed #18 bullet' {
+        $dashShapeResult.Text -match '#18 - \[Bug\] Scope-vs-singleton lifetime bug'
+    }
+
+    # (b) "- #n: title" -> the whole bullet, not "-: title" (18-docs-13/14's own shape).
+    $colonShapeDraft = "## Related Issues`n`n- #18: The original issue documenting the design decision.`n- #1400: [DEBT] Documentation drift found while writing the guide`n"
+    $colonShapeResult = Limit-RelatedIssues $colonShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- #n: title" bullet whose #n is disallowed is dropped whole, not left as "-: title"' {
+        $colonShapeResult.Text -notmatch '(?m)^-:\s'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n: title" case still records 1400 as removed' {
+        (@($colonShapeResult.Removed)) -contains '1400'
+    }
+
+    # (c) a bare "- #n" -> the whole bullet, not a bare "-" (18-docs-5's own shape).
+    $bareShapeDraft = "## Related Issues`n`n- #18`n- #1414`n"
+    $bareShapeResult = Limit-RelatedIssues $bareShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a bare "- #n" bullet whose #n is disallowed is dropped whole, not left as a bare "-"' {
+        $bareShapeResult.Text -notmatch '(?m)^-\s*$'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the bare "- #n" case still records 1414 as removed' {
+        (@($bareShapeResult.Removed)) -contains '1414'
+    }
+
+    # (d) a bold-bullet "- **#n**: title" shape is dropped whole too.
+    $boldShapeDraft = "## Related Issues`n`n- #18 (This issue)`n- **#910**: some unverified title`n"
+    $boldShapeResult = Limit-RelatedIssues $boldShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- **#n**: title" bullet whose #n is disallowed is dropped whole' {
+        $boldShapeResult.Text -notmatch '\*\*910\*\*' -and $boldShapeResult.Text -notmatch '(?m)^-\s*(\*\*)?:\s'
+    }
+
+    # (e) prose (the disallowed reference is not the bullet's own leading token) still keeps only token removal.
+    $proseShapeDraft = "## Additional Context`n`nThis defect is related to #999 in some unrelated way, but the rest of the sentence stays.`n"
+    $proseShapeResult = Limit-RelatedIssues $proseShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a prose reference (not the bullet''s leading token) keeps token-only removal' {
+        $proseShapeResult.Text -match 'This defect is related to in some unrelated way, but the rest of the sentence stays\.'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a prose reference still records the number as removed' {
+        (@($proseShapeResult.Removed)) -contains '999'
+    }
+
+    # (f) every bullet of a Related Issues section stripped -> "None." under the header, header kept.
+    $emptySectionDraft = "## Related Issues`n`n- #910 - [TEST] some unverified title`n- #920: [DEBT] another unverified title`n"
+    $emptySectionResult = Limit-RelatedIssues $emptySectionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a Related Issues section with every bullet stripped gets "None."' {
+        ($emptySectionResult.Text -split "`r?`n") -contains 'None.'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "## Related Issues" header survives when the section is emptied' {
+        $emptySectionResult.Text -match '(?m)^## Related Issues\s*$'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a Related Issues section that still has a kept bullet (#18) never gets "None."' {
+        ($dashShapeResult.Text -split "`r?`n") -notcontains 'None.'
+    }
+    # ---- end #1535 block ----
+
     # ---- #1409: tools/ai/audit/_remediation-checks.ps1 -- Set-BugEnvironment (Get-EncinaVersion,
     # Get-PackageFromFindingText, Test-PlaceholderEnvironmentValue) fills bug_report.md's own '## Environment'
     # section deterministically after the model replies, so a code-stage finding routed to [BUG] never keeps
@@ -2921,6 +2994,24 @@ Two SagaStoreADO test classes duplicate the same setup.
         }
         Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': docs 12 (untouched by this run) still drafts, keeping its own earlier duplicate-override line" {
             @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
+        }
+
+        # (e) #1535: overriding a NON-primary member of the SAME #1491 group (docs 1, merged into code 1 above)
+        # records the WHOLE group as the duplicate too -- not only the primary. Scoped with -Only 'docs 1' (the
+        # non-primary member's own key) and a different target issue (#998) so its own stage line is
+        # distinguishable from run (d)'s #999.
+        $nonPrimaryDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 1' -DuplicateOf 'docs 1=998' 2>&1
+        $nonPrimaryDupExit1534 = $LASTEXITCODE
+        Test-RemediationCase "#1535 -Only 'docs 1' -DuplicateOf 'docs 1=998' (group NON-primary member) exits 0" { $nonPrimaryDupExit1534 -eq 0 }
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998' writes no dry-run brief for docs 1 or its group primary code 1" {
+            (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-1-brief.md'))) -and (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'code-1-brief.md')))
+        }
+        $nonPrimaryDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the non-primary member's own line (docs 1) says duplicate of #998 (manual override)" {
+            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
+        }
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the group PRIMARY's own line (code 1) ALSO says duplicate of #998 (manual override), same as naming the primary directly" {
+            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(Major\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
         }
     }
     else {

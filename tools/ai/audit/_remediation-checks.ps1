@@ -591,6 +591,22 @@ function Limit-RelatedIssues {
         $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
         if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
 
+        # #1535: a list item whose OWN leading/sole reference is a disallowed '#n' -- the bullet is ABOUT that
+        # issue ('- #910 - [TEST] title', '- **#910**: title', '- #910: title', or a bare '- #910' with no
+        # other text) -- is dropped in full, not just token-stripped. Token-only removal (Remove-InlineIssueReference
+        # below) leaves a broken list item for these shapes: '- - [TEST] title' (doubled marker, no link), '-: ...'
+        # (dangling colon) or a bare '-' (audit #18's 18-tests-1..4, 18-docs-13/14 and 18-docs-5). The bullet
+        # marker (with optional bold '**' wrapping the reference) must be immediately followed by the '#n' -- a
+        # reference elsewhere in the bullet's own prose ('- Fixed in #910 for the edge case') is not "about" #910
+        # and keeps the token-only removal below.
+        $bulletMatch = [regex]::Match($line, '^(?<prefix>\s*[-*+]\s+)\*{0,2}#(?<num>\d+)\*{0,2}(?<rest>.*)$')
+        if ($bulletMatch.Success -and -not $allowed.Contains($bulletMatch.Groups['num'].Value)) {
+            foreach ($num in $lineNumbers) {
+                if (-not $allowed.Contains($num)) { $removed.Add($num) }
+            }
+            continue
+        }
+
         $cleaned = $line
         foreach ($num in $lineNumbers) {
             if ($allowed.Contains($num)) { continue }
@@ -598,6 +614,29 @@ function Limit-RelatedIssues {
             $removed.Add($num)
         }
         $newLines.Add($cleaned)
+    }
+
+    # #1535: when every bullet of a '## Related Issues' section was dropped above, leave "None." rather than a
+    # bare header with no content -- an empty section is as broken as a dangling bullet.
+    for ($i = 0; $i -lt $newLines.Count; $i++) {
+        if ($newLines[$i] -notmatch '^##\s*Related Issues\s*$') { continue }
+        $sectionEnd = $newLines.Count
+        for ($j = $i + 1; $j -lt $newLines.Count; $j++) {
+            if ($newLines[$j] -match '^##\s') { $sectionEnd = $j; break }
+        }
+        $hasContent = $false
+        for ($j = $i + 1; $j -lt $sectionEnd; $j++) {
+            if (-not [string]::IsNullOrWhiteSpace($newLines[$j])) { $hasContent = $true; break }
+        }
+        if ($hasContent) { break }
+
+        $rebuilt = [System.Collections.Generic.List[string]]::new()
+        for ($j = 0; $j -le $i; $j++) { $rebuilt.Add($newLines[$j]) }
+        $rebuilt.Add('')
+        $rebuilt.Add('None.')
+        for ($j = $sectionEnd; $j -lt $newLines.Count; $j++) { $rebuilt.Add($newLines[$j]) }
+        $newLines = $rebuilt
+        break
     }
 
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
