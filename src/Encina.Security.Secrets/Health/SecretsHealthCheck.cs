@@ -77,69 +77,21 @@ public sealed class SecretsHealthCheck : IHealthCheck
                     "Missing secrets service: ISecretReader is not registered.");
             }
 
-            var data = new Dictionary<string, object>
-            {
-                ["readerType"] = secretReader.GetType().Name
-            };
-
-            // Report cache status
             var options = scopedProvider.GetService<IOptions<SecretsOptions>>()?.Value;
-            if (options is not null)
-            {
-                data["cachingEnabled"] = options.EnableCaching;
-            }
-
-            // Report failover provider details
-            if (secretReader is FailoverSecretReader failoverReader)
-            {
-                data["failoverProviders"] = failoverReader.ProviderCount;
-            }
-
-            // Report decorator chain (check options, not runtime type,
-            // because auditing/resilience decorators wrap the caching decorator)
-            if (options is { EnableCaching: true })
-            {
-                data["decorators"] = "cached";
-            }
+            var data = BuildBaseData(secretReader, options);
 
             // Report circuit breaker state when resilience is enabled
-            var circuitBreakerState = scopedProvider.GetService<SecretsCircuitBreakerState>();
-            if (circuitBreakerState is not null)
+            var circuitBreakerResult = CheckCircuitBreakerState(scopedProvider, data);
+            if (circuitBreakerResult is not null)
             {
-                data["resilienceEnabled"] = true;
-                data["circuitBreakerState"] = circuitBreakerState.State.ToString();
-
-                if (circuitBreakerState.State == CircuitBreakerStateValue.Opened)
-                {
-                    return HealthCheckResult.Degraded(
-                        "Secrets subsystem is degraded. Circuit breaker is open — provider may be unavailable.",
-                        data: data);
-                }
+                return circuitBreakerResult.Value;
             }
 
             // If a probe secret is configured, attempt to read it
             if (options?.HealthCheckSecretName is { } probeSecretName)
             {
-                var probeResult = await secretReader
-                    .GetSecretAsync(probeSecretName, cancellationToken)
+                return await ProbeSecretAsync(secretReader, probeSecretName, data, cancellationToken)
                     .ConfigureAwait(false);
-
-                return probeResult.Match(
-                    Right: _ =>
-                    {
-                        data["probeResult"] = "success";
-                        return HealthCheckResult.Healthy(
-                            "Secrets subsystem is healthy. Provider probe succeeded.",
-                            data);
-                    },
-                    Left: error =>
-                    {
-                        data["probeResult"] = "failed";
-                        data["probeError"] = error.GetCode().IfNone("encina.unknown");
-                        return HealthCheckResult.Degraded(
-                            $"Secrets subsystem is degraded. Probe secret '{probeSecretName}' could not be retrieved: {error.GetCode().IfNone("encina.unknown")}",
-                            data: data);
-                    });
             }
 
             return HealthCheckResult.Healthy(
@@ -151,5 +103,94 @@ public sealed class SecretsHealthCheck : IHealthCheck
             return HealthCheckResult.Unhealthy(
                 $"Secrets health check failed with exception: {ex.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// Builds the base health-check data from the resolved reader and options, including
+    /// caching, failover and decorator-chain metadata.
+    /// </summary>
+    private static Dictionary<string, object> BuildBaseData(ISecretReader secretReader, SecretsOptions? options)
+    {
+        var data = new Dictionary<string, object>
+        {
+            ["readerType"] = secretReader.GetType().Name
+        };
+
+        if (options is not null)
+        {
+            data["cachingEnabled"] = options.EnableCaching;
+        }
+
+        if (secretReader is FailoverSecretReader failoverReader)
+        {
+            data["failoverProviders"] = failoverReader.ProviderCount;
+        }
+
+        // Report decorator chain (check options, not runtime type,
+        // because auditing/resilience decorators wrap the caching decorator)
+        if (options is { EnableCaching: true })
+        {
+            data["decorators"] = "cached";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Reports the circuit breaker state when resilience is enabled, returning a degraded
+    /// result when the breaker is open; otherwise <see langword="null"/>.
+    /// </summary>
+    private static HealthCheckResult? CheckCircuitBreakerState(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data)
+    {
+        var circuitBreakerState = scopedProvider.GetService<SecretsCircuitBreakerState>();
+        if (circuitBreakerState is null)
+        {
+            return null;
+        }
+
+        data["resilienceEnabled"] = true;
+        data["circuitBreakerState"] = circuitBreakerState.State.ToString();
+
+        if (circuitBreakerState.State == CircuitBreakerStateValue.Opened)
+        {
+            return HealthCheckResult.Degraded(
+                "Secrets subsystem is degraded. Circuit breaker is open — provider may be unavailable.",
+                data: data);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Attempts to read the configured probe secret and reports success or failure.
+    /// </summary>
+    private static async Task<HealthCheckResult> ProbeSecretAsync(
+        ISecretReader secretReader,
+        string probeSecretName,
+        Dictionary<string, object> data,
+        CancellationToken cancellationToken)
+    {
+        var probeResult = await secretReader
+            .GetSecretAsync(probeSecretName, cancellationToken)
+            .ConfigureAwait(false);
+
+        return probeResult.Match(
+            Right: _ =>
+            {
+                data["probeResult"] = "success";
+                return HealthCheckResult.Healthy(
+                    "Secrets subsystem is healthy. Provider probe succeeded.",
+                    data);
+            },
+            Left: error =>
+            {
+                data["probeResult"] = "failed";
+                data["probeError"] = error.GetCode().IfNone("encina.unknown");
+                return HealthCheckResult.Degraded(
+                    $"Secrets subsystem is degraded. Probe secret '{probeSecretName}' could not be retrieved: {error.GetCode().IfNone("encina.unknown")}",
+                    data: data);
+            });
     }
 }

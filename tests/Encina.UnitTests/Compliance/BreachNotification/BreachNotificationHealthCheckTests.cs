@@ -49,6 +49,29 @@ public sealed class BreachNotificationHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WithoutOptions_ShouldReturnUnhealthy()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        // Do NOT call AddLogging() or configure BreachNotificationOptions:
+        // AddLogging() registers the Options infrastructure, which would make
+        // IOptions<BreachNotificationOptions> resolve to a default instance
+        // instead of null.
+
+        var provider = services.BuildServiceProvider();
+        var healthCheck = new BreachNotificationHealthCheck(
+            provider,
+            NullLogger<BreachNotificationHealthCheck>.Instance);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("BreachNotificationOptions");
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_WithoutBreachNotificationService_ShouldReturnUnhealthy()
     {
         // Arrange

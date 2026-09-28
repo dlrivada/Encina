@@ -84,21 +84,7 @@ public sealed class PIIHealthCheck : IHealthCheck
             }
 
             // 2. Verify built-in strategies are resolvable
-            var resolvedStrategies = new List<string>();
-            var missingStrategies = new List<string>();
-
-            foreach (var strategyType in RequiredStrategies)
-            {
-                var strategy = scopedProvider.GetService(strategyType);
-                if (strategy is not null)
-                {
-                    resolvedStrategies.Add(strategyType.Name);
-                }
-                else
-                {
-                    missingStrategies.Add(strategyType.Name);
-                }
-            }
+            var (resolvedStrategies, missingStrategies) = ResolveStrategies(scopedProvider);
 
             if (missingStrategies.Count == RequiredStrategies.Length)
             {
@@ -115,34 +101,68 @@ public sealed class PIIHealthCheck : IHealthCheck
                     $"Masking probe failed: {probeResult.ErrorMessage}"));
             }
 
-            // Build result metadata
-            var data = new Dictionary<string, object>
-            {
-                ["masker"] = masker.GetType().Name,
-                ["strategies_resolved"] = resolvedStrategies.Count,
-                ["strategies_total"] = RequiredStrategies.Length,
-                ["version"] = "1.0"
-            };
-
-            // Degraded if some optional strategies are missing
-            if (missingStrategies.Count > 0)
-            {
-                data["missing_strategies"] = string.Join(", ", missingStrategies);
-
-                return Task.FromResult(HealthCheckResult.Degraded(
-                    $"PII subsystem is operational but {missingStrategies.Count} strategies could not be resolved.",
-                    data: data));
-            }
-
-            return Task.FromResult(HealthCheckResult.Healthy(
-                "PII masking subsystem is healthy. All strategies and masking probes passed.",
-                data));
+            return Task.FromResult(BuildResult(masker, resolvedStrategies, missingStrategies));
         }
         catch (Exception ex)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
                 $"PII health check failed with exception: {ex.GetType().Name}"));
         }
+    }
+
+    /// <summary>
+    /// Resolves the built-in masking strategies from the scoped provider, splitting them into
+    /// resolved and missing.
+    /// </summary>
+    private static (List<string> Resolved, List<string> Missing) ResolveStrategies(IServiceProvider scopedProvider)
+    {
+        var resolvedStrategies = new List<string>();
+        var missingStrategies = new List<string>();
+
+        foreach (var strategyType in RequiredStrategies)
+        {
+            var strategy = scopedProvider.GetService(strategyType);
+            if (strategy is not null)
+            {
+                resolvedStrategies.Add(strategyType.Name);
+            }
+            else
+            {
+                missingStrategies.Add(strategyType.Name);
+            }
+        }
+
+        return (resolvedStrategies, missingStrategies);
+    }
+
+    /// <summary>
+    /// Builds the final result metadata, degrading when some optional strategies are missing.
+    /// </summary>
+    private static HealthCheckResult BuildResult(
+        IPIIMasker masker,
+        List<string> resolvedStrategies,
+        List<string> missingStrategies)
+    {
+        var data = new Dictionary<string, object>
+        {
+            ["masker"] = masker.GetType().Name,
+            ["strategies_resolved"] = resolvedStrategies.Count,
+            ["strategies_total"] = RequiredStrategies.Length,
+            ["version"] = "1.0"
+        };
+
+        if (missingStrategies.Count > 0)
+        {
+            data["missing_strategies"] = string.Join(", ", missingStrategies);
+
+            return HealthCheckResult.Degraded(
+                $"PII subsystem is operational but {missingStrategies.Count} strategies could not be resolved.",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "PII masking subsystem is healthy. All strategies and masking probes passed.",
+            data);
     }
 
     private static (bool Success, string? ErrorMessage) RunMaskingProbe(IPIIMasker masker)

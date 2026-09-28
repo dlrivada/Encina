@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Security.AntiTampering.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -76,89 +78,165 @@ public sealed class AntiTamperingHealthCheck : IHealthCheck
 
             // 2. If test keys are configured, verify at least one key resolves
             var options = scopedProvider.GetService<IOptions<AntiTamperingOptions>>();
-            string? verifiedKeyId = null;
 
-            if (options?.Value.TestKeys.Count > 0)
+            var (verifiedKeyId, keyFailure) = await VerifyTestKeyAsync(options, keyProvider, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (keyFailure is not null)
             {
-                var firstKeyId = options.Value.TestKeys.Keys.First();
-                var keyResult = await keyProvider.GetKeyAsync(firstKeyId, cancellationToken)
-                    .ConfigureAwait(false);
-
-                var keyError = keyResult.MatchUnsafe<string?>(
-                    Right: _ => null,
-                    Left: e => e.GetCode().IfNone("encina.unknown"));
-
-                if (keyError is not null)
-                {
-                    return HealthCheckResult.Unhealthy(
-                        $"Key provider failed to retrieve test key '{firstKeyId}': {keyError}");
-                }
-
-                verifiedKeyId = firstKeyId;
+                return keyFailure.Value;
             }
 
-            // 3. Verify IRequestSigner is resolvable
-            var requestSigner = scopedProvider.GetService<IRequestSigner>();
-
-            if (requestSigner is null)
+            // 3-4. Verify IRequestSigner and INonceStore are resolvable
+            if (!TryResolveRemainingDependencies(scopedProvider, out var requestSigner, out var nonceStore, out var resolveFailure))
             {
-                return HealthCheckResult.Unhealthy(
-                    "Missing anti-tampering service: IRequestSigner is not registered.");
-            }
-
-            // 4. Verify INonceStore is resolvable
-            var nonceStore = scopedProvider.GetService<INonceStore>();
-
-            if (nonceStore is null)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "Missing anti-tampering service: INonceStore is not registered.");
+                return resolveFailure.Value;
             }
 
             // 5. Roundtrip nonce write/read probe
-            var probeNonce = $"health-probe-{Guid.NewGuid():N}";
-            var probeExpiry = TimeSpan.FromSeconds(30);
-
-            var addResult = await nonceStore.TryAddAsync(probeNonce, probeExpiry, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!addResult)
+            var nonceFailure = await ProbeNonceStoreAsync(nonceStore, cancellationToken).ConfigureAwait(false);
+            if (nonceFailure is not null)
             {
-                return HealthCheckResult.Unhealthy(
-                    "Nonce store probe failed: could not add a test nonce.");
-            }
-
-            var existsResult = await nonceStore.ExistsAsync(probeNonce, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!existsResult)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "Nonce store probe failed: added nonce was not found on read.");
+                return nonceFailure.Value;
             }
 
             // All checks passed
-            var data = new Dictionary<string, object>
-            {
-                ["keyProvider"] = keyProvider.GetType().Name,
-                ["requestSigner"] = requestSigner.GetType().Name,
-                ["nonceStore"] = nonceStore.GetType().Name,
-                ["algorithm"] = (options?.Value.Algorithm ?? HMACAlgorithm.SHA256).ToString()
-            };
-
-            if (verifiedKeyId is not null)
-            {
-                data["verifiedKeyId"] = verifiedKeyId;
-            }
-
-            return HealthCheckResult.Healthy(
-                "Anti-tampering subsystem is healthy. All services registered and nonce store operational.",
-                data);
+            return BuildHealthyResult(keyProvider, requestSigner, nonceStore, options, verifiedKeyId);
         }
         catch (Exception ex)
         {
             return HealthCheckResult.Unhealthy(
                 $"Anti-tampering health check failed with exception: {ex.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// When test keys are configured, retrieves the first one to verify the key provider is
+    /// operational.
+    /// </summary>
+    /// <returns>
+    /// The verified key id (or <see langword="null"/> when no test keys are configured), and a
+    /// failure result (or <see langword="null"/> when the probe succeeded or was skipped).
+    /// </returns>
+    private static async Task<(string? VerifiedKeyId, HealthCheckResult? Failure)> VerifyTestKeyAsync(
+        IOptions<AntiTamperingOptions>? options,
+        IKeyProvider keyProvider,
+        CancellationToken cancellationToken)
+    {
+        if (options?.Value.TestKeys.Count is null or 0)
+        {
+            return (null, null);
+        }
+
+        var firstKeyId = options.Value.TestKeys.Keys.First();
+        var keyResult = await keyProvider.GetKeyAsync(firstKeyId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var keyError = keyResult.MatchUnsafe<string?>(
+            Right: _ => null,
+            Left: e => e.GetCode().IfNone("encina.unknown"));
+
+        if (keyError is not null)
+        {
+            return (null, HealthCheckResult.Unhealthy(
+                $"Key provider failed to retrieve test key '{firstKeyId}': {keyError}"));
+        }
+
+        return (firstKeyId, null);
+    }
+
+    /// <summary>
+    /// Resolves <see cref="IRequestSigner"/> and <see cref="INonceStore"/> from the scoped
+    /// provider.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when both dependencies resolved; otherwise <see langword="false"/>,
+    /// with <paramref name="failure"/> set to the result to return.
+    /// </returns>
+    private static bool TryResolveRemainingDependencies(
+        IServiceProvider scopedProvider,
+        [NotNullWhen(true)] out IRequestSigner? requestSigner,
+        [NotNullWhen(true)] out INonceStore? nonceStore,
+        [NotNullWhen(false)] out HealthCheckResult? failure)
+    {
+        requestSigner = scopedProvider.GetService<IRequestSigner>();
+        if (requestSigner is null)
+        {
+            nonceStore = null;
+            failure = HealthCheckResult.Unhealthy(
+                "Missing anti-tampering service: IRequestSigner is not registered.");
+            return false;
+        }
+
+        nonceStore = scopedProvider.GetService<INonceStore>();
+        if (nonceStore is null)
+        {
+            failure = HealthCheckResult.Unhealthy(
+                "Missing anti-tampering service: INonceStore is not registered.");
+            return false;
+        }
+
+        failure = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Builds the final healthy result metadata from the resolved services.
+    /// </summary>
+    private static HealthCheckResult BuildHealthyResult(
+        IKeyProvider keyProvider,
+        IRequestSigner requestSigner,
+        INonceStore nonceStore,
+        IOptions<AntiTamperingOptions>? options,
+        string? verifiedKeyId)
+    {
+        var data = new Dictionary<string, object>
+        {
+            ["keyProvider"] = keyProvider.GetType().Name,
+            ["requestSigner"] = requestSigner.GetType().Name,
+            ["nonceStore"] = nonceStore.GetType().Name,
+            ["algorithm"] = (options?.Value.Algorithm ?? HMACAlgorithm.SHA256).ToString()
+        };
+
+        if (verifiedKeyId is not null)
+        {
+            data["verifiedKeyId"] = verifiedKeyId;
+        }
+
+        return HealthCheckResult.Healthy(
+            "Anti-tampering subsystem is healthy. All services registered and nonce store operational.",
+            data);
+    }
+
+    /// <summary>
+    /// Performs a roundtrip nonce write/read probe, returning a failure result when either
+    /// step does not behave as expected; otherwise <see langword="null"/>.
+    /// </summary>
+    private static async Task<HealthCheckResult?> ProbeNonceStoreAsync(
+        INonceStore nonceStore,
+        CancellationToken cancellationToken)
+    {
+        var probeNonce = $"health-probe-{Guid.NewGuid():N}";
+        var probeExpiry = TimeSpan.FromSeconds(30);
+
+        var addResult = await nonceStore.TryAddAsync(probeNonce, probeExpiry, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!addResult)
+        {
+            return HealthCheckResult.Unhealthy(
+                "Nonce store probe failed: could not add a test nonce.");
+        }
+
+        var existsResult = await nonceStore.ExistsAsync(probeNonce, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!existsResult)
+        {
+            return HealthCheckResult.Unhealthy(
+                "Nonce store probe failed: added nonce was not found on read.");
+        }
+
+        return null;
     }
 }
