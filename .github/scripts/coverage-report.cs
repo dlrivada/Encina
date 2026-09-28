@@ -5,6 +5,7 @@
 //
 // Usage: dotnet run .github/scripts/coverage-report.cs -- [--output <dir>] [--input <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest [--manifest <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest [--manifest <dir>]
 //
 // Requires: .NET 10+ (C# 14 file-based app)
 
@@ -21,6 +22,7 @@ var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
 var manifestDir = ".github/coverage-manifest";
 var checkStaleManifest = false;
+var checkMissingManifest = false;
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -28,6 +30,7 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) manifestDir = args[++i];
     if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
+    if (args[i] == "--check-missing-manifest") checkMissingManifest = true;
 }
 
 // Categories removed — all configuration comes from per-package manifests
@@ -171,6 +174,73 @@ if (checkStaleManifest)
         Environment.Exit(1);
 
     Console.WriteLine("\nNo stale manifest keys found.");
+    return;
+}
+
+// ─── Check for source files missing from the manifest (#1536) ──────────────
+// The mirror of --check-stale-manifest: a src/<Package>/**/*.cs file (excluding obj/, bin/
+// and generated *.g.cs) that has no key in that package's manifest carries no coverage
+// obligation, so it can sit at 0% coverage forever without CI noticing (AGENTS.md §9's
+// per-flag obligations model only checks files the manifest lists). Scoped to packages that
+// have both a src/<Package>/ directory and a manifest — a package with no manifest at all is
+// out of scope for this check (tracked separately, not failed here). Reuses the same
+// manifest-dir-derived repo root as --check-stale-manifest and the same fatal "no manifest
+// loaded" guard, so a missing/misspelled --manifest dir cannot pass this gate vacuously.
+if (checkMissingManifest)
+{
+    if (manifest.Count == 0 && manifestParseFailures.Count == 0)
+    {
+        Console.WriteLine($"\nERROR: no coverage manifest was loaded from '{manifestDir}' (or any ancestor directory). Nothing was checked.");
+        Environment.Exit(1);
+    }
+
+    var manifestDirFull = Path.GetFullPath(manifestDir);
+    var repoRoot = Directory.GetParent(manifestDirFull)?.Parent?.FullName ?? Directory.GetCurrentDirectory();
+
+    var missingFiles = new List<string>();
+    foreach (var package in manifest.Keys.OrderBy(k => k, StringComparer.Ordinal))
+    {
+        var pkgSrcDir = Path.Combine(repoRoot, "src", package);
+        if (!Directory.Exists(pkgSrcDir)) continue;
+
+        var manifestKeys = manifest[package].Keys
+            .Select(k => k.Replace('\\', '/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var srcFiles = Directory.GetFiles(pkgSrcDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                     && !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var srcFile in srcFiles.OrderBy(f => f, StringComparer.Ordinal))
+        {
+            var relPath = Path.GetRelativePath(pkgSrcDir, srcFile).Replace('\\', '/');
+            if (!manifestKeys.Contains(relPath))
+                missingFiles.Add($"{package}: {relPath}");
+        }
+    }
+
+    var hasParseFailures = manifestParseFailures.Count > 0;
+    var hasMissingFiles = missingFiles.Count > 0;
+
+    if (hasParseFailures)
+    {
+        Console.WriteLine($"\nMANIFEST PARSE FAILURES ({manifestParseFailures.Count}): these files could not be parsed, so their package's source files cannot be vouched for as covered by the manifest");
+        foreach (var failedFile in manifestParseFailures)
+            Console.WriteLine($"  - {failedFile}");
+    }
+
+    if (hasMissingFiles)
+    {
+        Console.WriteLine($"\nMISSING MANIFEST ENTRIES ({missingFiles.Count}): the file exists under src/<Package>/ but has no key in the package manifest");
+        foreach (var missing in missingFiles)
+            Console.WriteLine($"  - {missing}");
+    }
+
+    if (hasParseFailures || hasMissingFiles)
+        Environment.Exit(1);
+
+    Console.WriteLine("\nNo missing manifest entries found.");
     return;
 }
 
