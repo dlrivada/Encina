@@ -1461,9 +1461,27 @@ Test.
                 $script:failed++
                 "FAIL audit-commit-stage.ps1: the .rerun-archivist marker leaked into git history or left the worktree dirty (#1457): commits=$(Get-FlatOutput $markerCommits); status=$(Get-FlatOutput $markerStatus)"
             }
+
+            # #1466: the record is unchanged since the commit above, so 'git add -f' has nothing to stage and
+            # 'git commit' fails with "nothing to commit". A marker present at the start of this call (written
+            # here to simulate audit-done.ps1 leaving one for an unrelated reason between two archivist
+            # attempts) must NOT be lost by the ordering bug this issue fixes: the old code removed the marker
+            # unconditionally once the check passed, before ever finding out the commit itself would fail.
+            $noCommitMarkerContent = "knowledge-records --check failed: still broken`n`nUTC: 2026-01-01T01:00:00Z`n"
+            Set-Content -LiteralPath $archivistRerunMarker -Value $noCommitMarkerContent -NoNewline
+            Test-ArchivistCommitCase 'refuses "nothing to commit" when the record is unchanged since the last commit (#1466)' $false 'nothing to commit'
+
+            $script:total++
+            if ((Test-Path -LiteralPath $archivistRerunMarker) -and (Get-Content -LiteralPath $archivistRerunMarker -Raw) -eq $noCommitMarkerContent) {
+                'PASS audit-commit-stage.ps1: a "nothing to commit" archivist commit keeps the .rerun-archivist marker in place, unchanged (#1466)'
+            }
+            else {
+                $script:failed++
+                'FAIL audit-commit-stage.ps1: a "nothing to commit" archivist commit lost or altered the .rerun-archivist marker (#1466)'
+            }
         }
         else {
-            'SKIP audit-commit-stage.ps1: dotnet is not on PATH (#1457 knowledge-records --check cases)'
+            'SKIP audit-commit-stage.ps1: dotnet is not on PATH (#1457/#1466 knowledge-records --check cases)'
         }
 
         # ================================================================================================

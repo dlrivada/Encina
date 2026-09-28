@@ -23,6 +23,15 @@
 # it with no way to fix it (path ownership assigns that file to issue-archivist). A successful archivist
 # commit also clears any artifacts\knowledge\stages\.rerun-archivist marker audit-done.ps1 left behind.
 #
+# #1466: the marker is removed from disk before `git add -f` below (that add is recursive over the whole
+# artifacts\knowledge tree, so a still-present marker would be swept into this very commit -- see the #1457
+# test for that), but the removal is provisional until the commit itself actually succeeds. Its content is
+# held in memory and restored if `git add -f` or `git commit` fails -- including "nothing to commit" (a
+# byte-identical record, e.g. the check now passes but nothing changed since the marker was written) -- so a
+# failed commit never silently loses the marker audit-done.ps1 wrote, which would otherwise strand the audit:
+# audit-stage-guard.ps1 would refuse to re-spawn issue-archivist with no marker to justify it, yet the record
+# still needs another archivist pass.
+#
 # -Lessons commits stages\lessons.md instead of a pipeline.json stage: it is not one of pipeline.json's
 # stages (the orchestrator hand-edits it to resolve each 'Applied: TODO'), so the -Stage path above does not
 # apply to it, and enforce-path-ownership.ps1 blocks a bare `git commit` for every caller inside an open
@@ -114,6 +123,8 @@ if ($expectedAgent -in $knownStageAgents) {
 # is the one place that can catch a non-schema-1 record before it reaches audit-done.ps1 -- which cannot fix
 # it (path ownership assigns that file to issue-archivist) and, before this change, left the audit deadlocked
 # because audit-stage-guard.ps1 also refused to re-spawn issue-archivist once every stage was committed.
+$rerunMarker = Join-Path (Get-StagesDir $wt) '.rerun-archivist'
+$rerunMarkerContent = $null
 if ($Stage -eq 'archivist') {
     $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
     $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
@@ -132,16 +143,26 @@ if ($Stage -eq 'archivist') {
     # because that add is recursive over the whole (gitignored) artifacts\knowledge tree: removing the marker
     # afterward would leave it already committed as part of this stage, with its deletion then unstaged and
     # liable to be folded into whatever OTHER stage's commit runs next (the exact kind of untracked,
-    # misattributed change the .authors.json fabrication-gap check above exists to prevent, #1345).
-    $rerunMarker = Join-Path (Get-StagesDir $wt) '.rerun-archivist'
-    if (Test-Path -LiteralPath $rerunMarker) { Remove-Item -LiteralPath $rerunMarker -Force }
+    # misattributed change the .authors.json fabrication-gap check above exists to prevent, #1345). The
+    # removal is provisional (#1466): its content is kept so it can be restored if the commit below fails.
+    if (Test-Path -LiteralPath $rerunMarker) {
+        $rerunMarkerContent = Get-Content -LiteralPath $rerunMarker -Raw
+        Remove-Item -LiteralPath $rerunMarker -Force
+    }
 }
 
 $addOutput = & git -C $wt add -f 'artifacts/knowledge' 2>&1
-if ($LASTEXITCODE -ne 0) { Write-Error "audit-commit-stage: 'git add -f artifacts/knowledge' failed in $wt.: $addOutput"; exit 1 }
+if ($LASTEXITCODE -ne 0) {
+    if ($null -ne $rerunMarkerContent) { Set-Content -LiteralPath $rerunMarker -Value $rerunMarkerContent -NoNewline }
+    Write-Error "audit-commit-stage: 'git add -f artifacts/knowledge' failed in $wt.: $addOutput"
+    exit 1
+}
 
 $commitOutput = & git -C $wt commit -q -m "audit #$n`: $Stage stage" -m "Stage: $Stage" 2>&1
 if ($LASTEXITCODE -ne 0) {
+    # #1466: "nothing to commit" (a byte-identical record) must not leave the marker missing -- restore it
+    # exactly as audit-done.ps1 wrote it, so a later audit-done.ps1 run and audit-stage-guard.ps1 still see it.
+    if ($null -ne $rerunMarkerContent) { Set-Content -LiteralPath $rerunMarker -Value $rerunMarkerContent -NoNewline }
     Write-Error "audit-commit-stage: nothing to commit for stage '$Stage' in #$n (already committed, or the artifact matches what was last committed); git said: $commitOutput"
     exit 1
 }
