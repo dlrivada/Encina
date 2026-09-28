@@ -3,6 +3,11 @@
 # The only way to close a SPEC-003 audit. Refuses, listing every reason, when:
 #   - any pipeline stage's artifact is missing, or present but not committed with audit-commit-stage.ps1;
 #   - stages/verification.md does not start with the pipeline's verdict line ('Verdict: PASS');
+#   - (#1555) an earlier stage's artifact (archivist, code, tests, docs, remediation) was committed AFTER the
+#     verifier stage's own last commit -- that PASS verdict is stale, because the verifier never inspected the
+#     re-committed content. Detected purely from git history (Get-StaleStageAfterVerification in
+#     _audit-lib.ps1, shared with .claude/hooks/audit-stage-guard.ps1, which is what lets audit-verifier be
+#     re-spawned in that case): no marker file, no new state;
 #   - stages/lessons.md is missing, or still has an unresolved 'Applied: TODO' line;
 #   - the worktree's knowledge-records.cs --check fails against artifacts/knowledge/issues (#1457: this also
 #     writes artifacts/knowledge/stages/.rerun-archivist, letting audit-stage-guard.ps1 allow a re-spawn of
@@ -50,6 +55,14 @@ if (Test-Path -LiteralPath $verificationFile) {
     if ($firstLine -ne $pipeline.verdictLine) {
         $reasons.Add("stages\verification.md does not start with '$($pipeline.verdictLine)' (found: '$firstLine')")
     }
+}
+
+# #1555: a stage re-committed after the verifier's own last commit makes that verdict stale -- the verifier
+# never inspected the new content. Refuse to close until audit-verifier has re-run and produced a fresh verdict.
+$staleStage = Get-StaleStageAfterVerification $wt $pipeline
+if ($staleStage) {
+    $verifierStage = $pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
+    $reasons.Add("stages\$($verifierStage.artifact) is stale: stages\$($staleStage.artifact) (the '$($staleStage.stage)' stage) was committed after the last verification commit; re-run audit-verifier before closing the audit (#1555)")
 }
 
 $lessonsFile = Join-Path $stagesDir 'lessons.md'
