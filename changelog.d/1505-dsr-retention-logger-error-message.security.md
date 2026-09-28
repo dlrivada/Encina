@@ -1,0 +1,3 @@
+- **EncinaError.Message and caught-exception Message no longer leak into logger calls in Encina.Compliance.DataSubjectRights and Encina.Compliance.Retention** (#1505). Prevents the raw error message and exception details from reaching structured logs and observability pipelines.
+
+  The affected call sites in `DefaultDSRService`, `RetentionEnforcementService`, `RetentionValidationPipelineBehavior`, `DefaultLegalHoldService` and related diagnostics previously logged exception messages directly or passed `EncinaError.Message` to logger calls. The fix records only the error code (`error.GetCode().IfNone("encina.unknown")`) or the exception type name (`ex.GetType().Name`), ensuring sensitive data does not reach operational logs, audit trails or observability systems.
