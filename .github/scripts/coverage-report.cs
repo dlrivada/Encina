@@ -114,6 +114,16 @@ else
 // citable there is never flagged here, and vice versa. Needs no coverage data or build.
 if (checkStaleManifest)
 {
+    // A gate that fails CI when a manifest entry is stale must not pass vacuously when it
+    // never actually read a manifest (missing/misspelled --manifest dir, or an empty one):
+    // that would hide the real check behind a silent green run. Fail loudly and distinctly
+    // from "found manifests, none stale."
+    if (manifest.Count == 0)
+    {
+        Console.WriteLine($"\nERROR: no coverage manifest was loaded from '{manifestDir}' (or any ancestor directory). Nothing was checked.");
+        Environment.Exit(1);
+    }
+
     var staleKeys = new List<string>();
     foreach (var (package, files) in manifest.OrderBy(kv => kv.Key, StringComparer.Ordinal))
     {
