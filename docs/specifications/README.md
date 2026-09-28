@@ -13,3 +13,4 @@ Specification-Driven Development artifacts for Encina (see `docs/engineering/AI-
 | [SPEC-001](SPEC-001-coverage-docref-citations.md) | DocRef citations for coverage (#1092) | 🟢 APPROVED (2026-09-22) |
 | [SPEC-002](SPEC-002-eu-regulatory-readiness.md) | EU regulatory readiness (refines SPEC-000 REQ-024) | APPROVED — pending SPEC-000 amendment (AC-040) |
 | [SPEC-003](SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md) | Closed-issue knowledge migration and quality audit | DRAFT (2026-09-24) — DEC-001 … DEC-005 decided; awaiting the pilot amendment (REQ-029) |
+| [SPEC-004](SPEC-004-bounded-wip-stage-pipeline.md) | Bounded-WIP stage pipeline for issue delivery (#1554) | 🟢 APPROVED (2026-09-28) |
