@@ -2,10 +2,11 @@ name: Publish Mutations Data
 
 # Triggered when Mutation Tests completes on main. The publish-data job
 # downloads the Stryker report, computes the dashboard data (latest.json,
-# history.json, docref-index.json) and uploads it as the artifact
-# pages-overlay-mutations. The deploy job then calls docs.yml, the only Pages
-# deployer (#1381), which lays that overlay over the live data of every
-# dashboard, renders the mutref citations and deploys the whole site.
+# history.json, docref-index.json) and commits it to the dashboard-data branch
+# (.github/scripts/pages-dashboard-data.ps1, #1386). The deploy job then calls
+# docs.yml, the only Pages deployer (#1381), which renders the mutref citations
+# and, inside the "pages" lock, lays the data of every dashboard over the site
+# and deploys it.
 #
 # A source run that did not succeed fails this workflow visibly instead of
 # skipping it (#1361).
@@ -31,8 +32,9 @@ jobs:
     name: Compute mutation dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # contents: write is for the dashboard-data branch push only.
     permissions:
-      contents: read
+      contents: write
       actions: read
 
     steps:
@@ -80,8 +82,8 @@ jobs:
         env:
           RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
-          # Only the files this workflow owns go into overlay/mutations/; docs.yml
-          # copies them over the live Pages data of every dashboard.
+          # Only the files this workflow owns go into overlay/mutations/; they are
+          # persisted to the dashboard-data branch, which docs.yml deploys.
           mkdir -p overlay/mutations/data mutation-work
 
           # Find the mutation report JSON
@@ -145,8 +147,8 @@ jobs:
 
           # Guard: do not overwrite the dashboard with an empty report.
           # When --since filters out all mutants, total=0 — leave latest.json and
-          # docref-index.json out of the overlay so docs.yml keeps the live copies,
-          # which hold the last real run's data.
+          # docref-index.json out of the overlay so the dashboard-data branch keeps
+          # the copies of the last real run.
           TOTAL=$(grep -o '"total": *[0-9]*' mutation-work/latest-candidate.json | head -1 | grep -o '[0-9]*' || echo "0")
           if [ "$TOTAL" -gt 0 ]; then
             echo "Mutation data has $TOTAL mutants — updating latest.json + docref-index.json"
@@ -161,13 +163,12 @@ jobs:
           echo "Overlay contents:"
           find overlay -type f | sort
 
-      - name: Upload Pages overlay
-        uses: actions/upload-artifact@v7
-        with:
-          name: pages-overlay-mutations
-          path: overlay/
-          if-no-files-found: error
-          retention-days: 7
+      - name: Persist the overlay to the dashboard-data branch
+        # Committed before the deploy is requested, so a deploy that the
+        # "pages" group cancels, or that fails, loses nothing: the next deploy
+        # of any kind reads the branch inside the lock (#1386).
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations -OverlayRoot overlay
 
   deploy:
     name: Deploy site with fresh mutation data
@@ -177,5 +178,3 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/docs.yml
-    with:
-      overlay-artifact: pages-overlay-mutations

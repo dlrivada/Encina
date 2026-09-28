@@ -10,13 +10,23 @@ name: Documentation
 # This is the ONLY workflow that deploys GitHub Pages (#1381). Pages uses
 # build_type "workflow", so every deploy replaces the whole site. The dashboard
 # publishers (publish-coverage/-mutations/-benchmarks/-load-tests) compute
-# their data, upload it as an artifact named pages-overlay-<domain>, and call
-# this workflow through workflow_call with `overlay-artifact`. The build then:
-#   1. fetches the live data of every dashboard from Pages into _dashboards/,
-#   2. copies the caller's overlay artifact on top (the fresh data wins),
-#   3. renders the covref/mutref/perf citation markers into docs/ from the
-#      staged docref-index files (INV-002: never blocks the deploy),
-#   4. builds Jekyll + DocFX, then copies _dashboards/ into _site/.
+# their data, commit it to the orphan branch `dashboard-data` (the durable
+# record of each dashboard's last published data) and call this workflow
+# through workflow_call. See .github/scripts/pages-dashboard-data.ps1 (#1386).
+#   build-docs (no lock, ~15 minutes):
+#     1. stages the live Pages data and the dashboard-data branch in
+#        _dashboards/, only to render the covref/mutref/perf citation markers
+#        into docs/ (INV-002: rendering never blocks the deploy),
+#     2. builds Jekyll + DocFX, adds the rendered cited-by.json files and
+#        uploads the site, WITHOUT the dashboard data, as the docs-site artifact.
+#   deploy (inside the "pages" concurrency lock):
+#     3. lays the dashboard data over the site: the live Pages copy, then the
+#        dashboard-data branch; any read failure fails the deploy,
+#     4. uploads and deploys the site and smoke-checks it.
+# Reading the data inside the lock means no deploy can revert data another
+# deploy published while this one was building, and a pending deploy that the
+# "pages" group cancels loses nothing: its data is already on the branch and
+# the deploy that superseded it publishes it.
 # Pull requests build the site and never deploy.
 on:
   push:
@@ -43,16 +53,9 @@ on:
       - '.github/scripts/mut-docs-render.cs'
       - '.github/scripts/perf-docs-render.cs'
   workflow_dispatch:
+  # The dashboard publishers call this workflow after committing their data to
+  # the dashboard-data branch; the deploy job reads it from there.
   workflow_call:
-    inputs:
-      overlay-artifact:
-        description: >-
-          Name of an artifact uploaded earlier in the caller's run whose content
-          (laid out as <domain>/...) is copied over the live dashboard data before
-          the site is built. Empty for a plain documentation build.
-        type: string
-        required: false
-        default: ''
 
 # No workflow-level concurrency: the "pages" group lives on the deploy job only,
 # so a publisher calling this workflow cannot deadlock on its own group.
@@ -83,11 +86,11 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Fetch live dashboard data from Pages
-        # Every deploy replaces the whole Pages site, so the dashboard data
-        # (latest.json, history.json, ...) and badges, which are published only
-        # on Pages and never committed to main, are staged here and copied
-        # into _site after the Jekyll build. Gated to the deploy path: pull
-        # requests never deploy, so they skip the network calls.
+        # Staged only for the citation renderers below (docref-index.json) and
+        # for the live cited-by.json a skipped renderer leaves in place. The
+        # dashboard data itself is laid over the site by the deploy job, inside
+        # the "pages" lock (#1386). Gated to the deploy path: pull requests
+        # never deploy, so they skip the network calls.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
@@ -116,22 +119,29 @@ jobs:
             done
           done
 
-      - name: Download dashboard overlay from the caller
-        if: inputs.overlay-artifact != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ inputs.overlay-artifact }}
-          path: _overlay
-
-      - name: Apply dashboard overlay over the live data
-        # The caller's fresh data is authoritative for its own dashboard.
-        if: inputs.overlay-artifact != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      - name: Stage persisted dashboard data for the renderers
+        # The dashboard-data branch is at least as fresh as the live copy (a
+        # publisher commits to it before its deploy), so its docref indexes
+        # win for the citations. INV-002: a problem here only leaves the
+        # citations older; the deploy job re-reads the data and fails loudly.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         shell: bash
         run: |
-          mkdir -p _dashboards
-          cp -R _overlay/. _dashboards/
-          echo "Overlay ${{ inputs.overlay-artifact }} applied:"
-          find _overlay -type f | sort
+          if ! git ls-remote --exit-code --heads origin refs/heads/dashboard-data > /dev/null; then
+            echo "No dashboard-data branch yet; the renderers use the live data"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin +refs/heads/dashboard-data:refs/remotes/origin/dashboard-data
+          mkdir -p _persisted _dashboards
+          git archive refs/remotes/origin/dashboard-data | tar -x -C _persisted
+          for domain in coverage benchmarks load-tests mutations; do
+            if [ -d "_persisted/$domain" ]; then
+              mkdir -p "_dashboards/$domain"
+              cp -R "_persisted/$domain/." "_dashboards/$domain/"
+              echo "  staged persisted $domain data"
+            fi
+          done
 
       - name: Render covref markers in documentation + build cited-by.json
         # INV-002: a rendering problem must never block the Pages deploy.
@@ -230,31 +240,39 @@ jobs:
           echo "API reference merged into _site/api/ ($file_count files at root)"
           ls _site/api/index.html _site/api/favicon.ico
 
-      - name: Copy staged dashboard data into the site
-        # _dashboards/ holds the live Pages data, the caller's overlay and the
-        # cited-by.json files the renderers wrote. It replaces the stale copies
-        # tracked under docs/*/data that Jekyll copied into _site.
+      - name: Copy the rendered cited-by.json files into the site
+        # The build owns cited-by.json (the renderers write it from the docref
+        # indexes, or the live copy stays when a renderer skipped). Every other
+        # dashboard file is laid over the site by the deploy job.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
-          if [ ! -d _dashboards ]; then
-            echo "::error::_dashboards/ is missing; the live dashboard fetch did not run"
-            exit 1
-          fi
-          cp -R _dashboards/. _site/
           for domain in coverage benchmarks load-tests mutations; do
-            echo "$domain/data:"
-            ls -la "_site/$domain/data" 2>/dev/null | tail -n +2 || echo "  (none)"
+            if [ -f "_dashboards/$domain/data/cited-by.json" ]; then
+              mkdir -p "_site/$domain/data"
+              cp -f "_dashboards/$domain/data/cited-by.json" "_site/$domain/data/cited-by.json"
+              echo "  $domain/data/cited-by.json"
+            fi
           done
 
-      - name: Upload Pages artifact
-        # Only upload when we intend to deploy (main branch). Skipping on PR
-        # avoids avoidable failures for forked PRs (where Pages upload is
-        # restricted) and keeps PR validation limited to build correctness.
+      - name: Package the built site
+        # A single tar keeps every file and mode (as upload-pages-artifact
+        # does) and uploads far faster than thousands of loose files.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v5
+        shell: bash
+        run: tar -cf docs-site.tar -C _site .
+
+      - name: Upload the built site for the deploy job
+        # Only upload when we intend to deploy (main branch). Skipping on PR
+        # avoids avoidable failures for forked PRs and keeps PR validation
+        # limited to build correctness.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
         with:
-          path: ./_site
+          name: docs-site
+          path: docs-site.tar
+          if-no-files-found: error
+          retention-days: 1
 
   deploy:
     name: Deploy to GitHub Pages
@@ -270,7 +288,11 @@ jobs:
 
     # Serializes every Pages deploy (docs pushes and the dashboard publishers,
     # which reach this job through workflow_call). Job level, not workflow
-    # level, so a caller never waits on a group it already holds.
+    # level, so a caller never waits on a group it already holds. Everything
+    # that reads the dashboard data happens inside this lock (#1386); a pending
+    # deploy the group cancels loses nothing, because the data it would have
+    # published is on the dashboard-data branch and the deploy that replaced
+    # it reads that branch.
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -280,19 +302,44 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
-
-      - name: Checkout site registry
-        # This job has no other checkout; the smoke check below reads the list of
-        # published sites and data feeds from the registry (#1382) instead of a
-        # hard-coded path list, so a sparse checkout of just that file is enough.
+      - name: Checkout the dashboard-data script and the site registry
+        # The assemble step runs the script and reads the dashboard-data branch
+        # through this checkout's origin; the smoke check reads the list of
+        # published sites and data feeds from the registry (#1382).
         uses: actions/checkout@v7
         with:
           sparse-checkout: |
+            .github/scripts/pages-dashboard-data.ps1
             tools/ai/sites.json
           sparse-checkout-cone-mode: false
+
+      - name: Download the built site
+        uses: actions/download-artifact@v8
+        with:
+          name: docs-site
+          path: _site-artifact
+
+      - name: Unpack the built site
+        shell: bash
+        run: |
+          mkdir -p _site
+          tar -xf _site-artifact/docs-site.tar -C _site
+
+      - name: Lay the current dashboard data over the site
+        # Inside the lock: the live Pages data of every dashboard, then the
+        # dashboard-data branch on top. A failed read fails the deploy; the
+        # committed docs/*/data copies are never published in their place.
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
       - name: Smoke-check the published site
         # Fails the deploy when a registered site is not rendered as expected (a

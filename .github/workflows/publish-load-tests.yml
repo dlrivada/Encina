@@ -4,10 +4,10 @@ name: Publish Load Tests Data
 # downloads all load-test artifacts (console harness + NBomber scenarios), runs
 # perf-report.cs --kind load-tests to produce a unified snapshot, archives raw
 # data to perf-raw, computes the dashboard data (latest.json, history.json,
-# docref-index.json) and uploads it as the artifact pages-overlay-load-tests.
-# The deploy job then calls docs.yml, the only Pages deployer (#1381), which
-# lays that overlay over the live data of every dashboard and deploys the
-# whole site.
+# docref-index.json) and commits it to the dashboard-data branch
+# (.github/scripts/pages-dashboard-data.ps1, #1386). The deploy job then calls
+# docs.yml, the only Pages deployer (#1381), which, inside the "pages" lock,
+# lays the data of every dashboard over the site and deploys it.
 #
 # A source run that did not succeed fails this workflow visibly instead of
 # skipping it (#1361).
@@ -33,7 +33,7 @@ jobs:
     name: Compute load-test dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # contents: write is for the perf-raw archive push only.
+    # contents: write is for the perf-raw archive and dashboard-data pushes only.
     permissions:
       contents: write
       actions: read
@@ -144,8 +144,8 @@ jobs:
 
       - name: Stage fresh load-test data in the Pages overlay
         run: |
-          # Only the files this workflow owns go into overlay/load-tests/; docs.yml
-          # copies them over the live Pages data of every dashboard.
+          # Only the files this workflow owns go into overlay/load-tests/; they are
+          # persisted to the dashboard-data branch, which docs.yml deploys.
           mkdir -p overlay/load-tests/data
           cp -f artifacts/perf-output/latest.json overlay/load-tests/data/latest.json
           cp -f artifacts/perf-output/docref-index.json overlay/load-tests/data/docref-index.json 2>/dev/null || true
@@ -223,13 +223,12 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Upload Pages overlay
-        uses: actions/upload-artifact@v7
-        with:
-          name: pages-overlay-load-tests
-          path: overlay/
-          if-no-files-found: error
-          retention-days: 7
+      - name: Persist the overlay to the dashboard-data branch
+        # Committed before the deploy is requested, so a deploy that the
+        # "pages" group cancels, or that fails, loses nothing: the next deploy
+        # of any kind reads the branch inside the lock (#1386).
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain load-tests -OverlayRoot overlay
 
   deploy:
     name: Deploy site with fresh load-test data
@@ -239,5 +238,3 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/docs.yml
-    with:
-      overlay-artifact: pages-overlay-load-tests
