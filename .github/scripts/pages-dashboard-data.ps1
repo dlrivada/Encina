@@ -230,7 +230,7 @@ function Invoke-Persist {
                     Write-Host
                 return
             }
-            Write-Host "Push attempt $attempt of $maxAttempts was rejected (another publisher moved $Branch?): $($push.Output -join ' ')"
+            Write-Host "Push attempt $attempt of $maxAttempts was rejected (another publisher moved ${Branch}?):$($push.Output -join ' ')"
         }
         finally {
             Remove-Item -LiteralPath $tree -Recurse -Force -ErrorAction SilentlyContinue
