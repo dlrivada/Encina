@@ -2,6 +2,7 @@ using Encina.Caching;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Health;
+using Encina.Security.Secrets.Resilience;
 using LanguageExt;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -247,6 +248,52 @@ public sealed class SecretsHealthCheckTests
 
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data.ShouldNotContainKey("probeResult");
+    }
+
+    #endregion
+
+    #region Circuit Breaker
+
+    [Fact]
+    public async Task CheckHealthAsync_CircuitBreakerOpened_ReturnsDegraded()
+    {
+        var circuitBreakerState = new SecretsCircuitBreakerState();
+        circuitBreakerState.SetOpened();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(circuitBreakerState);
+        services.AddEncinaSecrets(o => o.EnableCaching = false);
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new SecretsHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
+
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("Circuit breaker is open");
+        result.Data!.ShouldContainKey("circuitBreakerState");
+        result.Data!["circuitBreakerState"].ShouldBe(nameof(CircuitBreakerStateValue.Opened));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_CircuitBreakerClosed_ReportsResilienceEnabled()
+    {
+        var circuitBreakerState = new SecretsCircuitBreakerState();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(circuitBreakerState);
+        services.AddEncinaSecrets(o => o.EnableCaching = false);
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new SecretsHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data.ShouldContainKey("resilienceEnabled");
+        result.Data["resilienceEnabled"].ShouldBe(true);
     }
 
     #endregion
