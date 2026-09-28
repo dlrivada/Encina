@@ -2132,6 +2132,20 @@ Test.
     Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the plain-line region case keeps the allowed #18 bullet' {
         $plainRegionResult.Text -match '#18 \(This issue\)'
     }
+
+    # (j) second review round of #1550 (MAJOR, still concrete): the field-region extension must stop as soon as
+    # a following bullet is LESS indented than the field's own list -- a real, unrelated prose bullet that
+    # happens to follow the bold-bullet field's indented sub-bullets, with no separating heading, must NOT be
+    # swallowed into the region and whole-line-dropped. Reproduced exactly as the review found it: an indented
+    # sub-bullet ("  - #18") establishes the list's own indentation, then an unindented bullet follows directly.
+    $overExtensionDraft = "## Additional Context`n`n- **Related Issues**:`n  - #18 (This issue)`n- #1502 already reported this exact behavior in a similar library upgrade discussion`n"
+    $overExtensionResult = Limit-RelatedIssues $overExtensionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a less-indented bullet following the bold-bullet field''s own indented sub-bullets is OUTSIDE the region and keeps its content' {
+        $overExtensionResult.Text -match '(?m)^-\s+already reported this exact behavior in a similar library upgrade discussion\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the over-extension case still records 1502 as removed and keeps the indented #18 sub-bullet' {
+        (@($overExtensionResult.Removed)) -contains '1502' -and $overExtensionResult.Text -match '  - #18 \(This issue\)'
+    }
     # ---- end #1535 block ----
 
     # ---- #1409: tools/ai/audit/_remediation-checks.ps1 -- Set-BugEnvironment (Get-EncinaVersion,

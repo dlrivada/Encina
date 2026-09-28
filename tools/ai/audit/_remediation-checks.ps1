@@ -577,18 +577,29 @@ function Limit-RelatedIssues {
         foreach ($m in [regex]::Matches($noteLine, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
     }
 
-    # #1550 review (PR #1550, MAJOR): the whole-bullet drop below must fire ONLY inside an actual Related Issues
-    # region -- Limit-RelatedIssues scans the WHOLE draft body on purpose (#1492 decision 2), and a prose bullet
-    # elsewhere (Additional Context, Root Cause, Proposed Fix) that merely starts with a disallowed reference,
-    # e.g. "- #1502 already fixed a similar regex escape issue; apply the same pattern here." or
-    # "- **#1330** -- similar pattern.", is supporting evidence, not a Related Issues list item; dropping it
-    # whole would silently delete real content the model wrote elsewhere in the draft. Recognizes exactly the
-    # three conventions Add-RelatedIssuesLine already does, reusing its own three regexes rather than inventing
-    # a fourth: the '## Related Issues' H2 (region = every line until the next '##' heading), the
-    # '- **Related Issues**:' bold-bullet field, and the plain 'Related Issues:' line (both fields' own region =
-    # their immediately following bullet/blank lines, stopping at the first non-bullet, non-blank line or any
-    # heading -- #1400's own adversarial-review case of unindented sibling bullets under the bold-bullet form is
-    # still a bullet line, so it stays in-region).
+    # #1550 review (PR #1550, MAJOR, and its own second review round): the whole-bullet drop below must fire ONLY
+    # inside an actual Related Issues region -- Limit-RelatedIssues scans the WHOLE draft body on purpose (#1492
+    # decision 2), and a prose bullet elsewhere (Additional Context, Root Cause, Proposed Fix) that merely starts
+    # with a disallowed reference, e.g. "- #1502 already fixed a similar regex escape issue; apply the same
+    # pattern here." or "- **#1330** -- similar pattern.", is supporting evidence, not a Related Issues list item;
+    # dropping it whole would silently delete real content the model wrote elsewhere in the draft. Recognizes
+    # exactly the three conventions Add-RelatedIssuesLine already does, reusing its own three regexes rather than
+    # inventing a fourth: the '## Related Issues' H2 (region = every line until the next '##' heading), the
+    # '- **Related Issues**:' bold-bullet field, and the plain 'Related Issues:' line.
+    #
+    # The two field conventions' own region is bounded by INDENTATION, not merely "any following bullet line",
+    # because the second review round of #1550 found the first version's looser rule (any contiguous run of
+    # bullet/blank lines) still swallowed a real, unrelated prose bullet that happened to follow the field's own
+    # sub-bullets with no separating heading: '- **Related Issues**:\n  - #18 (This issue)\n- #1502 already
+    # reported this...' lost the whole '#1502' sentence, because nothing distinguished it from a legitimate
+    # sibling bullet of the field. The FIRST bullet line under the field header establishes the list's own
+    # indentation; the region then extends through every following bullet (or blank) line whose indentation is at
+    # least that much, and stops as soon as one is LESS indented (a sibling bullet of some OTHER field, back at
+    # the header's own level) -- covering both real shapes seen: an indented sub-bullet list (the real 16-code-5
+    # draft's own two-space-indented sub-bullets) and #1400's own adversarial-review case of unindented sibling
+    # bullets at the SAME level as the header (indentation 0 throughout, so the "at least" rule still keeps every
+    # one of them in-region), while a bullet at a genuinely LOWER indentation than the field's own list is no
+    # longer assumed to belong to it.
     $inRelatedRegion = [bool[]]::new($lines.Count)
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if ($lines[$i] -match '^##\s*Related Issues\s*$') {
@@ -598,10 +609,15 @@ function Limit-RelatedIssues {
         $isFieldHeader = ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') -or
             ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$')
         if (-not $isFieldHeader) { continue }
+        $listIndent = -1
         for ($j = $i + 1; $j -lt $lines.Count; $j++) {
             if ($lines[$j] -match '^#{1,6}\s') { break }
             if ([string]::IsNullOrWhiteSpace($lines[$j])) { $inRelatedRegion[$j] = $true; continue }
-            if ($lines[$j] -notmatch '^\s*[-*+]\s') { break }
+            $bulletIndentMatch = [regex]::Match($lines[$j], '^(?<indent>\s*)[-*+]\s')
+            if (-not $bulletIndentMatch.Success) { break }
+            $bulletIndent = $bulletIndentMatch.Groups['indent'].Value.Length
+            if ($listIndent -lt 0) { $listIndent = $bulletIndent }
+            elseif ($bulletIndent -lt $listIndent) { break }
             $inRelatedRegion[$j] = $true
         }
     }
