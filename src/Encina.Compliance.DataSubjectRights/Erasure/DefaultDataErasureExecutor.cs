@@ -126,7 +126,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
             },
             Left: error =>
             {
-                _logger.ErasureFailed(error.Message);
+                _logger.ErasureFailed(error.GetCode().IfNone("encina.unknown"));
 
                 stopwatch.Stop();
                 DataSubjectRightsDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
@@ -163,7 +163,7 @@ public sealed class DefaultDataErasureExecutor : IDataErasureExecutor
                 Left: error =>
                 {
                     failed++;
-                    _logger.ErasureFieldFailed(location.FieldName, location.EntityType.Name, error.Message);
+                    _logger.ErasureFieldFailed(location.FieldName, location.EntityType.Name, error.GetCode().IfNone("encina.unknown"));
                 });
         }
 

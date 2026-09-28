@@ -85,8 +85,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8322,
         Level = LogLevel.Warning,
-        Message = "DSR request failed. RightType={RightType}, Reason={Reason}")]
-    internal static partial void DSRRequestFailed(this ILogger logger, string rightType, string reason);
+        Message = "DSR request failed. RightType={RightType}, ErrorCode={ErrorCode}")]
+    internal static partial void DSRRequestFailed(this ILogger logger, string rightType, string errorCode);
 
     // ========================================================================
     // Access (8323-8324)
@@ -103,8 +103,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8324,
         Level = LogLevel.Warning,
-        Message = "Failed to retrieve processing activities for access response. ErrorMessage={ErrorMessage}")]
-    internal static partial void AccessProcessingActivitiesFailed(this ILogger logger, string errorMessage);
+        Message = "Failed to retrieve processing activities for access response. ErrorCode={ErrorCode}")]
+    internal static partial void AccessProcessingActivitiesFailed(this ILogger logger, string errorCode);
 
     // ========================================================================
     // Erasure (8325-8329)
@@ -128,8 +128,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8327,
         Level = LogLevel.Warning,
-        Message = "Erasure failed. Reason={Reason}")]
-    internal static partial void ErasureFailed(this ILogger logger, string reason);
+        Message = "Erasure failed. ErrorCode={ErrorCode}")]
+    internal static partial void ErasureFailed(this ILogger logger, string errorCode);
 
     /// <summary>Individual field erased successfully.</summary>
     /// <remarks>
@@ -152,8 +152,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8329,
         Level = LogLevel.Warning,
-        Message = "Field erasure failed. FieldName={FieldName}, EntityType={EntityType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void ErasureFieldFailed(this ILogger logger, string fieldName, string entityType, string errorMessage);
+        Message = "Field erasure failed. FieldName={FieldName}, EntityType={EntityType}, ErrorCode={ErrorCode}")]
+    internal static partial void ErasureFieldFailed(this ILogger logger, string fieldName, string entityType, string errorCode);
 
     // ========================================================================
     // Portability (8330-8333)
@@ -177,8 +177,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8332,
         Level = LogLevel.Warning,
-        Message = "Portability export failed. Format={Format}, Reason={Reason}")]
-    internal static partial void PortabilityExportFailed(this ILogger logger, string format, string reason);
+        Message = "Portability export failed. Format={Format}, ErrorCode={ErrorCode}")]
+    internal static partial void PortabilityExportFailed(this ILogger logger, string format, string errorCode);
 
     /// <summary>Requested export format is not supported.</summary>
     [LoggerMessage(
@@ -274,8 +274,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8343,
         Level = LogLevel.Warning,
-        Message = "Notification publish failed. NotificationType={NotificationType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void NotificationPublishFailed(this ILogger logger, string notificationType, string errorMessage);
+        Message = "Notification publish failed. NotificationType={NotificationType}, ErrorCode={ErrorCode}")]
+    internal static partial void NotificationPublishFailed(this ILogger logger, string notificationType, string errorCode);
 
     // ========================================================================
     // Event store / audit (8344-8345)
@@ -303,8 +303,8 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8346,
         Level = LogLevel.Warning,
-        Message = "Restriction check service error — proceeding without check. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RestrictionCheckStoreError(this ILogger logger, string requestType, string errorMessage);
+        Message = "Restriction check service error — proceeding without check. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void RestrictionCheckStoreError(this ILogger logger, string requestType, string errorCode);
 
     // ========================================================================
     // Service-level errors (8347-8349)
@@ -314,15 +314,15 @@ internal static partial class DSRLogMessages
     [LoggerMessage(
         EventId = 8347,
         Level = LogLevel.Error,
-        Message = "DSR service operation failed. Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void DSRServiceError(this ILogger logger, string operation, string errorMessage, Exception? exception = null);
+        Message = "DSR service operation failed. Operation={Operation}, ExceptionType={ExceptionType}")]
+    internal static partial void DSRServiceError(this ILogger logger, string operation, string exceptionType, Exception? exception = null);
 
     /// <summary>DSR aggregate invalid state transition.</summary>
     [LoggerMessage(
         EventId = 8348,
         Level = LogLevel.Warning,
-        Message = "DSR aggregate invalid state transition. RequestId={RequestId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void DSRInvalidStateTransition(this ILogger logger, string requestId, string operation, string errorMessage);
+        Message = "DSR aggregate invalid state transition. RequestId={RequestId}, Operation={Operation}, ExceptionType={ExceptionType}")]
+    internal static partial void DSRInvalidStateTransition(this ILogger logger, string requestId, string operation, string exceptionType);
 
     /// <summary>
     /// Subject ID of a [RestrictProcessing] request could not be resolved — the restriction check
