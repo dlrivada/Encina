@@ -97,17 +97,26 @@ function Invoke-JudgedScores {
     $ledgerFile = Join-Path $Root 'artifacts/local-ai/ledger.csv'
     $lastError = $null
     for ($attempt = 1; $attempt -le 2; $attempt++) {
-        $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --ledger $ledgerFile --max-tokens 1024 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $lastError = "local-ai-ask.cs exited $LASTEXITCODE`: $log"
-            continue
+        # Any exception in this per-issue read/parse path (the model call, Get-Content on its
+        # output, or JSON parsing) must not abort the whole -All batch: caught here, it is treated
+        # exactly like an invalid reply — retried once, then the issue is marked unscored with the
+        # error while the batch continues to the next issue.
+        try {
+            $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --ledger $ledgerFile --max-tokens 1024 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $lastError = "local-ai-ask.cs exited $LASTEXITCODE`: $log"
+                continue
+            }
+            $raw = Get-Content $outFile -Raw
+            $parsed = ConvertFrom-PriorityModelJson -Text $raw
+            if (Test-PriorityModelScores -Parsed $parsed) {
+                return @{ Parsed = $parsed; Error = $null }
+            }
+            $lastError = "invalid or incomplete JSON from the model (attempt $attempt): $($raw.Substring(0, [Math]::Min(200, $raw.Length)))"
         }
-        $raw = Get-Content $outFile -Raw
-        $parsed = ConvertFrom-PriorityModelJson -Text $raw
-        if (Test-PriorityModelScores -Parsed $parsed) {
-            return @{ Parsed = $parsed; Error = $null }
+        catch {
+            $lastError = "exception in the per-issue model read/parse path (attempt $attempt): $($_.Exception.Message)"
         }
-        $lastError = "invalid or incomplete JSON from the model (attempt $attempt): $($raw.Substring(0, [Math]::Min(200, $raw.Length)))"
     }
     return @{ Parsed = $null; Error = $lastError }
 }
@@ -248,7 +257,23 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
             Write-Output "issue #$num`: resumed (unchanged)"
             continue
         }
-        $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides
+        # New-ScoredEntry already turns a bad model reply into an 'unscored' entry (see
+        # Invoke-JudgedScores above); this catches anything else in the per-issue path (a
+        # deterministic-score helper throwing on an unexpected value, disk I/O, ...) so one bad
+        # issue never aborts the rest of the -All batch.
+        try {
+            $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides
+        }
+        catch {
+            $entry = [ordered]@{
+                number    = $num
+                title     = $i.title
+                milestone = $i.milestone
+                flags     = @()
+                error     = "unhandled exception scoring this issue: $($_.Exception.Message)"
+                unscored  = $true
+            }
+        }
         if ($entry.unscored) {
             $unscored.Add($entry)
             Write-Output "issue #$num`: UNSCORED ($($entry.error))"

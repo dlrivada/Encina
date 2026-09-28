@@ -94,6 +94,19 @@ Assert-Equal '700' ($targets2 -join ',') 'dependencies: a self-reference is neve
 $noDeps = Get-PriorityDependencyTargets -Body '' -SelfNumber 1
 Assert-Equal 0 $noDeps.Count 'dependencies: empty body yields no targets'
 
+$partOfBody = 'This feature is part of epic #123 and also part of #456.'
+$targets3 = Get-PriorityDependencyTargets -Body $partOfBody -SelfNumber 999
+Assert-Equal '123,456' ($targets3 -join ',') 'dependencies: "part of epic #n" and "part of #n" are both counted'
+
+$multiNumberBody = 'Blocked by #100, #101 and #102. See #200 elsewhere.'
+$targets4 = Get-PriorityDependencyTargets -Body $multiNumberBody -SelfNumber 999
+Assert-Equal '100,101,102' ($targets4 -join ',') 'dependencies: every #n in the same clause after one keyword is counted, capped at the sentence end'
+Assert-True (-not ($targets4 -contains 200)) 'dependencies: an unrelated later mention (see #200) in the next sentence is not swept into the earlier clause'
+
+$multiLineBody = "Requires #700`nSee #800 on the next line."
+$targets5 = Get-PriorityDependencyTargets -Body $multiLineBody -SelfNumber 999
+Assert-Equal '700' ($targets5 -join ',') 'dependencies: a clause also stops at a newline, not just a period'
+
 Assert-Equal 0 (Get-PriorityUnblockingScore -DependentCount 0) 'unblocking: 0 dependents scores 0'
 Assert-Equal 50 (Get-PriorityUnblockingScore -DependentCount 2) 'unblocking: 2 dependents scores 50'
 Assert-Equal 100 (Get-PriorityUnblockingScore -DependentCount 4) 'unblocking: 4 dependents scores 100 (cap boundary)'

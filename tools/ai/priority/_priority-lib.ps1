@@ -32,9 +32,10 @@ $script:PriorityMilestoneFit = [ordered]@{
 }
 $script:PriorityMilestoneFitDefault = 40
 
-# Keywords that mark a dependency reference (#1552 decision 1); "see #n" is deliberately not one
-# of these, so a mere mention is never counted.
-$script:PriorityDependencyKeywords = @('blocked by', 'depends on', 'requires', 'after', 'needs')
+# Keywords that mark a dependency reference (#1552 decision 1 and its Proposed Solution table,
+# which names "blocked by, depends on, part of epic"); "see #n" is deliberately not one of these,
+# so a mere mention is never counted. "part of" also covers "part of #n" (not only "part of epic").
+$script:PriorityDependencyKeywords = @('blocked by', 'depends on', 'requires', 'after', 'needs', 'part of')
 
 function Get-PriorityAgeScore {
     <#
@@ -129,8 +130,11 @@ function Get-PriorityDependencyTargets {
     <#
         .SYNOPSIS
         Distinct issue numbers that $Body references as a dependency ("blocked by #n", "depends on
-        #n", "requires #n", "after #n", "needs #n"), excluding $SelfNumber. A bare mention such as
-        "see #n" is never counted because it carries none of the keywords.
+        #n", "requires #n", "after #n", "needs #n", "part of #n"), excluding $SelfNumber. A bare
+        mention such as "see #n" is never counted because it carries none of the keywords. Every
+        '#n' in the same clause after a keyword counts ("Blocked by #100, #101 and #102" -> all
+        three); the clause stops at the first '.', ';' or newline, so an unrelated later mention
+        such as "... See #200" in the next sentence is never swept in.
     #>
     param(
         [AllowEmptyString()][string]$Body,
@@ -139,10 +143,13 @@ function Get-PriorityDependencyTargets {
     $targets = New-Object System.Collections.Generic.HashSet[int]
     if ([string]::IsNullOrEmpty($Body)) { return @() }
     $kw = ($script:PriorityDependencyKeywords -join '|')
-    $pattern = "(?im)\b($kw)\b[^\n#]{0,24}#(\d+)"
+    $pattern = "(?im)\b($kw)\b([^.;\n]*)"
     foreach ($m in [regex]::Matches($Body, $pattern)) {
-        $n = [int]$m.Groups[2].Value
-        if ($n -ne $SelfNumber) { [void]$targets.Add($n) }
+        $clause = $m.Groups[2].Value
+        foreach ($nm in [regex]::Matches($clause, '#(\d+)')) {
+            $n = [int]$nm.Groups[1].Value
+            if ($n -ne $SelfNumber) { [void]$targets.Add($n) }
+        }
     }
     return @($targets | Sort-Object)
 }
