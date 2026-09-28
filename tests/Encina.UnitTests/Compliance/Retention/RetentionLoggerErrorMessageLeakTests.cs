@@ -113,6 +113,55 @@ public sealed class RetentionLoggerErrorMessageLeakTests
         logs.ShouldAllBe(r => !r.Message.Contains(SentinelMessage));
     }
 
+    // The following two tests exercise HandleMissingEntityId (extracted from
+    // TrackRetentionRecordAsync by the #1505 CRAP-gate refactor): they do not touch the
+    // EncinaError.Message sink rule, but a whitespace-only resolved entity ID is a real, reachable
+    // production path (unlike the policy-service lookup branch of ResolveRetentionPeriodAsync, which
+    // ResolveAttributeInfo's `RetentionPeriod > TimeSpan.Zero` filter makes unreachable through the
+    // normal attribute scan) and was otherwise untested, pushing HandleMissingEntityId's CRAP score
+    // above the gate.
+
+    [Fact]
+    public async Task Handle_BlockMode_EmptyEntityId_ReturnsBlockingError()
+    {
+        var logger = new FakeLogger<RetentionValidationPipelineBehavior<DecoratedCommand, DecoratedResponse>>();
+        var behavior = new RetentionValidationPipelineBehavior<DecoratedCommand, DecoratedResponse>(
+            Substitute.For<IRetentionRecordService>(),
+            Substitute.For<IRetentionPolicyService>(),
+            Options.Create(new RetentionOptions { EnforcementMode = RetentionEnforcementMode.Block }),
+            logger);
+
+        var response = new DecoratedResponse { Id = string.Empty };
+        var result = await behavior.Handle(
+            new DecoratedCommand(),
+            Substitute.For<IRequestContext>(),
+            () => new ValueTask<Either<EncinaError, DecoratedResponse>>(Right<EncinaError, DecoratedResponse>(response)),
+            CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WarnMode_WhitespaceEntityId_AllowsResponseThrough()
+    {
+        var logger = new FakeLogger<RetentionValidationPipelineBehavior<DecoratedCommand, DecoratedResponse>>();
+        var behavior = new RetentionValidationPipelineBehavior<DecoratedCommand, DecoratedResponse>(
+            Substitute.For<IRetentionRecordService>(),
+            Substitute.For<IRetentionPolicyService>(),
+            Options.Create(new RetentionOptions { EnforcementMode = RetentionEnforcementMode.Warn }),
+            logger);
+
+        var response = new DecoratedResponse { Id = "   " };
+        var result = await behavior.Handle(
+            new DecoratedCommand(),
+            Substitute.For<IRequestContext>(),
+            () => new ValueTask<Either<EncinaError, DecoratedResponse>>(Right<EncinaError, DecoratedResponse>(response)),
+            CancellationToken.None);
+
+        result.IsRight.ShouldBeTrue();
+        ((DecoratedResponse)result).Id.ShouldBe("   ");
+    }
+
     #endregion
 
     #region RetentionEnforcementService — RetentionEnforcementCycleFailed(string), RetentionEnforcementTransitionFailed, RetentionSiblingCheckFailed, RetentionLegalHoldCheckFailed

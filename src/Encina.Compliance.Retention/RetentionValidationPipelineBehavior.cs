@@ -370,6 +370,17 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             .GetRetentionPeriodAsync(dataCategory, cancellationToken)
             .ConfigureAwait(false);
 
+        return BuildPeriodOutcome(periodResult, dataCategory, responseTypeName);
+    }
+
+    /// <summary>
+    /// Turns the policy service's period lookup into the outer <see cref="Either{L,R}"/>
+    /// <see cref="ResolveRetentionPeriodAsync"/> returns. Kept separate (and synchronous) so a
+    /// change to either the lookup or this mapping keeps its own CRAP score low (AGENTS.md §9).
+    /// </summary>
+    private Either<Either<EncinaError, Unit>, TimeSpan> BuildPeriodOutcome(
+        Either<EncinaError, TimeSpan> periodResult, string dataCategory, string responseTypeName)
+    {
         if (periodResult.IsLeft)
         {
             var periodError = (EncinaError)periodResult;
