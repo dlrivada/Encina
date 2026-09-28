@@ -1676,6 +1676,20 @@ Test.
         & git -C $staleWt -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
         $stalePipeline = $defaultPipelineJson | ConvertFrom-Json
 
+        # A dedicated wrapper (not the reused Test-RemediationCase) so these cases report under their own
+        # component name instead of misleadingly under 'audit-draft-remediation:'.
+        function Test-StaleCase([string]$Label, [scriptblock]$Check) {
+            $script:total++
+            try {
+                if (& $Check) { "PASS Get-StaleStageAfterVerification: $Label" }
+                else { $script:failed++; "FAIL Get-StaleStageAfterVerification: $Label" }
+            }
+            catch {
+                $script:failed++
+                "FAIL Get-StaleStageAfterVerification: $Label ($($_.Exception.Message))"
+            }
+        }
+
         function Set-StaleCommit([string]$RelativePath, [string]$Content, [int]$UnixSeconds) {
             $full = Join-Path $staleWt ($RelativePath -replace '/', '\')
             New-Item -ItemType Directory -Force (Split-Path -Parent $full) | Out-Null
@@ -1690,18 +1704,18 @@ Test.
         Set-StaleCommit 'artifacts/knowledge/stages/remediation.md' 'v1' 1000
         Set-StaleCommit 'artifacts/knowledge/stages/verification.md' 'Verdict: PASS' 2000
         $notStale = Get-StaleStageAfterVerification $staleWt $stalePipeline
-        Test-RemediationCase 'Get-StaleStageAfterVerification: verification committed after remediation -- not stale' { $null -eq $notStale }
+        Test-StaleCase 'verification committed after remediation -- not stale' { $null -eq $notStale }
 
         Set-StaleCommit 'artifacts/knowledge/stages/remediation.md' 'v2' 3000
         $staleAfter = Get-StaleStageAfterVerification $staleWt $stalePipeline
-        Test-RemediationCase 'Get-StaleStageAfterVerification: remediation re-committed after verification -- stale, names the remediation stage' { $null -ne $staleAfter -and $staleAfter.stage -eq 'remediation' }
+        Test-StaleCase 'remediation re-committed after verification -- stale, names the remediation stage' { $null -ne $staleAfter -and $staleAfter.stage -eq 'remediation' }
 
         # Distinguishable content ('Verdict: PASS (recheck)') so this actually creates a new commit at the same
         # second as remediation's last one above -- identical content would leave nothing to commit and the
         # verification commit time would stay at 2000, silently passing this case for the wrong reason.
         Set-StaleCommit 'artifacts/knowledge/stages/verification.md' "Verdict: PASS`n(recheck)" 3000
         $tieResult = Get-StaleStageAfterVerification $staleWt $stalePipeline
-        Test-RemediationCase 'Get-StaleStageAfterVerification: a tied commit second is NOT stale (decision 1)' { $null -eq $tieResult }
+        Test-StaleCase 'a tied commit second is NOT stale (decision 1)' { $null -eq $tieResult }
 
         # audit-done.ps1's own use of the helper: a standalone, self-referential repo (its own current-audit.json
         # points at itself, like $commitWt/$archivistWt above) with NO .github\scripts\knowledge-records.cs, so
