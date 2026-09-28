@@ -31,11 +31,32 @@
 # regeneration must have run at least once) and every OTHER finding currently parsed from the stage artifacts
 # to already have a line there; otherwise this errors rather than guessing what an unprocessed finding's line
 # should say.
+#
+# -DuplicateOf "<stage> <n>=<issue>" (repeatable, e.g. -DuplicateOf "docs 12=1177") (#1534): records the named
+# finding as a duplicate of the given OPEN issue by explicit, logged override -- confirmed by audit-verifier or
+# the orchestrator, never guessed by this script or the local model. Some real duplicates can never pass the
+# deterministic evidence check (Test-DuplicateEvidence, _remediation-checks.ps1): #1177 reports the exact
+# drift finding 12 flags, but only as one item of a numbered list inside its own Description section, which
+# #1393 deliberately excludes from evidence (a Description commonly just MENTIONS a file/symbol without being
+# ABOUT it). Without an override, such a finding drafts a new issue every run and audit-verifier's own dedup
+# pass then FAILs the audit against the real duplicate -- a loop with no way to converge except dropping a
+# valid finding. No local-model call and, other than the OPEN-state check below, no `gh` call is required for
+# an override to take effect. The overridden finding's own line in stages/remediation.md reads exactly like an
+# automatically detected duplicate's line, plus " (manual override)"; when the overridden finding is the
+# PRIMARY of a #1491 same-location group, every member of that group gets this same duplicate line, never a
+# "merged into ..." line. Every override is also logged under the '## Lessons for the pipeline' section (see
+# the loop below), so audit-verifier and the pipeline's own lessons history see it. Combines with -Only (the
+# typical pairing is "-Only 'docs 12' -DuplicateOf 'docs 12=1177'" -- regenerate and record just that one
+# finding) and with a full run; an override's own finding group is always regenerated and recorded this run,
+# even if its key was not separately repeated under -Only. A key that does not match a finding parsed from the
+# stage artifacts, or a malformed entry, is an error -- fail fast, before any file is touched. Skipped under
+# -NoGh: the OPEN-state verification below never runs, matching every other `gh` call in this script.
 
 param(
     [switch]$DryRun,
     [switch]$NoGh,
-    [string[]]$Only
+    [string[]]$Only,
+    [string[]]$DuplicateOf
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +75,47 @@ if ($Only -and $Only.Count -gt 0) {
             exit 1
         }
         [void]$onlyKeys.Add("$($specParts[0])|$($specParts[1])")
+    }
+}
+
+# #1534: parse -DuplicateOf into "stage|id" -> issue-number entries, up front, independent of the findings
+# parsed below -- a malformed entry is reported before any other work happens, the same fail-fast contract
+# -Only's own parsing above already gives.
+$duplicateOfEntries = $null
+if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
+    $duplicateOfEntries = [ordered]@{}
+    foreach ($spec in $DuplicateOf) {
+        $dupMatch = [regex]::Match($spec, '^(?<stage>\S+)\s+(?<id>\d+)=(?<issue>\d+)$')
+        if (-not $dupMatch.Success) {
+            Write-Error "audit-draft-remediation: -DuplicateOf value '$spec' must be '<stage> <n>=<issue>' (e.g. 'docs 12=1177')."
+            exit 1
+        }
+        $dupStage = $dupMatch.Groups['stage'].Value
+        $dupId = $dupMatch.Groups['id'].Value
+        $dupIssue = $dupMatch.Groups['issue'].Value
+        $dupKey = "$dupStage|$dupId"
+        if ($duplicateOfEntries.Contains($dupKey) -and $duplicateOfEntries[$dupKey] -ne $dupIssue) {
+            Write-Error "audit-draft-remediation: -DuplicateOf has conflicting entries for '$dupStage $dupId' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
+            exit 1
+        }
+        $duplicateOfEntries[$dupKey] = $dupIssue
+    }
+}
+
+# #1534 decision 3: verify every distinct -DuplicateOf target is a real, OPEN issue -- this script never
+# records a finding as a duplicate of an issue that is closed or does not exist, whatever the caller typed.
+# Skipped under -NoGh, matching every other `gh` call in this script.
+if ($duplicateOfEntries -and -not $NoGh) {
+    foreach ($dupIssueNumber in @($duplicateOfEntries.Values | Select-Object -Unique)) {
+        $dupViewOut = & gh issue view $dupIssueNumber --repo dlrivada/Encina --json state 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Error "audit-draft-remediation: 'gh issue view $dupIssueNumber' failed for -DuplicateOf (exit $LASTEXITCODE): $dupViewOut"; exit 1 }
+        $dupParsed = $null
+        try { $dupParsed = $dupViewOut | ConvertFrom-Json } catch { $dupParsed = $null }
+        if (-not $dupParsed -or $dupParsed.state -ne 'OPEN') {
+            $dupState = if ($dupParsed) { $dupParsed.state } else { 'unknown' }
+            Write-Error "audit-draft-remediation: -DuplicateOf names #$dupIssueNumber, but it is not an OPEN issue (state: $dupState)."
+            exit 1
+        }
     }
 }
 
@@ -288,6 +350,20 @@ foreach ($stageName in $stageNames) {
     }
 }
 
+# #1534: a -DuplicateOf key that names a finding not parsed from the stages is an error -- the same guard
+# -Only's own validation below gives its keys.
+if ($duplicateOfEntries) {
+    $allFindingKeysForDup = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($f in $allFindings) { [void]$allFindingKeysForDup.Add("$($f.Stage)|$($f.Id)") }
+    foreach ($dupKey in $duplicateOfEntries.Keys) {
+        if (-not $allFindingKeysForDup.Contains($dupKey)) {
+            $dupKeyParts = $dupKey -split '\|', 2
+            Write-Error "audit-draft-remediation: -DuplicateOf '$($dupKeyParts[0]) $($dupKeyParts[1])' does not match a finding currently parsed from the code, tests or docs stage artifacts."
+            exit 1
+        }
+    }
+}
+
 # #1491: group the audit's own findings by their leading location anchor BEFORE any -Only validation or
 # drafting -- two stages that flag the same defect (same file, overlapping/equal line range) draft ONE issue,
 # never two (audit #17 verification pass 2: docs finding 7 and code finding 4 both cited
@@ -300,6 +376,24 @@ $groupIndexByKey = @{}
 for ($gi = 0; $gi -lt $groups.Count; $gi++) {
     $groups[$gi] | Add-Member -NotePropertyName Primary -NotePropertyValue (Get-GroupPrimary $groups[$gi].Members)
     foreach ($m in $groups[$gi].Members) { $groupIndexByKey["$($m.Stage)|$($m.Id)"] = $gi }
+}
+
+# #1534 decision 4: resolves every -DuplicateOf key to its GROUP index -- when the overridden finding is the
+# primary of a #1491 same-location group, or any other member of one, the WHOLE group is recorded as that
+# duplicate. Two -DuplicateOf entries that resolve to the same group must name the same issue; anything else is
+# an ambiguous override this script refuses to guess at.
+$groupDuplicateIssue = @{}
+if ($duplicateOfEntries) {
+    foreach ($dupKey in $duplicateOfEntries.Keys) {
+        $dupGroupIdx = $groupIndexByKey[$dupKey]
+        $dupIssueNumber = $duplicateOfEntries[$dupKey]
+        if ($groupDuplicateIssue.ContainsKey($dupGroupIdx) -and $groupDuplicateIssue[$dupGroupIdx] -ne $dupIssueNumber) {
+            $dupKeyParts = $dupKey -split '\|', 2
+            Write-Error "audit-draft-remediation: -DuplicateOf '$($dupKeyParts[0]) $($dupKeyParts[1])' names #$dupIssueNumber, but another finding in the same location group already names #$($groupDuplicateIssue[$dupGroupIdx])."
+            exit 1
+        }
+        $groupDuplicateIssue[$dupGroupIdx] = $dupIssueNumber
+    }
 }
 
 $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
@@ -364,6 +458,12 @@ $touchedGroupIndexes = if ($onlyKeys) {
             $gi = $groupIndexByKey[$key]
             if ($seenGroupIdx.Add($gi)) { $orderedGroupIdx.Add($gi) }
         }
+    }
+    # #1534: a -DuplicateOf override always regenerates and records its own group this run, even when its key
+    # was not separately repeated under -Only -- the override must take effect on its own, not only in the
+    # typical "-Only 'docs 12' -DuplicateOf 'docs 12=1177'" pairing where the two keys already match.
+    foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) {
+        if ($seenGroupIdx.Add($dupGroupIdx)) { $orderedGroupIdx.Add($dupGroupIdx) }
     }
     $orderedGroupIdx
 }
@@ -470,6 +570,16 @@ foreach ($unknownFinding in ($touchedFindings | Where-Object { $_.Severity -eq '
     $lessons.Add("$($unknownFinding.Stage) $($unknownFinding.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
 }
 
+# #1534 decision 5: every -DuplicateOf override is logged under '## Lessons for the pipeline', named by the
+# exact key the caller passed (never the group's primary), so audit-verifier and the pipeline's own lessons
+# history see it even though no draft, classify or dedup step ran for it this time.
+if ($duplicateOfEntries) {
+    foreach ($dupKey in $duplicateOfEntries.Keys) {
+        $dupKeyParts = $dupKey -split '\|', 2
+        $lessons.Add("$($dupKeyParts[0]) $($dupKeyParts[1]): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override")
+    }
+}
+
 foreach ($finding in $findingsToProcess) {
     $label = "$($finding.Stage) $($finding.Id) ($($finding.Severity))"
     $findingKey = "$($finding.Stage)|$($finding.Id)"
@@ -477,6 +587,21 @@ foreach ($finding in $findingsToProcess) {
     # singleton group (a finding no other stage reported at the same location).
     $group = $groups[$groupIndexByKey[$findingKey]]
     $otherMembers = @($group.Members | Where-Object { -not ($_.Stage -eq $finding.Stage -and $_.Id -eq $finding.Id) })
+
+    # #1534 decision 3/4: a manually overridden group is recorded as a duplicate -- reusing the exact line
+    # format an automatically detected duplicate gets, plus " (manual override)" -- for EVERY member of the
+    # group, never only the primary; no local-model call, no draft, happens for it.
+    $overrideGroupIdx = $groupIndexByKey[$findingKey]
+    if ($groupDuplicateIssue.ContainsKey($overrideGroupIdx)) {
+        $overrideIssueNumber = $groupDuplicateIssue[$overrideGroupIdx]
+        foreach ($overrideMember in $group.Members) {
+            $overrideMemberLabel = "$($overrideMember.Stage) $($overrideMember.Id) ($($overrideMember.Severity))"
+            $computedLinesByKey["$($overrideMember.Stage)|$($overrideMember.Id)"] = "- $overrideMemberLabel`: duplicate of #$overrideIssueNumber (manual override)"
+        }
+        "$label -> duplicate of #$overrideIssueNumber (manual override)"
+        continue
+    }
+
     $inputFile = if ($DryRun) { Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-input.md" } else { Join-Path $remediationDir "_input-$n-$($finding.Stage)-$($finding.Id).md" }
     Set-Content -LiteralPath $inputFile -Encoding utf8 -Value $finding.Text
 

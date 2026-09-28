@@ -2768,6 +2768,123 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1491 block ----
 
+    # ---- #1534: audit-draft-remediation.ps1 -Duplicateof -- an explicit, logged override that records a
+    # finding as a duplicate of an OPEN issue confirmed by audit-verifier or the orchestrator, drafting nothing
+    # for it. Real case: audit #18's docs finding 12 duplicates #1177's own drift report, but #1177 only lists
+    # it as one item of a numbered list inside its Description section, which #1393's own evidence check
+    # deliberately excludes -- Test-DuplicateEvidence is unchanged by this issue (decision 6); the override is
+    # the fix. -DryRun -NoGh never calls the model or `gh`, so this block stays free and offline like #1491/#1492
+    # above; the -DuplicateOf OPEN-state check itself is skipped entirely under -NoGh (the script's own #1534
+    # comment block), so this suite never needs a real GitHub issue.
+
+    # (a) Format validation: a malformed entry is a fail-fast error, no file touched.
+    Test-RemediationCase '#1534 -DuplicateOf: a malformed entry (no "=<issue>") is an error, not a silent no-op' {
+        $badFormatOutput = & pwsh -NoProfile -File (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 12' 2>&1
+        $badFormatExit = $LASTEXITCODE
+        $badFormatExit -ne 0 -and (Get-FlatOutput $badFormatOutput) -match "must be '<stage> <n>=<issue>'"
+    }
+    Test-RemediationCase '#1534 -DuplicateOf: a non-numeric issue number is an error' {
+        $badIssueOutput = & pwsh -NoProfile -File (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 12=abc' 2>&1
+        $badIssueExit = $LASTEXITCODE
+        $badIssueExit -ne 0 -and (Get-FlatOutput $badIssueOutput) -match "must be '<stage> <n>=<issue>'"
+    }
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        # A self-contained fixture repo (own '.git', the #1491/#1492 pattern) with 3 findings: code-1 and
+        # docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is Major and is the group's own primary) --
+        # proves decision 4 (overriding the primary records the WHOLE group as the duplicate); docs-12 is a
+        # standalone finding with no shared location -- mirrors the real audit #18 case and the acceptance
+        # command's own "docs 12" key.
+        $remWt1534 = Join-Path $work 'RemediationDuplicateOfWt'
+        if (Test-Path $remWt1534) { Remove-Item -Recurse -Force $remWt1534 }
+        New-Item -ItemType Directory -Force (Join-Path $remWt1534 'tools\ai\audit') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1534 'artifacts\knowledge\stages') | Out-Null
+        New-Item -ItemType Directory -Force (Join-Path $remWt1534 '.github\ISSUE_TEMPLATE') | Out-Null
+        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1534 'tools\ai\audit\pipeline.json')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1534 'tools\ai\audit\_audit-lib.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1534 'tools\ai\audit\_remediation-checks.ps1')
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1')
+        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
+            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1534 ".github\ISSUE_TEMPLATE\$t")
+        }
+        function Invoke-RemGit1534 { & git -C $remWt1534 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        Invoke-RemGit1534 init -q -b main
+        Invoke-RemGit1534 commit -q --allow-empty -m base
+
+        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\code.md') "## Findings`n1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage).`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\docs.md') "## Findings`n1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n12. **Blocker** -- ``docs/messaging/index.md:45`` references the removed package ``Encina.Dapper.Oracle``.`n## Lessons for the pipeline`n- none`n"
+        $remN1534 = 1818
+        @{ issue = $remN1534; worktree = $remWt1534; branch = "audit/$remN1534"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1534 'artifacts\knowledge\current-audit.json')
+
+        # Baseline (no -DuplicateOf): a full run, so a later -Only + -DuplicateOf run has a stages/remediation.md
+        # to fall back to for the findings it does not touch.
+        $baselineOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
+        $baselineExit1534 = $LASTEXITCODE
+        Test-RemediationCase '#1534 fixture: the baseline (no -DuplicateOf) full run exits 0' { $baselineExit1534 -eq 0 }
+
+        $dryDir1534 = Join-Path $remWt1534 "artifacts\knowledge\remediation\_dryrun-$remN1534"
+        Test-RemediationCase '#1534 fixture: the baseline run wrote a dry-run brief for docs 12' {
+            Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md')
+        }
+
+        # (c) unknown key: a -DuplicateOf entry naming a finding not parsed from the stages is an error.
+        $unknownKeyOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 99=1177' 2>&1
+        $unknownKeyExit1534 = $LASTEXITCODE
+        Test-RemediationCase "#1534 -DuplicateOf 'docs 99=1177' (no matching finding) is an error, not a silent no-op" {
+            $unknownKeyExit1534 -ne 0 -and (Get-FlatOutput $unknownKeyOutput1534) -match 'does not match a finding'
+        }
+
+        # (b) the acceptance command's own typical pairing: -Only 'docs 12' -DuplicateOf 'docs 12=1177'. Expect
+        # no draft, the duplicate line (with " (manual override)"), and no dry-run brief written for docs 12.
+        if (Test-Path -LiteralPath $dryDir1534) { Remove-Item -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md') -Force -ErrorAction SilentlyContinue }
+        $onlyDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 12' -DuplicateOf 'docs 12=1177' 2>&1
+        $onlyDupExit1534 = $LASTEXITCODE
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177' exits 0" { $onlyDupExit1534 -eq 0 }
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177' writes no dry-run brief for docs 12 (no draft)" {
+            -not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md'))
+        }
+        $onlyDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': docs 12''s own line reads like an automatic duplicate, plus (manual override)" {
+            @($onlyDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
+        }
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': stages\remediation.md still lists all 3 findings" {
+            @($onlyDupStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 3
+        }
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': logs the override under Lessons for the pipeline" {
+            (Get-FlatOutput (Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md'))) -match [regex]::Escape('docs 12: recorded as duplicate of #1177 by manual override')
+        }
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': code 1 and docs 1 (untouched) keep their own lines" {
+            (@($onlyDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(' })).Count -eq 1 -and
+            (@($onlyDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(' })).Count -eq 1
+        }
+
+        # (d) overriding the PRIMARY of a #1491 same-location group records the WHOLE group as the duplicate --
+        # every member's own line, never a "merged into ..." line for the non-primary sibling. Scoped with
+        # -Only 'code 1' (the group's own primary key) so docs 12's own line from run (b), still untouched
+        # here, is proven to survive via stages/remediation.md's own existing-line fallback.
+        $groupDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' -DuplicateOf 'code 1=999' 2>&1
+        $groupDupExit1534 = $LASTEXITCODE
+        Test-RemediationCase "#1534 -Only 'code 1' -DuplicateOf 'code 1=999' (group primary) exits 0" { $groupDupExit1534 -eq 0 }
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999' writes no dry-run brief for code 1 or its merged sibling docs 1" {
+            (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'code-1-brief.md'))) -and (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-1-brief.md')))
+        }
+        $groupDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': the primary's own line (code 1) says duplicate of #999 (manual override)" {
+            @($groupDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(Major\):\s+duplicate of #999 \(manual override\)$' }).Count -eq 1
+        }
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': the merged sibling's own line (docs 1) ALSO says duplicate of #999 (manual override), never 'merged into ...'" {
+            @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+duplicate of #999 \(manual override\)$' }).Count -eq 1
+        }
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': docs 12 (untouched by this run) still drafts, keeping its own earlier duplicate-override line" {
+            @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
+        }
+    }
+    else {
+        'SKIP #1534 fixture: git is not on PATH'
+    }
+    # ---- end #1534 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
