@@ -259,6 +259,31 @@ public sealed class ABACHealthCheckTests
         result.Description!.ShouldContain("Persistent policy store connectivity check failed");
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_WithPersistentStore_StoreError_DoesNotLeakErrorMessage()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Either<EncinaError, IReadOnlyList<PolicySet>>.Right(
+                new List<PolicySet>()));
+
+        var store = Substitute.For<IPolicyStore>();
+        store.GetPolicySetCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(
+                Either<EncinaError, int>.Left(EncinaErrors.Create("store.connection.failed", sentinel))));
+        store.GetPolicyCountAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, int>>(Either<EncinaError, int>.Right(0)));
+
+        var healthCheck = new ABACHealthCheck(pap, CreateServiceProvider(store));
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("store.connection.failed");
+    }
+
     #endregion
 
     #region No Persistent Store — Skips Store Check

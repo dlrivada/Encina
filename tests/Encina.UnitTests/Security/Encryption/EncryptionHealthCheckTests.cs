@@ -1,10 +1,15 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mock setup
+
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Health;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
 using Shouldly;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Security.Encryption;
 
@@ -95,6 +100,31 @@ public sealed class EncryptionHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data.ShouldContainKey("currentKeyId");
         result.Data.ShouldContainKey("algorithm");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_KeyProviderReturnsError_DoesNotLeakErrorMessage()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var keyProvider = Substitute.For<IKeyProvider>();
+        keyProvider.GetCurrentKeyIdAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(
+                Left<EncinaError, string>(EncinaErrors.Create("key.provider.failed", sentinel))));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(keyProvider);
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new EncryptionHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(
+            new HealthCheckContext
+            {
+                Registration = new HealthCheckRegistration("test", healthCheck, null, null)
+            });
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("key.provider.failed");
     }
 
     [Fact]

@@ -166,6 +166,59 @@ public sealed class PIIHealthCheckTests
         result.Description!.ShouldContain("probe");
     }
 
+    /// <summary>
+    /// An <see cref="IPIIMasker"/> whose <see cref="MaskObject{T}"/> always throws, regardless of
+    /// the closed generic instantiation — used to exercise <c>RunMaskingProbe</c>'s catch block
+    /// without depending on the health check's private probe DTO type.
+    /// </summary>
+    private sealed class ThrowingMasker : IPIIMasker
+    {
+        private readonly Exception _exception;
+
+        public ThrowingMasker(Exception exception) => _exception = exception;
+
+        public string Mask(string value, PIIType type) => value;
+
+        public string Mask(string value, string pattern) => value;
+
+        public T MaskObject<T>(T obj) where T : class => throw _exception;
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_MaskingProbeThrows_DoesNotLeakExceptionMessage()
+    {
+        // Arrange - masker throws an exception carrying a sensitive message during the probe
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaPII();
+
+        var throwingMasker = new ThrowingMasker(new InvalidOperationException(sentinel));
+
+        var existingDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IPIIMasker));
+        if (existingDescriptor is not null)
+        {
+            services.Remove(existingDescriptor);
+        }
+
+        services.AddSingleton<IPIIMasker>(throwingMasker);
+        var provider = services.BuildServiceProvider();
+        var sut = CreateSut(provider);
+        var context = new HealthCheckContext
+        {
+            Registration = new HealthCheckRegistration("test", sut, null, null)
+        };
+
+        // Act
+        var result = await sut.CheckHealthAsync(context);
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+    }
+
     [Fact]
     public void DefaultName_ShouldBe_EncinaPii()
     {

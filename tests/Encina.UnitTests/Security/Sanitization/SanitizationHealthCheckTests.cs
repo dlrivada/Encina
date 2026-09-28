@@ -1,7 +1,9 @@
 using Encina.Security.Sanitization;
+using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using NSubstitute;
 using Shouldly;
 
 namespace Encina.UnitTests.Security.Sanitization;
@@ -67,6 +69,40 @@ public sealed class SanitizationHealthCheckTests
         result.Data.ShouldContainKey("encoder");
         result.Data["sanitizer"].ShouldBe("DefaultSanitizer");
         result.Data["encoder"].ShouldBe("DefaultOutputEncoder");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_SanitizerThrows_DoesNotLeakExceptionMessage()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaSanitization();
+
+        var throwingSanitizer = Substitute.For<ISanitizer>();
+        throwingSanitizer.SanitizeHtml(Arg.Any<string>())
+            .Returns(_ => throw new InvalidOperationException(sentinel));
+
+        var existingDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISanitizer));
+        if (existingDescriptor is not null)
+        {
+            services.Remove(existingDescriptor);
+        }
+
+        services.AddSingleton(throwingSanitizer);
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new SanitizationHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(
+            new HealthCheckContext
+            {
+                Registration = new HealthCheckRegistration("test", healthCheck, null, null)
+            });
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
     }
 
     [Fact]

@@ -200,6 +200,36 @@ public sealed class SecretsHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_ProbeSecret_Failure_DoesNotLeakErrorMessage()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var mockReader = Substitute.For<ISecretReader>();
+#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mock setup
+        mockReader.GetSecretAsync("health-probe", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, string>>(
+                EncinaErrors.Create("secret.probe.failed", sentinel)));
+#pragma warning restore CA2012
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(mockReader);
+        services.AddEncinaSecrets(o =>
+        {
+            o.EnableCaching = false;
+            o.HealthCheckSecretName = "health-probe";
+        });
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new SecretsHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("secret.probe.failed");
+        result.Data["probeError"].ShouldBe("secret.probe.failed");
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_NoProbeConfigured_ReturnsHealthyWithoutProbe()
     {
         var services = new ServiceCollection();
@@ -247,7 +277,35 @@ public sealed class SecretsHealthCheckTests
         var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBeOfType<InvalidOperationException>();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_Exception_DoesNotLeakExceptionMessageOrObject()
+    {
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var mockReader = Substitute.For<ISecretReader>();
+#pragma warning disable CA2012 // Use ValueTasks correctly - Required for NSubstitute mock setup
+        mockReader.When(r => r.GetSecretAsync("health-probe", Arg.Any<CancellationToken>()))
+            .Do(_ => throw new InvalidOperationException(sentinel));
+#pragma warning restore CA2012
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(mockReader);
+        services.AddEncinaSecrets(o =>
+        {
+            o.EnableCaching = false;
+            o.HealthCheckSecretName = "health-probe";
+        });
+        var provider = services.BuildServiceProvider();
+
+        var healthCheck = new SecretsHealthCheck(provider);
+
+        var result = await healthCheck.CheckHealthAsync(CreateContext(healthCheck));
+
+        result.Description!.ShouldNotContain(sentinel);
+        result.Exception.ShouldBeNull();
     }
 
     #endregion

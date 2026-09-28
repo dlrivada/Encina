@@ -1,13 +1,17 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly - required for NSubstitute mock setup
+
 using Encina.Compliance.AIAct;
 using Encina.Compliance.AIAct.Abstractions;
 using Encina.Compliance.AIAct.Health;
 using Encina.Compliance.AIAct.Model;
+using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Compliance.AIAct;
 
@@ -111,6 +115,36 @@ public class AIActHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_RegistryQueryFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var registry = Substitute.For<IAISystemRegistry>();
+        registry.GetAllSystemsAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(
+                Left<EncinaError, IReadOnlyList<AISystemRegistration>>(
+                    EncinaErrors.Create("registry.error", sentinel))));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<AIActOptions>(_ => { });
+        services.AddSingleton(registry);
+        services.AddSingleton(Substitute.For<IAIActClassifier>());
+        services.AddSingleton(Substitute.For<IHumanOversightEnforcer>());
+        services.AddScoped(_ => Substitute.For<IAIActComplianceValidator>());
+        var provider = services.BuildServiceProvider();
+        var sut = new AIActHealthCheck(provider, CreateLogger());
+
+        // Act
+        var result = await sut.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("registry.error");
     }
 
     [Fact]

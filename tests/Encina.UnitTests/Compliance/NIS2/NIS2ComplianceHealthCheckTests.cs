@@ -152,5 +152,35 @@ public class NIS2ComplianceHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_ValidationError_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var (healthCheck, validator) = CreateSut();
+        validator.ValidateAsync(Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, NIS2ComplianceResult>>(
+                Left<EncinaError, NIS2ComplianceResult>(
+                    EncinaErrors.Create("nis2.validation.failed", sentinel))));
+
+        var context = new HealthCheckContext
+        {
+            Registration = new HealthCheckRegistration(
+                NIS2ComplianceHealthCheck.DefaultName,
+                healthCheck,
+                HealthStatus.Unhealthy,
+                null)
+        };
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(context);
+
+        // Assert
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("nis2.validation.failed");
+        result.Data["error"].ShouldBe("nis2.validation.failed");
+    }
+
     #endregion
 }

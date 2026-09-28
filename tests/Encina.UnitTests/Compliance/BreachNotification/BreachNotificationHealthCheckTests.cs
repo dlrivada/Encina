@@ -254,6 +254,36 @@ public sealed class BreachNotificationHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WhenBreachQueryFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var breachService = Substitute.For<IBreachNotificationService>();
+        var error = EncinaErrors.Create("query.failed", sentinel);
+        breachService.GetApproachingDeadlineBreachesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<BreachReadModel>>(error));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<BreachNotificationOptions>(_ => { });
+        services.AddScoped(_ => breachService);
+        services.AddScoped(_ => Substitute.For<IBreachDetector>());
+        services.AddScoped(_ => Substitute.For<IBreachNotifier>());
+
+        var provider = services.BuildServiceProvider();
+        var healthCheck = new BreachNotificationHealthCheck(
+            provider,
+            provider.GetRequiredService<ILogger<BreachNotificationHealthCheck>>());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("query.failed");
+    }
+
+    [Fact]
     public void DefaultName_ShouldBeExpectedValue()
     {
         BreachNotificationHealthCheck.DefaultName.ShouldBe("encina-breach-notification");

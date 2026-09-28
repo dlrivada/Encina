@@ -132,6 +132,37 @@ public class ProcessorAgreementHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_ExpiredDpaQueryFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var mockProcessorService = Substitute.For<IProcessorService>();
+        var mockDpaService = Substitute.For<IDPAService>();
+        mockDpaService.GetDPAsByStatusAsync(Arg.Any<DPAStatus>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(
+                Left<EncinaError, IReadOnlyList<DPAReadModel>>(
+                    EncinaErrors.Create("dpa.query.failed", sentinel))));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<ProcessorAgreementOptions>(_ => { });
+        services.AddScoped<IProcessorService>(_ => mockProcessorService);
+        services.AddScoped<IDPAService>(_ => mockDpaService);
+        var provider = services.BuildServiceProvider();
+
+        var sut = new ProcessorAgreementHealthCheck(
+            provider,
+            NullLogger<ProcessorAgreementHealthCheck>.Instance);
+
+        // Act
+        var result = await sut.CheckHealthAsync(CreateContext(), CancellationToken.None);
+
+        // Assert
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("dpa.query.failed");
+    }
+
+    [Fact]
     public void DefaultName_HasExpectedValue()
     {
         // Assert
