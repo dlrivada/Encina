@@ -70,9 +70,10 @@ foreach ($a in $nodes) {
     }
 }
 
-$issues = foreach ($n in $nodes) {
+$issuesList = New-Object System.Collections.Generic.List[object]
+foreach ($n in $nodes) {
     $num = [int]$n.number
-    [ordered]@{
+    $issuesList.Add([ordered]@{
         number     = $num
         title      = $n.title
         labels     = @($n.labels.nodes | ForEach-Object { $_.name })
@@ -80,8 +81,13 @@ $issues = foreach ($n in $nodes) {
         createdAt  = $n.createdAt
         body       = $n.body
         dependents = @($dependents[$num] | Sort-Object)
-    }
+    })
 }
+# .ToArray(), not a bare 'foreach (...) {...}' assignment or '@($issuesList)': both unwrap a
+# single-element result to a bare OrderedDictionary in this PowerShell build (#1552 knowledge
+# record gotcha), which would report the wrong 'count' below and serialize 'issues' as one object
+# instead of a one-element array when exactly one open issue exists.
+$issues = $issuesList.ToArray()
 
 $outDir = Split-Path -Parent $Out
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }

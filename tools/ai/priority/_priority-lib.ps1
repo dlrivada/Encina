@@ -174,7 +174,9 @@ function Get-PriorityRankedList {
         @{ Expression = { [double]$_.Total }; Descending = $true }, `
         @{ Expression = { [datetime]$_.CreatedAtUtc }; Descending = $false })
     for ($i = 0; $i -lt $sorted.Count; $i++) {
-        $sorted[$i].Rank = $i + 1
+        # Lowercase 'rank', matching every other field name in the scores.json/board.json schema
+        # (#1552 decision 6: number/title/milestone/flags/total/scores/why/source are all lowercase).
+        $sorted[$i].rank = $i + 1
     }
     # PowerShell unwraps a single-element array on return, which would turn a one-issue ranked list
     # into a bare Hashtable (whose .Count would then count its KEYS, not issues) — Write-Output
