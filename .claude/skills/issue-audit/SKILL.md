@@ -162,6 +162,27 @@ input, brief and `stages/remediation.md` line completely untouched, byte-identic
 requires `stages/remediation.md` to already carry a line for every OTHER currently-parsed finding (i.e. a full
 regeneration ran at least once); otherwise it errors rather than guessing.
 
+Some real duplicates can never pass `Test-DuplicateEvidence`: a candidate that only MENTIONS the finding's file
+and symbol as one item of a numbered list inside its own Description is exactly what #1393 excludes from
+evidence (audit #18's docs finding 12 vs. #1177, which lists it as item 6 of a drift report). For that case,
+`-DuplicateOf "<stage> <n>=<issue>"` (repeatable, e.g. `-DuplicateOf "docs 12=1177"`) records the named finding
+as a duplicate of the given issue by explicit, logged override -- once `audit-verifier` or the orchestrator has
+confirmed it, never guessed by the script or the model. It format-validates each entry up front and (unless
+`-NoGh`) verifies the target is a real OPEN issue via `gh issue view`, before touching any file; a key that does
+not match a finding currently parsed from the stage artifacts is also an error. The overridden finding's own
+line in `stages/remediation.md` reads exactly like an automatically detected duplicate's line, plus
+"(manual override)"; when the overridden finding is the PRIMARY of a same-location group (#1491), the WHOLE
+group is recorded as that duplicate -- every member's own line, never a "merged into ..." line for a
+non-primary sibling. The typical pairing is `-Only "docs 12" -DuplicateOf "docs 12=1177"` (regenerate and record
+just that one finding), but a `-DuplicateOf` entry always regenerates and records its own finding's group this
+run even when its key is not separately repeated under `-Only`, and it works the same way in a full run too.
+Every override is logged under `stages/remediation.md`'s own `## Lessons for the pipeline` section, so the
+verifier and the pipeline's lessons history both see it (#1534). Audit #18's docs finding 12 case:
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Only 'docs 12' -DuplicateOf 'docs 12=1177'
+```
+
 Duplicate-vs-new is deterministic, not model-driven: `tools/ai/audit/_remediation-checks.ps1`'s
 `Find-DuplicateAmongCandidates` runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a
 cited symbol -- found in a candidate's real `gh issue view` title/body) against EVERY candidate the duplicate
