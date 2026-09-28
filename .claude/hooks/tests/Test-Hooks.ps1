@@ -670,6 +670,11 @@ $ownershipCases = @(
     # orchestrator's, which previously fell through to the default allow.
     @($null, 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: the orchestrator writing .authors.json directly is denied'),
     @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied'),
+    # #1466: the .rerun-archivist marker gets the same unconditional treatment as .authors.json above — its
+    # only legitimate writers are tools/ai/audit/audit-done.ps1 (create) and audit-commit-stage.ps1 (remove),
+    # both from inside their own script text, never through a direct Write/Edit/shell-write tool call.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\.rerun-archivist", $wt, 2, 'fabrication gap (#1466): the orchestrator writing .rerun-archivist directly is denied'),
+    @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\.rerun-archivist", $wt, 2, 'fabrication gap (#1466): a stage agent writing .rerun-archivist directly is denied'),
     # #1382: site-steward writes only under artifacts/site-health/**; it is read-only on the rest of the
     # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
     @('site-steward', 'Write', "$wt\artifacts\site-health\report.md", $wt, 0, 'site-steward: its own report under artifacts/site-health'),
@@ -1023,7 +1028,13 @@ try {
         # branch to the default allow. These cases exercise the hook's own Bash|PowerShell handling for
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
-        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed')
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #1466: a direct shell write to the rerun-archivist marker is denied for every caller, the same as the
+        # .authors.json sidecar; the sanctioned scripts' own internal writes never appear as a literal
+        # Set-Content in the top-level command text, so they are unaffected (next case).
+        @($null, 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\knowledge\stages\.rerun-archivist' -Value 'fabricated'", 2, 'shell vector (#1466): a direct Set-Content to .rerun-archivist is denied for every caller'),
+        @('issue-archivist', 'Bash', "echo fabricated > '$wt/artifacts/knowledge/stages/.rerun-archivist'", 2, 'shell vector (#1466): Bash redirection to .rerun-archivist is denied even for issue-archivist'),
+        @($null, 'PowerShell', "pwsh -NoProfile -File tools/ai/audit/audit-done.ps1", 0, 'shell vector (#1466): the sanctioned audit-done.ps1 launch itself is not denied (its internal marker write is invisible to this analysis)')
     )
     foreach ($case in $shellCases) {
         $hookAgent, $tool, $command, $expected, $label, $agentType = $case

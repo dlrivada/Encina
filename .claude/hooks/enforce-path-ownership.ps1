@@ -210,6 +210,19 @@ try {
             return $false
         }
 
+        # #1466: the same treatment as .authors.json above, for the same reason. The rerun-archivist marker's
+        # only legitimate writers are tools/ai/audit/audit-done.ps1 (creates it, #1457) and
+        # tools/ai/audit/audit-commit-stage.ps1 (removes it, #1457/#1466) — both acting from inside their own
+        # script text, which this analysis never inspects (Get-ShellWrites sees only the literal top-level
+        # command, e.g. `pwsh -File tools/ai/audit/audit-done.ps1`, not the Set-Content/Remove-Item calls
+        # inside that file), so denying every DIRECT Write/Edit/shell-write to the marker here never blocks
+        # either script's own internal write; it only closes the gap that let any other caller fabricate the
+        # marker (e.g. with a literal Set-Content call) and force an out-of-order archivist re-spawn.
+        if ($relative -match '(?i)^artifacts/knowledge/stages/\.rerun-archivist$') {
+            [Console]::Error.WriteLine("Blocked: '$relative' is the audit rerun-archivist marker, created only by tools/ai/audit/audit-done.ps1 and removed only by tools/ai/audit/audit-commit-stage.ps1 (both from inside their own script text); no tool call may write it directly, including the orchestrator (#1466).")
+            return $false
+        }
+
         # #1345 fabrication gap: a SPEC-003 audit-stage artifact (artifacts/knowledge/stages/<file>) may be
         # written ONLY by the agent tools/ai/audit/pipeline.json assigns to that stage — never the orchestrator
         # (main session, an empty/absent $Agent) and never a different agent, so a coordinator or a wrong stage
