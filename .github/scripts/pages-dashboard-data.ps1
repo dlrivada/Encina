@@ -125,6 +125,28 @@ function Copy-Tree {
     Get-ChildItem -LiteralPath $Source -Force | Copy-Item -Destination $Destination -Recurse -Force
 }
 
+function New-TempDirectory {
+    $path = Join-Path ([IO.Path]::GetTempPath()) "dashboard-data-$([guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $path | Out-Null
+    return $path
+}
+
+# Writes the full tree of a commit into an empty directory. git archive reads the object database
+# directly, so the sparse checkout of the calling job (docs.yml's deploy job checks out only two
+# files) cannot filter the branch content, which a `git worktree add` would inherit.
+function Expand-Commit {
+    param([string] $Commit, [string] $Destination)
+    $archive = Join-Path ([IO.Path]::GetTempPath()) "dashboard-data-$([guid]::NewGuid().ToString('N')).tar"
+    try {
+        Invoke-Git -Arguments @('archive', '--format=tar', '-o', $archive, $Commit) | Out-Null
+        $output = & tar -xf $archive -C $Destination 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "tar -xf of $Commit failed: $($output -join ' ')" }
+    }
+    finally {
+        if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
+    }
+}
+
 function Invoke-Persist {
     if (-not $Domain) { throw 'Persist needs -Domain.' }
     if (-not $OverlayRoot) { throw 'Persist needs -OverlayRoot.' }
@@ -136,33 +158,27 @@ function Invoke-Persist {
 
     $runId = if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }
     $maxAttempts = 5
+    $gitDir = [string] ((Invoke-Git -Arguments @('rev-parse', '--absolute-git-dir')).Output | Select-Object -First 1)
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        $worktree = Join-Path ([IO.Path]::GetTempPath()) "dashboard-data-$([guid]::NewGuid().ToString('N'))"
+        $tree = New-TempDirectory
+        $index = Join-Path ([IO.Path]::GetTempPath()) "dashboard-data-$([guid]::NewGuid().ToString('N')).index"
         try {
             # The branch always holds a single parentless commit with the current data (the history
             # of every dashboard lives in its own history.json), so it never grows. Each persist
             # replaces that commit with --force-with-lease: a push that races another publisher is
             # rejected instead of dropping the other publisher's data, and is retried on top of it.
+            # The commit is built with plumbing (archive, a private index, write-tree, commit-tree),
+            # never a worktree, so the caller's checkout and any sparse-checkout setting play no part.
             $exists = Test-RemoteBranch
             $expected = ''
             if ($exists) {
                 Update-RemoteBranchRef
                 $expected = [string] ((Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output | Select-Object -First 1)
-                Invoke-Git -Arguments @('worktree', 'add', '--detach', $worktree, $expected) | Out-Null
+                Expand-Commit -Commit $expected -Destination $tree
             }
             else {
                 Write-Host "Branch $Branch does not exist yet; creating it."
-                Invoke-Git -Arguments @('worktree', 'add', '--detach', $worktree) | Out-Null
-            }
-            # --orphan keeps the checked-out files and index; the next commit simply has no parent.
-            # A unique local name, so a retry never collides with the previous attempt's branch.
-            & git -C $worktree checkout --quiet --orphan "$Branch-$([guid]::NewGuid().ToString('N'))" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "git checkout --orphan failed in $worktree" }
-            if (-not $exists) {
-                & git -C $worktree rm -r -f --quiet --ignore-unmatch . 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "git rm failed in $worktree" }
-                Get-ChildItem -LiteralPath $worktree -Force | Where-Object Name -ne '.git' | Remove-Item -Recurse -Force
-                Set-Content -LiteralPath (Join-Path $worktree 'README.md') -Encoding utf8NoBOM -Value @(
+                Set-Content -LiteralPath (Join-Path $tree 'README.md') -Encoding utf8NoBOM -Value @(
                     '# dashboard-data',
                     '',
                     'Last published data of each GitHub Pages dashboard, laid out as on the site',
@@ -172,7 +188,7 @@ function Invoke-Persist {
                 )
             }
 
-            $target = Join-Path $worktree $Domain
+            $target = Join-Path $tree $Domain
             $targetData = Join-Path $target 'data'
             if (Test-Path -LiteralPath $targetData) {
                 Get-ChildItem -LiteralPath $targetData -File |
@@ -181,37 +197,44 @@ function Invoke-Persist {
             }
             Copy-Tree -Source $source -Destination $target
 
-            & git -C $worktree add -A 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "git add failed in $worktree" }
+            $env:GIT_INDEX_FILE = $index
+            try {
+                # --force: no ignore rule of the calling repository may drop a data file.
+                $add = & git --git-dir=$gitDir --work-tree=$tree -C $tree -c core.sparseCheckout=false add --all --force . 2>&1
+                if ($LASTEXITCODE -ne 0) { throw "git add of the data tree failed: $($add -join ' ')" }
+                $treeId = [string] (& git --git-dir=$gitDir write-tree 2>&1 | Select-Object -First 1)
+                if ($LASTEXITCODE -ne 0) { throw "git write-tree failed: $treeId" }
+            }
+            finally {
+                Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
+            }
+
             if ($exists) {
-                & git -C $worktree diff --cached --quiet $expected
-                if ($LASTEXITCODE -eq 0) {
+                $currentTreeId = [string] ((Invoke-Git -Arguments @('rev-parse', "$expected^{tree}")).Output | Select-Object -First 1)
+                if ($currentTreeId -eq $treeId) {
                     Write-Host "No change for $Domain on $Branch; nothing to push."
                     return
                 }
-                if ($LASTEXITCODE -ne 1) { throw "git diff --cached failed in $worktree" }
             }
-            & git -C $worktree -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' `
-                commit --quiet -m "dashboard-data: $Domain from run $runId" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "git commit failed in $worktree" }
+            $commit = [string] ((Invoke-Git -Arguments @(
+                        '-c', 'user.name=github-actions[bot]',
+                        '-c', 'user.email=github-actions[bot]@users.noreply.github.com',
+                        'commit-tree', $treeId, '-m', "dashboard-data: $Domain from run $runId")).Output | Select-Object -First 1)
 
             # An empty expected value means "the branch must not exist yet".
-            $push = & git -C $worktree push "--force-with-lease=refs/heads/${Branch}:$expected" origin "HEAD:refs/heads/$Branch" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "Persisted $Domain to $Branch (attempt $attempt):"
+            $push = Invoke-Git -Arguments @('push', "--force-with-lease=refs/heads/${Branch}:$expected", 'origin', "${commit}:refs/heads/$Branch") -AllowedExitCodes @(0, 1)
+            if ($push.ExitCode -eq 0) {
+                Write-Host "Persisted $Domain to $Branch as $commit (attempt $attempt):"
                 Get-ChildItem -LiteralPath $target -Recurse -File |
-                    ForEach-Object { '  ' + [IO.Path]::GetRelativePath($worktree, $_.FullName) } |
+                    ForEach-Object { '  ' + [IO.Path]::GetRelativePath($tree, $_.FullName).Replace('\', '/') } |
                     Write-Host
                 return
             }
-            Write-Host "Push attempt $attempt of $maxAttempts was rejected (another publisher moved $Branch?): $($push -join ' ')"
+            Write-Host "Push attempt $attempt of $maxAttempts was rejected (another publisher moved $Branch?): $($push.Output -join ' ')"
         }
         finally {
-            if (Test-Path -LiteralPath $worktree) {
-                & git -C $RepoRoot worktree remove --force $worktree 2>&1 | Out-Null
-                if (Test-Path -LiteralPath $worktree) { Remove-Item -LiteralPath $worktree -Recurse -Force }
-                & git -C $RepoRoot worktree prune 2>&1 | Out-Null
-            }
+            Remove-Item -LiteralPath $tree -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $index -Force -ErrorAction SilentlyContinue
         }
         Start-Sleep -Seconds (5 * $attempt)
     }
@@ -277,10 +300,10 @@ function Invoke-Assemble {
 
     if (Test-RemoteBranch) {
         Update-RemoteBranchRef
-        $persisted = Join-Path ([IO.Path]::GetTempPath()) "dashboard-data-$([guid]::NewGuid().ToString('N'))"
+        $persisted = New-TempDirectory
         try {
-            Invoke-Git -Arguments @('worktree', 'add', '--detach', $persisted, "refs/remotes/origin/$Branch") | Out-Null
-            $head = (Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output
+            $head = [string] ((Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output | Select-Object -First 1)
+            Expand-Commit -Commit $head -Destination $persisted
             Write-Host "Applying $Branch at $head over the live data."
             foreach ($domain in $Domains) {
                 $source = Join-Path $persisted $domain
@@ -295,9 +318,7 @@ function Invoke-Assemble {
             }
         }
         finally {
-            & git -C $RepoRoot worktree remove --force $persisted 2>&1 | Out-Null
-            if (Test-Path -LiteralPath $persisted) { Remove-Item -LiteralPath $persisted -Recurse -Force }
-            & git -C $RepoRoot worktree prune 2>&1 | Out-Null
+            Remove-Item -LiteralPath $persisted -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
     else {
