@@ -242,6 +242,9 @@ anything. Its `stages/verification.md` starts with `Verdict: PASS` or `Verdict: 
   (checked by reading `stages/verification.md`'s first line). Re-spawn the named stage's agent, re-commit it,
   then re-spawn `audit-verifier` for a fresh verdict. Update the board: `verdict=FAIL` and add a `gates/<id>`
   entry describing the correction; clear it (or add a `verdict=PASS` entry) once the re-run passes.
+- Re-committing a stage's artifact AFTER a PASS verdict (e.g. regenerating remediation drafts once more)
+  makes that verdict stale by the same git-history check (#1555): `audit-stage-guard.ps1` then allows
+  re-spawning `audit-verifier` on its own, and `audit-done.ps1` refuses to close the audit until it does.
 
 ## 4. Lessons
 
