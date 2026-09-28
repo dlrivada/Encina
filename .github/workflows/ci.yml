@@ -568,6 +568,10 @@ jobs:
             --manifest-dir .github/coverage-manifest \
             --src-root src
 
+      # #1497: every coverage-manifest key must name a file that still exists under src/<Package>/.
+      - name: Check for stale coverage-manifest keys
+        run: dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest
+
   # Every fragment under changelog.d/ must have a valid name, section and entry content
   # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
   # unreleased-unchanged check below the base commit to diff against.
