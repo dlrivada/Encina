@@ -4,6 +4,7 @@
 // a weighted coverage report where only applicable test types count per package.
 //
 // Usage: dotnet run .github/scripts/coverage-report.cs -- [--output <dir>] [--input <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest [--manifest <dir>]
 //
 // Requires: .NET 10+ (C# 14 file-based app)
 
@@ -19,12 +20,14 @@ using System.Xml.Linq;
 var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
 var manifestDir = ".github/coverage-manifest";
+var checkStaleManifest = false;
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) manifestDir = args[++i];
+    if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
 }
 
 // Categories removed — all configuration comes from per-package manifests
@@ -102,6 +105,37 @@ if (Directory.Exists(manifestDir))
 else
 {
     Console.WriteLine($"WARNING: Manifest directory '{manifestDir}' not found. Using category-level weights only.");
+}
+
+// ─── Check for stale manifest keys (#1497) ──────────────────────────────────
+// A manifest key is stale when its source file was deleted but the entry was not removed.
+// This reuses exactly the same key → path resolution as BuildDocRefIndex below
+// (src/<Package>/<relPath>, relative to the current directory), so a key considered
+// citable there is never flagged here, and vice versa. Needs no coverage data or build.
+if (checkStaleManifest)
+{
+    var staleKeys = new List<string>();
+    foreach (var (package, files) in manifest.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        foreach (var key in files.Keys.OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var relPath = key.Replace('\\', '/');
+            var sourcePath = $"src/{package}/{relPath}";
+            if (!File.Exists(sourcePath))
+                staleKeys.Add($"{package}: {relPath}");
+        }
+    }
+
+    if (staleKeys.Count > 0)
+    {
+        Console.WriteLine($"\nSTALE MANIFEST KEYS ({staleKeys.Count}): the key names a file that does not exist under src/<Package>/");
+        foreach (var staleKey in staleKeys)
+            Console.WriteLine($"  - {staleKey}");
+        Environment.Exit(1);
+    }
+
+    Console.WriteLine("\nNo stale manifest keys found.");
+    return;
 }
 
 // ─── Detect packages in src/ without a coverage manifest ────────────────────
