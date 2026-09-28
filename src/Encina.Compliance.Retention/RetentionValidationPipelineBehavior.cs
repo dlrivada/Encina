@@ -278,11 +278,11 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
 
                 if (_options.EnforcementMode == RetentionEnforcementMode.Block)
                 {
-                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, periodError.Message);
+                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, periodError.GetCode().IfNone("encina.unknown"));
                     return Left<EncinaError, Unit>(periodError);
                 }
 
-                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, periodError.Message);
+                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, periodError.GetCode().IfNone("encina.unknown"));
                 return Right<EncinaError, Unit>(unit);
             }
 
@@ -316,12 +316,12 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
             {
                 if (_options.EnforcementMode == RetentionEnforcementMode.Block)
                 {
-                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, error.Message);
+                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, error.GetCode().IfNone("encina.unknown"));
                     return Left<EncinaError, Unit>(
                         RetentionErrors.PipelineRecordCreationFailed(dataCategory, error.Message));
                 }
 
-                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, error.Message);
+                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, error.GetCode().IfNone("encina.unknown"));
                 return Right<EncinaError, Unit>(unit);
             });
     }

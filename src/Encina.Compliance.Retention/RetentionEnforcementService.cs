@@ -145,7 +145,7 @@ public sealed class RetentionEnforcementService : BackgroundService
             if (expiredResult.IsLeft)
             {
                 var error = (EncinaError)expiredResult;
-                _logger.RetentionEnforcementCycleFailed(new InvalidOperationException(error.Message));
+                _logger.RetentionEnforcementCycleFailed(error.GetCode().IfNone("encina.unknown"));
                 RetentionDiagnostics.RecordFailed(activity, error.GetCode().IfNone("encina.unknown"));
                 RetentionDiagnostics.EnforcementCyclesTotal.Add(1,
                     new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
@@ -409,7 +409,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
             if (expiredResult.IsLeft)
             {
-                _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkExpired", ((EncinaError)expiredResult).Message);
+                _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkExpired", ((EncinaError)expiredResult).GetCode().IfNone("encina.unknown"));
                 return RecordOutcome.Failed;
             }
         }
@@ -472,7 +472,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
         if (erasureResult.IsLeft)
         {
-            _logger.RetentionErasureFailed(record.EntityId, record.DataCategory, ((EncinaError)erasureResult).Message);
+            _logger.RetentionErasureFailed(record.EntityId, record.DataCategory, ((EncinaError)erasureResult).GetCode().IfNone("encina.unknown"));
             return RecordOutcome.Failed;
         }
 
@@ -483,7 +483,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
         if (deletedResult.IsLeft)
         {
-            _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkDeleted", ((EncinaError)deletedResult).Message);
+            _logger.RetentionEnforcementTransitionFailed(record.Id, "MarkDeleted", ((EncinaError)deletedResult).GetCode().IfNone("encina.unknown"));
             return RecordOutcome.Failed;
         }
 
@@ -517,16 +517,16 @@ public sealed class RetentionEnforcementService : BackgroundService
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            _logger.RetentionSiblingCheckFailed(record.Id, record.EntityId, ex.Message);
+            _logger.RetentionSiblingCheckFailed(record.Id, record.EntityId, ex.GetType().Name);
             return null;
         }
 
         if (!entityRecordsResult.IsRight)
         {
-            var message = entityRecordsResult.IsLeft
-                ? ((EncinaError)entityRecordsResult).Message
-                : "the record service returned no result";
-            _logger.RetentionSiblingCheckFailed(record.Id, record.EntityId, message);
+            var errorCode = entityRecordsResult.IsLeft
+                ? ((EncinaError)entityRecordsResult).GetCode().IfNone("encina.unknown")
+                : "encina.no_result";
+            _logger.RetentionSiblingCheckFailed(record.Id, record.EntityId, errorCode);
             return null;
         }
 
@@ -570,7 +570,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
             if (expiredResult.IsLeft)
             {
-                _logger.RetentionEnforcementTransitionFailed(sibling.Id, "MarkExpired", ((EncinaError)expiredResult).Message);
+                _logger.RetentionEnforcementTransitionFailed(sibling.Id, "MarkExpired", ((EncinaError)expiredResult).GetCode().IfNone("encina.unknown"));
                 return;
             }
         }
@@ -581,7 +581,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
         if (deletedResult.IsLeft)
         {
-            _logger.RetentionEnforcementTransitionFailed(sibling.Id, "MarkDeleted", ((EncinaError)deletedResult).Message);
+            _logger.RetentionEnforcementTransitionFailed(sibling.Id, "MarkDeleted", ((EncinaError)deletedResult).GetCode().IfNone("encina.unknown"));
             return;
         }
 
@@ -607,13 +607,13 @@ public sealed class RetentionEnforcementService : BackgroundService
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ex.Message);
+            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ex.GetType().Name);
             return HoldStatus.Unknown;
         }
 
         if (hasHoldsResult.IsLeft)
         {
-            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ((EncinaError)hasHoldsResult).Message);
+            _logger.RetentionLegalHoldCheckFailed(record.Id, record.EntityId, ((EncinaError)hasHoldsResult).GetCode().IfNone("encina.unknown"));
             return HoldStatus.Unknown;
         }
 
@@ -636,7 +636,7 @@ public sealed class RetentionEnforcementService : BackgroundService
 
         if (holdResult.IsLeft)
         {
-            _logger.RetentionEnforcementTransitionFailed(record.Id, "HoldRecord", ((EncinaError)holdResult).Message);
+            _logger.RetentionEnforcementTransitionFailed(record.Id, "HoldRecord", ((EncinaError)holdResult).GetCode().IfNone("encina.unknown"));
             return RecordOutcome.Failed;
         }
 

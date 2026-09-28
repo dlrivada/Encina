@@ -25,7 +25,9 @@ namespace Encina.Compliance.Retention.Diagnostics;
 /// <item><term>8560-8569</term><description>Audit trail</description></item>
 /// <item><term>8570-8585</term><description>Event-sourced services</description></item>
 /// <item><term>8586-8587</term><description>Enforcement lifecycle outcomes</description></item>
-/// <item><term>8588-8599</term><description>Legal hold release outcomes</description></item>
+/// <item><term>8588-8594</term><description>Legal hold release/placement outcomes</description></item>
+/// <item><term>8595</term><description>Enforcement cycle failure (error-code overload, #1505)</description></item>
+/// <item><term>8596</term><description>Auto-registration policy failure (error-code overload, #1505)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -74,15 +76,15 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8505,
         Level = LogLevel.Warning,
-        Message = "Retention record creation blocked. DataCategory={DataCategory}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionRecordCreationBlocked(this ILogger logger, string dataCategory, string responseType, string errorMessage);
+        Message = "Retention record creation blocked. DataCategory={DataCategory}, ResponseType={ResponseType}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionRecordCreationBlocked(this ILogger logger, string dataCategory, string responseType, string errorCode);
 
     /// <summary>Retention record creation failed — warning in Warn mode.</summary>
     [LoggerMessage(
         EventId = 8506,
         Level = LogLevel.Warning,
-        Message = "Retention record creation failed — proceeding in Warn mode. DataCategory={DataCategory}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionRecordCreationWarned(this ILogger logger, string dataCategory, string responseType, string errorMessage);
+        Message = "Retention record creation failed — proceeding in Warn mode. DataCategory={DataCategory}, ResponseType={ResponseType}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionRecordCreationWarned(this ILogger logger, string dataCategory, string responseType, string errorCode);
 
     /// <summary>Entity ID not found on response type.</summary>
     [LoggerMessage(
@@ -130,12 +132,19 @@ internal static partial class RetentionLogMessages
         Message = "Retention enforcement cycle completed. RecordsDeleted={RecordsDeleted}, RecordsFailed={RecordsFailed}, RecordsUnderHold={RecordsUnderHold}, RecordsDeferred={RecordsDeferred}")]
     internal static partial void RetentionEnforcementCycleCompleted(this ILogger logger, int recordsDeleted, int recordsFailed, int recordsUnderHold, int recordsDeferred);
 
-    /// <summary>Retention enforcement cycle failed.</summary>
+    /// <summary>Retention enforcement cycle failed with an unhandled exception.</summary>
     [LoggerMessage(
         EventId = 8513,
         Level = LogLevel.Error,
         Message = "Retention enforcement cycle failed")]
     internal static partial void RetentionEnforcementCycleFailed(this ILogger logger, Exception exception);
+
+    /// <summary>Retention enforcement cycle failed because the store returned an error.</summary>
+    [LoggerMessage(
+        EventId = 8595,
+        Level = LogLevel.Error,
+        Message = "Retention enforcement cycle failed. ErrorCode={ErrorCode}")]
+    internal static partial void RetentionEnforcementCycleFailed(this ILogger logger, string errorCode);
 
     /// <summary>Expiring data check completed.</summary>
     [LoggerMessage(
@@ -211,12 +220,19 @@ internal static partial class RetentionLogMessages
         Message = "Retention policy already exists for category. DataCategory={DataCategory}, skipping auto-creation")]
     internal static partial void RetentionPolicyAlreadyExists(this ILogger logger, string dataCategory);
 
-    /// <summary>Retention auto-registration failed to create policy.</summary>
+    /// <summary>Retention auto-registration failed to create policy because of an unhandled exception.</summary>
     [LoggerMessage(
         EventId = 8524,
         Level = LogLevel.Warning,
         Message = "Failed to auto-register retention policy. DataCategory={DataCategory}")]
     internal static partial void RetentionAutoRegistrationPolicyFailed(this ILogger logger, string dataCategory, Exception exception);
+
+    /// <summary>Retention auto-registration failed to create policy because the store returned an error.</summary>
+    [LoggerMessage(
+        EventId = 8596,
+        Level = LogLevel.Warning,
+        Message = "Failed to auto-register retention policy. DataCategory={DataCategory}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionAutoRegistrationPolicyFailed(this ILogger logger, string dataCategory, string errorCode);
 
     // ========================================================================
     // Health check log messages (8530-8539)
@@ -286,8 +302,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8547,
         Level = LogLevel.Warning,
-        Message = "Failed to cascade hold status. EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void LegalHoldCascadeFailed(this ILogger logger, string entityId, string errorMessage);
+        Message = "Failed to cascade hold status. EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void LegalHoldCascadeFailed(this ILogger logger, string entityId, string errorCode);
 
     /// <summary>Entity is under legal hold — deletion skipped during enforcement.</summary>
     [LoggerMessage(
@@ -360,8 +376,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8557,
         Level = LogLevel.Warning,
-        Message = "Data erasure failed; record not marked deleted. EntityId={EntityId}, DataCategory={DataCategory}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionErasureFailed(this ILogger logger, string entityId, string dataCategory, string errorMessage);
+        Message = "Data erasure failed; record not marked deleted. EntityId={EntityId}, DataCategory={DataCategory}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionErasureFailed(this ILogger logger, string entityId, string dataCategory, string errorCode);
 
     /// <summary>Exception during data erasure for entity.</summary>
     [LoggerMessage(
@@ -568,15 +584,15 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8586,
         Level = LogLevel.Warning,
-        Message = "Legal hold status could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionLegalHoldCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorMessage);
+        Message = "Legal hold status could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionLegalHoldCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorCode);
 
     /// <summary>A retention record state transition failed during enforcement — the record is counted as failed.</summary>
     [LoggerMessage(
         EventId = 8587,
         Level = LogLevel.Warning,
-        Message = "Retention record state transition failed during enforcement. RecordId={RecordId}, Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionEnforcementTransitionFailed(this ILogger logger, Guid recordId, string operation, string errorMessage);
+        Message = "Retention record state transition failed during enforcement. RecordId={RecordId}, Operation={Operation}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionEnforcementTransitionFailed(this ILogger logger, Guid recordId, string operation, string errorCode);
 
     // ========================================================================
     // Legal hold release outcome log messages (8588-8599)
@@ -589,8 +605,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8588,
         Level = LogLevel.Warning,
-        Message = "Retention record could not be released from a lifted legal hold; it stays under legal hold until the lift is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void LegalHoldRecordReleaseFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorMessage);
+        Message = "Retention record could not be released from a lifted legal hold; it stays under legal hold until the lift is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void LegalHoldRecordReleaseFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorCode);
 
     /// <summary>
     /// Whether other active holds remain on the entity could not be determined — no record is released (fail closed).
@@ -598,8 +614,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8589,
         Level = LogLevel.Warning,
-        Message = "Could not determine whether other legal holds remain on the entity; its records stay under legal hold (fail closed). HoldId={HoldId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void LegalHoldOtherHoldsCheckFailed(this ILogger logger, Guid holdId, string entityId, string errorMessage);
+        Message = "Could not determine whether other legal holds remain on the entity; its records stay under legal hold (fail closed). HoldId={HoldId}, EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void LegalHoldOtherHoldsCheckFailed(this ILogger logger, Guid holdId, string entityId, string errorCode);
 
     /// <summary>
     /// <c>LiftHoldAsync</c> was called for a hold that is already lifted — only the release of the entity's
@@ -633,8 +649,8 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8592,
         Level = LogLevel.Warning,
-        Message = "Sibling retention records could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionSiblingCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorMessage);
+        Message = "Sibling retention records could not be determined; record skipped and not erased (fail closed). RecordId={RecordId}, EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void RetentionSiblingCheckFailed(this ILogger logger, Guid recordId, string entityId, string errorCode);
 
     /// <summary>
     /// <c>ReleaseRecordAsync</c> found the record no longer under legal hold (an earlier release completed or the
@@ -657,6 +673,6 @@ internal static partial class RetentionLogMessages
     [LoggerMessage(
         EventId = 8594,
         Level = LogLevel.Warning,
-        Message = "Retention record could not be placed under a newly placed legal hold; it is not protected until the placement is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void LegalHoldRecordHoldFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorMessage);
+        Message = "Retention record could not be placed under a newly placed legal hold; it is not protected until the placement is retried. HoldId={HoldId}, RecordId={RecordId}, EntityId={EntityId}, ErrorCode={ErrorCode}")]
+    internal static partial void LegalHoldRecordHoldFailed(this ILogger logger, Guid holdId, Guid recordId, string entityId, string errorCode);
 }

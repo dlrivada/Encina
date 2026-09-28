@@ -357,7 +357,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         if (recordsResult.IsLeft)
         {
             var error = (EncinaError)recordsResult;
-            _logger.LegalHoldCascadeFailed(entityId, error.Message);
+            _logger.LegalHoldCascadeFailed(entityId, error.GetCode().IfNone("encina.unknown"));
             return RetentionErrors.HoldPlacementIncomplete(
                 legalHoldId, entityId, [], "the entity's retention records could not be queried");
         }
@@ -374,11 +374,11 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
             {
                 var holdResult = await _retentionRecordService.HoldRecordAsync(
                     record.Id, legalHoldId, cancellationToken);
-                failure = holdResult.IsLeft ? ((EncinaError)holdResult).Message : null;
+                failure = holdResult.IsLeft ? ((EncinaError)holdResult).GetCode().IfNone("encina.unknown") : null;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                failure = ex.Message;
+                failure = ex.GetType().Name;
             }
 
             if (failure is not null)
@@ -445,7 +445,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         if (otherHoldsResult.IsLeft)
         {
             var error = (EncinaError)otherHoldsResult;
-            _logger.LegalHoldOtherHoldsCheckFailed(legalHoldId, entityId, error.Message);
+            _logger.LegalHoldOtherHoldsCheckFailed(legalHoldId, entityId, error.GetCode().IfNone("encina.unknown"));
             return RetentionErrors.HoldReleaseIncomplete(
                 legalHoldId, entityId, [], "whether other legal holds remain on the entity could not be determined");
         }
@@ -475,7 +475,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         if (recordsResult.IsLeft)
         {
             var error = (EncinaError)recordsResult;
-            _logger.LegalHoldCascadeFailed(entityId, error.Message);
+            _logger.LegalHoldCascadeFailed(entityId, error.GetCode().IfNone("encina.unknown"));
             return RetentionErrors.HoldReleaseIncomplete(
                 legalHoldId, entityId, [], "the entity's held retention records could not be queried");
         }
@@ -492,11 +492,11 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
             {
                 var releaseResult = await _retentionRecordService.ReleaseRecordAsync(
                     record.Id, legalHoldId, cancellationToken);
-                failure = releaseResult.IsLeft ? ((EncinaError)releaseResult).Message : null;
+                failure = releaseResult.IsLeft ? ((EncinaError)releaseResult).GetCode().IfNone("encina.unknown") : null;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                failure = ex.Message;
+                failure = ex.GetType().Name;
             }
 
             if (failure is not null)
