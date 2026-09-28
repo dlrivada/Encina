@@ -164,6 +164,79 @@ $scoresUntouched = @{ importance = 20 }
 Merge-PriorityOverrides -Scores $scoresUntouched -IssueNumber 999 -Overrides $overrides | Out-Null
 Assert-Equal 20 $scoresUntouched['importance'] 'override: an issue with no matching override is left untouched'
 
+# --- New-ScoredEntry -Resume logic (#1560): only the judged criteria are reused ----------------
+# score-issues.ps1 is dot-sourced (invocation name '.') purely for its function definitions —
+# the script itself detects that and returns before the -All/-Issue body runs, so this triggers
+# no gh call, no collect-issues.ps1 refresh and no local-model call.
+. (Join-Path $PSScriptRoot 'score-issues.ps1')
+
+$resumeBody = "## Description`n`nSome debt.`n`n## Effort Estimate`n`n- [ ] Small (< 1 hour)`n- [ ] Medium (1-4 hours)`n- [ ] Large (> 4 hours)`n"
+$previousEntryRaw = [ordered]@{
+    number       = 1600
+    title        = '[DEBT] Old title before resume'
+    milestone    = $null
+    createdAtUtc = '2026-01-01T00:00:00Z'
+    flags        = @('needs-milestone')
+    total        = 42.0
+    scores       = @{ unblocking = 0; importance = 70; regulatory = 20; transversality = 40; method = 55; effort = 45; fit = 40; age = 10 }
+    why          = @{ importance = 'previous importance why'; regulatory = 'previous regulatory why'; transversality = 'previous transversality why'; method = 'previous method why'; effort = 'previous effort why' }
+    source       = @{ unblocking = 'deterministic'; importance = 'model'; regulatory = 'model'; transversality = 'model'; method = 'model'; effort = 'model'; fit = 'deterministic'; age = 'deterministic' }
+    bodyHash     = 'irrelevant-to-New-ScoredEntry-the-caller-checks-the-hash'
+    scoredAtUtc  = '2026-01-01T12:00:00Z'
+    judgedAtUtc  = '2026-01-01T12:00:00Z'
+}
+# Round-trip through JSON so nested property access matches the real scores.json shape
+# (PSCustomObject, not Hashtable) that the -All loop reads back into $previous.
+$previousEntry = $previousEntryRaw | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+
+$freshIssue = [ordered]@{
+    number     = 1600
+    title      = '[DEBT] Fresh title after milestone assigned'
+    milestone  = 'v0.15.0'
+    createdAt  = '2026-06-01T00:00:00Z'
+    body       = $resumeBody
+    dependents = @(10, 11, 12)
+}
+$resumed = New-ScoredEntry -IssueRecord $freshIssue -Overrides @() -PreviousJudged $previousEntry
+Assert-Equal 'v0.15.0' $resumed.milestone 'resume: fresh milestone replaces the previous (stale) one'
+Assert-Equal '[DEBT] Fresh title after milestone assigned' $resumed.title 'resume: title is recomputed from the fresh record'
+Assert-Equal 90 $resumed.scores.fit 'resume: fit is recomputed from the fresh milestone'
+Assert-Equal 75 $resumed.scores.unblocking 'resume: unblocking is recomputed from the fresh dependents (3 x 25)'
+Assert-Equal 0 $resumed.flags.Count 'resume: needs-milestone flag drops once a fresh milestone exists'
+Assert-Equal 70 $resumed.scores.importance 'resume: importance is reused from the previous judged entry'
+Assert-Equal 'previous importance why' $resumed.why.importance 'resume: importance why is reused from the previous judged entry'
+Assert-Equal 'model' $resumed.source.importance 'resume: importance source is reused from the previous judged entry'
+Assert-Equal 20 $resumed.scores.regulatory 'resume: regulatory is reused from the previous judged entry'
+Assert-Equal 40 $resumed.scores.transversality 'resume: transversality is reused from the previous judged entry'
+Assert-Equal 55 $resumed.scores.method 'resume: method is reused from the previous judged entry'
+Assert-Equal 45 $resumed.scores.effort 'resume: effort is reused from the previous judged entry when its source was model and the checkbox is unticked'
+Assert-Equal 'previous effort why' $resumed.why.effort 'resume: effort why is reused with the score'
+Assert-Equal '2026-01-01T12:00:00Z' $resumed.judgedAtUtc 'resume: judgedAtUtc keeps the previous judged timestamp'
+Assert-True ($resumed.scoredAtUtc -ne '2026-01-01T12:00:00Z') 'resume: scoredAtUtc is always stamped fresh, never reused'
+
+# A now-ticked effort checkbox wins over the previous judged effort score.
+$tickedBody = "## Description`n`nSome debt.`n`n## Effort Estimate`n`n- [x] Small (< 1 hour)`n- [ ] Medium (1-4 hours)`n- [ ] Large (> 4 hours)`n"
+$tickedIssue = [ordered]@{
+    number     = 1600
+    title      = '[DEBT] Fresh title, effort now ticked'
+    milestone  = 'v0.15.0'
+    createdAt  = '2026-06-01T00:00:00Z'
+    body       = $tickedBody
+    dependents = @()
+}
+$resumedTicked = New-ScoredEntry -IssueRecord $tickedIssue -Overrides @() -PreviousJudged $previousEntry
+Assert-Equal 100 $resumedTicked.scores.effort 'resume: a newly ticked effort checkbox overrides the previous judged effort score'
+Assert-Equal 'Effort Estimate checkbox ticked' $resumedTicked.why.effort 'resume: checkbox effort why replaces the previous judged why'
+Assert-Equal 'checkbox' $resumedTicked.source.effort 'resume: checkbox effort source replaces the previous model source'
+Assert-Equal 70 $resumedTicked.scores.importance 'resume: importance is still reused even when effort switches to the checkbox'
+
+# An override is still re-applied on top of the resumed judged scores.
+$resumeOverrides = @([pscustomobject]@{ issue = 1600; criterion = 'importance'; score = 5; reason = 'maintainer call: deprioritize on resume' })
+$resumedOverridden = New-ScoredEntry -IssueRecord $freshIssue -Overrides $resumeOverrides -PreviousJudged $previousEntry
+Assert-Equal 5 $resumedOverridden.scores.importance 'resume: an override still applies on top of a resumed judged score'
+Assert-Equal 'maintainer call: deprioritize on resume' $resumedOverridden.why.importance 'resume: override why replaces the resumed why'
+Assert-Equal 'override' $resumedOverridden.source.importance 'resume: override source replaces the resumed model source'
+
 # --- Invalid model JSON handling (#1552 decision 4/8) ------------------------------------------
 $validJson = '{"importance":{"score":80,"why":"x"},"regulatory":{"score":10,"why":"x"},"transversality":{"score":50,"why":"x"},"method":{"score":30,"why":"x"},"effort":{"score":60,"why":"x"}}'
 $parsedOk = ConvertFrom-PriorityModelJson -Text $validJson

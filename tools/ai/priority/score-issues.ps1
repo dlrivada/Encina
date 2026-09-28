@@ -51,17 +51,6 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_priority-lib.ps1')
 
-if (-not $IssuesFile) { $IssuesFile = Join-Path $Root 'artifacts/priority/issues.json' }
-if (-not $ScoresFile) { $ScoresFile = Join-Path $Root 'artifacts/priority/scores.json' }
-if (-not $BoardFile) { $BoardFile = Join-Path $Root 'artifacts/priority/board.json' }
-if (-not $OverridesFile) { $OverridesFile = Join-Path $PSScriptRoot 'overrides.json' }
-if (-not $RubricFile) { $RubricFile = Join-Path $PSScriptRoot 'rubric.md' }
-$localAiScript = Join-Path $Root 'tools/ai/local-ai-ask.cs'
-$modelOutDir = Join-Path $Root 'artifacts/priority/model-out'
-$modelInDir = Join-Path $Root 'artifacts/priority/model-in'
-New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
-New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
-
 function Get-BodyHash([string]$Body) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$Body)
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -122,50 +111,145 @@ function Invoke-JudgedScores {
 }
 
 function New-ScoredEntry {
+    <#
+        .SYNOPSIS
+        Builds one scored entry from a fresh issue record. Every field is recomputed from
+        $IssueRecord (title, milestone, flags, unblocking, fit, age, the effort checkbox and
+        overrides) except the five model-judged criteria, which are taken from $PreviousJudged
+        when it is supplied (#1560's -Resume fix).
+
+        .PARAMETER PreviousJudged
+        The previous scores.json entry for this same issue number, only when its bodyHash matched
+        the current body and it was not itself 'unscored' (the caller decides that; this function
+        does not compare hashes). When supplied: importance/regulatory/transversality/method are
+        always reused verbatim (score, why, source) — no model call for them. Effort is reused only
+        when $PreviousJudged.source.effort is 'model'; the effort checkbox (recomputed fresh below)
+        still wins over any reused value; and if effort is neither ticked nor previously model-
+        sourced (it was 'override' or 'checkbox'), the pre-override/pre-checkbox model value is not
+        retained anywhere in the previous entry, so a fresh model call is needed for effort alone.
+        Pass $null (the default) to always score from the model, matching the pre-#1560 behavior.
+    #>
     param(
         [Parameter(Mandatory)]$IssueRecord,
-        [array]$Overrides
+        [array]$Overrides,
+        $PreviousJudged
     )
     $flags = @()
     if (-not $IssueRecord.milestone) { $flags += 'needs-milestone' }
 
     $effortCk = Get-PriorityEffortCheckboxScore -Body $IssueRecord.body
-    $judged = Invoke-JudgedScores -IssueRecord $IssueRecord
-    if ($null -eq $judged.Parsed) {
-        return [ordered]@{
-            number    = $IssueRecord.number
-            title     = $IssueRecord.title
-            milestone = $IssueRecord.milestone
-            flags     = $flags
-            error     = $judged.Error
-            unscored  = $true
+
+    # A model call is needed unless every judged criterion can come from $PreviousJudged: the four
+    # non-effort criteria always can when $PreviousJudged is given; effort can only when the
+    # checkbox is unticked AND the previous entry's effort was itself model-sourced.
+    $needsModel = $true
+    if ($PreviousJudged) {
+        $needsModel = (-not $effortCk.Ticked) -and ([string]$PreviousJudged.source.effort -ne 'model')
+    }
+
+    $judged = $null
+    if ($needsModel) {
+        $judged = Invoke-JudgedScores -IssueRecord $IssueRecord
+        if ($null -eq $judged.Parsed) {
+            return [ordered]@{
+                number   = $IssueRecord.number
+                title    = $IssueRecord.title
+                milestone = $IssueRecord.milestone
+                flags    = $flags
+                error    = $judged.Error
+                unscored = $true
+            }
         }
+    }
+
+    if ($PreviousJudged) {
+        $importanceScore = [double]$PreviousJudged.scores.importance
+        $importanceWhy = [string]$PreviousJudged.why.importance
+        $importanceSrc = [string]$PreviousJudged.source.importance
+        $regulatoryScore = [double]$PreviousJudged.scores.regulatory
+        $regulatoryWhy = [string]$PreviousJudged.why.regulatory
+        $regulatorySrc = [string]$PreviousJudged.source.regulatory
+        $transversalityScore = [double]$PreviousJudged.scores.transversality
+        $transversalityWhy = [string]$PreviousJudged.why.transversality
+        $transversalitySrc = [string]$PreviousJudged.source.transversality
+        $methodScore = [double]$PreviousJudged.scores.method
+        $methodWhy = [string]$PreviousJudged.why.method
+        $methodSrc = [string]$PreviousJudged.source.method
+    }
+    else {
+        $importanceScore = [double]$judged.Parsed.importance.score
+        $importanceWhy = [string]$judged.Parsed.importance.why
+        $importanceSrc = 'model'
+        $regulatoryScore = [double]$judged.Parsed.regulatory.score
+        $regulatoryWhy = [string]$judged.Parsed.regulatory.why
+        $regulatorySrc = 'model'
+        $transversalityScore = [double]$judged.Parsed.transversality.score
+        $transversalityWhy = [string]$judged.Parsed.transversality.why
+        $transversalitySrc = 'model'
+        $methodScore = [double]$judged.Parsed.method.score
+        $methodWhy = [string]$judged.Parsed.method.why
+        $methodSrc = 'model'
+    }
+
+    if ($effortCk.Ticked) {
+        $effortScore = [double]$effortCk.Score
+        $effortWhy = 'Effort Estimate checkbox ticked'
+        $effortSrc = 'checkbox'
+    }
+    elseif ($PreviousJudged -and [string]$PreviousJudged.source.effort -eq 'model') {
+        $effortScore = [double]$PreviousJudged.scores.effort
+        $effortWhy = [string]$PreviousJudged.why.effort
+        $effortSrc = 'model'
+    }
+    else {
+        $effortScore = [double]$judged.Parsed.effort.score
+        $effortWhy = [string]$judged.Parsed.effort.why
+        $effortSrc = 'model'
+    }
+
+    # judgedAtUtc records when the five model-judged criteria were last actually produced (by the
+    # model, independent of the effort checkbox/override path above), as opposed to scoredAtUtc
+    # below, which always reflects this run. A resumed entry keeps the previous judgedAtUtc; a
+    # freshly-judged one (no previous entry, or the effort-only re-judge branch above) stamps now.
+    # ConvertFrom-Json (reading scores.json back for -Resume) auto-parses an ISO-8601-looking
+    # string into a [datetime], so this re-formats through [datetime] regardless of whether the
+    # source value arrived as that type or as a plain string (e.g. in this function's own tests).
+    $judgedAtUtc = if ($PreviousJudged -and $PreviousJudged.judgedAtUtc) {
+        ([datetime]$PreviousJudged.judgedAtUtc).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    }
+    elseif ($PreviousJudged -and $PreviousJudged.scoredAtUtc) {
+        # Entries scored before #1560 added judgedAtUtc have no such field; scoredAtUtc is the
+        # closest approximation available for them.
+        ([datetime]$PreviousJudged.scoredAtUtc).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    }
+    else {
+        (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     }
 
     $scores = @{
         unblocking     = Get-PriorityUnblockingScore -DependentCount ($IssueRecord.dependents.Count)
-        importance     = [double]$judged.Parsed.importance.score
-        regulatory     = [double]$judged.Parsed.regulatory.score
-        transversality = [double]$judged.Parsed.transversality.score
-        method         = [double]$judged.Parsed.method.score
-        effort         = if ($effortCk.Ticked) { [double]$effortCk.Score } else { [double]$judged.Parsed.effort.score }
+        importance     = $importanceScore
+        regulatory     = $regulatoryScore
+        transversality = $transversalityScore
+        method         = $methodScore
+        effort         = $effortScore
         fit            = Get-PriorityMilestoneFitScore -MilestoneTitle $IssueRecord.milestone
         age            = Get-PriorityAgeScore -CreatedAtUtc ([datetime]$IssueRecord.createdAt)
     }
     $why = @{
-        importance     = [string]$judged.Parsed.importance.why
-        regulatory     = [string]$judged.Parsed.regulatory.why
-        transversality = [string]$judged.Parsed.transversality.why
-        method         = [string]$judged.Parsed.method.why
-        effort         = if ($effortCk.Ticked) { 'Effort Estimate checkbox ticked' } else { [string]$judged.Parsed.effort.why }
+        importance     = $importanceWhy
+        regulatory     = $regulatoryWhy
+        transversality = $transversalityWhy
+        method         = $methodWhy
+        effort         = $effortWhy
     }
     $source = @{
         unblocking     = 'deterministic'
-        importance     = 'model'
-        regulatory     = 'model'
-        transversality = 'model'
-        method         = 'model'
-        effort         = if ($effortCk.Ticked) { 'checkbox' } else { 'model' }
+        importance     = $importanceSrc
+        regulatory     = $regulatorySrc
+        transversality = $transversalitySrc
+        method         = $methodSrc
+        effort         = $effortSrc
         fit            = 'deterministic'
         age            = 'deterministic'
     }
@@ -177,17 +261,18 @@ function New-ScoredEntry {
     }
 
     return [ordered]@{
-        number     = $IssueRecord.number
-        title      = $IssueRecord.title
-        milestone     = $IssueRecord.milestone
-        createdAtUtc  = $IssueRecord.createdAt
-        flags      = $flags
-        total      = Get-PriorityTotal -Scores $scores
-        scores     = $scores
-        why        = $why
-        source     = $source
-        bodyHash   = Get-BodyHash -Body $IssueRecord.body
-        scoredAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        number       = $IssueRecord.number
+        title        = $IssueRecord.title
+        milestone    = $IssueRecord.milestone
+        createdAtUtc = $IssueRecord.createdAt
+        flags        = $flags
+        total        = Get-PriorityTotal -Scores $scores
+        scores       = $scores
+        why          = $why
+        source       = $source
+        bodyHash     = Get-BodyHash -Body $IssueRecord.body
+        scoredAtUtc  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        judgedAtUtc  = $judgedAtUtc
     }
 }
 
@@ -213,6 +298,22 @@ function Get-TopCriteria([hashtable]$Scores, [int]$Take = 2) {
     }
     return @($weighted | Sort-Object Contribution -Descending | Select-Object -First $Take | ForEach-Object { $_.Criterion })
 }
+
+# Guards the -All/-Issue execution below so this script can be dot-sourced (invocation name '.')
+# for its function definitions alone -- Test-Priority.ps1 does this to exercise New-ScoredEntry's
+# -Resume logic (#1560) without a gh call, a collect-issues.ps1 refresh, or a local-model call.
+if ($MyInvocation.InvocationName -eq '.') { return }
+
+if (-not $IssuesFile) { $IssuesFile = Join-Path $Root 'artifacts/priority/issues.json' }
+if (-not $ScoresFile) { $ScoresFile = Join-Path $Root 'artifacts/priority/scores.json' }
+if (-not $BoardFile) { $BoardFile = Join-Path $Root 'artifacts/priority/board.json' }
+if (-not $OverridesFile) { $OverridesFile = Join-Path $PSScriptRoot 'overrides.json' }
+if (-not $RubricFile) { $RubricFile = Join-Path $PSScriptRoot 'rubric.md' }
+$localAiScript = Join-Path $Root 'tools/ai/local-ai-ask.cs'
+$modelOutDir = Join-Path $Root 'artifacts/priority/model-out'
+$modelInDir = Join-Path $Root 'artifacts/priority/model-in'
+New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
+New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
 
 $overrides = Get-PriorityOverrides
 
@@ -250,19 +351,16 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
     foreach ($i in $rankedCandidates) {
         $num = [int]$i.number
         $hash = Get-BodyHash -Body $i.body
+        $previousJudged = $null
         if ($Resume -and $previous.ContainsKey($num) -and $previous[$num].bodyHash -eq $hash -and -not $previous[$num].unscored) {
-            $entry = @{}
-            $previous[$num].psobject.Properties | ForEach-Object { $entry[$_.Name] = $_.Value }
-            $ranked.Add($entry)
-            Write-Output "issue #$num`: resumed (unchanged)"
-            continue
+            $previousJudged = $previous[$num]
         }
         # New-ScoredEntry already turns a bad model reply into an 'unscored' entry (see
         # Invoke-JudgedScores above); this catches anything else in the per-issue path (a
         # deterministic-score helper throwing on an unexpected value, disk I/O, ...) so one bad
         # issue never aborts the rest of the -All batch.
         try {
-            $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides
+            $entry = New-ScoredEntry -IssueRecord $i -Overrides $overrides -PreviousJudged $previousJudged
         }
         catch {
             $entry = [ordered]@{
@@ -280,7 +378,8 @@ if ($PSCmdlet.ParameterSetName -eq 'All') {
         }
         else {
             $ranked.Add($entry)
-            Write-Output "issue #$num`: total=$($entry.total)"
+            $resumedNote = if ($previousJudged) { ', resumed judged scores' } else { '' }
+            Write-Output "issue #$num`: total=$($entry.total)$resumedNote"
         }
     }
 
