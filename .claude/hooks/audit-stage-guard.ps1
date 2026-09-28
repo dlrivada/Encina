@@ -14,10 +14,13 @@
 #   - the prompt also names a DIFFERENT wia-<m> (batching issues into one spawn, #1345's founding failure);
 #   - the requested model is one of pipeline.json's forbiddenModels (haiku);
 #   - the subagent is not the stage tools/ai/audit/pipeline.json (via Get-NextStage) reports as next —
-#     except: after the verifier's last verdict was FAIL, any stage may be re-run out of order; and (#1457)
+#     except: after the verifier's last verdict was FAIL, any stage may be re-run out of order; (#1457)
 #     issue-archivist may be re-spawned out of order when audit-done.ps1 left an
 #     artifacts/knowledge/stages/.rerun-archivist marker (the knowledge record failed knowledge-records
-#     --check after every stage was already committed).
+#     --check after every stage was already committed); and (#1555) audit-verifier may be re-spawned out of
+#     order when an earlier stage's artifact was re-committed AFTER the verifier's own last commit, which
+#     makes that PASS verdict stale (it never inspected the new content) — every other out-of-order stage
+#     agent stays blocked while the last verdict is PASS.
 #
 # Also denies any issue-worker or general-purpose spawn whose prompt mentions "SPEC-003 audit": the old
 # coordinator-does-everything path (#1345) is closed; the pipeline's own scripts and stage agents are the
@@ -101,6 +104,36 @@ try {
         return [string]::IsNullOrWhiteSpace(($dirty | Select-Object -First 1))
     }
 
+    # #1555: same logic as tools/ai/audit/_audit-lib.ps1's Get-ArtifactCommitTime / Get-StaleStageAfterVerification,
+    # inlined here for the same reason Test-StageCommitted above is (this hook has no dependency beyond
+    # pipeline.json, read from the open audit's own worktree). Returns the pipeline.json stage definition whose
+    # artifact has the newest commit strictly AFTER the verifier stage's own newest commit, or $null when there
+    # is no verifier stage, it has not committed yet, or nothing was re-committed after it (a tie does not count).
+    function Get-ArtifactCommitTime([string]$Worktree, [string]$ArtifactRelativePath) {
+        $ts = & git -C $Worktree log -1 --format=%ct -- $ArtifactRelativePath 2>$null | Select-Object -First 1
+        if ([string]::IsNullOrWhiteSpace($ts)) { return $null }
+        return [long]$ts
+    }
+    function Get-StaleStageAfterVerification([string]$Worktree, $Pipeline) {
+        $verifierStage = @($Pipeline.stages) | Where-Object { [string]$_.agent -eq 'audit-verifier' } | Select-Object -First 1
+        if ($null -eq $verifierStage) { return $null }
+        $verificationRelative = "artifacts/knowledge/stages/$($verifierStage.artifact)"
+        $verificationTime = Get-ArtifactCommitTime $Worktree $verificationRelative
+        if ($null -eq $verificationTime) { return $null }
+        $stale = $null
+        $staleTime = $verificationTime
+        foreach ($stage in @($Pipeline.stages)) {
+            if ($stage.stage -eq $verifierStage.stage) { continue }
+            $relative = "artifacts/knowledge/stages/$($stage.artifact)"
+            $stageTime = Get-ArtifactCommitTime $Worktree $relative
+            if ($null -ne $stageTime -and $stageTime -gt $staleTime) {
+                $stale = $stage
+                $staleTime = $stageTime
+            }
+        }
+        return $stale
+    }
+
     $nextStage = $null
     foreach ($stage in @($pipeline.stages)) {
         $file = Join-Path $stagesDir $stage.artifact
@@ -129,7 +162,13 @@ try {
     $rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
     $archivistRerunAllowed = ($subagent -eq 'issue-archivist') -and (Test-Path -LiteralPath $rerunArchivistMarker)
 
-    if ($lastVerdictFail -or $archivistRerunAllowed) { exit 0 }
+    # #1555: a PASS verdict is stale when some earlier stage's artifact was re-committed after the verifier's
+    # own last commit -- the verifier never inspected that new content. Only audit-verifier is let through in
+    # that case; every other out-of-order stage agent stays blocked below, same as under a fresh, non-stale PASS.
+    $staleStage = Get-StaleStageAfterVerification $wt $pipeline
+    $verifierRerunAllowed = ($subagent -eq 'audit-verifier') -and ($null -ne $staleStage)
+
+    if ($lastVerdictFail -or $archivistRerunAllowed -or $verifierRerunAllowed) { exit 0 }
 
     if ($null -eq $nextStage) {
         [Console]::Error.WriteLine("Blocked: every pipeline stage for #$n already has a committed artifact and the last verdict was not FAIL; run tools/ai/audit/audit-done.ps1 instead of spawning another stage agent (#1345).")
