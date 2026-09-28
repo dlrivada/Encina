@@ -670,6 +670,11 @@ $ownershipCases = @(
     # orchestrator's, which previously fell through to the default allow.
     @($null, 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: the orchestrator writing .authors.json directly is denied'),
     @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\.authors.json", $wt, 2, 'fabrication gap: a stage agent writing .authors.json directly is denied'),
+    # #1466: the .rerun-archivist marker gets the same unconditional treatment as .authors.json above — its
+    # only legitimate writers are tools/ai/audit/audit-done.ps1 (create) and audit-commit-stage.ps1 (remove),
+    # both from inside their own script text, never through a direct Write/Edit/shell-write tool call.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\.rerun-archivist", $wt, 2, 'fabrication gap (#1466): the orchestrator writing .rerun-archivist directly is denied'),
+    @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\.rerun-archivist", $wt, 2, 'fabrication gap (#1466): a stage agent writing .rerun-archivist directly is denied'),
     # #1382: site-steward writes only under artifacts/site-health/**; it is read-only on the rest of the
     # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
     @('site-steward', 'Write', "$wt\artifacts\site-health\report.md", $wt, 0, 'site-steward: its own report under artifacts/site-health'),
@@ -1023,7 +1028,13 @@ try {
         # branch to the default allow. These cases exercise the hook's own Bash|PowerShell handling for
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
-        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed')
+        @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #1466: a direct shell write to the rerun-archivist marker is denied for every caller, the same as the
+        # .authors.json sidecar; the sanctioned scripts' own internal writes never appear as a literal
+        # Set-Content in the top-level command text, so they are unaffected (next case).
+        @($null, 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\knowledge\stages\.rerun-archivist' -Value 'fabricated'", 2, 'shell vector (#1466): a direct Set-Content to .rerun-archivist is denied for every caller'),
+        @('issue-archivist', 'Bash', "echo fabricated > '$wt/artifacts/knowledge/stages/.rerun-archivist'", 2, 'shell vector (#1466): Bash redirection to .rerun-archivist is denied even for issue-archivist'),
+        @($null, 'PowerShell', "pwsh -NoProfile -File tools/ai/audit/audit-done.ps1", 0, 'shell vector (#1466): the sanctioned audit-done.ps1 launch itself is not denied (its internal marker write is invisible to this analysis)')
     )
     foreach ($case in $shellCases) {
         $hookAgent, $tool, $command, $expected, $label, $agentType = $case
@@ -1450,9 +1461,27 @@ Test.
                 $script:failed++
                 "FAIL audit-commit-stage.ps1: the .rerun-archivist marker leaked into git history or left the worktree dirty (#1457): commits=$(Get-FlatOutput $markerCommits); status=$(Get-FlatOutput $markerStatus)"
             }
+
+            # #1466: the record is unchanged since the commit above, so 'git add -f' has nothing to stage and
+            # 'git commit' fails with "nothing to commit". A marker present at the start of this call (written
+            # here to simulate audit-done.ps1 leaving one for an unrelated reason between two archivist
+            # attempts) must NOT be lost by the ordering bug this issue fixes: the old code removed the marker
+            # unconditionally once the check passed, before ever finding out the commit itself would fail.
+            $noCommitMarkerContent = "knowledge-records --check failed: still broken`n`nUTC: 2026-01-01T01:00:00Z`n"
+            Set-Content -LiteralPath $archivistRerunMarker -Value $noCommitMarkerContent -NoNewline
+            Test-ArchivistCommitCase 'refuses "nothing to commit" when the record is unchanged since the last commit (#1466)' $false 'nothing to commit'
+
+            $script:total++
+            if ((Test-Path -LiteralPath $archivistRerunMarker) -and (Get-Content -LiteralPath $archivistRerunMarker -Raw) -eq $noCommitMarkerContent) {
+                'PASS audit-commit-stage.ps1: a "nothing to commit" archivist commit keeps the .rerun-archivist marker in place, unchanged (#1466)'
+            }
+            else {
+                $script:failed++
+                'FAIL audit-commit-stage.ps1: a "nothing to commit" archivist commit lost or altered the .rerun-archivist marker (#1466)'
+            }
         }
         else {
-            'SKIP audit-commit-stage.ps1: dotnet is not on PATH (#1457 knowledge-records --check cases)'
+            'SKIP audit-commit-stage.ps1: dotnet is not on PATH (#1457/#1466 knowledge-records --check cases)'
         }
 
         # ================================================================================================
