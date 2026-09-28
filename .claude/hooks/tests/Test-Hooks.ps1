@@ -2011,6 +2011,143 @@ Test.
     }
     # ---- end #1400 block ----
 
+    # ---- #1535: tools/ai/audit/_remediation-checks.ps1 -- Limit-RelatedIssues no longer leaves a broken list
+    # item when it strips the issue number a Related Issues bullet is ABOUT. Before this fix, removing only the
+    # '#n' token left three distinct broken shapes, all found in audit #18's live drafts: a doubled marker
+    # ('- - [TEST] title', 18-tests-1..4), a dangling colon ('-: [DEBT] title', 18-docs-13/14) and a bare '-'
+    # (18-docs-5). The fix drops the WHOLE bullet line when the removed reference is the bullet's own leading or
+    # sole reference; ordinary prose (the reference is not the first thing after the bullet marker) still gets
+    # only the token stripped, as before. A Related Issues section left with no bullets at all after this gets
+    # "None." under its own header, instead of an empty section.
+
+    # (a) "- #n - title" -> the whole bullet, not "- - title" (18-tests-1..4's own shape).
+    $dashShapeDraft = "## Related Issues`n`n- #18 - [Bug] Scope-vs-singleton lifetime bug`n- #910 - [TEST] Increase coverage for 8 mejorable modules`n"
+    $dashShapeResult = Limit-RelatedIssues $dashShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- #n - title" bullet whose #n is disallowed is dropped whole, not left as "- - title"' {
+        $dashShapeResult.Text -notmatch '(?m)^-\s+-\s'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n - title" case still records 910 as removed' {
+        (@($dashShapeResult.Removed)) -contains '910'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n - title" case keeps the allowed #18 bullet' {
+        $dashShapeResult.Text -match '#18 - \[Bug\] Scope-vs-singleton lifetime bug'
+    }
+
+    # (b) "- #n: title" -> the whole bullet, not "-: title" (18-docs-13/14's own shape).
+    $colonShapeDraft = "## Related Issues`n`n- #18: The original issue documenting the design decision.`n- #1400: [DEBT] Documentation drift found while writing the guide`n"
+    $colonShapeResult = Limit-RelatedIssues $colonShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- #n: title" bullet whose #n is disallowed is dropped whole, not left as "-: title"' {
+        $colonShapeResult.Text -notmatch '(?m)^-:\s'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "- #n: title" case still records 1400 as removed' {
+        (@($colonShapeResult.Removed)) -contains '1400'
+    }
+
+    # (c) a bare "- #n" -> the whole bullet, not a bare "-" (18-docs-5's own shape).
+    $bareShapeDraft = "## Related Issues`n`n- #18`n- #1414`n"
+    $bareShapeResult = Limit-RelatedIssues $bareShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a bare "- #n" bullet whose #n is disallowed is dropped whole, not left as a bare "-"' {
+        $bareShapeResult.Text -notmatch '(?m)^-\s*$'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the bare "- #n" case still records 1414 as removed' {
+        (@($bareShapeResult.Removed)) -contains '1414'
+    }
+
+    # (d) a bold-bullet "- **#n**: title" shape is dropped whole too. Asserts the EXACT surviving line set (not
+    # just the absence of '**910**') so this discriminates the fix: the pre-#1535 script reduces this input to
+    # a different, also-broken shape ('- ****: some unverified title', four orphaned asterisks with no link), and
+    # a looser "does not contain '**910**' or a bare '-:' line" assertion is true against BOTH the old and the
+    # new output (adversarial review of #1535 finding 1) -- it would never fail if this branch of the fix broke.
+    $boldShapeDraft = "## Related Issues`n`n- #18 (This issue)`n- **#910**: some unverified title`n"
+    $boldShapeResult = Limit-RelatedIssues $boldShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- **#n**: title" bullet whose #n is disallowed is dropped whole, leaving only the allowed #18 bullet' {
+        (@($boldShapeResult.Text -split "`r?`n") | Where-Object { $_ -match '^-' }) -join "`n" -eq '- #18 (This issue)'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the bold-bullet case never leaves the orphaned "****" shape the pre-fix script produced' {
+        $boldShapeResult.Text -notmatch '\*\*\*\*'
+    }
+
+    # (e) prose (the disallowed reference is not the bullet's own leading token) still keeps only token removal.
+    $proseShapeDraft = "## Additional Context`n`nThis defect is related to #999 in some unrelated way, but the rest of the sentence stays.`n"
+    $proseShapeResult = Limit-RelatedIssues $proseShapeDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a prose reference (not the bullet''s leading token) keeps token-only removal' {
+        $proseShapeResult.Text -match 'This defect is related to in some unrelated way, but the rest of the sentence stays\.'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a prose reference still records the number as removed' {
+        (@($proseShapeResult.Removed)) -contains '999'
+    }
+
+    # (f) every bullet of a Related Issues section stripped -> "None." under the header, header kept.
+    $emptySectionDraft = "## Related Issues`n`n- #910 - [TEST] some unverified title`n- #920: [DEBT] another unverified title`n"
+    $emptySectionResult = Limit-RelatedIssues $emptySectionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a Related Issues section with every bullet stripped gets "None."' {
+        ($emptySectionResult.Text -split "`r?`n") -contains 'None.'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the "## Related Issues" header survives when the section is emptied' {
+        $emptySectionResult.Text -match '(?m)^## Related Issues\s*$'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a Related Issues section that still has a kept bullet (#18) never gets "None."' {
+        ($dashShapeResult.Text -split "`r?`n") -notcontains 'None.'
+    }
+
+    # (g) pr-reviewer finding on PR #1550 (MAJOR): the whole-bullet drop must fire ONLY inside a Related Issues
+    # region. Limit-RelatedIssues scans the whole draft body on purpose (#1492 decision 2), and a bulleted prose
+    # line elsewhere in the draft (Additional Context, Root Cause, Proposed Fix) that merely STARTS with a
+    # disallowed reference is supporting evidence, not a Related Issues list item -- dropping it whole would
+    # silently delete real content the model wrote. Both plain and bold-leading-token shapes are covered.
+    $additionalContextProseDraft = "## Additional Context`n`n- #1502 already fixed a similar regex escape issue; apply the same pattern here.`n"
+    $additionalContextProseResult = Limit-RelatedIssues $additionalContextProseDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a "- #n text" bullet OUTSIDE any Related Issues region keeps token-only removal' {
+        $additionalContextProseResult.Text -match '(?m)^-\s+already fixed a similar regex escape issue; apply the same pattern here\.\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the out-of-region "- #n text" case still records the number as removed' {
+        (@($additionalContextProseResult.Removed)) -contains '1502'
+    }
+    $rootCauseProseDraft = "## Root Cause`n`n- **#1330** -- similar pattern found there too.`n"
+    $rootCauseProseResult = Limit-RelatedIssues $rootCauseProseDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a "- **#n** -- text" bullet OUTSIDE any Related Issues region keeps token-only removal (only the "#1330" token is gone, the rest of the line survives)' {
+        $rootCauseProseResult.Text -match '(?m)^-\s+\*\*\*\*\s+--\s+similar pattern found there too\.\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the out-of-region bold "- **#n** -- text" case still records the number as removed' {
+        (@($rootCauseProseResult.Removed)) -contains '1330'
+    }
+
+    # (h) the whole-bullet drop still fires INSIDE the bold-bullet '- **Related Issues**:' region (bug_report.md
+    # drafts have no H2 header, only this convention).
+    $boldRegionDraft = "## Additional Context`n`n- **Related Issues**:`n  - #18 (This issue)`n  - #910 - [TEST] some unverified title`n"
+    $boldRegionResult = Limit-RelatedIssues $boldRegionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a disallowed leading "#n" bullet INSIDE the bold-bullet Related Issues region is dropped whole' {
+        $boldRegionResult.Text -notmatch '(?m)^\s*-\s+-\s' -and (@($boldRegionResult.Removed)) -contains '910'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the bold-bullet region case keeps the allowed #18 sub-bullet' {
+        $boldRegionResult.Text -match '#18 \(This issue\)'
+    }
+
+    # (i) the whole-bullet drop still fires INSIDE the plain 'Related Issues:' line region (#1428's own form).
+    $plainRegionDraft = "## Additional Context`n`nRelated Issues:`n- #18 (This issue)`n- #920: another unverified title`n"
+    $plainRegionResult = Limit-RelatedIssues $plainRegionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a disallowed leading "#n" bullet INSIDE the plain "Related Issues:" region is dropped whole' {
+        $plainRegionResult.Text -notmatch '(?m)^-:\s' -and (@($plainRegionResult.Removed)) -contains '920'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the plain-line region case keeps the allowed #18 bullet' {
+        $plainRegionResult.Text -match '#18 \(This issue\)'
+    }
+
+    # (j) second review round of #1550 (MAJOR, still concrete): the field-region extension must stop as soon as
+    # a following bullet is LESS indented than the field's own list -- a real, unrelated prose bullet that
+    # happens to follow the bold-bullet field's indented sub-bullets, with no separating heading, must NOT be
+    # swallowed into the region and whole-line-dropped. Reproduced exactly as the review found it: an indented
+    # sub-bullet ("  - #18") establishes the list's own indentation, then an unindented bullet follows directly.
+    $overExtensionDraft = "## Additional Context`n`n- **Related Issues**:`n  - #18 (This issue)`n- #1502 already reported this exact behavior in a similar library upgrade discussion`n"
+    $overExtensionResult = Limit-RelatedIssues $overExtensionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a less-indented bullet following the bold-bullet field''s own indented sub-bullets is OUTSIDE the region and keeps its content' {
+        $overExtensionResult.Text -match '(?m)^-\s+already reported this exact behavior in a similar library upgrade discussion\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the over-extension case still records 1502 as removed and keeps the indented #18 sub-bullet' {
+        (@($overExtensionResult.Removed)) -contains '1502' -and $overExtensionResult.Text -match '  - #18 \(This issue\)'
+    }
+    # ---- end #1535 block ----
+
     # ---- #1409: tools/ai/audit/_remediation-checks.ps1 -- Set-BugEnvironment (Get-EncinaVersion,
     # Get-PackageFromFindingText, Test-PlaceholderEnvironmentValue) fills bug_report.md's own '## Environment'
     # section deterministically after the model replies, so a code-stage finding routed to [BUG] never keeps
@@ -2921,6 +3058,24 @@ Two SagaStoreADO test classes duplicate the same setup.
         }
         Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': docs 12 (untouched by this run) still drafts, keeping its own earlier duplicate-override line" {
             @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
+        }
+
+        # (e) #1535: overriding a NON-primary member of the SAME #1491 group (docs 1, merged into code 1 above)
+        # records the WHOLE group as the duplicate too -- not only the primary. Scoped with -Only 'docs 1' (the
+        # non-primary member's own key) and a different target issue (#998) so its own stage line is
+        # distinguishable from run (d)'s #999.
+        $nonPrimaryDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 1' -DuplicateOf 'docs 1=998' 2>&1
+        $nonPrimaryDupExit1534 = $LASTEXITCODE
+        Test-RemediationCase "#1535 -Only 'docs 1' -DuplicateOf 'docs 1=998' (group NON-primary member) exits 0" { $nonPrimaryDupExit1534 -eq 0 }
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998' writes no dry-run brief for docs 1 or its group primary code 1" {
+            (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-1-brief.md'))) -and (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'code-1-brief.md')))
+        }
+        $nonPrimaryDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the non-primary member's own line (docs 1) says duplicate of #998 (manual override)" {
+            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
+        }
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the group PRIMARY's own line (code 1) ALSO says duplicate of #998 (manual override), same as naming the primary directly" {
+            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(Major\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
         }
     }
     else {

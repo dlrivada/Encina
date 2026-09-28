@@ -577,11 +577,57 @@ function Limit-RelatedIssues {
         foreach ($m in [regex]::Matches($noteLine, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
     }
 
+    # #1550 review (PR #1550, MAJOR, and its own second review round): the whole-bullet drop below must fire ONLY
+    # inside an actual Related Issues region -- Limit-RelatedIssues scans the WHOLE draft body on purpose (#1492
+    # decision 2), and a prose bullet elsewhere (Additional Context, Root Cause, Proposed Fix) that merely starts
+    # with a disallowed reference, e.g. "- #1502 already fixed a similar regex escape issue; apply the same
+    # pattern here." or "- **#1330** -- similar pattern.", is supporting evidence, not a Related Issues list item;
+    # dropping it whole would silently delete real content the model wrote elsewhere in the draft. Recognizes
+    # exactly the three conventions Add-RelatedIssuesLine already does, reusing its own three regexes rather than
+    # inventing a fourth: the '## Related Issues' H2 (region = every line until the next '##' heading), the
+    # '- **Related Issues**:' bold-bullet field, and the plain 'Related Issues:' line.
+    #
+    # The two field conventions' own region is bounded by INDENTATION, not merely "any following bullet line",
+    # because the second review round of #1550 found the first version's looser rule (any contiguous run of
+    # bullet/blank lines) still swallowed a real, unrelated prose bullet that happened to follow the field's own
+    # sub-bullets with no separating heading: '- **Related Issues**:\n  - #18 (This issue)\n- #1502 already
+    # reported this...' lost the whole '#1502' sentence, because nothing distinguished it from a legitimate
+    # sibling bullet of the field. The FIRST bullet line under the field header establishes the list's own
+    # indentation; the region then extends through every following bullet (or blank) line whose indentation is at
+    # least that much, and stops as soon as one is LESS indented (a sibling bullet of some OTHER field, back at
+    # the header's own level) -- covering both real shapes seen: an indented sub-bullet list (the real 16-code-5
+    # draft's own two-space-indented sub-bullets) and #1400's own adversarial-review case of unindented sibling
+    # bullets at the SAME level as the header (indentation 0 throughout, so the "at least" rule still keeps every
+    # one of them in-region), while a bullet at a genuinely LOWER indentation than the field's own list is no
+    # longer assumed to belong to it.
+    $inRelatedRegion = [bool[]]::new($lines.Count)
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') {
+            for ($j = $i + 1; $j -lt $lines.Count -and $lines[$j] -notmatch '^##\s'; $j++) { $inRelatedRegion[$j] = $true }
+            continue
+        }
+        $isFieldHeader = ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') -or
+            ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$')
+        if (-not $isFieldHeader) { continue }
+        $listIndent = -1
+        for ($j = $i + 1; $j -lt $lines.Count; $j++) {
+            if ($lines[$j] -match '^#{1,6}\s') { break }
+            if ([string]::IsNullOrWhiteSpace($lines[$j])) { $inRelatedRegion[$j] = $true; continue }
+            $bulletIndentMatch = [regex]::Match($lines[$j], '^(?<indent>\s*)[-*+]\s')
+            if (-not $bulletIndentMatch.Success) { break }
+            $bulletIndent = $bulletIndentMatch.Groups['indent'].Value.Length
+            if ($listIndent -lt 0) { $listIndent = $bulletIndent }
+            elseif ($bulletIndent -lt $listIndent) { break }
+            $inRelatedRegion[$j] = $true
+        }
+    }
+
     $removed = [System.Collections.Generic.List[string]]::new()
     $newLines = [System.Collections.Generic.List[string]]::new()
     $inFence = $false
     $inHeaderComment = $false
-    foreach ($line in $lines) {
+    for ($lineIdx = 0; $lineIdx -lt $lines.Count; $lineIdx++) {
+        $line = $lines[$lineIdx]
         if ($line -match '^\s*(```|~~~)') { $inFence = -not $inFence; $newLines.Add($line); continue }
         if (-not $inHeaderComment -and $line.Contains('<!--')) { $inHeaderComment = $true }
         $skip = $inFence -or $inHeaderComment
@@ -591,6 +637,22 @@ function Limit-RelatedIssues {
         $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
         if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
 
+        # #1535: inside a Related Issues region, a list item whose OWN leading/sole reference is a disallowed
+        # '#n' -- the bullet is ABOUT that issue ('- #910 - [TEST] title', '- **#910**: title', '- #910: title',
+        # or a bare '- #910' with no other text) -- is dropped in full, not just token-stripped. Token-only
+        # removal (Remove-InlineIssueReference below) leaves a broken list item for these shapes:
+        # '- - [TEST] title' (doubled marker, no link), '-: ...' (dangling colon) or a bare '-' (audit #18's
+        # 18-tests-1..4, 18-docs-13/14 and 18-docs-5). The bullet marker (with optional bold '**' wrapping the
+        # reference) must be immediately followed by the '#n' -- a reference elsewhere in the bullet's own prose
+        # ('- Fixed in #910 for the edge case') is not "about" #910 and keeps the token-only removal below.
+        $bulletMatch = [regex]::Match($line, '^(?<prefix>\s*[-*+]\s+)\*{0,2}#(?<num>\d+)\*{0,2}(?<rest>.*)$')
+        if ($inRelatedRegion[$lineIdx] -and $bulletMatch.Success -and -not $allowed.Contains($bulletMatch.Groups['num'].Value)) {
+            foreach ($num in $lineNumbers) {
+                if (-not $allowed.Contains($num)) { $removed.Add($num) }
+            }
+            continue
+        }
+
         $cleaned = $line
         foreach ($num in $lineNumbers) {
             if ($allowed.Contains($num)) { continue }
@@ -598,6 +660,29 @@ function Limit-RelatedIssues {
             $removed.Add($num)
         }
         $newLines.Add($cleaned)
+    }
+
+    # #1535: when every bullet of a '## Related Issues' section was dropped above, leave "None." rather than a
+    # bare header with no content -- an empty section is as broken as a dangling bullet.
+    for ($i = 0; $i -lt $newLines.Count; $i++) {
+        if ($newLines[$i] -notmatch '^##\s*Related Issues\s*$') { continue }
+        $sectionEnd = $newLines.Count
+        for ($j = $i + 1; $j -lt $newLines.Count; $j++) {
+            if ($newLines[$j] -match '^##\s') { $sectionEnd = $j; break }
+        }
+        $hasContent = $false
+        for ($j = $i + 1; $j -lt $sectionEnd; $j++) {
+            if (-not [string]::IsNullOrWhiteSpace($newLines[$j])) { $hasContent = $true; break }
+        }
+        if ($hasContent) { break }
+
+        $rebuilt = [System.Collections.Generic.List[string]]::new()
+        for ($j = 0; $j -le $i; $j++) { $rebuilt.Add($newLines[$j]) }
+        $rebuilt.Add('')
+        $rebuilt.Add('None.')
+        for ($j = $sectionEnd; $j -lt $newLines.Count; $j++) { $rebuilt.Add($newLines[$j]) }
+        $newLines = $rebuilt
+        break
     }
 
     return [pscustomobject]@{ Text = ($newLines -join "`n"); Removed = @($removed) }
