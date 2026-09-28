@@ -96,14 +96,13 @@ public sealed class ProcessingActivityHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Failed to query processing activity registry: {error.Message}");
+                    warnings.Add($"Failed to query processing activity registry: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
             return HealthCheckResult.Degraded(
-                "Failed to access IProcessingActivityRegistry.",
-                exception: ex,
+                $"Failed to access IProcessingActivityRegistry: {ex.GetType().Name}.",
                 data: data);
         }
 

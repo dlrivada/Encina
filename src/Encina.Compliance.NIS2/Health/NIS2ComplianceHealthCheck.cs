@@ -107,14 +107,14 @@ public sealed class NIS2ComplianceHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    data["error"] = error.Message;
+                    data["error"] = error.GetCode().IfNone("encina.unknown");
 
                     _logger.LogWarning(
                         "NIS2 compliance health check failed: {Error}",
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
 
                     return HealthCheckResult.Unhealthy(
-                        $"NIS2 compliance validation failed: {error.Message}",
+                        $"NIS2 compliance validation failed: {error.GetCode().IfNone("encina.unknown")}",
                         data: data);
                 });
         }
@@ -123,9 +123,8 @@ public sealed class NIS2ComplianceHealthCheck : IHealthCheck
             _logger.LogError(ex, "NIS2 compliance health check encountered an exception.");
 
             return HealthCheckResult.Unhealthy(
-                $"NIS2 compliance health check exception: {ex.Message}",
-                ex,
-                data);
+                $"NIS2 compliance health check exception: {ex.GetType().Name}",
+                data: data);
         }
     }
 }

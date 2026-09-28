@@ -49,10 +49,10 @@ public sealed class ReadAuditStoreHealthCheck : EncinaHealthCheck
         return result.Match(
             Right: _ => HealthCheckResult.Healthy("Read audit store is accessible."),
             Left: error => HealthCheckResult.Degraded(
-                $"Read audit store returned an error: {error.Message}",
+                $"Read audit store returned an error: {error.GetCode().IfNone("encina.unknown")}",
                 data: new Dictionary<string, object>
                 {
-                    ["error"] = error.Message
+                    ["error"] = error.GetCode().IfNone("encina.unknown")
                 }));
     }
 }

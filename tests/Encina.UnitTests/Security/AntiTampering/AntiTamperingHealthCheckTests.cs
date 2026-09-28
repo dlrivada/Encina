@@ -258,6 +258,38 @@ public sealed class AntiTamperingHealthCheckTests
         result.Data["verifiedKeyId"].ShouldBe("test-key-1");
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_WithTestKeys_KeyRetrievalFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var options = new AntiTamperingOptions();
+        options.AddKey("test-key-1", "secret-value");
+
+        var keyProvider = Substitute.For<IKeyProvider>();
+        keyProvider.GetKeyAsync("test-key-1", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, byte[]>>(
+                Left(EncinaErrors.Create("key.not.found", sentinel))));
+
+        var requestSigner = Substitute.For<IRequestSigner>();
+        var nonceStore = Substitute.For<INonceStore>();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(keyProvider);
+        services.AddSingleton(requestSigner);
+        services.AddSingleton(nonceStore);
+        services.AddSingleton(Options.Create(options));
+        var sp = services.BuildServiceProvider();
+        var healthCheck = new AntiTamperingHealthCheck(sp);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(null!, CancellationToken.None);
+
+        // Assert
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("key.not.found");
+    }
+
     #endregion
 
     #region CheckHealthAsync - Exception Handling

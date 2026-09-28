@@ -129,7 +129,7 @@ public sealed class GDPRHealthCheck : IHealthCheck
             },
             Left: error =>
             {
-                warnings.Add($"Failed to query processing activity registry: {error.Message}");
+                warnings.Add($"Failed to query processing activity registry: {error.GetCode().IfNone("encina.unknown")}");
             });
 
         // 5. Verify validator is resolvable

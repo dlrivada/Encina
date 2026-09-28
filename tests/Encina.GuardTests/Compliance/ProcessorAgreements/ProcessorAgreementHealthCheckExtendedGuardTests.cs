@@ -304,6 +304,7 @@ public sealed class ProcessorAgreementHealthCheckExtendedGuardTests
 
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldNotBeNull();
-        result.Description.ShouldContain("Database connection lost");
+        result.Description.ShouldContain(nameof(InvalidOperationException));
+        result.Description.ShouldNotContain("Database connection lost");
     }
 }

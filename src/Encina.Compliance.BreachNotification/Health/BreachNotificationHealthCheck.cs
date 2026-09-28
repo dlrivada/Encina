@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Diagnostics;
 
@@ -76,56 +78,113 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
         var warnings = new List<string>();
 
         using var scope = _serviceProvider.CreateScope();
-        var scopedProvider = scope.ServiceProvider;
 
-        // 1. Verify options are valid
-        var options = scopedProvider.GetService<IOptions<BreachNotificationOptions>>()?.Value;
+        // 1-4. Verify options, breach service, detector and notifier are resolvable
+        if (!TryResolveDependencies(scope.ServiceProvider, data, out var options, out var breachService, out var failure))
+        {
+            return failure.Value;
+        }
+
+        // 5. Check for approaching deadline breaches via the service
+        await CheckApproachingDeadlineBreachesAsync(breachService, options, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "Breach notification health check completed: {Status} ({WarningCount} warnings)",
+            warnings.Count == 0 ? "Healthy" : "Degraded",
+            warnings.Count);
+
+        if (warnings.Count > 0)
+        {
+            data["warnings"] = warnings;
+            return HealthCheckResult.Degraded(
+                $"Breach notification infrastructure has warnings: {string.Join("; ", warnings)}",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "Breach notification infrastructure is fully configured.",
+            data: data);
+    }
+
+    /// <summary>
+    /// Resolves the breach notification options, service, detector and notifier from the
+    /// scoped provider.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when every dependency resolved; otherwise <see langword="false"/>,
+    /// with <paramref name="failure"/> set to the result to return.
+    /// </returns>
+    private static bool TryResolveDependencies(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data,
+        [NotNullWhen(true)] out BreachNotificationOptions? options,
+        [NotNullWhen(true)] out IBreachNotificationService? breachService,
+        [NotNullWhen(false)] out HealthCheckResult? failure)
+    {
+        options = scopedProvider.GetService<IOptions<BreachNotificationOptions>>()?.Value;
         if (options is null)
         {
-            return HealthCheckResult.Unhealthy(
+            breachService = null;
+            failure = HealthCheckResult.Unhealthy(
                 "BreachNotificationOptions are not configured. "
                 + "Call AddEncinaBreachNotification() in DI setup.");
+            return false;
         }
 
         data["enforcementMode"] = options.EnforcementMode.ToString();
         data["deadlineMonitoringEnabled"] = options.EnableDeadlineMonitoring;
         data["notificationDeadlineHours"] = options.NotificationDeadlineHours;
 
-        // 2. Verify breach notification service is resolvable
-        var breachService = scopedProvider.GetService<IBreachNotificationService>();
+        breachService = scopedProvider.GetService<IBreachNotificationService>();
         if (breachService is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IBreachNotificationService is not registered. "
                 + "Ensure AddEncinaBreachNotification() and AddBreachNotificationAggregates() are called.",
                 data: data);
+            return false;
         }
 
         data["breachServiceType"] = breachService.GetType().Name;
 
-        // 3. Verify breach detector is resolvable
         var detector = scopedProvider.GetService<IBreachDetector>();
         if (detector is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IBreachDetector is not registered.",
                 data: data);
+            return false;
         }
 
         data["detectorType"] = detector.GetType().Name;
 
-        // 4. Verify breach notifier is resolvable
         var notifier = scopedProvider.GetService<IBreachNotifier>();
         if (notifier is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IBreachNotifier is not registered.",
                 data: data);
+            return false;
         }
 
         data["notifierType"] = notifier.GetType().Name;
 
-        // 5. Check for approaching deadline breaches via the service
+        failure = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Queries approaching-deadline breaches and records a warning for overdue and
+    /// approaching breaches, or when the query fails.
+    /// </summary>
+    private static async Task CheckApproachingDeadlineBreachesAsync(
+        IBreachNotificationService breachService,
+        BreachNotificationOptions options,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var approachingResult = await breachService
@@ -168,29 +227,12 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query approaching deadline breaches: {error.Message}");
+                    warnings.Add($"Unable to query approaching deadline breaches: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying deadline breaches: {ex.Message}");
+            warnings.Add($"Error querying deadline breaches: {ex.GetType().Name}");
         }
-
-        _logger.LogDebug(
-            "Breach notification health check completed: {Status} ({WarningCount} warnings)",
-            warnings.Count == 0 ? "Healthy" : "Degraded",
-            warnings.Count);
-
-        if (warnings.Count > 0)
-        {
-            data["warnings"] = warnings;
-            return HealthCheckResult.Degraded(
-                $"Breach notification infrastructure has warnings: {string.Join("; ", warnings)}",
-                data: data);
-        }
-
-        return HealthCheckResult.Healthy(
-            "Breach notification infrastructure is fully configured.",
-            data: data);
     }
 }

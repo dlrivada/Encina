@@ -113,79 +113,109 @@ public sealed class AIActHealthCheck : IHealthCheck
                     data: data);
             }
 
-            var systemsResult = await registry.GetAllSystemsAsync(cancellationToken).ConfigureAwait(false);
+            await CheckRegisteredSystemsAsync(registry, data, warnings, cancellationToken).ConfigureAwait(false);
 
-            systemsResult.Match(
-                Right: systems =>
-                {
-                    data["registeredSystems"] = systems.Count;
+            // 4-6. Verify supporting services are resolvable
+            CheckSupportingServices(scopedProvider, data, warnings);
 
-                    if (systems.Count == 0)
-                    {
-                        warnings.Add("No AI systems are registered. "
-                            + "Ensure systems are registered via [HighRiskAI] attributes or manual registration.");
-                    }
-                },
-                Left: error =>
-                {
-                    warnings.Add($"Failed to query AI system registry: {error.Message}");
-                });
-
-            // 4. Verify classifier is resolvable
-            if (scopedProvider.GetService<IAIActClassifier>() is null)
-            {
-                warnings.Add("IAIActClassifier is not registered.");
-            }
-            else
-            {
-                data["classifierRegistered"] = true;
-            }
-
-            // 5. Verify human oversight enforcer is resolvable
-            if (scopedProvider.GetService<IHumanOversightEnforcer>() is null)
-            {
-                warnings.Add("IHumanOversightEnforcer is not registered.");
-            }
-            else
-            {
-                data["oversightEnforcerRegistered"] = true;
-            }
-
-            // 6. Verify compliance validator is resolvable
-            if (scopedProvider.GetService<IAIActComplianceValidator>() is null)
-            {
-                warnings.Add("IAIActComplianceValidator is not registered.");
-            }
-            else
-            {
-                data["complianceValidatorRegistered"] = true;
-            }
-
-            // 7. Log and return result
-            var systemCount = data.TryGetValue("registeredSystems", out var count) ? (int)count : 0;
-            var status = warnings.Count == 0 ? "Healthy" : "Degraded";
-            _logger.HealthCheckCompleted(status, systemCount);
-
-            if (warnings.Count > 0)
-            {
-                data["warnings"] = warnings;
-                return HealthCheckResult.Degraded(
-                    $"AI Act compliance is partially configured: {string.Join("; ", warnings)}",
-                    data: data);
-            }
-
-            return HealthCheckResult.Healthy(
-                "AI Act compliance infrastructure is fully configured.",
-                data: data);
+            return BuildResult(data, warnings);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.HealthCheckCompleted("Unhealthy", 0);
 
             return HealthCheckResult.Unhealthy(
-                $"AI Act compliance health check exception: {ex.Message}",
-                ex,
-                data);
+                $"AI Act compliance health check exception: {ex.GetType().Name}",
+                data: data);
         }
+    }
+
+    /// <summary>
+    /// Queries the registered AI systems and records a warning when the registry is empty
+    /// or the query fails.
+    /// </summary>
+    private static async Task CheckRegisteredSystemsAsync(
+        IAISystemRegistry registry,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
+        var systemsResult = await registry.GetAllSystemsAsync(cancellationToken).ConfigureAwait(false);
+
+        systemsResult.Match(
+            Right: systems =>
+            {
+                data["registeredSystems"] = systems.Count;
+
+                if (systems.Count == 0)
+                {
+                    warnings.Add("No AI systems are registered. "
+                        + "Ensure systems are registered via [HighRiskAI] attributes or manual registration.");
+                }
+            },
+            Left: error =>
+            {
+                warnings.Add($"Failed to query AI system registry: {error.GetCode().IfNone("encina.unknown")}");
+            });
+    }
+
+    /// <summary>
+    /// Verifies the classifier, human oversight enforcer and compliance validator are
+    /// resolvable, recording a warning for each one that is missing.
+    /// </summary>
+    private static void CheckSupportingServices(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data,
+        List<string> warnings)
+    {
+        if (scopedProvider.GetService<IAIActClassifier>() is null)
+        {
+            warnings.Add("IAIActClassifier is not registered.");
+        }
+        else
+        {
+            data["classifierRegistered"] = true;
+        }
+
+        if (scopedProvider.GetService<IHumanOversightEnforcer>() is null)
+        {
+            warnings.Add("IHumanOversightEnforcer is not registered.");
+        }
+        else
+        {
+            data["oversightEnforcerRegistered"] = true;
+        }
+
+        if (scopedProvider.GetService<IAIActComplianceValidator>() is null)
+        {
+            warnings.Add("IAIActComplianceValidator is not registered.");
+        }
+        else
+        {
+            data["complianceValidatorRegistered"] = true;
+        }
+    }
+
+    /// <summary>
+    /// Logs the outcome and builds the final <see cref="HealthCheckResult"/> from the
+    /// accumulated data and warnings.
+    /// </summary>
+    private HealthCheckResult BuildResult(Dictionary<string, object> data, List<string> warnings)
+    {
+        var systemCount = data.TryGetValue("registeredSystems", out var count) ? (int)count : 0;
+        var status = warnings.Count == 0 ? "Healthy" : "Degraded";
+        _logger.HealthCheckCompleted(status, systemCount);
+
+        if (warnings.Count > 0)
+        {
+            data["warnings"] = warnings;
+            return HealthCheckResult.Degraded(
+                $"AI Act compliance is partially configured: {string.Join("; ", warnings)}",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "AI Act compliance infrastructure is fully configured.",
+            data: data);
     }
 }

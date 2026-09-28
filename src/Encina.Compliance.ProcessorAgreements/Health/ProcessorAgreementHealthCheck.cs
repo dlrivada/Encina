@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Model;
 
@@ -72,46 +74,102 @@ public sealed class ProcessorAgreementHealthCheck : IHealthCheck
         var warnings = new List<string>();
 
         using var scope = _serviceProvider.CreateScope();
-        var scopedProvider = scope.ServiceProvider;
 
-        // 1. Verify options are valid
+        // 1-3. Verify options, processor service and DPA service are resolvable
+        if (!TryResolveDependencies(scope.ServiceProvider, data, out var dpaService, out var failure))
+        {
+            return failure.Value;
+        }
+
+        // 4. Check for expired agreements (degraded if any)
+        await CheckExpiredAgreementsAsync(dpaService, data, warnings, cancellationToken)
+            .ConfigureAwait(false);
+
+        _logger.LogDebug(
+            "Processor agreement health check completed: {Status} ({WarningCount} warnings)",
+            warnings.Count == 0 ? "Healthy" : "Degraded",
+            warnings.Count);
+
+        if (warnings.Count > 0)
+        {
+            data["warnings"] = warnings;
+            return HealthCheckResult.Degraded(
+                $"Processor agreement infrastructure has warnings: {string.Join("; ", warnings)}",
+                data: data);
+        }
+
+        return HealthCheckResult.Healthy(
+            "Processor agreement infrastructure is fully configured.",
+            data: data);
+    }
+
+    /// <summary>
+    /// Resolves the processor agreement options, processor service and DPA service from the
+    /// scoped provider.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when every dependency resolved; otherwise <see langword="false"/>,
+    /// with <paramref name="failure"/> set to the result to return.
+    /// </returns>
+    private static bool TryResolveDependencies(
+        IServiceProvider scopedProvider,
+        Dictionary<string, object> data,
+        [NotNullWhen(true)] out IDPAService? dpaService,
+        [NotNullWhen(false)] out HealthCheckResult? failure)
+    {
         var options = scopedProvider.GetService<IOptions<ProcessorAgreementOptions>>()?.Value;
         if (options is null)
         {
-            return HealthCheckResult.Unhealthy(
+            dpaService = null;
+            failure = HealthCheckResult.Unhealthy(
                 "ProcessorAgreementOptions are not configured. "
                 + "Call AddEncinaProcessorAgreements() in DI setup.");
+            return false;
         }
 
         data["enforcementMode"] = options.EnforcementMode.ToString();
         data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
         data["maxSubProcessorDepth"] = options.MaxSubProcessorDepth;
 
-        // 2. Verify processor service is resolvable
         var processorService = scopedProvider.GetService<IProcessorService>();
         if (processorService is null)
         {
-            return HealthCheckResult.Unhealthy(
+            dpaService = null;
+            failure = HealthCheckResult.Unhealthy(
                 "IProcessorService is not registered. "
                 + "Call AddEncinaProcessorAgreements() and AddProcessorAgreementAggregates() in DI setup.",
                 data: data);
+            return false;
         }
 
         data["processorServiceType"] = processorService.GetType().Name;
 
-        // 3. Verify DPA service is resolvable
-        var dpaService = scopedProvider.GetService<IDPAService>();
+        dpaService = scopedProvider.GetService<IDPAService>();
         if (dpaService is null)
         {
-            return HealthCheckResult.Unhealthy(
+            failure = HealthCheckResult.Unhealthy(
                 "IDPAService is not registered. "
                 + "Call AddEncinaProcessorAgreements() and AddProcessorAgreementAggregates() in DI setup.",
                 data: data);
+            return false;
         }
 
         data["dpaServiceType"] = dpaService.GetType().Name;
 
-        // 4. Check for expired agreements (degraded if any)
+        failure = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Queries expired processor agreements and records a warning when any exist or the
+    /// query fails.
+    /// </summary>
+    private static async Task CheckExpiredAgreementsAsync(
+        IDPAService dpaService,
+        Dictionary<string, object> data,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var expiredResult = await dpaService
@@ -132,29 +190,12 @@ public sealed class ProcessorAgreementHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query expired DPAs: {error.Message}");
+                    warnings.Add($"Unable to query expired DPAs: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying expired DPAs: {ex.Message}");
+            warnings.Add($"Error querying expired DPAs: {ex.GetType().Name}");
         }
-
-        _logger.LogDebug(
-            "Processor agreement health check completed: {Status} ({WarningCount} warnings)",
-            warnings.Count == 0 ? "Healthy" : "Degraded",
-            warnings.Count);
-
-        if (warnings.Count > 0)
-        {
-            data["warnings"] = warnings;
-            return HealthCheckResult.Degraded(
-                $"Processor agreement infrastructure has warnings: {string.Join("; ", warnings)}",
-                data: data);
-        }
-
-        return HealthCheckResult.Healthy(
-            "Processor agreement infrastructure is fully configured.",
-            data: data);
     }
 }

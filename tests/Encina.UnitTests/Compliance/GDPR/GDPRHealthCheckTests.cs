@@ -200,6 +200,41 @@ public sealed class GDPRHealthCheckTests
     }
 
     [Fact]
+    public async Task GDPRHealthCheck_WhenRegistryQueryFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var registry = Substitute.For<IProcessingActivityRegistry>();
+        var error = EncinaErrors.Create("registry.query.failed", sentinel);
+        registry.GetAllActivitiesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<ProcessingActivity>>(error));
+
+        var validator = Substitute.For<IGDPRComplianceValidator>();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<GDPROptions>(options =>
+        {
+            options.ControllerName = "Test";
+            options.ControllerEmail = "test@test.com";
+        });
+        services.AddScoped(_ => registry);
+        services.AddScoped(_ => validator);
+
+        var provider = services.BuildServiceProvider();
+        var healthCheck = new GDPRHealthCheck(
+            provider,
+            provider.GetRequiredService<ILogger<GDPRHealthCheck>>());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("registry.query.failed");
+    }
+
+    [Fact]
     public void GDPRHealthCheck_DefaultName_ShouldBeExpectedValue()
     {
         GDPRHealthCheck.DefaultName.ShouldBe("encina-gdpr");
@@ -313,6 +348,33 @@ public sealed class GDPRHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public async Task ProcessingActivityHealthCheck_WhenRegistryQueryFails_DoesNotLeakErrorMessage()
+    {
+        // Arrange
+        const string sentinel = "sensitive-connection-string-sentinel";
+        var registry = Substitute.For<IProcessingActivityRegistry>();
+        var error = EncinaErrors.Create("registry.query.failed", sentinel);
+        registry.GetAllActivitiesAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<ProcessingActivity>>(error));
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped(_ => registry);
+
+        var provider = services.BuildServiceProvider();
+        var healthCheck = new ProcessingActivityHealthCheck(
+            provider,
+            provider.GetRequiredService<ILogger<ProcessingActivityHealthCheck>>());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Description!.ShouldNotContain(sentinel);
+        result.Description!.ShouldContain("registry.query.failed");
     }
 
 #pragma warning disable CA2201, CA2012
