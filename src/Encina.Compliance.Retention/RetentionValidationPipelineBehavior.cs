@@ -250,49 +250,44 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
 
         if (string.IsNullOrWhiteSpace(entityId))
         {
-            var error = RetentionErrors.PipelineEntityIdNotFound(responseTypeName);
-
-            if (_options.EnforcementMode == RetentionEnforcementMode.Block)
-            {
-                _logger.RetentionRecordCreationBlocked(field.DataCategory ?? responseTypeName, responseTypeName, "Entity ID not found");
-                return Left<EncinaError, Unit>(error);
-            }
-
-            _logger.RetentionEntityIdNotFound(responseTypeName);
-            return Right<EncinaError, Unit>(unit);
+            return HandleMissingEntityId(field.DataCategory, responseTypeName);
         }
 
         var dataCategory = field.DataCategory ?? responseTypeName;
-        var retentionPeriod = field.RetentionPeriod;
 
-        // If no retention period on attribute, resolve from policy service
-        if (retentionPeriod <= TimeSpan.Zero)
+        // If no retention period on attribute, resolve from policy service. Extracted to keep this
+        // method's cyclomatic complexity under the CRAP gate (AGENTS.md §9).
+        var periodResolution = await ResolveRetentionPeriodAsync(field.RetentionPeriod, dataCategory, responseTypeName, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (periodResolution.IsLeft)
         {
-            var periodResult = await _policyService
-                .GetRetentionPeriodAsync(dataCategory, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (periodResult.IsLeft)
-            {
-                var periodError = (EncinaError)periodResult;
-
-                if (_options.EnforcementMode == RetentionEnforcementMode.Block)
-                {
-                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, periodError.GetCode().IfNone("encina.unknown"));
-                    return Left<EncinaError, Unit>(periodError);
-                }
-
-                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, periodError.GetCode().IfNone("encina.unknown"));
-                return Right<EncinaError, Unit>(unit);
-            }
-
-            retentionPeriod = (TimeSpan)periodResult;
+            return (Either<EncinaError, Unit>)periodResolution;
         }
 
-        // Track entity via the event-sourced record service (policyId = Guid.Empty for attribute-based).
-        // The tenant and module come from the request context: the enforcement service runs later in a
-        // background scope with no ambient tenant, so the record must carry them for the eraser to scope
-        // the erasure (see IRetentionDataEraser).
+        return await CreateRecordAsync(entityId, dataCategory, (TimeSpan)periodResolution, responseTypeName, context, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Tracks the entity via the event-sourced record service (policyId = Guid.Empty for
+    /// attribute-based tracking) and reports the enforcement-mode-appropriate result on failure.
+    /// Extracted from <see cref="TrackRetentionRecordAsync"/> to keep it under the CRAP gate
+    /// (AGENTS.md §9).
+    /// </summary>
+    /// <remarks>
+    /// The tenant and module come from the request context: the enforcement service runs later in a
+    /// background scope with no ambient tenant, so the record must carry them for the eraser to scope
+    /// the erasure (see <c>IRetentionDataEraser</c>).
+    /// </remarks>
+    private async ValueTask<Either<EncinaError, Unit>> CreateRecordAsync(
+        string entityId,
+        string dataCategory,
+        TimeSpan retentionPeriod,
+        string responseTypeName,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
         var trackResult = await _recordService
             .TrackEntityAsync(
                 entityId,
@@ -304,26 +299,86 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        return trackResult.Match(
-            Right: _ =>
-            {
-                _logger.RetentionRecordCreated(entityId, dataCategory, _timeProvider.GetUtcNow() + retentionPeriod, retentionPeriod);
-                RetentionDiagnostics.RecordsCreatedTotal.Add(1,
-                    new KeyValuePair<string, object?>(RetentionDiagnostics.TagDataCategory, dataCategory));
-                return Right<EncinaError, Unit>(unit);
-            },
-            Left: error =>
-            {
-                if (_options.EnforcementMode == RetentionEnforcementMode.Block)
-                {
-                    _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, error.GetCode().IfNone("encina.unknown"));
-                    return Left<EncinaError, Unit>(
-                        RetentionErrors.PipelineRecordCreationFailed(dataCategory, error.Message));
-                }
+        if (trackResult.IsRight)
+        {
+            _logger.RetentionRecordCreated(entityId, dataCategory, _timeProvider.GetUtcNow() + retentionPeriod, retentionPeriod);
+            RetentionDiagnostics.RecordsCreatedTotal.Add(1,
+                new KeyValuePair<string, object?>(RetentionDiagnostics.TagDataCategory, dataCategory));
+            return Right<EncinaError, Unit>(unit);
+        }
 
-                _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, error.GetCode().IfNone("encina.unknown"));
-                return Right<EncinaError, Unit>(unit);
-            });
+        var trackError = (EncinaError)trackResult;
+        return BuildEnforcementResult(
+            dataCategory,
+            responseTypeName,
+            trackError.GetCode().IfNone("encina.unknown"),
+            RetentionErrors.PipelineRecordCreationFailed(dataCategory, trackError.Message));
+    }
+
+    /// <summary>
+    /// Builds the enforcement-mode-appropriate result for a retention record creation failure:
+    /// <see cref="RetentionEnforcementMode.Block"/> logs and returns the blocking error;
+    /// <see cref="RetentionEnforcementMode.Warn"/> logs and lets the response through.
+    /// Shared by <see cref="TrackRetentionRecordAsync"/> and <see cref="ResolveRetentionPeriodAsync"/>
+    /// to keep both under the CRAP gate (AGENTS.md §9).
+    /// </summary>
+    private Either<EncinaError, Unit> BuildEnforcementResult(
+        string dataCategory, string responseTypeName, string errorCode, EncinaError blockError)
+    {
+        if (_options.EnforcementMode == RetentionEnforcementMode.Block)
+        {
+            _logger.RetentionRecordCreationBlocked(dataCategory, responseTypeName, errorCode);
+            return Left<EncinaError, Unit>(blockError);
+        }
+
+        _logger.RetentionRecordCreationWarned(dataCategory, responseTypeName, errorCode);
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    /// <summary>
+    /// Handles a response with no resolvable entity ID: <see cref="RetentionEnforcementMode.Block"/>
+    /// logs and returns the blocking error; any other mode logs and lets the response through.
+    /// </summary>
+    private Either<EncinaError, Unit> HandleMissingEntityId(string? dataCategory, string responseTypeName)
+    {
+        var error = RetentionErrors.PipelineEntityIdNotFound(responseTypeName);
+
+        if (_options.EnforcementMode == RetentionEnforcementMode.Block)
+        {
+            _logger.RetentionRecordCreationBlocked(dataCategory ?? responseTypeName, responseTypeName, "Entity ID not found");
+            return Left<EncinaError, Unit>(error);
+        }
+
+        _logger.RetentionEntityIdNotFound(responseTypeName);
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    /// <summary>
+    /// Resolves the retention period from the attribute, or from <see cref="_policyService"/> when the
+    /// attribute carries none. The <c>Left</c> of the outer <see cref="Either{L,R}"/> is the early
+    /// return value <see cref="TrackRetentionRecordAsync"/> must propagate when the policy lookup fails.
+    /// </summary>
+    private async ValueTask<Either<Either<EncinaError, Unit>, TimeSpan>> ResolveRetentionPeriodAsync(
+        TimeSpan attributePeriod, string dataCategory, string responseTypeName, CancellationToken cancellationToken)
+    {
+        if (attributePeriod > TimeSpan.Zero)
+        {
+            return attributePeriod;
+        }
+
+        var periodResult = await _policyService
+            .GetRetentionPeriodAsync(dataCategory, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (periodResult.IsLeft)
+        {
+            var periodError = (EncinaError)periodResult;
+            var earlyReturn = BuildEnforcementResult(
+                dataCategory, responseTypeName, periodError.GetCode().IfNone("encina.unknown"), periodError);
+            return Left<Either<EncinaError, Unit>, TimeSpan>(earlyReturn);
+        }
+
+        return Right<Either<EncinaError, Unit>, TimeSpan>((TimeSpan)periodResult);
     }
 
     // ================================================================

@@ -385,6 +385,89 @@ public sealed class RetentionEnforcementService : BackgroundService
         System.Collections.Generic.HashSet<Guid> settledSiblings,
         CancellationToken cancellationToken)
     {
+        // Legal hold check + Active → Expired transition, factored out to keep this method's
+        // cyclomatic complexity under the CRAP gate (AGENTS.md §9).
+        var earlyOutcome = await CheckHoldAndExpireAsync(record, recordService, legalHoldService, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (earlyOutcome is not null)
+        {
+            return earlyOutcome.Value;
+        }
+
+        // Without an eraser nothing can be erased, so the record must never reach Deleted:
+        // it stays Expired, is counted as failed and is retried once an eraser is registered.
+        if (dataEraser is null)
+        {
+            return RecordOutcome.ErasureUnavailable;
+        }
+
+        // The eraser erases the category for the entity, so it must not run while another record of the
+        // same entity and category still retains that data. Fail closed if the siblings cannot be read.
+        var siblings = await GetSiblingsAsync(record, recordService, cancellationToken).ConfigureAwait(false);
+        if (siblings is null)
+        {
+            return RecordOutcome.Failed;
+        }
+
+        var deferOutcome = CheckSiblingsRetained(record, siblings);
+        if (deferOutcome is not null)
+        {
+            return deferOutcome.Value;
+        }
+
+        return await CheckPreEraseHoldAndEraseAsync(record, recordService, legalHoldService, dataEraser, siblings, settledSiblings, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Re-checks the legal hold immediately before erasing — a hold placed after the first check
+    /// (while the record was being marked expired) must still prevent erasure — and, when not held,
+    /// erases the record. This narrows the window between the two checks but does not close it fully;
+    /// closing it needs a per-entity lock shared with <c>ILegalHoldService.PlaceHoldAsync</c>, tracked
+    /// separately. Factored out of <see cref="ProcessRecordAsync"/> to keep it under the CRAP gate
+    /// (AGENTS.md §9).
+    /// </summary>
+    private async ValueTask<RecordOutcome> CheckPreEraseHoldAndEraseAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        ILegalHoldService legalHoldService,
+        IRetentionDataEraser dataEraser,
+        IReadOnlyList<ReadModels.RetentionRecordReadModel> siblings,
+        System.Collections.Generic.HashSet<Guid> settledSiblings,
+        CancellationToken cancellationToken)
+    {
+        var holdStatus = await CheckLegalHoldAsync(record, legalHoldService, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (holdStatus == HoldStatus.Unknown)
+        {
+            return RecordOutcome.Failed;
+        }
+
+        if (holdStatus == HoldStatus.Held)
+        {
+            return await HoldRecordAsync(record, recordService, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await EraseAndDeleteAsync(record, recordService, dataEraser, siblings, settledSiblings, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Checks the legal hold status and, when the record is not held, transitions it from
+    /// <see cref="RetentionStatus.Active"/> to <see cref="RetentionStatus.Expired"/>.
+    /// </summary>
+    /// <returns>
+    /// A final <see cref="RecordOutcome"/> when the record must stop here (held or a step failed),
+    /// or <see langword="null"/> when <see cref="ProcessRecordAsync"/> should continue.
+    /// </returns>
+    private async ValueTask<RecordOutcome?> CheckHoldAndExpireAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        ILegalHoldService legalHoldService,
+        CancellationToken cancellationToken)
+    {
         // Legal hold check — fail closed: if the hold status is unknown, nothing is erased.
         var holdStatus = await CheckLegalHoldAsync(record, legalHoldService, cancellationToken)
             .ConfigureAwait(false);
@@ -414,21 +497,17 @@ public sealed class RetentionEnforcementService : BackgroundService
             }
         }
 
-        // Without an eraser nothing can be erased, so the record must never reach Deleted:
-        // it stays Expired, is counted as failed and is retried once an eraser is registered.
-        if (dataEraser is null)
-        {
-            return RecordOutcome.ErasureUnavailable;
-        }
+        return null;
+    }
 
-        // The eraser erases the category for the entity, so it must not run while another record of the
-        // same entity and category still retains that data. Fail closed if the siblings cannot be read.
-        var siblings = await GetSiblingsAsync(record, recordService, cancellationToken).ConfigureAwait(false);
-        if (siblings is null)
-        {
-            return RecordOutcome.Failed;
-        }
-
+    /// <summary>
+    /// Returns <see cref="RecordOutcome.Deferred"/> when a sibling still retains the record's data
+    /// category, or <see langword="null"/> when erasure may proceed.
+    /// </summary>
+    private RecordOutcome? CheckSiblingsRetained(
+        ReadModels.RetentionRecordReadModel record,
+        IReadOnlyList<ReadModels.RetentionRecordReadModel> siblings)
+    {
         var now = _timeProvider.GetUtcNow();
         var retainedSiblings = siblings.Count(s => IsRetained(s, now));
         if (retainedSiblings > 0)
@@ -437,23 +516,21 @@ public sealed class RetentionEnforcementService : BackgroundService
             return RecordOutcome.Deferred;
         }
 
-        // Re-check the hold immediately before erasing: a hold placed after the first check (while
-        // the record was being marked expired) must still prevent erasure. This narrows the window
-        // but does not close it; closing it fully needs a per-entity lock shared with
-        // ILegalHoldService.PlaceHoldAsync, which is tracked separately.
-        holdStatus = await CheckLegalHoldAsync(record, legalHoldService, cancellationToken)
-            .ConfigureAwait(false);
+        return null;
+    }
 
-        if (holdStatus == HoldStatus.Unknown)
-        {
-            return RecordOutcome.Failed;
-        }
-
-        if (holdStatus == HoldStatus.Held)
-        {
-            return await HoldRecordAsync(record, recordService, cancellationToken).ConfigureAwait(false);
-        }
-
+    /// <summary>
+    /// Erases the record's data category for its entity and, only after a successful erasure,
+    /// moves the record and its settled siblings to <see cref="RetentionStatus.Deleted"/>.
+    /// </summary>
+    private async ValueTask<RecordOutcome> EraseAndDeleteAsync(
+        ReadModels.RetentionRecordReadModel record,
+        IRetentionRecordService recordService,
+        IRetentionDataEraser dataEraser,
+        IReadOnlyList<ReadModels.RetentionRecordReadModel> siblings,
+        System.Collections.Generic.HashSet<Guid> settledSiblings,
+        CancellationToken cancellationToken)
+    {
         // Erase only what this record governs: its category of data for its entity. Other records of
         // the same entity (other categories, other retention periods) are not affected.
         var target = new RetentionErasureTarget
