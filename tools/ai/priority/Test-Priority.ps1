@@ -103,9 +103,21 @@ $targets4 = Get-PriorityDependencyTargets -Body $multiNumberBody -SelfNumber 999
 Assert-Equal '100,101,102' ($targets4 -join ',') 'dependencies: every #n in the same clause after one keyword is counted, capped at the sentence end'
 Assert-True (-not ($targets4 -contains 200)) 'dependencies: an unrelated later mention (see #200) in the next sentence is not swept into the earlier clause'
 
-$multiLineBody = "Requires #700`nSee #800 on the next line."
+$multiLineBody = "Requires #700, #750`nSee #800 on the next line."
 $targets5 = Get-PriorityDependencyTargets -Body $multiLineBody -SelfNumber 999
-Assert-Equal '700' ($targets5 -join ',') 'dependencies: a clause also stops at a newline, not just a period'
+Assert-Equal '700,750' ($targets5 -join ',') 'dependencies: a clause captures every #n up to a newline, and the newline still excludes the next line'
+
+$decimalBody = 'Requires v2.5 fix, see #100 and #101 for details.'
+$targets6 = Get-PriorityDependencyTargets -Body $decimalBody -SelfNumber 999
+Assert-Equal '100,101' ($targets6 -join ',') 'dependencies: a decimal like "v2.5" does not end the clause early (its period has no space+capital after it)'
+
+$abbreviationBody = 'Depends on e.g. the auth module, see #100 and #101 for the design.'
+$targets7 = Get-PriorityDependencyTargets -Body $abbreviationBody -SelfNumber 999
+Assert-Equal '100,101' ($targets7 -join ',') 'dependencies: an abbreviation like "e.g." does not end the clause early'
+
+$twoSentenceBody = 'Requires #900. The next sentence mentions #901 with no keyword.'
+$targets8 = Get-PriorityDependencyTargets -Body $twoSentenceBody -SelfNumber 999
+Assert-Equal '900' ($targets8 -join ',') 'dependencies: a real sentence break (period, space, capital letter) still ends the clause'
 
 Assert-Equal 0 (Get-PriorityUnblockingScore -DependentCount 0) 'unblocking: 0 dependents scores 0'
 Assert-Equal 50 (Get-PriorityUnblockingScore -DependentCount 2) 'unblocking: 2 dependents scores 50'

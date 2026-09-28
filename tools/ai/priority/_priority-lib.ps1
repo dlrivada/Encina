@@ -133,8 +133,12 @@ function Get-PriorityDependencyTargets {
         #n", "requires #n", "after #n", "needs #n", "part of #n"), excluding $SelfNumber. A bare
         mention such as "see #n" is never counted because it carries none of the keywords. Every
         '#n' in the same clause after a keyword counts ("Blocked by #100, #101 and #102" -> all
-        three); the clause stops at the first '.', ';' or newline, so an unrelated later mention
-        such as "... See #200" in the next sentence is never swept in.
+        three); the clause stops at a real sentence break (';', a newline, or a '.' followed by
+        whitespace + an uppercase letter/digit, or a '.' at the end of the text), so an unrelated
+        later mention such as "... See #200" in the next sentence is never swept in, while a
+        decimal or an abbreviation's period ("v2.5", "e.g.") does NOT end the clause early, because
+        neither is followed by whitespace-then-capital (a bare mid-clause '.' is not a sentence
+        break by itself).
     #>
     param(
         [AllowEmptyString()][string]$Body,
@@ -143,7 +147,12 @@ function Get-PriorityDependencyTargets {
     $targets = New-Object System.Collections.Generic.HashSet[int]
     if ([string]::IsNullOrEmpty($Body)) { return @() }
     $kw = ($script:PriorityDependencyKeywords -join '|')
-    $pattern = "(?im)\b($kw)\b([^.;\n]*)"
+    # The clause runs until (not including) the first real sentence break: ';', a newline, or a
+    # '.' immediately followed by whitespace + an uppercase letter/digit, or a '.' at the very end
+    # of the text. '(?-i:[A-Z])' turns OFF the pattern's own case-insensitivity just for that
+    # uppercase check: under (?i), a bare [A-Z] would also match a lowercase letter (folded to its
+    # uppercase equivalent), which would treat "the" in "e.g. the auth module" as a sentence start.
+    $pattern = "(?im)\b($kw)\b((?:(?!;|\n|\.(?:\s+(?:(?-i:[A-Z])|[0-9])|\s*$)).)*)"
     foreach ($m in [regex]::Matches($Body, $pattern)) {
         $clause = $m.Groups[2].Value
         foreach ($nm in [regex]::Matches($clause, '#(\d+)')) {
