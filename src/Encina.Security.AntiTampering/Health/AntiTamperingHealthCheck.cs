@@ -86,7 +86,7 @@ public sealed class AntiTamperingHealthCheck : IHealthCheck
 
                 var keyError = keyResult.MatchUnsafe<string?>(
                     Right: _ => null,
-                    Left: e => e.Message);
+                    Left: e => e.GetCode().IfNone("encina.unknown"));
 
                 if (keyError is not null)
                 {
@@ -158,8 +158,7 @@ public sealed class AntiTamperingHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             return HealthCheckResult.Unhealthy(
-                $"Anti-tampering health check failed with exception: {ex.Message}",
-                exception: ex);
+                $"Anti-tampering health check failed with exception: {ex.GetType().Name}");
         }
     }
 }

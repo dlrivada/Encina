@@ -78,7 +78,7 @@ public sealed class EncryptionHealthCheck : IHealthCheck
 
             var keyIdError = keyIdResult.MatchUnsafe<string?>(
                 Right: _ => null,
-                Left: e => e.Message);
+                Left: e => e.GetCode().IfNone("encina.unknown"));
 
             if (keyIdError is not null)
             {
@@ -107,7 +107,7 @@ public sealed class EncryptionHealthCheck : IHealthCheck
 
             var encryptError = encryptResult.MatchUnsafe<string?>(
                 Right: _ => null,
-                Left: e => e.Message);
+                Left: e => e.GetCode().IfNone("encina.unknown"));
 
             if (encryptError is not null)
             {
@@ -133,7 +133,7 @@ public sealed class EncryptionHealthCheck : IHealthCheck
 
                     return null;
                 },
-                Left: e => e.Message);
+                Left: e => e.GetCode().IfNone("encina.unknown"));
 
             if (decryptError is not null)
             {
@@ -159,8 +159,7 @@ public sealed class EncryptionHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             return HealthCheckResult.Unhealthy(
-                $"Encryption health check failed with exception: {ex.Message}",
-                exception: ex);
+                $"Encryption health check failed with exception: {ex.GetType().Name}");
         }
     }
 }

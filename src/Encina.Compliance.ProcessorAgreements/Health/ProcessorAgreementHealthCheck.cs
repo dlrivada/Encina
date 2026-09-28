@@ -132,12 +132,12 @@ public sealed class ProcessorAgreementHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query expired DPAs: {error.Message}");
+                    warnings.Add($"Unable to query expired DPAs: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying expired DPAs: {ex.Message}");
+            warnings.Add($"Error querying expired DPAs: {ex.GetType().Name}");
         }
 
         _logger.LogDebug(

@@ -128,7 +128,7 @@ public sealed class AIActHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Failed to query AI system registry: {error.Message}");
+                    warnings.Add($"Failed to query AI system registry: {error.GetCode().IfNone("encina.unknown")}");
                 });
 
             // 4. Verify classifier is resolvable
@@ -183,9 +183,8 @@ public sealed class AIActHealthCheck : IHealthCheck
             _logger.HealthCheckCompleted("Unhealthy", 0);
 
             return HealthCheckResult.Unhealthy(
-                $"AI Act compliance health check exception: {ex.Message}",
-                ex,
-                data);
+                $"AI Act compliance health check exception: {ex.GetType().Name}",
+                data: data);
         }
     }
 }

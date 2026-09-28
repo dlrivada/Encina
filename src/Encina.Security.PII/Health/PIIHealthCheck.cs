@@ -141,8 +141,7 @@ public sealed class PIIHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                $"PII health check failed with exception: {ex.Message}",
-                exception: ex));
+                $"PII health check failed with exception: {ex.GetType().Name}"));
         }
     }
 
@@ -162,7 +161,7 @@ public sealed class PIIHealthCheck : IHealthCheck
         }
         catch (Exception ex)
         {
-            return (false, $"Masking probe threw exception: {ex.Message}");
+            return (false, $"Masking probe threw exception: {ex.GetType().Name}");
         }
     }
 

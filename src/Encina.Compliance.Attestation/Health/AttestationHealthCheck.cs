@@ -61,14 +61,14 @@ internal sealed class AttestationHealthCheck : IHealthCheck
                 {
                     AttestationLogMessages.HealthCheckCompleted(_logger, "Unhealthy", _provider.ProviderName);
                     return HealthCheckResult.Unhealthy(
-                        $"Provider '{_provider.ProviderName}' failed: {error.Message}");
+                        $"Provider '{_provider.ProviderName}' failed: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
             AttestationLogMessages.HealthCheckCompleted(_logger, "Unhealthy", _provider.ProviderName);
             return HealthCheckResult.Unhealthy(
-                $"Provider '{_provider.ProviderName}' threw an exception.", ex);
+                $"Provider '{_provider.ProviderName}' threw an exception: {ex.GetType().Name}.");
         }
     }
 }

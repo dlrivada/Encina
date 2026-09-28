@@ -135,9 +135,9 @@ public sealed class SecretsHealthCheck : IHealthCheck
                     Left: error =>
                     {
                         data["probeResult"] = "failed";
-                        data["probeError"] = error.Message;
+                        data["probeError"] = error.GetCode().IfNone("encina.unknown");
                         return HealthCheckResult.Degraded(
-                            $"Secrets subsystem is degraded. Probe secret '{probeSecretName}' could not be retrieved: {error.Message}",
+                            $"Secrets subsystem is degraded. Probe secret '{probeSecretName}' could not be retrieved: {error.GetCode().IfNone("encina.unknown")}",
                             data: data);
                     });
             }
@@ -149,8 +149,7 @@ public sealed class SecretsHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             return HealthCheckResult.Unhealthy(
-                $"Secrets health check failed with exception: {ex.Message}",
-                exception: ex);
+                $"Secrets health check failed with exception: {ex.GetType().Name}");
         }
     }
 }

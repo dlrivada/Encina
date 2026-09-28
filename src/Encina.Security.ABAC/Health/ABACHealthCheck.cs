@@ -154,7 +154,7 @@ public sealed class ABACHealthCheck : IHealthCheck
         // so we use IsLeft + IfLeft instead of Match with nullable strings.
         if (setCountResult.IsLeft)
         {
-            var error = setCountResult.Match(Left: err => err.Message, Right: _ => "Unknown error");
+            var error = setCountResult.Match(Left: err => err.GetCode().IfNone("encina.unknown"), Right: _ => "Unknown error");
             return HealthCheckResult.Unhealthy(
                 $"Persistent policy store connectivity check failed: {error}");
         }
@@ -164,7 +164,7 @@ public sealed class ABACHealthCheck : IHealthCheck
 
         if (policyCountResult.IsLeft)
         {
-            var error = policyCountResult.Match(Left: err => err.Message, Right: _ => "Unknown error");
+            var error = policyCountResult.Match(Left: err => err.GetCode().IfNone("encina.unknown"), Right: _ => "Unknown error");
             return HealthCheckResult.Unhealthy(
                 $"Persistent policy store connectivity check failed: {error}");
         }

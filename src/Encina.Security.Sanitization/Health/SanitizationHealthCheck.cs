@@ -113,8 +113,7 @@ public sealed class SanitizationHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                $"Sanitization health check failed with exception: {ex.Message}",
-                exception: ex));
+                $"Sanitization health check failed with exception: {ex.GetType().Name}"));
         }
     }
 }

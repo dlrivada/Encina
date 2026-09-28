@@ -168,12 +168,12 @@ public sealed class BreachNotificationHealthCheck : IHealthCheck
                 },
                 Left: error =>
                 {
-                    warnings.Add($"Unable to query approaching deadline breaches: {error.Message}");
+                    warnings.Add($"Unable to query approaching deadline breaches: {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
         catch (Exception ex)
         {
-            warnings.Add($"Error querying deadline breaches: {ex.Message}");
+            warnings.Add($"Error querying deadline breaches: {ex.GetType().Name}");
         }
 
         _logger.LogDebug(
