@@ -577,11 +577,41 @@ function Limit-RelatedIssues {
         foreach ($m in [regex]::Matches($noteLine, '#(\d+)')) { [void]$allowed.Add($m.Groups[1].Value) }
     }
 
+    # #1550 review (PR #1550, MAJOR): the whole-bullet drop below must fire ONLY inside an actual Related Issues
+    # region -- Limit-RelatedIssues scans the WHOLE draft body on purpose (#1492 decision 2), and a prose bullet
+    # elsewhere (Additional Context, Root Cause, Proposed Fix) that merely starts with a disallowed reference,
+    # e.g. "- #1502 already fixed a similar regex escape issue; apply the same pattern here." or
+    # "- **#1330** -- similar pattern.", is supporting evidence, not a Related Issues list item; dropping it
+    # whole would silently delete real content the model wrote elsewhere in the draft. Recognizes exactly the
+    # three conventions Add-RelatedIssuesLine already does, reusing its own three regexes rather than inventing
+    # a fourth: the '## Related Issues' H2 (region = every line until the next '##' heading), the
+    # '- **Related Issues**:' bold-bullet field, and the plain 'Related Issues:' line (both fields' own region =
+    # their immediately following bullet/blank lines, stopping at the first non-bullet, non-blank line or any
+    # heading -- #1400's own adversarial-review case of unindented sibling bullets under the bold-bullet form is
+    # still a bullet line, so it stays in-region).
+    $inRelatedRegion = [bool[]]::new($lines.Count)
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s*Related Issues\s*$') {
+            for ($j = $i + 1; $j -lt $lines.Count -and $lines[$j] -notmatch '^##\s'; $j++) { $inRelatedRegion[$j] = $true }
+            continue
+        }
+        $isFieldHeader = ($lines[$i] -match '^\s*-?\s*\*\*Related Issues\*\*:?\s*$') -or
+            ($lines[$i] -match '(?i)^\s*\*{0,2}Related Issues\*{0,2}:?\s*$')
+        if (-not $isFieldHeader) { continue }
+        for ($j = $i + 1; $j -lt $lines.Count; $j++) {
+            if ($lines[$j] -match '^#{1,6}\s') { break }
+            if ([string]::IsNullOrWhiteSpace($lines[$j])) { $inRelatedRegion[$j] = $true; continue }
+            if ($lines[$j] -notmatch '^\s*[-*+]\s') { break }
+            $inRelatedRegion[$j] = $true
+        }
+    }
+
     $removed = [System.Collections.Generic.List[string]]::new()
     $newLines = [System.Collections.Generic.List[string]]::new()
     $inFence = $false
     $inHeaderComment = $false
-    foreach ($line in $lines) {
+    for ($lineIdx = 0; $lineIdx -lt $lines.Count; $lineIdx++) {
+        $line = $lines[$lineIdx]
         if ($line -match '^\s*(```|~~~)') { $inFence = -not $inFence; $newLines.Add($line); continue }
         if (-not $inHeaderComment -and $line.Contains('<!--')) { $inHeaderComment = $true }
         $skip = $inFence -or $inHeaderComment
@@ -591,16 +621,16 @@ function Limit-RelatedIssues {
         $lineNumbers = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value })
         if ($lineNumbers.Count -eq 0) { $newLines.Add($line); continue }
 
-        # #1535: a list item whose OWN leading/sole reference is a disallowed '#n' -- the bullet is ABOUT that
-        # issue ('- #910 - [TEST] title', '- **#910**: title', '- #910: title', or a bare '- #910' with no
-        # other text) -- is dropped in full, not just token-stripped. Token-only removal (Remove-InlineIssueReference
-        # below) leaves a broken list item for these shapes: '- - [TEST] title' (doubled marker, no link), '-: ...'
-        # (dangling colon) or a bare '-' (audit #18's 18-tests-1..4, 18-docs-13/14 and 18-docs-5). The bullet
-        # marker (with optional bold '**' wrapping the reference) must be immediately followed by the '#n' -- a
-        # reference elsewhere in the bullet's own prose ('- Fixed in #910 for the edge case') is not "about" #910
-        # and keeps the token-only removal below.
+        # #1535: inside a Related Issues region, a list item whose OWN leading/sole reference is a disallowed
+        # '#n' -- the bullet is ABOUT that issue ('- #910 - [TEST] title', '- **#910**: title', '- #910: title',
+        # or a bare '- #910' with no other text) -- is dropped in full, not just token-stripped. Token-only
+        # removal (Remove-InlineIssueReference below) leaves a broken list item for these shapes:
+        # '- - [TEST] title' (doubled marker, no link), '-: ...' (dangling colon) or a bare '-' (audit #18's
+        # 18-tests-1..4, 18-docs-13/14 and 18-docs-5). The bullet marker (with optional bold '**' wrapping the
+        # reference) must be immediately followed by the '#n' -- a reference elsewhere in the bullet's own prose
+        # ('- Fixed in #910 for the edge case') is not "about" #910 and keeps the token-only removal below.
         $bulletMatch = [regex]::Match($line, '^(?<prefix>\s*[-*+]\s+)\*{0,2}#(?<num>\d+)\*{0,2}(?<rest>.*)$')
-        if ($bulletMatch.Success -and -not $allowed.Contains($bulletMatch.Groups['num'].Value)) {
+        if ($inRelatedRegion[$lineIdx] -and $bulletMatch.Success -and -not $allowed.Contains($bulletMatch.Groups['num'].Value)) {
             foreach ($num in $lineNumbers) {
                 if (-not $allowed.Contains($num)) { $removed.Add($num) }
             }

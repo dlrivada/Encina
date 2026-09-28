@@ -2089,6 +2089,49 @@ Test.
     Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a Related Issues section that still has a kept bullet (#18) never gets "None."' {
         ($dashShapeResult.Text -split "`r?`n") -notcontains 'None.'
     }
+
+    # (g) pr-reviewer finding on PR #1550 (MAJOR): the whole-bullet drop must fire ONLY inside a Related Issues
+    # region. Limit-RelatedIssues scans the whole draft body on purpose (#1492 decision 2), and a bulleted prose
+    # line elsewhere in the draft (Additional Context, Root Cause, Proposed Fix) that merely STARTS with a
+    # disallowed reference is supporting evidence, not a Related Issues list item -- dropping it whole would
+    # silently delete real content the model wrote. Both plain and bold-leading-token shapes are covered.
+    $additionalContextProseDraft = "## Additional Context`n`n- #1502 already fixed a similar regex escape issue; apply the same pattern here.`n"
+    $additionalContextProseResult = Limit-RelatedIssues $additionalContextProseDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a "- #n text" bullet OUTSIDE any Related Issues region keeps token-only removal' {
+        $additionalContextProseResult.Text -match '(?m)^-\s+already fixed a similar regex escape issue; apply the same pattern here\.\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the out-of-region "- #n text" case still records the number as removed' {
+        (@($additionalContextProseResult.Removed)) -contains '1502'
+    }
+    $rootCauseProseDraft = "## Root Cause`n`n- **#1330** -- similar pattern found there too.`n"
+    $rootCauseProseResult = Limit-RelatedIssues $rootCauseProseDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a "- **#n** -- text" bullet OUTSIDE any Related Issues region keeps token-only removal (only the "#1330" token is gone, the rest of the line survives)' {
+        $rootCauseProseResult.Text -match '(?m)^-\s+\*\*\*\*\s+--\s+similar pattern found there too\.\s*$'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the out-of-region bold "- **#n** -- text" case still records the number as removed' {
+        (@($rootCauseProseResult.Removed)) -contains '1330'
+    }
+
+    # (h) the whole-bullet drop still fires INSIDE the bold-bullet '- **Related Issues**:' region (bug_report.md
+    # drafts have no H2 header, only this convention).
+    $boldRegionDraft = "## Additional Context`n`n- **Related Issues**:`n  - #18 (This issue)`n  - #910 - [TEST] some unverified title`n"
+    $boldRegionResult = Limit-RelatedIssues $boldRegionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a disallowed leading "#n" bullet INSIDE the bold-bullet Related Issues region is dropped whole' {
+        $boldRegionResult.Text -notmatch '(?m)^\s*-\s+-\s' -and (@($boldRegionResult.Removed)) -contains '910'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the bold-bullet region case keeps the allowed #18 sub-bullet' {
+        $boldRegionResult.Text -match '#18 \(This issue\)'
+    }
+
+    # (i) the whole-bullet drop still fires INSIDE the plain 'Related Issues:' line region (#1428's own form).
+    $plainRegionDraft = "## Additional Context`n`nRelated Issues:`n- #18 (This issue)`n- #920: another unverified title`n"
+    $plainRegionResult = Limit-RelatedIssues $plainRegionDraft '18' '' @()
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: a disallowed leading "#n" bullet INSIDE the plain "Related Issues:" region is dropped whole' {
+        $plainRegionResult.Text -notmatch '(?m)^-:\s' -and (@($plainRegionResult.Removed)) -contains '920'
+    }
+    Test-RemediationChecksCase '#1535/#1550 Limit-RelatedIssues: the plain-line region case keeps the allowed #18 bullet' {
+        $plainRegionResult.Text -match '#18 \(This issue\)'
+    }
     # ---- end #1535 block ----
 
     # ---- #1409: tools/ai/audit/_remediation-checks.ps1 -- Set-BugEnvironment (Get-EncinaVersion,
