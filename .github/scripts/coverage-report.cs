@@ -5,6 +5,7 @@
 //
 // Usage: dotnet run .github/scripts/coverage-report.cs -- [--output <dir>] [--input <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest [--manifest <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest [--manifest <dir>]
 //
 // Requires: .NET 10+ (C# 14 file-based app)
 
@@ -20,14 +21,17 @@ using System.Xml.Linq;
 var outputDir = "artifacts/coverage";
 var inputDir = "artifacts/test-results";
 var manifestDir = ".github/coverage-manifest";
+var manifestDirExplicit = false;
 var checkStaleManifest = false;
+var checkMissingManifest = false;
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
-    if (args[i] == "--manifest" && i + 1 < args.Length) manifestDir = args[++i];
+    if (args[i] == "--manifest" && i + 1 < args.Length) { manifestDir = args[++i]; manifestDirExplicit = true; }
     if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
+    if (args[i] == "--check-missing-manifest") checkMissingManifest = true;
 }
 
 // Categories removed — all configuration comes from per-package manifests
@@ -44,8 +48,21 @@ var manifestTargets = new Dictionary<string, Dictionary<string, double>>(StringC
 // genuinely stale entry pass undetected.
 var manifestParseFailures = new List<string>();
 
-// Try to find manifest directory
-if (!Directory.Exists(manifestDir))
+// Try to find manifest directory. An explicitly passed --manifest that does not exist is a
+// caller error, not a hint to go looking elsewhere: silently falling back to the ancestor
+// search would let a misspelled or wrong --manifest path resolve to a different, unintended
+// manifest directory (or the real repo one) and check that instead, defeating the "cannot pass
+// vacuously" guarantee every check mode below documents. The ancestor search only runs when
+// --manifest was omitted (the default relative path not existing because cwd isn't the repo
+// root). This applies to every mode (default report, --check-stale-manifest,
+// --check-missing-manifest) — the caller made the same mistake regardless of mode.
+if (manifestDirExplicit && !Directory.Exists(manifestDir))
+{
+    Console.WriteLine($"\nERROR: --manifest directory '{manifestDir}' does not exist.");
+    Environment.Exit(1);
+}
+
+if (!manifestDirExplicit && !Directory.Exists(manifestDir))
 {
     var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
     while (dir is not null)
@@ -113,22 +130,27 @@ else
     Console.WriteLine($"WARNING: Manifest directory '{manifestDir}' not found. Using category-level weights only.");
 }
 
-// ─── Check for stale manifest keys (#1497) ──────────────────────────────────
-// A manifest key is stale when its source file was deleted but the entry was not removed.
-// This reuses exactly the same key → path resolution as BuildDocRefIndex below
-// (src/<Package>/<relPath>), except the base directory: BuildDocRefIndex runs only from the
-// default report mode, which assumes the current directory is the repo root, but this mode
-// is meant to run standalone and early, so it resolves src/ against the repo root derived
-// from the located manifest directory (its parent's parent) instead of the current
-// directory — the same directory independent of the process's cwd. Needs no coverage data
-// or build.
-if (checkStaleManifest)
+// ─── Check for stale manifest keys (#1497) and/or missing manifest entries (#1536) ──────────
+// A manifest key is stale when its source file was deleted but the entry was not removed;
+// a source file is missing from the manifest when it has no key at all. Both checks share the
+// same key/path resolution as BuildDocRefIndex below (src/<Package>/<relPath>), except the base
+// directory: BuildDocRefIndex runs only from the default report mode, which assumes the current
+// directory is the repo root, but these modes are meant to run standalone and early, so they
+// resolve src/ against the repo root derived from the located manifest directory (its parent's
+// parent) instead of the current directory — the same directory independent of the process's
+// cwd. Neither needs coverage data or a build. The two flags can be passed together (CI does):
+// both run, and the process exits 1 if either found a problem, not just whichever ran last.
+if (checkStaleManifest || checkMissingManifest)
 {
-    // A gate that fails CI when a manifest entry is stale must not pass vacuously when it
-    // never actually read a manifest (missing/misspelled --manifest dir, or an empty one):
-    // that would hide the real check behind a silent green run. Fail loudly and distinctly
-    // from "found manifests, none stale." A manifest directory whose files all failed to
-    // parse is reported separately below, with the files named, not folded into this case.
+    // A gate that fails CI when a manifest entry is stale or missing must not pass vacuously
+    // when it never actually read a manifest (an empty --manifest directory, or the default
+    // path/ancestor search finding nothing): that would hide the real check behind a silent
+    // green run. Fail loudly and distinctly from "found manifests, nothing wrong." An
+    // explicitly wrong --manifest path is caught earlier and separately (see manifestDirExplicit
+    // above) so it cannot silently fall back to a different directory; this guard only covers
+    // "a manifest directory was located but had nothing usable in it." A manifest directory
+    // whose files all failed to parse is reported separately below, with the files named, not
+    // folded into this case.
     if (manifest.Count == 0 && manifestParseFailures.Count == 0)
     {
         Console.WriteLine($"\nERROR: no coverage manifest was loaded from '{manifestDir}' (or any ancestor directory). Nothing was checked.");
@@ -138,6 +160,25 @@ if (checkStaleManifest)
     var manifestDirFull = Path.GetFullPath(manifestDir);
     var repoRoot = Directory.GetParent(manifestDirFull)?.Parent?.FullName ?? Directory.GetCurrentDirectory();
 
+    var failed = false;
+    if (checkStaleManifest)
+        failed |= RunCheckStaleManifest(manifest, manifestParseFailures, repoRoot);
+    if (checkMissingManifest)
+        failed |= RunCheckMissingManifest(manifest, manifestParseFailures, repoRoot, manifestDirFull);
+
+    if (failed)
+        Environment.Exit(1);
+
+    return;
+}
+
+// Checks every manifest key against src/<Package>/<relPath>; a key naming a file that no
+// longer exists is stale. Returns true (failed) when there is anything to report.
+bool RunCheckStaleManifest(
+    Dictionary<string, Dictionary<string, TestType>> manifest,
+    List<string> manifestParseFailures,
+    string repoRoot)
+{
     var staleKeys = new List<string>();
     foreach (var (package, files) in manifest.OrderBy(kv => kv.Key, StringComparer.Ordinal))
     {
@@ -168,10 +209,102 @@ if (checkStaleManifest)
     }
 
     if (hasParseFailures || hasStaleKeys)
-        Environment.Exit(1);
+        return true;
 
     Console.WriteLine("\nNo stale manifest keys found.");
-    return;
+    return false;
+}
+
+// Checks every src/<Package>/**/*.cs file (excluding obj/, bin/, generated *.g.cs) against the
+// package's manifest, in both directions: a file with no key in an existing manifest, and (#1536
+// review) a src/Encina.* package directory with source files but no <Package>.json manifest at
+// all, and a manifest whose "package" field names a src/ directory that does not exist (a rename
+// or a case mismatch — case-sensitive on Linux CI). Returns true (failed) when there is anything
+// to report.
+bool RunCheckMissingManifest(
+    Dictionary<string, Dictionary<string, TestType>> manifest,
+    List<string> manifestParseFailures,
+    string repoRoot,
+    string manifestDirFull)
+{
+    var missingFiles = new List<string>();
+
+    foreach (var package in manifest.Keys.OrderBy(k => k, StringComparer.Ordinal))
+    {
+        var pkgSrcDir = Path.Combine(repoRoot, "src", package);
+        if (!Directory.Exists(pkgSrcDir))
+        {
+            missingFiles.Add($"{package}: manifest has no src/{package}/ directory (check the name and its case)");
+            continue;
+        }
+
+        var manifestKeys = manifest[package].Keys
+            .Select(k => k.Replace('\\', '/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var srcFiles = Directory.GetFiles(pkgSrcDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                     && !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var srcFile in srcFiles.OrderBy(f => f, StringComparer.Ordinal))
+        {
+            var relPath = Path.GetRelativePath(pkgSrcDir, srcFile).Replace('\\', '/');
+            if (!manifestKeys.Contains(relPath))
+                missingFiles.Add($"{package}: {relPath}");
+        }
+    }
+
+    // A src/Encina.* directory with source files but no <Package>.json next to it is invisible
+    // to the loop above, which only iterates packages that already have a loaded manifest.
+    var srcRootDir = Path.Combine(repoRoot, "src");
+    if (Directory.Exists(srcRootDir))
+    {
+        var allPackageDirNames = Directory.GetDirectories(srcRootDir)
+            .Select(Path.GetFileName)
+            .Where(name => name is not null && name.StartsWith("Encina.", StringComparison.Ordinal))
+            .Select(name => name!)
+            .OrderBy(n => n, StringComparer.Ordinal);
+
+        foreach (var pkgDirName in allPackageDirNames)
+        {
+            var pkgSrcDir = Path.Combine(srcRootDir, pkgDirName);
+            var hasCsFiles = Directory.GetFiles(pkgSrcDir, "*.cs", SearchOption.AllDirectories)
+                .Any(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                       && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
+            if (!hasCsFiles) continue;
+
+            var manifestFilePath = Path.Combine(manifestDirFull, $"{pkgDirName}.json");
+            if (!File.Exists(manifestFilePath))
+                missingFiles.Add($"{pkgDirName}: no coverage manifest");
+        }
+    }
+
+    var hasParseFailures = manifestParseFailures.Count > 0;
+    var hasMissingFiles = missingFiles.Count > 0;
+
+    if (hasParseFailures)
+    {
+        Console.WriteLine($"\nMANIFEST PARSE FAILURES ({manifestParseFailures.Count}): these files could not be parsed, so their package's source files cannot be vouched for as covered by the manifest");
+        foreach (var failedFile in manifestParseFailures)
+            Console.WriteLine($"  - {failedFile}");
+    }
+
+    if (hasMissingFiles)
+    {
+        Console.WriteLine($"\nMISSING MANIFEST ENTRIES ({missingFiles.Count}): the file exists under src/<Package>/ but has no key in the package manifest, the package has no manifest at all, or the manifest names a src/ directory that does not exist");
+        foreach (var missing in missingFiles.OrderBy(m => m, StringComparer.Ordinal))
+            Console.WriteLine($"  - {missing}");
+        Console.WriteLine("\n  To fix a missing file entry: add it as a key under \"files\" in .github/coverage-manifest/<Package>.json, with the");
+        Console.WriteLine("  defaultTests/defaultRule/reason that .github/coverage-manifest/defaults.json's first matching rule gives for that");
+        Console.WriteLine("  filename. Do NOT regenerate an existing manifest with generate-coverage-manifest.cs — it drops the package's targets block (#1542).");
+    }
+
+    if (hasParseFailures || hasMissingFiles)
+        return true;
+
+    Console.WriteLine("\nNo missing manifest entries found.");
+    return false;
 }
 
 // ─── Detect packages in src/ without a coverage manifest ────────────────────

@@ -572,6 +572,10 @@ jobs:
       - name: Check for stale coverage-manifest keys
         run: dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest
 
+      # #1536: every src/<Package>/**/*.cs file must have a coverage-manifest entry (no silent obligations gap).
+      - name: Check for src files missing from the coverage manifest
+        run: dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest
+
   # Every fragment under changelog.d/ must have a valid name, section and entry content
   # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
   # unreleased-unchanged check below the base commit to diff against.
