@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.PII",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 26,
+  "totalFiles": 29,
   "targets": {
     "guard": 20,
     "unit": 70,
@@ -16,7 +16,31 @@
     "Diagnostics/PIIDiagnostics.cs": { "defaultTests": ["unit"], "reason": "Activity/meter wrapper — no guards" },
     "Diagnostics/PIILogMessages.cs": { "defaultTests": [], "reason": "Source-generated [LoggerMessage] — no guards" },
     "Health/PIIHealthCheck.cs": { "defaultTests": ["unit"], "reason": "Health check — no constructor guards" },
+    "Internal/PIIPropertyScanner.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Internal/PropertyMaskingMetadata.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
     "MaskingMode.cs": { "defaultTests": ["unit"], "reason": "Enum — no guards" },
+    "MaskingOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
     "PIIErrors.cs": { "defaultTests": ["unit"], "reason": "Static error factories — no guards" },
     "PIILoggerExtensions.cs": { "defaultTests": ["unit", "guard"], "reason": "Logger extensions with ThrowIfNull guards" },
     "PIIMasker.cs": { "defaultTests": ["unit", "guard", "property"], "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants." },
