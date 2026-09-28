@@ -2053,11 +2053,18 @@ Test.
         (@($bareShapeResult.Removed)) -contains '1414'
     }
 
-    # (d) a bold-bullet "- **#n**: title" shape is dropped whole too.
+    # (d) a bold-bullet "- **#n**: title" shape is dropped whole too. Asserts the EXACT surviving line set (not
+    # just the absence of '**910**') so this discriminates the fix: the pre-#1535 script reduces this input to
+    # a different, also-broken shape ('- ****: some unverified title', four orphaned asterisks with no link), and
+    # a looser "does not contain '**910**' or a bare '-:' line" assertion is true against BOTH the old and the
+    # new output (adversarial review of #1535 finding 1) -- it would never fail if this branch of the fix broke.
     $boldShapeDraft = "## Related Issues`n`n- #18 (This issue)`n- **#910**: some unverified title`n"
     $boldShapeResult = Limit-RelatedIssues $boldShapeDraft '18' '' @()
-    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- **#n**: title" bullet whose #n is disallowed is dropped whole' {
-        $boldShapeResult.Text -notmatch '\*\*910\*\*' -and $boldShapeResult.Text -notmatch '(?m)^-\s*(\*\*)?:\s'
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: a "- **#n**: title" bullet whose #n is disallowed is dropped whole, leaving only the allowed #18 bullet' {
+        (@($boldShapeResult.Text -split "`r?`n") | Where-Object { $_ -match '^-' }) -join "`n" -eq '- #18 (This issue)'
+    }
+    Test-RemediationChecksCase '#1535 Limit-RelatedIssues: the bold-bullet case never leaves the orphaned "****" shape the pre-fix script produced' {
+        $boldShapeResult.Text -notmatch '\*\*\*\*'
     }
 
     # (e) prose (the disallowed reference is not the bullet's own leading token) still keeps only token removal.
