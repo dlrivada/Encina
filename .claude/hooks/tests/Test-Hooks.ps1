@@ -1280,6 +1280,26 @@ try {
         Invoke-AuditGit commit -q -m "audit #$auditN`: verification stage" -m 'Stage: verification'
         Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify again." $null 2 'audit-stage-guard: all stages complete with a PASS verdict, no more spawns'
 
+        # #1555: a stage re-committed AFTER the verifier's own last commit makes that PASS verdict stale -- the
+        # verifier never inspected the new content. Recommit remediation.md (simulating the orchestrator
+        # regenerating drafts with audit-draft-remediation.ps1 and re-running audit-commit-stage.ps1 -Stage
+        # remediation) with a committer date strictly after "now" (when the verification commit above ran, with
+        # no explicit date), and check: audit-verifier may now be re-spawned, but any OTHER out-of-order stage
+        # agent stays blocked exactly as under a fresh, non-stale PASS (decision 2) -- this pair fails against
+        # the unmodified guard, which has no notion of staleness and blocks every spawn once all stages are done.
+        # Write-AuditStage always writes the same fixed content, so a second call would leave nothing new to
+        # commit (the earlier remediation commit already has it); write distinguishable content instead so the
+        # re-commit actually happens.
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\remediation.md') "x (regenerated)`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditGit add -f 'artifacts/knowledge/stages/remediation.md'
+        $staleCommitDate = [DateTimeOffset]::UtcNow.AddHours(1).ToString('yyyy-MM-ddTHH:mm:sszzz')
+        $env:GIT_AUTHOR_DATE = $staleCommitDate
+        $env:GIT_COMMITTER_DATE = $staleCommitDate
+        Invoke-AuditGit commit -q -m "audit #$auditN`: remediation stage" -m 'Stage: remediation'
+        Remove-Item Env:\GIT_AUTHOR_DATE, Env:\GIT_COMMITTER_DATE -ErrorAction SilentlyContinue
+        Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify again after remediation was regenerated." $null 0 'audit-stage-guard: a PASS verdict made stale by a newer remediation commit lets audit-verifier re-run (#1555)'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage after remediation was regenerated." $null 2 'audit-stage-guard: a stale PASS verdict still blocks any OTHER out-of-order stage agent (#1555)'
+
         # #1457: without a .rerun-archivist marker, issue-archivist stays blocked after a PASS verdict too
         # (the deadlock this issue closes was audit-done refusing while the guard also refused the re-spawn
         # that would fix it) -- but audit-done.ps1 writing that marker (a record-schema failure with every
@@ -1643,6 +1663,121 @@ Test.
             $script:failed++
             "FAIL audit-draft-remediation: $Label ($($_.Exception.Message))"
         }
+    }
+
+    # ---- #1555: Get-StaleStageAfterVerification (shared _audit-lib.ps1 helper) and audit-done.ps1's use of it ----
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        # A tiny throwaway repo with explicit GIT_AUTHOR_DATE/GIT_COMMITTER_DATE per commit, so the tie case
+        # does not depend on real elapsed time between two git calls on a possibly slow machine.
+        $staleWt = Join-Path $work 'StaleHelperWt'
+        if (Test-Path $staleWt) { Remove-Item -Recurse -Force $staleWt }
+        New-Item -ItemType Directory -Force (Join-Path $staleWt 'artifacts\knowledge\stages') | Out-Null
+        & git -C $staleWt -c user.name=hooks -c user.email=hooks@example.invalid init -q -b main 2>&1 | Out-Null
+        & git -C $staleWt -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
+        $stalePipeline = $defaultPipelineJson | ConvertFrom-Json
+
+        # A dedicated wrapper (not the reused Test-RemediationCase) so these cases report under their own
+        # component name instead of misleadingly under 'audit-draft-remediation:'.
+        function Test-StaleCase([string]$Label, [scriptblock]$Check) {
+            $script:total++
+            try {
+                if (& $Check) { "PASS Get-StaleStageAfterVerification: $Label" }
+                else { $script:failed++; "FAIL Get-StaleStageAfterVerification: $Label" }
+            }
+            catch {
+                $script:failed++
+                "FAIL Get-StaleStageAfterVerification: $Label ($($_.Exception.Message))"
+            }
+        }
+
+        function Set-StaleCommit([string]$RelativePath, [string]$Content, [int]$UnixSeconds) {
+            $full = Join-Path $staleWt ($RelativePath -replace '/', '\')
+            New-Item -ItemType Directory -Force (Split-Path -Parent $full) | Out-Null
+            Set-Content -LiteralPath $full -Value $Content
+            & git -C $staleWt add -f $RelativePath 2>&1 | Out-Null
+            $env:GIT_AUTHOR_DATE = "@$UnixSeconds +0000"
+            $env:GIT_COMMITTER_DATE = "@$UnixSeconds +0000"
+            & git -C $staleWt -c user.name=hooks -c user.email=hooks@example.invalid commit -q -m "commit at $UnixSeconds" 2>&1 | Out-Null
+            Remove-Item Env:\GIT_AUTHOR_DATE, Env:\GIT_COMMITTER_DATE -ErrorAction SilentlyContinue
+        }
+
+        Set-StaleCommit 'artifacts/knowledge/stages/remediation.md' 'v1' 1000
+        Set-StaleCommit 'artifacts/knowledge/stages/verification.md' 'Verdict: PASS' 2000
+        $notStale = Get-StaleStageAfterVerification $staleWt $stalePipeline
+        Test-StaleCase 'verification committed after remediation -- not stale' { $null -eq $notStale }
+
+        Set-StaleCommit 'artifacts/knowledge/stages/remediation.md' 'v2' 3000
+        $staleAfter = Get-StaleStageAfterVerification $staleWt $stalePipeline
+        Test-StaleCase 'remediation re-committed after verification -- stale, names the remediation stage' { $null -ne $staleAfter -and $staleAfter.stage -eq 'remediation' }
+
+        # Distinguishable content ('Verdict: PASS (recheck)') so this actually creates a new commit at the same
+        # second as remediation's last one above -- identical content would leave nothing to commit and the
+        # verification commit time would stay at 2000, silently passing this case for the wrong reason.
+        Set-StaleCommit 'artifacts/knowledge/stages/verification.md' "Verdict: PASS`n(recheck)" 3000
+        $tieResult = Get-StaleStageAfterVerification $staleWt $stalePipeline
+        Test-StaleCase 'a tied commit second is NOT stale (decision 1)' { $null -eq $tieResult }
+
+        # audit-done.ps1's own use of the helper: a standalone, self-referential repo (its own current-audit.json
+        # points at itself, like $commitWt/$archivistWt above) with NO .github\scripts\knowledge-records.cs, so
+        # every run refuses for that unrelated reason regardless of staleness -- letting these two cases isolate
+        # the #1555 check alone (present vs. absent in the output) without needing dotnet or a real knowledge
+        # record. Both fail against the unmodified audit-done.ps1, which never checks staleness at all.
+        $doneWt = Join-Path $work 'AuditDoneWt'
+        $doneN = 5555
+        function Initialize-DoneWorktree {
+            if (Test-Path $doneWt) { Remove-Item -Recurse -Force $doneWt }
+            New-Item -ItemType Directory -Force (Join-Path $doneWt 'tools\ai\audit') | Out-Null
+            New-Item -ItemType Directory -Force (Join-Path $doneWt 'artifacts\knowledge\stages') | Out-Null
+            New-Item -ItemType Directory -Force (Join-Path $doneWt 'artifacts\knowledge\issues') | Out-Null
+            Copy-Item (Join-Path $repo 'tools\ai\audit\audit-done.ps1') (Join-Path $doneWt 'tools\ai\audit\audit-done.ps1')
+            Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $doneWt 'tools\ai\audit\_audit-lib.ps1')
+            Set-Content (Join-Path $doneWt 'tools\ai\audit\pipeline.json') $defaultPipelineJson
+            & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid init -q -b main 2>&1 | Out-Null
+            & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
+            @{ issue = $doneN; worktree = $doneWt; branch = "audit/$doneN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $doneWt 'artifacts\knowledge\current-audit.json')
+        }
+        function Invoke-DoneGit { & git -C $doneWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+        function Write-DoneStage([string]$StageName, [string]$ArtifactName, [string]$Content, [int]$UnixSeconds) {
+            Set-Content (Join-Path $doneWt "artifacts\knowledge\stages\$ArtifactName") $Content
+            Invoke-DoneGit add -f "artifacts/knowledge/stages/$ArtifactName"
+            $env:GIT_AUTHOR_DATE = "@$UnixSeconds +0000"
+            $env:GIT_COMMITTER_DATE = "@$UnixSeconds +0000"
+            Invoke-DoneGit commit -q -m "audit #$doneN`: $StageName stage" -m "Stage: $StageName"
+            Remove-Item Env:\GIT_AUTHOR_DATE, Env:\GIT_COMMITTER_DATE -ErrorAction SilentlyContinue
+        }
+        function Test-DoneCase([string]$Label, [string]$Pattern, [string]$NotPattern) {
+            $output = & pwsh -NoProfile -File (Join-Path $doneWt 'tools\ai\audit\audit-done.ps1') 2>&1
+            $flat = Get-FlatOutput $output
+            $ok = $LASTEXITCODE -ne 0
+            if ($ok -and $Pattern) { $ok = $flat -match $Pattern }
+            if ($ok -and $NotPattern) { $ok = $flat -notmatch $NotPattern }
+            $script:total++
+            if ($ok) { "PASS audit-done.ps1: $Label" } else { $script:failed++; "FAIL audit-done.ps1: $Label (exit $LASTEXITCODE): $flat" }
+        }
+
+        Initialize-DoneWorktree
+        Write-DoneStage 'archivist' 'archivist.md' "x`n## Lessons for the pipeline`n- none`n" 1000
+        Write-DoneStage 'code' 'code.md' "x`n## Lessons for the pipeline`n- none`n" 1001
+        Write-DoneStage 'tests' 'tests.md' "x`n## Lessons for the pipeline`n- none`n" 1002
+        Write-DoneStage 'docs' 'docs.md' "x`n## Lessons for the pipeline`n- none`n" 1003
+        Write-DoneStage 'remediation' 'remediation.md' 'v1' 1004
+        Write-DoneStage 'verification' 'verification.md' "Verdict: PASS`n## Lessons for the pipeline`n- none`n" 1005
+        Set-Content (Join-Path $doneWt 'artifacts\knowledge\stages\lessons.md') "no lessons`n"
+        Write-DoneStage 'remediation' 'remediation.md' 'v2 regenerated' 2000
+        Test-DoneCase 'refuses to close when remediation was re-committed after the verification PASS, naming the stale stage (#1555)' 'stale.*remediation' $null
+
+        Initialize-DoneWorktree
+        Write-DoneStage 'archivist' 'archivist.md' "x`n## Lessons for the pipeline`n- none`n" 1000
+        Write-DoneStage 'code' 'code.md' "x`n## Lessons for the pipeline`n- none`n" 1001
+        Write-DoneStage 'tests' 'tests.md' "x`n## Lessons for the pipeline`n- none`n" 1002
+        Write-DoneStage 'docs' 'docs.md' "x`n## Lessons for the pipeline`n- none`n" 1003
+        Write-DoneStage 'remediation' 'remediation.md' 'v1' 1004
+        Write-DoneStage 'verification' 'verification.md' "Verdict: PASS`n## Lessons for the pipeline`n- none`n" 1005
+        Set-Content (Join-Path $doneWt 'artifacts\knowledge\stages\lessons.md') "no lessons`n"
+        Test-DoneCase 'does not flag staleness when nothing was committed after the verification PASS (#1555)' $null 'stale'
+    }
+    else {
+        'SKIP #1555: git is not on PATH'
     }
 
     # (a) Split-Findings splits the numbered "N. **Severity** -- ..." paragraphs the stage agents write,

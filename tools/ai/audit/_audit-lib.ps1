@@ -90,6 +90,44 @@ function Test-LastVerdictFail([string]$StagesDir, $Pipeline) {
     return (Get-Content -LiteralPath $file -TotalCount 1) -eq 'Verdict: FAIL'
 }
 
+# The Unix timestamp (seconds, [long]) of the newest commit on $Worktree's current branch that touched
+# $ArtifactRelativePath (forward slashes, relative to $Worktree), or $null when the path has no commit yet.
+function Get-ArtifactCommitTime([string]$Worktree, [string]$ArtifactRelativePath) {
+    $ts = & git -C $Worktree log -1 --format=%ct -- $ArtifactRelativePath 2>$null | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($ts)) { return $null }
+    return [long]$ts
+}
+
+# #1555: a stage re-committed (e.g. remediation regenerated after a PASS) AFTER the verifier stage's own last
+# commit makes that verdict stale -- the verifier never inspected the new content. Staleness is derived from
+# git history alone (no marker file, no new state): the newest commit of every OTHER pipeline stage's artifact
+# is compared against the verifier stage's own newest commit. Returns the (single) pipeline.json stage
+# definition with the newest such commit, or $null when there is no verifier stage, the verifier has not
+# committed yet (nothing to compare against), or no other stage's artifact was committed after it. A tie
+# (same second) does NOT count as stale -- it is not distinguishable from the verifier's own commit and is not
+# proof the verifier missed the content. Shared by audit-stage-guard.ps1 (allows re-spawning audit-verifier)
+# and audit-done.ps1 (refuses to close while this returns non-null).
+function Get-StaleStageAfterVerification([string]$Worktree, $Pipeline) {
+    $verifierStage = $Pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
+    if ($null -eq $verifierStage) { return $null }
+    $verificationRelative = "artifacts/knowledge/stages/$($verifierStage.artifact)"
+    $verificationTime = Get-ArtifactCommitTime $Worktree $verificationRelative
+    if ($null -eq $verificationTime) { return $null }
+
+    $stale = $null
+    $staleTime = $verificationTime
+    foreach ($stage in $Pipeline.stages) {
+        if ($stage.stage -eq $verifierStage.stage) { continue }
+        $relative = "artifacts/knowledge/stages/$($stage.artifact)"
+        $stageTime = Get-ArtifactCommitTime $Worktree $relative
+        if ($null -ne $stageTime -and $stageTime -gt $staleTime) {
+            $stale = $stage
+            $staleTime = $stageTime
+        }
+    }
+    return $stale
+}
+
 # stages/lessons.md exists and has no unresolved 'Applied: TODO' line -- each '- <lesson>' bullet
 # audit-lessons.ps1 writes is followed by an 'Applied: <status>' line the orchestrator must resolve before the
 # lesson counts as applied. Returns '' when valid, or the reason it is not; audit-done.ps1 and
