@@ -51,17 +51,6 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_priority-lib.ps1')
 
-if (-not $IssuesFile) { $IssuesFile = Join-Path $Root 'artifacts/priority/issues.json' }
-if (-not $ScoresFile) { $ScoresFile = Join-Path $Root 'artifacts/priority/scores.json' }
-if (-not $BoardFile) { $BoardFile = Join-Path $Root 'artifacts/priority/board.json' }
-if (-not $OverridesFile) { $OverridesFile = Join-Path $PSScriptRoot 'overrides.json' }
-if (-not $RubricFile) { $RubricFile = Join-Path $PSScriptRoot 'rubric.md' }
-$localAiScript = Join-Path $Root 'tools/ai/local-ai-ask.cs'
-$modelOutDir = Join-Path $Root 'artifacts/priority/model-out'
-$modelInDir = Join-Path $Root 'artifacts/priority/model-in'
-New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
-New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
-
 function Get-BodyHash([string]$Body) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$Body)
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -163,12 +152,12 @@ function New-ScoredEntry {
         $judged = Invoke-JudgedScores -IssueRecord $IssueRecord
         if ($null -eq $judged.Parsed) {
             return [ordered]@{
-                number    = $IssueRecord.number
-                title     = $IssueRecord.title
+                number   = $IssueRecord.number
+                title    = $IssueRecord.title
                 milestone = $IssueRecord.milestone
-                flags     = $flags
-                error     = $judged.Error
-                unscored  = $true
+                flags    = $flags
+                error    = $judged.Error
+                unscored = $true
             }
         }
     }
@@ -272,18 +261,18 @@ function New-ScoredEntry {
     }
 
     return [ordered]@{
-        number      = $IssueRecord.number
-        title       = $IssueRecord.title
-        milestone     = $IssueRecord.milestone
-        createdAtUtc  = $IssueRecord.createdAt
-        flags       = $flags
-        total       = Get-PriorityTotal -Scores $scores
-        scores      = $scores
-        why         = $why
-        source      = $source
-        bodyHash    = Get-BodyHash -Body $IssueRecord.body
-        scoredAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        judgedAtUtc = $judgedAtUtc
+        number       = $IssueRecord.number
+        title        = $IssueRecord.title
+        milestone    = $IssueRecord.milestone
+        createdAtUtc = $IssueRecord.createdAt
+        flags        = $flags
+        total        = Get-PriorityTotal -Scores $scores
+        scores       = $scores
+        why          = $why
+        source       = $source
+        bodyHash     = Get-BodyHash -Body $IssueRecord.body
+        scoredAtUtc  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        judgedAtUtc  = $judgedAtUtc
     }
 }
 
@@ -310,12 +299,23 @@ function Get-TopCriteria([hashtable]$Scores, [int]$Take = 2) {
     return @($weighted | Sort-Object Contribution -Descending | Select-Object -First $Take | ForEach-Object { $_.Criterion })
 }
 
-$overrides = Get-PriorityOverrides
-
 # Guards the -All/-Issue execution below so this script can be dot-sourced (invocation name '.')
 # for its function definitions alone -- Test-Priority.ps1 does this to exercise New-ScoredEntry's
 # -Resume logic (#1560) without a gh call, a collect-issues.ps1 refresh, or a local-model call.
 if ($MyInvocation.InvocationName -eq '.') { return }
+
+if (-not $IssuesFile) { $IssuesFile = Join-Path $Root 'artifacts/priority/issues.json' }
+if (-not $ScoresFile) { $ScoresFile = Join-Path $Root 'artifacts/priority/scores.json' }
+if (-not $BoardFile) { $BoardFile = Join-Path $Root 'artifacts/priority/board.json' }
+if (-not $OverridesFile) { $OverridesFile = Join-Path $PSScriptRoot 'overrides.json' }
+if (-not $RubricFile) { $RubricFile = Join-Path $PSScriptRoot 'rubric.md' }
+$localAiScript = Join-Path $Root 'tools/ai/local-ai-ask.cs'
+$modelOutDir = Join-Path $Root 'artifacts/priority/model-out'
+$modelInDir = Join-Path $Root 'artifacts/priority/model-in'
+New-Item -ItemType Directory -Force -Path $modelOutDir | Out-Null
+New-Item -ItemType Directory -Force -Path $modelInDir | Out-Null
+
+$overrides = Get-PriorityOverrides
 
 if ($PSCmdlet.ParameterSetName -eq 'All') {
     if (-not $NoCollect) {
