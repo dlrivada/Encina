@@ -26,8 +26,29 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
     /// exception or error identifier (the generated <c>EncinaError.ToString()</c> prints its message).
     /// </summary>
     [GeneratedRegex(
-        @"\b\w+\??\.(Message|InnerException|StackTrace)\b|\.Error\.Reason\b|\b(ex|exception|err|error|\w*Error|\w*Exception)\??\.ToString\(")]
+        @"\b\w+[!?]{0,2}\.(Message|InnerException|StackTrace)\b|\)[!?]{0,2}\.(Message|StackTrace)\b|\.Error\.Reason\b|\b(ex|exception|err|error|\w*Error|\w*Exception)\??\.ToString\(")]
     private static partial Regex MessageAccessRegex();
+
+    /// <summary>
+    /// An <c>EncinaError</c> interpolated whole through a member named <c>Error</c> (<c>{ex.Error}</c>,
+    /// <c>{result.Error}</c>): the generated <c>EncinaError.ToString()</c> prints its message. A bare
+    /// <c>{error}</c> is not matched because in health files that name holds string error codes; that and
+    /// aliasing through a local variable are what a text scan cannot see.
+    /// </summary>
+    [GeneratedRegex(@"\{(ex|exception|err|\w*Error)\.Error(:[^}]*)?\}")]
+    private static partial Regex InterpolatedEncinaErrorRegex();
+
+    /// <summary>A class that implements Microsoft's <c>IHealthCheck</c> (not <c>IEncinaHealthCheck</c>).</summary>
+    [GeneratedRegex(@"\bclass\s+(\w+)[^{;]*?:[^{;]*\bIHealthCheck\b")]
+    private static partial Regex MicrosoftHealthCheckClassRegex();
+
+    /// <summary>A catch-all handler: <c>catch (Exception ex)</c> or <c>catch (Exception)</c>.</summary>
+    [GeneratedRegex(@"\bcatch\s*\(\s*(System\.)?Exception\b")]
+    private static partial Regex CatchAllRegex();
+
+    /// <summary>Declarations that give an identifier the type Exception (parameters, locals, catch variables).</summary>
+    [GeneratedRegex(@"\b(?:[\w.]*Exception\??)\s+(\w+)\s*[,;=)]")]
+    private static partial Regex ExceptionDeclarationRegex();
 
     /// <summary>
     /// An exception identifier interpolated whole into a string: <c>{ex}</c>. Identifiers ending in
@@ -44,10 +65,17 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
     /// An exception passed positionally to a <c>HealthCheckResult</c>, <c>DatabaseHealthResult</c> or
     /// <c>ShardHealthResult</c> factory (<c>Unhealthy(description, ex, data)</c>).
     /// </summary>
-    [GeneratedRegex(
-        @"(\.(Unhealthy|Degraded)|new\s+(HealthCheckResult|DatabaseHealthResult|ShardHealthResult))\([^;]*?,\s*(ex|exception|\w*Exception|\w+\.Exception)\s*[,)]",
-        RegexOptions.Singleline)]
-    private static partial Regex PositionalExceptionRegex();
+    private static readonly string[] BaseExceptionNames = ["ex", "exception", @"\w*Exception", @"\w+\.Exception"];
+
+    private static Regex PositionalExceptionRegex(IEnumerable<string> declaredExceptionNames)
+    {
+        var names = string.Join('|', BaseExceptionNames.Concat(declaredExceptionNames.Select(Regex.Escape)));
+
+        return new Regex(
+            @"(\.(Unhealthy|Degraded)|new\s+(HealthCheckResult|DatabaseHealthResult|ShardHealthResult))\([^;]*?,\s*("
+                + names + @")\s*[,)]",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+    }
 
     [Fact]
     public void HealthChecksAndMonitors_NeverExposeAnExceptionMessageOrObject()
@@ -58,6 +86,65 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
             "A health result can reach a health endpoint: report only the exception type name " +
             "(ex.GetType().Name) or the error code (error.GetCode().IfNone(\"encina.unknown\")), never " +
             ".Message or the exception object:\n" + string.Join('\n', violations));
+    }
+
+    /// <summary>
+    /// Classes that implement Microsoft's <c>IHealthCheck</c> without a catch-all because they only wrap
+    /// <c>IEncinaHealthCheck</c> instances, whose base class (<c>EncinaHealthCheck</c>) already reports the
+    /// exception type only. Keyed by class name, each with its reason.
+    /// </summary>
+    private static readonly Dictionary<string, string> UnguardedAllowlist = new()
+    {
+        ["EncinaHealthCheckAdapter"] = "wraps one IEncinaHealthCheck",
+        ["CompositeEncinaHealthCheck"] = "wraps IEncinaHealthCheck instances",
+        ["EncinaHealthCheckBridge"] = "wraps one IEncinaHealthCheck",
+        ["EmptyHealthCheck"] = "has no dependency and always returns Healthy"
+    };
+
+    /// <summary>
+    /// A class that implements Microsoft's <c>IHealthCheck</c> directly does not get the catch-all of
+    /// <c>EncinaHealthCheck</c>; when its dependency throws, <c>DefaultHealthCheckService</c> copies
+    /// <c>ex.Message</c> and the exception onto the report entry. Such a class must catch <c>Exception</c>
+    /// itself. The check is per file (a file with several such classes needs one catch-all for the file).
+    /// </summary>
+    [Fact]
+    public void MicrosoftHealthChecks_CatchAllExceptionsThemselves()
+    {
+        var root = FindRepositoryRoot();
+        var violations = new List<string>();
+
+        foreach (var file in EnumerateSourceFiles(Path.Combine(root, "src")))
+        {
+            var relativePath = Path.GetRelativePath(root, file).Replace('\\', '/');
+            violations.AddRange(FindUnguardedMicrosoftHealthChecks(relativePath, File.ReadAllText(file)));
+        }
+
+        violations.ShouldBeEmpty(
+            "A class implementing Microsoft's IHealthCheck must catch Exception in CheckHealthAsync and report " +
+            "ex.GetType().Name only, or the health service reports ex.Message and the exception object:\n" +
+            string.Join('\n', violations));
+    }
+
+    [Fact]
+    public void FindUnguardedMicrosoftHealthChecks_FlagsAClassWithoutACatchAll()
+    {
+        const string unguarded = "public sealed class SampleCheck : IHealthCheck { public Task<HealthCheckResult> CheckHealthAsync() { return Task.FromResult(HealthCheckResult.Healthy()); } }";
+        const string guarded = "public sealed class SampleCheck : IHealthCheck { Task<HealthCheckResult> CheckHealthAsync() { try { } catch (Exception ex) { } } }";
+        const string encinaBase = "public sealed class SampleCheck : EncinaHealthCheck, IEncinaHealthCheck { }";
+
+        FindUnguardedMicrosoftHealthChecks("Sample.cs", unguarded).ShouldNotBeEmpty();
+        FindUnguardedMicrosoftHealthChecks("Sample.cs", guarded).ShouldBeEmpty();
+        FindUnguardedMicrosoftHealthChecks("Sample.cs", encinaBase).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("return HealthCheckResult.Unhealthy($\"failed: {ex.GetBaseException().Message}\");")]
+    [InlineData("return HealthCheckResult.Unhealthy($\"failed: {error!.Message}\");")]
+    [InlineData("return HealthCheckResult.Unhealthy($\"failed: {ex.Error}\");")]
+    [InlineData("return HealthCheckResult.Unhealthy(\"x\", failure, data);\nvoid M(Exception failure) { }")]
+    public void Scan_FlagsTheWiderLeakingShapes(string source)
+    {
+        ScanSource("Sample.cs", source).ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -133,14 +220,50 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
             }
         }
 
+        for (var i = 0; i < codeLines.Length; i++)
+        {
+            if (InterpolatedEncinaErrorRegex().IsMatch(codeLines[i]))
+            {
+                violations.Add($"{relativePath}:{i + 1}: {lines[i].Trim()}");
+            }
+        }
+
         var code = string.Join('\n', codeLines);
-        foreach (Match match in PositionalExceptionRegex().Matches(code))
+        var declaredNames = ExceptionDeclarationRegex().Matches(code).Select(m => m.Groups[1].Value).Distinct();
+        foreach (Match match in PositionalExceptionRegex(declaredNames).Matches(code))
         {
             var line = code.AsSpan(0, match.Index).Count('\n') + 1;
             violations.Add($"{relativePath}:{line}: exception passed positionally to a health result factory");
         }
 
         return violations;
+    }
+
+    private static List<string> FindUnguardedMicrosoftHealthChecks(string relativePath, string source)
+    {
+        var code = string.Join('\n', source.Split('\n').Where(l => !IsComment(l)));
+        var violations = new List<string>();
+
+        foreach (Match match in MicrosoftHealthCheckClassRegex().Matches(code))
+        {
+            var className = match.Groups[1].Value;
+            if (UnguardedAllowlist.ContainsKey(className) || CatchAllRegex().IsMatch(code))
+            {
+                continue;
+            }
+
+            violations.Add($"{relativePath}: {className} implements IHealthCheck without catching Exception");
+        }
+
+        return violations;
+    }
+
+    private static IEnumerable<string> EnumerateSourceFiles(string srcDirectory)
+    {
+        var separator = Path.DirectorySeparatorChar;
+
+        return Directory.EnumerateFiles(srcDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{separator}obj{separator}") && !f.Contains($"{separator}bin{separator}"));
     }
 
     private static bool IsComment(string line)

@@ -1,0 +1,1 @@
+- Removed the `Exception` property, and the matching constructor and factory parameter, from `HealthCheckResult` (`Encina.Messaging.Health`), `DatabaseHealthResult` and `ShardHealthResult`, so no health result can carry an exception to a health endpoint (#1301).

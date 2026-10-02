@@ -162,5 +162,12 @@ public sealed class ReshardingHealthCheck : IHealthCheck
             return HealthCheckResult.Unhealthy(
                 $"Resharding health check timed out after {_options.Timeout.TotalSeconds}s.");
         }
+        catch (Exception ex)
+        {
+            // Only the exception type: the health service would otherwise copy the message and the
+            // exception object to the report entry.
+            return HealthCheckResult.Unhealthy(
+                $"Resharding health check failed with exception: {ex.GetType().Name}");
+        }
     }
 }

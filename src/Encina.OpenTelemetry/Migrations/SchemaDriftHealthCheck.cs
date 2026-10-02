@@ -136,5 +136,12 @@ public sealed class SchemaDriftHealthCheck : IHealthCheck
             return HealthCheckResult.Unhealthy(
                 $"Schema drift detection timed out after {_options.Timeout.TotalSeconds}s.");
         }
+        catch (Exception ex)
+        {
+            // Only the exception type: the health service would otherwise copy the message and the
+            // exception object to the report entry.
+            return HealthCheckResult.Unhealthy(
+                $"Schema drift detection failed with exception: {ex.GetType().Name}");
+        }
     }
 }
