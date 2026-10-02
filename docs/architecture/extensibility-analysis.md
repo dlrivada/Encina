@@ -346,8 +346,8 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         result.Match(
             Right: _ => _logger.LogInformation("Handled {RequestType} in {ElapsedMs}ms",
                 typeof(TRequest).Name, sw.ElapsedMilliseconds),
-            Left: error => _logger.LogError("Failed {RequestType} with {ErrorCode}: {ErrorMessage}",
-                typeof(TRequest).Name, error.GetEncinaCode(), error.Message)
+            Left: error => _logger.LogError("Failed {RequestType} with {ErrorCode}",
+                typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown"))
         );
 
         return result;

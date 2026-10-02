@@ -673,7 +673,7 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Enforcement failed: {Code} - {Message}", error.Code, error.Message);
+        logger.LogError("Enforcement failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
     }
 );
 ```

@@ -671,7 +671,7 @@ public sealed class AuditLogObligationHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to fulfill audit obligation");
+            logger.LogError(ex.ForLogging(), "Failed to fulfill audit obligation");
             return EncinaError.Create("AUDIT_FAILURE", "Audit logging failed — access denied");
         }
     }

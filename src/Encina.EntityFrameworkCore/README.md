@@ -1062,7 +1062,7 @@ var result = await bulkOps.BulkInsertAsync(orders);
 
 result.Match(
     Right: count => _logger.LogInformation("Inserted {Count} orders", count),
-    Left: error => _logger.LogError("Bulk insert failed: {Error}", error.Message)
+    Left: error => _logger.LogError("Bulk insert failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
 );
 ```
 

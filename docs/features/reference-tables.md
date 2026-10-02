@@ -389,8 +389,8 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Replication failed: {Code} - {Message}",
-            error.GetCode().IfNone("unknown"), error.Message);
+        logger.LogError("Replication failed: {ErrorCode}",
+            error.GetCode().IfNone("encina.unknown"));
     });
 ```
 

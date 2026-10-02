@@ -672,8 +672,8 @@ result.IfRight(queryResult =>
 
         foreach (var failure in queryResult.FailedShards)
         {
-            logger.LogError("Shard {ShardId} failed: {Error}",
-                failure.ShardId, failure.Error.Message);
+            logger.LogError("Shard {ShardId} failed: {ErrorCode}",
+                failure.ShardId, failure.Error.GetCode().IfNone("encina.unknown"));
         }
     }
 });

@@ -420,7 +420,7 @@ result.Match(
     Right: encrypted => { /* success — command properties are now encrypted */ },
     Left: error =>
     {
-        logger.LogError("Encryption failed: {Code} - {Message}", error.Code, error.Message);
+        logger.LogError("Encryption failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
     }
 );
 ```

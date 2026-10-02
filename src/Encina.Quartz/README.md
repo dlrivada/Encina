@@ -282,7 +282,7 @@ public class JobExecutionListener : IJobListener
     public Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? exception, CancellationToken cancellationToken)
     {
         if (exception != null)
-            _logger.LogError(exception, "Job {JobKey} failed", context.JobDetail.Key);
+            _logger.LogError(exception.ForLogging(), "Job {JobKey} failed", context.JobDetail.Key);
         else
             _logger.LogInformation("Job {JobKey} completed", context.JobDetail.Key);
 

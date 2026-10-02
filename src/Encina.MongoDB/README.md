@@ -87,7 +87,7 @@ var result = await bulkOps.BulkInsertAsync(orders);
 
 result.Match(
     Right: count => _logger.LogInformation("Inserted {Count} orders", count),
-    Left: error => _logger.LogError("Bulk insert failed: {Error}", error.Message)
+    Left: error => _logger.LogError("Bulk insert failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
 );
 ```
 
@@ -124,7 +124,7 @@ var result = await bulkOps.BulkMergeAsync(ordersToSync);
 
 result.Match(
     Right: count => _logger.LogInformation("Synced {Count} orders", count),
-    Left: error => _logger.LogError("Sync failed: {Error}", error.Message)
+    Left: error => _logger.LogError("Sync failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
 );
 ```
 
@@ -143,9 +143,9 @@ result.IfLeft(error =>
         // Handle duplicate key errors, write concern failures, etc.
         var details = error.GetDetails();
         _logger.LogError(
-            "Bulk insert failed. Reason: {Reason}, Exception: {Exception}",
+            "Bulk insert failed. Reason: {Reason}, ErrorCode: {ErrorCode}",
             details.GetValueOrDefault("Reason"),
-            error.Message
+            error.GetCode().IfNone("encina.unknown")
         );
     }
 });

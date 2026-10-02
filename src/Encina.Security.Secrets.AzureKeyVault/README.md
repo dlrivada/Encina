@@ -90,7 +90,7 @@ public class SecretManager(ISecretWriter secretWriter)
     public async Task StoreConnectionStringAsync(string value, CancellationToken ct)
     {
         var result = await secretWriter.SetSecretAsync("db-connection", value, ct);
-        result.IfLeft(error => logger.LogError("Failed: {Code}", error.GetCode()));
+        result.IfLeft(error => logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
     }
 }
 ```
