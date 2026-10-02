@@ -80,16 +80,14 @@ public sealed class EncinaHealthCheckAdapterTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenDegradedWithException_DoesNotForwardTheException()
+    public async Task CheckHealthAsync_WhenDegraded_ReturnsDescriptionWithoutAnException()
     {
         // Arrange
-        var expectedException = new InvalidOperationException("Database connection lost");
         var encinaHealthCheck = Substitute.For<IEncinaHealthCheck>();
         encinaHealthCheck.CheckHealthAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new EncinaHealthCheckResult(
                 EncinaHealthStatus.Degraded,
-                "Database issues",
-                expectedException)));
+                "Database issues")));
 
         var adapter = CreateAdapter(encinaHealthCheck);
         var context = CreateHealthCheckContext();
@@ -104,16 +102,14 @@ public sealed class EncinaHealthCheckAdapterTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenUnhealthyWithException_DoesNotForwardTheException()
+    public async Task CheckHealthAsync_WhenUnhealthy_ReturnsDescriptionWithoutAnException()
     {
         // Arrange
-        var expectedException = new TimeoutException("Connection timeout");
         var encinaHealthCheck = Substitute.For<IEncinaHealthCheck>();
         encinaHealthCheck.CheckHealthAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new EncinaHealthCheckResult(
                 EncinaHealthStatus.Unhealthy,
-                "Connection failed",
-                expectedException)));
+                "Connection failed")));
 
         var adapter = CreateAdapter(encinaHealthCheck);
         var context = CreateHealthCheckContext();

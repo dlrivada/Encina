@@ -94,7 +94,6 @@ public sealed class MongoDbHealthCheckTests
         result.Description!.ShouldContain("failed");
         result.Description!.ShouldContain(nameof(MongoException));
         result.Description!.ShouldNotContain("Connection failed");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

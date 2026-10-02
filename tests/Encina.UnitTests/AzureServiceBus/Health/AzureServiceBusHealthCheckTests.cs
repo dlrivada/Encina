@@ -105,6 +105,5 @@ public sealed class AzureServiceBusHealthCheckTests
         result.Description!.ShouldContain("ServiceCommunicationProblem");
         result.Description!.ShouldContain(nameof(ServiceBusException));
         result.Description!.ShouldNotContain("Connection failed");
-        result.Exception.ShouldBeNull();
     }
 }

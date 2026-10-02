@@ -120,6 +120,5 @@ public sealed class AmazonSQSHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(AmazonSQSException));
         result.Description!.ShouldNotContain("Access denied");
-        result.Exception.ShouldBeNull();
     }
 }

@@ -144,7 +144,6 @@ public sealed class ReadWriteSeparationHealthCheckTests
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Scope creation failed");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

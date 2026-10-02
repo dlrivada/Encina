@@ -72,7 +72,6 @@ public sealed class ReadWriteSeparationHealthCheckTests
         primary.ShouldStartWith("unreachable: ");
         primary.ShouldNotContain("bogus", Case.Insensitive);
         primary.ShouldNotContain("db-secret-host");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

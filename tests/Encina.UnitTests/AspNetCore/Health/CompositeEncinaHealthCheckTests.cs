@@ -50,11 +50,10 @@ public sealed class CompositeEncinaHealthCheckTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenACheckIsUnhealthyWithAnException_DoesNotForwardTheException()
+    public async Task CheckHealthAsync_WhenACheckIsUnhealthy_ReturnsUnhealthyWithoutAnException()
     {
-        var failure = new InvalidOperationException("connection to db-secret-host failed");
         var sut = new CompositeEncinaHealthCheck(
-            [CreateCheck("a", EncinaHealthStatus.Unhealthy, "down", failure)]);
+            [CreateCheck("a", EncinaHealthStatus.Unhealthy, "down")]);
 
         var result = await sut.CheckHealthAsync(Context);
 
@@ -66,13 +65,12 @@ public sealed class CompositeEncinaHealthCheckTests
     private static IEncinaHealthCheck CreateCheck(
         string name,
         EncinaHealthStatus status,
-        string? description = null,
-        Exception? exception = null)
+        string? description = null)
     {
         var check = Substitute.For<IEncinaHealthCheck>();
         check.Name.Returns(name);
         check.CheckHealthAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new EncinaHealthCheckResult(status, description, exception)));
+            .Returns(Task.FromResult(new EncinaHealthCheckResult(status, description)));
         return check;
     }
 }

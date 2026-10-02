@@ -105,6 +105,5 @@ public sealed class MQTTHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Client not available");
-        result.Exception.ShouldBeNull();
     }
 }

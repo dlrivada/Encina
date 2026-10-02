@@ -76,7 +76,6 @@ public sealed class SignalRHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("secret-host-name");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

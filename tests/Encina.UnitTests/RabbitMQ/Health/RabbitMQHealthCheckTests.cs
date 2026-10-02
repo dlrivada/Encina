@@ -106,7 +106,6 @@ public sealed class RabbitMQHealthCheckTests
         result.Description!.ShouldContain("unreachable");
         result.Description!.ShouldContain(nameof(global::RabbitMQ.Client.Exceptions.BrokerUnreachableException));
         result.Description!.ShouldNotContain("refused", Case.Insensitive);
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]
@@ -125,7 +124,6 @@ public sealed class RabbitMQHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Service not available");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

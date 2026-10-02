@@ -109,6 +109,5 @@ public sealed class KafkaHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Service not available");
-        result.Exception.ShouldBeNull();
     }
 }

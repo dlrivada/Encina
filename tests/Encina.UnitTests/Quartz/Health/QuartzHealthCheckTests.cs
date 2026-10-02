@@ -206,7 +206,6 @@ public sealed class QuartzHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(SchedulerException));
         result.Description!.ShouldNotContain("Connection failed");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

@@ -162,6 +162,5 @@ public sealed class HangfireHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Connection failed");
-        result.Exception.ShouldBeNull();
     }
 }

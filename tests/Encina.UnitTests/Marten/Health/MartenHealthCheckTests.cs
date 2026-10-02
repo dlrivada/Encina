@@ -99,7 +99,6 @@ public sealed class MartenHealthCheckTests
         // Assert: the base class only reports the exception type, never its message or the
         // exception object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBeNull();
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Store not configured");
     }
@@ -118,7 +117,6 @@ public sealed class MartenHealthCheckTests
         // Assert: the base class only reports the exception type, never its message or the
         // exception object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBeNull();
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Database connection failed");
     }

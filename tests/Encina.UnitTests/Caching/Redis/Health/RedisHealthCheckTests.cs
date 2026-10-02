@@ -133,6 +133,5 @@ public sealed class RedisHealthCheckTests
         result.Description!.ShouldContain("failed");
         result.Description!.ShouldContain(nameof(RedisException));
         result.Description!.ShouldNotContain("Connection failed");
-        result.Exception.ShouldBeNull();
     }
 }

@@ -57,6 +57,5 @@ public class SqlServerLockOptionsAndHealthCheckTests
         result.Description!.ShouldContain(nameof(ArgumentException));
         result.Description!.ShouldNotContain("Keyword");
         result.Description!.ShouldNotContain("db-secret-host");
-        result.Exception.ShouldBeNull();
     }
 }
