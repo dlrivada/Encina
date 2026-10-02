@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly (NSubstitute Returns with ValueTask)
 
+using System.Diagnostics;
 using Encina.Caching;
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
@@ -9,7 +10,6 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
