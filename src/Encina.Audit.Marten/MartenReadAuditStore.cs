@@ -208,55 +208,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             var pageNumber = Math.Max(1, query.PageNumber);
             var pageSize = Math.Clamp(query.PageSize, 1, ReadAuditQuery.MaxPageSize);
 
-            var q = _session.Query<ReadAuditEntryReadModel>().AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                q = q.Where(m => m.UserId == query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                q = q.Where(m => m.TenantId == query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                q = q.Where(m => m.EntityType == query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                q = q.Where(m => m.EntityId == query.EntityId);
-            }
-
-            if (query.AccessMethod.HasValue)
-            {
-                q = q.Where(m => m.AccessMethod == query.AccessMethod.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Purpose))
-            {
-                // Purpose is a PII field — after shredding, purpose contains "[SHREDDED]".
-                // StringComparison.OrdinalIgnoreCase is not directly supported by Marten LINQ.
-                // Use exact match here; for case-insensitive search, use QueryAsync overloads.
-                q = q.Where(m => m.Purpose != null && m.Purpose.Contains(query.Purpose));
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                q = q.Where(m => m.CorrelationId == query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                q = q.Where(m => m.AccessedAtUtc >= query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                q = q.Where(m => m.AccessedAtUtc <= query.ToUtc.Value);
-            }
+            var q = ApplyQueryFilters(_session.Query<ReadAuditEntryReadModel>(), query);
 
             var totalCount = await q.CountAsync(cancellationToken).ConfigureAwait(false);
 
@@ -323,6 +275,78 @@ public sealed class MartenReadAuditStore : IReadAuditStore
             _logger.LogError(ex.ForLogging(), "Failed to crypto-shred read audit entries older than {CutoffUtc}", olderThanUtc);
             return Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc.UtcDateTime, ex));
         }
+    }
+
+    /// <summary>
+    /// Applies every server-side filter of a <see cref="ReadAuditQuery"/> as Marten LINQ predicates.
+    /// </summary>
+    internal static IQueryable<ReadAuditEntryReadModel> ApplyQueryFilters(
+        IQueryable<ReadAuditEntryReadModel> source,
+        ReadAuditQuery query)
+    {
+        return ApplyPurposeCorrelationAndRangeFilters(ApplyIdentityFilters(source, query), query);
+    }
+
+    private static IQueryable<ReadAuditEntryReadModel> ApplyIdentityFilters(
+        IQueryable<ReadAuditEntryReadModel> q,
+        ReadAuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            q = q.Where(m => m.UserId == query.UserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            q = q.Where(m => m.TenantId == query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            q = q.Where(m => m.EntityType == query.EntityType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            q = q.Where(m => m.EntityId == query.EntityId);
+        }
+
+        if (query.AccessMethod.HasValue)
+        {
+            q = q.Where(m => m.AccessMethod == query.AccessMethod.Value);
+        }
+
+        return q;
+    }
+
+    private static IQueryable<ReadAuditEntryReadModel> ApplyPurposeCorrelationAndRangeFilters(
+        IQueryable<ReadAuditEntryReadModel> q,
+        ReadAuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.Purpose))
+        {
+            // Purpose is a PII field — after shredding, purpose contains "[SHREDDED]".
+            // StringComparison.OrdinalIgnoreCase is not directly supported by Marten LINQ.
+            // Use exact match here; for case-insensitive search, use QueryAsync overloads.
+            q = q.Where(m => m.Purpose != null && m.Purpose.Contains(query.Purpose));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            q = q.Where(m => m.CorrelationId == query.CorrelationId);
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            q = q.Where(m => m.AccessedAtUtc >= query.FromUtc.Value);
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            q = q.Where(m => m.AccessedAtUtc <= query.ToUtc.Value);
+        }
+
+        return q;
     }
 
     /// <summary>
