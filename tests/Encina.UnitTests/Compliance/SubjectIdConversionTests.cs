@@ -143,6 +143,55 @@ public sealed class SubjectIdConversionTests
         }
     }
 
+    // ─── Startup type check (#1174) ───
+
+    public static TheoryData<Type, bool> DeclaredTypes() => new()
+    {
+        { typeof(string), true },
+        { typeof(Guid), true },
+        { typeof(Guid?), true },
+        { typeof(int), true },
+        { typeof(long?), true },
+        { typeof(ulong), true },
+        { typeof(Int128), true },
+        { typeof(RecordStructId), true },
+        { typeof(RecordClassId), true },
+        { typeof(PlainStructId), true },
+        { typeof(NullableValueId), true },
+        { typeof(FormattableId), true },
+        { typeof(OpaqueGuidId), true },
+        { typeof(double), false },
+        { typeof(decimal), false },
+        { typeof(DateTime), false },
+        { typeof(SampleKind), false },
+        { typeof(object), false },
+        { typeof(NoValueStructId), false },
+        { typeof(UnsupportedValueId), false },
+        { typeof(ToStringOnlyId), false },
+    };
+
+    [Theory]
+    [MemberData(nameof(DeclaredTypes))]
+    public void IsSupportedType_ClassifiesDeclaredTypes(Type type, bool expected)
+    {
+        DsrConversion.IsSupportedType(type).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void IsSupportedType_AgreesWithToInvariantStringOnEverySampleValue()
+    {
+        var samples = SupportedValues().Select(row => row.Data.Item1)
+            .Concat(UnsupportedValues().Select(row => (object?)row.Data))
+            .Where(value => value is not null);
+
+        foreach (var value in samples)
+        {
+            var converts = Describe(() => DsrConversion.ToInvariantString(value, Property)).StartsWith("value:", StringComparison.Ordinal);
+
+            DsrConversion.IsSupportedType(value!.GetType()).ShouldBe(converts, $"type {value.GetType().Name}");
+        }
+    }
+
     private static string Describe(Func<string?> conversion)
     {
         try

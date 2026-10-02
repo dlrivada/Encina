@@ -109,7 +109,8 @@ internal static class CryptoShreddedPropertyCache
                 continue;
             }
 
-            // Validate: SubjectIdProperty must reference a valid, readable string property
+            // Validate: SubjectIdProperty must reference a valid, readable property (its type is
+            // checked at startup and converted by SubjectIdConversion at serialization time)
             var subjectIdProperty = type.GetProperty(
                 attribute.SubjectIdProperty,
                 BindingFlags.Public | BindingFlags.Instance);
@@ -130,7 +131,7 @@ internal static class CryptoShreddedPropertyCache
                 property,
                 attribute,
                 setter,
-                attribute.SubjectIdProperty));
+                subjectIdProperty));
         }
 
         return [.. cryptoShredded];

@@ -20,7 +20,8 @@ namespace Encina.Marten.GDPR;
 /// <list type="bullet">
 /// <item><description>Each crypto-shredded property also has <see cref="PersonalDataAttribute"/></description></item>
 /// <item><description>The <see cref="CryptoShreddedAttribute.SubjectIdProperty"/> references a valid,
-/// readable <c>string</c> property on the declaring type</description></item>
+/// readable property on the declaring type, of a supported subject-id type (<c>string</c>, <c>Guid</c>,
+/// an integer type or a strongly-typed id); any other type is a configuration error (#1174)</description></item>
 /// </list>
 /// <para>
 /// Pre-populates the <see cref="CryptoShreddedPropertyCache"/> so that the first serialization
@@ -158,13 +159,15 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
                 + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which does not exist "
                 + "as a public instance property on the declaring type.");
         }
-        else if (subjectIdProp.PropertyType != typeof(string))
+        else if (!SubjectIdConversion.IsSupportedType(subjectIdProp.PropertyType))
         {
             ReportError(
                 validationErrors,
                 $"Property '{property.Name}' on type '{type.FullName}' references "
                 + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which is of type "
-                + $"'{subjectIdProp.PropertyType.Name}' instead of 'string'.");
+                + $"'{subjectIdProp.PropertyType.Name}'. Supported subject-id types are string, Guid, "
+                + "integer types, strongly-typed ids implementing IFormattable, and wrappers exposing "
+                + "a public 'Value' property of one of those types.");
         }
     }
 

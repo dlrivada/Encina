@@ -86,14 +86,31 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     }
 
     [Fact]
-    public async Task StartAsync_NonStringSubjectIdProperty_ThrowsWithReason()
+    public async Task StartAsync_UnsupportedSubjectIdType_ThrowsNamingTypeAndProperty()
     {
         var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
-        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(NonStringSubject)));
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(UnsupportedSubject)));
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
 
-        ex.Message.ShouldContain("instead of 'string'");
+        ex.Message.ShouldContain("SubjectIdProperty='UserId'");
+        ex.Message.ShouldContain("'Double'");
+        ex.Message.ShouldContain(nameof(UnsupportedSubject));
+        ex.Message.ShouldContain("Supported subject-id types");
+    }
+
+    [Fact]
+    public async Task StartAsync_SupportedSubjectIdTypes_CompletesWithoutErrors()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(
+            logger,
+            autoRegister: true,
+            new FakeAssembly(typeof(GuidSubject), typeof(IntSubject), typeof(NullableLongSubject), typeof(WrappedSubject)));
+
+        await sut.StartAsync(CancellationToken.None);
+
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Level == LogLevel.Error);
     }
 
     [Fact]
@@ -103,7 +120,7 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
         var sut = CreateSut(
             logger,
             autoRegister: true,
-            new FakeAssembly(typeof(MissingPersonalData), typeof(UnknownSubject), typeof(NonStringSubject)));
+            new FakeAssembly(typeof(MissingPersonalData), typeof(UnknownSubject), typeof(UnsupportedSubject)));
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
 
@@ -155,9 +172,47 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
         public string Email { get; set; } = string.Empty;
     }
 
-    public sealed class NonStringSubject
+    public sealed class UnsupportedSubject
+    {
+        public double UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class GuidSubject
+    {
+        public Guid UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class IntSubject
     {
         public int UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class NullableLongSubject
+    {
+        public long? UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed record SubjectKey(Guid Value);
+
+    public sealed class WrappedSubject
+    {
+        public SubjectKey UserId { get; set; } = new(Guid.Empty);
 
         [PersonalData]
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]

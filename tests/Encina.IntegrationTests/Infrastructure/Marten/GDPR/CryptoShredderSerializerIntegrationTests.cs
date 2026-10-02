@@ -7,6 +7,8 @@ using Marten;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Npgsql;
+
 using Shouldly;
 
 namespace Encina.IntegrationTests.Infrastructure.Marten.GDPR;
@@ -143,7 +145,98 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         store.Dispose();
     }
 
+    [Fact]
+    public async Task GuidSubjectId_EncryptsUnderTheSubjectKey_AndErasureMakesTheFieldUnreadable()
+    {
+        // Arrange (#1174)
+        var store = BuildCryptoShredderStore();
+        var streamId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        const string email = "guid-subject@example.com";
+
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.Append(streamId, new TestGuidSubjectEvent { PatientId = patientId, Email = email });
+            await session.SaveChangesAsync();
+        }
+
+        // Stored JSON holds the encrypted envelope, never the plaintext
+        var storedJson = await ReadStoredEventJsonAsync(store, streamId);
+        storedJson.ShouldContain("__enc");
+        storedJson.ShouldNotContain(email);
+
+        // Readable while the subject key exists
+        (await ReadEmailAsync(store, streamId)).ShouldBe(email);
+
+        // Act: erase the subject (the key is registered under the invariant string form of the Guid)
+        var erased = await _keyProvider.DeleteSubjectKeysAsync(patientId.ToString("D"));
+        erased.IsRight.ShouldBeTrue();
+
+        // Assert: the field is unreadable after erasure
+        var afterErasure = await ReadEmailAsync(store, streamId);
+        afterErasure.ShouldNotBe(email);
+        afterErasure.ShouldBe("[REDACTED]");
+
+        store.Dispose();
+    }
+
+    [Fact]
+    public async Task StronglyTypedSubjectId_EncryptsUnderTheWrappedValueKey_AndErasureMakesTheFieldUnreadable()
+    {
+        // Arrange (#1174)
+        var store = BuildCryptoShredderStore();
+        var streamId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        const string email = "typed-subject@example.com";
+
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.Append(streamId, new TestTypedSubjectEvent { PatientId = new TestPatientId(patientId), Email = email });
+            await session.SaveChangesAsync();
+        }
+
+        (await ReadStoredEventJsonAsync(store, streamId)).ShouldNotContain(email);
+        (await ReadEmailAsync(store, streamId)).ShouldBe(email);
+
+        // Act
+        var erased = await _keyProvider.DeleteSubjectKeysAsync(patientId.ToString("D"));
+        erased.IsRight.ShouldBeTrue();
+
+        // Assert
+        (await ReadEmailAsync(store, streamId)).ShouldBe("[REDACTED]");
+
+        store.Dispose();
+    }
+
     #region Helpers
+
+    private static async Task<string> ReadEmailAsync(DocumentStore store, Guid streamId)
+    {
+        await using var session = store.LightweightSession();
+        var events = await session.Events.FetchStreamAsync(streamId);
+        events.ShouldNotBeEmpty();
+
+        return events[0].Data switch
+        {
+            TestGuidSubjectEvent guidEvent => guidEvent.Email,
+            TestTypedSubjectEvent typedEvent => typedEvent.Email,
+            var other => throw new InvalidOperationException($"Unexpected event type {other.GetType().Name}")
+        };
+    }
+
+    private async Task<string> ReadStoredEventJsonAsync(DocumentStore store, Guid streamId)
+    {
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"select data::text from {store.Options.DatabaseSchemaName}.mt_events where stream_id = @streamId";
+        command.Parameters.AddWithValue("streamId", streamId);
+
+        var json = await command.ExecuteScalarAsync() as string;
+        json.ShouldNotBeNull();
+        return json;
+    }
 
     private DocumentStore BuildCryptoShredderStore()
     {
@@ -175,6 +268,26 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         public string Email { get; set; } = string.Empty;
 
         public string OrderId { get; set; } = string.Empty;
+    }
+
+    public sealed record TestPatientId(Guid Value);
+
+    public class TestGuidSubjectEvent
+    {
+        public Guid PatientId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class TestTypedSubjectEvent
+    {
+        public TestPatientId PatientId { get; set; } = new(Guid.Empty);
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
     }
 
     public class TestNonPiiEvent

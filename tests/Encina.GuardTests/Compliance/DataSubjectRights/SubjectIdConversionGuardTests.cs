@@ -58,6 +58,13 @@ public sealed class SubjectIdConversionGuardTests
             ConsentConversion.ToInvariantString(1.5d, Property));
     }
 
+    [Fact]
+    public void DataSubjectRights_IsSupportedType_NullType_Throws()
+    {
+        var ex = Should.Throw<ArgumentNullException>(() => DsrConversion.IsSupportedType(null!));
+        ex.ParamName.ShouldBe("type");
+    }
+
     private sealed class Holder
     {
         public object? Id { get; init; }

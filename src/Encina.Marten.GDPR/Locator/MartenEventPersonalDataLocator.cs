@@ -127,12 +127,8 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
     {
         location = null!;
 
-        // Read the subject ID from the event's subject ID property
-        var subjectIdProp = eventType.GetProperty(
-            field.SubjectIdProperty,
-            BindingFlags.Public | BindingFlags.Instance);
-
-        var eventSubjectId = subjectIdProp?.GetValue(eventBody) as string;
+        // Read the subject ID from the event's subject ID property (string, Guid, integer or strongly-typed id)
+        var eventSubjectId = field.ResolveSubjectId(eventBody);
         if (!string.Equals(eventSubjectId, subjectId, StringComparison.Ordinal))
         {
             return false;
