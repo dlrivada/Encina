@@ -235,15 +235,19 @@ public sealed class SagaOrchestrator
     /// Starts compensation for a failed saga.
     /// </summary>
     /// <param name="sagaId">The saga ID.</param>
-    /// <param name="errorMessage">The error that caused compensation.</param>
+    /// <param name="errorCode">
+    /// The error code that caused compensation, never free text: it is persisted in
+    /// <see cref="ISagaState.ErrorMessage"/> and logged, so it must not carry exception or
+    /// user-supplied messages.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The current step to start compensation from.</returns>
     public async Task<Either<EncinaError, int>> StartCompensationAsync(
         Guid sagaId,
-        string errorMessage,
+        string errorCode,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
 
         var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
         if (stateResult.IsLeft)
@@ -263,14 +267,14 @@ public sealed class SagaOrchestrator
         }
 
         state.Status = SagaStatus.Compensating;
-        state.ErrorMessage = errorMessage;
+        state.ErrorMessage = errorCode;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
         var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
         if (updateResult.IsLeft)
             return updateResult.LeftToArray()[0];
 
-        Log.SagaCompensating(_logger, sagaId, state.CurrentStep, errorMessage);
+        Log.SagaCompensating(_logger, sagaId, state.CurrentStep, errorCode);
 
         return state.CurrentStep;
     }
@@ -327,12 +331,16 @@ public sealed class SagaOrchestrator
     /// Marks a saga as failed (compensation also failed).
     /// </summary>
     /// <param name="sagaId">The saga ID.</param>
-    /// <param name="errorMessage">The final error message.</param>
+    /// <param name="errorCode">
+    /// The error code of the failure, never free text: it is persisted in
+    /// <see cref="ISagaState.ErrorMessage"/> and logged, so it must not carry exception or
+    /// user-supplied messages.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The result of failing the saga.</returns>
     public async Task<Either<EncinaError, Unit>> FailAsync(
         Guid sagaId,
-        string errorMessage,
+        string errorCode,
         CancellationToken cancellationToken = default)
     {
         var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
@@ -348,7 +356,7 @@ public sealed class SagaOrchestrator
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         state.Status = SagaStatus.Failed;
-        state.ErrorMessage = errorMessage;
+        state.ErrorMessage = errorCode;
         state.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -356,7 +364,7 @@ public sealed class SagaOrchestrator
         if (updateResult.IsLeft)
             return updateResult.LeftToArray()[0];
 
-        Log.SagaFailed(_logger, sagaId, errorMessage);
+        Log.SagaFailed(_logger, sagaId, errorCode);
 
         return Unit.Default;
     }
@@ -625,8 +633,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2907,
         Level = LogLevel.Warning,
-        Message = "Saga {SagaId} starting compensation from step {CurrentStep}: {ErrorMessage}")]
-    public static partial void SagaCompensating(ILogger logger, Guid sagaId, int currentStep, string errorMessage);
+        Message = "Saga {SagaId} starting compensation from step {CurrentStep}: {ErrorCode}")]
+    public static partial void SagaCompensating(ILogger logger, Guid sagaId, int currentStep, string errorCode);
 
     [LoggerMessage(
         EventId = 2908,
@@ -643,8 +651,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2910,
         Level = LogLevel.Error,
-        Message = "Saga {SagaId} failed: {ErrorMessage}")]
-    public static partial void SagaFailed(ILogger logger, Guid sagaId, string errorMessage);
+        Message = "Saga {SagaId} failed: {ErrorCode}")]
+    public static partial void SagaFailed(ILogger logger, Guid sagaId, string errorCode);
 
     [LoggerMessage(
         EventId = 2911,

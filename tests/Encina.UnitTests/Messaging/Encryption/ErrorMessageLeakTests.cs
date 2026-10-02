@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Diagnostics;
@@ -10,6 +11,7 @@ using Encina.Messaging.Sagas.LowCeremony;
 using Encina.Messaging.ScatterGather;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
+using Encina.OpenTelemetry.Enrichers;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using LanguageExt;
@@ -17,6 +19,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using static LanguageExt.Prelude;
+using OtelTagNames = global::Encina.OpenTelemetry.ActivityTagNames;
 using EfScheduledMessageFactory = Encina.EntityFrameworkCore.Scheduling.ScheduledMessageFactory;
 
 namespace Encina.UnitTests.Messaging.Encryption;
@@ -541,6 +544,83 @@ public sealed class ErrorMessageLeakTests
     }
 
     [Fact]
+    public async Task SagaRunner_StepThrows_NoSinkCarriesTheExceptionMessage()
+    {
+        // Arrange
+        var harness = new SagaRunnerHarness();
+        var definition = SagaDefinition.Create<SensitiveData>("TestSaga")
+            .Step("Step1")
+            .Execute((_, _, _) => throw new InvalidOperationException(ExceptionSentinel))
+            .Build();
+
+        // Act
+        var result = await harness.Runner.RunAsync(definition, new SensitiveData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftAsEnumerable().First();
+        error.GetCode().IfNone(string.Empty).ShouldBe(SagaErrorCodes.HandlerFailed);
+        error.Message.ShouldNotContain(ExceptionSentinel);
+        error.Exception.IsSome.ShouldBeTrue();
+
+        harness.Logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+        harness.MockState.Received().ErrorMessage = SagaErrorCodes.HandlerFailed;
+        harness.MockState.ErrorMessage.ShouldBe(SagaErrorCodes.HandlerFailed);
+
+        var snapshot = await harness.Orchestrator.GetAsync<SensitiveData>(harness.MockState.SagaId);
+        snapshot.IsSome.ShouldBeTrue();
+        snapshot.IfNone(() => throw new InvalidOperationException("Expected a snapshot"))
+            .ErrorMessage.ShouldBe(SagaErrorCodes.HandlerFailed);
+
+        using var activity = new Activity("saga");
+        MessagingActivityEnricher.EnrichWithSagaState(activity, harness.MockState);
+        activity.GetTagItem(OtelTagNames.Saga.Error).ShouldBe(SagaErrorCodes.HandlerFailed);
+    }
+
+    [Fact]
+    public async Task SagaRunner_CompensationThrows_LogsNoExceptionMessage()
+    {
+        // Arrange
+        var harness = new SagaRunnerHarness();
+        var definition = SagaDefinition.Create<SensitiveData>("TestSaga")
+            .Step("Step1")
+            .Execute((data, _, _) => ValueTask.FromResult(Right<EncinaError, SensitiveData>(data)))
+            .Compensate((_, _, _) => throw new InvalidOperationException(ExceptionSentinel));
+        var failing = definition
+            .Step("Step2")
+            .Execute((_, _, _) => ValueTask.FromResult(Left<EncinaError, SensitiveData>(SensitiveError)))
+            .Build();
+
+        // Act
+        var result = await harness.Runner.RunAsync(failing, new SensitiveData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var logs = harness.Logger.Collector.GetSnapshot();
+        logs.ShouldContain(r => r.Message.Contains("Compensation failed"));
+        logs.ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+    }
+
+    [Fact]
+    public async Task SagaRunner_Cancelled_PersistsTheCancelledErrorCode()
+    {
+        // Arrange
+        var harness = new SagaRunnerHarness();
+        var definition = SagaDefinition.Create<SensitiveData>("TestSaga")
+            .Step("Step1")
+            .Execute((_, _, _) => throw new OperationCanceledException(ExceptionSentinel))
+            .Build();
+
+        // Act
+        var result = await harness.Runner.RunAsync(definition, new SensitiveData());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        harness.MockState.Received().ErrorMessage = SagaErrorCodes.HandlerCancelled;
+        harness.Logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+    }
+
+    [Fact]
     public async Task ScatterGatherRunner_ScatterAndGatherFail_LogOnlyTheErrorCode()
     {
         // Arrange
@@ -563,6 +643,42 @@ public sealed class ErrorMessageLeakTests
     }
 
     public sealed record SensitiveRequest : IRequest<string>;
+
+    private const string ExceptionSentinel = "exception-secret-patient-777";
+
+    /// <summary>A real <see cref="SagaRunner"/> over a mocked store, exposing the persisted state and the logger.</summary>
+    private sealed class SagaRunnerHarness
+    {
+        public SagaRunnerHarness()
+        {
+            var sagaStore = Substitute.For<ISagaStore>();
+            var stateFactory = Substitute.For<ISagaStateFactory>();
+            MockState = Substitute.For<ISagaState>();
+            MockState.SagaId.Returns(Guid.NewGuid());
+            MockState.Status.Returns(SagaStatus.Running);
+            MockState.Data.Returns("{}");
+            MockState.CurrentStep.Returns(0);
+            stateFactory.Create(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<DateTime?>())
+                .Returns(MockState);
+            sagaStore.AddAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>()).Returns(Right<EncinaError, Unit>(Unit.Default));
+            sagaStore.GetAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Right<EncinaError, Option<ISagaState>>(Option<ISagaState>.Some(MockState)));
+            sagaStore.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>()).Returns(Right<EncinaError, Unit>(Unit.Default));
+            Orchestrator = new SagaOrchestrator(sagaStore, new SagaOptions(), NullLogger<SagaOrchestrator>.Instance, stateFactory, new JsonMessageSerializer());
+
+            Logger = new FakeLogger<SagaRunner>();
+            var requestContextAccessor = Substitute.For<IRequestContextAccessor>();
+            requestContextAccessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+            Runner = new SagaRunner(Orchestrator, requestContextAccessor, Logger);
+        }
+
+        public ISagaState MockState { get; }
+
+        public SagaOrchestrator Orchestrator { get; }
+
+        public FakeLogger<SagaRunner> Logger { get; }
+
+        public SagaRunner Runner { get; }
+    }
 
     public sealed record SensitiveMessage;
 

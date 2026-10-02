@@ -357,19 +357,19 @@ public sealed class SagaOrchestratorTests
             .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
-        var result = await _orchestrator.StartCompensationAsync(sagaId, "Order failed");
+        var result = await _orchestrator.StartCompensationAsync(sagaId, SagaErrorCodes.StepFailed);
 
         // Assert
         result.IsRight.ShouldBeTrue();
         result.ShouldBeRight().ShouldBe(3);
 
         await _store.Received(1).UpdateAsync(
-            Arg.Is<ISagaState>(s => s.Status == SagaStatus.Compensating && s.ErrorMessage == "Order failed"),
+            Arg.Is<ISagaState>(s => s.Status == SagaStatus.Compensating && s.ErrorMessage == SagaErrorCodes.StepFailed),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task StartCompensationAsync_NullErrorMessage_ThrowsArgumentException()
+    public async Task StartCompensationAsync_NullErrorCode_ThrowsArgumentException()
     {
         var sagaId = Guid.NewGuid();
 
@@ -389,7 +389,7 @@ public sealed class SagaOrchestratorTests
             .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
-        var result = await _orchestrator.StartCompensationAsync(sagaId, "Too late");
+        var result = await _orchestrator.StartCompensationAsync(sagaId, SagaErrorCodes.StepFailed);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -472,12 +472,12 @@ public sealed class SagaOrchestratorTests
             .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
 
         // Act
-        var result = await _orchestrator.FailAsync(sagaId, "Compensation failed");
+        var result = await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed);
 
         // Assert
         result.IsRight.ShouldBeTrue();
         await _store.Received(1).UpdateAsync(
-            Arg.Is<ISagaState>(s => s.Status == SagaStatus.Failed && s.ErrorMessage == "Compensation failed"),
+            Arg.Is<ISagaState>(s => s.Status == SagaStatus.Failed && s.ErrorMessage == SagaErrorCodes.HandlerFailed),
             Arg.Any<CancellationToken>());
     }
 
@@ -490,7 +490,7 @@ public sealed class SagaOrchestratorTests
             .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
 
         // Act
-        var result = await _orchestrator.FailAsync(sagaId, "Error");
+        var result = await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed);
 
         // Assert
         result.IsLeft.ShouldBeTrue();

@@ -125,27 +125,27 @@ public class SagaOrchestratorGuardTests
     #region StartCompensationAsync Guards
 
     [Fact]
-    public async Task StartCompensationAsync_NullErrorMessage_ThrowsArgumentException()
+    public async Task StartCompensationAsync_NullErrorCode_ThrowsArgumentException()
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), null!);
-        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorCode");
     }
 
     [Fact]
-    public async Task StartCompensationAsync_EmptyErrorMessage_ThrowsArgumentException()
+    public async Task StartCompensationAsync_EmptyErrorCode_ThrowsArgumentException()
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), string.Empty);
-        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorCode");
     }
 
     [Fact]
-    public async Task StartCompensationAsync_WhitespaceErrorMessage_ThrowsArgumentException()
+    public async Task StartCompensationAsync_WhitespaceErrorCode_ThrowsArgumentException()
     {
         var sut = CreateSut();
         var act = () => sut.StartCompensationAsync(Guid.NewGuid(), "   ");
-        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorMessage");
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("errorCode");
     }
 
     #endregion

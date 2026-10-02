@@ -16,6 +16,8 @@ namespace Encina.Messaging.Sagas.LowCeremony;
 /// </remarks>
 public sealed class SagaRunner : ISagaRunner
 {
+    private const string UnexpectedStepExceptionMessage = "Saga step threw an unexpected exception.";
+
     private readonly SagaOrchestrator _orchestrator;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<SagaRunner> _logger;
@@ -155,23 +157,26 @@ public sealed class SagaRunner : ISagaRunner
             await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, cancellationToken)
                 .ConfigureAwait(false);
 
-            await _orchestrator.FailAsync(sagaId, "Operation was cancelled", CancellationToken.None)
+            // Persist only the error code (#1469): FailAsync stores this string in the saga state.
+            await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerCancelled, CancellationToken.None)
                 .ConfigureAwait(false);
 
             return EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
         }
         catch (Exception ex)
         {
-            Log.SagaException(_logger, sagaId, ex.Message, ex);
+            // The exception object goes to the logger as the structured exception; its Message is
+            // never part of the log text, the persisted state or the returned error (#1469).
+            Log.SagaException(_logger, sagaId, ex.GetType().Name, ex);
 
             // Run compensation for completed steps
             await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            await _orchestrator.FailAsync(sagaId, ex.Message, CancellationToken.None)
+            await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            return EncinaErrors.Create(SagaErrorCodes.HandlerFailed, ex.Message);
+            return EncinaErrors.Create(SagaErrorCodes.HandlerFailed, UnexpectedStepExceptionMessage, ex);
         }
     }
 
@@ -203,7 +208,7 @@ public sealed class SagaRunner : ISagaRunner
             catch (Exception ex)
             {
                 // Log but continue with other compensations
-                Log.CompensationFailed(_logger, i + 1, step.Name, ex.Message, ex);
+                Log.CompensationFailed(_logger, i + 1, step.Name, ex.GetType().Name, ex);
             }
         }
     }
@@ -254,8 +259,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2894,
         Level = LogLevel.Error,
-        Message = "Saga {SagaId} failed with exception: {ErrorMessage}")]
-    public static partial void SagaException(ILogger logger, Guid sagaId, string errorMessage, Exception exception);
+        Message = "Saga {SagaId} failed with exception of type {ExceptionType}")]
+    public static partial void SagaException(ILogger logger, Guid sagaId, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2895,
@@ -278,6 +283,6 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2898,
         Level = LogLevel.Error,
-        Message = "Compensation failed for step {StepNumber} ({StepName}): {ErrorMessage}")]
-    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string errorMessage, Exception exception);
+        Message = "Compensation failed for step {StepNumber} ({StepName}) with exception of type {ExceptionType}")]
+    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string exceptionType, Exception exception);
 }

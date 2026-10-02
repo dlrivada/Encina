@@ -370,6 +370,7 @@ public sealed class SagaRunnerTests
         resultError.GetCode().Match(
             code => code.ShouldBe(SagaErrorCodes.HandlerFailed),
             () => throw new InvalidOperationException("Expected error code"));
+        resultError.Message.ShouldNotContain("Unexpected error");
 
         compensated.Count.ShouldBe(1);
     }
