@@ -161,18 +161,26 @@ public abstract class EncinaHub : Hub
         }
     }
 
-    // The request's runtime type is only known after deserialization, so the typed
-    // IEncina.Send overload (and ConvertResult's generic result) bind dynamically.
-    private async Task<object> SendDynamicAsync(object request)
+    // The request's runtime type is only known after deserialization, so the generic helper
+    // that calls the typed IEncina.Send overload binds dynamically. A request that does not
+    // implement IRequest<TResponse> fails to bind and surfaces as an exception, like before.
+    private Task<object> SendDynamicAsync(object request)
+        => SendTypedAsync((dynamic)request);
+
+    private async Task<object> SendTypedAsync<TResponse>(IRequest<TResponse> request)
     {
-        var result = await Encina.Send((dynamic)request, Context.ConnectionAborted);
+        var result = await Encina.Send(request, Context.ConnectionAborted);
 
         return ConvertResult(result);
     }
 
-    private async Task PublishDynamicAsync(object notification)
+    private Task PublishDynamicAsync(object notification)
+        => PublishTypedAsync((dynamic)notification);
+
+    private async Task PublishTypedAsync<TNotification>(TNotification notification)
+        where TNotification : INotification
     {
-        await Encina.Publish((dynamic)notification, Context.ConnectionAborted);
+        await Encina.Publish(notification, Context.ConnectionAborted);
     }
 
     /// <summary>

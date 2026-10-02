@@ -124,37 +124,14 @@ public sealed class DeadLetterManager : IDeadLetterManager
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        // Deserialize the request
-        var requestType = Type.GetType(message.RequestType);
-        if (requestType is null)
+        var plan = PrepareReplay(message);
+        if (plan.Error is not null)
         {
-            return await RejectReplayAsync(
-                messageId,
-                $"[{DeadLetterErrorCodes.DeserializationFailed}] Cannot resolve type: {message.RequestType}",
-                cancellationToken);
-        }
-
-        var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
-        if (request is null)
-        {
-            return await RejectReplayAsync(
-                messageId,
-                $"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content",
-                cancellationToken);
-        }
-
-        // Get IEncina to replay the request
-        var encina = _serviceProvider.GetService(typeof(IEncina)) as IEncina;
-        if (encina is null)
-        {
-            return await RejectReplayAsync(
-                messageId,
-                $"[{DeadLetterErrorCodes.ReplayFailed}] IEncina service not available",
-                cancellationToken);
+            return await RejectReplayAsync(messageId, plan.Error, cancellationToken);
         }
 
         // Replay through IEncina.Send, typed by the request's runtime type
-        var replayResult = await ReplayRequestAsync(encina, request, messageId, cancellationToken);
+        var replayResult = await ReplayRequestAsync(plan.Encina!, plan.Request!, messageId, cancellationToken);
 
         await RecordReplayOutcomeAsync(
             messageId,
@@ -162,6 +139,40 @@ public sealed class DeadLetterManager : IDeadLetterManager
             cancellationToken);
 
         return replayResult;
+    }
+
+    /// <summary>
+    /// Deserializes the stored request and resolves <see cref="IEncina"/>; <c>Error</c> is set
+    /// (and the other members are not) when the message cannot be replayed.
+    /// </summary>
+    private ReplayPlan PrepareReplay(IDeadLetterMessage message)
+    {
+        // Deserialize the request
+        var requestType = Type.GetType(message.RequestType);
+        if (requestType is null)
+        {
+            return ReplayPlan.Rejected($"[{DeadLetterErrorCodes.DeserializationFailed}] Cannot resolve type: {message.RequestType}");
+        }
+
+        var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
+        if (request is null)
+        {
+            return ReplayPlan.Rejected($"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content");
+        }
+
+        // Get IEncina to replay the request
+        var encina = _serviceProvider.GetService(typeof(IEncina)) as IEncina;
+        if (encina is null)
+        {
+            return ReplayPlan.Rejected($"[{DeadLetterErrorCodes.ReplayFailed}] IEncina service not available");
+        }
+
+        return new ReplayPlan(request, encina, null);
+    }
+
+    private readonly record struct ReplayPlan(object? Request, IEncina? Encina, string? Error)
+    {
+        public static ReplayPlan Rejected(string error) => new(null, null, error);
     }
 
     private async Task<ReplayResult> ReplayRequestAsync(

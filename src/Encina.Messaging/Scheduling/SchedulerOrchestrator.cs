@@ -307,33 +307,49 @@ public sealed class SchedulerOrchestrator
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            try
+            if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
             {
-                if (!await DispatchMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
-                {
-                    continue;
-                }
-
                 processedCount++;
-                Log.MessageExecuted(_logger, message.Id);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-#pragma warning disable CA1031 // Do not catch general exception types — intentional safety net for handler bugs
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                // Safety net for true bugs (handler crashes, AVE, etc.).
-                // Real failures use the Either path above.
-                Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
-                // The exception message may carry personal data; store only the exception type.
-                await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
             }
         }
 
         return processedCount;
+    }
+
+    /// <summary>
+    /// Dispatches one due message inside the exception safety net.
+    /// </summary>
+    /// <returns><see langword="true"/> when the message was dispatched successfully.</returns>
+    private async Task<bool> TryProcessMessageAsync(
+        IScheduledMessage message,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!await DispatchMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+
+            Log.MessageExecuted(_logger, message.Id);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types — intentional safety net for handler bugs
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            // Safety net for true bugs (handler crashes, AVE, etc.).
+            // Real failures use the Either path above.
+            Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
+            // The exception message may carry personal data; store only the exception type.
+            await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
+            return false;
+        }
     }
 
     /// <summary>
