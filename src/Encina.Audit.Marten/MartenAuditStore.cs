@@ -405,10 +405,11 @@ public sealed class MartenAuditStore : IAuditStore
         IQueryable<AuditEntryReadModel> source,
         AuditQuery query)
     {
-        return ApplyCorrelationRangeAndAddressFilters(ApplyIdentityFilters(source, query), query);
+        var userTenantType = ApplyUserTenantAndTypeFilters(source, query);
+        return ApplyCorrelationRangeAndAddressFilters(ApplyEntityActionAndOutcomeFilters(userTenantType, query), query);
     }
 
-    private static IQueryable<AuditEntryReadModel> ApplyIdentityFilters(
+    private static IQueryable<AuditEntryReadModel> ApplyUserTenantAndTypeFilters(
         IQueryable<AuditEntryReadModel> q,
         AuditQuery query)
     {
@@ -427,6 +428,13 @@ public sealed class MartenAuditStore : IAuditStore
             q = q.Where(m => m.EntityType == query.EntityType);
         }
 
+        return q;
+    }
+
+    private static IQueryable<AuditEntryReadModel> ApplyEntityActionAndOutcomeFilters(
+        IQueryable<AuditEntryReadModel> q,
+        AuditQuery query)
+    {
         if (!string.IsNullOrWhiteSpace(query.EntityId))
         {
             q = q.Where(m => m.EntityId == query.EntityId);
