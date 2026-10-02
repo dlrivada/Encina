@@ -66,6 +66,7 @@ public sealed class ModuleArchitectureAnalyzerLoggingTests
         var text = captured.ToString();
         text.ShouldContain("<unknown assembly>");
         text.ShouldContain(nameof(FileNotFoundException));
+        text.ShouldNotContain(Sentinel);
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class ModuleArchitectureAnalyzerLoggingTests
             WithoutLogger().LogAnalysisException(
                 typeof(List<>).GetGenericArguments()[0],
                 new UnnamedAssembly(),
-                new InvalidOperationException("analysis failed"));
+                new InvalidOperationException(Sentinel));
         }
         finally
         {
@@ -101,6 +102,7 @@ public sealed class ModuleArchitectureAnalyzerLoggingTests
         text.ShouldContain("error analyzing type T");
         text.ShouldContain("<unknown assembly>");
         text.ShouldContain(nameof(InvalidOperationException));
+        text.ShouldNotContain(Sentinel);
     }
 
     private sealed class UnnamedAssembly : Assembly

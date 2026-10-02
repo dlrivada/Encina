@@ -43,7 +43,7 @@ public interface IAuditEntryFactory
     /// <param name="request">The request instance.</param>
     /// <param name="context">The request context containing correlation, user, and tenant information.</param>
     /// <param name="outcome">The outcome of the operation.</param>
-    /// <param name="errorMessage">The error message if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
+    /// <param name="errorMessage">The error code or exception type name (never the error message) if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
     /// <returns>A fully populated <see cref="AuditEntry"/>.</returns>
     /// <remarks>
     /// <para>
@@ -72,7 +72,7 @@ public interface IAuditEntryFactory
     /// <param name="response">The response instance, or <c>default</c> if the operation failed.</param>
     /// <param name="context">The request context containing correlation, user, and tenant information.</param>
     /// <param name="outcome">The outcome of the operation.</param>
-    /// <param name="errorMessage">The error message if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
+    /// <param name="errorMessage">The error code or exception type name (never the error message) if <paramref name="outcome"/> is not <see cref="AuditOutcome.Success"/>.</param>
     /// <param name="startedAtUtc">When the operation started.</param>
     /// <param name="completedAtUtc">When the operation completed.</param>
     /// <returns>A fully populated <see cref="AuditEntry"/> with timing and payload information.</returns>
