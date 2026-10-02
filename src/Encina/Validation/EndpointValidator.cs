@@ -169,8 +169,9 @@ public static class EndpointValidator
     }
 
     /// <summary>
-    /// Classifies an IP address. IPv4-mapped, IPv4-compatible and NAT64 (64:ff9b::/96) IPv6
-    /// addresses are classified by their embedded IPv4 address.
+    /// Classifies an IP address. IPv6 addresses that carry an IPv4 address (IPv4-mapped,
+    /// IPv4-compatible, IPv4-translated, NAT64 64:ff9b::/96, 6to4 2002::/16 and Teredo 2001:0::/32)
+    /// are classified by that IPv4 address.
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns>The classification.</returns>
