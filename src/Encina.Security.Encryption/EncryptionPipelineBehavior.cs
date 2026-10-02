@@ -109,8 +109,7 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
 
             if (decryptResult.IsLeft)
             {
-                RecordFailure(activity, startedAt, "decrypt", requestTypeName,
-                    decryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
+                RecordFailure(activity, startedAt, "decrypt", requestTypeName, decryptResult);
                 return decryptResult.Match<Either<EncinaError, TResponse>>(
                     Right: _ => default!,
                     Left: e => e);
@@ -133,8 +132,7 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
 
             if (encryptResult.IsLeft)
             {
-                RecordFailure(activity, startedAt, "encrypt", requestTypeName,
-                    encryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
+                RecordFailure(activity, startedAt, "encrypt", requestTypeName, encryptResult);
                 return encryptResult.Match<Either<EncinaError, TResponse>>(
                     Right: _ => default!,
                     Left: e => e);
@@ -163,8 +161,7 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
                     }
                     else
                     {
-                        RecordFailure(activity, startedAt, "encrypt_response", requestTypeName,
-                            encryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
+                        RecordFailure(activity, startedAt, "encrypt_response", requestTypeName, encryptResult);
                     }
 
                     return encryptResult;
@@ -206,8 +203,12 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string operation, string requestTypeName, string errorMessage)
+    private void RecordFailure<T>(Activity? activity, long startedAt, string operation, string requestTypeName, Either<EncinaError, T> failed)
     {
+        var (errorMessage, errorCode) = failed.Match(
+            Right: _ => (string.Empty, string.Empty),
+            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+
         if (_options.EnableTracing)
         {
             EncryptionDiagnostics.RecordFailure(activity, operation, errorMessage);
@@ -228,8 +229,8 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
             EncryptionDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
         }
 
-        _logger.LogWarning("Encryption pipeline {Operation} failed for {RequestType}: {ErrorMessage}",
-            operation, requestTypeName, errorMessage);
+        _logger.LogWarning("Encryption pipeline {Operation} failed for {RequestType}: {ErrorCode}",
+            operation, requestTypeName, errorCode);
     }
 
     /// <summary>
