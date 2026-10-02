@@ -1,4 +1,3 @@
-using Encina.Diagnostics;
 using Encina.Security.Audit;
 using Encina.Security.Secrets.Abstractions;
 
@@ -100,7 +99,7 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
         return result;
     }
 
-    private async ValueTask RecordAuditEntryAsync(
+    private ValueTask RecordAuditEntryAsync(
         string action,
         string secretName,
         bool isSuccess,
@@ -108,47 +107,7 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
         DateTimeOffset startedAt,
         DateTimeOffset completedAt,
         CancellationToken cancellationToken)
-    {
-        try
-        {
-            string? errorMessage = null;
-            if (!isSuccess && errorResult.HasValue)
-            {
-                errorMessage = errorResult.Value.MatchUnsafe(Right: _ => (string?)null, Left: e => e.Message);
-            }
-
-            var requestContext = _requestContextAccessor.RequestContext;
-
-            var entry = new AuditEntry
-            {
-                Id = Guid.NewGuid(),
-                CorrelationId = requestContext?.CorrelationId ?? Guid.NewGuid().ToString(),
-                UserId = requestContext?.UserId,
-                TenantId = requestContext?.TenantId,
-                Action = action,
-                EntityType = "Secret",
-                EntityId = secretName,
-                Outcome = isSuccess ? AuditOutcome.Success : AuditOutcome.Failure,
-                ErrorMessage = errorMessage,
-                TimestampUtc = completedAt.UtcDateTime,
-                StartedAtUtc = startedAt,
-                CompletedAtUtc = completedAt,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["secretName"] = secretName,
-                    ["result"] = isSuccess ? "success" : "failure"
-                }
-            };
-
-            var auditResult = await _auditStore.RecordAsync(entry, cancellationToken).ConfigureAwait(false);
-            auditResult.Match(
-                Right: _ => Log.AuditEntryRecorded(_logger, secretName),
-                Left: _ => Log.AuditEntryFailed(_logger, secretName, new InvalidOperationException("Audit store returned error")));
-        }
-        catch (Exception ex)
-        {
-            // Audit failures must never block secret operations
-            Log.AuditEntryFailed(_logger, secretName, ex.ForLogging());
-        }
-    }
+        => SecretAuditRecorder.RecordAsync(
+            _auditStore, _requestContextAccessor, _logger, action, secretName, isSuccess,
+            errorResult, startedAt, completedAt, cancellationToken);
 }

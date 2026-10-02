@@ -171,27 +171,29 @@ public sealed class PIIMaskingPipelineBehavior<TRequest, TResponse> : IPipelineB
         {
             // Masking failures should never cause request failures.
             // Log warning and return the original response.
-            PIILogMessages.PipelineMaskingFailed(_logger, ex.InnerException!, responseTypeName);
-
-            if (_options.EnableMetrics)
-            {
-                PIIDiagnostics.RecordPipelineMetrics(responseTypeName, "failure");
-                PIIDiagnostics.RecordErrorMetric(ex.InnerException!.GetType().Name);
-            }
+            RecordMaskingFailure(ex.InnerException!, responseTypeName);
 
             return response;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            PIILogMessages.PipelineMaskingFailed(_logger, ex.ForLogging(), responseTypeName);
-
-            if (_options.EnableMetrics)
-            {
-                PIIDiagnostics.RecordPipelineMetrics(responseTypeName, "failure");
-                PIIDiagnostics.RecordErrorMetric(ex.GetType().Name);
-            }
+            RecordMaskingFailure(ex, responseTypeName);
 
             return response;
+        }
+    }
+
+    /// <summary>
+    /// Logs (redacted) and counts a masking failure; never logs the exception message.
+    /// </summary>
+    private void RecordMaskingFailure(Exception failure, string responseTypeName)
+    {
+        PIILogMessages.PipelineMaskingFailed(_logger, failure.ForLogging(), responseTypeName);
+
+        if (_options.EnableMetrics)
+        {
+            PIIDiagnostics.RecordPipelineMetrics(responseTypeName, "failure");
+            PIIDiagnostics.RecordErrorMetric(failure.GetType().Name);
         }
     }
 }

@@ -146,9 +146,34 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
         // Attribute-based encoding
         var properties = EncodingPropertyCache.GetProperties(responseType);
 
+        var attributed = EncodeAttributedProperties(response, properties, responseTypeName);
+        if (attributed.IsLeft)
+        {
+            return attributed;
+        }
+
+        // Auto-encode mode: encode all remaining string properties as HTML
+        if (_options.EncodeAllOutputs)
+        {
+            var auto = AutoEncodeStringProperties(response, responseType, properties, responseTypeName);
+            if (auto.IsLeft)
+            {
+                return auto;
+            }
+        }
+
+        return LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    /// <summary>
+    /// Encodes every property decorated with an encoding attribute; stops at the first failure.
+    /// </summary>
+    private Either<EncinaError, Unit> EncodeAttributedProperties(
+        TResponse response, EncodablePropertyInfo[] properties, string responseTypeName)
+    {
         foreach (var prop in properties)
         {
-            var value = prop.Getter(response) as string;
+            var value = prop.Getter(response!) as string;
             if (value is null)
             {
                 continue;
@@ -157,7 +182,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             try
             {
                 var encoded = EncodeProperty(value, prop.Attribute);
-                prop.Setter(response, encoded);
+                prop.Setter(response!, encoded);
             }
             catch (Exception ex)
             {
@@ -168,40 +193,48 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             }
         }
 
-        // Auto-encode mode: encode all remaining string properties as HTML
-        if (_options.EncodeAllOutputs)
+        return LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    /// <summary>
+    /// HTML-encodes the string properties that carry no explicit encoding attribute.
+    /// </summary>
+    private Either<EncinaError, Unit> AutoEncodeStringProperties(
+        TResponse response,
+        Type responseType,
+        EncodablePropertyInfo[] attributedProperties,
+        string responseTypeName)
+    {
+        var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
+            attributedProperties.Select(p => p.Property.Name),
+            StringComparer.Ordinal);
+
+        var stringProperties = EncodingPropertyCache.GetStringProperties(responseType);
+
+        foreach (var prop in stringProperties)
         {
-            var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
-                properties.Select(p => p.Property.Name),
-                StringComparer.Ordinal);
-
-            var stringProperties = EncodingPropertyCache.GetStringProperties(responseType);
-
-            foreach (var prop in stringProperties)
+            if (attributePropertyNames.Contains(prop.Name))
             {
-                if (attributePropertyNames.Contains(prop.Name))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var value = prop.GetValue(response) as string;
-                if (value is null)
-                {
-                    continue;
-                }
+            var value = prop.GetValue(response) as string;
+            if (value is null)
+            {
+                continue;
+            }
 
-                try
-                {
-                    var encoded = _encoder.EncodeForHtml(value);
-                    prop.SetValue(response, encoded);
-                }
-                catch (Exception ex)
-                {
-                    SanitizationLogMessages.OutputEncodingPropertyFailed(
-                        _logger, prop.Name, responseTypeName, ex.ForLogging());
+            try
+            {
+                var encoded = _encoder.EncodeForHtml(value);
+                prop.SetValue(response, encoded);
+            }
+            catch (Exception ex)
+            {
+                SanitizationLogMessages.OutputEncodingPropertyFailed(
+                    _logger, prop.Name, responseTypeName, ex.ForLogging());
 
-                    return SanitizationErrors.PropertyError(prop.Name, ex);
-                }
+                return SanitizationErrors.PropertyError(prop.Name, ex);
             }
         }
 

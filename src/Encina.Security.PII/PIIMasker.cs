@@ -129,12 +129,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         var properties = PIIPropertyScanner.GetProperties(obj.GetType());
 
         // Start tracing activity (only if listeners are registered and tracing is enabled)
-        Activity? activity = null;
-        if (_options.EnableTracing)
-        {
-            activity = PIIDiagnostics.StartMaskObject(typeName);
-            activity?.SetTag(PIIDiagnostics.TagPropertyCount, properties.Length);
-        }
+        var activity = StartMaskObjectActivity(typeName, properties.Length);
 
         // Structured logging
         PIILogMessages.PIIMaskingStarted(_logger, typeName, properties.Length);
@@ -148,54 +143,75 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             var result = MaskObjectInternal(obj, logContextOnly: false, out var maskedCount);
 
             stopwatch?.Stop();
-            var elapsedMs = stopwatch?.Elapsed.TotalMilliseconds ?? 0;
-
-            // Record success tracing
-            PIIDiagnostics.RecordSuccess(activity, maskedCount);
-            activity?.Dispose();
-
-            // Structured log completion
-            PIILogMessages.PIIMaskingCompleted(_logger, typeName, maskedCount, elapsedMs);
-
-            // Record metrics
-            if (_options.EnableMetrics)
-            {
-                PIIDiagnostics.RecordOperationMetrics(
-                    typeName,
-                    _options.DefaultMode.ToString(),
-                    success: true,
-                    maskedCount,
-                    elapsedMs);
-            }
+            RecordMaskObjectSuccess(activity, typeName, maskedCount, ElapsedMilliseconds(stopwatch));
 
             return result;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             stopwatch?.Stop();
-            var elapsedMs = stopwatch?.Elapsed.TotalMilliseconds ?? 0;
-
-            // Record failure tracing
-            PIIDiagnostics.RecordFailure(activity, ex);
-            activity?.Dispose();
-
-            // Structured log failure
-            PIILogMessages.PIIMaskingFailed(_logger, typeName, ex.ForLogging());
-
-            // Record error metrics
-            if (_options.EnableMetrics)
-            {
-                PIIDiagnostics.RecordOperationMetrics(
-                    typeName,
-                    _options.DefaultMode.ToString(),
-                    success: false,
-                    maskedCount: 0,
-                    elapsedMs);
-
-                PIIDiagnostics.RecordErrorMetric(ex.GetType().Name);
-            }
+            RecordMaskObjectFailure(activity, typeName, ex, ElapsedMilliseconds(stopwatch));
 
             throw;
+        }
+    }
+
+    private Activity? StartMaskObjectActivity(string typeName, int propertyCount)
+    {
+        if (!_options.EnableTracing)
+        {
+            return null;
+        }
+
+        var activity = PIIDiagnostics.StartMaskObject(typeName);
+        activity?.SetTag(PIIDiagnostics.TagPropertyCount, propertyCount);
+        return activity;
+    }
+
+    private static double ElapsedMilliseconds(Stopwatch? stopwatch) =>
+        stopwatch?.Elapsed.TotalMilliseconds ?? 0;
+
+    private void RecordMaskObjectSuccess(Activity? activity, string typeName, int maskedCount, double elapsedMs)
+    {
+        // Record success tracing
+        PIIDiagnostics.RecordSuccess(activity, maskedCount);
+        activity?.Dispose();
+
+        // Structured log completion
+        PIILogMessages.PIIMaskingCompleted(_logger, typeName, maskedCount, elapsedMs);
+
+        // Record metrics
+        if (_options.EnableMetrics)
+        {
+            PIIDiagnostics.RecordOperationMetrics(
+                typeName,
+                _options.DefaultMode.ToString(),
+                success: true,
+                maskedCount,
+                elapsedMs);
+        }
+    }
+
+    private void RecordMaskObjectFailure(Activity? activity, string typeName, Exception ex, double elapsedMs)
+    {
+        // Record failure tracing
+        PIIDiagnostics.RecordFailure(activity, ex);
+        activity?.Dispose();
+
+        // Structured log failure
+        PIILogMessages.PIIMaskingFailed(_logger, typeName, ex.ForLogging());
+
+        // Record error metrics
+        if (_options.EnableMetrics)
+        {
+            PIIDiagnostics.RecordOperationMetrics(
+                typeName,
+                _options.DefaultMode.ToString(),
+                success: false,
+                maskedCount: 0,
+                elapsedMs);
+
+            PIIDiagnostics.RecordErrorMetric(ex.GetType().Name);
         }
     }
 
@@ -284,38 +300,9 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
             foreach (var prop in properties)
             {
-                // Skip log-only properties when not in log context
-                if (prop.LogOnly && !logContextOnly)
+                if (TryMaskNodeProperty(jsonObj, prop, logContextOnly))
                 {
-                    continue;
-                }
-
-                var propertyName = _jsonOptions.PropertyNamingPolicy?.ConvertName(prop.Property.Name)
-                    ?? prop.Property.Name;
-
-                if (jsonObj[propertyName] is not JsonValue jsonValue)
-                {
-                    continue;
-                }
-
-                var originalValue = jsonValue.ToString();
-                if (string.IsNullOrEmpty(originalValue))
-                {
-                    continue;
-                }
-
-                var maskedValue = MaskPropertyValue(originalValue, prop);
-                jsonObj[propertyName] = maskedValue;
-                maskedCount++;
-
-                // Trace-level log per property
-                if (_options.EnableTracing)
-                {
-                    PIILogMessages.StrategyApplied(
-                        _logger,
-                        prop.Property.Name,
-                        prop.Type.ToString(),
-                        GetStrategy(prop.Type).GetType().Name);
+                    maskedCount++;
                 }
             }
 
@@ -330,6 +317,47 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             PIILogMessages.SerializationFailed(_logger, ex.ForLogging(), type.Name);
             return obj;
         }
+    }
+
+    /// <summary>
+    /// Masks one decorated property inside the JSON node; returns <c>true</c> when it was masked.
+    /// </summary>
+    private bool TryMaskNodeProperty(JsonObject jsonObj, PropertyMaskingMetadata prop, bool logContextOnly)
+    {
+        // Skip log-only properties when not in log context
+        if (prop.LogOnly && !logContextOnly)
+        {
+            return false;
+        }
+
+        var propertyName = _jsonOptions.PropertyNamingPolicy?.ConvertName(prop.Property.Name)
+            ?? prop.Property.Name;
+
+        if (jsonObj[propertyName] is not JsonValue jsonValue)
+        {
+            return false;
+        }
+
+        var originalValue = jsonValue.ToString();
+        if (string.IsNullOrEmpty(originalValue))
+        {
+            return false;
+        }
+
+        var maskedValue = MaskPropertyValue(originalValue, prop);
+        jsonObj[propertyName] = maskedValue;
+
+        // Trace-level log per property
+        if (_options.EnableTracing)
+        {
+            PIILogMessages.StrategyApplied(
+                _logger,
+                prop.Property.Name,
+                prop.Type.ToString(),
+                GetStrategy(prop.Type).GetType().Name);
+        }
+
+        return true;
     }
 
     private T MaskViaSensitiveFieldPatterns<T>(T obj, Type type)

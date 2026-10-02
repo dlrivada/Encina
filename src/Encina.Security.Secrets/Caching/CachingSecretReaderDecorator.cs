@@ -112,74 +112,12 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
             return await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
         }
 
-        var cacheKey = ValueKey(secretName);
-        var lkgKey = LkgKey(secretName);
-
-        // 1. Check cache for hit detection
-        try
-        {
-            var cached = await _cache.GetAsync<string>(cacheKey, cancellationToken).ConfigureAwait(false);
-            if (cached is not null)
-            {
-                Log.CacheHit(_logger, secretName);
-                _metrics?.RecordCacheHit(secretName);
-                return cached;
-            }
-        }
-        catch (Exception ex)
-        {
-            // Cache read failure — fall through to inner reader via GetOrSetAsync
-            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
-        }
-
-        // 2. Cache miss — use GetOrSetAsync for stampede protection
-        Log.CacheMiss(_logger, secretName);
-        _metrics?.RecordCacheMiss(secretName);
-
-        try
-        {
-            var value = await _cache.GetOrSetAsync(
-                cacheKey,
-                async ct =>
-                {
-                    var result = await _inner.GetSecretAsync(secretName, ct).ConfigureAwait(false);
-                    return result.Match(
-                        Right: v =>
-                        {
-                            _ = StoreLastKnownGoodAsync(lkgKey, v, ct);
-                            return v;
-                        },
-                        Left: e => throw new StoreResultException(e));
-                },
-                _secretsOptions.DefaultCacheDuration,
-                cancellationToken).ConfigureAwait(false);
-
-            return value;
-        }
-        catch (StoreResultException ex)
-        {
-            // Inner reader returned Left — check stale fallback
-            if (IsResilienceError(ex.Error))
-            {
-                var stale = await TryGetLastKnownGoodAsync<string>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
-                if (stale is not null)
-                {
-                    Log.CacheStaleFallbackServed(_logger, secretName);
-                    _metrics?.RecordStaleFallback(secretName);
-                    SecretsActivitySource.RecordStaleFallbackEvent(
-                        System.Diagnostics.Activity.Current, secretName);
-                    return stale;
-                }
-            }
-
-            return ex.Error;
-        }
-        catch (Exception ex)
-        {
-            // Cache infrastructure failure — fallback to inner reader
-            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
-            return await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
-        }
+        return await GetCachedAsync(
+            secretName,
+            ValueKey(secretName),
+            LkgKey(secretName),
+            ct => _inner.GetSecretAsync(secretName, ct),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -195,24 +133,30 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
 
         var typeName = typeof(T).FullName ?? typeof(T).Name;
-        var cacheKey = TypedKey(secretName, typeName);
-        var lkgKey = TypedLkgKey(secretName, typeName);
+        return await GetCachedAsync(
+            secretName,
+            TypedKey(secretName, typeName),
+            TypedLkgKey(secretName, typeName),
+            ct => _inner.GetSecretAsync<T>(secretName, ct),
+            cancellationToken).ConfigureAwait(false);
+    }
 
+    /// <summary>
+    /// Shared cache-aside read for both overloads: cache hit, stampede-protected load,
+    /// stale fallback on resilience errors, and fallback to the inner reader on cache failure.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, T>> GetCachedAsync<T>(
+        string secretName,
+        string cacheKey,
+        string lkgKey,
+        Func<CancellationToken, ValueTask<Either<EncinaError, T>>> readInner,
+        CancellationToken cancellationToken) where T : class
+    {
         // 1. Check cache for hit detection
-        try
+        var cached = await TryGetCachedAsync<T>(secretName, cacheKey, cancellationToken).ConfigureAwait(false);
+        if (cached is not null)
         {
-            var cached = await _cache.GetAsync<T>(cacheKey, cancellationToken).ConfigureAwait(false);
-            if (cached is not null)
-            {
-                Log.CacheHit(_logger, secretName);
-                _metrics?.RecordCacheHit(secretName);
-                return cached;
-            }
-        }
-        catch (Exception ex)
-        {
-            // Cache read failure — fall through to inner reader via GetOrSetAsync
-            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
+            return cached;
         }
 
         // 2. Cache miss — use GetOrSetAsync for stampede protection
@@ -225,7 +169,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
                 cacheKey,
                 async ct =>
                 {
-                    var result = await _inner.GetSecretAsync<T>(secretName, ct).ConfigureAwait(false);
+                    var result = await readInner(ct).ConfigureAwait(false);
                     return result.Match(
                         Right: v =>
                         {
@@ -242,27 +186,67 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         catch (StoreResultException ex)
         {
             // Inner reader returned Left — check stale fallback
-            if (IsResilienceError(ex.Error))
-            {
-                var stale = await TryGetLastKnownGoodAsync<T>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
-                if (stale is not null)
-                {
-                    Log.CacheStaleFallbackServed(_logger, secretName);
-                    _metrics?.RecordStaleFallback(secretName);
-                    SecretsActivitySource.RecordStaleFallbackEvent(
-                        System.Diagnostics.Activity.Current, secretName);
-                    return stale;
-                }
-            }
-
-            return ex.Error;
+            return await ServeStaleOrErrorAsync<T>(secretName, lkgKey, ex.Error, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             // Cache infrastructure failure — fallback to inner reader
             Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
-            return await _inner.GetSecretAsync<T>(secretName, cancellationToken).ConfigureAwait(false);
+            return await readInner(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Reads a cached value; returns <c>null</c> on a miss or when the cache read fails (logged).
+    /// </summary>
+    private async ValueTask<T?> TryGetCachedAsync<T>(
+        string secretName,
+        string cacheKey,
+        CancellationToken cancellationToken) where T : class
+    {
+        try
+        {
+            var cached = await _cache.GetAsync<T>(cacheKey, cancellationToken).ConfigureAwait(false);
+            if (cached is not null)
+            {
+                Log.CacheHit(_logger, secretName);
+                _metrics?.RecordCacheHit(secretName);
+            }
+
+            return cached;
+        }
+        catch (Exception ex)
+        {
+            // Cache read failure — fall through to inner reader via GetOrSetAsync
+            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Serves the last-known-good value for resilience errors when one exists;
+    /// otherwise propagates the inner reader's error.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, T>> ServeStaleOrErrorAsync<T>(
+        string secretName,
+        string lkgKey,
+        EncinaError error,
+        CancellationToken cancellationToken) where T : class
+    {
+        if (IsResilienceError(error))
+        {
+            var stale = await TryGetLastKnownGoodAsync<T>(secretName, lkgKey, cancellationToken).ConfigureAwait(false);
+            if (stale is not null)
+            {
+                Log.CacheStaleFallbackServed(_logger, secretName);
+                _metrics?.RecordStaleFallback(secretName);
+                SecretsActivitySource.RecordStaleFallbackEvent(
+                    System.Diagnostics.Activity.Current, secretName);
+                return stale;
+            }
+        }
+
+        return error;
     }
 
     /// <summary>
