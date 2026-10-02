@@ -53,16 +53,13 @@ internal sealed class DebeziumCdcOptionsValidator : IValidateOptions<DebeziumCdc
     }
 
     // HttpListener needs IPv6 literals in brackets ("http://[::1]"); "http://::1" fails at Prefixes.Add.
-    private static bool IsValidListenHost(string host)
-    {
-        if (host is "+" or "*")
-        {
-            return true;
-        }
+    private static bool IsValidListenHost(string host) =>
+        IsWildcard(host) || (IsBracketed(host) ? IsIPv6Literal(host[1..^1]) : IsDnsNameOrIPv4(host));
 
-        var bracketed = host.Length > 1 && host[0] == '[' && host[^1] == ']';
-        return bracketed ? IsIPv6Literal(host[1..^1]) : IsDnsNameOrIPv4(host);
-    }
+    private static bool IsWildcard(string host) =>
+        string.Equals(host, "+", StringComparison.Ordinal) || string.Equals(host, "*", StringComparison.Ordinal);
+
+    private static bool IsBracketed(string host) => host.Length > 1 && host[0] == '[' && host[^1] == ']';
 
     private static bool IsIPv6Literal(string host) => Uri.CheckHostName(host) == UriHostNameType.IPv6;
 
