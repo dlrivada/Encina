@@ -1,0 +1,23 @@
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+
+Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+
+ Method                                   | ShardCount | Mean     | Error     | StdDev    | Ratio | RatioSD | Rank | Allocated | Alloc Ratio |
+----------------------------------------- |----------- |---------:|----------:|----------:|------:|--------:|-----:|----------:|------------:|
+ **'Bare HashRouter'**                        | **3**          | **4.206 μs** |  **7.959 μs** | **0.4362 μs** |  **1.01** |    **0.13** |    **1** |      **56 B** |        **1.00** |
+ 'Decorated GetShardId (production path)' | 3          | 4.559 μs |  2.219 μs | 0.1217 μs |  1.09 |    0.10 |    1 |      56 B |        1.00 |
+ 'Decorated CompareAsync'                 | 3          | 5.369 μs | 18.254 μs | 1.0005 μs |  1.29 |    0.24 |    1 |     320 B |        5.71 |
+ 'Decorated GetAllShardIds'               | 3          | 4.036 μs |  8.241 μs | 0.4517 μs |  0.97 |    0.13 |    1 |     104 B |        1.86 |
+ 'Decorated GetShardConnectionString'     | 3          | 4.125 μs |  2.920 μs | 0.1601 μs |  0.99 |    0.10 |    1 |      64 B |        1.14 |
+                                          |            |          |           |           |       |         |      |           |             |
+ **'Bare HashRouter'**                        | **50**         | **4.294 μs** |  **6.773 μs** | **0.3712 μs** |  **1.00** |    **0.11** |    **1** |      **56 B** |        **1.00** |
+ 'Decorated GetShardId (production path)' | 50         | 5.727 μs | 28.661 μs | 1.5710 μs |  1.34 |    0.33 |    1 |      56 B |        1.00 |
+ 'Decorated CompareAsync'                 | 50         | 5.259 μs |  3.949 μs | 0.2165 μs |  1.23 |    0.10 |    1 |     320 B |        5.71 |
+ 'Decorated GetAllShardIds'               | 50         | 4.589 μs |  3.752 μs | 0.2057 μs |  1.07 |    0.09 |    1 |     480 B |        8.57 |
+ 'Decorated GetShardConnectionString'     | 50         | 5.291 μs |  6.145 μs | 0.3368 μs |  1.24 |    0.11 |    1 |      64 B |        1.14 |
