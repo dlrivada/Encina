@@ -1070,10 +1070,47 @@ function Get-FindingPackages {
     $names = [System.Collections.Generic.List[string]]::new()
     foreach ($m in [regex]::Matches($FindingText, 'src[\\/](Encina\.[A-Za-z0-9._-]*[A-Za-z0-9])(?![A-Za-z0-9_-])')) { $names.Add($m.Groups[1].Value) }
     foreach ($m in [regex]::Matches($FindingText, '(?<![\w.\\/-])(Encina(?:\.[A-Za-z0-9]+)+)')) { $names.Add($m.Groups[1].Value) }
+    $srcDir = Join-Path $RepoRoot 'src'
+    if (-not (Test-Path -LiteralPath $srcDir -PathType Container)) { return @() }
+    $realNames = @([System.IO.Directory]::GetDirectories($srcDir) | ForEach-Object { [System.IO.Path]::GetFileName($_) })
     foreach ($name in $names) {
-        if (Test-Path -LiteralPath (Join-Path $RepoRoot "src\$name") -PathType Container) { [void]$found.Add($name) }
+        # A dotted token naming a type or namespace ('Encina.Messaging.Sagas.SagaRunner') resolves to its longest
+        # dotted prefix that is a src/ directory ('Encina.Messaging'), spelled as the directory spells it.
+        $segments = $name.Split('.')
+        for ($count = $segments.Count; $count -ge 2; $count--) {
+            $prefix = $segments[0..($count - 1)] -join '.'
+            $real = $realNames | Where-Object { [string]::Equals($_, $prefix, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+            if ($real) { [void]$found.Add($real); break }
+        }
     }
     return @($found)
+}
+
+# True when the match at $Index/$Length of $Text is negated within its own clause ("no integration tests",
+# "without Docker", "integration tests are not needed"), so a mention that says something is NOT needed or NOT
+# done does not count as asking for it. A clause ends at . ; : ! ? , or a line break.
+function Test-NegatedMention {
+    param([string]$Text, [int]$Index, [int]$Length)
+
+    $before = $Text.Substring([Math]::Max(0, $Index - 40), $Index - [Math]::Max(0, $Index - 40))
+    $cut = $before.LastIndexOfAny(@('.', ';', ':', '!', '?', ',', "`n", "`r"))
+    if ($cut -ge 0) { $before = $before.Substring($cut + 1) }
+    if ($before -match "(?i)\b(?:no|not|never|without|neither|nor|cannot|can't|\w+n't|rather than|instead of)\s+(?:\w+\s+){0,2}$") { return $true }
+    $afterStart = $Index + $Length
+    $after = $Text.Substring($afterStart, [Math]::Min(40, $Text.Length - $afterStart))
+    $cut = $after.IndexOfAny(@('.', ';', ':', '!', '?', ',', "`n", "`r"))
+    if ($cut -ge 0) { $after = $after.Substring(0, $cut) }
+    return [regex]::IsMatch($after, '(?i)^\s*(?:\w+\s+){0,3}?(?:are|is|do|does|will)\s+not\s+(?:needed|required|necessary|applicable|relevant)\b')
+}
+
+# True when $Pattern has at least one match in $Text that is not negated (Test-NegatedMention).
+function Test-UnnegatedMatch {
+    param([string]$Text, [string]$Pattern)
+
+    foreach ($m in [regex]::Matches($Text, $Pattern)) {
+        if (-not (Test-NegatedMention $Text $m.Index $m.Length)) { return $true }
+    }
+    return $false
 }
 
 # The package line of the two routed templates that carry one: bug_report.md '- **Package(s) Affected**: ...'
@@ -1128,14 +1165,22 @@ function Get-TestCategoryTicks {
 
     $t = if ($null -eq $FindingText) { '' } else { $FindingText -replace '[`*_]', '' }
     $ticks = [System.Collections.Generic.List[string]]::new()
-    if ($t -match '(?i)\b(?:unit|guard)(?:\s*/\s*(?:unit|guard))?[\s-]+(?:flags?|tests?|coverage)\b') { $ticks.Add('Unit Tests') }
-    if ($t -match '(?i)\bintegration[\s-]+(?:flags?|tests?|coverage)\b|\bdocker\b|\btestcontainers?\b|\breal\s+(?:databases?|brokers?)\b|\b(?:database|broker)\s+containers?\b') { $ticks.Add('Integration Tests') }
-    if ($t -match '(?i)\bproperty[\s-]+(?:based[\s-]+)?(?:flags?|tests?)\b|\bfscheck\b') { $ticks.Add('Property-Based Tests') }
-    if ($t -match '(?i)\bcontract[\s-]+(?:flags?|tests?)\b') { $ticks.Add('Contract Tests') }
-    if ($t -match '(?i)\bguard[\s-]+(?:clauses?|flags?|tests?)\b|\bunit\s*/\s*guard\b|\bguard\s*/\s*unit\b') { $ticks.Add('Guard Clause Tests') }
-    if ($t -match '(?i)\bload[\s-]+tests?\b|\bnbomber\b') { $ticks.Add('Load Tests') }
-    if ($t -match '(?i)\bbenchmarks?\b|\bbenchmarkdotnet\b') { $ticks.Add('Benchmark Tests') }
-    if ($t -match '(?i)\bcoverage\s+gap\b|\bbelow\s+(?:the\s+)?(?:\d+(?:\.\d+)?%\s+)?target\b') { $ticks.Add('Coverage Gap') }
+    # A mention counts only when it is not negated ("no integration tests", "without Docker"); a path segment such
+    # as Encina.UnitTests counts as a unit mention; Docker alone never ticks Integration Tests (it needs the word
+    # "integration" or Testcontainers, or a database/broker container).
+    $rules = [ordered]@{
+        'Unit Tests'           = '(?i)\b(?:unit|guard)(?:\s*/\s*(?:unit|guard))?[\s-]+(?:flags?|tests?|coverage)\b|\b(?:unit|guard)tests\b'
+        'Integration Tests'    = '(?i)\bintegration[\s-]+(?:flags?|tests?|coverage)\b|\bintegrationtests\b|\btestcontainers?\b|\b(?:database|broker)\s+containers?\b'
+        'Property-Based Tests' = '(?i)\bproperty[\s-]+(?:based[\s-]+)?(?:flags?|tests?)\b|\bpropertytests\b|\bfscheck\b'
+        'Contract Tests'       = '(?i)\bcontract[\s-]+(?:flags?|tests?)\b|\bcontracttests\b'
+        'Guard Clause Tests'   = '(?i)\bguard[\s-]+(?:clauses?|flags?|tests?)\b|\bunit\s*/\s*guard\b|\bguard\s*/\s*unit\b|\bguardtests\b'
+        'Load Tests'           = '(?i)\bload[\s-]+tests?\b|\bloadtests\b|\bnbomber\b'
+        'Benchmark Tests'      = '(?i)\bbenchmarks?\b|\bbenchmarkdotnet\b'
+        'Coverage Gap'         = '(?i)\bcoverage\s+gap\b|\bbelow\s+(?:the\s+)?(?:\d+(?:\.\d+)?%\s+)?target\b'
+    }
+    foreach ($label in $rules.Keys) {
+        if (Test-UnnegatedMatch $t $rules[$label]) { $ticks.Add($label) }
+    }
     return @($ticks)
 }
 
@@ -1215,11 +1260,13 @@ function Get-UnsupportedFigures {
     param([string]$DraftText, [string]$FindingText, [string]$TemplateText, [string[]]$Packages, [string]$ManifestDir)
 
     $culture = [System.Globalization.CultureInfo]::InvariantCulture
-    $figurePattern = '\d+(?:\.\d+)?%'
+    # "71.1%", "71.1 %" and "71.1 percent" are the same figure, on both sides.
+    $figurePattern = '\d+(?:\.\d+)?(?:%|\s%|\s+percent\b)'
+    $number = { param($figure) [double]::Parse([regex]::Match($figure, '^\d+(?:\.\d+)?').Value, $culture) }
     $allowed = [System.Collections.Generic.HashSet[double]]::new()
     foreach ($source in @($FindingText, $TemplateText)) {
         if ([string]::IsNullOrEmpty($source)) { continue }
-        foreach ($m in [regex]::Matches($source, $figurePattern)) { [void]$allowed.Add([double]::Parse($m.Value.TrimEnd('%'), $culture)) }
+        foreach ($m in [regex]::Matches($source, $figurePattern)) { [void]$allowed.Add((& $number $m.Value)) }
     }
     if (-not [string]::IsNullOrWhiteSpace($ManifestDir)) {
         foreach ($package in @($Packages)) {
@@ -1229,15 +1276,15 @@ function Get-UnsupportedFigures {
             try { $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $manifest = $null }
             if ($null -eq $manifest -or $null -eq $manifest.targets) { continue }
             foreach ($target in $manifest.targets.PSObject.Properties) {
-                $number = 0.0
-                if ([double]::TryParse([string]$target.Value, [System.Globalization.NumberStyles]::Float, $culture, [ref]$number)) { [void]$allowed.Add($number) }
+                $targetNumber = 0.0
+                if ([double]::TryParse([string]$target.Value, [System.Globalization.NumberStyles]::Float, $culture, [ref]$targetNumber)) { [void]$allowed.Add($targetNumber) }
             }
         }
     }
 
     $unsupported = [System.Collections.Generic.List[string]]::new()
     foreach ($m in [regex]::Matches([string]$DraftText, $figurePattern)) {
-        if ($allowed.Contains([double]::Parse($m.Value.TrimEnd('%'), $culture))) { continue }
+        if ($allowed.Contains((& $number $m.Value))) { continue }
         if ($unsupported -notcontains $m.Value) { $unsupported.Add($m.Value) }
     }
     return @($unsupported)
@@ -1249,12 +1296,16 @@ function Get-UnsupportedFigures {
 function Get-EitherSemanticsViolations {
     param([string]$FindingText, [string]$DraftText)
 
-    if ([string]::IsNullOrEmpty($FindingText) -or $FindingText -cnotmatch '\b(?:Left|Either)\b' -or $FindingText -match '(?i)\bthrow') { return @() }
+    # The trigger is `Left` as a whole word, `Either<` or a backticked `Either` -- never a plain English "Either".
+    if ([string]::IsNullOrEmpty($FindingText) -or $FindingText -cnotmatch '\bLeft\b|Either<|`Either`' -or $FindingText -match '(?i)\bthrow') { return @() }
     $bad = [System.Collections.Generic.List[string]]::new()
     foreach ($line in ([string]$DraftText -split "`r?`n")) {
-        if ($line -notmatch '(?i)\b(?:throw|throws|thrown)\b') { continue }
         if ($line -match 'ArgumentNullException|ArgumentException') { continue }
-        $bad.Add($line.Trim())
+        # A throw word negated in its own clause ("never throws", "does not throw", "rather than throwing",
+        # "instead of throwing", "without throwing", "no longer throws") says the opposite of the violation.
+        foreach ($m in [regex]::Matches($line, '(?i)\b(?:throw|throws|thrown|throwing)\b')) {
+            if (-not (Test-NegatedMention $line $m.Index $m.Length)) { $bad.Add($line.Trim()); break }
+        }
     }
     return @($bad)
 }

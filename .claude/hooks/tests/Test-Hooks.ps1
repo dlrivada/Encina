@@ -2821,6 +2821,7 @@ Two SagaStoreADO test classes duplicate the same setup.
             'classify'       = "_classify-$remN1492c-code-10.md"
             'brief'          = "_brief-$remN1492c-code-10.md"
             'brief-reask'    = "_brief-$remN1492c-code-10-reask.md"
+            'brief-reask-checks' = "_brief-$remN1492c-code-10-reask-checks.md"
             'draft'          = "$remN1492c-code-10-tenth-finding.md"
         }
         $code10Paths = @{}
@@ -2832,6 +2833,10 @@ Two SagaStoreADO test classes duplicate the same setup.
             $code10Paths[$key] = $path
             $code10ContentBefore[$key] = Get-Content -LiteralPath $path -Raw
         }
+
+        # #1565: the targeted finding's OWN combined re-ask brief is removed by -Only, like its other briefs.
+        $code1ReaskChecks = Join-Path $collisionRemDir "_brief-$remN1492c-code-1-reask-checks.md"
+        Set-Content -LiteralPath $code1ReaskChecks -Encoding utf8 -Value 'leftover content for code-1 reask-checks'
 
         $collisionOnlyOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
         $collisionOnlyExit = $LASTEXITCODE
@@ -2857,6 +2862,10 @@ Two SagaStoreADO test classes duplicate the same setup.
             $flatCollisionOutput = Get-FlatOutput $collisionOnlyOutput
             $flatCollisionOutput -notmatch [regex]::Escape('code-10-brief.md') -and $flatCollisionOutput -notmatch [regex]::Escape('code-10-input.md') -and
             (($code10Leftovers.Values | ForEach-Object { $flatCollisionOutput -notmatch [regex]::Escape($_) }) -notcontains $false)
+        }
+
+        Test-RemediationCase "#1565 -Only 'code 1' removes code 1's own -reask-checks brief" {
+            -not (Test-Path -LiteralPath $code1ReaskChecks)
         }
 
         foreach ($key in $code10DryFiles.Keys) {
@@ -3355,6 +3364,58 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     Test-RemediationChecksCase '#1565 Get-FindingPackages: a src/Encina.<X> citation without a trailing slash still counts' {
         (@(Get-FindingPackages 'See `src/Encina.NATS` and src/Encina.Kafka.' $pkgRoot1565) -join ',') -eq 'Encina.Kafka,Encina.NATS'
+    }
+
+    # coordinator follow-up (#1565): cases that could mark a CORRECT draft and stop the verifier loop converging
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: a plain sentence-initial "Either" does not switch the check on, but `Either<...>` and a backticked `Either` do' {
+        $plain = Get-EitherSemanticsViolations 'Either option may be null for the caller.' 'RequestAsync throws InvalidOperationException.'
+        $generic = Get-EitherSemanticsViolations 'RequestAsync returns Either<EncinaError, string> on timeout.' 'RequestAsync throws InvalidOperationException.'
+        $ticked = Get-EitherSemanticsViolations 'RequestAsync returns an `Either` on timeout.' 'RequestAsync throws InvalidOperationException.'
+        @($plain).Count -eq 0 -and @($generic).Count -eq 1 -and @($ticked).Count -eq 1
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: a negated throw word is not a violation (never, does not, rather than, instead of, without, no longer)' {
+        $negated = "The method never throws.`nIt does not throw on timeout.`nIt returns Left rather than throwing.`nIt returns Left instead of throwing.`nIt fails without throwing.`nIt no longer throws."
+        (@(Get-EitherSemanticsViolations $eitherFinding1565 $negated)).Count -eq 0
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: an un-negated throw on a line that also contains a negation elsewhere is still flagged' {
+        $v = @(Get-EitherSemanticsViolations $eitherFinding1565 "It never returns Left; RequestAsync throws instead.`nA timeout is thrown as an exception.")
+        $v.Count -eq 2
+    }
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: negated mentions do not tick ("no integration tests", "are not needed", "without Docker")' {
+        (@(Get-TestCategoryTicks 'The unit flag is low; no integration tests are involved.')) -notcontains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'The unit flag is low. Integration tests are not needed here.')) -notcontains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'The unit flag is low; add tests without Testcontainers.')) -notcontains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'The unit flag is low; no integration tests are involved.')) -contains 'Unit Tests'
+    }
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: an un-negated integration or Testcontainers mention still ticks Integration; Docker or compose alone does not' {
+        (@(Get-TestCategoryTicks 'The integration flag is 0%.')) -contains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'Needs Testcontainers coverage.')) -contains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'The unit flag is low; docker compose is how CI starts services.')) -notcontains 'Integration Tests'
+    }
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: a path segment such as Encina.UnitTests counts as a unit mention' {
+        (@(Get-TestCategoryTicks 'Missing cases in `tests/Encina.UnitTests/NatsTests.cs`.')) -contains 'Unit Tests' -and
+            (@(Get-TestCategoryTicks 'Nothing about test projects here.')) -notcontains 'Unit Tests'
+    }
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures: "71.1 %", "71.1%" and "71.1 percent" are the same figure on both sides' {
+        $spaced = 'Measured 71.1 % of lines.'
+        $percentWord = 'Measured 71.1 percent of lines.'
+        (@(Get-UnsupportedFigures 'Covers 71.1%.' $spaced '' @() '')).Count -eq 0 -and (@(Get-UnsupportedFigures 'Covers 71.1 %.' $percentWord '' @() '')).Count -eq 0 -and
+            (@(Get-UnsupportedFigures 'Covers 71.1 percent.' 'Measured 71.1%.' '' @() '')).Count -eq 0
+    }
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures: a different spaced or worded figure is still flagged' {
+        $v = @(Get-UnsupportedFigures 'Covers 0 % and 12 percent.' 'Measured 71.1%.' '' @() '')
+        $v.Count -eq 2
+    }
+    $nsRoot1565 = Join-Path $work 'PkgNs1565'
+    if (Test-Path $nsRoot1565) { Remove-Item -Recurse -Force $nsRoot1565 }
+    foreach ($nsPkg in 'Encina.Messaging', 'Encina.ADO.SqlServer') { New-Item -ItemType Directory -Force (Join-Path $nsRoot1565 "src\$nsPkg") | Out-Null }
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: a dotted type or namespace token resolves to its longest dotted prefix that is a src/ directory' {
+        $r = @(Get-FindingPackages 'See `Encina.Messaging.Sagas.SagaRunner` and Encina.ADO.SqlServer.Sagas.SagaStoreADO.' $nsRoot1565)
+        ($r -join ',') -eq 'Encina.ADO.SqlServer,Encina.Messaging'
+    }
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: the package takes the directory''s real casing, and a token with no existing prefix still yields nothing' {
+        $r = @(Get-FindingPackages 'See Encina.messaging.Outbox and Encina.Invented.Thing.' $nsRoot1565)
+        ($r -join ',') -ceq 'Encina.Messaging'
     }
 
     # combined pass, marks and the re-ask note
