@@ -167,7 +167,7 @@ $start = ($lines | Select-String -Pattern '^## \[0\.14\.0\] - ').LineNumber
 $next = ($lines | Select-String -Pattern '^## \[' | Where-Object { $_.LineNumber -gt $start } | Select-Object -First 1).LineNumber
 $end = if ($next) { $next - 2 } else { $lines.Count - 1 }
 $body = ($lines[$start..$end] -join "`n").Trim()
-$body = ($body -replace '(\r?\n)*---\s*$', '').Trim()
+$body = ($body -replace '(\r?\n)+---\s*$', '').Trim()
 $body.Length
 ```
 
@@ -182,9 +182,9 @@ If it is above the limit, use a short body that links to the tagged CHANGELOG se
 
 ```powershell
 $short = @'
-Full changelog: [CHANGELOG.md](https://github.com/dlrivada/Encina/blob/v0.14.0/CHANGELOG.md#0140---2026-10-01---hardening)
-
 Release notes: [docs/releases/v0.14.0/README.md](https://github.com/dlrivada/Encina/blob/v0.14.0/docs/releases/v0.14.0/README.md)
+
+Full changelog: [CHANGELOG.md](https://github.com/dlrivada/Encina/blob/v0.14.0/CHANGELOG.md#0140---2026-10-01---hardening)
 '@
 Set-Content artifacts/release/v0.14.0-notes.md $short
 gh release create v0.14.0 --repo dlrivada/Encina --verify-tag --prerelease --title "v0.14.0 — Hardening" --notes-file artifacts/release/v0.14.0-notes.md
@@ -200,7 +200,9 @@ How to check it worked:
 gh release view v0.14.0 --repo dlrivada/Encina --json tagName,isPrerelease,name
 ```
 
-The output shows `tagName` `v0.14.0` and `isPrerelease` `true`. Open the release page once and confirm the notes read as the CHANGELOG section, or that both links of the short body open.
+The output shows `tagName` `v0.14.0` and `isPrerelease` `true`. Open the release page once and confirm the notes read as the CHANGELOG section, or that both links of the short body open. GitHub may not render `CHANGELOG.md` or scroll to its anchor at this size (about 570 KiB), so the release notes page is the primary link.
+
+If `gh release create` fails after the release was created, or you run the step a second time, do not create it again. Update the existing release instead: `gh release edit v0.14.0 --repo dlrivada/Encina --notes-file artifacts/release/v0.14.0-notes.md`.
 
 ## Step 5: bump to the next development version
 
