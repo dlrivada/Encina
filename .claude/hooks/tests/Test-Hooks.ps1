@@ -2136,9 +2136,15 @@ Test.
         $finManifestOld = $finManifestBackup | ConvertFrom-Json
         $finManifestOld.PSObject.Properties.Remove('partialRuleVersion')
         Set-Content -LiteralPath $finManifestPath -Value ($finManifestOld | ConvertTo-Json -Depth 12) -Encoding utf8
+        $finDraftsBefore = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
         $finalizeOldRule = Invoke-Remediation $finWt @('-Finalize')
-        Test-RemediationCase '#1592 -Finalize refuses a manifest written before the partially related rule had a version' {
-            $finalizeOldRule.Code -eq 1 -and $finalizeOldRule.Output -match 'stale manifest: it was written under partially related rule version 0'
+        $finDraftsAfter = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
+        Test-RemediationCase '#1592 -Finalize refuses a manifest written before the partially related rule had a version, touching no draft' {
+            $finalizeOldRule.Code -eq 1 -and $finalizeOldRule.Output -match 'stale manifest: it was written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
+        }
+        $prepareOnlyOldRule = Invoke-Remediation $finWt @('-Prepare', '-NoGh', '-Only', 'code 1')
+        Test-RemediationCase '#1592 -Prepare -Only refuses a previous manifest of another partially related rule version' {
+            $prepareOnlyOldRule.Code -eq 1 -and $prepareOnlyOldRule.Output -match 'written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
         }
         Set-Content -LiteralPath $finManifestPath -Value $finManifestBackup -NoNewline -Encoding utf8
         # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.

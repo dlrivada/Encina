@@ -252,7 +252,8 @@ once per provider) or a directory segment; and a folder (`src/`), a line referen
 AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol evidence. A candidate whose location
 text matches at least one file anchor AND at least one specific symbol anchor of the finding, but not the full
 duplicate bar, is "partially related", never a duplicate; a shared file or package alone, or a symbol alone
-(including a bare connection-setting name such as `Host`), is only "possibly related" (#1592).
+(including a bare connection-setting name such as `Host`, which is also never a duplicate's only symbol), is
+only "possibly related" (#1592).
 `audit-draft-remediation.ps1 -Finalize` also strips an outer code fence from a draft (`Remove-OuterFence`),
 fills a bug draft's `## Environment` section (`Set-BugEnvironment`), and reports as a problem any of the issue
 template's own placeholder text still in the draft (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description`

@@ -73,6 +73,9 @@ foreach ($ruleFile in 'AGENTS.md', 'CLAUDE.md') {
 # documentation page names the MQTT option `BrokerAddress` where the real one is `Host`) matched #1584 (endpoint
 # validation of the `Host` option) through the MQTT options file plus this one token. A qualified token
 # (`options.Host`, `EncinaMQTTOptions.Host`) stays a symbol anchor: it names one property of one class.
+# Side effect, in the strict direction: a finding whose only symbol is one of these names can no longer be an
+# auto-accepted duplicate (Test-DuplicateEvidence shares the anchors); it is drafted as new and the verifier's
+# own dedup pass still catches a real duplicate.
 $script:GenericOptionSettingNames = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]@('Host', 'HostName', 'Port', 'Username', 'UserName', 'Password', 'ConnectionString', 'Url', 'Uri', 'Endpoint', 'Address'),
     [System.StringComparer]::OrdinalIgnoreCase)

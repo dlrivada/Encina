@@ -174,9 +174,10 @@ if ($Finalize) {
 
     # #1592: -Finalize re-inserts every manifest partiallyRelated line, so a manifest written under an older
     # (looser) "partially related" rule would resurrect lines the current rule rejects. The manifest holds no
-    # candidate text to re-validate them against, so it is refused outright and -Prepare must be run again.
+    # candidate text to re-validate them against, so a manifest of a different rule version is refused before
+    # anything on disk is touched, and a full -Prepare must be run again.
     if ([int]$manifest.partialRuleVersion -ne $script:PartialRuleVersion) {
-        $problems.Add("stale manifest: it was written under partially related rule version $([int]$manifest.partialRuleVersion), the current rule is version $($script:PartialRuleVersion) (#1592); run -Prepare again.")
+        Stop-Remediation "stale manifest: it was written under partially related rule version $([int]$manifest.partialRuleVersion), the current rule is version $($script:PartialRuleVersion) (#1592); run -Prepare again (a full run, not -Only)."
     }
 
     # #1540: a dry-run Finalize touches nothing outside its own sandbox, whatever the manifest says.
@@ -583,6 +584,13 @@ foreach ($gi in $touchedGroupIndexes) {
 # by name.
 $previousDraftByKey = @{}
 if ($onlyKeys -and (Test-Path -LiteralPath $manifestPath)) {
+    # #1592: an -Only run restamps the whole manifest, which would vouch for the untouched findings' drafts
+    # written under an older partially related rule; a different rule version needs a full -Prepare.
+    $previousRuleVersion = 0
+    try { $previousRuleVersion = [int](Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).partialRuleVersion } catch { $previousRuleVersion = 0 }
+    if ($previousRuleVersion -ne $script:PartialRuleVersion) {
+        Stop-Remediation "the previous manifest was written under partially related rule version $previousRuleVersion, the current rule is version $($script:PartialRuleVersion) (#1592); -Only would keep drafts written under the old rule, run -Prepare without -Only."
+    }
     try { foreach ($pf in @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).findings)) { if ($pf.draftFile) { $previousDraftByKey[[string]$pf.key] = [IO.Path]::GetFullPath([string]$pf.draftFile) } } }
     catch { $previousDraftByKey = @{} }
 }
