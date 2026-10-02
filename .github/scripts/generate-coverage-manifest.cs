@@ -128,10 +128,10 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
     Directory.CreateDirectory(outDir);
     int created = 0, updated = 0, failed = 0;
 
-    foreach (var (pkg, files) in packageFiles.OrderBy(kv => kv.Key))
+    foreach (var (pkg, files) in packageFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal))
     {
         var outputFile = Path.Combine(outDir, $"{pkg}.json");
-        var sorted = files.OrderBy(f => f.Path).ToList();
+        var sorted = files.OrderBy(f => f.Path, StringComparer.Ordinal).ToList();
 
         JsonObject? existing = null;
         if (File.Exists(outputFile))
@@ -140,7 +140,7 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
             {
                 existing = JsonNode.Parse(File.ReadAllText(outputFile), null,
                     new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) as JsonObject;
-                _ = existing?["files"]; // duplicate keys surface lazily as ArgumentException
+                Materialize(existing); // JsonObject is lazy: walking the whole tree surfaces a duplicate key anywhere as ArgumentException
             }
             catch (Exception ex) when (ex is JsonException or ArgumentException) { existing = null; }
 
@@ -276,6 +276,14 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
     return failed == 0 ? 0 : 1;
 }
 
+void Materialize(JsonNode? node)
+{
+    if (node is JsonObject obj)
+        foreach (var (_, child) in obj) Materialize(child);
+    else if (node is JsonArray arr)
+        foreach (var child in arr) Materialize(child);
+}
+
 JsonArray TestsArray(string[] tests)
 {
     var arr = new JsonArray();
@@ -295,7 +303,7 @@ JsonObject NewEntry(FileEntry f) => new()
 void InsertSorted(JsonObject target, string key, JsonNode value)
 {
     var snapshot = target.Select(kv => (kv.Key, kv.Value?.DeepClone())).ToList();
-    int at = snapshot.FindIndex(kv => Comparer<string>.Default.Compare(kv.Key, key) > 0);
+    int at = snapshot.FindIndex(kv => string.CompareOrdinal(kv.Key, key) > 0);
     if (at < 0) at = snapshot.Count;
     snapshot.Insert(at, (key, value));
     target.Clear();
@@ -427,6 +435,44 @@ int RunSelfTest()
         var bytes2 = File.ReadAllText(manifestPath);
         Generate(Path.Combine(root, "src"), cfg, outDir, true, () => "T3", quiet);
         Check(File.ReadAllText(manifestPath) == bytes2, "append-only: nothing missing leaves the file byte-identical");
+
+        // 5. A duplicate key anywhere in an existing manifest skips that package (exit 1, file untouched); others still run.
+        var src3 = Path.Combine(root, "src3");
+        var out3 = Path.Combine(root, "out3");
+        foreach (var p in new[] { "PkgX", "PkgY", "PkgZ" })
+        {
+            Directory.CreateDirectory(Path.Combine(src3, p));
+            File.WriteAllText(Path.Combine(src3, p, "A.cs"), "class A {}");
+        }
+        Directory.CreateDirectory(out3);
+        var dupEntry = """{"package":"PkgX","files":{"A.cs":{"defaultTests":["unit"],"defaultTests":["guard"],"reason":"x"}}}""";
+        var dupTargets = """{"package":"PkgY","targets":{"unit":1,"unit":2},"files":{}}""";
+        File.WriteAllText(Path.Combine(out3, "PkgX.json"), dupEntry);
+        File.WriteAllText(Path.Combine(out3, "PkgY.json"), dupTargets);
+        var dupLog = Console.Error;
+        int rc;
+        try { Console.SetError(new StringWriter()); rc = Generate(src3, cfg, out3, false, () => "T4", quiet); }
+        finally { Console.SetError(dupLog); }
+        Check(rc == 1, "duplicate keys: exit code 1");
+        Check(File.ReadAllText(Path.Combine(out3, "PkgX.json")) == dupEntry, "duplicate key inside an entry: file untouched");
+        Check(File.ReadAllText(Path.Combine(out3, "PkgY.json")) == dupTargets, "duplicate key inside targets: file untouched");
+        Check(File.Exists(Path.Combine(out3, "PkgZ.json")), "duplicate keys: other packages still generated");
+
+        // 6. Ordering is ordinal, not culture-sensitive ('B' sorts before 'a' ordinally; the reverse under most cultures).
+        var src4 = Path.Combine(root, "src4");
+        var out4 = Path.Combine(root, "out4");
+        Directory.CreateDirectory(Path.Combine(src4, "PkgO"));
+        Directory.CreateDirectory(out4);
+        foreach (var n in new[] { "a.cs", "B.cs", "c.cs" })
+            File.WriteAllText(Path.Combine(src4, "PkgO", n), "class C {}");
+        Generate(src4, cfg, out4, false, () => "T5", quiet);
+        var ordKeys = JsonNode.Parse(File.ReadAllText(Path.Combine(out4, "PkgO.json")))!["files"]!.AsObject().Select(kv => kv.Key);
+        Check(ordKeys.SequenceEqual(["B.cs", "a.cs", "c.cs"]), "full: entries ordered ordinally");
+        File.WriteAllText(Path.Combine(out4, "PkgO.json"),
+            """{"package":"PkgO","generated":"G","totalFiles":2,"files":{"B.cs":{"defaultTests":["unit"]},"c.cs":{"defaultTests":["unit"]}}}""");
+        Generate(src4, cfg, out4, true, () => "T6", quiet);
+        var ordKeys2 = JsonNode.Parse(File.ReadAllText(Path.Combine(out4, "PkgO.json")))!["files"]!.AsObject().Select(kv => kv.Key);
+        Check(ordKeys2.SequenceEqual(["B.cs", "a.cs", "c.cs"]), "append-only: new entry inserted at its ordinal position");
     }
     finally
     {
