@@ -150,6 +150,32 @@ public sealed class DefaultSanitizerTests
         result.ShouldNotContain("xp_cmdshell");
     }
 
+    [Theory]
+    [InlineData("*;/", "")]
+    [InlineData("-;-", "")]
+    [InlineData("-/**/-", "")]
+    [InlineData("-xp_a-", "")]
+    [InlineData("//**", "")]
+    [InlineData("**//", "")]
+    [InlineData("xp_", "")]
+    [InlineData("axp_b", "a")]
+    [InlineData("XP_a", "")]
+    [InlineData("'*;/'", "''''")]
+    [InlineData("x/*a*/y", "xy")]
+    [InlineData("x/*a", "xa")]
+    [InlineData("a*/b", "ab")]
+    [InlineData("/*a/*b*/c*/d", "cd")]
+    [InlineData("/*x*;/y", "y")]
+    [InlineData("/*a--b;c xp_d*/e", "e")]
+    [InlineData("xp_-/*q*/-a", "")]
+    [InlineData("-/*", "-")]
+    public void SanitizeForSql_RemovalThatReformsMarker_LeavesNoMarker(string input, string expected)
+    {
+        var result = _sut.SanitizeForSql(input);
+
+        result.ShouldBe(expected);
+    }
+
     [Fact]
     public void SanitizeForSql_PlainText_ReturnsUnchanged()
     {

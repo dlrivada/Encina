@@ -4,9 +4,11 @@ using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Encoders;
 using Encina.Security.Sanitization.Profiles;
 using FsCheck;
+using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.PropertyTests.Security.Sanitization;
 
@@ -83,15 +85,24 @@ public sealed class SanitizationPropertyTests
         return !withoutEscapedQuotes.Contains('\'');
     }
 
-    [Property(MaxTest = 50, Skip = "Known bug #922: SanitizeForSql leaves comment markers after semicolon removal (e.g. '*;/' → '*/')")]
-    public bool SanitizeForSql_NeverContainsCommentMarkers(NonEmptyString value)
+    // Alphabet that makes a removal re-form a marker (e.g. "*;/" -> "*/", "-xp_a-" -> "--").
+    private static Arbitrary<string> SqlMarkerInputs() =>
+        Arb.From(Gen.ArrayOf(Gen.Elements('-', '/', '*', ';', 'x', 'p', 'X', 'P', '_', 'a', '\'', 'b'))
+            .Select(chars => new string(chars)));
+
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_NeverContainsCommentMarkers()
     {
         var sanitizer = CreateSanitizer();
-        var result = sanitizer.SanitizeForSql(value.Get);
 
-        return !result.Contains("--", StringComparison.Ordinal)
-            && !result.Contains("/*", StringComparison.Ordinal)
-            && !result.Contains("*/", StringComparison.Ordinal);
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+        {
+            var result = sanitizer.SanitizeForSql(value);
+
+            return !result.Contains("--", StringComparison.Ordinal)
+                && !result.Contains("/*", StringComparison.Ordinal)
+                && !result.Contains("*/", StringComparison.Ordinal);
+        });
     }
 
     [Property(MaxTest = 50)]
@@ -102,12 +113,135 @@ public sealed class SanitizationPropertyTests
         return !result.Contains(';');
     }
 
-    [Property(MaxTest = 30)]
-    public bool SanitizeForSql_NeverContainsXpUnderscore(NonEmptyString value)
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_NeverContainsXpUnderscore()
     {
         var sanitizer = CreateSanitizer();
-        var result = sanitizer.SanitizeForSql(value.Get);
-        return !result.Contains("xp_", StringComparison.OrdinalIgnoreCase);
+
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+            !sanitizer.SanitizeForSql(value).Contains("xp_", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_QuoteRunsAreAlwaysEven()
+    {
+        var sanitizer = CreateSanitizer();
+
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+        {
+            var result = sanitizer.SanitizeForSql(value);
+            var run = 0;
+            foreach (var c in result.Append('x'))
+            {
+                if (c == '\'')
+                {
+                    run++;
+                    continue;
+                }
+
+                if (run % 2 != 0)
+                {
+                    return false;
+                }
+
+                run = 0;
+            }
+
+            return true;
+        });
+    }
+
+    [Fact]
+    public void SanitizeForSql_ManyUnclosedCommentMarkers_LeavesNoMarker()
+    {
+        // Only the first "/*" opens a comment; the rest is content scanned once more. This is a
+        // correctness test without a time bound: no input shape of this kind makes the old loop slow,
+        // the quadratic case is covered by the nested adversarial test below.
+        var value = string.Concat(Enumerable.Repeat("/*;-xp_a*", 10_000)) + "/*";
+
+        var sanitizer = CreateSanitizer();
+        var result = sanitizer.SanitizeForSql(value);
+
+        result.ShouldNotContain("/*");
+        result.ShouldNotContain("*/");
+        result.ShouldNotContain("--");
+        result.ShouldNotContain(";");
+        result.ShouldNotContain("xp_", Case.Insensitive);
+    }
+
+    // The single-pass scanner equals the old repeat-until-stable implementation (kept below as an
+    // oracle) for each token family on its own. The two differ, on purpose, where tokens overlap:
+    // the scanner removes the leftmost completed token as characters arrive, the oracle removes
+    // by pass order, for example when a "*/" is joined by removing ';' ("/*x*;/y": the scanner
+    // closes the comment and drops its content). Every output satisfies the contract, which the
+    // properties above prove over the full mixed alphabet. Block comments are covered by the
+    // deterministic unit tests (DefaultSanitizerTests) instead of an oracle comparison.
+    [Property(MaxTest = 3000)]
+    public Property SanitizeForSql_DashesAndSemicolons_MatchFixedPointOracle()
+        => MatchesOracle('-', ';', 'a', '\'', 'b');
+
+    [Property(MaxTest = 3000)]
+    public Property SanitizeForSql_ExtendedProcedures_MatchFixedPointOracle()
+        => MatchesOracle('x', 'p', 'X', 'P', '_', 'a', ';', '\'', 'b');
+
+    private static Property MatchesOracle(params char[] alphabet)
+    {
+        var sanitizer = CreateSanitizer();
+
+        return Prop.ForAll(
+            InputsOver(alphabet),
+            value => sanitizer.SanitizeForSql(value) == FixedPointOracle(value));
+    }
+
+    private static Arbitrary<string> InputsOver(params char[] alphabet) =>
+        Arb.From(Gen.ArrayOf(Gen.Elements(alphabet)).Select(chars => new string(chars)));
+
+    [Fact]
+    public void SanitizeForSql_NestedAdversarialInput_FinishesQuicklyAndLeavesNoMarker()
+    {
+        // About 1,000,000 characters: "-x" repeated, then "-xp_a-", then "p_-" repeated. Each level
+        // re-forms "--" one level further out, so a repeat-until-stable implementation needs one full
+        // pass per level (quadratic, about a minute here). The tail scanner needs a few milliseconds.
+        const int levels = 200_000;
+        var value = string.Concat(Enumerable.Repeat("-x", levels))
+            + "-xp_a-"
+            + string.Concat(Enumerable.Repeat("p_-", levels));
+
+        var sanitizer = CreateSanitizer();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = sanitizer.SanitizeForSql(value);
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(15));
+        result.ShouldNotContain("--");
+        result.ShouldNotContain("xp_", Case.Insensitive);
+    }
+
+    // Reference implementation kept only as a test oracle: repeat the removal steps until stable.
+    private static string FixedPointOracle(string input)
+    {
+        if (input.Length == 0)
+        {
+            return input;
+        }
+
+        var result = input.Replace("'", "''", StringComparison.Ordinal);
+        string previous;
+        do
+        {
+            previous = result;
+            result = result.Replace("--", string.Empty, StringComparison.Ordinal);
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result, @"/\*.*?\*/", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
+            result = result.Replace("/*", string.Empty, StringComparison.Ordinal);
+            result = result.Replace("*/", string.Empty, StringComparison.Ordinal);
+            result = result.Replace(";", string.Empty, StringComparison.Ordinal);
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result, @"xp_\w*", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        while (!string.Equals(result, previous, StringComparison.Ordinal));
+
+        return result;
     }
 
     #endregion
