@@ -61,7 +61,7 @@ jobs:
       - name: Resolve Mutation Tests run ID
         id: resolve
         run: |
-          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          RID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
           if [ -z "$RID" ]; then
             RID=$(gh run list --workflow "Mutation Tests" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
             echo "Auto-resolved latest successful Mutation Tests: $RID"
@@ -69,6 +69,8 @@ jobs:
           echo "run_id=$RID" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
 
       - name: Download mutation report artifact
         uses: actions/download-artifact@v8
@@ -77,6 +79,13 @@ jobs:
           path: mutation-artifact
           run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read the base data from the dashboard-data branch
+        # The base of history.json and of the merged latest.json is the branch,
+        # not the live site: live lags while a deploy is pending, cancelled or
+        # failed. Nothing is written when the branch or the domain is absent.
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations
 
       - name: Stage fresh mutation data in the Pages overlay
         env:
@@ -104,35 +113,47 @@ jobs:
           SCOPE=$(grep -oP '"mutate"\s*:\s*\[\s*"([^"]+)"' .github/stryker-config.json | head -1 | sed 's/.*"\([^"]*\)"/\1/' || echo "")
           echo "Stryker scope: $SCOPE"
 
-          # History strategy: fetch from live Pages (authoritative), fall back to the
-          # copy tracked in main, which lags because nothing commits it back.
-          cp -f docs/mutations/data/history.json overlay/mutations/data/history.json 2>/dev/null || echo "[]" > overlay/mutations/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/mutations/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp overlay/mutations/data/history.json 2>/dev/null) || REPO_ENTRIES=0
-
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
-            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
-              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/mutations/data/history.json
-            else
-              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
-            fi
+          # History strategy, in order: the dashboard-data branch (the durable
+          # record, read by the previous step), live Pages (it lags while a deploy
+          # is pending, cancelled or failed), the copy tracked in main (it lags
+          # because nothing commits it back). The first source that exists wins.
+          if [ -s base/mutations/history.json ]; then
+            cp -f base/mutations/history.json overlay/mutations/data/history.json
+            echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/mutations/data/history.json || true) entries)"
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            cp -f docs/mutations/data/history.json overlay/mutations/data/history.json 2>/dev/null || echo "[]" > overlay/mutations/data/history.json
+            PAGES_URL="https://dlrivada.github.io/Encina/mutations/data/history.json"
+            PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+            REPO_ENTRIES=$(grep -c timestamp overlay/mutations/data/history.json 2>/dev/null) || REPO_ENTRIES=0
+
+            if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+              PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+              if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+                echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+                echo "$PAGES_HISTORY" > overlay/mutations/data/history.json
+              else
+                echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+              fi
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            fi
           fi
 
-          # Fetch previous latest.json from live Pages for merge.
-          # Each weekly run mutates a different folder; merging carries forward
-          # data from files not touched by this run so the dashboard accumulates.
+          # Previous latest.json for the merge: the dashboard-data branch copy,
+          # else live Pages. Each weekly run mutates a different folder; merging
+          # carries forward data from files not touched by this run so the
+          # dashboard accumulates.
           MERGE_ARG=""
           PAGES_LATEST_URL="https://dlrivada.github.io/Encina/mutations/data/latest.json"
-          if curl -fsSL -o mutation-work/previous-latest.json "$PAGES_LATEST_URL" 2>/dev/null; then
+          if [ -s base/mutations/latest.json ]; then
+            cp -f base/mutations/latest.json mutation-work/previous-latest.json
+            MERGE_ARG="--merge-from mutation-work/previous-latest.json"
+            echo "Will merge with previous latest.json from the dashboard-data branch"
+          elif curl -fsSL -o mutation-work/previous-latest.json "$PAGES_LATEST_URL" 2>/dev/null; then
             MERGE_ARG="--merge-from mutation-work/previous-latest.json"
             echo "Will merge with previous latest.json from Pages"
           else
-            echo "No previous latest.json on Pages — first run"
+            echo "No previous latest.json on the branch or on Pages — first run"
           fi
 
           dotnet run .github/scripts/mutation-history.cs -- \
@@ -157,7 +178,7 @@ jobs:
             STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
             cp -f overlay/mutations/data/latest.json "overlay/mutations/data/${STAMP}.json"
           else
-            echo "::warning title=No eligible mutants::Run $RUN_ID produced no eligible mutants (--since filtered everything); the live latest.json is kept"
+            echo "::warning title=No eligible mutants::Run $RUN_ID produced no eligible mutants (--since filtered everything); the dashboard-data copy of latest.json is kept"
           fi
 
           echo "Overlay contents:"
@@ -165,8 +186,8 @@ jobs:
 
       - name: Persist the overlay to the dashboard-data branch
         # Committed before the deploy is requested, so a deploy that the
-        # "pages" group cancels, or that fails, loses nothing: the next deploy
-        # of any kind reads the branch inside the lock (#1386).
+        # "pages" group cancels, or that fails, loses no dashboard data: the
+        # next deploy of any kind reads the branch inside the lock (#1386).
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations -OverlayRoot overlay
 

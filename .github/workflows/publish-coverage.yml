@@ -59,7 +59,7 @@ jobs:
       - name: Resolve CI Full run ID
         id: resolve
         run: |
-          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          RID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
           if [ -z "$RID" ]; then
             RID=$(gh run list --workflow "CI Full" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
             echo "Auto-resolved latest successful CI Full: $RID"
@@ -67,6 +67,8 @@ jobs:
           echo "run_id=$RID" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
 
       - name: Download coverage artifact from CI
         uses: actions/download-artifact@v8
@@ -75,6 +77,13 @@ jobs:
           path: coverage-artifact
           run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read the base data from the dashboard-data branch
+        # The base of history.json is the branch, not the live site: live lags
+        # while a deploy is pending, cancelled or failed. Nothing is written when
+        # the branch or the domain is absent.
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain coverage -OutDir base/coverage
 
       - name: Stage fresh coverage data in the Pages overlay
         env:
@@ -94,9 +103,10 @@ jobs:
 
           # Coverage DocRef index (SPEC-001). Guard: an empty candidate never replaces the
           # published index; when it is left out of the overlay, the dashboard-data branch
-          # (or, before the first persist, the live Pages copy) keeps the previous one. IDs come from the manifests (REQ-003), so the index is never literally
-          # empty: a run whose Cobertura collection broke still lists every file, all noData.
-          # "Empty" therefore means "no entry with data".
+          # (or, before the first persist, the live Pages copy) keeps the previous one.
+          # IDs come from the manifests (REQ-003), so the index is never literally
+          # empty: a run whose Cobertura collection broke still lists every file,
+          # all noData. "Empty" therefore means "no entry with data".
           if [ -s coverage-artifact/docref-index.json ] && [ "$(jq '[.[] | select(.noData | not)] | length' coverage-artifact/docref-index.json)" -gt 0 ]; then
             cp -f coverage-artifact/docref-index.json overlay/coverage/data/docref-index.json
             echo "Coverage DocRef index: $(jq 'length' overlay/coverage/data/docref-index.json) entries from the CI artifact"
@@ -112,23 +122,30 @@ jobs:
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f overlay/coverage/data/latest.json "overlay/coverage/data/${STAMP}.json"
 
-          # History strategy: fetch from live Pages (authoritative), fall back to the
-          # copy tracked in main, which lags because nothing commits it back.
-          cp -f docs/coverage/data/history.json overlay/coverage/data/history.json 2>/dev/null || echo "[]" > overlay/coverage/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
-          REPO_ENTRIES=$(grep -c timestamp overlay/coverage/data/history.json 2>/dev/null) || REPO_ENTRIES=0
-
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
-            if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
-              echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/coverage/data/history.json
-            else
-              echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
-            fi
+          # History strategy, in order: the dashboard-data branch (the durable
+          # record, read by the previous step), live Pages (it lags while a deploy
+          # is pending, cancelled or failed), the copy tracked in main (it lags
+          # because nothing commits it back). The first source that exists wins.
+          if [ -s base/coverage/history.json ]; then
+            cp -f base/coverage/history.json overlay/coverage/data/history.json
+            echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/coverage/data/history.json || true) entries)"
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            cp -f docs/coverage/data/history.json overlay/coverage/data/history.json 2>/dev/null || echo "[]" > overlay/coverage/data/history.json
+            PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
+            PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+            REPO_ENTRIES=$(grep -c timestamp overlay/coverage/data/history.json 2>/dev/null) || REPO_ENTRIES=0
+
+            if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
+              PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+              if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
+                echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
+                echo "$PAGES_HISTORY" > overlay/coverage/data/history.json
+              else
+                echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
+              fi
+            else
+              echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            fi
           fi
 
           # Update history (appends current snapshot)
@@ -141,8 +158,8 @@ jobs:
 
       - name: Persist the overlay to the dashboard-data branch
         # Committed before the deploy is requested, so a deploy that the
-        # "pages" group cancels, or that fails, loses nothing: the next deploy
-        # of any kind reads the branch inside the lock (#1386).
+        # "pages" group cancels, or that fails, loses no dashboard data: the
+        # next deploy of any kind reads the branch inside the lock (#1386).
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain coverage -OverlayRoot overlay
 

@@ -25,8 +25,9 @@ name: Documentation
 #     4. uploads and deploys the site and smoke-checks it.
 # Reading the data inside the lock means no deploy can revert data another
 # deploy published while this one was building, and a pending deploy that the
-# "pages" group cancels loses nothing: its data is already on the branch and
-# the deploy that superseded it publishes it.
+# "pages" group cancels loses no dashboard data: its data is already on the
+# branch and the deploy that superseded it publishes it. The docs content of a
+# cancelled docs deploy is not on the branch: the next docs run republishes it.
 # Pull requests build the site and never deploy.
 on:
   push:
@@ -41,6 +42,7 @@ on:
       - '.github/scripts/cov-docs-render.cs'
       - '.github/scripts/mut-docs-render.cs'
       - '.github/scripts/perf-docs-render.cs'
+      - '.github/scripts/pages-dashboard-data.ps1'
   pull_request:
     paths:
       - 'docs/**'
@@ -52,6 +54,7 @@ on:
       - '.github/scripts/cov-docs-render.cs'
       - '.github/scripts/mut-docs-render.cs'
       - '.github/scripts/perf-docs-render.cs'
+      - '.github/scripts/pages-dashboard-data.ps1'
   workflow_dispatch:
   # The dashboard publishers call this workflow after committing their data to
   # the dashboard-data branch; the deploy job reads it from there.
@@ -290,9 +293,10 @@ jobs:
     # which reach this job through workflow_call). Job level, not workflow
     # level, so a caller never waits on a group it already holds. Everything
     # that reads the dashboard data happens inside this lock (#1386); a pending
-    # deploy the group cancels loses nothing, because the data it would have
-    # published is on the dashboard-data branch and the deploy that replaced
-    # it reads that branch.
+    # deploy the group cancels loses no dashboard data, because the data it
+    # would have published is on the dashboard-data branch and the deploy that
+    # replaced it reads that branch. The docs content of a cancelled docs
+    # deploy is republished by the next docs run.
     concurrency:
       group: pages
       cancel-in-progress: false

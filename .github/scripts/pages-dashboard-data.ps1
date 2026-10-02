@@ -14,13 +14,20 @@ current data of all four dashboards. Two races lost data before this script:
   2. Pending cancellation: the "pages" concurrency group keeps one pending deploy; a newer one
      cancels it, and a publisher's data overlay was lost with the cancelled deploy.
 
-The fix has two halves, one per mode:
+The fix has three modes:
+
+  -Mode Read      (publisher, first step of computing its data)
+      Writes <Domain>/data/ of the "dashboard-data" branch into -OutDir, so the publisher builds its
+      base files (history.json, the previous latest.json) from the durable record and not from the
+      live site, which lags behind while a deploy is pending, cancelled or failed. A missing branch
+      or a domain the branch does not carry writes nothing and exits 0 (the publisher then falls
+      back to the live copy); any other git failure throws (fail closed).
 
   -Mode Persist   (publisher, before it asks docs.yml to deploy)
       Commits the publisher's freshly computed files for one dashboard to the orphan branch
       "dashboard-data" (layout <domain>/..., like the site). The branch is the durable record of the
-      last published data of each dashboard, so a cancelled or failed deploy loses nothing: the next
-      deploy, whatever triggered it, reads the branch. Files the publisher leaves out of its overlay
+      last published data of each dashboard, so a cancelled or failed deploy loses no dashboard data:
+      the next deploy, whatever triggered it, reads the branch. Files the publisher leaves out of its overlay
       (guarded, e.g. an empty mutation run) keep their previous committed version; timestamped
       snapshots (yyyy-MM-ddTHHmmssZ.json) of earlier runs are pruned, and the branch keeps a single
       parentless commit replaced with --force-with-lease, so neither the branch nor the site grows
@@ -40,10 +47,13 @@ Running inside the lock is what closes the lost-update race: deploys are seriali
 reads the data after the previous deploy and every earlier persist finished.
 
 .PARAMETER Mode
-Persist or Assemble.
+Read, Persist or Assemble.
 
 .PARAMETER Domain
-Persist only: the dashboard (coverage, benchmarks, load-tests or mutations).
+Read and Persist: the dashboard (coverage, benchmarks, load-tests or mutations).
+
+.PARAMETER OutDir
+Read only: the directory that receives the files of <Domain>/data/ from the data branch.
 
 .PARAMETER OverlayRoot
 Persist only: directory holding <Domain>/... with the files the publisher computed.
@@ -61,6 +71,9 @@ The data branch; "dashboard-data" unless testing.
 Assemble only: the live Pages root.
 
 .EXAMPLE
+pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations
+
+.EXAMPLE
 pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations -OverlayRoot overlay
 
 .EXAMPLE
@@ -69,13 +82,15 @@ pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Persist', 'Assemble')]
+    [ValidateSet('Read', 'Persist', 'Assemble')]
     [string] $Mode,
 
     [ValidateSet('coverage', 'benchmarks', 'load-tests', 'mutations')]
     [string] $Domain,
 
     [string] $OverlayRoot,
+
+    [string] $OutDir,
 
     [string] $SiteRoot,
 
@@ -222,7 +237,9 @@ function Invoke-Persist {
                         'commit-tree', $treeId, '-m', "dashboard-data: $Domain from run $runId")).Output | Select-Object -First 1)
 
             # An empty expected value means "the branch must not exist yet".
-            $push = Invoke-Git -Arguments @('push', "--force-with-lease=refs/heads/${Branch}:$expected", 'origin', "${commit}:refs/heads/$Branch") -AllowedExitCodes @(0, 1)
+            # Only a rejection by the lease is retried; any other failure (auth, network, a ruleset)
+            # throws at once with git's message.
+            $push = Invoke-Git -Arguments @('push', "--force-with-lease=refs/heads/${Branch}:$expected", 'origin', "${commit}:refs/heads/$Branch") -AllowedExitCodes @(0..255)
             if ($push.ExitCode -eq 0) {
                 Write-Host "Persisted $Domain to $Branch as $commit (attempt $attempt):"
                 Get-ChildItem -LiteralPath $target -Recurse -File |
@@ -230,13 +247,17 @@ function Invoke-Persist {
                     Write-Host
                 return
             }
-            Write-Host "Push attempt $attempt of $maxAttempts was rejected (another publisher moved ${Branch}?):$($push.Output -join ' ')"
+            $pushText = $push.Output -join ' '
+            if ($pushText -notmatch 'stale info|\[rejected\]|fetch first') {
+                throw "git push to $Branch failed with exit code $($push.ExitCode): $pushText"
+            }
+            Write-Host "Push attempt $attempt of $maxAttempts was rejected by the lease (another publisher moved ${Branch}?): $pushText"
         }
         finally {
             Remove-Item -LiteralPath $tree -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $index -Force -ErrorAction SilentlyContinue
         }
-        Start-Sleep -Seconds (5 * $attempt)
+        if ($attempt -lt $maxAttempts) { Start-Sleep -Seconds (5 * $attempt) }
     }
     throw "Could not persist $Domain to $Branch after $maxAttempts attempts."
 }
@@ -346,7 +367,34 @@ function Invoke-Assemble {
     }
 }
 
+function Invoke-Read {
+    if (-not $Domain) { throw 'Read needs -Domain.' }
+    if (-not $OutDir) { throw 'Read needs -OutDir.' }
+    if (-not (Test-RemoteBranch)) {
+        Write-Host "Branch $Branch does not exist yet; nothing to read for $Domain."
+        return
+    }
+    Update-RemoteBranchRef
+    $head = [string] ((Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output | Select-Object -First 1)
+    $persisted = New-TempDirectory
+    try {
+        Expand-Commit -Commit $head -Destination $persisted
+        $source = Join-Path $persisted "$Domain/data"
+        if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+            Write-Host "$Branch at $head has no $Domain/data; nothing to read."
+            return
+        }
+        Copy-Tree -Source $source -Destination $OutDir
+        Write-Host "Read $Domain/data from $Branch at ${head}:"
+        Get-ChildItem -LiteralPath $source -File | ForEach-Object { Write-Host "  $($_.Name)" }
+    }
+    finally {
+        Remove-Item -LiteralPath $persisted -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 switch ($Mode) {
+    'Read' { Invoke-Read }
     'Persist' { Invoke-Persist }
     'Assemble' { Invoke-Assemble }
 }
