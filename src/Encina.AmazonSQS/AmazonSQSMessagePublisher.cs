@@ -178,19 +178,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
         try
         {
-            var entries = messages.Select((m, i) => new SendMessageBatchRequestEntry
-            {
-                Id = i.ToString(CultureInfo.InvariantCulture),
-                MessageBody = JsonSerializer.Serialize(m),
-                MessageAttributes = new Dictionary<string, SqsMessageAttributeValue>
-                {
-                    ["MessageType"] = new()
-                    {
-                        DataType = "String",
-                        StringValue = typeof(TMessage).FullName
-                    }
-                }
-            }).ToList();
+            var entries = BuildBatchEntries(messages);
 
             Log.SendingBatch(_logger, entries.Count, typeof(TMessage).Name);
 
@@ -202,12 +190,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
 
             var response = await _sqsClient.SendMessageBatchAsync(request, cancellationToken).ConfigureAwait(false);
 
-            if (response.Failed.Count > 0)
-            {
-                Log.BatchPartiallyFailed(_logger, response.Failed.Count, entries.Count);
-            }
-
-            var messageIds = response.Successful.Select(s => s.MessageId).ToList();
+            var messageIds = CollectMessageIds(response, entries.Count);
 
             Log.SuccessfullySentBatch(_logger, messageIds.Count);
 
@@ -223,6 +206,32 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
                     ex,
                     $"Failed to send batch of messages of type {typeof(TMessage).Name}."));
         }
+    }
+
+    private static List<SendMessageBatchRequestEntry> BuildBatchEntries<TMessage>(IEnumerable<TMessage> messages)
+        where TMessage : class =>
+        messages.Select((m, i) => new SendMessageBatchRequestEntry
+        {
+            Id = i.ToString(CultureInfo.InvariantCulture),
+            MessageBody = JsonSerializer.Serialize(m),
+            MessageAttributes = new Dictionary<string, SqsMessageAttributeValue>
+            {
+                ["MessageType"] = new()
+                {
+                    DataType = "String",
+                    StringValue = typeof(TMessage).FullName
+                }
+            }
+        }).ToList();
+
+    private List<string> CollectMessageIds(SendMessageBatchResponse response, int entryCount)
+    {
+        if (response.Failed.Count > 0)
+        {
+            Log.BatchPartiallyFailed(_logger, response.Failed.Count, entryCount);
+        }
+
+        return response.Successful.Select(s => s.MessageId).ToList();
     }
 
     /// <inheritdoc />
