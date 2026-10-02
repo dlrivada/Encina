@@ -170,7 +170,7 @@ public sealed record SearchCommand(
 ) : IQuery<SearchResult>;
 ```
 
-**What it does**: Escapes `'` → `''`, removes `--`, `/* */`, `;`, `xp_*` patterns.
+**What it does**: Escapes `'` → `''`, removes `--`, `/* */`, `;`, `xp_*` patterns. Any `xp_` sequence is removed, including inside identifiers (`myxp_col` becomes `my`), and the removal repeats until no comment marker (`--`, `/*`, `*/`) or `xp_` remains.
 
 > **Important**: Parameterized queries are always the preferred defense. Use `[SanitizeSql]` as an additional layer.
 
