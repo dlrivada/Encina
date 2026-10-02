@@ -8,6 +8,7 @@ using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shouldly;
 
 namespace Encina.PropertyTests.Security.Sanitization;
 
@@ -119,6 +120,82 @@ public sealed class SanitizationPropertyTests
 
         return Prop.ForAll(SqlMarkerInputs(), value =>
             !sanitizer.SanitizeForSql(value).Contains("xp_", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // The single-pass scanner equals the old repeat-until-stable implementation (kept below as an
+    // oracle) for each token family on its own. The two differ, on purpose, where tokens overlap:
+    // the scanner removes the leftmost completed token as characters arrive, the oracle removes
+    // by pass order. Examples: "xx*/*..." (the scanner drops "*/" before "/*" can form), "xp_-" +
+    // "-a" (the oracle removes "--" first and so swallows "a" with the xp_ match), "/*x*;/" (a
+    // "*/" joined by removing ';' closes the comment and its content goes too). Every output
+    // satisfies the contract, which the properties above prove over the full mixed alphabet.
+    // Block comments are covered by deterministic unit tests for the same reason ("*a*/a**/*'*/b").
+    [Property(MaxTest = 3000)]
+    public Property SanitizeForSql_DashesAndSemicolons_MatchFixedPointOracle()
+        => MatchesOracle('-', ';', 'a', '\'', 'b');
+
+    [Property(MaxTest = 3000)]
+    public Property SanitizeForSql_ExtendedProcedures_MatchFixedPointOracle()
+        => MatchesOracle('x', 'p', 'X', 'P', '_', 'a', ';', '\'', 'b');
+
+    private static Property MatchesOracle(params char[] alphabet)
+    {
+        var sanitizer = CreateSanitizer();
+
+        return Prop.ForAll(
+            InputsOver(alphabet),
+            value => sanitizer.SanitizeForSql(value) == FixedPointOracle(value));
+    }
+
+    private static Arbitrary<string> InputsOver(params char[] alphabet) =>
+        Arb.From(Gen.ArrayOf(Gen.Elements(alphabet)).Select(chars => new string(chars)));
+
+    [Fact]
+    public void SanitizeForSql_NestedAdversarialInput_FinishesQuicklyAndLeavesNoMarker()
+    {
+        // Each wrap re-forms "--" one level further out; a repeat-until-stable implementation
+        // needs one full pass per level (quadratic). The tail scanner handles it in one pass.
+        var value = "-xp_a-";
+        while (value.Length < 50_000)
+        {
+            value = "-x" + value + "p_-";
+        }
+
+        var sanitizer = CreateSanitizer();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = sanitizer.SanitizeForSql(value);
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
+        result.ShouldNotContain("--");
+        result.ShouldNotContain("xp_", Case.Insensitive);
+    }
+
+    // Reference implementation kept only as a test oracle: repeat the removal steps until stable.
+    private static string FixedPointOracle(string input)
+    {
+        if (input.Length == 0)
+        {
+            return input;
+        }
+
+        var result = input.Replace("'", "''", StringComparison.Ordinal);
+        string previous;
+        do
+        {
+            previous = result;
+            result = result.Replace("--", string.Empty, StringComparison.Ordinal);
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result, @"/\*.*?\*/", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
+            result = result.Replace("/*", string.Empty, StringComparison.Ordinal);
+            result = result.Replace("*/", string.Empty, StringComparison.Ordinal);
+            result = result.Replace(";", string.Empty, StringComparison.Ordinal);
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result, @"xp_\w*", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        while (!string.Equals(result, previous, StringComparison.Ordinal));
+
+        return result;
     }
 
     #endregion
