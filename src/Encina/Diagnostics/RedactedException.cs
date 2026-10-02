@@ -19,6 +19,11 @@ namespace Encina.Diagnostics;
 /// and <see cref="InnerExceptions"/> hold the redacted inner exceptions. The original
 /// <see cref="Exception.Data"/> dictionary is not copied.
 /// </para>
+/// <para>
+/// Sinks that group by exception type (for example the OpenTelemetry <c>exception.type</c> attribute)
+/// see <see cref="RedactedException"/> for every failure; the original type name is in
+/// <see cref="Exception.Message"/> and in the first line of <see cref="ToString"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
