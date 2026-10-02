@@ -126,22 +126,13 @@ public static class ServiceCollectionExtensions
 
         // Fail closed at registration for non-host compositions, and again on start through
         // ValidateOnStart for options bound from other sources (configuration, later Configure calls).
-        var validation = new PIIOptionsValidator()
-            .Validate(Options.DefaultName, optionsInstance);
-        if (validation.Failed)
-        {
-            throw new OptionsValidationException(
-                Options.DefaultName, typeof(PIIOptions), validation.Failures ?? []);
-        }
+        ThrowIfInvalid(optionsInstance);
 
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<PIIOptions>, PIIOptionsValidator>());
         services.AddOptions<PIIOptions>().ValidateOnStart();
 
-        foreach (var (_, strategyType) in optionsInstance.CustomStrategies)
-        {
-            services.TryAddSingleton(strategyType);
-        }
+        RegisterCustomStrategies(services, optionsInstance);
 
         // Register IPIIMasker (TryAdd allows override with custom implementation)
         services.TryAddSingleton<IPIIMasker, PIIMasker>();
@@ -172,5 +163,23 @@ public static class ServiceCollectionExtensions
         // is required — activities and counters are static and self-contained.
 
         return services;
+    }
+
+    private static void RegisterCustomStrategies(IServiceCollection services, PIIOptions options)
+    {
+        foreach (var (_, strategyType) in options.CustomStrategies)
+        {
+            services.TryAddSingleton(strategyType);
+        }
+    }
+
+    private static void ThrowIfInvalid(PIIOptions options)
+    {
+        var validation = new PIIOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(
+                Options.DefaultName, typeof(PIIOptions), validation.Failures ?? []);
+        }
     }
 }

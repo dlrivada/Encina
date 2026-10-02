@@ -30,16 +30,10 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.HashKey is not null && string.IsNullOrWhiteSpace(options.HashKey))
+        var failure = FindFailure(options);
+        if (failure is not null)
         {
-            return ValidateOptionsResult.Fail(
-                "PIIOptions.HashKey must not be empty or whitespace; set a real key or leave it null.");
-        }
-
-        if (options.HashKey is null && options.DefaultMode == MaskingMode.Hash && !options.AllowUnkeyedHash)
-        {
-            return ValidateOptionsResult.Fail(
-                "MaskingMode.Hash requires PIIOptions.HashKey; set a key or opt out explicitly with PIIOptions.AllowUnkeyedHash.");
+            return ValidateOptionsResult.Fail(failure);
         }
 
         if (options.HashKey is null && options.AllowUnkeyedHash)
@@ -49,4 +43,25 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 
         return ValidateOptionsResult.Success;
     }
+
+    private static string? FindFailure(PIIOptions options)
+    {
+        if (HasBlankKey(options))
+        {
+            return "PIIOptions.HashKey must not be empty or whitespace; set a real key or leave it null.";
+        }
+
+        if (RequiresMissingKey(options))
+        {
+            return "MaskingMode.Hash requires PIIOptions.HashKey; set a key or opt out explicitly with PIIOptions.AllowUnkeyedHash.";
+        }
+
+        return null;
+    }
+
+    private static bool HasBlankKey(PIIOptions options) =>
+        options.HashKey is not null && string.IsNullOrWhiteSpace(options.HashKey);
+
+    private static bool RequiresMissingKey(PIIOptions options) =>
+        options.HashKey is null && options.DefaultMode == MaskingMode.Hash && !options.AllowUnkeyedHash;
 }
