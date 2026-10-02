@@ -4,6 +4,7 @@ using Encina.AmazonSQS.Health;
 using Encina.Messaging.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.AmazonSQS;
 
@@ -18,26 +19,33 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when <see cref="EncinaAmazonSQSOptions.DefaultQueueUrl"/> is set but is not an absolute
+    /// <c>https</c> URL (unless <see cref="EncinaAmazonSQSOptions.AllowInsecureHttp"/> is set), targets a
+    /// loopback address (unless <see cref="EncinaAmazonSQSOptions.AllowLocalEndpoints"/> is set) or
+    /// targets a link-local, cloud metadata or unspecified address. The same validation runs again at
+    /// host startup (<c>ValidateOnStart</c>).
+    /// </exception>
     public static IServiceCollection AddEncinaAmazonSQS(
         this IServiceCollection services,
         Action<EncinaAmazonSQSOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
         var options = new EncinaAmazonSQSOptions();
         configure?.Invoke(options);
-
-        services.Configure<EncinaAmazonSQSOptions>(opt =>
+        var validation = new EncinaAmazonSQSOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
         {
-            opt.Region = options.Region;
-            opt.DefaultQueueUrl = options.DefaultQueueUrl;
-            opt.DefaultTopicArn = options.DefaultTopicArn;
-            opt.UseFifoQueues = options.UseFifoQueues;
-            opt.MaxNumberOfMessages = options.MaxNumberOfMessages;
-            opt.VisibilityTimeoutSeconds = options.VisibilityTimeoutSeconds;
-            opt.WaitTimeSeconds = options.WaitTimeSeconds;
-            opt.UseContentBasedDeduplication = options.UseContentBasedDeduplication;
-        });
+            throw new OptionsValidationException(Options.DefaultName, typeof(EncinaAmazonSQSOptions), validation.Failures);
+        }
+
+        services.AddOptions<EncinaAmazonSQSOptions>()
+            .Configure(opt => configure?.Invoke(opt))
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<EncinaAmazonSQSOptions>, EncinaAmazonSQSOptionsValidator>());
 
         services.TryAddSingleton<IAmazonSQS>(sp =>
         {

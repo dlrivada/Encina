@@ -1,7 +1,9 @@
 using Azure.Security.KeyVault.Keys;
 using Encina.Messaging.Encryption.AzureKeyVault;
 using Encina.Security.Encryption.Abstractions;
+using Encina.UnitTests.Validation.Endpoints;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;
 
@@ -101,21 +103,108 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaMessageEncryptionAzureKeyVault_NullVaultUri_ThrowsOnResolveKeyClient()
+    public void AddEncinaMessageEncryptionAzureKeyVault_NullVaultUri_ThrowsAtRegistration()
     {
         var services = new ServiceCollection();
 
-        services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        Action act = () => services.AddEncinaMessageEncryptionAzureKeyVault(o =>
         {
             o.KeyName = "test-key";
             // VaultUri intentionally null
         });
 
-        var sp = services.BuildServiceProvider();
+        Should.Throw<OptionsValidationException>(act).Message.ShouldContain("VaultUri must be configured");
+    }
 
-        Action act = () => sp.GetRequiredService<KeyClient>();
+    [Theory]
+    [InlineData("http://my-vault.vault.azure.net/", "HTTPS")]
+    [InlineData("https://localhost:8443/", "AllowLocalEndpoints")]
+    [InlineData("https://169.254.169.254/", "metadata")]
+    [InlineData("https://[fe80::1]/", "link-local")]
+    [InlineData("https://[::]/", "unspecified")]
+    public void AddEncinaMessageEncryptionAzureKeyVault_UnsafeVaultUri_ThrowsAtRegistration(string vaultUri, string reason)
+    {
+        var services = new ServiceCollection();
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("VaultUri");
+        Action act = () => services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        {
+            o.VaultUri = new Uri(vaultUri);
+            o.KeyName = "test-key";
+        });
+
+        Should.Throw<OptionsValidationException>(act).Message.ShouldContain(reason);
+    }
+
+    [Fact]
+    public void AddEncinaMessageEncryptionAzureKeyVault_LocalEmulatorWithOptOuts_Registers()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        {
+            o.VaultUri = new Uri("http://localhost:8443/");
+            o.KeyName = "test-key";
+            o.AllowInsecureHttp = true;
+            o.AllowLocalEndpoints = true;
+        });
+
+        using var sp = services.BuildServiceProvider();
+        sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value.AllowLocalEndpoints.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AddEncinaMessageEncryptionAzureKeyVault_WithOptOuts_LogsWarningOnce()
+    {
+        var logger = new CollectingLoggerProvider();
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.AddProvider(logger));
+        services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        {
+            o.VaultUri = new Uri("http://localhost:8443/");
+            o.KeyName = "test-key";
+            o.AllowInsecureHttp = true;
+            o.AllowLocalEndpoints = true;
+        });
+
+        using var sp = services.BuildServiceProvider();
+        _ = sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
+        _ = sp.GetRequiredService<IOptionsMonitor<AzureKeyVaultOptions>>().CurrentValue;
+
+        logger.Count(2494, LogLevel.Warning).ShouldBe(1);
+    }
+
+    [Fact]
+    public void AddEncinaMessageEncryptionAzureKeyVault_RegistersOptionsValidator()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        {
+            o.VaultUri = new Uri("https://my-vault.vault.azure.net/");
+            o.KeyName = "test-key";
+        });
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IValidateOptions<AzureKeyVaultOptions>) &&
+            d.ImplementationType == typeof(AzureKeyVaultOptionsValidator));
+    }
+
+    [Fact]
+    public void AddEncinaMessageEncryptionAzureKeyVault_ValidOptions_ProviderBuildsWithValidateOnBuildAndScopes()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(NSubstitute.Substitute.For<IFieldEncryptor>()); // provided by the core encryption registration
+        services.AddEncinaMessageEncryptionAzureKeyVault(o =>
+        {
+            o.VaultUri = new Uri("https://my-vault.vault.azure.net/");
+            o.KeyName = "test-key";
+        });
+
+        using var sp = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        sp.GetRequiredService<KeyClient>().VaultUri.ShouldBe(new Uri("https://my-vault.vault.azure.net/"));
     }
 
     [Fact]

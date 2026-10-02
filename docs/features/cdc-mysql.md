@@ -70,8 +70,8 @@ services.AddEncinaCdc(config =>
 
 services.AddEncinaCdcMySql(opts =>
 {
-    opts.ConnectionString = "Server=localhost;Database=mydb;User=cdc_user;Password=...";
-    opts.Hostname = "localhost";
+    opts.ConnectionString = "Server=mysql.internal.example.com;Database=mydb;User=cdc_user;Password=...";
+    opts.Hostname = "mysql.internal.example.com";
     opts.Port = 3306;
     opts.Username = "cdc_user";
     opts.Password = "password";
@@ -86,8 +86,9 @@ services.AddEncinaCdcMySql(opts =>
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `ConnectionString` | `string` | `""` | MySQL connection string (for health checks) |
-| `Hostname` | `string` | `"localhost"` | MySQL server hostname |
+| `ConnectionString` | `string` | `""` | MySQL connection string (reads the current binlog position). Required; every server in it is validated |
+| `Hostname` | `string` | `"localhost"` | MySQL server hostname. The default is rejected unless `AllowLocalEndpoints` is `true` |
+| `AllowLocalEndpoints` | `bool` | `false` | Allows `Hostname` and the connection string servers to target `localhost`, loopback or a local socket |
 | `Port` | `int` | `3306` | MySQL server port |
 | `Username` | `string` | `""` | Replication username |
 | `Password` | `string` | `""` | Replication password |
@@ -95,6 +96,25 @@ services.AddEncinaCdcMySql(opts =>
 | `UseGtid` | `bool` | `true` | Use GTID-based tracking (recommended) |
 | `IncludeDatabases` | `string[]` | `[]` | Databases to include (empty = all) |
 | `IncludeTables` | `string[]` | `[]` | Tables to include as `database.table` (empty = all) |
+
+### Endpoint validation
+
+`Encina.Validation.EndpointValidator` checks `Hostname` and every server inside `ConnectionString` (issue #852). A host is rejected when it is loopback (`127.0.0.0/8`, `::1`, `localhost`, `*.localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), a cloud metadata endpoint (for example `169.254.169.254`) or an unspecified address (`0.0.0.0/8`, `::`), including IPv4-mapped IPv6, decimal, octal and hex IPv4 forms and trailing dots. Private ranges (RFC 1918, `fc00::/7`) are allowed. A Unix socket, named pipe or shared memory connection counts as local.
+
+- `AllowLocalEndpoints = true` is the only opt-out and covers loopback and local sockets only; it logs one warning per options instance at startup. Link-local, metadata and unspecified addresses are always rejected.
+- The default `Hostname` of `localhost` therefore fails unless `AllowLocalEndpoints` is `true`. Set it for local development or a database on the same host:
+
+  ```csharp
+  services.AddEncinaCdcMySql(opts =>
+  {
+      opts.ConnectionString = "Server=localhost;Database=mydb;User=cdc_user;Password=...";
+      opts.Hostname = "localhost";
+      opts.AllowLocalEndpoints = true;   // local development only
+  });
+  ```
+
+- Validation runs when `AddEncinaCdcMySql` is called (it throws `Microsoft.Extensions.Options.OptionsValidationException`) and again at host startup. Error messages never echo the configured host or connection string.
+- Only literal hosts are checked. A DNS name that resolves to an internal address (DNS rebinding) is not detected at configuration time.
 
 ## Position Tracking
 

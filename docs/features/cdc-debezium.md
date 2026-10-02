@@ -149,7 +149,6 @@ services.AddEncinaCdcDebezium(opts =>
     opts.ListenPath = "/debezium";
     opts.EventFormat = DebeziumEventFormat.CloudEvents;
     opts.BearerToken = "my-secret-token";       // Optional authentication
-    opts.DebeziumServerUrl = "http://debezium:8083"; // For health checks
     opts.ChannelCapacity = 1000;                // Backpressure buffer size
     opts.MaxListenerRetries = 5;                // Listener startup retries
     opts.ListenerRetryDelay = TimeSpan.FromSeconds(2); // Base retry delay
@@ -219,15 +218,18 @@ else
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `ListenUrl` | `string` | `"http://+"` | URL to listen on for HTTP POST events |
-| `ListenPort` | `int` | `8080` | Listening port |
-| `ListenPath` | `string` | `"/debezium"` | HTTP path for receiving events |
-| `DebeziumServerUrl` | `string?` | `null` | Debezium Server URL (for health checks) |
+| `ListenUrl` | `string` | `"http://+"` | Scheme and host of the inbound `HttpListener` prefix, without port or path (see [Endpoint validation](#endpoint-validation)) |
+| `ListenPort` | `int` | `8080` | Listening port (1-65535) |
+| `ListenPath` | `string` | `"/debezium"` | HTTP path for receiving events; must start with `/` |
 | `BearerToken` | `string?` | `null` | Bearer token for authenticating incoming requests |
 | `EventFormat` | `DebeziumEventFormat` | `CloudEvents` | Expected event format |
 | `ChannelCapacity` | `int` | `1000` | Maximum events buffered in the internal channel. Returns 503 when full |
 | `MaxListenerRetries` | `int` | `5` | Maximum retries when the HTTP listener fails to start |
 | `ListenerRetryDelay` | `TimeSpan` | `2 seconds` | Base delay between retries (exponential backoff: delay x 2^attempt) |
+
+### Endpoint validation
+
+`ListenUrl` is an inbound `HttpListener` prefix, not an outbound target, so the loopback and metadata-address rules of `Encina.Validation.EndpointValidator` do not apply and there are no opt-out flags. It is validated for format and an `http` or `https` scheme only. Valid values are `http://+`, `http://*`, `http://localhost` and `https://cdc.example.com`; put the port in `ListenPort` and the path in `ListenPath`, never in `ListenUrl`. Validation runs when `AddEncinaCdcDebezium` is called (it throws `OptionsValidationException`) and again at host startup. The former `DebeziumServerUrl` option was removed because nothing read it (#852).
 
 ### DebeziumKafkaOptions (Kafka Mode)
 

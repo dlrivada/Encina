@@ -8,7 +8,7 @@ namespace Encina.Security.Secrets.HashiCorpVault;
 /// </summary>
 internal static partial class Log
 {
-    // HashiCorp Vault operations: EventIds 5300-5307
+    // HashiCorp Vault operations: EventIds 5300-5308 (see EventIdRanges.SecuritySecretsHashiCorpVault)
 
     [LoggerMessage(EventId = 5300, Level = LogLevel.Debug,
         Message = "Secret '{SecretName}' retrieved from HashiCorp Vault")]
@@ -41,4 +41,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 5307, Level = LogLevel.Warning,
         Message = "Failed to deserialize secret '{SecretName}' to type '{TargetType}' from HashiCorp Vault")]
     public static partial void DeserializationFailed(ILogger logger, string secretName, string targetType, Exception exception);
+
+    [LoggerMessage(EventId = 5308, Level = LogLevel.Warning,
+        Message = "HashiCorpVaultOptions '{OptionsName}' relaxes endpoint validation (AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints}); use only for local development")]
+    public static partial void EndpointValidationRelaxed(ILogger logger, string optionsName, bool allowInsecureHttp, bool allowLocalEndpoints);
 }

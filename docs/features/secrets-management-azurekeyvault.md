@@ -124,6 +124,26 @@ services.AddAzureKeyVaultSecrets(
 | `VaultUri` | `Uri?` | `null` | The Key Vault URI (e.g., `https://my-vault.vault.azure.net/`). Set by the extension method. |
 | `Credential` | `TokenCredential?` | `null` | Token credential for authentication. When `null`, `DefaultAzureCredential` is used. |
 | `ClientOptions` | `SecretClientOptions?` | `null` | Custom options for the underlying `SecretClient` (retry policy, diagnostics, etc.). |
+| `AllowInsecureHttp` | `bool` | `false` | Allows a plain `http` `VaultUri`. Local emulators only. |
+| `AllowLocalEndpoints` | `bool` | `false` | Allows a `VaultUri` that targets `localhost` or a loopback address (local emulators). |
+
+### Endpoint validation
+
+`VaultUri` is validated by `Encina.Validation.EndpointValidator` (issue #852). It must be an absolute `https` URI and is rejected when its host is loopback (`127.0.0.0/8`, `::1`, `localhost`, `*.localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), a cloud metadata endpoint (`169.254.169.254`, `fd00:ec2::254`, `100.100.100.200`, `metadata.google.internal`) or an unspecified address (`0.0.0.0/8`, `::`). Private ranges (RFC 1918, `fc00::/7`) are allowed, and no host allow-list is enforced, so private endpoints and custom domains work.
+
+To point at a local emulator, set both opt-outs; each logs one warning per options instance at startup:
+
+```csharp
+services.AddAzureKeyVaultSecrets(
+    new Uri("http://localhost:8443/"),
+    kv =>
+    {
+        kv.AllowInsecureHttp = true;    // emulator only
+        kv.AllowLocalEndpoints = true;  // emulator only
+    });
+```
+
+Link-local, metadata and unspecified addresses have no opt-out. Validation runs when `AddAzureKeyVaultSecrets` is called (it throws `Microsoft.Extensions.Options.OptionsValidationException`) and again at host startup. Error messages never echo the configured URI. Only literal hosts are checked: a DNS name that resolves to an internal address (DNS rebinding) is not detected at configuration time.
 
 ### SecretsOptions (from core package)
 

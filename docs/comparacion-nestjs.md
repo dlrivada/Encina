@@ -885,6 +885,7 @@ services.AddEncinaKafka(options =>
 services.AddEncinaNATS(options =>
 {
     options.Url = "nats://localhost:4222";
+    options.AllowLocalEndpoints = true; // Required for a loopback URL (#852)
     options.UseJetStream = true; // Durabilidad
 });
 
@@ -2102,7 +2103,7 @@ public class OrderAggregate : AggregateBase<OrderState>
 services.AddEncinaRabbitMQ();
 services.AddEncinaKafka();
 services.AddEncinaAzureServiceBus();
-services.AddEncinaNATS();
+services.AddEncinaNATS(o => o.Url = "nats://nats.internal.example.com:4222"); // the localhost default is rejected (#852)
 services.AddEncinaMQTT();
 // + 7 more...
 ```

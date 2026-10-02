@@ -2,6 +2,7 @@ using Encina.Messaging.Health;
 using Encina.NATS.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 
@@ -18,32 +19,32 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when a server URL in <see cref="EncinaNATSOptions.Url"/> is not absolute, does not use the
+    /// <c>nats</c>, <c>tls</c>, <c>ws</c> or <c>wss</c> scheme, targets a loopback address (including the
+    /// default <c>nats://localhost:4222</c>) without <see cref="EncinaNATSOptions.AllowLocalEndpoints"/>,
+    /// or targets a link-local, cloud metadata or unspecified address. The same validation runs again
+    /// at host startup (<c>ValidateOnStart</c>).
+    /// </exception>
     public static IServiceCollection AddEncinaNATS(
         this IServiceCollection services,
         Action<EncinaNATSOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var options = new EncinaNATSOptions();
-        configure?.Invoke(options);
+        var options = CreateValidatedOptions(configure);
 
-        services.Configure<EncinaNATSOptions>(opt =>
-        {
-            opt.Url = options.Url;
-            opt.SubjectPrefix = options.SubjectPrefix;
-            opt.UseJetStream = options.UseJetStream;
-            opt.StreamName = options.StreamName;
-            opt.ConsumerName = options.ConsumerName;
-            opt.UseDurableConsumer = options.UseDurableConsumer;
-            opt.AckWait = options.AckWait;
-            opt.MaxDeliver = options.MaxDeliver;
-        });
+        services.AddOptions<EncinaNATSOptions>()
+            .Configure(opt => configure?.Invoke(opt))
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<EncinaNATSOptions>, EncinaNATSOptionsValidator>());
 
         services.TryAddSingleton<INatsConnection>(sp =>
         {
             var natsOptions = new NatsOpts
             {
-                Url = options.Url
+                Url = sp.GetRequiredService<IOptions<EncinaNATSOptions>>().Value.Url
             };
             return new NatsConnection(natsOptions);
         });
@@ -68,5 +69,19 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    // Validates eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
+    private static EncinaNATSOptions CreateValidatedOptions(Action<EncinaNATSOptions>? configure)
+    {
+        var options = new EncinaNATSOptions();
+        configure?.Invoke(options);
+        var validation = new EncinaNATSOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(EncinaNATSOptions), validation.Failures);
+        }
+
+        return options;
     }
 }

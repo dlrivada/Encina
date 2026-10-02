@@ -276,6 +276,13 @@ public static class EventIdRanges
     public static readonly (int Min, int Max) SecuritySecretsGoogleCloudSecretManager = (5350, 5399);
 
     // ═══════════════════════════════════════════════════════════════════════
+    // Change data capture providers without a range in 4800-4999 (5400-5599)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Encina.Cdc.MySql — MySQL binary log CDC connector.</summary>
+    public static readonly (int Min, int Max) CdcMySql = (5400, 5449);
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Observability (7000-7099)
     // ═══════════════════════════════════════════════════════════════════════
 

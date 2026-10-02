@@ -64,6 +64,10 @@ services.AddAzureKeyVaultSecrets(
     });
 ```
 
+## Endpoint validation
+
+`VaultUri` must be `https` and must not target a loopback, link-local, cloud metadata or unspecified host; private endpoints and custom domains are allowed. For a local emulator set `AllowInsecureHttp = true` and `AllowLocalEndpoints = true` in the `kvOptions` callback. Validation runs at registration (`OptionsValidationException`) and at host startup. See [Endpoint validation](../../docs/features/secrets-management-azurekeyvault.md#endpoint-validation) (#852).
+
 ## Caching Integration
 
 Enable in-memory caching to reduce Key Vault API calls:

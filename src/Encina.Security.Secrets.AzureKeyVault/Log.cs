@@ -45,4 +45,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 5208, Level = LogLevel.Information,
         Message = "Azure Key Vault secrets provider registered for vault '{VaultUri}'")]
     public static partial void ProviderRegistered(ILogger logger, string vaultUri);
+
+    [LoggerMessage(EventId = 5209, Level = LogLevel.Warning,
+        Message = "AzureKeyVaultOptions '{OptionsName}' relaxes endpoint validation (AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints}); use only for local development")]
+    public static partial void EndpointValidationRelaxed(ILogger logger, string optionsName, bool allowInsecureHttp, bool allowLocalEndpoints);
 }

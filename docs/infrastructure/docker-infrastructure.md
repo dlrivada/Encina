@@ -162,6 +162,8 @@ All services use development-only default credentials. Override with environment
 "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1;QueueEndpoint=http://localhost:10001/devstoreaccount1;TableEndpoint=http://localhost:10002/devstoreaccount1"
 ```
 
+Encina options that validate their endpoints reject these local addresses unless you opt out (issue #852): set `AllowLocalEndpoints = true` for NATS, MySQL CDC, Vault and Amazon SQS (LocalStack), plus `AllowInsecureHttp = true` for the `http://` Vault and LocalStack URLs. See [Endpoint validation for Vault](../features/secrets-management-hashicorpvault.md#endpoint-validation) and [for NATS and SQS](../messaging/transports.md#nats).
+
 ## Provider Coverage Matrix
 
 | Encina Provider | Container | Port | Status |

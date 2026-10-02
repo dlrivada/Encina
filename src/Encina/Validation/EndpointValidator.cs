@@ -1,0 +1,352 @@
+using System.Buffers;
+using System.Buffers.Binary;
+using System.Collections.Frozen;
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
+
+namespace Encina.Validation;
+
+/// <summary>
+/// Validates configured outbound endpoints (URLs and host names) against server-side request
+/// forgery (SSRF): scheme allow-list, loopback, link-local, cloud metadata and unspecified hosts.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Every method returns <c>null</c> when the endpoint is acceptable, or an error message that
+/// names the property and the reason. Messages never echo the configured value, so a credential
+/// embedded in a URL or connection string cannot leak through an
+/// <c>OptionsValidationException</c>.
+/// </para>
+/// <para>
+/// Hosts are normalised before classification: surrounding brackets and trailing dots are removed,
+/// international names are converted to their ASCII (IDNA) form, and IPv6 addresses that carry an
+/// IPv4 address (IPv4-mapped, IPv4-compatible, IPv4-translated ::ffff:0:0/96, NAT64 64:ff9b::/96,
+/// 6to4 2002::/16 and Teredo 2001:0::/32) are classified by that IPv4 address. Decimal, hexadecimal
+/// and octal IPv4 forms are parsed the way the operating system resolver parses them.
+/// </para>
+/// <para>
+/// One limit remains: the checks only see the literal host. A DNS name that resolves, now or later,
+/// to an internal address (DNS rebinding) cannot be detected at configuration time; restrict
+/// egress at the network layer for that case.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code>
+/// public ValidateOptionsResult Validate(string? name, MyOptions options)
+/// {
+///     var policy = EndpointPolicy.ForHttps(options.AllowInsecureHttp, options.AllowLocalEndpoints);
+///     var error = EndpointValidator.ValidateUri(options.Endpoint, nameof(options.Endpoint), policy);
+///     return error is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(error);
+/// }
+/// </code>
+/// </example>
+public static class EndpointValidator
+{
+    // fd00:ec2::254 — AWS EC2 instance metadata service over IPv6.
+    private static readonly IPAddress AwsMetadataIPv6 = IPAddress.Parse("fd00:ec2::254");
+
+    // Letters, digits, hyphen, dot and underscore (container and service names may use '_').
+    private static readonly SearchValues<char> HostNameChars =
+        SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._");
+
+    private static readonly FrozenSet<string> LoopbackNames = FrozenSet.Create(
+        StringComparer.OrdinalIgnoreCase,
+        "localhost",
+        "ip6-localhost",
+        "ip6-loopback",
+        "localhost.localdomain",
+        "localhost4",
+        "localhost4.localdomain4",
+        "localhost6",
+        "localhost6.localdomain6");
+
+    // 169.254.169.254 (AWS, Azure, GCP), 100.100.100.200 (Alibaba), 168.63.129.16 (Azure WireServer), 192.0.0.192 (Oracle).
+    private static readonly FrozenSet<uint> MetadataIPv4 = FrozenSet.Create(0xA9FEA9FEu, 0x646464C8u, 0xA83F8110u, 0xC00000C0u);
+
+    private static readonly FrozenSet<string> MetadataNames = FrozenSet.Create(
+        StringComparer.OrdinalIgnoreCase,
+        "metadata",
+        "metadata.google.internal",
+        "metadata.goog",
+        "instance-data",
+        "instance-data.ec2.internal");
+
+    /// <summary>
+    /// Validates an absolute endpoint URI: scheme and host.
+    /// </summary>
+    /// <param name="uri">The configured URI; <c>null</c> is reported as not configured.</param>
+    /// <param name="propertyName">The options property name used in the error message.</param>
+    /// <param name="policy">The policy to apply.</param>
+    /// <returns><c>null</c> when the URI is acceptable; otherwise the error message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="propertyName"/> or <paramref name="policy"/> is <c>null</c>.</exception>
+    public static string? ValidateUri(Uri? uri, string propertyName, EndpointPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(propertyName);
+        ArgumentNullException.ThrowIfNull(policy);
+
+        if (uri is null)
+        {
+            return $"{propertyName} must be configured.";
+        }
+
+        if (!uri.IsAbsoluteUri)
+        {
+            return $"{propertyName} must be an absolute URI.";
+        }
+
+        return CheckScheme(uri.Scheme, propertyName, policy)
+            ?? CheckHostKind(ClassifyHost(uri.IdnHost), propertyName, policy);
+    }
+
+    /// <summary>
+    /// Parses and validates an absolute endpoint URL: scheme and host.
+    /// </summary>
+    /// <param name="url">The configured URL; <c>null</c> or whitespace is reported as not configured.</param>
+    /// <param name="propertyName">The options property name used in the error message.</param>
+    /// <param name="policy">The policy to apply.</param>
+    /// <returns><c>null</c> when the URL is acceptable; otherwise the error message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="propertyName"/> or <paramref name="policy"/> is <c>null</c>.</exception>
+    public static string? ValidateUrl(string? url, string propertyName, EndpointPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(propertyName);
+        ArgumentNullException.ThrowIfNull(policy);
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return $"{propertyName} must be configured.";
+        }
+
+        return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
+            ? ValidateUri(uri, propertyName, policy)
+            : $"{propertyName} must be an absolute URI.";
+    }
+
+    /// <summary>
+    /// Validates a bare host name or IP address (no scheme, no port). The policy's
+    /// <see cref="EndpointPolicy.AllowedSchemes"/> is ignored.
+    /// </summary>
+    /// <param name="host">The configured host; <c>null</c> or whitespace is reported as not configured.</param>
+    /// <param name="propertyName">The options property name used in the error message.</param>
+    /// <param name="policy">The policy to apply.</param>
+    /// <returns><c>null</c> when the host is acceptable; otherwise the error message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="propertyName"/> or <paramref name="policy"/> is <c>null</c>.</exception>
+    public static string? ValidateHost(string? host, string propertyName, EndpointPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(propertyName);
+        ArgumentNullException.ThrowIfNull(policy);
+
+        return string.IsNullOrWhiteSpace(host)
+            ? $"{propertyName} must be configured."
+            : CheckHostKind(ClassifyHost(host), propertyName, policy);
+    }
+
+    /// <summary>
+    /// Classifies a host name or IP address literal.
+    /// </summary>
+    /// <param name="host">The host, optionally in brackets (IPv6) and with a trailing dot.</param>
+    /// <returns>The classification; <see cref="EndpointHostKind.Invalid"/> for a missing or malformed host.</returns>
+    public static EndpointHostKind ClassifyHost(string? host)
+    {
+        var normalized = NormalizeHost(host);
+        if (normalized is null)
+        {
+            return EndpointHostKind.Invalid;
+        }
+
+        if (IPAddress.TryParse(normalized, out var address))
+        {
+            return ClassifyAddress(address);
+        }
+
+        var ascii = ToAsciiHost(normalized);
+        if (ascii is null)
+        {
+            return EndpointHostKind.Invalid;
+        }
+
+        return IPAddress.TryParse(ascii, out address) ? ClassifyAddress(address) : ClassifyName(ascii);
+    }
+
+    /// <summary>
+    /// Classifies an IP address. IPv6 addresses that carry an IPv4 address (IPv4-mapped,
+    /// IPv4-compatible, IPv4-translated, NAT64 64:ff9b::/96, 6to4 2002::/16 and Teredo 2001:0::/32)
+    /// are classified by that IPv4 address.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The classification.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="address"/> is <c>null</c>.</exception>
+    public static EndpointHostKind ClassifyAddress(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            return ClassifyIPv4(BinaryPrimitives.ReadUInt32BigEndian(address.GetAddressBytes()));
+        }
+
+        return ClassifyIPv6(address);
+    }
+
+    private static string? CheckScheme(string scheme, string propertyName, EndpointPolicy policy)
+    {
+        if (policy.AllowedSchemes.Contains(scheme, StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var httpsAllowed = policy.AllowedSchemes.Contains(Uri.UriSchemeHttps, StringComparer.OrdinalIgnoreCase);
+        if (httpsAllowed && scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{propertyName} must use HTTPS. Set {policy.InsecureHttpOptOutName} = true to allow plain HTTP (development/testing only).";
+        }
+
+        return $"{propertyName} must use one of the allowed schemes ({string.Join(", ", policy.AllowedSchemes)}).";
+    }
+
+    // crap-exempt: single-question switch — maps one host classification to its policy error.
+    private static string? CheckHostKind(EndpointHostKind kind, string propertyName, EndpointPolicy policy) => kind switch
+    {
+        EndpointHostKind.Invalid => $"{propertyName} must specify a valid host name or IP address.",
+        EndpointHostKind.Unspecified => $"{propertyName} must not target an unspecified address (0.0.0.0, ::).",
+        EndpointHostKind.LinkLocal => $"{propertyName} must not target a link-local address (169.254.0.0/16, fe80::/10).",
+        EndpointHostKind.CloudMetadata => $"{propertyName} must not target a cloud instance metadata endpoint.",
+        EndpointHostKind.Loopback when !policy.AllowLocalEndpoints =>
+            $"{propertyName} must not target localhost or a loopback address. Set {policy.LocalEndpointsOptOutName} = true to allow local endpoints (development/testing only).",
+        EndpointHostKind.Private when policy.RejectPrivateNetworks && !policy.AllowLocalEndpoints =>
+            $"{propertyName} must not target a private network address (RFC 1918, 100.64.0.0/10, fc00::/7, fec0::/10). Set {policy.LocalEndpointsOptOutName} = true to allow private network addresses (development/testing only).",
+        _ => null,
+    };
+
+    private static string? NormalizeHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return null;
+        }
+
+        var value = host.Trim();
+        if (value.Length > 1 && value[0] == '[' && value[^1] == ']')
+        {
+            value = value[1..^1];
+        }
+
+        value = value.TrimEnd('.');
+        return value.Length == 0 ? null : value;
+    }
+
+    private static string? ToAsciiHost(string host)
+    {
+        string ascii;
+        try
+        {
+            ascii = new IdnMapping().GetAscii(host).TrimEnd('.');
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        return ascii.Length == 0 || ascii.AsSpan().ContainsAnyExcept(HostNameChars) ? null : ascii;
+    }
+
+    private static EndpointHostKind ClassifyName(string asciiHost)
+    {
+        if (LoopbackNames.Contains(asciiHost)
+            || asciiHost.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return EndpointHostKind.Loopback;
+        }
+
+        return MetadataNames.Contains(asciiHost) ? EndpointHostKind.CloudMetadata : EndpointHostKind.Public;
+    }
+
+    // crap-exempt: single-question switch — classifies one IPv4 address into its range.
+    private static EndpointHostKind ClassifyIPv4(uint value) => value switch
+    {
+        _ when MetadataIPv4.Contains(value) => EndpointHostKind.CloudMetadata,
+        _ when value >> 24 == 0 => EndpointHostKind.Unspecified,     // 0.0.0.0/8
+        _ when value >> 24 == 127 => EndpointHostKind.Loopback,      // 127.0.0.0/8
+        _ when value >> 16 == 0xA9FE => EndpointHostKind.LinkLocal,  // 169.254.0.0/16
+        _ when IsPrivateIPv4(value) => EndpointHostKind.Private,
+        _ => EndpointHostKind.Public,
+    };
+
+    private static bool IsPrivateIPv4(uint value) =>
+        value >> 24 == 10          // 10.0.0.0/8
+        || value >> 20 == 0xAC1    // 172.16.0.0/12
+        || value >> 16 == 0xC0A8   // 192.168.0.0/16
+        || value >> 22 == 0x191;   // 100.64.0.0/10 carrier-grade NAT
+
+    private static EndpointHostKind ClassifyIPv6(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        var bare = new IPAddress(bytes); // drops the scope id (fe80::1%eth0) before comparing
+
+        if (bare.Equals(IPAddress.IPv6Loopback))
+        {
+            return EndpointHostKind.Loopback;
+        }
+
+        // The IPv4-compatible prefix also covers "::", whose embedded 0.0.0.0 is unspecified.
+        return GetEmbeddedIPv4(bytes) is { } embedded
+            ? ClassifyIPv4(embedded)
+            : ClassifyIPv6Prefix(bare, bytes);
+    }
+
+    private static EndpointHostKind ClassifyIPv6Prefix(IPAddress bare, byte[] bytes)
+    {
+        if (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)
+        {
+            return EndpointHostKind.LinkLocal; // fe80::/10 (ff80:: multicast does not match)
+        }
+
+        if (bare.Equals(AwsMetadataIPv6))
+        {
+            return EndpointHostKind.CloudMetadata;
+        }
+
+        return IsPrivateIPv6(bytes) ? EndpointHostKind.Private : EndpointHostKind.Public;
+    }
+
+    private static bool IsPrivateIPv6(byte[] bytes) =>
+        (bytes[0] & 0xFE) == 0xFC                              // fc00::/7 unique local
+        || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0xC0);    // fec0::/10 deprecated site-local
+
+    // The IPv4 address an IPv6 address carries: IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible
+    // (::a.b.c.d), IPv4-translated (::ffff:0:a.b.c.d), NAT64 (64:ff9b::a.b.c.d), 6to4
+    // (2002:AABB:CCDD::) and Teredo (2001:0::/32, client address in the last 32 bits, inverted).
+    private static uint? GetEmbeddedIPv4(byte[] bytes)
+    {
+        if (HasEmbeddingPrefix(bytes.AsSpan(0, 12)))
+        {
+            return BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(12, 4));
+        }
+
+        if (bytes[0] == 0x20 && bytes[1] == 0x02)
+        {
+            return BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(2, 4));
+        }
+
+        return IsTeredo(bytes) ? ~BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(12, 4)) : null;
+    }
+
+    private static bool HasEmbeddingPrefix(ReadOnlySpan<byte> prefix) =>
+        prefix.SequenceEqual(MappedPrefix)
+        || prefix.SequenceEqual(CompatiblePrefix)
+        || prefix.SequenceEqual(TranslatedPrefix)
+        || prefix.SequenceEqual(Nat64Prefix);
+
+    private static bool IsTeredo(byte[] bytes) =>
+        bytes.AsSpan(0, 4).SequenceEqual(TeredoPrefix);
+
+    private static ReadOnlySpan<byte> TranslatedPrefix => [0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0];
+
+    private static ReadOnlySpan<byte> TeredoPrefix => [0x20, 0x01, 0, 0];
+
+    private static ReadOnlySpan<byte> MappedPrefix => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF];
+
+    private static ReadOnlySpan<byte> CompatiblePrefix => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    private static ReadOnlySpan<byte> Nat64Prefix => [0, 0x64, 0xFF, 0x9B, 0, 0, 0, 0, 0, 0, 0, 0];
+}

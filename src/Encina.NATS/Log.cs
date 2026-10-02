@@ -33,4 +33,7 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 4208, Level = LogLevel.Error, Message = "Failed to publish message of type {MessageType} to JetStream")]
     public static partial void FailedToPublishToJetStream(ILogger logger, Exception exception, string messageType);
+
+    [LoggerMessage(EventId = 4209, Level = LogLevel.Warning, Message = "EncinaNATSOptions '{OptionsName}' relaxes endpoint validation (AllowLocalEndpoints=true); use only for local development")]
+    public static partial void EndpointValidationRelaxed(ILogger logger, string optionsName);
 }

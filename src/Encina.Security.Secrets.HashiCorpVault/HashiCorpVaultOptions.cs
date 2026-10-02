@@ -11,8 +11,11 @@ namespace Encina.Security.Secrets.HashiCorpVault;
 /// authentication method, and KV v2 mount point.
 /// </para>
 /// <para>
-/// Both <see cref="VaultAddress"/> and <see cref="AuthMethod"/> are required. The provider
-/// will throw <see cref="InvalidOperationException"/> at startup if either is missing.
+/// Both <see cref="VaultAddress"/> and <see cref="AuthMethod"/> are required. The address must be
+/// an absolute <c>https</c> URL that does not target a loopback, link-local, cloud metadata or
+/// unspecified address; <see cref="AllowInsecureHttp"/> and <see cref="AllowLocalEndpoints"/> relax
+/// the scheme and loopback rules for local development. Invalid options throw
+/// <see cref="Microsoft.Extensions.Options.OptionsValidationException"/> at registration and at startup.
 /// </para>
 /// </remarks>
 /// <example>
@@ -54,4 +57,24 @@ public sealed class HashiCorpVaultOptions
     /// The mount point path. Defaults to <c>"secret"</c>.
     /// </value>
     public string MountPoint { get; set; } = "secret";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="VaultAddress"/> may use plain <c>http</c>.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>: the address must use <c>https</c>. Set to <c>true</c> only for local
+    /// development (for example a Vault dev server); a warning is logged at startup when it is set.
+    /// </value>
+    public bool AllowInsecureHttp { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="VaultAddress"/> may target <c>localhost</c>
+    /// or a loopback address.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>. Set to <c>true</c> for local development or a Vault Agent sidecar on
+    /// the same host; a warning is logged at startup when it is set. Link-local, cloud metadata and
+    /// unspecified addresses are always rejected.
+    /// </value>
+    public bool AllowLocalEndpoints { get; set; }
 }

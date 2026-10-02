@@ -22,24 +22,25 @@ namespace Encina.Cdc.Debezium;
 public sealed class DebeziumCdcOptions
 {
     /// <summary>
-    /// Gets or sets the URL to listen on for HTTP POST events from Debezium Server.
+    /// Gets or sets the scheme and host the HTTP listener binds to for HTTP POST events from Debezium Server.
     /// </summary>
+    /// <remarks>
+    /// This is an inbound <see cref="System.Net.HttpListener"/> prefix without port or path, such as
+    /// <c>http://+</c> (all interfaces, the default), <c>http://*</c>, <c>http://localhost</c> or
+    /// <c>https://cdc.example.com</c>. It is validated for format and an <c>http</c>/<c>https</c>
+    /// scheme only: it is not an outbound target, so SSRF rules do not apply.
+    /// </remarks>
     public string ListenUrl { get; set; } = "http://+";
 
     /// <summary>
-    /// Gets or sets the port to listen on for HTTP POST events.
+    /// Gets or sets the port to listen on for HTTP POST events (1-65535).
     /// </summary>
     public int ListenPort { get; set; } = 8080;
 
     /// <summary>
-    /// Gets or sets the HTTP path to listen on for events.
+    /// Gets or sets the HTTP path to listen on for events. Must start with <c>/</c>.
     /// </summary>
     public string ListenPath { get; set; } = "/debezium";
-
-    /// <summary>
-    /// Gets or sets the optional URL of the Debezium Server for health checking.
-    /// </summary>
-    public string? DebeziumServerUrl { get; set; }
 
     /// <summary>
     /// Gets or sets the optional bearer token for authenticating incoming requests.

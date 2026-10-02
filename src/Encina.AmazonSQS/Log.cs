@@ -45,4 +45,7 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 4362, Level = LogLevel.Error, Message = "Failed to send FIFO message of type {MessageType}")]
     public static partial void FailedToSendFifoMessage(ILogger logger, Exception exception, string messageType);
+
+    [LoggerMessage(EventId = 4363, Level = LogLevel.Warning, Message = "EncinaAmazonSQSOptions '{OptionsName}' relaxes endpoint validation (AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints}); use only for local development")]
+    public static partial void EndpointValidationRelaxed(ILogger logger, string optionsName, bool allowInsecureHttp, bool allowLocalEndpoints);
 }
