@@ -14,7 +14,13 @@ current data of all four dashboards. Two races lost data before this script:
   2. Pending cancellation: the "pages" concurrency group keeps one pending deploy; a newer one
      cancels it, and a publisher's data overlay was lost with the cancelled deploy.
 
-The fix has three modes:
+The fix has four modes:
+
+  -Mode Live      (publisher, right after Read)
+      Writes <Domain>/data/latest.json and history.json of the live Pages site into -OutDir, the
+      publisher's second choice of base after the branch. A 404 writes nothing (that file does not
+      exist yet: a first run); any other failure (HTTP error, timeout, invalid or empty JSON) throws,
+      so an outage is never mistaken for a first run or an empty history.
 
   -Mode Read      (publisher, first step of computing its data)
       Writes <Domain>/data/ of the "dashboard-data" branch into -OutDir, so the publisher builds its
@@ -50,13 +56,14 @@ Running inside the lock is what closes the lost-update race: deploys are seriali
 reads the data after the previous deploy and every earlier persist finished.
 
 .PARAMETER Mode
-Read, Persist or Assemble.
+Read, Live, Persist or Assemble.
 
 .PARAMETER Domain
-Read and Persist: the dashboard (coverage, benchmarks, load-tests or mutations).
+Read, Live and Persist: the dashboard (coverage, benchmarks, load-tests or mutations).
 
 .PARAMETER OutDir
-Read only: the directory that receives the files of <Domain>/data/ from the data branch.
+Read: the directory that receives the files of <Domain>/data/ from the data branch.
+Live: the directory that receives the live latest.json and history.json.
 
 .PARAMETER OverlayRoot
 Persist only: directory holding <Domain>/... with the files the publisher computed.
@@ -71,7 +78,7 @@ A git checkout whose "origin" remote is the repository (credentials persisted fo
 The data branch; "dashboard-data" unless testing.
 
 .PARAMETER BaseUrl
-Assemble only: the live Pages root.
+Live and Assemble: the live Pages root.
 
 .EXAMPLE
 pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations
@@ -85,7 +92,7 @@ pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Read', 'Persist', 'Assemble')]
+    [ValidateSet('Read', 'Live', 'Persist', 'Assemble')]
     [string] $Mode,
 
     [ValidateSet('coverage', 'benchmarks', 'load-tests', 'mutations')]
@@ -319,7 +326,12 @@ function Save-LiveFile {
         Write-Host "  live $RelativePath attempt $attempt of ${maxAttempts}: $reason"
         if ($attempt -lt $maxAttempts) { Start-Sleep -Seconds (10 * $attempt) }
     }
-    throw "Could not read the live $RelativePath from $BaseUrl; refusing to deploy without it."
+    throw "Could not read the live $RelativePath from $BaseUrl; refusing to continue without it."
+}
+
+function Get-CacheBuster {
+    if ($env:GITHUB_RUN_ID) { return "$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)" }
+    return [string] [DateTime]::UtcNow.Ticks
 }
 
 # Removes everything Jekyll copied from docs/<domain>/ that this script manages: every file under
@@ -363,7 +375,7 @@ function Invoke-Assemble {
     if (-not $SiteRoot) { throw 'Assemble needs -SiteRoot.' }
     if (-not (Test-Path -LiteralPath $SiteRoot -PathType Container)) { throw "Site root $SiteRoot does not exist." }
     $SiteRoot = (Resolve-Path -LiteralPath $SiteRoot).Path
-    $cacheBuster = if ($env:GITHUB_RUN_ID) { "$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)" } else { [DateTime]::UtcNow.Ticks }
+    $cacheBuster = Get-CacheBuster
     $origin = @{}
 
     foreach ($domain in $Domains) {
@@ -427,6 +439,19 @@ function Invoke-Assemble {
     }
 }
 
+# Publisher base from the live site: <Domain>/data/latest.json and history.json into -OutDir. A 404
+# writes nothing (the file does not exist yet); any other failure (HTTP error, timeout, invalid or
+# empty JSON) throws, so a publisher never mistakes an outage for a first run.
+function Invoke-Live {
+    if (-not $Domain) { throw 'Live needs -Domain.' }
+    if (-not $OutDir) { throw 'Live needs -OutDir.' }
+    $cacheBuster = Get-CacheBuster
+    foreach ($file in $RequiredDataFiles) {
+        $saved = Save-LiveFile -RelativePath "$Domain/data/$file" -Destination (Join-Path $OutDir $file) -CacheBuster $cacheBuster
+        Write-Host $(if ($saved) { "  live $Domain/data/$file saved" } else { "  live $Domain/data/$file does not exist (404)" })
+    }
+}
+
 function Invoke-Read {
     if (-not $Domain) { throw 'Read needs -Domain.' }
     if (-not $OutDir) { throw 'Read needs -OutDir.' }
@@ -454,6 +479,7 @@ function Invoke-Read {
 }
 
 switch ($Mode) {
+    'Live' { Invoke-Live }
     'Read' { Invoke-Read }
     'Persist' { Invoke-Persist }
     'Assemble' { Invoke-Assemble }

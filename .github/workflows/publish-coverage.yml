@@ -85,6 +85,15 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain coverage -OutDir base/coverage
 
+      - name: Read the live base data from Pages
+        # Second choice of base after the branch. A 404 writes nothing; any other
+        # failure (HTTP error, timeout, invalid JSON) fails the job instead of
+        # being taken for an empty history. Skipped when the branch already
+        # carries history.json.
+        if: hashFiles('base/coverage/history.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain coverage -OutDir live/coverage
+
       - name: Stage fresh coverage data in the Pages overlay
         env:
           RUN_ID: ${{ steps.resolve.outputs.run_id }}
@@ -122,29 +131,28 @@ jobs:
           STAMP=$(date -u +"%Y-%m-%dT%H%M%SZ")
           cp -f overlay/coverage/data/latest.json "overlay/coverage/data/${STAMP}.json"
 
-          # History strategy, in order: the dashboard-data branch (the durable
-          # record, read by the previous step), live Pages (it lags while a deploy
-          # is pending, cancelled or failed), the copy tracked in main (it lags
-          # because nothing commits it back). The first source that exists wins.
+          # History strategy, in order: the dashboard-data branch copy when it
+          # exists and is non-empty (the durable record, read by the Read step);
+          # otherwise the larger, by entry count, of the live Pages copy (read by
+          # the Live step; a 404 means it does not exist yet, any other failure
+          # already failed the job) and the copy tracked in main (it lags because
+          # nothing commits it back).
           if [ -s base/coverage/history.json ]; then
             cp -f base/coverage/history.json overlay/coverage/data/history.json
             echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/coverage/data/history.json || true) entries)"
           else
             cp -f docs/coverage/data/history.json overlay/coverage/data/history.json 2>/dev/null || echo "[]" > overlay/coverage/data/history.json
-            PAGES_URL="https://dlrivada.github.io/Encina/coverage/data/history.json"
-            PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
             REPO_ENTRIES=$(grep -c timestamp overlay/coverage/data/history.json 2>/dev/null) || REPO_ENTRIES=0
-
-            if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-              PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+            if [ -s live/coverage/history.json ] && head -c 1 live/coverage/history.json | grep -q '^\['; then
+              PAGES_ENTRIES=$(grep -c timestamp live/coverage/history.json) || PAGES_ENTRIES=0
               if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
                 echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-                echo "$PAGES_HISTORY" > overlay/coverage/data/history.json
+                cp -f live/coverage/history.json overlay/coverage/data/history.json
               else
                 echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
               fi
             else
-              echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+              echo "Using repo history ($REPO_ENTRIES entries, no live history.json)"
             fi
           fi
 

@@ -107,19 +107,28 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain benchmarks -OutDir base/benchmarks
 
+      - name: Read the live previous snapshot from Pages
+        # Second choice after the branch. A 404 writes nothing; any other failure
+        # (HTTP error, timeout, invalid JSON) fails the job instead of silently
+        # running every project. Skipped when the branch carries latest.json.
+        if: hashFiles('base/benchmarks/latest.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain benchmarks -OutDir live/benchmarks
+
       - name: Fetch previous fingerprints (branch, Pages, then repo copy)
         id: prev
         run: |
           mkdir -p artifacts/perf-previous
-          # Order: the dashboard-data branch copy read above, the live Pages URL,
-          # the repo copy, then an empty snapshot. This one file feeds both the
-          # fingerprint diff and --carry-forward-from.
+          # Order: the dashboard-data branch copy read above, the live Pages copy
+          # (a 404 means it does not exist; any other failure already failed the
+          # Live step), the repo copy, then an empty snapshot. This one file
+          # feeds both the fingerprint diff and --carry-forward-from.
           if [ -s base/benchmarks/latest.json ]; then
             cp -f base/benchmarks/latest.json artifacts/perf-previous/latest.json
             echo "Using the previous snapshot from the dashboard-data branch."
-          elif curl -fsSL -o artifacts/perf-previous/latest.json \
-              "https://dlrivada.github.io/Encina/benchmarks/data/latest.json"; then
-            echo "Fetched previous snapshot from Pages."
+          elif [ -s live/benchmarks/latest.json ]; then
+            cp -f live/benchmarks/latest.json artifacts/perf-previous/latest.json
+            echo "Using the previous snapshot from Pages."
           elif [ -f docs/benchmarks/data/latest.json ]; then
             cp docs/benchmarks/data/latest.json artifacts/perf-previous/latest.json
             echo "Using repo copy of latest.json."

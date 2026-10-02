@@ -155,34 +155,42 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain benchmarks -OutDir base/benchmarks
 
-      - name: Choose the history base (branch, live Pages, then main)
+      - name: Read the live base data from Pages
+        # Second choice of base after the branch. A 404 writes nothing; any other
+        # failure (HTTP error, timeout, invalid JSON) fails the job instead of
+        # being taken for an empty history. Skipped when the branch already
+        # carries history.json.
+        if: steps.jobtype.outputs.skip != 'true' && hashFiles('base/benchmarks/history.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain benchmarks -OutDir live/benchmarks
+
+      - name: Choose the history base (branch, else larger of live and main)
         if: steps.jobtype.outputs.skip != 'true'
         run: |
-          # Order: the dashboard-data branch copy (durable record), the live
-          # Pages copy (lags while a deploy is pending, cancelled or failed), the
-          # copy tracked in main (stale because nothing commits it back). The
-          # first source that exists wins; between live and main, the larger.
+          # Order: the dashboard-data branch copy when it exists and is non-empty
+          # (durable record); otherwise the larger, by entry count, of the live
+          # Pages copy (a 404 means it does not exist yet; any other failure
+          # already failed the Live step) and the copy tracked in main (stale
+          # because nothing commits it back).
           if [ -s base/benchmarks/history.json ]; then
             cp -f base/benchmarks/history.json overlay/benchmarks/data/history.json
             echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/benchmarks/data/history.json || true) entries)"
             exit 0
           fi
           cp -f docs/benchmarks/data/history.json overlay/benchmarks/data/history.json 2>/dev/null || echo "[]" > overlay/benchmarks/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/benchmarks/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
           # grep -c returns exit code 1 when count=0, so capture separately
           REPO_ENTRIES=$(grep -c timestamp overlay/benchmarks/data/history.json 2>/dev/null) || REPO_ENTRIES=0
 
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+          if [ -s live/benchmarks/history.json ] && head -c 1 live/benchmarks/history.json | grep -q '^\['; then
+            PAGES_ENTRIES=$(grep -c timestamp live/benchmarks/history.json) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/benchmarks/data/history.json
+              cp -f live/benchmarks/history.json overlay/benchmarks/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            echo "Using repo history ($REPO_ENTRIES entries, no live history.json)"
           fi
 
       - name: Update benchmarks history

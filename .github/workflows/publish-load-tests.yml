@@ -117,29 +117,39 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain load-tests -OutDir base/load-tests
 
+      - name: Read the live base data from Pages
+        # Second choice of base after the branch. A 404 writes nothing; any other
+        # failure (HTTP error, timeout, invalid JSON) fails the job instead of
+        # being taken for a first run or an empty history. Skipped when the
+        # branch already carries both base files.
+        if: hashFiles('base/load-tests/latest.json') == '' || hashFiles('base/load-tests/history.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain load-tests -OutDir live/load-tests
+
       - name: Fetch previous snapshot for carry-forward
         run: |
           # Carry-forward copies modules from the previous snapshot that are NOT
           # present in the current run, keeping the dashboard complete when only
           # some categories run. Order: the dashboard-data branch copy (durable
-          # record), the live Pages copy, the copy tracked in main.
+          # record), the live Pages copy (a 404 means it does not exist; any
+          # other failure already failed the Live step), the copy tracked in
+          # main (only when Pages has no copy or a stale one), then an empty
+          # snapshot (first clean run).
           mkdir -p artifacts/perf-previous
           if [ -s base/load-tests/latest.json ]; then
             cp -f base/load-tests/latest.json artifacts/perf-previous/latest.json
             echo "Using the previous snapshot from the dashboard-data branch."
             exit 0
           fi
-          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/latest.json"
-          PAGES_DATA=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
 
           # Use Pages if it has data and NO stale "send_flow" scenario names.
           # The send_flow name was a bug from the initial parser that used NBomber's
           # internal scenario name instead of test_name+provider. Once Pages has
           # exclusively new-style names, this check can be simplified to just
           # "is Pages available?".
-          if [ -n "$PAGES_DATA" ] && ! echo "$PAGES_DATA" | grep -q '"name": "send_flow"'; then
-            echo "$PAGES_DATA" > artifacts/perf-previous/latest.json
-            echo "Fetched previous snapshot from Pages (clean naming)."
+          if [ -s live/load-tests/latest.json ] && ! grep -q '"name": "send_flow"' live/load-tests/latest.json; then
+            cp -f live/load-tests/latest.json artifacts/perf-previous/latest.json
+            echo "Using the previous snapshot from Pages (clean naming)."
           elif [ -f docs/load-tests/data/latest.json ]; then
             cp docs/load-tests/data/latest.json artifacts/perf-previous/latest.json
             echo "Using repo copy (Pages has stale or no data)."
@@ -174,29 +184,29 @@ jobs:
             -exec cp -f {} overlay/load-tests/data/ \;
           ls -la overlay/load-tests/data/
 
-      - name: Choose the history base (branch, live Pages, then main)
+      - name: Choose the history base (branch, else larger of live and main)
         run: |
-          # Order: the dashboard-data branch copy, the live Pages copy, the copy
-          # tracked in main; between live and main, the larger.
+          # Order: the dashboard-data branch copy when it exists and is non-empty;
+          # otherwise the larger, by entry count, of the live Pages copy (a 404
+          # means it does not exist; any other failure already failed the Live
+          # step) and the copy tracked in main.
           if [ -s base/load-tests/history.json ]; then
             cp -f base/load-tests/history.json overlay/load-tests/data/history.json
             echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/load-tests/data/history.json || true) entries)"
             exit 0
           fi
           cp -f docs/load-tests/data/history.json overlay/load-tests/data/history.json 2>/dev/null || echo "[]" > overlay/load-tests/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
           REPO_ENTRIES=$(grep -c timestamp overlay/load-tests/data/history.json 2>/dev/null) || REPO_ENTRIES=0
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+          if [ -s live/load-tests/history.json ] && head -c 1 live/load-tests/history.json | grep -q '^\['; then
+            PAGES_ENTRIES=$(grep -c timestamp live/load-tests/history.json) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/load-tests/data/history.json
+              cp -f live/load-tests/history.json overlay/load-tests/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            echo "Using repo history ($REPO_ENTRIES entries, no live history.json)"
           fi
 
       - name: Update load-tests history
