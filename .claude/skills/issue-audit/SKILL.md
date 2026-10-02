@@ -229,6 +229,20 @@ Audit #18's docs finding 12 case:
 pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -Only 'docs 12' -DuplicateOf 'docs 12=1177'
 ```
 
+When two findings of DIFFERENT location groups describe one defect, `-MergeInto "<stage> <n>=<stage> <m>"`
+(several overrides go in one comma-separated value, because PowerShell rejects a repeated parameter name; `-Prepare` only, #1632) merges the first finding's whole group into the second finding's group by
+explicit, logged override, represented exactly like a same-location merge (#1491): one draft whose
+`Reported by:` line names every member, the merged findings' lines read "merged into <stage> <m> (manual
+override)", the manifest records `mergedInto` plus `mergeSource`, and each override is a lesson. Every entry is
+validated before any file is touched: the format, both keys matching a parsed finding, source and target in
+different groups, no cycle, a target that is not itself merged, and neither side in a `-DuplicateOf` group. An
+override's group is always prepared, with or without `-Only`; repeat the override on every later `-Only` run
+that touches the target group, because the script keeps no merge between runs. Audit #19's case:
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -MergeInto 'docs 6=code 2,docs 5=code 3,docs 4=code 4,docs 2=code 8,docs 9=code 8,tests 5=code 7'
+```
+
 Duplicate-vs-new is deterministic: `tools/ai/audit/_remediation-checks.ps1`'s `Find-DuplicateAmongCandidates`
 runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a cited symbol -- found in a
 candidate's real `gh issue view` title/body) against EVERY candidate the duplicate search returned. When one or

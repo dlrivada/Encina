@@ -36,6 +36,15 @@
 # a lesson in the manifest). A malformed entry or an unknown key fails before any file is touched; the issue
 # must be OPEN (checked with gh unless -NoGh). An override's group is always prepared, even without -Only.
 #
+# -MergeInto "<stage> <n>=<stage> <m>" (several, comma-separated in one value, -Prepare only; #1632): merges the first finding's whole
+# location group into the second finding's group by explicit, logged override, represented exactly like a
+# same-location merge (#1491): the target group's draft gets the "Reported by:" line naming every member, the
+# merged findings' lines read "merged into <stage> <m> (manual override)", the manifest records mergedInto plus
+# mergeSource 'manual override', and each override adds a lesson. A bad entry (format, unknown key, same group,
+# a cycle, a target that is itself merged, a source or target that a -DuplicateOf override names) fails before
+# any file is touched. An override's group is always prepared, even without -Only. The manifest rule version
+# is NOT bumped: a manifest written before this switch stays valid for -Finalize (it simply has no merge fields).
+#
 # -DryRun (#1540): both modes work only inside artifacts/knowledge/remediation/_dryrun-<n>/, a self-contained
 # sandbox: -Prepare -DryRun writes the inputs, the manifest and the draft paths there (the stage file preview
 # is _dryrun-<n>/remediation.md), and -Finalize -DryRun reads that sandbox manifest and refuses any path outside
@@ -64,7 +73,8 @@ param(
     [switch]$DryRun,
     [switch]$NoGh,
     [string[]]$Only,
-    [string[]]$DuplicateOf
+    [string[]]$DuplicateOf,
+    [string[]]$MergeInto
 )
 
 $ErrorActionPreference = 'Stop'
@@ -77,8 +87,8 @@ function Stop-Remediation([string]$Message) {
 }
 
 if ($Prepare -eq $Finalize) { Stop-Remediation 'pass exactly one of -Prepare or -Finalize.' }
-if ($Finalize -and (($Only -and $Only.Count -gt 0) -or ($DuplicateOf -and $DuplicateOf.Count -gt 0))) {
-    Stop-Remediation '-Only and -DuplicateOf apply to -Prepare only.'
+if ($Finalize -and (($Only -and $Only.Count -gt 0) -or ($DuplicateOf -and $DuplicateOf.Count -gt 0) -or ($MergeInto -and $MergeInto.Count -gt 0))) {
+    Stop-Remediation '-Only, -DuplicateOf and -MergeInto apply to -Prepare only.'
 }
 
 # Fail-fast argument parsing, before any file or gh call (#1492 decision 3, #1534).
@@ -103,6 +113,28 @@ if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
             Stop-Remediation "-DuplicateOf has conflicting entries for '$($dupKey -replace '\|', ' ')' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
         }
         $duplicateOfEntries[$dupKey] = $dupIssue
+    }
+}
+
+# #1632: -MergeInto "<stage> <n>=<stage> <m>", source key -> target key. Format, self-merge and conflicting
+# entries fail here; the checks that need the parsed findings (unknown key, groups, cycles, duplicates) follow
+# in -Prepare, still before any file is touched.
+$mergeIntoEntries = $null
+# PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b', so
+# several overrides arrive as one comma-separated value: -MergeInto 'docs 6=code 2','docs 5=code 3'.
+if ($MergeInto) { $MergeInto = @($MergeInto | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() -ne '' }) }
+if ($MergeInto -and $MergeInto.Count -gt 0) {
+    $mergeIntoEntries = [ordered]@{}
+    foreach ($spec in $MergeInto) {
+        $mergeMatch = [regex]::Match($spec.Trim(), '^(?<s1>\S+)\s+(?<i1>\d+)\s*=\s*(?<s2>\S+)\s+(?<i2>\d+)$')
+        if (-not $mergeMatch.Success) { Stop-Remediation "-MergeInto value '$spec' must be '<stage> <n>=<stage> <m>' (e.g. 'docs 6=code 2')." }
+        $mergeSourceKey = "$($mergeMatch.Groups['s1'].Value)|$($mergeMatch.Groups['i1'].Value)"
+        $mergeTargetKey = "$($mergeMatch.Groups['s2'].Value)|$($mergeMatch.Groups['i2'].Value)"
+        if ($mergeSourceKey -ieq $mergeTargetKey) { Stop-Remediation "-MergeInto '$spec' merges a finding into itself." }
+        if ($mergeIntoEntries.Contains($mergeSourceKey) -and $mergeIntoEntries[$mergeSourceKey] -ine $mergeTargetKey) {
+            Stop-Remediation "-MergeInto has conflicting entries for '$($mergeSourceKey -replace '\|', ' ')' (into '$($mergeIntoEntries[$mergeSourceKey] -replace '\|', ' ')' and into '$($mergeTargetKey -replace '\|', ' ')')."
+        }
+        $mergeIntoEntries[$mergeSourceKey] = $mergeTargetKey
     }
 }
 
@@ -371,6 +403,12 @@ foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)")
 
 $requestedKeys = @()
 if ($duplicateOfEntries) { $requestedKeys += @($duplicateOfEntries.Keys | ForEach-Object { [pscustomobject]@{ Option = '-DuplicateOf'; Key = $_ } }) }
+if ($mergeIntoEntries) {
+    foreach ($mergeSrc in $mergeIntoEntries.Keys) {
+        $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeSrc }
+        $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeIntoEntries[$mergeSrc] }
+    }
+}
 if ($onlyKeys) { $requestedKeys += @($onlyKeys | ForEach-Object { [pscustomobject]@{ Option = '-Only'; Key = $_ } }) }
 foreach ($requested in $requestedKeys) {
     if (-not $allFindingKeys.Contains($requested.Key)) { Stop-Remediation "$($requested.Option) '$($requested.Key -replace '\|', ' ')' does not match a finding currently parsed from the code, tests or docs stage artifacts." }
@@ -404,6 +442,53 @@ if ($duplicateOfEntries) {
             Stop-Remediation "-DuplicateOf '$($dupKey -replace '\|', ' ')' names #$($duplicateOfEntries[$dupKey]), but another finding in the same location group already names #$($groupDuplicateIssue[$dupGroupIdx])."
         }
         $groupDuplicateIssue[$dupGroupIdx] = $duplicateOfEntries[$dupKey]
+    }
+}
+
+# #1632: -MergeInto overrides name GROUPS (a source finding merges its whole location group, a target is the
+# group it joins). Everything is validated here, before any file is touched; then the source group's members
+# move into the target group (its Primary stays), exactly the shape a same-location merge (#1491) has.
+$manualMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$mergeTargetGroupIndexes = [System.Collections.Generic.List[int]]::new()
+if ($mergeIntoEntries) {
+    $groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
+    $mergeSourceOrder = [System.Collections.Generic.List[int]]::new()
+    $mergeLessons = [System.Collections.Generic.List[string]]::new()
+    foreach ($mergeSrc in $mergeIntoEntries.Keys) {
+        $mergeTgt = $mergeIntoEntries[$mergeSrc]
+        $srcName = $mergeSrc -replace '\|', ' '
+        $tgtName = $mergeTgt -replace '\|', ' '
+        $si = [int]$groupIndexByKey[$mergeSrc]
+        $ti = [int]$groupIndexByKey[$mergeTgt]
+        if ($si -eq $ti) { Stop-Remediation "-MergeInto '$srcName=$tgtName': both findings are already in the same location group." }
+        if ($groupMergedInto.ContainsKey($si) -and $groupMergedInto[$si] -ne $ti) { Stop-Remediation "-MergeInto '$srcName=$tgtName': another finding of the same location group is already merged into a different group." }
+        if (-not $groupMergedInto.ContainsKey($si)) { $mergeSourceOrder.Add($si) }
+        $groupMergedInto[$si] = $ti
+    }
+    foreach ($mergeSrc in $mergeIntoEntries.Keys) {
+        $mergeTgt = $mergeIntoEntries[$mergeSrc]
+        $srcName = $mergeSrc -replace '\|', ' '
+        $tgtName = $mergeTgt -replace '\|', ' '
+        $si = [int]$groupIndexByKey[$mergeSrc]
+        $ti = [int]$groupIndexByKey[$mergeTgt]
+        if ($groupMergedInto.ContainsKey($ti)) {
+            if ($groupMergedInto[$ti] -eq $si) { Stop-Remediation "-MergeInto '$srcName=$tgtName' makes a cycle: the group of '$tgtName' is merged back into the group of '$srcName'." }
+            Stop-Remediation "-MergeInto '$srcName=$tgtName': the target '$tgtName' is itself merged into another group; name that group's finding as the target."
+        }
+        foreach ($checked in @(@{ Idx = $si; Name = $srcName; Role = 'source' }, @{ Idx = $ti; Name = $tgtName; Role = 'target' })) {
+            if ($groupDuplicateIssue.ContainsKey($checked.Idx)) { Stop-Remediation "-MergeInto '$srcName=$tgtName': the $($checked.Role) '$($checked.Name)' belongs to a group a -DuplicateOf override records as a duplicate of #$($groupDuplicateIssue[$checked.Idx])." }
+        }
+        $mergeLessons.Add("${srcName}: merged into $tgtName by manual override")
+    }
+    foreach ($srcIdx in $mergeSourceOrder) {
+        $tgtIdx = [int]$groupMergedInto[$srcIdx]
+        foreach ($m in $groups[$srcIdx].Members) {
+            $groups[$tgtIdx].Members.Add($m)
+            $groupIndexByKey["$($m.Stage)|$($m.Id)"] = $tgtIdx
+            [void]$manualMergeKeys.Add("$($m.Stage)|$($m.Id)")
+        }
+        $groups[$srcIdx].Members.Clear()
+        if (-not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
     }
 }
 
@@ -446,8 +531,9 @@ if ($onlyKeys) {
         if ($onlyKeys.Contains($key) -and $seenGroups.Add($groupIndexByKey[$key])) { $touchedGroupIndexes.Add($groupIndexByKey[$key]) }
     }
     foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) { if ($seenGroups.Add($dupGroupIdx)) { $touchedGroupIndexes.Add($dupGroupIdx) } }
+    foreach ($mergeGroupIdx in $mergeTargetGroupIndexes) { if ($seenGroups.Add($mergeGroupIdx)) { $touchedGroupIndexes.Add($mergeGroupIdx) } }
 }
-else { for ($gi = 0; $gi -lt $groups.Count; $gi++) { $touchedGroupIndexes.Add($gi) } }
+else { for ($gi = 0; $gi -lt $groups.Count; $gi++) { if ($groups[$gi].Members.Count -gt 0) { $touchedGroupIndexes.Add($gi) } } }
 
 $touchedMemberKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($gi in $touchedGroupIndexes) { foreach ($m in $groups[$gi].Members) { [void]$touchedMemberKeys.Add("$($m.Stage)|$($m.Id)") } }
@@ -482,6 +568,7 @@ foreach ($f in $allFindings) {
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
 }
+if ($mergeIntoEntries) { foreach ($mergeLesson in $mergeLessons) { $lessons.Add($mergeLesson) } }
 
 $entriesByKey = @{}
 $ghIssueCache = @{}
@@ -560,6 +647,7 @@ foreach ($gi in $touchedGroupIndexes) {
         $memberLabel = Get-FindingLabel $member
         $line = if ($isPrimary) { $primaryLine }
         elseif ($duplicateSource -eq 'manual override') { "- $memberLabel`: duplicate of #$duplicateOfIssue (manual override)" }
+        elseif ($manualMergeKeys.Contains($memberKey)) { "- $memberLabel`: merged into $($primary.Stage) $($primary.Id) (manual override)" }
         else { "- $memberLabel`: merged into $($primary.Stage) $($primary.Id) (same location)" }
         $fixedRoute = if ($isPrimary -and $kind -and $kind -ne 'drafter-decides') { $routes[$kind] } else { $null }
         $entriesByKey[$memberKey] = [ordered]@{
@@ -575,6 +663,7 @@ foreach ($gi in $touchedGroupIndexes) {
             mergedInto       = if ($isPrimary -or $duplicateSource -eq 'manual override') { $null } else { "$($primary.Stage) $($primary.Id)" }
             duplicateOf      = $duplicateOfIssue
             duplicateSource  = $duplicateSource
+            mergeSource      = if ($manualMergeKeys.Contains($memberKey)) { 'manual override' } else { $null }
             partiallyRelated = if ($isPrimary) { @($partiallyRelated) } else { @() }
             possiblyRelated  = if ($isPrimary) { @($possiblyRelated) } else { @() }
             kind             = if ($isPrimary) { $kind } else { $null }
@@ -624,6 +713,7 @@ $findingEntries = foreach ($f in $allFindings) {
         mergedInto       = $null
         duplicateOf      = $null
         duplicateSource  = $null
+        mergeSource      = $null
         partiallyRelated = @()
         possiblyRelated  = @()
         kind             = $null
