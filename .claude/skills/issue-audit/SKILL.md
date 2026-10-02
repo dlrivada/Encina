@@ -32,10 +32,12 @@ the issue's own fix did not reach, not only the files the issue's PRs touched. `
 the state of every successor/duplicate issue with `gh issue view <m> --json state`, live, every time — an
 OPEN successor means the work is pending, not "implemented".
 
-**Local model: mandatory, not optional.** `audit-next.ps1` pre-drafts the knowledge record with the free
+**Local model: only where it is reliable.** `audit-next.ps1` pre-drafts the knowledge record with the free
 local model before the archivist stage starts; `issue-archivist` verifies and completes that draft rather
-than redoing the extraction from zero. `audit-draft-remediation.ps1` (the remediation stage) also runs on the
-local model. An audit that used no local-model tokens should be rare and explainable.
+than redoing the extraction from zero. The remediation stage no longer uses the local model: its drafts
+contradicted their own findings (wrong packages, invented figures, meta-text; audit #18 failed verification on
+them, #1565/#1571 could not repair them with regex checks), so since #1572 the `remediation-drafter` agent
+writes them and `audit-draft-remediation.ps1` only prepares and checks (maintainer decision, 2026-10-02).
 
 **Sharing the llama-server slot.** `qwen-predraft.ps1`'s queue loop and a worker's own local-model call
 compete for the one llama-server slot. When a worker needs the model now, create
@@ -46,8 +48,8 @@ PAUSE, because `audit-next.ps1` needs that draft immediately to start the archiv
 **Deduplication.** Before a remediation draft becomes an issue, `audit-verifier` checks that it does not
 duplicate an open issue (`gh issue list --state open --search "<keywords>"`); a duplicate finding gets no new
 draft, only a reference to the existing issue number. The remediation stage's own `gh issue list --search`
-classification call is the first pass; `audit-verifier` re-checks it independently afterward, never trusting
-that first pass's own search.
+evidence check (`audit-draft-remediation.ps1 -Prepare`) is the first pass; `audit-verifier` re-checks it
+independently afterward, never trusting that first pass's own search.
 
 Credit where it is due: the single-owner-role, mandatory-handoff and independent-QA discipline this pipeline
 enforces adapts the ideas of [unclebob/swarm-forge](https://github.com/unclebob/swarm-forge) to Claude Code,
@@ -64,7 +66,7 @@ artifact file name; never hard-code it. As shipped:
 | code | `issue-auditor` | `stages/code.md` |
 | tests | `test-auditor` | `stages/tests.md` |
 | docs | `docs-reviewer` (audit mode) | `stages/docs.md` |
-| remediation | the local model, via `audit-draft-remediation.ps1` | `stages/remediation.md` |
+| remediation | `remediation-drafter` (between `audit-draft-remediation.ps1 -Prepare` and `-Finalize`) | `stages/remediation.md` (+ the drafts `artifacts/knowledge/remediation/<n>-*.md` in the main checkout) |
 | verification | `audit-verifier` | `stages/verification.md` |
 
 ## 1. Start the audit
@@ -107,28 +109,71 @@ prompt so `audit-stage-guard.ps1` recognises it as this pipeline's stage, not an
 self-review. It has no code/README to review only when the issue delivered none — say so in its own
 `stages/docs.md`, do not skip the stage.
 
-The **remediation** stage is not an agent spawn; run the script directly once `stages/docs.md` exists:
+The **remediation** stage (#1572) is a script step, an agent spawn and a script step, once `stages/docs.md` is
+committed:
+
+1. Prepare (deterministic, no model):
+   ```powershell
+   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare
+   ```
+   It splits each of `code.md`, `tests.md` and `docs.md`'s `## Findings` section into individual findings (the
+   numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents write), groups same-location
+   findings, searches open issues for duplicates with deterministic evidence, applies `-DuplicateOf`
+   overrides, and writes in the MAIN checkout's `artifacts/knowledge/remediation/` one
+   `_input-<n>-<stage>-<id>.md` per finding plus `_manifest-<n>.json`: per finding its group, duplicate or merge
+   decision, partially/possibly related candidates, the routed template (`bug_report.md`/`[BUG]` with milestone
+   `v0.14.0 — Hardening`, `test_implementation.md`/`[TEST]`, `technical_debt.md`/`[DEBT]` for debt and for
+   documentation drift) or, for a code finding, the kinds the drafter chooses from, the draft file to write, the
+   `Reported by:` line and the exact `stages/remediation.md` line. A full Prepare first removes this audit's
+   previous drafts, inputs and manifest; every `gh` call runs before that cleanup, through a retry helper
+   (3 retries after 5, 15 and 45 s on a TLS, dial or connection failure, an HTTP 5xx, or a rate limit reported
+   as HTTP 403 or 429; no retry on any other 4xx; a malformed JSON reply stops the run; #1548).
+2. Spawn `remediation-drafter` **in the foreground**, naming `#<n>`, `wia-<n>` and the manifest path. It writes
+   every draft and `stages/remediation.md`; its definition holds the drafting rules (facts verified with
+   `file:line` in the `src/` and `tests/` of the audit worktree the manifest's `worktree` names, `wia-<n>`,
+   never the main checkout, only the packages the finding names, only figures measured in `stages/tests.md`, no
+   invented code, no pipeline meta-text).
+3. Finalize (deterministic, no model):
+   ```powershell
+   pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize
+   ```
+   It applies the sanitizers below to every regenerated draft, then checks each draft's header block
+   (title prefix, labels, milestone, `kind:`), the template headers in order, leftover placeholders, missing
+   drafts, stale drafts for duplicate or merged findings, and that `stages/remediation.md` carries the manifest's
+   line for every finding, and that the current code/tests/docs findings (keys, severities and text) still match
+   the manifest (a stage re-committed after Prepare makes it stale: run `-Prepare` again). It removes, with a
+   note, any `<n>-*.md` that is not a manifest draft (an orphan or a second draft of one group would become an
+   extra issue; nobody else can delete it). It prints every problem and exits 1
+   when any remains: re-spawn `remediation-drafter` (naming `#<n>` and `wia-<n>`) and paste Finalize's whole
+   output into its prompt — the drafter keeps every draft that output does not name and rewrites only the ones it
+   names — then run `-Finalize` again.
+4. Commit: `pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation` (it refuses unless
+   `.authors.json` records `remediation-drafter` as the last writer of `stages/remediation.md` and `-Finalize`,
+   which it runs again, is clean; the manifest's lessons must also appear in the stage file's Lessons section).
+
+**An audit opened before #1572** (audit #18 is one) carries its own copy of `tools/ai/audit/pipeline.json`
+in `wia-<n>`, whose remediation entry still names the local-model script; `audit-stage-guard.ps1`,
+`enforce-path-ownership.ps1` and `audit-commit-stage.ps1` all read that copy, so `remediation-drafter` could
+not write or commit the stage (and `-Prepare` refuses to run). Only after the #1572 PR is merged and the main
+checkout is pulled (the scripts and hooks run from there), change that worktree copy's remediation entry to
+`"agent": "remediation-drafter", "model": "sonnet"` with the Edit tool (the orchestrator may edit it; no commit
+is needed, since `audit-commit-stage.ps1` stages only `artifacts/knowledge`). Then validate before continuing:
 
 ```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1
-pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation
+(Get-Content -Raw .claude/worktrees/wia-<n>/tools/ai/audit/pipeline.json | ConvertFrom-Json).stages | Where-Object stage -eq 'remediation'
+pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -Next
 ```
 
-It splits each of `code.md`, `tests.md` and `docs.md`'s `## Findings` section into individual findings — the
-numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents already write — and for each surviving
-finding: (a) a short local-model call classifies it as bug/test/debt/docs and checks it against a handful of
-open-issue candidates found with `gh issue list --search` for duplicates; (b) a duplicate gets no draft, only a
-"duplicate of #m" line in `stages/remediation.md`; (c) a non-duplicate is routed to the matching issue template
-(`bug_report.md`/`[BUG]` for a code defect with milestone `v0.14.0 — Hardening`, `test_implementation.md`/`[TEST]`
-for missing tests or a coverage gap, `technical_debt.md`/`[DEBT]` for messy/incomplete code, `technical_debt.md`/
-`[DEBT]` for a documentation drift) and drafted into
-`artifacts/knowledge/remediation/<n>-<stage>-<id>-<slug>.md` with the chosen template's real headers and
-checkboxes embedded verbatim. `-DryRun` performs every step except the two local-model calls (writes the
-per-finding input files and briefs under `artifacts/knowledge/remediation/_dryrun-<n>/` and previews the
-routing with a deterministic fallback kind instead of the model's classification), and `-NoGh` additionally
-skips the `gh issue list` duplicate search — this is what the automated test suite exercises, so the real
-model and `gh` are never called in tests. `audit-verifier` checks each draft against the open issues before
-you open any of them.
+The first must print `remediation-drafter`/`sonnet` (a parse error means the edit broke the JSON: the hooks then
+deny every stage write and spawn until it is fixed); once the docs stage is committed, the second must print
+the three remediation steps (before that it prints the earlier stage that is still due).
+
+`-DryRun` (either mode) works only inside the sandbox `artifacts/knowledge/remediation/_dryrun-<n>/`: Prepare
+writes its inputs, manifest and draft paths there (the stage-file preview is `_dryrun-<n>/remediation.md`),
+Finalize reads that sandbox manifest, and neither ever deletes or overwrites a live draft, input, manifest or
+`stages/remediation.md` (#1540). `-NoGh` skips every `gh` call (no duplicate is then found); the automated test
+suite uses it together with a stubbed `gh`, so no real `gh` call happens in tests. `audit-verifier` checks each
+draft against the open issues before you open any of them.
 
 **Intra-audit deduplication (#1491).** Before drafting, the script groups the audit's OWN findings (from
 `code.md`, `tests.md` and `docs.md` together) by their leading location anchor — `Get-FindingLeadingAnchor`/
@@ -139,14 +184,13 @@ anchor at all is never grouped. This is what audit #17 needed: docs finding 7 an
 for the one defect. One draft is written per group, from the group's highest-severity finding
 (`Get-GroupPrimary`: Blocker > Major > Minor > Unknown; ties broken by stage order code/tests/docs); its
 Description names every stage and finding id in the group with a deterministic `Reported by: <stage> <id>, ...`
-line (`Add-ReportedByLine`), never left to the model to remember. Every OTHER member's own line in
+line (`Add-ReportedByLine`, applied by `-Finalize`). Every OTHER member's own line in
 `stages/remediation.md` reads `merged into <stage> <id> (same location)` instead of getting a draft of its own,
 so the verifier still sees every finding accounted for. `-Only "<stage> <n>"` on a merged (non-primary)
-finding regenerates its group's one draft — the primary's — rather than trying (and failing) to draft the
-merged finding on its own.
+finding prepares its group's one draft — the primary's — rather than a draft of the merged finding on its own.
 
-A `technical_debt.md`-routed draft's `## Type` checkbox is never left to the model: the script ticks it itself,
-deterministically, from the finding's stage and (for a code-stage finding) the classifier's own kind
+A `technical_debt.md`-routed draft's `## Type` checkbox is never left to the drafter: `-Finalize` ticks it,
+deterministically, from the finding's stage and (for a code-stage finding) the kind in the draft's `kind:` line
 (`Get-DeterministicDebtType`/`Set-DebtType` in `_remediation-checks.ps1`) -- a docs-stage finding always ticks
 "Documentation gap"; a tests-stage finding ticks "Missing tests", or "Refactoring needed" when its own text is
 about duplicating/consolidating/refactoring existing tests; a code-stage "debt" finding ticks the template's own
@@ -155,45 +199,44 @@ label/comment/string, and a code-stage "docs" finding
 ticks "Documentation gap" too. This closes the exact instability audit #17 hit: regenerating every draft to fix
 one detail used to re-roll every other draft's own Type tick as well (#1492).
 
-Regenerating just one or two findings' drafts (a verifier `FAIL` naming only those) does not have to re-roll
-every other draft's own already-correct model choices: `-Only "<stage> <n>"` (repeatable, e.g.
-`-Only "code 3" -Only "tests 1"`) regenerates only the named finding(s), leaving every other finding's own draft,
-input, brief and `stages/remediation.md` line completely untouched, byte-identical (#1492 decision 3). It
-requires `stages/remediation.md` to already carry a line for every OTHER currently-parsed finding (i.e. a full
-regeneration ran at least once); otherwise it errors rather than guessing.
+Regenerating just one or two findings' drafts (a verifier `FAIL` naming only those) does not have to touch
+every other draft: `-Prepare -Only "<stage> <n>"` (repeatable, e.g. `-Only "code 3" -Only "tests 1"`) prepares
+only the named finding(s)' groups; every other finding keeps its draft, input and `stages/remediation.md` line
+byte-identical, and the manifest marks it `"regenerate": false` with its existing line, so the drafter rewrites
+only the named drafts (#1492 decision 3). It requires `stages/remediation.md` to already carry a line for every
+OTHER currently-parsed finding (i.e. a full Prepare and drafter run happened at least once); otherwise it errors
+rather than guessing.
 
 Some real duplicates can never pass `Test-DuplicateEvidence`: a candidate that only MENTIONS the finding's file
 and symbol as one item of a numbered list inside its own Description is exactly what #1393 excludes from
 evidence (audit #18's docs finding 12 vs. #1177, which lists it as item 6 of a drift report). For that case,
 `-DuplicateOf "<stage> <n>=<issue>"` (repeatable, e.g. `-DuplicateOf "docs 12=1177"`) records the named finding
 as a duplicate of the given issue by explicit, logged override -- once `audit-verifier` or the orchestrator has
-confirmed it, never guessed by the script or the model. It format-validates each entry up front and (unless
+confirmed it, never guessed by the script or the drafter. It format-validates each entry up front and (unless
 `-NoGh`) verifies the target is a real OPEN issue via `gh issue view`, before touching any file; a key that does
 not match a finding currently parsed from the stage artifacts is also an error. The overridden finding's own
 line in `stages/remediation.md` reads exactly like an automatically detected duplicate's line, plus
 "(manual override)"; when the overridden finding is the PRIMARY of a same-location group (#1491), the WHOLE
 group is recorded as that duplicate -- every member's own line, never a "merged into ..." line for a
-non-primary sibling. The typical pairing is `-Only "docs 12" -DuplicateOf "docs 12=1177"` (regenerate and record
-just that one finding), but a `-DuplicateOf` entry always regenerates and records its own finding's group this
+non-primary sibling. The typical pairing is `-Only "docs 12" -DuplicateOf "docs 12=1177"` (prepare and record
+just that one finding), but a `-DuplicateOf` entry always prepares and records its own finding's group this
 run even when its key is not separately repeated under `-Only`, and it works the same way in a full run too.
-Every override is logged under `stages/remediation.md`'s own `## Lessons for the pipeline` section, so the
-verifier and the pipeline's lessons history both see it (#1534). Audit #18's docs finding 12 case:
+Every override is a lesson in the manifest, which the drafter copies under `stages/remediation.md`'s own
+`## Lessons for the pipeline` section, so the verifier and the pipeline's lessons history both see it (#1534).
+Audit #18's docs finding 12 case:
 
 ```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Only 'docs 12' -DuplicateOf 'docs 12=1177'
+pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -Only 'docs 12' -DuplicateOf 'docs 12=1177'
 ```
 
-Duplicate-vs-new is deterministic, not model-driven: `tools/ai/audit/_remediation-checks.ps1`'s
-`Find-DuplicateAmongCandidates` runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a
-cited symbol -- found in a candidate's real `gh issue view` title/body) against EVERY candidate the duplicate
-search returned, not only the one the local model happens to name. When one or more candidates pass, the
-finding is a duplicate of the lowest-numbered passing candidate regardless of what the model answered, so the
-same finding against the same set of open issues always classifies the same way; the model's own classification
-then only decides the drafted kind (bug/test/debt/docs) for a finding no candidate passes for (#1424, fixing an
-instability #1388/#1400 had left in the model's hands: the same finding classified as a duplicate in one run and
-as new in the next, with the open issues unchanged in between). When no candidate passes but the model named one
-anyway, that claim is drafted as new with a "partially related" or "possibly related" note instead of being
-dropped (#1388). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
+Duplicate-vs-new is deterministic: `tools/ai/audit/_remediation-checks.ps1`'s `Find-DuplicateAmongCandidates`
+runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a cited symbol -- found in a
+candidate's real `gh issue view` title/body) against EVERY candidate the duplicate search returned. When one or
+more candidates pass, the finding is a duplicate of the lowest-numbered passing candidate, so the same finding
+against the same set of open issues always classifies the same way (#1424). When no candidate passes, every
+candidate that matches part of the finding's anchors is listed in the manifest as "partially related" (the
+drafter cites it verbatim; `-Finalize` adds the line back if it is missing), and the other search hits as
+"possibly related" (awareness only, never cited). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
 clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a
 "partially related" note instead of being accepted as the same defect (#1400). The candidate must be ABOUT the
 finding's location and symbol, not merely mention them (#1393): both anchors are looked up only in its title and
@@ -207,26 +250,25 @@ once per provider) or a directory segment; and a folder (`src/`), a line referen
 AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol evidence. A candidate whose location
 text matches at least one of the finding's anchors but not the full duplicate bar is "partially related", never
 a duplicate.
-`audit-draft-remediation.ps1`
-also strips an outer code fence from the model's reply (`Remove-OuterFence`), and, when the stripped draft still
-has the issue template's own placeholder text (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description` row,
-or any other instruction line derived straight from the routed template's own body), re-asks the model once,
-naming the offending lines; a draft that still has placeholders after that re-ask is kept (for inspection), its
-finding's line in `stages/remediation.md` is marked `PLACEHOLDERS LEFT: <file>`, and the whole run exits 1 at the
-end, naming every such draft. Finally, `Limit-RelatedIssues` sanitizes every `#n` reference anywhere in the
+`audit-draft-remediation.ps1 -Finalize` also strips an outer code fence from a draft (`Remove-OuterFence`),
+fills a bug draft's `## Environment` section (`Set-BugEnvironment`), and reports as a problem any of the issue
+template's own placeholder text still in the draft (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description`
+row, or any other instruction line derived straight from the routed template's own body) and any template
+header missing or out of order. Finally, `Limit-RelatedIssues` sanitizes every `#n` reference anywhere in the
 draft's WHOLE body -- not only a labelled Related Issues section (a `## Related Issues` header, a
 `- **Related Issues**:` bold bullet, or a plain `Related Issues:` line), but any other section too (Description,
 Current Behavior, Additional Context, ...) -- keeping only a reference that is the audited issue itself, appears
-in the finding's own text, or is named in one of the script's own already anchor-checked
-duplicate/partially-related/possibly-related notes -- never merely because it was offered as a search candidate,
+in the finding's own text, or is one of the manifest's already anchor-checked "partially related"
+candidates -- never merely because it was offered as a search candidate,
 which is not on its own evidence of a real relation. A removed reference inside ordinary prose drops just the
 `#n` token (and a bare enclosing `(...)`/`(see ...)` wrapper), leaving the rest of the sentence readable, rather
-than the whole line. Every removed reference is logged (#1400, narrowed by #1424, widened by #1428, made
-whole-body by #1492).
+than the whole line. Every removed reference is printed as a note (#1400, narrowed by #1424, widened by #1428,
+made whole-body by #1492).
 
 Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
 `wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there
-too.
+too. While the audit is open, `enforce-path-ownership.ps1` lets only `remediation-drafter` write those
+`<n>-*.md` drafts: a correction goes back through a drafter re-spawn, never a hand edit.
 
 Update the board's `audits/<n>.stage` after each stage commits.
 
@@ -263,7 +305,7 @@ blocked). For each lesson, replace `TODO` with one of:
 - `role:<agent> <one-line note>` when the lesson belongs in that agent's own memory rather than a one-off
   fix — `audit-done.ps1` appends it, with today's date and this issue number, to
   `.claude/agents/lessons/<agent>.md` when the audit closes. Use the exact agent name (`issue-archivist`,
-  `issue-auditor`, `test-auditor`, `audit-verifier`, `docs-reviewer`).
+  `issue-auditor`, `test-auditor`, `docs-reviewer`, `remediation-drafter`, `audit-verifier`).
 
 Commit `stages/lessons.md` on the audit branch with:
 

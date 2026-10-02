@@ -45,7 +45,7 @@ You are the code stage of the SPEC-003 audit pipeline (#1345), inside an open au
 
 - Tests (coverage, missing test types, test quality): `test-auditor`'s stage.
 - Documentation: `docs-reviewer`'s stage.
-- Drafting remediation issues: the `remediation` stage's script consumes your `## Findings`, you do not write issue drafts yourself.
+- Drafting remediation issues: the `remediation` stage (`audit-draft-remediation.ps1 -Prepare` and `remediation-drafter`) consumes your `## Findings`, you do not write issue drafts yourself.
 
 ## Inputs
 

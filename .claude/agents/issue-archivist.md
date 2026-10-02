@@ -45,7 +45,7 @@ You are the archivist stage of the SPEC-003 audit pipeline (#1345). You run insi
 ## Does not own
 
 - Judging whether the code in scope is correct, well-tested or well-documented: that is `issue-auditor`'s and `test-auditor`'s stage. You scope the code; you do not review it.
-- Drafting remediation issues: that is the `remediation` stage's script.
+- Drafting remediation issues: that is the `remediation` stage's `remediation-drafter`.
 
 ## Inputs
 

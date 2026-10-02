@@ -95,7 +95,14 @@ if ($null -eq $dueStage) {
     "All stages complete for #$n. Run audit-done.ps1."
     exit 0
 }
-if ($dueStage.agent -match '^issue-|^audit-|^docs-reviewer$') {
+if ($dueStage.agent -eq 'remediation-drafter') {
+    # #1572: the remediation stage is a script step, an agent spawn and a script step.
+    "Next stage: $($dueStage.stage) for issue #$n, worktree $wt -- three steps:"
+    "  1. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare"
+    "  2. spawn remediation-drafter in the foreground, naming #$n, wia-$n and artifacts/knowledge/remediation/_manifest-$n.json"
+    "  3. pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Finalize (on exit 1, re-spawn remediation-drafter with its output, then run -Finalize again)"
+}
+elseif ($dueStage.agent -match '^issue-|^audit-|^docs-reviewer$') {
     "Next stage: $($dueStage.stage) (spawn $($dueStage.agent) on issue #$n, worktree $wt)"
 }
 else {

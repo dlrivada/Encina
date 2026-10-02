@@ -4,7 +4,8 @@
 # old free-form coordinator path is closed.
 #
 # Applies when the spawned subagent_type is one of the audit-stage agents (issue-archivist, issue-auditor,
-# test-auditor, audit-verifier), or docs-reviewer when its prompt names an audit worktree (wia-<n>): a
+# test-auditor, remediation-drafter (#1572), audit-verifier), or docs-reviewer when its prompt names an audit
+# worktree (wia-<n>): a
 # docs-reviewer spawned by docs-writer for an ordinary documentation self-review, with no audit worktree
 # named, is not an audit stage and is left alone.
 #
@@ -28,11 +29,14 @@
 #
 # pipeline.json is read from the OPEN AUDIT'S OWN worktree (not this hook's checkout), so a fixture or a
 # later reorder of the file changes the stage this hook expects without redeploying the hook.
-# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call.
+# Exit code 2 blocks the call and shows stderr to Claude. A failure of the hook itself allows an unrelated call
+# (or a malformed payload), but DENIES an audit-stage spawn, and so does a missing or unparseable pipeline.json
+# in the open audit's worktree (#1572 review: fail closed, AGENTS.md §3).
 
 param()
 
 $ErrorActionPreference = 'Stop'
+$auditStageSpawn = $false
 
 try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
@@ -42,19 +46,25 @@ try {
     $prompt = [string]$payload.tool_input.prompt
 
     if ($subagent -in 'issue-worker', 'general-purpose' -and $prompt -match 'SPEC-003 audit') {
-        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, audit-verifier) instead.")
+        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, remediation-drafter, audit-verifier) instead.")
         exit 2
     }
 
-    $stageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier'
+    $stageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier'
     # Requiring both 'wia-<n>' AND the word 'audit' keeps an ordinary docs-writer self-review — whose prompt
     # might legitimately mention a 'wia-<n>' worktree name for unrelated reasons, e.g. this very pipeline's
     # own documentation — from being misread as an audit-stage spawn and denied for having no open audit.
     $isDocsStage = $subagent -eq 'docs-reviewer' -and $prompt -match 'wia-\d+' -and $prompt -match '(?i)\baudit\b'
     if ($subagent -notin $stageAgents -and -not $isDocsStage) { exit 0 }
+    # From here on this is an audit-stage spawn: any failure of the checks below denies it (fail closed, #1572
+    # review), instead of the fail-open default that still applies to unrelated spawns and malformed payloads.
+    $auditStageSpawn = $true
 
     $projectDir = [string]$env:CLAUDE_PROJECT_DIR
-    if ([string]::IsNullOrWhiteSpace($projectDir)) { exit 0 }
+    if ([string]::IsNullOrWhiteSpace($projectDir)) {
+        [Console]::Error.WriteLine('Blocked: CLAUDE_PROJECT_DIR is not set, so the open SPEC-003 audit cannot be located and this audit-stage spawn cannot be checked (#1572, fail closed).')
+        exit 2
+    }
     $mainRoot = $projectDir
     $marker = [IO.Path]::DirectorySeparatorChar + '.claude' + [IO.Path]::DirectorySeparatorChar + 'worktrees' + [IO.Path]::DirectorySeparatorChar
     $at = $mainRoot.IndexOf($marker, [StringComparison]::OrdinalIgnoreCase)
@@ -82,8 +92,14 @@ try {
     }
 
     $pipelinePath = Join-Path $wt 'tools\ai\audit\pipeline.json'
-    if (-not (Test-Path -LiteralPath $pipelinePath)) { exit 0 }
-    $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json
+    $pipeline = $null
+    if (Test-Path -LiteralPath $pipelinePath) {
+        try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { $pipeline = $null }
+    }
+    if ($null -eq $pipeline -or $null -eq $pipeline.stages) {
+        [Console]::Error.WriteLine("Blocked: the open audit's $pipelinePath is missing or cannot be parsed, so the stage due for #$n cannot be decided; repair it first (#1572, fail closed).")
+        exit 2
+    }
 
     $model = [string]$payload.tool_input.model
     if ($model -and $pipeline.forbiddenModels -and $model -in @($pipeline.forbiddenModels)) {
@@ -176,12 +192,16 @@ try {
     }
     $expectedAgent = [string]$nextStage.agent
     if ($subagent -ne $expectedAgent) {
-        $instead = if ($expectedAgent -match '^issue-|^audit-|^docs-reviewer$') { "spawn $expectedAgent" } else { "run tools/ai/audit/audit-draft-remediation.ps1 (the '$($nextStage.stage)' stage runs a script, not an agent spawn)" }
+        $instead = if ($expectedAgent -eq 'remediation-drafter') { "run tools/ai/audit/audit-draft-remediation.ps1 -Prepare, then spawn remediation-drafter" } else { "spawn $expectedAgent" }
         [Console]::Error.WriteLine("Blocked: the next stage due for #$n is '$($nextStage.stage)' ($instead), not a $subagent spawn (#1345; tools/ai/audit/audit-stage.ps1 -Next). Stages run in the fixed order of pipeline.json.")
         exit 2
     }
     exit 0
 }
 catch {
+    if ($auditStageSpawn) {
+        [Console]::Error.WriteLine("Blocked: audit-stage-guard.ps1 could not check this audit-stage spawn ($($_.Exception.Message)); an unchecked stage spawn is denied (#1572, fail closed).")
+        exit 2
+    }
     exit 0
 }

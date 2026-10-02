@@ -13,9 +13,10 @@
 # LAST write as coming from the agent pipeline.json assigns to it: enforce-path-ownership.ps1 is the only
 # thing that updates that sidecar, on every Write/Edit tool call it allows, so a missing or mismatched entry
 # means the artifact was never actually written by its assigned agent through that tool (or was hand-edited
-# by something the sidecar never saw). The 'remediation' stage is exempt: its "agent" is the local-model
-# script (audit-draft-remediation.ps1), which writes with Set-Content, never through the Write/Edit tool, so
-# the sidecar never gets an entry for it.
+# by something the sidecar never saw). Every stage has an agent author since #1572, the remediation stage
+# included: remediation-drafter writes stages/remediation.md with the Write/Edit tool (the
+# audit-draft-remediation.ps1 -Prepare/-Finalize script never writes it), so no stage is exempt. -Stage
+# remediation also refuses unless audit-draft-remediation.ps1 -Finalize exits 0.
 #
 # #1457: -Stage archivist additionally refuses when the knowledge record it just wrote
 # (artifacts\knowledge\issues\<n>.md) fails `dotnet run --file .github/scripts/knowledge-records.cs --
@@ -95,26 +96,35 @@ if (-not (Test-Path -LiteralPath $artifactFull)) {
 }
 
 $expectedAgent = [string]$stageDef.agent
-$knownStageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer'
-if ($expectedAgent -in $knownStageAgents) {
-    $authorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
-    $authorship = $null
-    # #1374: an unreadable sidecar (corrupted by a lost race between the two concurrent hook instances, before
-    # the mutex fix) is a DIFFERENT failure than "no recorded author" -- the artifact may well have been
-    # written by the right agent, but the sidecar cannot prove it. Reporting the parse error, never masking it
-    # behind "no recorded author", is what let #1374 be diagnosed instead of silently blocking the audit.
-    $unreadableReason = $null
-    if (Test-Path -LiteralPath $authorsPath) {
-        try { $authors = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable; $authorship = $authors[$Stage] }
-        catch { $unreadableReason = $_.Exception.Message }
-    }
-    if ($unreadableReason) {
-        Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: artifacts\knowledge\stages\.authors.json is unreadable: $unreadableReason; run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout, then have $expectedAgent re-write the '$Stage' stage artifact so it is recorded again (#1374)."
-        exit 1
-    }
-    if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
-        $found = if ($null -eq $authorship) { 'no recorded author' } else { "recorded author '$($authorship.agent)'" }
-        Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: pipeline.json assigns it to $expectedAgent, but artifacts\knowledge\stages\.authors.json has $found. The artifact must be written by $expectedAgent through the Write/Edit tool (enforce-path-ownership.ps1 records authorship there); a hand-edited or fabricated artifact is not accepted (#1345)."
+$authorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
+$authorship = $null
+# #1374: an unreadable sidecar (corrupted by a lost race between the two concurrent hook instances, before
+# the mutex fix) is a DIFFERENT failure than "no recorded author" -- the artifact may well have been
+# written by the right agent, but the sidecar cannot prove it. Reporting the parse error, never masking it
+# behind "no recorded author", is what let #1374 be diagnosed instead of silently blocking the audit.
+$unreadableReason = $null
+if (Test-Path -LiteralPath $authorsPath) {
+    try { $authors = Get-Content -LiteralPath $authorsPath -Raw | ConvertFrom-Json -AsHashtable; $authorship = $authors[$Stage] }
+    catch { $unreadableReason = $_.Exception.Message }
+}
+if ($unreadableReason) {
+    Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: artifacts\knowledge\stages\.authors.json is unreadable: $unreadableReason; run 'pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -RepairAuthors' from the main checkout, then have $expectedAgent re-write the '$Stage' stage artifact so it is recorded again (#1374)."
+    exit 1
+}
+if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
+    $found = if ($null -eq $authorship) { 'no recorded author' } else { "recorded author '$($authorship.agent)'" }
+    Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: pipeline.json assigns it to $expectedAgent, but artifacts\knowledge\stages\.authors.json has $found. The artifact must be written by $expectedAgent through the Write/Edit tool (enforce-path-ownership.ps1 records authorship there); a hand-edited or fabricated artifact is not accepted (#1345)."
+    exit 1
+}
+
+# #1572: the remediation stage commits only once audit-draft-remediation.ps1 -Finalize is clean -- the
+# sanitizers and checks are part of the stage, never an optional step before an unchecked commit. -Finalize is
+# idempotent on clean drafts, so running it again here changes nothing that was already finalized.
+if ($Stage -eq 'remediation') {
+    $finalizeScript = Join-Path $PSScriptRoot 'audit-draft-remediation.ps1'
+    $finalizeOutput = & pwsh -NoProfile -File $finalizeScript -Finalize 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "audit-commit-stage: refusing to commit 'remediation' for #${n}: audit-draft-remediation.ps1 -Finalize is not clean (re-spawn remediation-drafter with this output):`n$($finalizeOutput -join "`n")"
         exit 1
     }
 }

@@ -18,11 +18,12 @@ foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
     if ((Test-Path $opened) -and (Select-String -Path $opened -SimpleMatch $f.Name -Quiet)) { continue }
     $raw = Get-Content -Raw $f.FullName
     $h = ([regex]::Match($raw, '(?s)<!--(.*?)-->')).Groups[1].Value
-    $title = ([regex]::Match($h, 'title:\s*(.+)')).Groups[1].Value.Trim()
+    # [ \t]*, never \s*: an empty field must not swallow the next header line (#1572 added 'kind:' after 'milestone:').
+    $title = ([regex]::Match($h, 'title:[ \t]*(.+)')).Groups[1].Value.Trim()
     if (-not $title) { Write-Warning "no title in $($f.Name)"; continue }
-    $lab = @((([regex]::Match($h, 'labels:\s*(.+)')).Groups[1].Value -split ',\s*') | ForEach-Object { $_.Trim() } | Where-Object { $labels -contains $_ })
+    $lab = @((([regex]::Match($h, 'labels:[ \t]*(.+)')).Groups[1].Value -split ',\s*') | ForEach-Object { $_.Trim() } | Where-Object { $labels -contains $_ })
     if (-not $lab) { $lab = @(if ($title.StartsWith('[BUG]')) { 'bug' } elseif ($title.StartsWith('[TEST]')) { 'area-testing' } else { 'technical-debt' }) }
-    $m = ([regex]::Match($h, 'milestone:\s*(.+)')).Groups[1].Value.Trim()
+    $m = ([regex]::Match($h, 'milestone:[ \t]*(.*)')).Groups[1].Value.Trim()
     # The real GitHub milestone title uses an em dash (U+2014); [char]0x2014 keeps this file's own bytes
     # ASCII-only while still matching that title exactly, so --milestone below resolves it (#1345 review).
     if (-not ($ms -contains $m)) { $m = if ($title.StartsWith('[BUG]')) { "v0.14.0 $([char]0x2014) Hardening" } else { '' } }

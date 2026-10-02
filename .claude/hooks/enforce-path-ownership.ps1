@@ -29,11 +29,13 @@
 #                 artifacts/** (its issue files); never .claude/**. Everything else (src/, tests/, build files,
 #                 docs/ site code and data) is denied: spawn mechanical-fixer for an already-decided edit,
 #                 otherwise report it.
-#   the five SPEC-003 audit-stage agents (issue-archivist, issue-auditor, test-auditor, audit-verifier,
-#                 docs-reviewer in audit mode; #1345) each write ONLY their own stage artifact under
-#                 artifacts/knowledge/stages/, as tools/ai/audit/pipeline.json assigns it — never another
-#                 stage's file, and never src/, tests/, docs/ or .claude/. issue-archivist also owns the
-#                 knowledge record under artifacts/knowledge/issues/. The stage-ownership check below runs for
+#   the six SPEC-003 audit-stage agents (issue-archivist, issue-auditor, test-auditor, audit-verifier,
+#                 docs-reviewer in audit mode, remediation-drafter; #1345, #1572) each write ONLY their own
+#                 stage artifact under artifacts/knowledge/stages/, as tools/ai/audit/pipeline.json assigns it —
+#                 never another stage's file, and never src/, tests/, docs/ or .claude/. issue-archivist also
+#                 owns the knowledge record under artifacts/knowledge/issues/; remediation-drafter also owns the
+#                 open audit's drafts, the MAIN checkout's artifacts/knowledge/remediation/<n>-*.md, which every
+#                 other caller (the orchestrator included) is denied (#1572). The stage-ownership check below runs for
 #                 EVERY caller, not only these five, so the orchestrator (main session) and any other agent
 #                 are denied from writing a stage artifact too — closing the gap that let a coordinator
 #                 fabricate a stage's outcome. A successful write records its author in the sidecar
@@ -80,9 +82,9 @@
 #     content without going through any tool this hook otherwise inspects; every path Get-ShellWrites resolves
 #     for those verbs (`.Git[].Paths`) goes through the same Test-PathOwnership check as a Write/Edit target.
 #   - `git commit` / `git apply` / `git am`, run directly instead of through tools/ai/audit/audit-commit-stage.ps1
-#     (which alone checks the .authors.json sidecar) or audit-draft-remediation.ps1, would let anyone commit a
-#     fabricated stage artifact, or apply a patch whose content this analysis cannot inspect. Since neither
-#     script has any legitimate reason to be reached any other way inside an open audit's own worktree
+#     (which alone checks the .authors.json sidecar), would let anyone commit a fabricated stage artifact, or
+#     apply a patch whose content this analysis cannot inspect. Since that script has no legitimate reason to
+#     be reached any other way inside an open audit's own worktree
 #     (`.claude/worktrees/wia-<n>`), those three verbs are denied outright there for every caller when they are
 #     the command's own top-level git invocation (not when they run inside a `pwsh -File` script this hook does
 #     not execute) — fail-closed, per AGENTS.md §3, rather than trying to parse patch content.
@@ -203,6 +205,27 @@ try {
         }
     }
 
+    # #1572: the issue number of the open SPEC-003 audit (artifacts/knowledge/current-audit.json of the MAIN
+    # checkout), read once per hook run; $null when no audit is open, 'unreadable' when the file exists but has
+    # no readable issue number (the draft rule then fails closed, AGENTS.md §3).
+    $script:OpenAuditIssue = $null
+    $script:OpenAuditIssueRead = $false
+    function Get-OpenAuditIssue {
+        if (-not $script:OpenAuditIssueRead) {
+            $script:OpenAuditIssueRead = $true
+            $currentAuditPath = Join-Path $layout.MainRoot 'artifacts\knowledge\current-audit.json'
+            if (Test-Path -LiteralPath $currentAuditPath) {
+                $script:OpenAuditIssue = 'unreadable'
+                try {
+                    $issueValue = [string](Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json).issue
+                    if ($issueValue -match '^\d+$') { $script:OpenAuditIssue = $issueValue }
+                }
+                catch { $script:OpenAuditIssue = 'unreadable' }
+            }
+        }
+        return $script:OpenAuditIssue
+    }
+
     # Checks one resolved absolute path against every ownership rule. Returns $true (allowed) or $false
     # (blocked; the reason is already on stderr). A path outside the project is always allowed.
     function Test-PathOwnership([string]$Full) {
@@ -238,31 +261,32 @@ try {
         # written ONLY by the agent tools/ai/audit/pipeline.json assigns to that stage — never the orchestrator
         # (main session, an empty/absent $Agent) and never a different agent, so a coordinator or a wrong stage
         # cannot fabricate another stage's outcome. This runs for every caller (not only the audit-stage agents
-        # below), because the gap is exactly a caller OTHER than the assigned agent writing the file. Exceptions,
-        # by construction rather than by name here: stages/lessons.md is not a pipeline.stages entry (the
+        # below), because the gap is exactly a caller OTHER than the assigned agent writing the file. Every stage
+        # has an agent since #1572 (the remediation stage's is remediation-drafter). The one exception, by
+        # construction rather than by name here: stages/lessons.md is not a pipeline.stages entry (the
         # orchestrator fills its "Applied:" lines with the Write/Edit tool, so it must reach the default allow at
-        # the end of this function); the 'remediation' stage's artifact is written by
-        # tools/ai/audit/audit-draft-remediation.ps1 with Set-Content, never through a tool this hook lets any
-        # caller reach for that path, so no caller here is ever its legitimate writer.
+        # the end of this function).
         # Matched case-insensitively: the filesystem this project runs on is case-insensitive, so
         # 'Artifacts\Knowledge\Stages\code.md' resolves to the very same on-disk file as
         # 'artifacts/knowledge/stages/code.md' and must not evade this check by casing alone.
         $stageArtifactMatch = [regex]::Match($relative, '^artifacts/knowledge/stages/(?<file>[^/]+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if ($stageArtifactMatch.Success) {
             $pipelinePath = Join-Path $location.Root 'tools\ai\audit\pipeline.json'
+            # #1572 review: a missing or unreadable pipeline.json must not fall through to the default allow --
+            # nobody may write a stage artifact whose owner cannot be decided (fail closed, AGENTS.md §3).
             $pipeline = $null
             if (Test-Path -LiteralPath $pipelinePath) {
-                try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json } catch { $pipeline = $null }
+                try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json -ErrorAction Stop }
+                catch { $pipeline = $null }
+            }
+            if ($null -eq $pipeline -or $null -eq $pipeline.stages) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is under artifacts/knowledge/stages/, but $pipelinePath is missing or cannot be parsed, so the stage's owner cannot be decided; repair pipeline.json first (#1572, fail closed).")
+                return $false
             }
             $stageDef = if ($null -ne $pipeline) { @($pipeline.stages) | Where-Object { $_.artifact -ieq $stageArtifactMatch.Groups['file'].Value } | Select-Object -First 1 } else { $null }
             if ($null -ne $stageDef) {
                 $expectedAgent = [string]$stageDef.agent
-                $knownStageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer'
                 $callerLabel = if ([string]::IsNullOrWhiteSpace($Agent)) { 'the orchestrator (main session)' } else { $Agent }
-                if ($expectedAgent -notin $knownStageAgents) {
-                    [Console]::Error.WriteLine("Blocked: '$relative' is the '$($stageDef.stage)' stage artifact, written only by its own script (tools/ai/audit/audit-draft-remediation.ps1) via Set-Content, never through a tool this hook governs; $callerLabel may not write it this way (#1345).")
-                    return $false
-                }
                 if ($Agent -ne $expectedAgent) {
                     [Console]::Error.WriteLine("Blocked: '$relative' is the '$($stageDef.stage)' stage artifact, owned by $expectedAgent (tools/ai/audit/pipeline.json); $callerLabel may not write it (#1345: a stage artifact is written only by the agent the pipeline assigns to that stage — this closes the gap that let a coordinator fabricate a stage's outcome).")
                     return $false
@@ -279,6 +303,31 @@ try {
             }
             # $stageArtifactMatch succeeded but the file names no pipeline.stages entry (e.g. lessons.md): not
             # covered by this gap-closing check; the rules below (and the default allow for the orchestrator) apply.
+        }
+
+        # #1572: the open audit's remediation drafts (the MAIN checkout's artifacts/knowledge/remediation/<n>-*.md,
+        # <n> the issue in artifacts/knowledge/current-audit.json) belong to remediation-drafter alone, for the
+        # same reason a stage artifact belongs to its agent: no other caller, the orchestrator included, may write
+        # or rewrite a draft the verifier will judge. The script's own _input-<n>-*/_manifest-<n>.json files start
+        # with '_' and are not drafts; another audit's drafts are not covered. The dry-run sandbox's drafts and
+        # stage-file preview (_dryrun-<n>/<n>-*.md, _dryrun-<n>/remediation.md, #1540) follow the same rule, so a
+        # dry run can be completed by the drafter too. An unreadable current-audit.json fails closed: nobody may
+        # write any draft until it is repaired.
+        if (-not $location.InWorktree -and $relative -match '(?i)^artifacts/knowledge/remediation/(?:_dryrun-(?<n>\d+)/(?:\d+-[^/]+\.md|remediation\.md)|(?<n>\d+)-[^/]+\.md)$') {
+            $draftIssue = $Matches['n']
+            $openIssue = Get-OpenAuditIssue
+            if ($openIssue -eq 'unreadable') {
+                [Console]::Error.WriteLine("Blocked: '$relative' looks like a SPEC-003 remediation draft, but artifacts/knowledge/current-audit.json exists and has no readable issue number, so its owner cannot be decided; repair current-audit.json first (#1572, fail closed).")
+                return $false
+            }
+            if ($draftIssue -eq $openIssue) {
+                if ($Agent -ne 'remediation-drafter') {
+                    $callerLabel = if ([string]::IsNullOrWhiteSpace($Agent)) { 'the orchestrator (main session)' } else { $Agent }
+                    [Console]::Error.WriteLine("Blocked: '$relative' is a remediation draft of the open SPEC-003 audit (#$draftIssue), owned by remediation-drafter (#1572); $callerLabel may not write it. Re-spawn remediation-drafter with the correction instead.")
+                    return $false
+                }
+                return $true
+            }
         }
 
         if ($Agent -eq 'issue-worker') {
@@ -303,10 +352,11 @@ try {
                 return $false
             }
         }
-        elseif ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer') {
+        elseif ($Agent -in 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier', 'docs-reviewer', 'remediation-drafter') {
             # A write to its own stage artifact already returned above (the stage-ownership check runs for every
-            # caller before this branch). What is left to allow here is issue-archivist's knowledge record and,
-            # for test-auditor/audit-verifier only, their shared coverage-scratch prefix (#1523); anything else
+            # caller before this branch), and so did remediation-drafter's write to an open-audit draft (#1572).
+            # What is left to allow here is issue-archivist's knowledge record and, for
+            # test-auditor/audit-verifier only, their shared coverage-scratch prefix (#1523); anything else
             # under artifacts/knowledge/stages/ that names no pipeline stage (e.g. lessons.md) or that lies
             # outside artifacts/knowledge/ entirely is denied for these single-owner roles.
             if ($relative -match '^artifacts/knowledge/issues/[^/]+\.md$') {
@@ -323,7 +373,7 @@ try {
             if ($Agent -in 'test-auditor', 'audit-verifier' -and $relative -match '^artifacts/audit/coverage/') {
                 return $true
             }
-            [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/, for issue-archivist the knowledge record under artifacts/knowledge/issues/, and for test-auditor/audit-verifier coverage scratch under artifacts/audit/coverage/ (#1345, #1523); '$relative' is not one of them. This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
+            [Console]::Error.WriteLine("Blocked: $Agent writes only its own SPEC-003 audit-stage artifact under artifacts/knowledge/stages/, for issue-archivist the knowledge record under artifacts/knowledge/issues/, for test-auditor/audit-verifier coverage scratch under artifacts/audit/coverage/, and for remediation-drafter the open audit's drafts under the main checkout's artifacts/knowledge/remediation/<n>-*.md (#1345, #1523, #1572); '$relative' is not one of them. This is a single-owner audit-stage role: report anything else to the orchestrator instead of editing it.")
             return $false
         }
         elseif ($Agent -eq 'site-steward') {
@@ -367,14 +417,14 @@ try {
     # ownership check. `commit` / `apply` / `am`, run as this command's own top-level git invocation (not
     # inside a `pwsh -File` script this analysis does not execute), are denied outright inside an open audit's
     # worktree (`.claude/worktrees/wia-<n>`) for every caller: neither verb has a legitimate direct use there
-    # (tools/ai/audit/audit-commit-stage.ps1 and audit-draft-remediation.ps1 are the only sanctioned writers,
-    # and calling one of those scripts is a `pwsh`/`dotnet` command, never a bare `git commit`/`apply`/`am`),
+    # (tools/ai/audit/audit-commit-stage.ps1 is the only sanctioned committer, and calling it is a `pwsh`
+    # command, never a bare `git commit`/`apply`/`am`),
     # and `apply`/`am` can touch file content this text-only analysis cannot inspect, so this fails closed.
     $auditWorktreePattern = '[\\/]\.claude[\\/]worktrees[\\/]wia-\d+(?:[\\/]|$)'
     foreach ($g in $scan.Git) {
         foreach ($p in @($g.Paths)) { if (-not (Test-PathOwnership $p)) { exit 2 } }
         if ($g.Verb -in 'commit', 'apply', 'am' -and $g.Dir -match $auditWorktreePattern) {
-            [Console]::Error.WriteLine("Blocked: 'git $($g.Verb)' inside an open audit's worktree ($($g.Dir)) is denied for every caller; only tools/ai/audit/audit-commit-stage.ps1 (which checks the .authors.json sidecar) and audit-draft-remediation.ps1 may commit or apply changes there (#1345 review: a bare git commit/apply/am would bypass the stage-authorship check entirely).")
+            [Console]::Error.WriteLine("Blocked: 'git $($g.Verb)' inside an open audit's worktree ($($g.Dir)) is denied for every caller; only tools/ai/audit/audit-commit-stage.ps1 (which checks the .authors.json sidecar) may commit changes there (#1345 review: a bare git commit/apply/am would bypass the stage-authorship check entirely).")
             exit 2
         }
     }
