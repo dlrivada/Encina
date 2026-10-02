@@ -56,6 +56,24 @@ public sealed class SecretAuditRecorderRedactionTests
     }
 
     [Fact]
+    public async Task Reader_AuditStoreRejectsTheEntry_LogsTheStoreErrorCodeNotItsMessage()
+    {
+        var inner = Substitute.For<ISecretReader>();
+        inner.GetSecretAsync("key", Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, string>>("value"));
+        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("audit.store.code", Sentinel)));
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<AuditedSecretReaderDecorator>();
+        var sut = new AuditedSecretReaderDecorator(inner, _auditStore, _accessor, _options, logger);
+
+        await sut.GetSecretAsync("key");
+
+        var records = logger.Collector.GetSnapshot();
+        records.ShouldContain(r => r.Message.Contains("audit.store.code", StringComparison.Ordinal));
+        records.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Writer_FailedWrite_RecordsTheErrorCodeNotTheMessage()
     {
         var inner = Substitute.For<ISecretWriter>();

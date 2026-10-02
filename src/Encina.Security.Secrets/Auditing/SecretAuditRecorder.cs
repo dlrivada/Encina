@@ -43,16 +43,16 @@ internal static class SecretAuditRecorder
     {
         try
         {
-            var errorMessage = ErrorCodeOf(isSuccess, result);
+            var errorCode = ErrorCodeOf(isSuccess, result);
             var requestContext = requestContextAccessor.RequestContext;
 
             var entry = BuildEntry(
-                requestContext, action, secretName, isSuccess, errorMessage, startedAt, completedAt);
+                requestContext, action, secretName, isSuccess, errorCode, startedAt, completedAt);
 
             var auditResult = await auditStore.RecordAsync(entry, cancellationToken).ConfigureAwait(false);
             auditResult.Match(
                 Right: _ => Log.AuditEntryRecorded(logger, secretName),
-                Left: _ => Log.AuditEntryFailed(logger, secretName, new InvalidOperationException("Audit store returned error")));
+                Left: e => Log.AuditEntryStoreFailed(logger, secretName, e.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex)
         {
@@ -76,7 +76,7 @@ internal static class SecretAuditRecorder
         string action,
         string secretName,
         bool isSuccess,
-        string? errorMessage,
+        string? errorCode,
         DateTimeOffset startedAt,
         DateTimeOffset completedAt)
     {
@@ -90,7 +90,7 @@ internal static class SecretAuditRecorder
             EntityType = "Secret",
             EntityId = secretName,
             Outcome = isSuccess ? AuditOutcome.Success : AuditOutcome.Failure,
-            ErrorMessage = errorMessage,
+            ErrorMessage = errorCode,
             TimestampUtc = completedAt.UtcDateTime,
             StartedAtUtc = startedAt,
             CompletedAtUtc = completedAt,

@@ -279,7 +279,7 @@ public sealed class ModuleArchitectureAnalyzer
     {
         foreach (var le in loaderExceptions.Where(e => e is not null))
         {
-            Console.Error.WriteLine($" - {le!.GetType().Name}: {le.Message}\n{le.StackTrace}");
+            Console.Error.WriteLine($" - {le!.GetType().Name}\n{le.StackTrace}");
         }
     }
 
@@ -298,7 +298,7 @@ public sealed class ModuleArchitectureAnalyzer
         }
         else
         {
-            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {typeName} in assembly {asmName}: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {typeName} in assembly {asmName}: {ex.GetType().Name}\n{ex.StackTrace}");
         }
     }
 

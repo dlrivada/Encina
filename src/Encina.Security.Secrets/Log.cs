@@ -120,6 +120,9 @@ internal static partial class Log
     [LoggerMessage(EventId = 5135, Level = LogLevel.Warning, Message = "Failed to record audit entry for secret '{SecretName}'")]
     public static partial void AuditEntryFailed(ILogger logger, string secretName, Exception exception);
 
+    [LoggerMessage(EventId = 5126, Level = LogLevel.Warning, Message = "Audit store rejected the audit entry for secret '{SecretName}': {ErrorCode}")]
+    public static partial void AuditEntryStoreFailed(ILogger logger, string secretName, string errorCode);
+
     [LoggerMessage(EventId = 5136, Level = LogLevel.Debug, Message = "Access audited for secret '{SecretName}' by user '{UserId}'")]
     public static partial void AccessAudited(ILogger logger, string secretName, string userId);
 
