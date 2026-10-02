@@ -667,7 +667,8 @@ Deferred issues proposed to the orchestrator (see `deferredIssues` in the report
 4. **Fail-closed default**: confirm `FailClosed` as the default for an opt-in audit (AGENTS.md section 3, SPEC-002 section 8) rather than `BestEffort`.
 5. **Scope of adjacent fixes**: this plan fixes missing-context denial, resource attributes, the PEP and `Encina.Security` registration collision, the standalone-policy fail-open, message leaks in the PEP/PDP and the PAP scope/time/log issues inside #751. Confirm, or split them into separate issues.
 6. **Buffered writer**: keep it as a follow-up gated on the #924 benchmark, not in the first cut. Confirm.
-7. **ADR number**: the index ends at 031, but the #1187 plan reserves ADR-032. Which number does the #751 ADR take (next free at implementation time)?8. **Plan prompt typo**: `implementation-plan-prompt.md:113` says "section g)" for the matrix, which is section f). Fix separately?
+7. **ADR number**: the index ends at 031, but the #1187 plan reserves ADR-032. Which number does the #751 ADR take (next free at implementation time)?
+8. **Plan prompt typo**: `implementation-plan-prompt.md:113` says "section g)" for the matrix, which is section f). Fix separately?
 9. **Reader tenant gate**: with no ambient tenant the reader denies unless `AllowCrossTenantQueries` is set. Confirm this default for multi-tenant and single-tenant deployments.
 
 ---
