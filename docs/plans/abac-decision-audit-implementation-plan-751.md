@@ -658,14 +658,14 @@ Deferred items, each with a drafted issue file (the orchestrator fills the numbe
 
 | Deferred item | Status |
 |---|---|
-| Provider registration and DDL (Phase 0) | issue to open: "[BUG] IAuditStore is not registered for ADO.NET x3, Dapper x3 and MongoDB, and no SecurityAuditEntries DDL exists" (#____) |
-| Queryable `ModuleId` on audit entries | issue to open: "[FEATURE] Queryable ModuleId on AuditEntry and AuditQuery for all audit store providers" (#____) |
-| OTel subscription of the ABAC source and meter | issue to open: "[DEBT] Encina.OpenTelemetry does not subscribe to the Encina.Security.ABAC ActivitySource and Meter" (#____) |
-| Repo-wide open-generic `TryAddTransient` collisions plus startup warning | issue to open: "[BUG] Open-generic TryAddTransient of IPipelineBehavior silently skips behaviors registered after another one (about 15 packages)" (#____) |
-| `RequirePolicy.PolicyName`/`RequireCondition` ignored, `ObligationExecutor` uncaught handler exceptions | issue to open: "[BUG] ABAC ignores RequirePolicy.PolicyName and RequireCondition at request time, and ObligationExecutor lets handler exceptions escape" (#____) |
-| Audit of obligation overrides and direct PDP callers | issue to open: "[FEATURE] Audit ABAC obligation overrides and decisions of direct IPolicyDecisionPoint callers" (#____) |
-| Audit of reads of the decision-audit trail (relates to #1193) | issue to open: "[FEATURE] Audit reads of the ABAC decision-audit trail (reader and export)" (#____) |
-| Policy-cache hit/miss counter | issue to open: "[DEBT] CachingPolicyStoreDecorator exposes no cache hit/miss metric (abac.policy_cache.lookups)" (#____) |
+| Provider registration and DDL (Phase 0) | issue: "[BUG] IAuditStore is not registered for ADO.NET x3, Dapper x3 and MongoDB, and no SecurityAuditEntries DDL exists" (#1633) |
+| Queryable `ModuleId` on audit entries | issue: "[FEATURE] Queryable ModuleId on AuditEntry and AuditQuery for all audit store providers" (#1636) |
+| OTel subscription of the ABAC source and meter | issue: "[DEBT] Encina.OpenTelemetry does not subscribe to the Encina.Security.ABAC ActivitySource and Meter" (#1637) |
+| Repo-wide open-generic `TryAddTransient` collisions plus startup warning | issue: "[BUG] Open-generic TryAddTransient of IPipelineBehavior silently skips behaviors registered after another one (about 15 packages)" (#1635) |
+| `RequirePolicy.PolicyName`/`RequireCondition` ignored, `ObligationExecutor` uncaught handler exceptions | issue: "[BUG] ABAC ignores RequirePolicy.PolicyName and RequireCondition at request time, and ObligationExecutor lets handler exceptions escape" (#1634) |
+| Audit of obligation overrides and direct PDP callers | issue: "[FEATURE] Audit ABAC obligation overrides and decisions of direct IPolicyDecisionPoint callers" (#1638) |
+| Audit of reads of the decision-audit trail (relates to #1193) | issue: "[FEATURE] Audit reads of the ABAC decision-audit trail (reader and export)" (#1639) |
+| Policy-cache hit/miss counter | issue: "[DEBT] CachingPolicyStoreDecorator exposes no cache hit/miss metric (abac.policy_cache.lookups)" (#1640) |
 | `AuditPipelineBehavior` storing `error.Message` | no new issue: fixed by PR #1606 (#1557) |
 
 ---
