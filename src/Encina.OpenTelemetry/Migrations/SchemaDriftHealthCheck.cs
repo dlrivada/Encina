@@ -123,11 +123,12 @@ public sealed class SchemaDriftHealthCheck : IHealthCheck
                         $"affecting {driftedTables.Count} table(s). No critical tables affected.",
                         data: data);
                 },
+                // Only the error code: EncinaError.Message can carry personal data.
                 Left: error => HealthCheckResult.Unhealthy(
-                    $"Schema drift detection failed: {error.Message}",
+                    $"Schema drift detection failed: {error.GetCode().IfNone("encina.unknown")}",
                     data: new Dictionary<string, object>
                     {
-                        ["error"] = error.Message
+                        ["error"] = error.GetCode().IfNone("encina.unknown")
                     }));
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)

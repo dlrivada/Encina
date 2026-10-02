@@ -151,9 +151,9 @@ public sealed class MessageEncryptionHealthCheck : IHealthCheck
         catch (Exception ex)
         {
             _logger.HealthCheckException(ex);
+            // The exception object goes to the logger only; the result carries just its type.
             return HealthCheckResult.Unhealthy(
-                $"Message encryption health check failed with exception: {ex.Message}",
-                exception: ex);
+                $"Message encryption health check failed with exception: {ex.GetType().Name}");
         }
     }
 }

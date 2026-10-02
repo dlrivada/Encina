@@ -138,10 +138,10 @@ public class DatabaseHealthCheck : EncinaHealthCheck
         }
     }
 
-    private HealthCheckResult CreateFailureResult(string description, Exception? exception = null)
+    private HealthCheckResult CreateFailureResult(string description)
     {
         return _options.FailureStatus == HealthStatus.Degraded
-            ? HealthCheckResult.Degraded(description, exception)
-            : HealthCheckResult.Unhealthy(description, exception);
+            ? HealthCheckResult.Degraded(description)
+            : HealthCheckResult.Unhealthy(description);
     }
 }

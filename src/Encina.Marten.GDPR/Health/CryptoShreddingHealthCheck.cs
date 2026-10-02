@@ -118,9 +118,9 @@ public sealed class CryptoShreddingHealthCheck : IHealthCheck
         }
         catch (Exception ex)
         {
+            // Only the exception type: the message and the exception object can carry personal data.
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                $"Crypto-shredding health check failed with exception: {ex.Message}",
-                exception: ex));
+                $"Crypto-shredding health check failed with exception: {ex.GetType().Name}"));
         }
     }
 }

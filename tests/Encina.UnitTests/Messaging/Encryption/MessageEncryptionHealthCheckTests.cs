@@ -175,7 +175,9 @@ public class MessageEncryptionHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldNotBeNull();
+        result.Exception.ShouldBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("provider crash");
     }
 
     [Fact]

@@ -140,6 +140,10 @@ public sealed class SchemaDriftHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Schema drift detection failed");
+
+        // Only the error code travels, never EncinaError.Message.
+        result.Description!.ShouldNotContain("Connection failed");
+        result.Data["error"].ShouldBe("encina.unknown");
     }
 
     [Fact]

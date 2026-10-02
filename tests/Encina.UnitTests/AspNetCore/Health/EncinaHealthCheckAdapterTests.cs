@@ -80,7 +80,7 @@ public sealed class EncinaHealthCheckAdapterTests
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenDegradedWithException_IncludesException()
+    public async Task CheckHealthAsync_WhenDegradedWithException_DoesNotForwardTheException()
     {
         // Arrange
         var expectedException = new InvalidOperationException("Database connection lost");
@@ -99,11 +99,12 @@ public sealed class EncinaHealthCheckAdapterTests
 
         // Assert
         result.Status.ShouldBe(AspNetHealthStatus.Degraded);
-        result.Exception.ShouldBe(expectedException);
+        result.Description.ShouldBe("Database issues");
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenUnhealthyWithException_IncludesException()
+    public async Task CheckHealthAsync_WhenUnhealthyWithException_DoesNotForwardTheException()
     {
         // Arrange
         var expectedException = new TimeoutException("Connection timeout");
@@ -122,7 +123,8 @@ public sealed class EncinaHealthCheckAdapterTests
 
         // Assert
         result.Status.ShouldBe(AspNetHealthStatus.Unhealthy);
-        result.Exception.ShouldBe(expectedException);
+        result.Description.ShouldBe("Connection failed");
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]
