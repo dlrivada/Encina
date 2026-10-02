@@ -116,7 +116,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
     {
         // Retrieve saved position for resume-from-position logic
         var resumePosition = await GetResumePositionAsync(cancellationToken).ConfigureAwait(false);
-        var passedResumePoint = resumePosition is null;
+        var gate = new ResumeGate(resumePosition);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -126,39 +126,69 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
                 yield break;
             }
 
-            if (outcome.Error is not null)
+            var item = ToItem(outcome, gate);
+            if (item is not null)
             {
-                yield return outcome.Error.Value;
-                continue;
+                yield return item.Value;
             }
-
-            var consumeResult = outcome.Result;
-            if (consumeResult?.Message?.Value is null)
-            {
-                continue;
-            }
-
-            DebeziumKafkaLog.EventConsumed(
-                _logger, consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value);
-
-            var result = ParseAndEnrich(consumeResult);
-
-            // Skip events that were already processed before restart
-            if (result.IsRight && !passedResumePoint)
-            {
-                if (IsAlreadyProcessed(resumePosition, consumeResult))
-                {
-                    DebeziumKafkaLog.EventSkippedAlreadyProcessed(_logger);
-                    continue;
-                }
-
-                passedResumePoint = true;
-            }
-
-            yield return result;
         }
 
         DebeziumKafkaLog.ConsumerStopped(_logger);
+    }
+
+    /// <summary>
+    /// Turns one consume outcome into the item to yield, or <c>null</c> when nothing is yielded
+    /// (empty message, or an event that was already processed before the restart).
+    /// </summary>
+    private Either<EncinaError, ChangeEvent>? ToItem(ConsumeOutcome outcome, ResumeGate gate)
+    {
+        if (outcome.Error is not null)
+        {
+            return outcome.Error;
+        }
+
+        var consumeResult = outcome.Result;
+        if (consumeResult?.Message?.Value is null)
+        {
+            return null;
+        }
+
+        DebeziumKafkaLog.EventConsumed(
+            _logger, consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value);
+
+        var result = ParseAndEnrich(consumeResult);
+
+        if (result.IsRight && gate.ShouldSkip(consumeResult))
+        {
+            DebeziumKafkaLog.EventSkippedAlreadyProcessed(_logger);
+            return null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Skips events at or before the saved position until the first event past it, then lets everything through.
+    /// </summary>
+    private sealed class ResumeGate(DebeziumKafkaPosition? resumePosition)
+    {
+        private bool _passed = resumePosition is null;
+
+        public bool ShouldSkip(ConsumeResult<string, string> consumeResult)
+        {
+            if (_passed)
+            {
+                return false;
+            }
+
+            if (IsAlreadyProcessed(resumePosition, consumeResult))
+            {
+                return true;
+            }
+
+            _passed = true;
+            return false;
+        }
     }
 
     private readonly record struct ConsumeOutcome(
@@ -281,28 +311,32 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
     {
         if (!string.IsNullOrEmpty(options.SecurityProtocol))
         {
-            config.SecurityProtocol = options.SecurityProtocol switch
-            {
-                "SSL" => Confluent.Kafka.SecurityProtocol.Ssl,
-                "SASL_PLAINTEXT" => Confluent.Kafka.SecurityProtocol.SaslPlaintext,
-                "SASL_SSL" => Confluent.Kafka.SecurityProtocol.SaslSsl,
-                _ => Confluent.Kafka.SecurityProtocol.Plaintext
-            };
+            config.SecurityProtocol = MapSecurityProtocol(options.SecurityProtocol);
         }
 
         if (!string.IsNullOrEmpty(options.SaslMechanism))
         {
-            config.SaslMechanism = options.SaslMechanism switch
-            {
-                "SCRAM-SHA-256" => Confluent.Kafka.SaslMechanism.ScramSha256,
-                "SCRAM-SHA-512" => Confluent.Kafka.SaslMechanism.ScramSha512,
-                "GSSAPI" => Confluent.Kafka.SaslMechanism.Gssapi,
-                _ => Confluent.Kafka.SaslMechanism.Plain
-            };
+            config.SaslMechanism = MapSaslMechanism(options.SaslMechanism);
         }
 
         ApplyCredentials(config, options);
     }
+
+    private static Confluent.Kafka.SecurityProtocol MapSecurityProtocol(string value) => value switch
+    {
+        "SSL" => Confluent.Kafka.SecurityProtocol.Ssl,
+        "SASL_PLAINTEXT" => Confluent.Kafka.SecurityProtocol.SaslPlaintext,
+        "SASL_SSL" => Confluent.Kafka.SecurityProtocol.SaslSsl,
+        _ => Confluent.Kafka.SecurityProtocol.Plaintext
+    };
+
+    private static Confluent.Kafka.SaslMechanism MapSaslMechanism(string value) => value switch
+    {
+        "SCRAM-SHA-256" => Confluent.Kafka.SaslMechanism.ScramSha256,
+        "SCRAM-SHA-512" => Confluent.Kafka.SaslMechanism.ScramSha512,
+        "GSSAPI" => Confluent.Kafka.SaslMechanism.Gssapi,
+        _ => Confluent.Kafka.SaslMechanism.Plain
+    };
 
     private static void ApplyCredentials(ConsumerConfig config, DebeziumKafkaOptions options)
     {
