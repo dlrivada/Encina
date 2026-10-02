@@ -4,10 +4,10 @@ name: Publish Load Tests Data
 # downloads all load-test artifacts (console harness + NBomber scenarios), runs
 # perf-report.cs --kind load-tests to produce a unified snapshot, archives raw
 # data to perf-raw, computes the dashboard data (latest.json, history.json,
-# docref-index.json) and uploads it as the artifact pages-overlay-load-tests.
-# The deploy job then calls docs.yml, the only Pages deployer (#1381), which
-# lays that overlay over the live data of every dashboard and deploys the
-# whole site.
+# docref-index.json) and commits it to the dashboard-data branch
+# (.github/scripts/pages-dashboard-data.ps1, #1386). The deploy job then calls
+# docs.yml, the only Pages deployer (#1381), which, inside the "pages" lock,
+# lays the data of every dashboard over the site and deploys it.
 #
 # A source run that did not succeed fails this workflow visibly instead of
 # skipping it (#1361).
@@ -33,7 +33,7 @@ jobs:
     name: Compute load-test dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # contents: write is for the perf-raw archive push only.
+    # contents: write is for the perf-raw archive and dashboard-data pushes only.
     permissions:
       contents: write
       actions: read
@@ -63,7 +63,7 @@ jobs:
       - name: Resolve Load Tests run ID
         id: resolve
         run: |
-          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          RID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
           if [ -z "$RID" ]; then
             RID=$(gh run list --workflow "Load Tests" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
             echo "Auto-resolved latest successful Load Tests run: $RID"
@@ -71,10 +71,11 @@ jobs:
           echo "run_id=$RID" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
 
       - name: Download all load-test artifacts
         run: |
-          RUN_ID="${{ steps.resolve.outputs.run_id }}"
           mkdir -p artifacts/load-tests-raw
 
           echo "Downloading artifacts from run $RUN_ID..."
@@ -106,24 +107,49 @@ jobs:
           find artifacts/load-tests-raw -name "nbomber-summary.json" -o -name "*.json" -path "*/nbomber/*" | head -20
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+
+      - name: Read the base data from the dashboard-data branch
+        # The base of latest.json (carry-forward) and history.json is the
+        # branch, not the live site: live lags while a deploy is pending,
+        # cancelled or failed. Nothing is written when the branch or the domain
+        # is absent.
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain load-tests -OutDir base/load-tests
+
+      - name: Read the live base data from Pages
+        # Second choice of base after the branch. A 404 writes nothing; any other
+        # failure (HTTP error, timeout, invalid JSON) fails the job instead of
+        # being taken for a first run or an empty history. Skipped when the
+        # branch already carries both base files.
+        if: hashFiles('base/load-tests/latest.json') == '' || hashFiles('base/load-tests/history.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain load-tests -OutDir live/load-tests
 
       - name: Fetch previous snapshot for carry-forward
         run: |
           # Carry-forward copies modules from the previous snapshot that are NOT
           # present in the current run, keeping the dashboard complete when only
-          # some categories run. Fetch from Pages (most current), fall back to repo.
+          # some categories run. Order: the dashboard-data branch copy (durable
+          # record), the live Pages copy (a 404 means it does not exist; any
+          # other failure already failed the Live step), the copy tracked in
+          # main (only when Pages has no copy or a stale one), then an empty
+          # snapshot (first clean run).
           mkdir -p artifacts/perf-previous
-          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/latest.json"
-          PAGES_DATA=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
+          if [ -s base/load-tests/latest.json ]; then
+            cp -f base/load-tests/latest.json artifacts/perf-previous/latest.json
+            echo "Using the previous snapshot from the dashboard-data branch."
+            exit 0
+          fi
 
           # Use Pages if it has data and NO stale "send_flow" scenario names.
           # The send_flow name was a bug from the initial parser that used NBomber's
           # internal scenario name instead of test_name+provider. Once Pages has
           # exclusively new-style names, this check can be simplified to just
           # "is Pages available?".
-          if [ -n "$PAGES_DATA" ] && ! echo "$PAGES_DATA" | grep -q '"name": "send_flow"'; then
-            echo "$PAGES_DATA" > artifacts/perf-previous/latest.json
-            echo "Fetched previous snapshot from Pages (clean naming)."
+          if [ -s live/load-tests/latest.json ] && ! grep -q '"name": "send_flow"' live/load-tests/latest.json; then
+            cp -f live/load-tests/latest.json artifacts/perf-previous/latest.json
+            echo "Using the previous snapshot from Pages (clean naming)."
           elif [ -f docs/load-tests/data/latest.json ]; then
             cp docs/load-tests/data/latest.json artifacts/perf-previous/latest.json
             echo "Using repo copy (Pages has stale or no data)."
@@ -133,19 +159,21 @@ jobs:
           fi
 
       - name: Generate load-test report with carry-forward
+        env:
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
           dotnet run .github/scripts/perf-report.cs -- \
             --kind load-tests \
             --input artifacts/load-tests-raw \
             --output artifacts/perf-output \
-            --run-id ${{ steps.resolve.outputs.run_id }} \
+            --run-id "$RUN_ID" \
             --sha ${{ github.sha }} \
             --carry-forward-from artifacts/perf-previous/latest.json
 
       - name: Stage fresh load-test data in the Pages overlay
         run: |
-          # Only the files this workflow owns go into overlay/load-tests/; docs.yml
-          # copies them over the live Pages data of every dashboard.
+          # Only the files this workflow owns go into overlay/load-tests/; they are
+          # persisted to the dashboard-data branch, which docs.yml deploys.
           mkdir -p overlay/load-tests/data
           cp -f artifacts/perf-output/latest.json overlay/load-tests/data/latest.json
           cp -f artifacts/perf-output/docref-index.json overlay/load-tests/data/docref-index.json 2>/dev/null || true
@@ -156,22 +184,29 @@ jobs:
             -exec cp -f {} overlay/load-tests/data/ \;
           ls -la overlay/load-tests/data/
 
-      - name: Fetch live history from Pages (most complete)
+      - name: Choose the history base (branch, else larger of live and main)
         run: |
+          # Order: the dashboard-data branch copy when it exists and is non-empty;
+          # otherwise the larger, by entry count, of the live Pages copy (a 404
+          # means it does not exist; any other failure already failed the Live
+          # step) and the copy tracked in main.
+          if [ -s base/load-tests/history.json ]; then
+            cp -f base/load-tests/history.json overlay/load-tests/data/history.json
+            echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/load-tests/data/history.json || true) entries)"
+            exit 0
+          fi
           cp -f docs/load-tests/data/history.json overlay/load-tests/data/history.json 2>/dev/null || echo "[]" > overlay/load-tests/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/load-tests/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
           REPO_ENTRIES=$(grep -c timestamp overlay/load-tests/data/history.json 2>/dev/null) || REPO_ENTRIES=0
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+          if [ -s live/load-tests/history.json ] && head -c 1 live/load-tests/history.json | grep -q '^\['; then
+            PAGES_ENTRIES=$(grep -c timestamp live/load-tests/history.json) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/load-tests/data/history.json
+              cp -f live/load-tests/history.json overlay/load-tests/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            echo "Using repo history ($REPO_ENTRIES entries, no live history.json)"
           fi
 
       - name: Update load-tests history
@@ -183,9 +218,10 @@ jobs:
 
       - name: Archive raw data to perf-raw branch
         continue-on-error: true
+        env:
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
           set -e
-          RUN_ID="${{ steps.resolve.outputs.run_id }}"
           DATE=$(date -u +"%Y-%m-%d")
           TARGET_DIR="load-tests/${DATE}/${RUN_ID}"
 
@@ -223,13 +259,12 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Upload Pages overlay
-        uses: actions/upload-artifact@v7
-        with:
-          name: pages-overlay-load-tests
-          path: overlay/
-          if-no-files-found: error
-          retention-days: 7
+      - name: Persist the overlay to the dashboard-data branch
+        # Committed before the deploy is requested, so a deploy that the
+        # "pages" group cancels, or that fails, loses no dashboard data: the
+        # next deploy of any kind reads the branch inside the lock (#1386).
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain load-tests -OverlayRoot overlay
 
   deploy:
     name: Deploy site with fresh load-test data
@@ -239,5 +274,3 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/docs.yml
-    with:
-      overlay-artifact: pages-overlay-load-tests

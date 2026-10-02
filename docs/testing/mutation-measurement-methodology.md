@@ -45,7 +45,7 @@ The formula lives in `.github/scripts/mutation-history.cs` (`MutationCounts.Dete
 Stryker's report is per-run. Encina's dashboard is per-file across runs. Two layers of merging produce the final dataset:
 
 1. **Per-run aggregation** (`.github/workflows/mutation-tests.yml`): the weekly workflow fans out into a 17-shard matrix (see [Matrix execution](#matrix-execution)). An `aggregate` job then merges the 17 shard reports into a single `mutation-report.json` by taking the union of their `files` maps.
-2. **Cross-run carry-forward** (`mutation-history.cs --merge-from`): `publish-mutations.yml` reads the aggregated report and the previous `latest.json`. For every file in the previous snapshot **not** touched by this run, the per-file counts are carried forward unchanged. Files the new run mutated get fresh data. The overall score is **recomputed** across the merged file set.
+2. **Cross-run carry-forward** (`mutation-history.cs --merge-from`): `publish-mutations.yml` reads the aggregated report and the previous `latest.json`. Before it builds either `history.json` or the previous `latest.json` used by `--merge-from`, the publisher runs `pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations` and builds its base files from the `dashboard-data` branch copy. For `history.json` it uses the branch copy when it is present and non-empty; otherwise it uses the larger, by entry count, of the live Pages copy and the copy committed in `docs/mutations/data/`. The previous `latest.json` used by `--merge-from` comes from the branch copy, else from the live Pages copy; the copy committed in `docs/mutations/data/` is **never** used for it, because it holds old shard results that would be merged back in. When the branch carries both base files the live read is skipped; otherwise the publisher runs `pages-dashboard-data.ps1 -Mode Live -Domain mutations -OutDir live/mutations`, which reads the live `latest.json` and `history.json`. A 404 writes nothing, and when neither the branch nor the live site has a `latest.json` (the first run) nothing is merged. Any other failure (HTTP error, timeout, empty or invalid JSON) fails the job, so an outage is never mistaken for a first run or an empty history. For every file in the previous snapshot **not** touched by this run, the per-file counts are carried forward unchanged. Files the new run mutated get fresh data. The overall score is **recomputed** across the merged file set.
 
 With matrix execution every folder gets a fresh measurement every week, so the carry-forward layer mostly handles files outside the rotation scope (or occasional intermittent shard failures). If a shard fails, the previous week's data for that folder survives until the next successful run — the dashboard never silently regresses to zero for transient infrastructure issues.
 
@@ -200,7 +200,7 @@ Examples:
 - `mut:Encina/Sharding/Migrations/Strategies/CanaryFirstStrategy.cs`
 - `mut:Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs`
 
-Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docref-index.json` alongside `latest.json`). `publish-mutations.yml`'s `publish-data` job stages both under `overlay/mutations/data/`, and its `deploy` job hands that overlay to `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — so the live, authoritative copy ends up at `mutations/data/docref-index.json` on Pages. The copy tracked at `docs/mutations/data/docref-index.json` is only a fallback seed and is not current. Each entry contains:
+Files in the rotation snapshot are exposed as DocRef entries by `mutation-history.cs` (it emits `docref-index.json` alongside `latest.json`). `publish-mutations.yml`'s `publish-data` job stages both under `overlay/mutations/data/` and persists them to the orphan `dashboard-data` branch (`.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain mutations`), and its `deploy` job calls `docs.yml` — the only workflow that deploys GitHub Pages (#1381) — whose `deploy` job lays that branch over the site, so the live copy ends up at `mutations/data/docref-index.json` on Pages. The copy tracked at `docs/mutations/data/docref-index.json` is only a fallback seed and is not current. Each entry contains:
 
 | Field | Meaning |
 |-------|---------|
@@ -235,7 +235,7 @@ The pattern after `mutref-table:` is a glob matched against known DocRef IDs. `*
 
 ### Cited-by index
 
-`mut-docs-render.cs` builds a reverse index, `cited-by.json`, mapping each DocRef ID to the list of `path:lineNumber` locations where it is cited (markers + free-form prose mentions). It now runs inside `docs.yml`'s deploy build (`continue-on-error: true`, per INV-002: a rendering problem never blocks the deploy), against the `docref-index.json` staged in `_dashboards/mutations/data/`, so it writes `cited-by.json` there too and it is served live at `mutations/data/cited-by.json` on Pages. The mutation dashboard surfaces this in the "Cited in" column.
+`mut-docs-render.cs` builds a reverse index, `cited-by.json`, mapping each DocRef ID to the list of `path:lineNumber` locations where it is cited (markers + free-form prose mentions). It runs inside `docs.yml`'s `build-docs` job (`continue-on-error: true`, per INV-002: a rendering problem never blocks the deploy), against the `docref-index.json` staged in `_dashboards/mutations/data/`, so it writes `cited-by.json` there too; `build-docs` then copies it into the built site, which the `deploy` job publishes, so it is served live at `mutations/data/cited-by.json` on Pages. The mutation dashboard surfaces this in the "Cited in" column.
 
 This makes documentation drift visible:
 
@@ -244,7 +244,7 @@ This makes documentation drift visible:
 
 ## Recalculation
 
-If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts and as snapshot copies at `mutations/data/{timestamp}.json` on the live Pages site — `publish-mutations.yml`'s `publish-data` job stages them, and `docs.yml`, the only Pages deployer (#1381), publishes them; nothing commits them to `docs/mutations/data/` in the repository).
+If a formula in this document changes, `mutation-history.cs` can be re-run against any historical artifact (raw `mutation-report.json` files are uploaded by `publish-mutations.yml` as `stryker-logs` artifacts; `publish-mutations.yml`'s `publish-data` job also stages a timestamped snapshot alongside `latest.json` before persisting it to the orphan `dashboard-data` branch, but `pages-dashboard-data.ps1 -Mode Persist` prunes earlier timestamped snapshots on every persist, so only the latest `mutations/data/{timestamp}.json` stays live on Pages at any time; nothing commits it to `docs/mutations/data/` in the repository).
 
 The recalculation does NOT re-run Stryker. It re-applies the formulas to the same raw data so that historical numbers in the dashboard stay consistent with the current methodology.
 

@@ -4,10 +4,11 @@ name: Publish Benchmarks Data
 # downloads the consolidated perf-report artifact and the raw data artifact,
 # archives raw data to the `perf-raw` orphan branch, computes the dashboard data
 # (latest.json, history.json, docref-index.json, fingerprints.json,
-# benchmark-coverage.json, badge.json) and uploads it as the artifact
-# pages-overlay-benchmarks. The deploy job then calls docs.yml, the only Pages
-# deployer (#1381), which lays that overlay over the live data of every
-# dashboard, renders the benchmark tables and deploys the whole site.
+# benchmark-coverage.json, badge.json) and commits it to the dashboard-data
+# branch (.github/scripts/pages-dashboard-data.ps1, #1386). The deploy job then
+# calls docs.yml, the only Pages deployer (#1381), which renders the benchmark
+# tables and, inside the "pages" lock, lays the data of every dashboard over
+# the site and deploys it.
 #
 # A source run that did not succeed fails this workflow visibly instead of
 # skipping it (#1361). A successful `short` run is still skipped with a notice
@@ -35,7 +36,7 @@ jobs:
     name: Compute benchmarks dashboard data
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # contents: write is for the perf-raw archive push only.
+    # contents: write is for the perf-raw archive and dashboard-data pushes only.
     permissions:
       contents: write
       actions: read
@@ -67,7 +68,7 @@ jobs:
       - name: Resolve Benchmarks run ID
         id: resolve
         run: |
-          RID="${{ inputs.run_id || github.event.workflow_run.id }}"
+          RID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
           if [ -z "$RID" ]; then
             RID=$(gh run list --workflow "Benchmarks" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
             echo "Auto-resolved latest successful Benchmarks run: $RID"
@@ -75,6 +76,8 @@ jobs:
           echo "run_id=$RID" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
 
       - name: Download perf-report artifact
         uses: actions/download-artifact@v8
@@ -129,8 +132,8 @@ jobs:
       - name: Stage fresh benchmarks data in the Pages overlay
         if: steps.jobtype.outputs.skip != 'true'
         run: |
-          # Only the files this workflow owns go into overlay/benchmarks/; docs.yml
-          # copies them over the live Pages data of every dashboard.
+          # Only the files this workflow owns go into overlay/benchmarks/; they are
+          # persisted to the dashboard-data branch, which docs.yml deploys.
           mkdir -p overlay/benchmarks/data
           cp -f perf-report-artifact/latest.json overlay/benchmarks/data/latest.json
           cp -f perf-report-artifact/docref-index.json overlay/benchmarks/data/docref-index.json 2>/dev/null || true
@@ -144,28 +147,50 @@ jobs:
             -exec cp -f {} overlay/benchmarks/data/ \;
           ls -la overlay/benchmarks/data/
 
-      - name: Fetch live history from Pages (most complete)
+      - name: Read the base data from the dashboard-data branch
+        # The base of history.json is the branch, not the live site: live lags
+        # while a deploy is pending, cancelled or failed. Nothing is written when
+        # the branch or the domain is absent.
+        if: steps.jobtype.outputs.skip != 'true'
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain benchmarks -OutDir base/benchmarks
+
+      - name: Read the live base data from Pages
+        # Second choice of base after the branch. A 404 writes nothing; any other
+        # failure (HTTP error, timeout, invalid JSON) fails the job instead of
+        # being taken for an empty history. Skipped when the branch already
+        # carries history.json.
+        if: steps.jobtype.outputs.skip != 'true' && hashFiles('base/benchmarks/history.json') == ''
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Live -Domain benchmarks -OutDir live/benchmarks
+
+      - name: Choose the history base (branch, else larger of live and main)
         if: steps.jobtype.outputs.skip != 'true'
         run: |
-          # The copy of history.json tracked in main is stale because nothing
-          # commits it back. The live Pages version is written on every deploy.
-          # Fetch it and use whichever is larger.
+          # Order: the dashboard-data branch copy when it exists and is non-empty
+          # (durable record); otherwise the larger, by entry count, of the live
+          # Pages copy (a 404 means it does not exist yet; any other failure
+          # already failed the Live step) and the copy tracked in main (stale
+          # because nothing commits it back).
+          if [ -s base/benchmarks/history.json ]; then
+            cp -f base/benchmarks/history.json overlay/benchmarks/data/history.json
+            echo "Using the dashboard-data branch history ($(grep -c timestamp overlay/benchmarks/data/history.json || true) entries)"
+            exit 0
+          fi
           cp -f docs/benchmarks/data/history.json overlay/benchmarks/data/history.json 2>/dev/null || echo "[]" > overlay/benchmarks/data/history.json
-          PAGES_URL="https://dlrivada.github.io/Encina/benchmarks/data/history.json"
-          PAGES_HISTORY=$(curl -fsSL "$PAGES_URL" 2>/dev/null || echo "")
           # grep -c returns exit code 1 when count=0, so capture separately
           REPO_ENTRIES=$(grep -c timestamp overlay/benchmarks/data/history.json 2>/dev/null) || REPO_ENTRIES=0
 
-          if [ -n "$PAGES_HISTORY" ] && echo "$PAGES_HISTORY" | head -1 | grep -q '^\['; then
-            PAGES_ENTRIES=$(echo "$PAGES_HISTORY" | grep -c timestamp) || PAGES_ENTRIES=0
+          if [ -s live/benchmarks/history.json ] && head -c 1 live/benchmarks/history.json | grep -q '^\['; then
+            PAGES_ENTRIES=$(grep -c timestamp live/benchmarks/history.json) || PAGES_ENTRIES=0
             if [ "$PAGES_ENTRIES" -ge "$REPO_ENTRIES" ]; then
               echo "Using Pages history ($PAGES_ENTRIES entries, repo has $REPO_ENTRIES)"
-              echo "$PAGES_HISTORY" > overlay/benchmarks/data/history.json
+              cp -f live/benchmarks/history.json overlay/benchmarks/data/history.json
             else
               echo "Using repo history ($REPO_ENTRIES entries, Pages has $PAGES_ENTRIES)"
             fi
           else
-            echo "Using repo history ($REPO_ENTRIES entries, Pages not available)"
+            echo "Using repo history ($REPO_ENTRIES entries, no live history.json)"
           fi
 
       - name: Update benchmarks history
@@ -201,9 +226,10 @@ jobs:
       - name: Archive raw data to perf-raw branch
         if: hashFiles('raw-data/**') != ''
         continue-on-error: true
+        env:
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
         run: |
           set -e
-          RUN_ID="${{ steps.resolve.outputs.run_id }}"
           DATE=$(date -u +"%Y-%m-%d")
           TARGET_DIR="benchmarks/${DATE}/${RUN_ID}"
 
@@ -286,14 +312,13 @@ jobs:
           cd ..
           git worktree remove --force .perf-raw
 
-      - name: Upload Pages overlay
+      - name: Persist the overlay to the dashboard-data branch
+        # Committed before the deploy is requested, so a deploy that the
+        # "pages" group cancels, or that fails, loses no dashboard data: the
+        # next deploy of any kind reads the branch inside the lock (#1386).
         if: steps.jobtype.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: pages-overlay-benchmarks
-          path: overlay/
-          if-no-files-found: error
-          retention-days: 7
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Persist -Domain benchmarks -OverlayRoot overlay
 
   deploy:
     name: Deploy site with fresh benchmarks data
@@ -305,5 +330,3 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/docs.yml
-    with:
-      overlay-artifact: pages-overlay-benchmarks
