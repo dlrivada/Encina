@@ -2095,9 +2095,23 @@ Test.
         # An orphan or second draft of one group would become an extra issue in open-remediation.ps1.
         $orphanDraft = Join-Path $finWt "artifacts\knowledge\remediation\$finN-code-1-second-draft.md"
         Set-Content -LiteralPath $orphanDraft -Value 'a second draft of the code 1 group'
+        $finRemDir = Join-Path $finWt 'artifacts\knowledge\remediation'
+        $otherAuditFile = Join-Path $finRemDir '9999-code-1-another-audit.md'
+        Set-Content -LiteralPath $otherAuditFile -Value 'a draft of another audit'
         $finalizeOrphan = Invoke-Remediation $finWt @('-Finalize')
         Test-RemediationCase '#1572 -Finalize removes and reports a <n>-*.md that is not a manifest draft (orphan or second draft of one group), keeping every manifest draft' {
             $finalizeOrphan.Code -eq 0 -and $finalizeOrphan.Output -match "removed $finN-code-1-second-draft\.md: not a draft the manifest names" -and -not (Test-Path -LiteralPath $orphanDraft) -and (Test-Path -LiteralPath $finCode1.draftFile) -and (Test-Path -LiteralPath $finTests1.draftFile)
+        }
+        Test-RemediationCase '#1572 the orphan sweep never touches another audit''s draft nor this audit''s _input-/_manifest- files' {
+            (Test-Path -LiteralPath $otherAuditFile) -and (Test-Path -LiteralPath (Join-Path $finRemDir "_manifest-$finN.json")) -and (Test-Path -LiteralPath (Join-Path $finRemDir "_input-$finN-code-1.md")) -and (Test-Path -LiteralPath (Join-Path $finRemDir "_input-$finN-tests-1.md"))
+        }
+        # A draft written under the wrong slug is renamed to the manifest's draft name, never destroyed.
+        $wrongSlug = Join-Path $finRemDir "$finN-code-1-wrong-slug.md"
+        $code1Content = Get-Content -LiteralPath $finCode1.draftFile -Raw
+        Move-Item -LiteralPath $finCode1.draftFile -Destination $wrongSlug
+        $finalizeRename = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize renames a draft written under the wrong slug to the manifest draftFile (content kept) and notes it' {
+            $finalizeRename.Code -eq 0 -and $finalizeRename.Output -match "renamed $finN-code-1-wrong-slug\.md to the manifest's draft name" -and -not (Test-Path -LiteralPath $wrongSlug) -and (Get-Content -LiteralPath $finCode1.draftFile -Raw) -eq $code1Content
         }
         # A stage re-committed after -Prepare (a FAIL-loop re-run) makes the manifest stale.
         $finTestsStage = Join-Path $finWt 'artifacts\knowledge\stages\tests.md'
@@ -3088,6 +3102,9 @@ Two SagaStoreADO test classes duplicate the same setup.
             $code10Before[$path] = Get-Content -LiteralPath $path -Raw
         }
 
+        # A second file matching code 10's prefix that sorts first: -Only must keep the previous manifest's draftFile.
+        $code10Decoy = Join-Path $remWt1492 "artifacts\knowledge\remediation\$remN1492-code-10-aaa-decoy.md"
+        Set-Content -LiteralPath $code10Decoy -Value 'decoy'
         $only1492 = Invoke-Remediation $remWt1492 @('-Prepare', '-NoGh', '-Only', 'code 1')
         Test-RemediationCase '#1492 -Only "code 1" exits 0' { $only1492.Code -eq 0 }
         foreach ($path in $code10Draft, $code10Input) {
@@ -3105,6 +3122,7 @@ Two SagaStoreADO test classes duplicate the same setup.
             -not $onlyCode10.regenerate -and $onlyCode10.remediationLine -eq "- code 10 (Minor): draft $(Split-Path -Leaf $code10Draft)" -and $onlyCode10.draftFile -eq $code10Draft
         }
         Test-RemediationCase '#1492 -Only "code 1": the manifest marks code 1 for regeneration with its draft path' { $onlyCode1.regenerate -and $onlyCode1.draftFile -eq $code1Draft }
+        Test-RemediationCase '#1572 -Only keeps the previous manifest draftFile for an untouched group when several files match its prefix (never an arbitrary first)' { $onlyCode10.draftFile -eq $code10Draft -and $onlyCode10.draftFile -ne $code10Decoy }
         # -Finalize after an -Only run: the drafter rewrote code 1 only; an untouched draft is checked for presence alone.
         Set-Content -LiteralPath $code1Draft -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $remWt1492 '.github\ISSUE_TEMPLATE\technical_debt.md') '[DEBT] First finding of X' 'technical-debt' '' 'debt')
         Write-StageFromManifest $onlyManifest1492

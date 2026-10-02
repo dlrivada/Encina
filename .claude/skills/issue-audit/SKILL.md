@@ -129,8 +129,9 @@ committed:
    (3 retries after 5, 15 and 45 s on a TLS, dial or connection failure, an HTTP 5xx, or a rate limit reported
    as HTTP 403 or 429; no retry on any other 4xx; a malformed JSON reply stops the run; #1548).
 2. Spawn `remediation-drafter` **in the foreground**, naming `#<n>`, `wia-<n>` and the manifest path. It writes
-   every draft and `stages/remediation.md`; its definition holds the drafting rules (facts verified in `src/`
-   with `file:line`, only the packages the finding names, only figures measured in `stages/tests.md`, no
+   every draft and `stages/remediation.md`; its definition holds the drafting rules (facts verified with
+   `file:line` in the `src/` and `tests/` of the audit worktree the manifest's `worktree` names, `wia-<n>`,
+   never the main checkout, only the packages the finding names, only figures measured in `stages/tests.md`, no
    invented code, no pipeline meta-text).
 3. Finalize (deterministic, no model):
    ```powershell

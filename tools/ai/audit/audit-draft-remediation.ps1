@@ -208,6 +208,18 @@ if ($Finalize) {
     # -Prepare would throw away every draft that already passed.
     $expectedDrafts = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($f in @($manifest.findings)) { if ($f.draftFile) { [void]$expectedDrafts.Add([IO.Path]::GetFullPath([string]$f.draftFile)) } }
+    # A draft written under the wrong slug (its file name starts with a drafted group's '<n>-<stage>-<id>-' but the
+    # group's draftFile does not exist) is renamed to that draftFile, never destroyed. Only one such file is
+    # renamed per group; any other extra is removed below.
+    foreach ($f in @($manifest.findings)) {
+        if (-not $f.draftFile -or (Test-Path -LiteralPath $f.draftFile)) { continue }
+        $prefix = "$n-$($f.stage)-$($f.id)-"
+        $misnamed = @(Get-ChildItem -LiteralPath $outDir -Filter "$prefix*.md" -File -ErrorAction SilentlyContinue | Where-Object { -not $expectedDrafts.Contains($_.FullName) } | Sort-Object Name | Select-Object -First 1)
+        if ($misnamed.Count -eq 1) {
+            Move-Item -LiteralPath $misnamed[0].FullName -Destination $f.draftFile
+            $notes.Add("$($f.label): renamed $($misnamed[0].Name) to the manifest's draft name $(Split-Path -Leaf $f.draftFile).")
+        }
+    }
     foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)) {
         if (-not $expectedDrafts.Contains($onDisk.FullName)) {
             Remove-Item -LiteralPath $onDisk.FullName -Force
@@ -556,12 +568,25 @@ foreach ($gi in $touchedGroupIndexes) {
     }
 }
 
-# Untouched findings of an -Only run: their existing line, draft and input, verbatim (#1492 decision 3).
+# Untouched findings of an -Only run: their existing line, draft and input, verbatim (#1492 decision 3). When
+# several files match a finding's '<n>-<stage>-<id>-' prefix, the previous manifest's draftFile wins (never an
+# arbitrary first match); without one, the file named exactly as -Prepare would name it today; else the first
+# by name.
+$previousDraftByKey = @{}
+if ($onlyKeys -and (Test-Path -LiteralPath $manifestPath)) {
+    try { foreach ($pf in @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).findings)) { if ($pf.draftFile) { $previousDraftByKey[[string]$pf.key] = [IO.Path]::GetFullPath([string]$pf.draftFile) } } }
+    catch { $previousDraftByKey = @{} }
+}
 $findingEntries = foreach ($f in $allFindings) {
     $key = "$($f.Stage)|$($f.Id)"
     if ($entriesByKey.ContainsKey($key)) { $entriesByKey[$key]; continue }
     $group = $groups[$groupIndexByKey[$key]]
-    $existingDraft = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $candidates = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)
+    $previousDraft = $previousDraftByKey["$($f.Stage) $($f.Id)"]
+    $todayName = "$n-$($f.Stage)-$($f.Id)-$(New-Slug $f.Text).md"
+    $existingDraft = @($candidates | Where-Object { $previousDraft -and $_.FullName -ieq $previousDraft })
+    if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Where-Object { $_.Name -ieq $todayName }) }
+    if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Select-Object -First 1) }
     $existingInput = Get-InputPath $f
     [ordered]@{
         key              = "$($f.Stage) $($f.Id)"

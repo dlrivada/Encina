@@ -38,17 +38,17 @@ You are the remediation stage of the SPEC-003 audit pipeline (#1345, #1572), for
 
 ## Inputs
 
-- `artifacts\knowledge\remediation\_manifest-<n>.json` (main checkout; the orchestrator's prompt names it). For each finding: `key`, `severity`, `regenerate`, `inputFile`, `groupMembers`, `mergedInto`, `duplicateOf`, `partiallyRelated`, `possiblyRelated`, `kind` and `kindOptions`, `template`/`prefix`/`labels`/`milestone` (or the top-level `routes` entry of the kind you choose), `draftFile`, `reportedByLine`, `remediationLine`. Top level: `stageFile`, `stageHeader`, `emptyLine`, `lessons`, `keptLessons`, `routes`.
+- `artifacts\knowledge\remediation\_manifest-<n>.json` (main checkout; the orchestrator's prompt names it). For each finding: `key`, `severity`, `regenerate`, `inputFile`, `groupMembers`, `mergedInto`, `duplicateOf`, `partiallyRelated`, `possiblyRelated`, `kind` and `kindOptions`, `template`/`prefix`/`labels`/`milestone` (or the top-level `routes` entry of the kind you choose), `draftFile`, `reportedByLine`, `remediationLine`. Top level: `worktree` (the audit worktree `wia-<n>`), `stageFile`, `stageHeader`, `emptyLine`, `lessons`, `keptLessons`, `routes`.
 - Each `_input-<n>-<stage>-<id>.md`: the finding's own text, exactly as the stage wrote it.
 - The routed `.github/ISSUE_TEMPLATE/<template>.md`.
 - The stage artifacts in `wia-<n>`: `artifacts\knowledge\stages\archivist.md`, `code.md`, `tests.md`, `docs.md`, and the knowledge record `artifacts\knowledge\issues\<n>.md`.
-- `src/` and `tests/`, read-only, to verify every claim you write.
+- `src/` and `tests/` under the audit worktree the manifest's `worktree` field names (`.claude\worktrees\wia-<n>`), read-only, to verify every claim you write. Never verify against the main checkout's `src/` or `tests/`: it may be a different revision from the one the audit stages reviewed.
 
 ## Method
 
 1. Read the manifest. Work only on findings with `"regenerate": true` and a `draftFile`. A finding with `"regenerate": false` keeps its existing draft and line untouched (an `-Only` run).
    **When re-spawned after a failed `-Finalize`** (your prompt then carries Finalize's output): keep every draft that output does not name; rewrite only the drafts it names as failing or missing, and fix `stages\remediation.md` only for the lines and lessons it names. A draft that already passed is never rewritten.
-2. For each draft: read the finding's input file (and the input files of every `groupMembers` entry: one draft covers the whole group), the template, and the code the finding cites. Verify each `file:line` the finding cites in `src/` or `tests/` before you repeat it.
+2. For each draft: read the finding's input file (and the input files of every `groupMembers` entry: one draft covers the whole group), the template, and the code the finding cites. Verify each `file:line` the finding cites in `src/` or `tests/` under the manifest's `worktree` path (`wia-<n>`), never the main checkout, before you repeat it.
 3. Choose the kind: when `kind` is fixed (`test`, `docs`), use it. When it is `drafter-decides`, pick one of `kindOptions` after reading the code: `bug` for wrong behaviour the code has today, `debt` for code that works but is messy, duplicated, incomplete or slow, `docs` for documentation or comment drift. Take the template, prefix, labels and milestone from `routes.<kind>`.
 4. Write the draft at exactly `draftFile` (see Draft format).
 5. Write `stages\remediation.md` at the manifest's `stageFile` (see Output).
@@ -85,7 +85,7 @@ When the manifest has no findings, the line after the header is the manifest's `
 
 ## Rules
 
-- Every fact comes from the finding or is verified in `src/` with `file:line`. When the finding and the code disagree, write what the code says and add a Lesson naming the stage that was wrong.
+- Every fact comes from the finding or is verified in the audit worktree's `src/` (the manifest's `worktree`, never the main checkout) with `file:line`. When the finding and the code disagree, write what the code says and add a Lesson naming the stage that was wrong.
 - Package(s): only the packages the finding says are affected, never a package inferred from one file when the finding names several, and never more than it names.
 - Figures (coverage percentages, test counts, line counts): only figures measured in `stages\tests.md`, with the build configuration it states. Never estimate, round up or invent a figure.
 - Test categories: tick only the test types the finding's own flags name (unit, guard, contract, property, integration, load, benchmark).
