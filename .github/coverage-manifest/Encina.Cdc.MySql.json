@@ -1,13 +1,18 @@
 {
   "package": "Encina.Cdc.MySql",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 5,
+  "totalFiles": 7,
   "targets": {
     "guard": 15,
     "property": 10,
     "unit": 50
   },
   "files": {
+    "Diagnostics/MySqlCdcLog.cs": {
+      "defaultTests": [],
+      "defaultRule": "*Log.cs",
+      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+    },
     "Health/MySqlCdcHealthCheck.cs": {
       "defaultTests": [
         "unit",
@@ -29,6 +34,13 @@
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults — no guard clauses"
+    },
+    "MySqlCdcOptionsValidator.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "Internal IValidateOptions validator; guard and property invariants are covered on the core EndpointValidator (#852)"
     },
     "MySqlCdcPosition.cs": {
       "defaultTests": [
