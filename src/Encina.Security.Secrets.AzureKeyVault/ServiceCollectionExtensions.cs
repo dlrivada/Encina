@@ -3,6 +3,7 @@ using Azure.Security.KeyVault.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.Secrets.AzureKeyVault;
 
@@ -56,6 +57,13 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="services"/> or <paramref name="vaultUri"/> is <c>null</c>.
     /// </exception>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when the vault URI is not an absolute <c>https</c> URI (unless
+    /// <see cref="AzureKeyVaultOptions.AllowInsecureHttp"/> is set), targets a loopback address (unless
+    /// <see cref="AzureKeyVaultOptions.AllowLocalEndpoints"/> is set) or targets a link-local, cloud
+    /// metadata or unspecified address. The same validation runs again at host startup
+    /// (<c>ValidateOnStart</c>).
+    /// </exception>
     public static IServiceCollection AddAzureKeyVaultSecrets(
         this IServiceCollection services,
         Uri vaultUri,
@@ -65,24 +73,36 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(vaultUri);
 
-        var kvOptions = new AzureKeyVaultOptions { VaultUri = vaultUri };
-        configureKeyVault?.Invoke(kvOptions);
+        void ApplyConfiguration(AzureKeyVaultOptions options)
+        {
+            options.VaultUri = vaultUri;
+            configureKeyVault?.Invoke(options);
+        }
+
+        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
+        var kvOptions = new AzureKeyVaultOptions();
+        ApplyConfiguration(kvOptions);
+        var validation = new AzureKeyVaultOptionsValidator().Validate(Options.DefaultName, kvOptions);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(AzureKeyVaultOptions), validation.Failures);
+        }
+
+        // Register options for injection, validated at startup and on first resolution
+        services.AddOptions<AzureKeyVaultOptions>()
+            .Configure(ApplyConfiguration)
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<AzureKeyVaultOptions>, AzureKeyVaultOptionsValidator>());
 
         // Register SecretClient as singleton (TryAdd allows pre-registration)
-        services.TryAddSingleton(_ =>
+        services.TryAddSingleton(sp =>
         {
-            var credential = kvOptions.Credential ?? new DefaultAzureCredential();
-            return kvOptions.ClientOptions is not null
-                ? new SecretClient(kvOptions.VaultUri!, credential, kvOptions.ClientOptions)
-                : new SecretClient(kvOptions.VaultUri!, credential);
-        });
-
-        // Register options for injection
-        services.Configure<AzureKeyVaultOptions>(o =>
-        {
-            o.VaultUri = kvOptions.VaultUri;
-            o.Credential = kvOptions.Credential;
-            o.ClientOptions = kvOptions.ClientOptions;
+            var options = sp.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
+            var credential = options.Credential ?? new DefaultAzureCredential();
+            return options.ClientOptions is not null
+                ? new SecretClient(options.VaultUri!, credential, options.ClientOptions)
+                : new SecretClient(options.VaultUri!, credential);
         });
 
         // Register as ISecretWriter and ISecretRotator (TryAdd allows pre-registration)
