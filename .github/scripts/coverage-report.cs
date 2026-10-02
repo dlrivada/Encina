@@ -295,9 +295,8 @@ bool RunCheckMissingManifest(
         Console.WriteLine($"\nMISSING MANIFEST ENTRIES ({missingFiles.Count}): the file exists under src/<Package>/ but has no key in the package manifest, the package has no manifest at all, or the manifest names a src/ directory that does not exist");
         foreach (var missing in missingFiles.OrderBy(m => m, StringComparer.Ordinal))
             Console.WriteLine($"  - {missing}");
-        Console.WriteLine("\n  To fix a missing file entry: add it as a key under \"files\" in .github/coverage-manifest/<Package>.json, with the");
-        Console.WriteLine("  defaultTests/defaultRule/reason that .github/coverage-manifest/defaults.json's first matching rule gives for that");
-        Console.WriteLine("  filename. Do NOT regenerate an existing manifest with generate-coverage-manifest.cs — it drops the package's targets block (#1542).");
+        Console.WriteLine("\n  To fix a missing file entry or a missing manifest run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --append-only");
+        Console.WriteLine("  Do not run the generator's full mode on an existing manifest until #1597 resolves the hand-edited entries.");
     }
 
     if (hasParseFailures || hasMissingFiles)
@@ -327,7 +326,7 @@ if (Directory.Exists(srcDir))
         Console.WriteLine($"\n  ⚠ WARNING: {untrackedPackages.Count} package(s) in src/ have no coverage manifest:");
         foreach (var pkg in untrackedPackages)
             Console.WriteLine($"    - {pkg}");
-        Console.WriteLine("  Run: dotnet run .github/scripts/generate-coverage-manifest.cs\n");
+        Console.WriteLine("  Run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --append-only\n");
     }
 }
 

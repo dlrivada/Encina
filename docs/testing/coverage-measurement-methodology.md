@@ -128,7 +128,7 @@ A rule can carry a **condition** like `contains_interface`, which requires addit
 
 ### Overrides
 
-Manifests can contain per-file overrides that replace the automatically computed `defaultTests`. The override structure is preserved across regenerations: running `generate-coverage-manifest.cs` again does not destroy existing overrides. This allows targeted corrections when the automatic rules misclassify a file — for example, a store-like file that genuinely does not need integration tests because it holds only pure helpers.
+Manifests can contain per-file overrides that replace the automatically computed `defaultTests`. The generator owns only the package-level `package`, `generated`, `totalFiles` and `files` keys and each file's `defaultTests`, `defaultRule` and `reason`. When the output manifest already exists, every other key (`targets`, `reviewed`, a per-file `override` and any unknown key) is preserved unchanged in its original position, so regenerating does not destroy them. This allows targeted corrections when the automatic rules misclassify a file — for example, a store-like file that genuinely does not need integration tests because it holds only pure helpers.
 
 ### Per-package targets
 
@@ -343,7 +343,7 @@ The methodology is deliberate and imperfect. These are the trade-offs we know ab
 
 1. **Obligations double-count identical lines across flags.** A line covered by both unit and integration tests contributes two met obligations. This is intentional — being covered from two angles is better than being covered from one — but it means the absolute numbers (e.g., "224,430 total obligations") are larger than the NCLOC of the project. Readers should interpret the **percentage**, not the raw obligation counts, when comparing to NCLOC.
 
-2. **Per-file manifests drift from source code.** New files added to `src/` do not automatically appear in the manifest until `generate-coverage-manifest.cs` runs. Until then, their coverage is not counted. This is mitigated by running the generator on every coverage update.
+2. **Per-file manifests drift from source code.** New files added to `src/` do not automatically appear in the manifest until `generate-coverage-manifest.cs` runs. Until then, their coverage is not counted. This is mitigated by running the generator on every coverage update. The safe way to add only the new files is `dotnet run .github/scripts/generate-coverage-manifest.cs -- --append-only`: it adds entries for source files that have none, never modifies or removes an existing entry, leaves a manifest with nothing to add byte-untouched, and prints the added files per package. A manifest that gains entries is rewritten in the generator's canonical formatting (2-space indent, LF, final newline). The default full mode also recomputes `defaultTests` of existing entries and removes (and prints) entries whose source file is gone.
 
 3. **Manifest-source drift is not enforced in CI.** Nothing currently fails the build if a file exists in `src/` but not in any manifest, or vice versa. A warning is logged but the workflow continues. Tightening this is a possible improvement.
 
