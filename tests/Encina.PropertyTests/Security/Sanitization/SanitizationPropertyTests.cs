@@ -86,7 +86,7 @@ public sealed class SanitizationPropertyTests
 
     // Alphabet that makes a removal re-form a marker (e.g. "*;/" -> "*/", "-xp_a-" -> "--").
     private static Arbitrary<string> SqlMarkerInputs() =>
-        Arb.From(Gen.ArrayOf(Gen.Elements('-', '/', '*', ';', 'x', 'p', '_', 'a', '\'', 'b'))
+        Arb.From(Gen.ArrayOf(Gen.Elements('-', '/', '*', ';', 'x', 'p', 'X', 'P', '_', 'a', '\'', 'b'))
             .Select(chars => new string(chars)));
 
     [Property(MaxTest = 500)]

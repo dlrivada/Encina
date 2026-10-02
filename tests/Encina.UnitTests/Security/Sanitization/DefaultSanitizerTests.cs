@@ -159,6 +159,8 @@ public sealed class DefaultSanitizerTests
     [InlineData("**//", "")]
     [InlineData("xp_", "")]
     [InlineData("axp_b", "a")]
+    [InlineData("XP_a", "")]
+    [InlineData("'*;/'", "''''")]
     public void SanitizeForSql_RemovalThatReformsMarker_LeavesNoMarker(string input, string expected)
     {
         var result = _sut.SanitizeForSql(input);
