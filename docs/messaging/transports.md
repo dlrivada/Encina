@@ -290,9 +290,9 @@ NATS offers two modes:
 #### NATS Core (Pub/Sub)
 
 ```csharp
-services.AddEncinaNatsCore(options =>
+services.AddEncinaNATS(options =>
 {
-    options.Url = "nats://localhost:4222";
+    options.Url = "nats://nats.internal.example.com:4222";
 });
 
 // Fire-and-forget publish
@@ -302,19 +302,33 @@ await publisher.PublishAsync(new OrderCreated(orderId), subject: "orders.created
 #### NATS JetStream (Streaming)
 
 ```csharp
-services.AddEncinaNatsJetStream(options =>
+services.AddEncinaNATS(options =>
 {
-    options.Url = "nats://localhost:4222";
+    options.Url = "nats://nats.internal.example.com:4222";
+    options.UseJetStream = true;
     options.StreamName = "ORDERS";
     options.ConsumerName = "order-processor";
 });
 
 // Publish with acknowledgment
 await publisher.PublishAsync(new OrderCreated(orderId));
-
-// Replay from timestamp
-await consumer.ReplayFromAsync(DateTimeOffset.UtcNow.AddHours(-1), ct);
 ```
+
+#### Endpoint validation
+
+`EncinaNATSOptions.Url` accepts one URL or a comma-separated list. Each entry must use the `nats`, `tls`, `ws` or `wss` scheme, and its host must not be loopback, link-local, a cloud metadata endpoint or an unspecified address (`Encina.Validation.EndpointValidator`, issue #852). Private ranges are allowed. Only literal hosts are checked, so a DNS name that resolves to an internal address (DNS rebinding) is not detected at configuration time.
+
+The default `nats://localhost:4222` is loopback, so `services.AddEncinaNATS()` with no arguments throws `Microsoft.Extensions.Options.OptionsValidationException` at registration. For local development or a sidecar on the same host, opt out explicitly; one warning is logged per options instance at startup:
+
+```csharp
+services.AddEncinaNATS(options =>
+{
+    options.Url = "nats://localhost:4222";
+    options.AllowLocalEndpoints = true;   // local development only
+});
+```
+
+`AllowLocalEndpoints` is the only opt-out: link-local, metadata and unspecified addresses are always rejected. Validation runs again at host startup.
 
 ---
 
@@ -354,8 +368,8 @@ await publisher.ScheduleAsync(
 ```csharp
 services.AddEncinaAmazonSQS(options =>
 {
-    options.Region = RegionEndpoint.USEast1;
-    options.QueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/my-queue";
+    options.Region = "us-east-1";
+    options.DefaultQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/my-queue";
 });
 
 // Publishing to SNS topic
@@ -363,6 +377,19 @@ await publisher.PublishToTopicAsync(new OrderCreated(orderId), topicArn);
 
 // Consuming from SQS queue
 await consumer.StartAsync(ct);
+```
+
+#### Endpoint validation
+
+`DefaultQueueUrl` is optional. When set it must be an absolute `https` URL whose host is not loopback, link-local, a cloud metadata endpoint or an unspecified address (`Encina.Validation.EndpointValidator`, issue #852). For LocalStack or another local emulator, set `AllowInsecureHttp = true` (plain `http`) and `AllowLocalEndpoints = true` (loopback); each logs one warning per options instance at startup. Link-local, metadata and unspecified addresses have no opt-out. Validation throws `Microsoft.Extensions.Options.OptionsValidationException` when `AddEncinaAmazonSQS` is called and runs again at host startup. Only literal hosts are checked, so DNS rebinding is not detected at configuration time.
+
+```csharp
+services.AddEncinaAmazonSQS(options =>
+{
+    options.DefaultQueueUrl = "http://localhost:4566/000000000000/my-queue";
+    options.AllowInsecureHttp = true;     // LocalStack only
+    options.AllowLocalEndpoints = true;   // LocalStack only
+});
 ```
 
 ---

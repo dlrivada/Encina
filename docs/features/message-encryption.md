@@ -155,6 +155,10 @@ services.AddEncinaMessageEncryptionAzureKeyVault(azure =>
 });
 ```
 
+#### Endpoint validation
+
+`VaultUri` is validated by `Encina.Validation.EndpointValidator` (issue #852): it must be an absolute `https` URI and its host must not be loopback, link-local, a cloud metadata endpoint or an unspecified address. Private ranges and custom domains are allowed; no host allow-list is enforced. For a local emulator, set `azure.AllowInsecureHttp = true` and `azure.AllowLocalEndpoints = true`; each logs one warning per options instance at startup. Link-local, metadata and unspecified addresses have no opt-out. Validation throws `Microsoft.Extensions.Options.OptionsValidationException` when `AddEncinaMessageEncryptionAzureKeyVault` is called and runs again at host startup. Only literal hosts are checked, so a DNS name that resolves to an internal address is not detected at configuration time. The same rules apply to the secrets package, see [Azure Key Vault secrets](secrets-management-azurekeyvault.md#endpoint-validation).
+
 ### AWS KMS
 
 ```csharp

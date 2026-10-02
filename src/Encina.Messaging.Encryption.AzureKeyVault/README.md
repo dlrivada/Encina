@@ -42,6 +42,10 @@ services.AddEncinaMessageEncryptionAzureKeyVault(
 | `KeyVersion` | `string?` | Specific key version (null = latest) |
 | `Credential` | `TokenCredential?` | Azure credential (null = `DefaultAzureCredential`) |
 | `ClientOptions` | `KeyClientOptions?` | Custom `KeyClient` options |
+| `AllowInsecureHttp` | `bool` | Allow a plain `http` `VaultUri` (local emulators only; default `false`) |
+| `AllowLocalEndpoints` | `bool` | Allow a `localhost` or loopback `VaultUri` (local emulators only; default `false`) |
+
+`VaultUri` must be `https` and must not target a loopback, link-local, cloud metadata or unspecified host; link-local, metadata and unspecified addresses have no opt-out. Validation runs at registration (`OptionsValidationException`) and at host startup. See [Endpoint validation](../../docs/features/message-encryption.md#endpoint-validation) (#852).
 
 ## Dependencies
 

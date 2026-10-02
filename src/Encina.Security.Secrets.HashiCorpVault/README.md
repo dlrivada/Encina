@@ -20,6 +20,8 @@ using VaultSharp.V1.AuthMethods.Token;
 services.AddHashiCorpVaultSecrets(vault =>
 {
     vault.VaultAddress = "http://localhost:8200";
+    vault.AllowInsecureHttp = true;   // plain http: development only
+    vault.AllowLocalEndpoints = true; // loopback: development only
     vault.AuthMethod = new TokenAuthMethodInfo("hvs.dev-root-token");
 });
 
@@ -53,9 +55,13 @@ public class MyService(ISecretReader secretReader)
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `VaultAddress` | `string` | `""` | Vault server URL (required) |
+| `VaultAddress` | `string` | `""` | Vault server URL (required); must be `https` and not loopback, link-local, metadata or unspecified |
 | `AuthMethod` | `IAuthMethodInfo?` | `null` | Authentication method (required) |
 | `MountPoint` | `string` | `"secret"` | KV v2 mount point |
+| `AllowInsecureHttp` | `bool` | `false` | Allow plain `http` (development only) |
+| `AllowLocalEndpoints` | `bool` | `false` | Allow `localhost` or loopback (dev server, Vault Agent sidecar) |
+
+Validation runs at registration (`OptionsValidationException`) and at host startup; link-local, metadata and unspecified addresses have no opt-out. See [Endpoint validation](../../docs/features/secrets-management-hashicorpvault.md#endpoint-validation) (#852).
 
 ## Error Mapping
 

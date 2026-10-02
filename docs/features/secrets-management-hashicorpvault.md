@@ -70,7 +70,7 @@ vault secrets enable -path=secret kv-v2
 
 ## Authentication Methods
 
-`HashiCorpVaultOptions.AuthMethod` accepts any `IAuthMethodInfo` implementation from VaultSharp. This property is **required** -- the provider will throw `InvalidOperationException` at startup if it is not set.
+`HashiCorpVaultOptions.AuthMethod` accepts any `IAuthMethodInfo` implementation from VaultSharp. This property is **required** -- registration throws `OptionsValidationException` if it is not set.
 
 ### Token Authentication
 
@@ -139,9 +139,20 @@ VaultSharp supports many additional auth methods. Any `IAuthMethodInfo` implemen
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `VaultAddress` | `string` | `""` | Vault server address (e.g., `https://vault.example.com:8200`). **Required.** |
+| `VaultAddress` | `string` | `""` | Vault server address (e.g., `https://vault.example.com:8200`). **Required**; must use `https` unless `AllowInsecureHttp` is set. |
 | `MountPoint` | `string` | `"secret"` | Mount point of the KV v2 secrets engine. |
-| `AuthMethod` | `IAuthMethodInfo?` | `null` | Authentication method. **Required** -- throws `InvalidOperationException` if null at startup. |
+| `AuthMethod` | `IAuthMethodInfo?` | `null` | Authentication method. **Required** -- registration throws `OptionsValidationException` if null. |
+| `AllowInsecureHttp` | `bool` | `false` | Allows plain `http` for `VaultAddress`. Development only. |
+| `AllowLocalEndpoints` | `bool` | `false` | Allows `VaultAddress` to target `localhost` or a loopback address (Vault dev server, Vault Agent sidecar). |
+
+### Endpoint validation
+
+`VaultAddress` is validated by `Encina.Validation.EndpointValidator` (issue #852). It must be an absolute `https` URL and is rejected when its host is loopback (`127.0.0.0/8`, `::1`, `localhost`, `*.localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), a cloud metadata endpoint (`169.254.169.254`, `fd00:ec2::254`, `100.100.100.200`, `metadata.google.internal`) or an unspecified address (`0.0.0.0/8`, `::`). IPv4-mapped IPv6, decimal, octal and hex IPv4 forms, trailing dots and IDN look-alikes are normalised before the check. Private ranges (RFC 1918, `fc00::/7`) are allowed.
+
+- `AllowInsecureHttp` and `AllowLocalEndpoints` are independent opt-outs; each logs one warning per options instance at startup. A Vault dev server at `http://127.0.0.1:8200` needs both.
+- Link-local, metadata and unspecified addresses have no opt-out.
+- Validation runs when `AddHashiCorpVaultSecrets` is called (it throws `Microsoft.Extensions.Options.OptionsValidationException`) and again at host startup. Error messages never echo the configured address.
+- Only literal hosts are checked. A DNS name that resolves to an internal address (DNS rebinding) is not detected at configuration time.
 
 ---
 
@@ -241,6 +252,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHashiCorpVaultSecrets(options =>
 {
     options.VaultAddress = "http://localhost:8200";
+    options.AllowInsecureHttp = true;   // plain http: development only
+    options.AllowLocalEndpoints = true; // loopback: development only
     options.MountPoint = "secret"; // default
     options.AuthMethod = new TokenAuthMethodInfo("hvs.dev-root-token");
 });
