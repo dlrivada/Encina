@@ -62,7 +62,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
                 return Left<EncinaError, byte[]>(error!); // NOSONAR S6966: Left is a pure function
             }
 
-            dynamic result = await InvokeSendAsync(plan, cancellationToken).ConfigureAwait(false);
+            var result = await InvokeSendAsync(plan, cancellationToken).ConfigureAwait(false);
 
             return ExtractEitherResult(result, plan.ResponseType, requestType);
         }
@@ -248,19 +248,28 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
             ?.GetGenericArguments()[0];
 
-    private async Task<dynamic> InvokeSendAsync(DispatchPlan plan, CancellationToken cancellationToken)
+    private async Task<object> InvokeSendAsync(DispatchPlan plan, CancellationToken cancellationToken)
     {
-        var task = (dynamic)InvokeGeneric(plan, "Send", cancellationToken);
-        return await task;
+        // IEncina.Send<TResponse> returns ValueTask<Either<EncinaError, TResponse>>; TResponse is only
+        // known at runtime, so the awaiting is delegated to a closed generic helper.
+        var pending = InvokeGeneric(plan, "Send", cancellationToken);
+        var awaiting = (Task<object>)AwaitEitherMethod.MakeGenericMethod(plan.ResponseType).Invoke(null, [pending])!;
+
+        return await awaiting.ConfigureAwait(false);
     }
 
     private async ValueTask<Either<EncinaError, Unit>> InvokePublishAsync(DispatchPlan plan, CancellationToken cancellationToken)
     {
-        var task = (dynamic)InvokeGeneric(plan, "Publish", cancellationToken);
-        Either<EncinaError, Unit> result = await task;
+        var pending = (ValueTask<Either<EncinaError, Unit>>)InvokeGeneric(plan, "Publish", cancellationToken);
 
-        return result;
+        return await pending.ConfigureAwait(false);
     }
+
+    private static readonly System.Reflection.MethodInfo AwaitEitherMethod =
+        typeof(GrpcEncinaService).GetMethod(nameof(AwaitEitherAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+    private static async Task<object> AwaitEitherAsync<TResponse>(object pending) =>
+        await ((ValueTask<Either<EncinaError, TResponse>>)pending).ConfigureAwait(false);
 
     private object InvokeGeneric(DispatchPlan plan, string methodName, CancellationToken cancellationToken)
     {
