@@ -61,6 +61,25 @@ public sealed class SignalRHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WhenResolutionThrows_ReportsOnlyTheExceptionType()
+    {
+        // Arrange
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISignalRNotificationBroadcaster))
+            .Returns(_ => throw new InvalidOperationException("secret-host-name:5001"));
+        var healthCheck = new SignalRHealthCheck(serviceProvider, null);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret-host-name");
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_WhenBroadcasterNotRegistered_ReturnsUnhealthy()
     {
         // Arrange

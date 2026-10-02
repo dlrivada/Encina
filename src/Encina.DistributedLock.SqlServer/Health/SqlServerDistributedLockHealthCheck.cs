@@ -81,7 +81,7 @@ public sealed class SqlServerDistributedLockHealthCheck : IEncinaHealthCheck
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy($"SQL Server connection failed: {ex.Message}");
+            return HealthCheckResult.Unhealthy($"SQL Server connection failed: {ex.GetType().Name}");
         }
     }
 }

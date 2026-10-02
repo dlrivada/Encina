@@ -89,7 +89,7 @@ public abstract class EncinaHealthCheck : IEncinaHealthCheck
             // attached either, since IEncinaHealthCheckAdapter propagates it unchanged to
             // Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult, outside this
             // library's control over what a downstream writer or logger does with it (#1259 review).
-            return HealthCheckResult.Unhealthy($"Health check failed: {ex.GetType().FullName}");
+            return HealthCheckResult.Unhealthy($"Health check failed: {ex.GetType().Name}");
         }
     }
 

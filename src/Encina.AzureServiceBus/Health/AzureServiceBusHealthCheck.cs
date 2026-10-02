@@ -45,7 +45,7 @@ public sealed class AzureServiceBusHealthCheck : EncinaHealthCheck
         }
         catch (ServiceBusException ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.Reason} - {ex.Message}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.Reason} ({ex.GetType().Name})"));
         }
     }
 }

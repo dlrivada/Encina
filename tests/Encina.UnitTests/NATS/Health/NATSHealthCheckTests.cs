@@ -117,6 +117,8 @@ public sealed class NATSHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("Connection failed");
+        result.Description!.ShouldContain(nameof(NatsException));
+        result.Description!.ShouldNotContain("Connection failed");
+        result.Exception.ShouldBeNull();
     }
 }

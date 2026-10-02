@@ -85,7 +85,7 @@ public sealed class QuartzHealthCheck : EncinaHealthCheck
         }
         catch (SchedulerException ex)
         {
-            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.Message}");
+            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.GetType().Name}");
         }
     }
 }

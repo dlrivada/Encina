@@ -104,6 +104,9 @@ public sealed class RabbitMQHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("unreachable");
+        result.Description!.ShouldContain(nameof(global::RabbitMQ.Client.Exceptions.BrokerUnreachableException));
+        result.Description!.ShouldNotContain("refused", Case.Insensitive);
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]

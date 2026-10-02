@@ -43,32 +43,26 @@ public sealed class SignalRHealthCheck : EncinaHealthCheck
     /// <inheritdoc/>
     protected override Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
-        try
+        // Unexpected failures are reported by the EncinaHealthCheck base class (exception type only).
+        // Verify SignalR broadcaster is registered (Encina.SignalR specific)
+        var broadcaster = _serviceProvider.GetService<ISignalRNotificationBroadcaster>();
+
+        if (broadcaster is null)
         {
-            // Verify SignalR broadcaster is registered (Encina.SignalR specific)
-            var broadcaster = _serviceProvider.GetService<ISignalRNotificationBroadcaster>();
-
-            if (broadcaster is null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    $"{Name} is not configured. Call AddEncinaSignalR() to register SignalR services."));
-            }
-
-            // Verify generic hub context is available
-            var hubContextType = typeof(IHubContext<>).MakeGenericType(typeof(Hub));
-            var hubContext = _serviceProvider.GetService(hubContextType);
-
-            if (hubContext is null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    $"{Name} hub context is not available. Ensure AddSignalR() is called."));
-            }
-
-            return Task.FromResult(HealthCheckResult.Healthy($"{Name} is configured and ready"));
+            return Task.FromResult(HealthCheckResult.Unhealthy(
+                $"{Name} is not configured. Call AddEncinaSignalR() to register SignalR services."));
         }
-        catch (Exception ex)
+
+        // Verify generic hub context is available
+        var hubContextType = typeof(IHubContext<>).MakeGenericType(typeof(Hub));
+        var hubContext = _serviceProvider.GetService(hubContextType);
+
+        if (hubContext is null)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} check failed: {ex.Message}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy(
+                $"{Name} hub context is not available. Ensure AddSignalR() is called."));
         }
+
+        return Task.FromResult(HealthCheckResult.Healthy($"{Name} is configured and ready"));
     }
 }

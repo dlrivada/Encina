@@ -224,6 +224,9 @@ public class RedisDistributedLockHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Redis connection failed");
+        result.Description!.ShouldContain(nameof(RedisConnectionException));
+        result.Description!.ShouldNotContain("Connection refused");
+        result.Exception.ShouldBeNull();
     }
 
     [Fact]

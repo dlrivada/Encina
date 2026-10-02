@@ -45,7 +45,7 @@ public sealed class RabbitMQHealthCheck : EncinaHealthCheck
         }
         catch (global::RabbitMQ.Client.Exceptions.BrokerUnreachableException ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} broker unreachable: {ex.Message}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} broker unreachable: {ex.GetType().Name}"));
         }
     }
 }

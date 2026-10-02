@@ -40,4 +40,23 @@ public class SqlServerLockOptionsAndHealthCheckTests
         options.KeyPrefix = "test";
         options.ToString().ShouldContain("test");
     }
+
+    [Fact]
+    public async Task HealthCheck_WhenConnectionFails_ReportsOnlyTheExceptionType()
+    {
+        // An unsupported keyword makes SqlConnection throw an ArgumentException whose message
+        // names the keyword; none of that text may reach the health result.
+        var healthCheck = new global::Encina.DistributedLock.SqlServer.Health.SqlServerDistributedLockHealthCheck(
+            "Server=db-secret-host.internal;Bogus Keyword=1",
+            new global::Encina.Messaging.Health.ProviderHealthCheckOptions());
+
+        var result = await healthCheck.CheckHealthAsync();
+
+        result.Status.ShouldBe(global::Encina.Messaging.Health.HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("SQL Server connection failed");
+        result.Description!.ShouldContain(nameof(ArgumentException));
+        result.Description!.ShouldNotContain("Keyword");
+        result.Description!.ShouldNotContain("db-secret-host");
+        result.Exception.ShouldBeNull();
+    }
 }
