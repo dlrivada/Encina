@@ -53,7 +53,9 @@
 # -Finalize also fails on a stale manifest (the current code/tests/docs findings -- keys, severities or text --
 # no longer match the manifest's, e.g. after a FAIL-loop re-commit of a stage), and removes, with a note, any
 # '<n>-*.md' in the output folder that is not a manifest draft (an orphan or a second draft of one group), so
-# open-remediation.ps1 can never open two issues for one group. Both modes refuse an audit worktree whose
+# open-remediation.ps1 can never open two issues for one group. A manifest also records the version of the
+# "partially related" rule it was written under (partialRuleVersion, #1592); -Finalize refuses one written under
+# an older rule, because it would re-insert lines the current rule rejects. Both modes refuse an audit worktree whose
 # pipeline.json does not assign the remediation stage to remediation-drafter.
 
 param(
@@ -169,6 +171,14 @@ if ($Finalize) {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $problems = [System.Collections.Generic.List[string]]::new()
     $notes = [System.Collections.Generic.List[string]]::new()
+
+    # #1592: -Finalize re-inserts every manifest partiallyRelated line, so a manifest written under an older
+    # (looser) "partially related" rule would resurrect lines the current rule rejects. The manifest holds no
+    # candidate text to re-validate them against, so a manifest of a different rule version is refused before
+    # anything on disk is touched, and a full -Prepare must be run again.
+    if ([int]$manifest.partialRuleVersion -ne $script:PartialRuleVersion) {
+        Stop-Remediation "stale manifest: it was written under partially related rule version $([int]$manifest.partialRuleVersion), the current rule is version $($script:PartialRuleVersion) (#1592); run -Prepare again (a full run, not -Only)."
+    }
 
     # #1540: a dry-run Finalize touches nothing outside its own sandbox, whatever the manifest says.
     function Test-InScope([string]$Path) {
@@ -404,6 +414,16 @@ $keptLessons = [System.Collections.Generic.List[string]]::new()
 $existingLessons = [System.Collections.Generic.List[string]]::new()
 if ($onlyKeys) {
     if (-not (Test-Path -LiteralPath $stageOut)) { Stop-Remediation "-Only requires an existing $stageOut to update; run a full -Prepare (no -Only) and the drafter first." }
+    # #1592: an -Only run restamps the whole manifest, which would vouch for the untouched findings' drafts
+    # written under an older partially related rule; a different rule version needs a full -Prepare. Checked
+    # here, before the duplicate search.
+    if (Test-Path -LiteralPath $manifestPath) {
+        $previousRuleVersion = 0
+        try { $previousRuleVersion = [int](Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).partialRuleVersion } catch { $previousRuleVersion = 0 }
+        if ($previousRuleVersion -ne $script:PartialRuleVersion) {
+            Stop-Remediation "the previous manifest was written under partially related rule version $previousRuleVersion, the current rule is version $($script:PartialRuleVersion) (#1592); -Only would keep drafts written under the old rule, run -Prepare without -Only."
+        }
+    }
     $inLessons = $false
     foreach ($rawLine in (Get-Content -LiteralPath $stageOut)) {
         if ($rawLine -eq $lessonsHeading) { $inLessons = $true; continue }
@@ -465,6 +485,9 @@ if ($duplicateOfEntries) {
 
 $entriesByKey = @{}
 $ghIssueCache = @{}
+# #1592: the types declared in the audited worktree's src/, for the "partially related" rule (route (b) of
+# Test-PartialDuplicateEvidence); scanned once per run, skipped under -NoGh (no duplicate search runs then).
+$declaredTypes = if ($NoGh) { , [System.Collections.Generic.HashSet[string]]::new() } else { Get-DeclaredEncinaTypes (Join-Path $wt 'src') }
 foreach ($gi in $touchedGroupIndexes) {
     $group = $groups[$gi]
     $primary = $group.Primary
@@ -506,7 +529,7 @@ foreach ($gi in $touchedGroupIndexes) {
         else {
             foreach ($c in $evidenceCandidates) {
                 if ([string]$c.Number -eq $n) { continue }
-                if (Test-PartialDuplicateEvidence $primary.Text $c.TitleAndBody) { $partiallyRelated.Add("- #$($c.Number) - partially related (it covers only part of this finding)") }
+                if (Test-PartialDuplicateEvidence $primary.Text $c.TitleAndBody $declaredTypes) { $partiallyRelated.Add("- #$($c.Number) - partially related (it covers only part of this finding)") }
                 else { $possiblyRelated.Add("#$($c.Number): $($c.Title)") }
             }
         }
@@ -622,6 +645,7 @@ $manifest = [ordered]@{
     only           = if ($Only) { @($Only) } else { $null }
     outputDir      = $outDir
     stageFile      = $stageOut
+    partialRuleVersion = $script:PartialRuleVersion
     stageHeader    = "Remediation for #$n`:"
     emptyLine      = "No findings from the code, tests or docs stages for #$n; no remediation drafts were written."
     lessonsHeading = $lessonsHeading

@@ -67,6 +67,19 @@ foreach ($ruleFile in 'AGENTS.md', 'CLAUDE.md') {
     }
 }
 
+# #1592: the generic connection-setting names. Nearly every options class has a `Host`, `Port`, `Username`,
+# `Password`, `ConnectionString` or `Url`, so a bare token of this kind names a KIND of setting, never this
+# defect, exactly as a bare 'UseXxx' toggle names a feature area (Get-FindingAnchors). Audit #18's docs-7 (a
+# documentation page names the MQTT option `BrokerAddress` where the real one is `Host`) matched #1584 (endpoint
+# validation of the `Host` option) through the MQTT options file plus this one token. A qualified token
+# (`options.Host`, `EncinaMQTTOptions.Host`) stays a symbol anchor: it names one property of one class.
+# Side effect, in the strict direction: a finding whose only symbol is one of these names can no longer be an
+# auto-accepted duplicate (Test-DuplicateEvidence shares the anchors); it is drafted as new and the verifier's
+# own dedup pass still catches a real duplicate.
+$script:GenericOptionSettingNames = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@('Host', 'HostName', 'Port', 'Username', 'UserName', 'Password', 'ConnectionString', 'Url', 'Uri', 'Endpoint', 'Address'),
+    [System.StringComparer]::OrdinalIgnoreCase)
+
 # #1400 decision 1: every finding in the code/tests/docs stage artifacts is written as "`loc1`, `loc2`, ...:
 # narrative" -- a leading, comma/semicolon-joined list of backtick-delimited file citations (the finding's own
 # claimed defect locations), followed by a colon that opens the prose explaining the defect. That colon is
@@ -156,6 +169,7 @@ function Get-FindingAnchors {
         if ($token -match '^:\d') { continue }
         if ($token.Contains('/') -and $token -match '^[\w.{},*/\\-]+(?::[\d,-]+)?$') { continue }
         if ($script:HouseRuleTokens.Contains($token)) { continue }
+        if ($script:GenericOptionSettingNames.Contains($token)) { continue }
         # A bare 'UseXxx' token (no dot, parens or generic brackets) is AGENTS.md's own generic naming
         # convention for a messaging pattern's opt-in flag ("Every messaging pattern... is optional... Example:
         # `config.UseOutbox = true;`"), so it recurs, unqualified, across many unrelated issues in this
@@ -374,33 +388,103 @@ function Test-DuplicateEvidence {
     return $false
 }
 
-# #1400 decision 1, widened by #1393 decision 3 and #1572: decides which search candidates
-# audit-draft-remediation.ps1 -Prepare lists as "partially related" for a finding that is not a duplicate (the
-# candidate's location text covers at least one of the finding's own file anchors OR one of its specific
-# symbol anchors, but not enough for a duplicate) versus "possibly related" (a search hit with no anchor
-# matched at all, listed for awareness only). A candidate that matches only part of a multi-anchor finding is therefore "partially
-# related", never a duplicate: audit #16's docs-2 names `IChoreographyEventBus`, `IChoreographyStateStore` and
-# the missing registration surface, and #592 covers only `IChoreographyStateStore`. Uses the same location
-# text and generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a
-# shared house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a
-# finding with zero file anchors is never "partially" related to anything by definition.
+# The version of the "partially related" rule below. -Prepare writes it into the manifest as
+# partialRuleVersion; -Finalize refuses a manifest written under an older rule, because it re-inserts every
+# manifest partiallyRelated line into the drafts and would otherwise resurrect a line the current rule rejects
+# (#1592). Bump it whenever Test-PartialDuplicateEvidence (or the anchor rules it uses) gets stricter.
+$script:PartialRuleVersion = 3
+
+# #1400 decision 1, widened by #1393 decision 3 and #1572, then narrowed again by #1592: decides which search
+# candidates audit-draft-remediation.ps1 -Prepare lists as "partially related" for a finding that is not a
+# duplicate versus "possibly related" (a search hit that does not qualify, listed to the drafter for awareness
+# only, never published). A candidate is "partially related" only when it covers part of the same DEFECT,
+# through EITHER of two deterministic routes, but not enough for a duplicate (Test-DuplicateEvidence wants every
+# file anchor):
+#   (a) its location text matches at least one of the finding's file anchors AND at least one of its specific
+#       (non-generic) symbol anchors; or
+#   (b) its location text or title names a symbol anchor of the finding that is a TYPE DECLARED IN ENCINA (an
+#       interface, class, record, struct or enum under the audited worktree's src/, see
+#       Get-DeclaredEncinaTypes). This is how audit #16's docs-2, which names `IChoreographyEventBus`,
+#       `IChoreographyStateStore` and the missing registration surface, is partially related to #592, which
+#       covers `IChoreographyStateStore` (declared in src/) alone, without citing any of docs-2's files.
+#
+# A file match alone is not evidence of a shared defect (#1592), and neither is a symbol that names an area:
+# audit #18's drafts carried false "partially related" lines because the candidate only listed the same source
+# file (docs-3 and docs-7 vs #1584, which lists the options classes whose property names the docs page gets
+# wrong), or matched a package name (code-3 vs #725, through the `Encina.MQTT`-style tokens of its Affected
+# Packages list), a generic setting name (docs-7, `Host`, see $script:GenericOptionSettingNames) or a framework
+# type (docs-9 vs #1474 and #1323, `IServiceCollection`). None of those is a type declared in src/, so route (b)
+# never accepts them: package and project names contain a dot or are removed from the declared set (the core
+# package `Encina` is also a class), framework types are declared elsewhere, member names are not types, and
+# generic option names are excluded from the anchors. Route (b) also needs the type as one of the candidate's
+# own backticked location tokens, never a plain word of its title. Uses the same location text and
+# generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a shared
+# house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a finding with no
+# symbol anchor is never "partially" related to anything.
+#
+# Route (b) also relates findings across providers when a type is declared in several packages (for example
+# `OutboxProcessor`), which is intended: the same type named in a candidate's location is part of the same defect
+# family, and the drafter only cites it as a partial relation.
+#
+# $DeclaredTypes is the set of type names declared in src/ (Get-DeclaredEncinaTypes), computed once per -Prepare
+# run and injectable, so tests pass a small fake set. Without it (null or empty) only route (a) applies.
 function Test-PartialDuplicateEvidence {
-    param([string]$FindingText, [string]$CandidateTitleAndBody)
+    param([string]$FindingText, [string]$CandidateTitleAndBody, [System.Collections.Generic.HashSet[string]]$DeclaredTypes = $null)
 
     $anchors = Get-FindingAnchors $FindingText
-    if ($anchors.FileAnchors.Count -eq 0) { return $false }
+    if ($anchors.SymbolAnchors.Count -eq 0) { return $false }
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
     $title = ($candidate -split "`r?`n", 2)[0]
     $location = Get-CandidateLocationText $candidate
+
+    $fileMatched = $false
     foreach ($fa in $anchors.FileAnchors) {
-        if (Test-FileAnchorMatch $fa $location) { return $true }
+        if (Test-FileAnchorMatch $fa $location) { $fileMatched = $true; break }
     }
+
     $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
-        if (Test-SymbolAnchorMatch $sa $candidateTokens $title) { return $true }
+        # A package or project name (`Encina.Kafka`, `Encina`) names an area, never the defect: it is no symbol
+        # evidence in either route (every project folder under src/ is named Encina or Encina.<Something>). The
+        # pattern covers every Encina-prefixed dotted token, so a fully qualified type name is skipped too: the
+        # conservative direction (fewer partial lines, never a false duplicate).
+        if ($sa -match '^Encina(?:\.\w+)*$') { continue }
+        if ($fileMatched -and (Test-SymbolAnchorMatch $sa $candidateTokens $title)) { return $true }
+        # Route (b): the declared type is one of the candidate's own backticked location tokens, exactly, or a
+        # compound name (two or more capitals, 'IChoreographyStateStore') standing alone in its title, where
+        # issues name a type without backticks (#592). A single-word title hit such as 'Audit' or 'Connection'
+        # (also type names in src/) is vocabulary, not evidence of the same type.
+        if ($DeclaredTypes -and $DeclaredTypes.Count -gt 0 -and $sa -match '^[A-Za-z_]\w*(?:<[^`]*>)?$') {
+            $typeName = $sa -replace '<.*$', ''
+            if (-not $DeclaredTypes.Contains($typeName)) { continue }
+            if ($candidateTokens.Contains($sa) -or $candidateTokens.Contains($typeName)) { return $true }
+            if ($typeName -cmatch '^[A-Za-z_]*[A-Z][A-Za-z0-9_]*[A-Z]' -and (Test-SymbolAnchorMatch $typeName ([System.Collections.Generic.HashSet[string]]::new()) $title)) { return $true }
+        }
     }
     return $false
+}
+
+# #1592: the names of the types (interface, class, record, struct, enum) declared in the *.cs files under
+# $SourceRoot (the audited worktree's src/), as a case-sensitive set. A declaration is a line that starts with
+# modifiers and then the keyword, so a comment or a `where T : class` constraint does not count. Returns an empty
+# set when the folder does not exist (a test fixture without src/). Computed once per -Prepare run.
+function Get-DeclaredEncinaTypes {
+    param([string]$SourceRoot)
+
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    if ([string]::IsNullOrWhiteSpace($SourceRoot) -or -not (Test-Path -LiteralPath $SourceRoot -PathType Container)) { return , $set }
+    $pattern = [regex]::new('(?m)^[ \t]*(?!//)(?:[A-Za-z]+[ \t]+)*?(?:interface|class|record(?:[ \t]+(?:struct|class))?|struct|enum)[ \t]+(?<name>[A-Za-z_]\w*)', 'Compiled')
+    foreach ($file in Get-ChildItem -LiteralPath $SourceRoot -Filter '*.cs' -File -Recurse -ErrorAction SilentlyContinue) {
+        if ($file.FullName -match '[\\/](?:obj|bin)[\\/]') { continue }
+        foreach ($m in $pattern.Matches([System.IO.File]::ReadAllText($file.FullName))) { [void]$set.Add($m.Groups['name'].Value) }
+    }
+    # A package or project name is never a type for this purpose: the core package is the class `Encina` and
+    # every package declares a `Log`, yet backticked `Encina` in a candidate's Package(s) field names the package.
+    [void]$set.Remove('Encina')
+    [void]$set.Remove('Log')
+    foreach ($projectDir in Get-ChildItem -LiteralPath $SourceRoot -Directory -ErrorAction SilentlyContinue) { [void]$set.Remove($projectDir.Name) }
+    return , $set
 }
 
 # #1424 decision 2: makes duplicate-vs-new deterministic for a given finding and a given set of open candidates
