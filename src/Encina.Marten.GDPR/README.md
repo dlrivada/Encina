@@ -71,7 +71,7 @@ public sealed record UserEmailChangedEvent
 
 The `[CryptoShredded]` attribute requires:
 - A co-located `[PersonalData]` attribute (from `Encina.Compliance.DataSubjectRights`)
-- A `SubjectIdProperty` pointing to the sibling property containing the data subject's ID
+- A `SubjectIdProperty` pointing to the sibling property containing the data subject's ID: `string`, `Guid`, an integer type, or a strongly-typed id (an `IFormattable` type or a wrapper with a public `Value` of those types). Any other type fails startup. Erase with the id's string form (`Guid` as `ToString("D")`)
 
 ### 3. Events Are Encrypted Transparently
 
