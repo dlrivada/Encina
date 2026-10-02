@@ -111,15 +111,11 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
             {
                 var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken).ConfigureAwait(false);
 
-                if (result.IsLeft)
+                var failure = CollectOrFail(result, results);
+                if (failure is not null)
                 {
-                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                        result.Match(
-                            Right: _ => throw new InvalidOperationException(),
-                            Left: error => error));
+                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
                 }
-
-                result.IfRight(results.Add);
             }
 
             return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results); // NOSONAR S6966: LanguageExt Right is a pure function
@@ -134,6 +130,18 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                     ex,
                     $"Failed to produce batch of messages of type {typeof(TMessage).Name}."));
         }
+    }
+
+    private static EncinaError? CollectOrFail(
+        Either<EncinaError, KafkaDeliveryResult> result,
+        List<KafkaDeliveryResult> results)
+    {
+        EncinaError? failure = null;
+        result.Match(
+            Right: delivery => { results.Add(delivery); },
+            Left: error => { failure = error; });
+
+        return failure;
     }
 
     /// <inheritdoc />
