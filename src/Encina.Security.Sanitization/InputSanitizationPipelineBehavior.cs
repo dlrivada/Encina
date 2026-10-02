@@ -115,11 +115,11 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
 
         if (sanitizationResult.IsLeft)
         {
-            var errorMessage = sanitizationResult.Match(
-                Right: _ => string.Empty,
-                Left: e => e.Message);
+            var (errorMessage, errorCode) = sanitizationResult.Match(
+                Right: _ => (string.Empty, string.Empty),
+                Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
 
-            RecordFailure(activity, startedAt, requestTypeName, errorMessage);
+            RecordFailure(activity, startedAt, requestTypeName, errorMessage, errorCode);
             return sanitizationResult.Match<Either<EncinaError, TResponse>>(
                 Right: _ => default!,
                 Left: e => e);
@@ -163,7 +163,7 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorMessage)
+    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorMessage, string errorCode)
     {
         if (_options.EnableTracing)
         {
@@ -185,7 +185,7 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
             SanitizationDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
         }
 
-        _logger.LogWarning("Input sanitization pipeline failed for {RequestType}: {ErrorMessage}",
-            requestTypeName, errorMessage);
+        _logger.LogWarning("Input sanitization pipeline failed for {RequestType}: {ErrorCode}",
+            requestTypeName, errorCode);
     }
 }

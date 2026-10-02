@@ -116,11 +116,11 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
 
                 if (encodingResult.IsLeft)
                 {
-                    var errorMessage = encodingResult.Match(
-                        Right: _ => string.Empty,
-                        Left: e => e.Message);
+                    var (errorMessage, errorCode) = encodingResult.Match(
+                        Right: _ => (string.Empty, string.Empty),
+                        Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
 
-                    RecordFailure(activity, startedAt, responseTypeName, errorMessage);
+                    RecordFailure(activity, startedAt, responseTypeName, errorMessage, errorCode);
                     return encodingResult.Match<Either<EncinaError, TResponse>>(
                         Right: _ => default!,
                         Left: e => e);
@@ -288,7 +288,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string responseTypeName, string errorMessage)
+    private void RecordFailure(Activity? activity, long startedAt, string responseTypeName, string errorMessage, string errorCode)
     {
         if (_options.EnableTracing)
         {
@@ -310,7 +310,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             SanitizationDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
         }
 
-        _logger.LogWarning("Output encoding pipeline failed for {ResponseType}: {ErrorMessage}",
-            responseTypeName, errorMessage);
+        _logger.LogWarning("Output encoding pipeline failed for {ResponseType}: {ErrorCode}",
+            responseTypeName, errorCode);
     }
 }
