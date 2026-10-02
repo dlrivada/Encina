@@ -148,7 +148,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         }
 
         var consumeResult = outcome.Result;
-        if (consumeResult?.Message?.Value is null)
+        if (HasNoValue(consumeResult))
         {
             return null;
         }
@@ -166,6 +166,9 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
 
         return result;
     }
+
+    private static bool HasNoValue([NotNullWhen(false)] ConsumeResult<string, string>? consumeResult) =>
+        consumeResult?.Message?.Value is null;
 
     /// <summary>
     /// Skips events at or before the saved position until the first event past it, then lets everything through.
