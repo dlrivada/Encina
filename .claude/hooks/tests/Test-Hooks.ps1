@@ -3429,11 +3429,15 @@ Two SagaStoreADO test classes duplicate the same setup.
     Test-RemediationChecksCase '#1393 16-docs-4 vs #1299 is NOT a duplicate (only a generic `src/` token and a bare README.md in prose matched)' {
         -not (Test-DuplicateEvidence $findingDocs4For1393 $candidate1299)
     }
-    # #1592: #592 covers `IChoreographyStateStore` but cites none of the finding's files (docs/messaging/sagas.md
-    # and the others), so it matched by that symbol alone; "partially related" now needs a file AND a symbol
-    # match, so it is only "possibly related" (listed to the drafter, never published).
-    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is NOT a duplicate and, since #1592, NOT partially related either (a symbol match alone)' {
-        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (-not (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592))
+    # #1592: #592 covers `IChoreographyStateStore` but cites none of the finding's files, so it matches by that
+    # symbol alone. That is enough only because IChoreographyStateStore is a type declared in src/ (route (b) of
+    # Test-PartialDuplicateEvidence); the declared-type set is injected as a small fake here.
+    $declaredTypesFake1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('IChoreographyStateStore', 'SagaRunner'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is partially related (IChoreographyStateStore is declared in src/), NOT a duplicate' {
+        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 16-docs-2 vs #592 without the type in the declared set is only possibly related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592 ([System.Collections.Generic.HashSet[string]]::new()))
     }
     Test-RemediationChecksCase '#1393 16-code-4 vs #1170 is still a duplicate (the one true duplicate)' {
         Test-DuplicateEvidence $findingCode4For1393 $candidate1170For1393
@@ -3603,19 +3607,19 @@ The fluent builder chain described in the documentation is fictional. The parame
 `CS0117`-class error: `AddEncinaADOPostgreSQL` is not a member of `IServiceCollection` (extension method does not exist under that name).
 '@
     Test-RemediationChecksCase '#1592 audit #18 code-3 vs #725 is NOT partially related (no shared file; only package-name tokens matched)' {
-        -not (Test-PartialDuplicateEvidence $findingCode3For1592 $candidate725For1592)
+        -not (Test-PartialDuplicateEvidence $findingCode3For1592 $candidate725For1592 $declaredTypesFake1592)
     }
     Test-RemediationChecksCase '#1592 audit #18 docs-3 vs #1584 is NOT partially related (shared options file, no shared symbol)' {
-        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidate1584For1592)
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidate1584For1592 $declaredTypesFake1592)
     }
     Test-RemediationChecksCase '#1592 audit #18 docs-7 vs #1584 is NOT partially related (shared options file, only the generic setting name Host)' {
-        -not (Test-PartialDuplicateEvidence $findingDocs7For1592 $candidate1584For1592)
+        -not (Test-PartialDuplicateEvidence $findingDocs7For1592 $candidate1584For1592 $declaredTypesFake1592)
     }
     Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1474 is NOT partially related (only the framework type IServiceCollection matched)' {
-        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1474For1592)
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1474For1592 $declaredTypesFake1592)
     }
     Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1323 is NOT partially related (only the framework type IServiceCollection matched)' {
-        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1323For1592)
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1323For1592 $declaredTypesFake1592)
     }
     Test-RemediationChecksCase '#1592 none of the five audit #18 pairs is a duplicate either (Find-DuplicateAmongCandidates)' {
         $null -eq (Find-DuplicateAmongCandidates $findingCode3For1592 @([pscustomobject]@{ Number = '725'; TitleAndBody = $candidate725For1592 })) -and
@@ -3647,8 +3651,32 @@ The fluent builder chain described in the documentation is fictional. The parame
     Test-RemediationChecksCase '#1592 a finding with a file anchor but no symbol anchor is never partially related, even when the candidate lists the file' {
         -not (Test-PartialDuplicateEvidence '`src/Encina.Kafka/EncinaKafkaOptions.cs:12`: the class is undocumented.' $candidateKafkaFileOnly1592)
     }
-    Test-RemediationChecksCase '#1592 the partial rule has a version that -Prepare writes into the manifest and -Finalize checks' {
-        $script:PartialRuleVersion -ge 2
+    # Route (b): a symbol-only match on a type declared in src/ is partial; the same symbol absent from the
+    # declared set is not; a dotted name (package or project) and a member name never qualify.
+    $candidateSymbolOnlyDeclared1592 = "[BUG] GroupIdResolver ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n`n## Current Behavior`n`n``KafkaConsumerFactory`` never reads it.`n"
+    $findingDeclared1592 = '`src/Encina.Kafka/EncinaKafkaOptions.cs:12`: `KafkaConsumerFactory` ignores `GroupId` and `Encina.Kafka` is send-only.'
+    $declaredWithFactory1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('KafkaConsumerFactory'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a symbol-only match on a type declared in src/ IS partially related' {
+        Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592 $declaredWithFactory1592
+    }
+    Test-RemediationChecksCase '#1592 the same symbol-only match is NOT partially related when the type is not in the declared set' {
+        (-not (Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592 $declaredTypesFake1592)) -and
+        (-not (Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592))
+    }
+    $candidateMemberAndPackage1592 = "[BUG] Kafka packaging`n## Affected Packages`n`n- ``Encina.Kafka```n`n## Current Behavior`n`n``GroupId`` is empty.`n"
+    $declaredWithNames1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('KafkaConsumerFactory', 'Encina.Kafka', 'GroupId'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a package name (dotted) never satisfies the declared-type route' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina.Kafka` has no consumer.' $candidateMemberAndPackage1592 $declaredWithNames1592)
+    }
+    Test-RemediationChecksCase '#1592 Get-DeclaredEncinaTypes reads declarations (modifiers, record struct, enum) and skips comments and constraints' {
+        $srcFake1592 = Join-Path $work 'declared-types-1592\src'
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592 'Encina.Foo') | Out-Null
+        Set-Content -LiteralPath (Join-Path $srcFake1592 'Encina.Foo\A.cs') -Value "namespace Foo;`n/// the class Commented is not a declaration`npublic sealed partial class Widget<T> where T : class`n{`n}`ninternal interface IThing { }`npublic readonly record struct Ident(int V);`npublic enum Mode { A }`npublic record Rec(int V);`n"
+        $types1592 = Get-DeclaredEncinaTypes $srcFake1592
+        ($types1592.Contains('Widget')) -and ($types1592.Contains('IThing')) -and ($types1592.Contains('Ident')) -and ($types1592.Contains('Mode')) -and ($types1592.Contains('Rec')) -and (-not $types1592.Contains('Commented')) -and (-not $types1592.Contains('struct')) -and ((Get-DeclaredEncinaTypes (Join-Path $work 'no-such-src-1592')).Count -eq 0)
+    }
+    Test-RemediationChecksCase '#1592 the partial rule has version 3, which -Prepare writes into the manifest and -Finalize checks' {
+        $script:PartialRuleVersion -eq 3
     }
     # ---- end #1592 block ----
 
