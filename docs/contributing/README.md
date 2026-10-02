@@ -195,7 +195,7 @@ The path every change follows, and what each step must produce.
 9. **Merge on green without waiting.** Arm auto-merge (`gh pr merge <n> --auto --squash`) when the PR is ready; it merges by itself when the required checks pass. Start the next task instead of watching the checks.
 10. **After merge.** The issue closes through `Fixes #N`; the tag and the release are cut by the maintainer per milestone block (SPEC-000 DEC-005), folding the accumulated fragments with `changelog-fragments.cs --release`.
 
-What CI runs where (after #1110): on a pull request, the fast tier (`build`, unit/guard/contract/property/integration shards, CodeQL in source mode, internal link check); on push to `main`, the same plus benchmarks and the external link scan; weekly, the full coverage suite (`ci-full.yml`) and mutation testing. A docs-only PR skips build and tests and is green in minutes.
+What CI runs where (after #1110): on a pull request, the fast tier (`build`, unit/guard/contract/property/integration shards, CodeQL in source mode, link check: internal links of the whole site offline, plus the links, external ones included, of the Markdown files the PR changes); on push to `main`, the same plus benchmarks (the link check there covers the files the push changes); daily, the full external link scan, which never blocks a pull request or a push, reports to a `link-health` tracking issue and fails its own run only for a 404 or 410; weekly, the full coverage suite (`ci-full.yml`) and mutation testing. A docs-only PR skips build and tests and is green in minutes.
 
 ## 5. Rules that will bite you
 
