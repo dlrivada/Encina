@@ -258,8 +258,11 @@ async Task<int> RunStandin(string reason)
         StandardInputEncoding = new UTF8Encoding(false),
         StandardOutputEncoding = Encoding.UTF8,
     };
-    foreach (var a in new[] { "-p", "--model", "haiku", "--effort", "low", "--setting-sources", "", "--tools", "", "--system-prompt", standinPrompt, "--output-format", "json" })
+    foreach (var a in new[] { "-p", "--model", "haiku", "--effort", "low", "--setting-sources", "", "--tools", "", "--system-prompt", standinPrompt, "--output-format", "json", "--no-session-persistence" })
         psi.ArgumentList.Add(a);
+    // --setting-sources "" does not stop the repository CLAUDE.md/AGENTS.md from loading (about 2k extra tokens).
+    psi.Environment["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1";
+    psi.StandardErrorEncoding = Encoding.UTF8;
 
     Process proc;
     try
@@ -277,8 +280,15 @@ async Task<int> RunStandin(string reason)
         var sw2 = Stopwatch.StartNew();
         var stdoutTask = proc.StandardOutput.ReadToEndAsync();
         var stderrTask = proc.StandardError.ReadToEndAsync();
-        await proc.StandardInput.WriteAsync(sb.ToString());
-        proc.StandardInput.Close();
+        try
+        {
+            await proc.StandardInput.WriteAsync(sb.ToString());
+            proc.StandardInput.Close();
+        }
+        catch (IOException)
+        {
+            // The CLI exited before reading the prompt (for example an auth failure): its output below says why.
+        }
         await proc.WaitForExitAsync();
         var stdout = await stdoutTask;
         var stderr = await stderrTask;
@@ -316,7 +326,8 @@ async Task<int> RunStandin(string reason)
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         File.WriteAllText(outPath, result);
 
-        var standinLedger = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath))!, "..", "standin-ledger.csv"));
+        // Next to the ledger.csv this call would have used: --ledger's folder when given, else <out>\..\.
+        var standinLedger = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(ledgerPath))!, "standin-ledger.csv");
         Directory.CreateDirectory(Path.GetDirectoryName(standinLedger)!);
         if (!File.Exists(standinLedger))
             File.WriteAllText(standinLedger, "timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile,costUsd\n");
