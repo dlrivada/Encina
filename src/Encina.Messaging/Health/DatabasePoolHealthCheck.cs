@@ -80,8 +80,7 @@ public sealed class DatabasePoolHealthCheck : EncinaHealthCheck
         {
             return HealthCheckResult.Unhealthy(
                 healthResult.Description,
-                healthResult.Exception,
-                healthResult.Data);
+                data: healthResult.Data);
         }
 
         // Check pool utilization thresholds

@@ -156,7 +156,8 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
 
             foreach (var replicaConnectionString in _options.ReadConnectionStrings)
             {
-                var replicaName = GetReplicaIdentifier(replicaConnectionString, replicaIndex);
+                // A stable index, never the host name parsed from the connection string.
+                var replicaName = $"replica_{replicaIndex}";
                 var replicaHealthy = await CheckReplicaAsync(
                     scope.ServiceProvider,
                     replicaConnectionString,
@@ -182,9 +183,9 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
         }
         catch (Exception ex)
         {
+            // Only the exception type: neither the message nor the exception object may reach the endpoint.
             return HealthCheckResult.Unhealthy(
-                $"Failed to check database connectivity: {ex.Message}",
-                exception: ex,
+                $"Failed to check database connectivity: {ex.GetType().Name}",
                 data: data);
         }
 
@@ -273,39 +274,5 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
         {
             return false;
         }
-    }
-
-    private static string GetReplicaIdentifier(string connectionString, int index)
-    {
-        // Try to extract a meaningful identifier from the connection string
-        // This works for most ADO.NET providers that use Server= or Data Source= syntax
-        try
-        {
-            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var part in parts)
-            {
-                var keyValue = part.Split('=', 2);
-                if (keyValue.Length == 2)
-                {
-                    var key = keyValue[0].Trim().ToUpperInvariant();
-                    if (key is "SERVER" or "DATA SOURCE" or "HOST")
-                    {
-                        var value = keyValue[1].Trim();
-                        // Remove port if present
-                        var serverName = value.Split(',')[0].Split(':')[0].Split('\\')[0];
-                        if (!string.IsNullOrWhiteSpace(serverName))
-                        {
-                            return $"replica_{serverName}";
-                        }
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // Ignore parsing errors
-        }
-
-        return $"replica_{index}";
     }
 }

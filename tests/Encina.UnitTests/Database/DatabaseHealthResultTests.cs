@@ -56,16 +56,16 @@ public sealed class DatabaseHealthResultTests
     }
 
     [Fact]
-    public void Degraded_WithException_SetsException()
+    public void Degraded_WithData_SetsData()
     {
         // Arrange
-        var ex = new InvalidOperationException("test");
+        var data = new Dictionary<string, object> { ["k"] = 1 };
 
         // Act
-        var result = DatabaseHealthResult.Degraded(exception: ex);
+        var result = DatabaseHealthResult.Degraded("slow", data);
 
         // Assert
-        result.Exception.ShouldBe(ex);
+        result.Data["k"].ShouldBe(1);
     }
 
     [Fact]
@@ -79,17 +79,24 @@ public sealed class DatabaseHealthResultTests
     }
 
     [Fact]
-    public void Unhealthy_WithDescriptionAndException_SetsBoth()
+    public void Unhealthy_WithDescriptionAndData_SetsBoth()
     {
         // Arrange
-        var ex = new TimeoutException("timed out");
+        var data = new Dictionary<string, object> { ["provider"] = "x" };
 
         // Act
-        var result = DatabaseHealthResult.Unhealthy("Connection failed", ex);
+        var result = DatabaseHealthResult.Unhealthy("Connection failed", data);
 
         // Assert
         result.Description.ShouldBe("Connection failed");
-        result.Exception.ShouldBe(ex);
+        result.Data["provider"].ShouldBe("x");
+    }
+
+    [Fact]
+    public void DatabaseHealthResult_DoesNotExposeAnException()
+    {
+        // A health result can reach a health endpoint: it never carries an exception object.
+        typeof(DatabaseHealthResult).GetProperty("Exception").ShouldBeNull();
     }
 
     #endregion
@@ -115,16 +122,6 @@ public sealed class DatabaseHealthResultTests
 
         // Assert
         result.Description.ShouldBeNull();
-    }
-
-    [Fact]
-    public void Constructor_WithNullException_SetsNull()
-    {
-        // Act
-        var result = new DatabaseHealthResult(DatabaseHealthStatus.Healthy);
-
-        // Assert
-        result.Exception.ShouldBeNull();
     }
 
     #endregion

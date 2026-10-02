@@ -31,7 +31,7 @@ namespace Encina.Sharding.Health;
 /// {
 ///     ShardHealthResult.Healthy("shard-1", poolStats1),
 ///     ShardHealthResult.Healthy("shard-2", poolStats2),
-///     ShardHealthResult.Unhealthy("shard-3", "Connection refused", ex)
+///     ShardHealthResult.Unhealthy("shard-3", "Connection failed (SocketException)")
 /// };
 ///
 /// var overallStatus = ShardedHealthSummary.CalculateOverallStatus(results);

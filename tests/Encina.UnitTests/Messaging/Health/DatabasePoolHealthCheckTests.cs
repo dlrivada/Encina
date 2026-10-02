@@ -98,6 +98,7 @@ public sealed class DatabasePoolHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldBe("Database down");
+        result.Exception.ShouldBeNull();
     }
 
     #endregion

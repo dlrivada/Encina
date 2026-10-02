@@ -166,9 +166,10 @@ public abstract class DatabaseHealthMonitorBase : IDatabaseHealthMonitor
         catch (Exception ex)
         {
             _isCircuitOpen = true;
+            // Only the exception type: the message can carry the host name or credentials, and the
+            // result reaches the health endpoint through DatabasePoolHealthCheck.
             return DatabaseHealthResult.Unhealthy(
-                $"Database health check failed for provider '{ProviderName}': {ex.Message}",
-                ex);
+                $"Database health check failed for provider '{ProviderName}': {ex.GetType().Name}");
         }
     }
 

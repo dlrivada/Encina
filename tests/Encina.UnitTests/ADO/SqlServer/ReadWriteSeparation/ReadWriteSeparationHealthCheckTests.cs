@@ -158,6 +158,29 @@ public sealed class ReadWriteSeparationHealthCheckTests
     #region CheckHealthAsync - Replica Tests
 
     [Fact]
+    public async Task CheckHealthAsync_WhenPrimaryConnectionFails_ReportsOnlyTheExceptionType()
+    {
+        // An unsupported keyword makes the connection fail instantly with an exception whose
+        // message names the keyword; the host name stands in for sensitive connection data.
+        var healthCheck = new ReadWriteSeparationHealthCheck(new ReadWriteSeparationOptions
+        {
+            WriteConnectionString = "Server=db-secret-host.internal;Bogus Keyword=1"
+        });
+
+        var result = await healthCheck.CheckHealthAsync();
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("Exception");
+        result.Description!.ShouldNotContain("bogus", Case.Insensitive);
+        result.Description!.ShouldNotContain("db-secret-host");
+        var primary = result.Data["primary"].ToString()!;
+        primary.ShouldStartWith("unreachable: ");
+        primary.ShouldNotContain("bogus", Case.Insensitive);
+        primary.ShouldNotContain("db-secret-host");
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_WithInvalidPrimaryAndNoReplicas_ReturnsUnhealthy()
     {
         // Arrange

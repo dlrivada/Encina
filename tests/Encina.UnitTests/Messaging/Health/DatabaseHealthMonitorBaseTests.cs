@@ -166,6 +166,11 @@ public sealed class DatabaseHealthMonitorBaseTests
         // Assert
         result.Status.ShouldBe(DatabaseHealthStatus.Unhealthy);
         monitor.IsCircuitOpen.ShouldBeTrue();
+
+        // Only the exception type reaches the result, never the message (host names, credentials).
+        result.Description.ShouldNotBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Connection refused");
     }
 
     [Fact]

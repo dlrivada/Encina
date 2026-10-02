@@ -95,110 +95,98 @@ public sealed class ReadWriteMongoHealthCheck : EncinaHealthCheck
 
         try
         {
-            // Get the cluster description from the MongoDB client
-            var clusterDescription = _mongoClient.Cluster.Description;
-
-            // Check if we have any servers
-            if (clusterDescription.Servers.Count == 0)
-            {
-                data["cluster_type"] = "unknown";
-                data["servers"] = 0;
-
-                return Task.FromResult(new HealthCheckResult(
-                    HealthStatus.Unhealthy,
-                    "MongoDB cluster has no servers available",
-                    data: data));
-            }
-
-            // Determine cluster type
-            var clusterType = clusterDescription.Type.ToString();
-            data["cluster_type"] = clusterType;
-
-            // Check if it's a replica set
-            var isReplicaSet = clusterDescription.Type == ClusterType.ReplicaSet;
-
-            if (!isReplicaSet)
-            {
-                // For standalone or sharded clusters, read preferences are limited
-                var serverCount = clusterDescription.Servers.Count;
-                data["servers"] = serverCount;
-
-                if (clusterDescription.Type == ClusterType.Standalone)
-                {
-                    // Standalone servers only support Primary read preference
-                    return Task.FromResult(new HealthCheckResult(
-                        HealthStatus.Degraded,
-                        "MongoDB is a standalone server. Read/write separation requires a replica set for full functionality. Only Primary read preference is available.",
-                        data: data));
-                }
-
-                // For sharded clusters, some read preferences work
-                return Task.FromResult(new HealthCheckResult(
-                    HealthStatus.Healthy,
-                    $"MongoDB sharded cluster with {serverCount} mongos server(s). Read preferences will be applied to shard replica sets.",
-                    data: data));
-            }
-
-            // It's a replica set - check for primary and secondaries
-            var primaryCount = 0;
-            var secondaryCount = 0;
-            var arbiterCount = 0;
-            var otherCount = 0;
-
-            foreach (var server in clusterDescription.Servers)
-            {
-                switch (server.Type)
-                {
-                    case ServerType.ReplicaSetPrimary:
-                        primaryCount++;
-                        break;
-                    case ServerType.ReplicaSetSecondary:
-                        secondaryCount++;
-                        break;
-                    case ServerType.ReplicaSetArbiter:
-                        arbiterCount++;
-                        break;
-                    default:
-                        otherCount++;
-                        break;
-                }
-            }
-
-            data["primary"] = primaryCount > 0 ? "available" : "unavailable";
-            data["secondaries"] = secondaryCount;
-            data["arbiters"] = arbiterCount;
-            data["configured_read_preference"] = _options.ReadPreference.ToString();
-
-            // Determine health status
-            if (primaryCount == 0)
-            {
-                return Task.FromResult(new HealthCheckResult(
-                    HealthStatus.Unhealthy,
-                    "MongoDB replica set has no primary available",
-                    data: data));
-            }
-
-            if (secondaryCount == 0)
-            {
-                return Task.FromResult(new HealthCheckResult(
-                    HealthStatus.Degraded,
-                    "MongoDB replica set has no secondaries available. All reads will use primary.",
-                    data: data));
-            }
-
-            return Task.FromResult(new HealthCheckResult(
-                HealthStatus.Healthy,
-                $"MongoDB replica set healthy: 1 primary, {secondaryCount} secondary(ies) available",
-                data: data));
+            return Task.FromResult(Evaluate(_mongoClient.Cluster.Description, data));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            data["error"] = ex.Message;
+            // Only the exception type: the message can carry host names and credentials.
+            data["error"] = ex.GetType().Name;
 
             return Task.FromResult(new HealthCheckResult(
                 HealthStatus.Unhealthy,
-                $"Failed to check MongoDB cluster health: {ex.Message}",
+                $"Failed to check MongoDB cluster health: {ex.GetType().Name}",
                 data: data));
         }
+    }
+
+    private HealthCheckResult Evaluate(ClusterDescription clusterDescription, Dictionary<string, object> data)
+    {
+        // Check if we have any servers
+        if (clusterDescription.Servers.Count == 0)
+        {
+            data["cluster_type"] = "unknown";
+            data["servers"] = 0;
+
+            return new HealthCheckResult(
+                HealthStatus.Unhealthy,
+                "MongoDB cluster has no servers available",
+                data: data);
+        }
+
+        data["cluster_type"] = clusterDescription.Type.ToString();
+
+        return clusterDescription.Type == ClusterType.ReplicaSet
+            ? EvaluateReplicaSet(clusterDescription, data)
+            : EvaluateNonReplicaSet(clusterDescription, data);
+    }
+
+    private static HealthCheckResult EvaluateNonReplicaSet(
+        ClusterDescription clusterDescription,
+        Dictionary<string, object> data)
+    {
+        // For standalone or sharded clusters, read preferences are limited
+        var serverCount = clusterDescription.Servers.Count;
+        data["servers"] = serverCount;
+
+        if (clusterDescription.Type == ClusterType.Standalone)
+        {
+            // Standalone servers only support Primary read preference
+            return new HealthCheckResult(
+                HealthStatus.Degraded,
+                "MongoDB is a standalone server. Read/write separation requires a replica set for full functionality. Only Primary read preference is available.",
+                data: data);
+        }
+
+        // For sharded clusters, some read preferences work
+        return new HealthCheckResult(
+            HealthStatus.Healthy,
+            $"MongoDB sharded cluster with {serverCount} mongos server(s). Read preferences will be applied to shard replica sets.",
+            data: data);
+    }
+
+    private HealthCheckResult EvaluateReplicaSet(
+        ClusterDescription clusterDescription,
+        Dictionary<string, object> data)
+    {
+        var primaryCount = clusterDescription.Servers.Count(s => s.Type == ServerType.ReplicaSetPrimary);
+        var secondaryCount = clusterDescription.Servers.Count(s => s.Type == ServerType.ReplicaSetSecondary);
+        var arbiterCount = clusterDescription.Servers.Count(s => s.Type == ServerType.ReplicaSetArbiter);
+
+        data["primary"] = primaryCount > 0 ? "available" : "unavailable";
+        data["secondaries"] = secondaryCount;
+        data["arbiters"] = arbiterCount;
+        data["configured_read_preference"] = _options.ReadPreference.ToString();
+
+        // Determine health status
+        if (primaryCount == 0)
+        {
+            return new HealthCheckResult(
+                HealthStatus.Unhealthy,
+                "MongoDB replica set has no primary available",
+                data: data);
+        }
+
+        if (secondaryCount == 0)
+        {
+            return new HealthCheckResult(
+                HealthStatus.Degraded,
+                "MongoDB replica set has no secondaries available. All reads will use primary.",
+                data: data);
+        }
+
+        return new HealthCheckResult(
+            HealthStatus.Healthy,
+            $"MongoDB replica set healthy: 1 primary, {secondaryCount} secondary(ies) available",
+            data: data);
     }
 }

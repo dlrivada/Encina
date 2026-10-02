@@ -115,7 +115,10 @@ public sealed class ShardedMongoDbDatabaseHealthMonitor : IShardedDatabaseHealth
         }
         catch (Exception ex)
         {
-            return ShardHealthResult.Unhealthy(shardId, ex.Message, ex);
+            // Only the exception type: the message can carry the host name or credentials.
+            return ShardHealthResult.Unhealthy(
+                shardId,
+                $"Health check for shard '{shardId}' failed: {ex.GetType().Name}");
         }
     }
 

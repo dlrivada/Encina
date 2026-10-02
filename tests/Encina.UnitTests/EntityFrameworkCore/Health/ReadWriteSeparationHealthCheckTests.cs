@@ -142,7 +142,9 @@ public sealed class ReadWriteSeparationHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description!.ShouldContain("Scope creation failed");
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Scope creation failed");
+        result.Exception.ShouldBeNull();
     }
 
     #endregion
@@ -278,6 +280,10 @@ public sealed class ReadWriteSeparationHealthCheckTests
         result.Data["healthy_replica_count"].ShouldBe(0);
         result.Data.ShouldContainKey("total_replica_count");
         result.Data["total_replica_count"].ShouldBe(2);
+
+        // Replicas are labelled by a stable index, never by the host name in the connection string.
+        var replicas = result.Data["replicas"].ShouldBeOfType<Dictionary<string, string>>();
+        replicas.Keys.ShouldBe(["replica_1", "replica_2"]);
     }
 
     #endregion

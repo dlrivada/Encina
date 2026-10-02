@@ -55,7 +55,7 @@ public sealed class MongoDbHealthCheck : EncinaHealthCheck
         }
         catch (MongoException ex)
         {
-            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.Message}");
+            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.GetType().Name}");
         }
     }
 }
