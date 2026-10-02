@@ -107,16 +107,6 @@ internal static partial class MartenAuditLog
         string queryType,
         int resultCount);
 
-    /// <summary>Audit query failed.</summary>
-    [LoggerMessage(
-        EventId = 2562,
-        Level = LogLevel.Warning,
-        Message = "Marten audit query failed. QueryType={QueryType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void QueryFailed(
-        ILogger logger,
-        string queryType,
-        string errorMessage);
-
     /// <summary>Shredded entries detected in query results.</summary>
     [LoggerMessage(
         EventId = 2563,

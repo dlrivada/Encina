@@ -93,13 +93,6 @@ internal static partial class AnonymizationLogMessages
         Message = "Field tokenized. FieldName={FieldName}, Format={Format}, ResponseType={ResponseType}")]
     internal static partial void FieldTokenized(this ILogger logger, string fieldName, string format, string responseType);
 
-    /// <summary>Field transformation failed for a specific field.</summary>
-    [LoggerMessage(
-        EventId = 8408,
-        Level = LogLevel.Warning,
-        Message = "Field transformation failed. FieldName={FieldName}, TransformationType={TransformationType}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void FieldTransformationFailed(this ILogger logger, string fieldName, string transformationType, string responseType, string errorMessage);
-
     // ========================================================================
     // Enforcement log messages (8409-8411)
     // ========================================================================
@@ -270,13 +263,6 @@ internal static partial class AnonymizationLogMessages
         Level = LogLevel.Debug,
         Message = "Detokenization completed. Token={Token}")]
     internal static partial void DetokenizationCompleted(this ILogger logger, string token);
-
-    /// <summary>Detokenization operation failed.</summary>
-    [LoggerMessage(
-        EventId = 8430,
-        Level = LogLevel.Warning,
-        Message = "Detokenization failed. Token={Token}, ErrorMessage={ErrorMessage}")]
-    internal static partial void DetokenizationFailed(this ILogger logger, string token, string errorMessage);
 
     /// <summary>Tokenization operation failed.</summary>
     [LoggerMessage(

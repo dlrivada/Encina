@@ -89,9 +89,6 @@ internal static partial class Log
     [LoggerMessage(EventId = 5125, Level = LogLevel.Warning, Message = "ISecretReader is not registered. No secrets will be loaded into configuration")]
     public static partial void ConfigurationNoReader(ILogger logger);
 
-    [LoggerMessage(EventId = 5126, Level = LogLevel.Warning, Message = "Failed to load secret '{SecretName}' into configuration: {ErrorMessage}")]
-    public static partial void ConfigurationSecretLoadFailed(ILogger logger, string secretName, string errorMessage);
-
     [LoggerMessage(EventId = 5127, Level = LogLevel.Debug, Message = "Configuration reload triggered for secrets")]
     public static partial void ConfigurationReloadTriggered(ILogger logger);
 
