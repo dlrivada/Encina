@@ -34,6 +34,18 @@ internal sealed class EncinaNATSOptionsValidator : IValidateOptions<EncinaNATSOp
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        var error = GetEndpointError(options);
+        if (error is not null)
+        {
+            return ValidateOptionsResult.Fail($"EncinaNATSOptions.{error}");
+        }
+
+        WarnOnceIfRelaxed(name ?? Options.DefaultName, options.AllowLocalEndpoints);
+        return ValidateOptionsResult.Success;
+    }
+
+    private static string? GetEndpointError(EncinaNATSOptions options)
+    {
         var policy = new EndpointPolicy
         {
             AllowedSchemes = AllowedSchemes,
@@ -41,21 +53,16 @@ internal sealed class EncinaNATSOptionsValidator : IValidateOptions<EncinaNATSOp
         };
 
         var servers = (options.Url ?? string.Empty).Split(',', StringSplitOptions.TrimEntries);
-        foreach (var server in servers)
-        {
-            var error = EndpointValidator.ValidateUrl(server, nameof(options.Url), policy);
-            if (error is not null)
-            {
-                return ValidateOptionsResult.Fail($"EncinaNATSOptions.{error}");
-            }
-        }
+        return servers
+            .Select(server => EndpointValidator.ValidateUrl(server, nameof(options.Url), policy))
+            .FirstOrDefault(error => error is not null);
+    }
 
-        var optionsName = name ?? Options.DefaultName;
-        if (options.AllowLocalEndpoints && _warnedOptionNames.TryAdd(optionsName, 0))
+    private void WarnOnceIfRelaxed(string optionsName, bool allowLocalEndpoints)
+    {
+        if (allowLocalEndpoints && _warnedOptionNames.TryAdd(optionsName, 0))
         {
             Log.EndpointValidationRelaxed(_logger, optionsName);
         }
-
-        return ValidateOptionsResult.Success;
     }
 }

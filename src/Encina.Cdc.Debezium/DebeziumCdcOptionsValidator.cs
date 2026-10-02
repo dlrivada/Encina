@@ -21,21 +21,23 @@ internal sealed class DebeziumCdcOptionsValidator : IValidateOptions<DebeziumCdc
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (!IsValidListenUrl(options.ListenUrl))
-        {
-            return ValidateOptionsResult.Fail(
-                "DebeziumCdcOptions.ListenUrl must be 'http://' or 'https://' followed by a host name, an IP address, '+' or '*', without port or path (for example 'http://+').");
-        }
+        var error = ListenUrlError(options.ListenUrl)
+            ?? ListenPortError(options.ListenPort)
+            ?? ListenPathError(options.ListenPath);
 
-        if (options.ListenPort is < 1 or > 65535)
-        {
-            return ValidateOptionsResult.Fail("DebeziumCdcOptions.ListenPort must be between 1 and 65535.");
-        }
-
-        return options.ListenPath is { Length: > 0 } path && path[0] == '/'
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail("DebeziumCdcOptions.ListenPath must start with '/'.");
+        return error is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(error);
     }
+
+    private static string? ListenUrlError(string? listenUrl) =>
+        IsValidListenUrl(listenUrl)
+            ? null
+            : "DebeziumCdcOptions.ListenUrl must be 'http://' or 'https://' followed by a host name, an IP address, '+' or '*', without port or path (for example 'http://+').";
+
+    private static string? ListenPortError(int listenPort) =>
+        listenPort is >= 1 and <= 65535 ? null : "DebeziumCdcOptions.ListenPort must be between 1 and 65535.";
+
+    private static string? ListenPathError(string? listenPath) =>
+        listenPath is { Length: > 0 } && listenPath[0] == '/' ? null : "DebeziumCdcOptions.ListenPath must start with '/'.";
 
     private static bool IsValidListenUrl(string? listenUrl)
     {

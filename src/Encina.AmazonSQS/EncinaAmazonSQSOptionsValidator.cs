@@ -32,22 +32,30 @@ internal sealed class EncinaAmazonSQSOptionsValidator : IValidateOptions<EncinaA
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.DefaultQueueUrl is not null)
+        var error = GetEndpointError(options);
+        if (error is not null)
         {
-            var policy = EndpointPolicy.ForHttps(options.AllowInsecureHttp, options.AllowLocalEndpoints);
-            var error = EndpointValidator.ValidateUrl(options.DefaultQueueUrl, nameof(options.DefaultQueueUrl), policy);
-            if (error is not null)
-            {
-                return ValidateOptionsResult.Fail($"EncinaAmazonSQSOptions.{error}");
-            }
+            return ValidateOptionsResult.Fail($"EncinaAmazonSQSOptions.{error}");
         }
 
-        var optionsName = name ?? Options.DefaultName;
-        if ((options.AllowInsecureHttp || options.AllowLocalEndpoints) && _warnedOptionNames.TryAdd(optionsName, 0))
+        WarnOnceIfRelaxed(name ?? Options.DefaultName, options);
+        return ValidateOptionsResult.Success;
+    }
+
+    private static string? GetEndpointError(EncinaAmazonSQSOptions options) =>
+        options.DefaultQueueUrl is null
+            ? null
+            : EndpointValidator.ValidateUrl(
+                options.DefaultQueueUrl,
+                nameof(options.DefaultQueueUrl),
+                EndpointPolicy.ForHttps(options.AllowInsecureHttp, options.AllowLocalEndpoints));
+
+    private void WarnOnceIfRelaxed(string optionsName, EncinaAmazonSQSOptions options)
+    {
+        var relaxed = options.AllowInsecureHttp || options.AllowLocalEndpoints;
+        if (relaxed && _warnedOptionNames.TryAdd(optionsName, 0))
         {
             Log.EndpointValidationRelaxed(_logger, optionsName, options.AllowInsecureHttp, options.AllowLocalEndpoints);
         }
-
-        return ValidateOptionsResult.Success;
     }
 }

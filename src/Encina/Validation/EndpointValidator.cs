@@ -276,11 +276,13 @@ public static class EndpointValidator
         }
 
         // The IPv4-compatible prefix also covers "::", whose embedded 0.0.0.0 is unspecified.
-        if (TryGetEmbeddedIPv4(bytes, out var embedded))
-        {
-            return ClassifyIPv4(embedded);
-        }
+        return TryGetEmbeddedIPv4(bytes, out var embedded)
+            ? ClassifyIPv4(embedded)
+            : ClassifyIPv6Prefix(bare, bytes);
+    }
 
+    private static EndpointHostKind ClassifyIPv6Prefix(IPAddress bare, byte[] bytes)
+    {
         if (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)
         {
             return EndpointHostKind.LinkLocal; // fe80::/10 (ff80:: multicast does not match)

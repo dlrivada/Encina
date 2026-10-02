@@ -32,14 +32,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
-        var options = new EncinaNATSOptions();
-        configure?.Invoke(options);
-        var validation = new EncinaNATSOptionsValidator().Validate(Options.DefaultName, options);
-        if (validation.Failed)
-        {
-            throw new OptionsValidationException(Options.DefaultName, typeof(EncinaNATSOptions), validation.Failures);
-        }
+        var options = CreateValidatedOptions(configure);
 
         services.AddOptions<EncinaNATSOptions>()
             .Configure(opt => configure?.Invoke(opt))
@@ -76,5 +69,19 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    // Validates eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
+    private static EncinaNATSOptions CreateValidatedOptions(Action<EncinaNATSOptions>? configure)
+    {
+        var options = new EncinaNATSOptions();
+        configure?.Invoke(options);
+        var validation = new EncinaNATSOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(EncinaNATSOptions), validation.Failures);
+        }
+
+        return options;
     }
 }
