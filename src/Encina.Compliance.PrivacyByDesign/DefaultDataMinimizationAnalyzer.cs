@@ -78,40 +78,10 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
 
             for (var i = 0; i < cache.Properties.Length; i++)
             {
-                var property = cache.Properties[i];
-                var notNecessary = cache.NotStrictlyNecessary[i];
-                var purposeAttr = cache.PurposeLimitation[i];
-
-                if (notNecessary is not null)
-                {
-                    var value = property.GetValue(request);
-                    var hasValue = value is not null && !Equals(value, GetDefaultValue(property.PropertyType));
-
-                    unnecessaryFields.Add(new UnnecessaryFieldInfo(
-                        FieldName: property.Name,
-                        Reason: notNecessary.Reason,
-                        HasValue: hasValue,
-                        Severity: notNecessary.Severity));
-
-                    if (hasValue)
-                    {
-                        recommendations.Add(
-                            $"Consider removing or making optional the field '{property.Name}': {notNecessary.Reason}");
-                    }
-                }
-                else
-                {
-                    necessaryFields.Add(new PrivacyFieldInfo(
-                        FieldName: property.Name,
-                        Purpose: purposeAttr?.Purpose,
-                        IsRequired: true));
-                }
+                ClassifyProperty(cache, i, request, necessaryFields, unnecessaryFields, recommendations);
             }
 
-            var totalFields = necessaryFields.Count + unnecessaryFields.Count;
-            var score = totalFields > 0
-                ? (double)necessaryFields.Count / totalFields
-                : 1.0;
+            var score = ComputeMinimizationScore(necessaryFields.Count, unnecessaryFields.Count);
 
             var report = new MinimizationReport
             {
@@ -125,14 +95,7 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
 
             _logger.PbDAnalysisCompleted(report.RequestTypeName, score, necessaryFields.Count, unnecessaryFields.Count);
 
-            // Record minimization violation metrics
-            var violationsWithValue = unnecessaryFields.Count(static f => f.HasValue);
-            if (violationsWithValue > 0)
-            {
-                PrivacyByDesignDiagnostics.MinimizationViolationsTotal.Add(
-                    violationsWithValue,
-                    new TagList { { PrivacyByDesignDiagnostics.TagRequestType, report.RequestTypeName } });
-            }
+            RecordMinimizationViolations(unnecessaryFields, report.RequestTypeName);
 
             return ValueTask.FromResult(Right<EncinaError, MinimizationReport>(report));
         }
@@ -161,35 +124,14 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
 
             for (var i = 0; i < cache.Properties.Length; i++)
             {
-                var privacyDefault = cache.PrivacyDefault[i];
-                if (privacyDefault is null)
-                {
-                    continue;
-                }
-
-                var property = cache.Properties[i];
-                var actualValue = property.GetValue(request);
-                var matchesDefault = Equals(actualValue, privacyDefault.DefaultValue);
-
-                results.Add(new DefaultPrivacyFieldInfo(
-                    FieldName: property.Name,
-                    DeclaredDefault: privacyDefault.DefaultValue,
-                    ActualValue: actualValue,
-                    MatchesDefault: matchesDefault));
+                InspectDefault(cache, i, request, results);
             }
 
             var matchingCount = results.Count(static f => f.MatchesDefault);
-            _logger.PbDDefaultsInspectionCompleted(
-                requestType.FullName ?? requestType.Name, results.Count, matchingCount);
+            var requestTypeName = requestType.FullName ?? requestType.Name;
+            _logger.PbDDefaultsInspectionCompleted(requestTypeName, results.Count, matchingCount);
 
-            // Record default override metrics
-            var overrideCount = results.Count - matchingCount;
-            if (overrideCount > 0)
-            {
-                PrivacyByDesignDiagnostics.DefaultOverridesTotal.Add(
-                    overrideCount,
-                    new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestType.FullName ?? requestType.Name } });
-            }
+            RecordDefaultOverrides(results.Count - matchingCount, requestTypeName);
 
             return ValueTask.FromResult(Right<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(results));
         }
@@ -198,6 +140,93 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
             _logger.PbDDefaultsInspectionError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
             return ValueTask.FromResult(Left<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(
                 PrivacyByDesignErrors.StoreError("InspectDefaults", ex.Message, ex)));
+        }
+    }
+
+    private static void ClassifyProperty(
+        FieldMetadataCache cache,
+        int index,
+        object request,
+        List<PrivacyFieldInfo> necessaryFields,
+        List<UnnecessaryFieldInfo> unnecessaryFields,
+        List<string> recommendations)
+    {
+        var property = cache.Properties[index];
+        var notNecessary = cache.NotStrictlyNecessary[index];
+
+        if (notNecessary is null)
+        {
+            necessaryFields.Add(new PrivacyFieldInfo(
+                FieldName: property.Name,
+                Purpose: cache.PurposeLimitation[index]?.Purpose,
+                IsRequired: true));
+            return;
+        }
+
+        var value = property.GetValue(request);
+        var hasValue = value is not null && !Equals(value, GetDefaultValue(property.PropertyType));
+
+        unnecessaryFields.Add(new UnnecessaryFieldInfo(
+            FieldName: property.Name,
+            Reason: notNecessary.Reason,
+            HasValue: hasValue,
+            Severity: notNecessary.Severity));
+
+        if (hasValue)
+        {
+            recommendations.Add(
+                $"Consider removing or making optional the field '{property.Name}': {notNecessary.Reason}");
+        }
+    }
+
+    private static double ComputeMinimizationScore(int necessaryCount, int unnecessaryCount)
+    {
+        var totalFields = necessaryCount + unnecessaryCount;
+        return totalFields > 0
+            ? (double)necessaryCount / totalFields
+            : 1.0;
+    }
+
+    private static void RecordMinimizationViolations(List<UnnecessaryFieldInfo> unnecessaryFields, string requestTypeName)
+    {
+        var violationsWithValue = unnecessaryFields.Count(static f => f.HasValue);
+        if (violationsWithValue > 0)
+        {
+            PrivacyByDesignDiagnostics.MinimizationViolationsTotal.Add(
+                violationsWithValue,
+                new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
+        }
+    }
+
+    private static void InspectDefault(
+        FieldMetadataCache cache,
+        int index,
+        object request,
+        List<DefaultPrivacyFieldInfo> results)
+    {
+        var privacyDefault = cache.PrivacyDefault[index];
+        if (privacyDefault is null)
+        {
+            return;
+        }
+
+        var property = cache.Properties[index];
+        var actualValue = property.GetValue(request);
+
+        results.Add(new DefaultPrivacyFieldInfo(
+            FieldName: property.Name,
+            DeclaredDefault: privacyDefault.DefaultValue,
+            ActualValue: actualValue,
+            MatchesDefault: Equals(actualValue, privacyDefault.DefaultValue)));
+    }
+
+    private static void RecordDefaultOverrides(int overrideCount, string requestTypeName)
+    {
+        if (overrideCount > 0)
+        {
+            PrivacyByDesignDiagnostics.DefaultOverridesTotal.Add(
+                overrideCount,
+                new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
         }
     }
 
