@@ -224,6 +224,17 @@ which is not on its own evidence of a real relation. A removed reference inside 
 than the whole line. Every removed reference is logged (#1400, narrowed by #1424, widened by #1428, made
 whole-body by #1492).
 
+The draft also keeps the finding's own facts, decided from the finding's text and never by re-rolling the model
+(#1565): the canonical package set (every existing `src/Encina.<X>/` named by the finding) is written into the
+`Package(s)` line of a bug or test draft; a test draft's Test Category, Infrastructure Required and Collection
+Fixture sections are rewritten from what the finding names (Unit for the unit or guard flag, Integration only for
+the integration flag, Docker or a real database or broker); and a draft is re-asked ONCE, all violations in one
+call, when it names none of some package of the set, states a percentage found neither in the finding, the
+template nor the package's coverage manifest, says "throws" for a symbol the finding says returns `Left`/`Either`
+(a line naming `ArgumentNullException` or `ArgumentException` is exempt), or contains pipeline meta-text. A draft
+that still violates is kept, its line is marked `PACKAGES MISSING: <list>`, `FIGURES NOT IN FINDING: <list>`,
+`SEMANTICS: throws vs Either` or `META-TEXT LEFT`, and the run exits 1, like `PLACEHOLDERS LEFT`.
+
 Every remediation draft is written to the MAIN checkout's `artifacts/knowledge/remediation/` (not the
 `wia-<n>` audit worktree, which has no working copy of that path), and `audit-verifier` reads them from there
 too.

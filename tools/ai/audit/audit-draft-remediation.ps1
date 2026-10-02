@@ -13,6 +13,13 @@
 # was skipped, plus a real "## Lessons for the pipeline" section. Requires stages/docs.md -- the docs stage
 # must have already run, even when it found nothing to review.
 #
+# #1565: after the model replies, the script also fixes or checks the facts the model tends to drop (see
+# _remediation-checks.ps1): the package line and the test_implementation.md Test Category / Infrastructure /
+# Collection Fixture sections are written from the finding's text, and a draft that names none of some package of
+# the finding, states a percentage the finding/template/coverage manifest does not give, says "throws" for a
+# Left-returning symbol or carries pipeline meta-text gets ONE extra combined re-ask; what still violates is marked
+# in stages/remediation.md (PACKAGES MISSING, FIGURES NOT IN FINDING, SEMANTICS, META-TEXT LEFT) and exits 1.
+#
 # -DryRun performs every step except the two local-model calls: it writes the per-finding input file and the
 # per-finding brief (the exact text that would go to the model, template embedded) under
 # artifacts/knowledge/remediation/_dryrun-<n>/, and prints the routing it would apply, using a deterministic
