@@ -1,8 +1,7 @@
 using System.Reflection;
-
 using Encina.Compliance.DataSubjectRights;
+using Encina.Diagnostics;
 using Encina.Marten.GDPR.Diagnostics;
-
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -83,7 +82,7 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
                 // Some types may fail to load; process what we can
                 types = ex.Types.Where(t => t is not null).ToArray()!;
                 _logger.LogWarning(
-                    ex,
+                    ex.ForLogging(),
                     "Some types in assembly {AssemblyName} could not be loaded during crypto-shredding scan",
                     assembly.GetName().Name);
             }

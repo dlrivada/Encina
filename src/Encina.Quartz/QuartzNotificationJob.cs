@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -78,7 +79,7 @@ public sealed class QuartzNotificationJob<TNotification> : IJob
         }
         catch (Exception ex)
         {
-            Log.NotificationJobException(_logger, ex, context.JobDetail.Key, notificationType);
+            Log.NotificationJobException(_logger, ex.ForLogging(), context.JobDetail.Key, notificationType);
 
             throw new JobExecutionException(ex);
         }

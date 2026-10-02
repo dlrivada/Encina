@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Encina.Diagnostics;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -122,7 +123,7 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
         }
         catch (Exception ex)
         {
-            Log.FailedToBroadcastNotification(_logger, ex, notificationType.Name);
+            Log.FailedToBroadcastNotification(_logger, ex.ForLogging(), notificationType.Name);
         }
     }
 

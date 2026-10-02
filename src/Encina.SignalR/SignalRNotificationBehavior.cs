@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -47,7 +48,7 @@ public sealed class SignalRBroadcastHandler<TNotification> : INotificationHandle
         }
         catch (Exception ex)
         {
-            Log.FailedToBroadcastNotificationToSignalR(_logger, ex, typeof(TNotification).Name);
+            Log.FailedToBroadcastNotificationToSignalR(_logger, ex.ForLogging(), typeof(TNotification).Name);
             // Don't fail the notification - broadcasting is fire-and-forget
             return Right(Unit.Default);
         }

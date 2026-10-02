@@ -1,6 +1,10 @@
 using System.Text.Json;
+
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Providers;
@@ -93,7 +97,7 @@ public sealed class EnvironmentSecretProvider : ISecretReader
         }
         catch (JsonException ex)
         {
-            Log.SecretDeserializationFailed(_logger, secretName, typeof(T).Name, ex);
+            Log.SecretDeserializationFailed(_logger, secretName, typeof(T).Name, ex.ForLogging());
             return ValueTask.FromResult<Either<EncinaError, T>>(
                 SecretsErrors.DeserializationFailed(secretName, typeof(T), ex));
         }

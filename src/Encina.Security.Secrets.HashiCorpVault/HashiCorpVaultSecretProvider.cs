@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -153,7 +154,7 @@ public sealed class HashiCorpVaultSecretProvider : ISecretReader, ISecretWriter,
             }
             catch (JsonException ex)
             {
-                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex);
+                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex.ForLogging());
                 return SecretsErrors.DeserializationFailed(secretName, typeof(T), ex);
             }
         }
@@ -164,12 +165,12 @@ public sealed class HashiCorpVaultSecretProvider : ISecretReader, ISecretWriter,
         }
         catch (VaultApiException ex) when (IsForbidden(ex))
         {
-            Log.AccessDenied(_logger, secretName, ex.Message, ex);
+            Log.AccessDenied(_logger, secretName, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.AccessDenied(secretName, ex.Message);
         }
         catch (VaultApiException ex)
         {
-            Log.ProviderUnavailable(_logger, ex.Message, ex);
+            Log.ProviderUnavailable(_logger, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.ProviderUnavailable(ProviderName, ex);
         }
     }
@@ -237,7 +238,7 @@ public sealed class HashiCorpVaultSecretProvider : ISecretReader, ISecretWriter,
         }
         catch (VaultApiException ex)
         {
-            Log.RotationFailed(_logger, secretName, ex.Message, ex);
+            Log.RotationFailed(_logger, secretName, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.RotationFailed(secretName, ex.Message, ex);
         }
     }
@@ -273,13 +274,13 @@ public sealed class HashiCorpVaultSecretProvider : ISecretReader, ISecretWriter,
 
     private EncinaError LogAndReturnAccessDenied(string secretName, VaultApiException ex)
     {
-        Log.AccessDenied(_logger, secretName, ex.Message, ex);
+        Log.AccessDenied(_logger, secretName, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.AccessDenied(secretName, ex.Message);
     }
 
     private EncinaError LogAndReturnProviderUnavailable(VaultApiException ex)
     {
-        Log.ProviderUnavailable(_logger, ex.Message, ex);
+        Log.ProviderUnavailable(_logger, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.ProviderUnavailable(ProviderName, ex);
     }
 }

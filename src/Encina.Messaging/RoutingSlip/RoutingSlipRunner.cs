@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
+using Encina.Diagnostics;
 using LanguageExt;
 
 using Microsoft.Extensions.Logging;
@@ -189,7 +190,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
         }
         catch (Exception ex)
         {
-            RoutingSlipLog.Exception(_logger, routingSlipId, ex.Message, ex);
+            RoutingSlipLog.Exception(_logger, routingSlipId, ex.GetType().Name, ex.ForLogging());
 
             // Run compensation for completed steps
             await CompensateAsync(context, CancellationToken.None).ConfigureAwait(false);
@@ -235,7 +236,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
             }
             catch (Exception ex)
             {
-                RoutingSlipLog.CompensationFailed(_logger, i + 1, entry.StepName, ex.Message, ex);
+                RoutingSlipLog.CompensationFailed(_logger, i + 1, entry.StepName, ex.GetType().Name, ex.ForLogging());
 
                 if (!_options.ContinueCompensationOnFailure)
                 {
@@ -276,8 +277,8 @@ internal static partial class RoutingSlipLog
     [LoggerMessage(
         EventId = 2875,
         Level = LogLevel.Warning,
-        Message = "Routing slip {RoutingSlipId} step {StepNumber} failed: {StepName} - {ErrorMessage}")]
-    public static partial void StepFailed(ILogger logger, Guid routingSlipId, int stepNumber, string stepName, string errorMessage);
+        Message = "Routing slip {RoutingSlipId} step {StepNumber} failed: {StepName} - {ErrorCode}")]
+    public static partial void StepFailed(ILogger logger, Guid routingSlipId, int stepNumber, string stepName, string errorCode);
 
     [LoggerMessage(
         EventId = 2876,
@@ -294,8 +295,8 @@ internal static partial class RoutingSlipLog
     [LoggerMessage(
         EventId = 2878,
         Level = LogLevel.Error,
-        Message = "Routing slip {RoutingSlipId} failed with exception: {ErrorMessage}")]
-    public static partial void Exception(ILogger logger, Guid routingSlipId, string errorMessage, Exception exception);
+        Message = "Routing slip {RoutingSlipId} failed with exception: {ExceptionType}")]
+    public static partial void Exception(ILogger logger, Guid routingSlipId, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2879,
@@ -342,8 +343,8 @@ internal static partial class RoutingSlipLog
     [LoggerMessage(
         EventId = 2886,
         Level = LogLevel.Error,
-        Message = "Compensation failed for step {StepNumber} ({StepName}): {ErrorMessage}")]
-    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string errorMessage, Exception exception);
+        Message = "Compensation failed for step {StepNumber} ({StepName}): {ExceptionType}")]
+    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2887,

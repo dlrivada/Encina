@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
@@ -99,7 +100,7 @@ public abstract class OutboxProcessorBase : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                MessagingLog.ErrorProcessingOutboxMessages(_logger, ex);
+                MessagingLog.ErrorProcessingOutboxMessages(_logger, ex.ForLogging());
             }
 
             await Task.Delay(_options.ProcessingInterval, stoppingToken).ConfigureAwait(false);

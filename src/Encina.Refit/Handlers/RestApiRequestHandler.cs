@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Refit;
@@ -69,7 +70,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
                 requestType,
                 apiClientType,
                 statusCodeInt,
-                apiEx.Message,
+                apiEx.ForLogging(),
                 string.Empty);
 
             return EncinaError.New(
@@ -79,7 +80,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         catch (HttpRequestException httpEx)
         {
             // General HTTP request failure
-            LogHttpException(requestType, apiClientType, httpEx.Message, string.Empty);
+            LogHttpException(requestType, apiClientType, httpEx.ForLogging(), string.Empty);
 
             return EncinaError.New(
                 $"HTTP request failed: {httpEx.Message}",
@@ -105,7 +106,7 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
         }
         catch (Exception ex)
         {
-            LogUnexpectedException(requestType, apiClientType, ex.Message, string.Empty);
+            LogUnexpectedException(requestType, apiClientType, ex.ForLogging(), string.Empty);
 
             return EncinaError.New(ex);
         }
@@ -128,14 +129,14 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     [LoggerMessage(
         EventId = 4652,
         Level = LogLevel.Warning,
-        Message = "API call {RequestType} using {ApiClientType} failed with status {StatusCode}: {Message} (CorrelationId: {CorrelationId})")]
-    private partial void LogApiException(string requestType, string apiClientType, int statusCode, string message, string correlationId);
+        Message = "API call {RequestType} using {ApiClientType} failed with status {StatusCode} (CorrelationId: {CorrelationId})")]
+    private partial void LogApiException(string requestType, string apiClientType, int statusCode, Exception exception, string correlationId);
 
     [LoggerMessage(
         EventId = 4653,
         Level = LogLevel.Error,
-        Message = "HTTP request {RequestType} using {ApiClientType} failed: {Message} (CorrelationId: {CorrelationId})")]
-    private partial void LogHttpException(string requestType, string apiClientType, string message, string correlationId);
+        Message = "HTTP request {RequestType} using {ApiClientType} failed (CorrelationId: {CorrelationId})")]
+    private partial void LogHttpException(string requestType, string apiClientType, Exception exception, string correlationId);
 
     [LoggerMessage(
         EventId = 4654,
@@ -152,8 +153,8 @@ public sealed partial class RestApiRequestHandler<TRequest, TApiClient, TRespons
     [LoggerMessage(
         EventId = 4656,
         Level = LogLevel.Error,
-        Message = "Unexpected exception in API call {RequestType} using {ApiClientType}: {Message} (CorrelationId: {CorrelationId})")]
-    private partial void LogUnexpectedException(string requestType, string apiClientType, string message, string correlationId);
+        Message = "Unexpected exception in API call {RequestType} using {ApiClientType} (CorrelationId: {CorrelationId})")]
+    private partial void LogUnexpectedException(string requestType, string apiClientType, Exception exception, string correlationId);
 
     #endregion
 }

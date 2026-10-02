@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Amazon.SimpleNotificationService;
+using Encina.Diagnostics;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -91,7 +92,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         }
         catch (Exception ex)
         {
-            Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueUrl);
+            Log.FailedToSendToQueue(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveQueueUrl);
 
             return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -146,7 +147,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicArn);
+            Log.FailedToPublishToTopic(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveTopicArn);
 
             return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -214,7 +215,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         }
         catch (Exception ex)
         {
-            Log.FailedToSendBatch(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToSendBatch(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, IReadOnlyList<string>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -274,7 +275,7 @@ public sealed class AmazonSQSMessagePublisher : IAmazonSQSMessagePublisher
         }
         catch (Exception ex)
         {
-            Log.FailedToSendFifoMessage(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToSendFifoMessage(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, string>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

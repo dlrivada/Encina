@@ -241,8 +241,8 @@ internal static partial class ProcessorAgreementLogMessages
     [LoggerMessage(
         EventId = 9442,
         Level = LogLevel.Error,
-        Message = "DPA expiration check error. Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void ExpirationCheckError(this ILogger logger, string operation, string errorMessage);
+        Message = "DPA expiration check error. Operation={Operation}, ErrorCode={ErrorCode}")]
+    internal static partial void ExpirationCheckError(this ILogger logger, string operation, string errorCode);
 
     /// <summary>Expired DPA detected — status transitioned and notification published.</summary>
     [LoggerMessage(

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Encina.Diagnostics;
 using Encina.Dispatchers.Strategies;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -132,11 +133,11 @@ public sealed partial class Encina(
 
         if (IsCancellationCode(errorCode))
         {
-            Log.RequestCancelled(_logger, requestType.Name, errorCode, exception);
+            Log.RequestCancelled(_logger, requestType.Name, errorCode, exception?.ForLogging());
             return;
         }
 
-        Log.RequestFailed(_logger, requestType.Name, errorCode, exception);
+        Log.RequestFailed(_logger, requestType.Name, errorCode, exception?.ForLogging());
     }
 
     private static (bool IsSuccess, EncinaError? Error) ExtractOutcome<TResponse>(Either<EncinaError, TResponse> outcome)

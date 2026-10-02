@@ -7,6 +7,7 @@ using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -225,7 +226,7 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
         }
         catch (Exception ex)
         {
-            _logger.DPIAPipelineError(requestTypeName, ex);
+            _logger.DPIAPipelineError(requestTypeName, ex.ForLogging());
             RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
 
             if (_options.EnforcementMode == DPIAEnforcementMode.Block)

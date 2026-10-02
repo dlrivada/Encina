@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -83,7 +84,7 @@ public sealed class MQTTMessagePublisher : IMQTTMessagePublisher, IAsyncDisposab
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
+            Log.FailedToPublishMessage(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveTopic);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -209,7 +210,7 @@ internal sealed class MqttSubscription<TMessage> : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                Log.ErrorProcessingMessage(_logger, ex, _topic);
+                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), _topic);
             }
         }
     }
@@ -263,7 +264,7 @@ internal sealed class MqttPatternSubscription<TMessage> : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                Log.ErrorProcessingMessage(_logger, ex, args.ApplicationMessage.Topic);
+                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), args.ApplicationMessage.Topic);
             }
         }
     }

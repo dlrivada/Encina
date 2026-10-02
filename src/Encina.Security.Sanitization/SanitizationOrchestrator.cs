@@ -1,9 +1,13 @@
+using Encina.Diagnostics;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Profiles;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using static LanguageExt.Prelude;
 
 namespace Encina.Security.Sanitization;
@@ -135,7 +139,7 @@ internal sealed class SanitizationOrchestrator
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex,
+                    _logger.LogWarning(ex.ForLogging(),
                         "Auto-sanitization failed for property '{PropertyName}' on {TypeName}",
                         prop.Name, requestType.Name);
 

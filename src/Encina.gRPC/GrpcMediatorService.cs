@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -112,7 +113,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         }
         catch (GrpcSerializationException ex)
         {
-            Log.FailedToProcessRequest(_logger, ex, requestType);
+            Log.FailedToProcessRequest(_logger, ex.ForLogging(), requestType);
 
             return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
@@ -122,7 +123,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         }
         catch (JsonException ex)
         {
-            Log.FailedToProcessRequest(_logger, ex, requestType);
+            Log.FailedToProcessRequest(_logger, ex.ForLogging(), requestType);
 
             return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
@@ -132,7 +133,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         }
         catch (Exception ex)
         {
-            Log.FailedToProcessRequest(_logger, ex, requestType);
+            Log.FailedToProcessRequest(_logger, ex.ForLogging(), requestType);
 
             return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
@@ -200,7 +201,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         }
         catch (JsonException ex)
         {
-            Log.FailedToProcessNotification(_logger, ex, notificationType);
+            Log.FailedToProcessNotification(_logger, ex.ForLogging(), notificationType);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(
@@ -210,7 +211,7 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         }
         catch (Exception ex)
         {
-            Log.FailedToProcessNotification(_logger, ex, notificationType);
+            Log.FailedToProcessNotification(_logger, ex.ForLogging(), notificationType);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
                 EncinaErrors.FromException(

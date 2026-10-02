@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Amazon.Lambda.CloudWatchEvents;
 using Amazon.Lambda.Core;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -67,10 +68,10 @@ public static class EventBridgeHandler
             result.IfLeft(error =>
             {
                 logger?.LogError(
-                    "Failed to process EventBridge event {Id} from source {Source}: {ErrorMessage}",
+                    "Failed to process EventBridge event {Id} from source {Source}: {ErrorCode}",
                     eventBridgeEvent.Id,
                     eventBridgeEvent.Source,
-                    error.Message);
+                    error.GetCode().IfNone("encina.unknown"));
             });
 
             return result;
@@ -78,7 +79,7 @@ public static class EventBridgeHandler
         catch (Exception ex)
         {
             logger?.LogError(
-                ex,
+                ex.ForLogging(),
                 "Exception while processing EventBridge event {Id} from source {Source}",
                 eventBridgeEvent.Id,
                 eventBridgeEvent.Source);
@@ -137,7 +138,7 @@ public static class EventBridgeHandler
         }
         catch (JsonException ex)
         {
-            logger?.LogError(ex, "Failed to deserialize EventBridge event JSON");
+            logger?.LogError(ex.ForLogging(), "Failed to deserialize EventBridge event JSON");
             return EncinaErrors.Create("eventbridge.deserialization_failed", $"JSON deserialization failed: {ex.Message}", ex);
         }
     }

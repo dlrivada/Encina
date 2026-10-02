@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -141,7 +142,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         }
         catch (Exception ex)
         {
-            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex);
+            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -179,7 +180,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         }
         catch (Exception ex)
         {
-            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex);
+            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {

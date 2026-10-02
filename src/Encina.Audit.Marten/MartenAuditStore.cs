@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Projections;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using LanguageExt;
@@ -139,7 +140,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to record audit entry {EntryId}", entry.Id);
+            _logger.LogError(ex.ForLogging(), "Failed to record audit entry {EntryId}", entry.Id);
             return Left(MartenAuditErrors.StoreUnavailable("RecordAsync", ex));
         }
     }
@@ -177,7 +178,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by entity {EntityType}/{EntityId}", entityType, entityId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by entity {EntityType}/{EntityId}", entityType, entityId);
             return Left(MartenAuditErrors.QueryFailed("ByEntity", ex));
         }
     }
@@ -225,7 +226,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by user {UserId}", userId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by user {UserId}", userId);
             return Left(MartenAuditErrors.QueryFailed("ByUser", ex));
         }
     }
@@ -255,7 +256,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by correlation {CorrelationId}", correlationId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by correlation {CorrelationId}", correlationId);
             return Left(MartenAuditErrors.QueryFailed("ByCorrelationId", ex));
         }
     }
@@ -391,7 +392,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to execute flexible audit query");
+            _logger.LogError(ex.ForLogging(), "Failed to execute flexible audit query");
             return Left(MartenAuditErrors.QueryFailed("Flexible", ex));
         }
     }
@@ -440,15 +441,15 @@ public sealed class MartenAuditStore : IAuditStore
                 Left: error =>
                 {
                     _logger.LogError(
-                        "Crypto-shredding failed for entries older than {CutoffUtc}: {ErrorMessage}",
+                        "Crypto-shredding failed for entries older than {CutoffUtc}: {ErrorCode}",
                         olderThanUtc,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
                     return Left(error);
                 });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to crypto-shred audit entries older than {CutoffUtc}", olderThanUtc);
+            _logger.LogError(ex.ForLogging(), "Failed to crypto-shred audit entries older than {CutoffUtc}", olderThanUtc);
             return Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc, ex));
         }
     }

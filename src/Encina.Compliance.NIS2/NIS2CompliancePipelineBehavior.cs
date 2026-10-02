@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Diagnostics;
 using Encina.Compliance.NIS2.Model;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using LanguageExt;
@@ -146,7 +147,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
                     if (_options.EnforcementMode == NIS2EnforcementMode.Block)
                     {
                         actionTaken = "Blocked: MFA check failed";
-                        _logger.NIS2PipelineBlocked(requestTypeName, "MFA", error.Message);
+                        _logger.NIS2PipelineBlocked(requestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
                         NIS2Diagnostics.RecordBlocked(activity, "MFA check failed");
                         RecordPipelineMetrics(startTimestamp, "blocked", enforcementModeName);
 
@@ -156,7 +157,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
                         return Left<EncinaError, TResponse>(NIS2Errors.MFARequired(requestTypeName));
                     }
 
-                    _logger.NIS2PipelineWarning(requestTypeName, "MFA", error.Message);
+                    _logger.NIS2PipelineWarning(requestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
                 }
             }
 
@@ -212,7 +213,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.NIS2PipelineError(requestTypeName, ex);
+            _logger.NIS2PipelineError(requestTypeName, ex.ForLogging());
             NIS2Diagnostics.RecordFailed(activity, ex.Message);
 
             if (_options.EnforcementMode == NIS2EnforcementMode.Block)
@@ -321,14 +322,14 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
                 Right: _ => LanguageExt.Unit.Default,
                 Left: error =>
                 {
-                    _logger.NIS2PipelineAuditFailed(requestTypeName, error.Message);
+                    _logger.NIS2PipelineAuditFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                     return LanguageExt.Unit.Default;
                 });
         }
         catch (Exception ex)
         {
             // Never fail the request pipeline due to audit failures
-            _logger.NIS2PipelineAuditException(requestTypeName, ex);
+            _logger.NIS2PipelineAuditException(requestTypeName, ex.ForLogging());
         }
     }
 }

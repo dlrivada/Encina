@@ -3,6 +3,7 @@ using Encina.Compliance.BreachNotification.Model;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Diagnostics;
 using Encina.Compliance.NIS2.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -96,7 +97,7 @@ internal sealed class DefaultNIS2IncidentHandler : INIS2IncidentHandler
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.IncidentHandlingError(incidentIdStr, ex);
+            _logger.IncidentHandlingError(incidentIdStr, ex.ForLogging());
             NIS2Diagnostics.RecordFailed(activity, ex.Message);
 
             NIS2Diagnostics.IncidentReportsTotal.Add(1,
@@ -154,7 +155,7 @@ internal sealed class DefaultNIS2IncidentHandler : INIS2IncidentHandler
                     },
                     Left: error =>
                     {
-                        _logger.IncidentBreachForwardingFailed(incidentIdStr, error.Message);
+                        _logger.IncidentBreachForwardingFailed(incidentIdStr, error.GetCode().IfNone("encina.unknown"));
                         return Unit.Default;
                     });
             },
@@ -205,7 +206,7 @@ internal sealed class DefaultNIS2IncidentHandler : INIS2IncidentHandler
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.IncidentHandlingError(incidentIdStr, ex);
+            _logger.IncidentHandlingError(incidentIdStr, ex.ForLogging());
 
             return ValueTask.FromResult<Either<EncinaError, bool>>(
                 NIS2Errors.IncidentReportFailed(incident.Id, ex.Message, ex));

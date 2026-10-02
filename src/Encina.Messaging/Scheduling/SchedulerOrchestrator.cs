@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -362,7 +363,7 @@ public sealed class SchedulerOrchestrator
             {
                 // Safety net for true bugs (handler crashes, AVE, etc.).
                 // Real failures use the Either path above.
-                Log.ExecutionFailed(_logger, ex, message.Id);
+                Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
                 // The exception message may carry personal data; store only the exception type.
                 await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
             }

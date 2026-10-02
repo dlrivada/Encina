@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -186,7 +187,7 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                _logger.AutoRegistrationFailed(fullTypeName, ex);
+                _logger.AutoRegistrationFailed(fullTypeName, ex.ForLogging());
             }
         }
 

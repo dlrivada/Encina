@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
 using Encina.Modules.Isolation;
 
@@ -215,11 +216,11 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
 
                 if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
                 {
-                    _logger.PbDPipelineBlocked(requestTypeName, validatorError.Message);
+                    _logger.PbDPipelineBlocked(requestTypeName, validatorError.GetCode().IfNone("encina.unknown"));
                     return Left<EncinaError, TResponse>(validatorError);
                 }
 
-                _logger.PbDPipelineWarned(requestTypeName, validatorError.Message);
+                _logger.PbDPipelineWarned(requestTypeName, validatorError.GetCode().IfNone("encina.unknown"));
                 return await nextStep().ConfigureAwait(false);
             }
 
@@ -271,7 +272,7 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
         }
         catch (Exception ex)
         {
-            _logger.PbDPipelineError(requestTypeName, ex);
+            _logger.PbDPipelineError(requestTypeName, ex.ForLogging());
             RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
 
             if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
@@ -396,7 +397,7 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
         {
             // Notification failures are non-blocking
             PrivacyByDesignDiagnostics.NotificationsFailedTotal.Add(1);
-            _logger.PbDNotificationFailed(fullTypeName, ex);
+            _logger.PbDNotificationFailed(fullTypeName, ex.ForLogging());
         }
     }
 

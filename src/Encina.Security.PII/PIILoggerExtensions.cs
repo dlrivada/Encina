@@ -1,4 +1,6 @@
+using Encina.Diagnostics;
 using Encina.Security.PII.Abstractions;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.PII;
@@ -91,7 +93,7 @@ public static class PIILoggerExtensions
 #pragma warning disable CA2254 // Template should be a static expression — intentional: this extension forwards the caller's template
             logger.Log(level, message, "[MASKING FAILED]");
 #pragma warning restore CA2254
-            logger.LogWarning(ex, "PII masking failed during logging for type {TypeName}", typeof(T).Name);
+            logger.LogWarning(ex.ForLogging(), "PII masking failed during logging for type {TypeName}", typeof(T).Name);
         }
     }
 

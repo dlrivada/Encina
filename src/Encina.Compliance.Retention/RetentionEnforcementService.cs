@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -209,7 +210,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         catch (Exception ex)
         {
             // Graceful error handling: log + continue, never crash the host
-            _logger.RetentionEnforcementCycleFailed(ex);
+            _logger.RetentionEnforcementCycleFailed(ex.ForLogging());
             RetentionDiagnostics.RecordFailed(activity, ex.GetType().Name);
             RetentionDiagnostics.EnforcementCyclesTotal.Add(1,
                 new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
@@ -334,7 +335,7 @@ public sealed class RetentionEnforcementService : BackgroundService
             // Only the cycle's own cancellation stops the cycle. Any other exception, including a
             // cancellation raised inside a dependency (e.g. an HTTP timeout during erasure), fails
             // this record only and the cycle moves on to the next one.
-            _logger.RetentionEnforcementCycleFailed(ex);
+            _logger.RetentionEnforcementCycleFailed(ex.ForLogging());
             return RecordOutcome.Failed;
         }
     }
@@ -781,7 +782,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         catch (Exception ex)
         {
             // Expiring data check failure should not prevent enforcement
-            _logger.RetentionExpiringDataCheckFailed(ex);
+            _logger.RetentionExpiringDataCheckFailed(ex.ForLogging());
         }
     }
 

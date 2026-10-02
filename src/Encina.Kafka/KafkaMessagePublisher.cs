@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -82,7 +83,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
+            Log.FailedToProduceMessage(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveTopic);
 
             return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -125,7 +126,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceBatch(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToProduceBatch(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -182,7 +183,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceMessageWithHeaders(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToProduceMessageWithHeaders(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Projections;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using LanguageExt;
@@ -117,7 +118,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to record read audit entry {EntryId}", entry.Id);
+            _logger.LogError(ex.ForLogging(), "Failed to record read audit entry {EntryId}", entry.Id);
             return Left(MartenAuditErrors.StoreUnavailable("LogReadAsync", ex));
         }
     }
@@ -150,7 +151,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query access history for {EntityType}/{EntityId}", entityType, entityId);
+            _logger.LogError(ex.ForLogging(), "Failed to query access history for {EntityType}/{EntityId}", entityType, entityId);
             return Left(MartenAuditErrors.QueryFailed("GetAccessHistory", ex));
         }
     }
@@ -185,7 +186,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query user access history for {UserId}", userId);
+            _logger.LogError(ex.ForLogging(), "Failed to query user access history for {UserId}", userId);
             return Left(MartenAuditErrors.QueryFailed("GetUserAccessHistory", ex));
         }
     }
@@ -273,7 +274,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to execute flexible read audit query");
+            _logger.LogError(ex.ForLogging(), "Failed to execute flexible read audit query");
             return Left(MartenAuditErrors.QueryFailed("FlexibleReadAudit", ex));
         }
     }
@@ -311,15 +312,15 @@ public sealed class MartenReadAuditStore : IReadAuditStore
                 Left: error =>
                 {
                     _logger.LogError(
-                        "Crypto-shredding failed for read audit entries older than {CutoffUtc}: {ErrorMessage}",
+                        "Crypto-shredding failed for read audit entries older than {CutoffUtc}: {ErrorCode}",
                         olderThanUtc,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
                     return Left(error);
                 });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to crypto-shred read audit entries older than {CutoffUtc}", olderThanUtc);
+            _logger.LogError(ex.ForLogging(), "Failed to crypto-shred read audit entries older than {CutoffUtc}", olderThanUtc);
             return Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc.UtcDateTime, ex));
         }
     }

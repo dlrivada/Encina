@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -121,7 +122,7 @@ public abstract class AdapterBase<TPort> : IAdapter<TPort> where TPort : IPort
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed adapter operation: {Operation}", operationName);
+            Logger.LogError(ex.ForLogging(), "Failed adapter operation: {Operation}", operationName);
             return AdapterError.OperationFailed<TPort>(operationName, ex);
         }
     }
@@ -158,7 +159,7 @@ public abstract class AdapterBase<TPort> : IAdapter<TPort> where TPort : IPort
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed async adapter operation: {Operation}", operationName);
+            Logger.LogError(ex.ForLogging(), "Failed async adapter operation: {Operation}", operationName);
             return AdapterError.OperationFailed<TPort>(operationName, ex);
         }
     }

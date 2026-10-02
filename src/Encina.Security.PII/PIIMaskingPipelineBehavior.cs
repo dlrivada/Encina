@@ -1,8 +1,12 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+
+using Encina.Diagnostics;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Diagnostics;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -179,7 +183,7 @@ public sealed class PIIMaskingPipelineBehavior<TRequest, TResponse> : IPipelineB
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            PIILogMessages.PipelineMaskingFailed(_logger, ex, responseTypeName);
+            PIILogMessages.PipelineMaskingFailed(_logger, ex.ForLogging(), responseTypeName);
 
             if (_options.EnableMetrics)
             {

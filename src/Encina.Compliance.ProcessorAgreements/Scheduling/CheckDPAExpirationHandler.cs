@@ -107,7 +107,7 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
         if (expiringResult.IsLeft)
         {
             var error = expiringResult.Match(Left: e => e, Right: _ => default!);
-            _logger.ExpirationCheckError("GetExpiring", error.Message);
+            _logger.ExpirationCheckError("GetExpiring", error.GetCode().IfNone("encina.unknown"));
             ProcessorAgreementDiagnostics.RecordError(activity, "GetExpiring");
             RecordExpirationMetrics(startedAt);
             return Left<EncinaError, Unit>(error);

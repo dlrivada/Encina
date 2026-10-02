@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
 
 using LanguageExt;
@@ -174,11 +175,11 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
 
                 if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
                 {
-                    _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, serviceError.Message);
+                    _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, serviceError.GetCode().IfNone("encina.unknown"));
                     return Left<EncinaError, TResponse>(serviceError);
                 }
 
-                _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, serviceError.Message);
+                _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, serviceError.GetCode().IfNone("encina.unknown"));
                 return await nextStep().ConfigureAwait(false);
             }
 
@@ -219,7 +220,7 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         }
         catch (Exception ex)
         {
-            _logger.ProcessorPipelineError(requestTypeName, processorIdStr, ex);
+            _logger.ProcessorPipelineError(requestTypeName, processorIdStr, ex.ForLogging());
             RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
 
             if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)

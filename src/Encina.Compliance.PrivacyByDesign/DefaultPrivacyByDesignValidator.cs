@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
 
 using LanguageExt;
@@ -106,7 +107,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
                 },
                 Left: error =>
                 {
-                    _logger.PbDMinimizationAnalysisFailed(requestTypeName, error.Message);
+                    _logger.PbDMinimizationAnalysisFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                 });
 
             // Step 2: Purpose limitation (if a purpose is declared).
@@ -135,7 +136,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
                     },
                     Left: error =>
                     {
-                        _logger.PbDPurposeValidationFailed(requestTypeName, error.Message);
+                        _logger.PbDPurposeValidationFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                     });
             }
 
@@ -160,7 +161,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
                 },
                 Left: error =>
                 {
-                    _logger.PbDDefaultsInspectionFailed(requestTypeName, error.Message);
+                    _logger.PbDDefaultsInspectionFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
                 });
 
             var result = new PrivacyValidationResult
@@ -193,7 +194,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
         }
         catch (Exception ex)
         {
-            _logger.PbDValidationError(requestTypeName, ex);
+            _logger.PbDValidationError(requestTypeName, ex.ForLogging());
             return Left<EncinaError, PrivacyValidationResult>(
                 PrivacyByDesignErrors.StoreError("Validate", ex.Message, ex));
         }
@@ -297,7 +298,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
         }
         catch (Exception ex)
         {
-            _logger.PbDPurposeLimitationError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex);
+            _logger.PbDPurposeLimitationError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
             return Left<EncinaError, PurposeValidationResult>(
                 PrivacyByDesignErrors.StoreError("ValidatePurposeLimitation", ex.Message, ex));
         }

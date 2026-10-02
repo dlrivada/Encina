@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
 
 using LanguageExt;
@@ -137,7 +138,7 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
         }
         catch (Exception ex)
         {
-            _logger.PbDAnalysisError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex);
+            _logger.PbDAnalysisError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
             return ValueTask.FromResult(Left<EncinaError, MinimizationReport>(
                 PrivacyByDesignErrors.StoreError("AnalyzeMinimization", ex.Message, ex)));
         }
@@ -194,7 +195,7 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
         }
         catch (Exception ex)
         {
-            _logger.PbDDefaultsInspectionError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex);
+            _logger.PbDDefaultsInspectionError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
             return ValueTask.FromResult(Left<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(
                 PrivacyByDesignErrors.StoreError("InspectDefaults", ex.Message, ex)));
         }

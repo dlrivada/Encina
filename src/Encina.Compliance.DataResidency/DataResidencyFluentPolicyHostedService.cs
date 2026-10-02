@@ -1,5 +1,6 @@
 using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Model;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -78,13 +79,13 @@ internal sealed class DataResidencyFluentPolicyHostedService : IHostedService
                 createResult.Match(
                     Right: _ => policiesCreated++,
                     Left: error => _logger.LogWarning(
-                        "Failed to create fluent residency policy for '{DataCategory}': {ErrorMessage}",
-                        entry.DataCategory, error.Message));
+                        "Failed to create fluent residency policy for '{DataCategory}': {ErrorCode}",
+                        entry.DataCategory, error.GetCode().IfNone("encina.unknown")));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    ex,
+                    ex.ForLogging(),
                     "Failed to create fluent residency policy for '{DataCategory}'",
                     entry.DataCategory);
             }

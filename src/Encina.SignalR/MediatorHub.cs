@@ -1,6 +1,7 @@
 #pragma warning disable CA1822 // Member can be static
 
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -105,7 +106,7 @@ public abstract class EncinaHub : Hub
         }
         catch (Exception ex)
         {
-            Log.ErrorExecutingCommand(_logger, ex, commandTypeName);
+            Log.ErrorExecutingCommand(_logger, ex.ForLogging(), commandTypeName);
             return CreateErrorResponse("command.execution_failed", GetErrorMessage(ex));
         }
     }
@@ -138,7 +139,7 @@ public abstract class EncinaHub : Hub
         }
         catch (Exception ex)
         {
-            Log.ErrorExecutingQuery(_logger, ex, queryTypeName);
+            Log.ErrorExecutingQuery(_logger, ex.ForLogging(), queryTypeName);
             return CreateErrorResponse("query.execution_failed", GetErrorMessage(ex));
         }
     }
@@ -171,7 +172,7 @@ public abstract class EncinaHub : Hub
         }
         catch (Exception ex)
         {
-            Log.ErrorPublishingNotification(_logger, ex, notificationTypeName);
+            Log.ErrorPublishingNotification(_logger, ex.ForLogging(), notificationTypeName);
         }
     }
 

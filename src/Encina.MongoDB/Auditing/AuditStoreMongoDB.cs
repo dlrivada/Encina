@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging;
 using Encina.Security.Audit;
 using LanguageExt;
@@ -68,7 +69,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToRecordAuditEntry(_logger, ex, entry.Id);
+            Log.FailedToRecordAuditEntry(_logger, ex.ForLogging(), entry.Id);
             return Left(EncinaError.New($"Failed to record audit entry: {ex.Message}"));
         }
     }
@@ -102,7 +103,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToQueryAuditEntriesByEntity(_logger, ex, entityType);
+            Log.FailedToQueryAuditEntriesByEntity(_logger, ex.ForLogging(), entityType);
             return Left<EncinaError, IReadOnlyList<AuditEntry>>(
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
@@ -143,7 +144,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToQueryAuditEntriesByUser(_logger, ex, userId);
+            Log.FailedToQueryAuditEntriesByUser(_logger, ex.ForLogging(), userId);
             return Left<EncinaError, IReadOnlyList<AuditEntry>>(
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
@@ -171,7 +172,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToQueryAuditEntriesByCorrelationId(_logger, ex, correlationId);
+            Log.FailedToQueryAuditEntriesByCorrelationId(_logger, ex.ForLogging(), correlationId);
             return Left<EncinaError, IReadOnlyList<AuditEntry>>(
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
@@ -231,7 +232,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToExecuteAuditQuery(_logger, ex);
+            Log.FailedToExecuteAuditQuery(_logger, ex.ForLogging());
             return Left<EncinaError, PagedResult<AuditEntry>>(
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
@@ -253,7 +254,7 @@ public sealed class AuditStoreMongoDB : IAuditStore
         }
         catch (Exception ex)
         {
-            Log.FailedToPurgeAuditEntries(_logger, ex, olderThanUtc);
+            Log.FailedToPurgeAuditEntries(_logger, ex.ForLogging(), olderThanUtc);
             return Left<EncinaError, int>(
                 EncinaError.New($"Failed to purge audit entries: {ex.Message}"));
         }

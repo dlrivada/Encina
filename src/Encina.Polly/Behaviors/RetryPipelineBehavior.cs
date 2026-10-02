@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -51,7 +52,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         }
         catch (Exception ex)
         {
-            LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex);
+            LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex.ForLogging());
             return EncinaError.New(ex);
         }
     }
@@ -84,13 +85,13 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
 
                     if (args.Outcome.Exception is not null)
                     {
-                        LogRetryAttemptException(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, args.Outcome.Exception);
+                        LogRetryAttemptException(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, args.Outcome.Exception.ForLogging());
                     }
                     else if (args.Outcome.Result is { } result && result.IsLeft)
                     {
                         result.IfLeft(error =>
                         {
-                            LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, error.Message);
+                            LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, error.GetCode().IfNone("encina.unknown"));
                         });
                     }
 

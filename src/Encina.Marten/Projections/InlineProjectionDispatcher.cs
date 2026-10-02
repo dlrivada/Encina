@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -240,7 +241,7 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         }
         catch (Exception ex)
         {
-            ProjectionLog.ErrorApplyingEvent(_logger, ex, eventType.Name, registration.ProjectionName);
+            ProjectionLog.ErrorApplyingEvent(_logger, ex.ForLogging(), eventType.Name, registration.ProjectionName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

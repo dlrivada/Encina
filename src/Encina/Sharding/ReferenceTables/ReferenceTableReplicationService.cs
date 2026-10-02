@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -106,7 +107,7 @@ internal sealed class ReferenceTableReplicationService(
                 var delay = CalculateRetryDelay(consecutiveErrors);
 
                 _logger.LogWarning(
-                    ex,
+                    ex.ForLogging(),
                     "Error in reference table polling loop (attempt {Attempt}) — retrying in {Delay}ms",
                     consecutiveErrors,
                     delay.TotalMilliseconds);

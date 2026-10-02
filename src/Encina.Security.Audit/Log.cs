@@ -26,8 +26,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 5007, Level = LogLevel.Debug, Message = "No audit entries to purge")]
     public static partial void AuditRetentionNothingToPurge(ILogger logger);
 
-    [LoggerMessage(EventId = 5008, Level = LogLevel.Warning, Message = "Audit purge failed: {ErrorMessage}")]
-    public static partial void AuditRetentionPurgeFailed(ILogger logger, string errorMessage);
+    [LoggerMessage(EventId = 5008, Level = LogLevel.Warning, Message = "Audit purge failed: {ErrorCode}")]
+    public static partial void AuditRetentionPurgeFailed(ILogger logger, string errorCode);
 
     [LoggerMessage(EventId = 5009, Level = LogLevel.Warning, Message = "Audit purge was cancelled")]
     public static partial void AuditRetentionPurgeCancelled(ILogger logger);

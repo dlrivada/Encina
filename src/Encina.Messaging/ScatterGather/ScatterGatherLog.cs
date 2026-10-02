@@ -46,12 +46,12 @@ internal static partial class ScatterGatherLog
     [LoggerMessage(
         EventId = 2918,
         Level = LogLevel.Warning,
-        Message = "Scatter-gather [{OperationId}] scatter handler '{HandlerName}' failed: {ErrorMessage}")]
+        Message = "Scatter-gather [{OperationId}] scatter handler '{HandlerName}' failed: {ErrorCode}")]
     public static partial void ScatterFailed(
         ILogger logger,
         Guid operationId,
         string handlerName,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 2919,
@@ -101,11 +101,11 @@ internal static partial class ScatterGatherLog
     [LoggerMessage(
         EventId = 2924,
         Level = LogLevel.Warning,
-        Message = "Scatter-gather [{OperationId}] gather handler failed: {ErrorMessage}")]
+        Message = "Scatter-gather [{OperationId}] gather handler failed: {ErrorCode}")]
     public static partial void GatherFailed(
         ILogger logger,
         Guid operationId,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 2925,
@@ -139,11 +139,11 @@ internal static partial class ScatterGatherLog
     [LoggerMessage(
         EventId = 2928,
         Level = LogLevel.Error,
-        Message = "Scatter-gather [{OperationId}] failed with exception: {ErrorMessage}")]
+        Message = "Scatter-gather [{OperationId}] failed with exception: {ExceptionType}")]
     public static partial void ExecutionException(
         ILogger logger,
         Guid operationId,
-        string errorMessage,
+        string exceptionType,
         Exception exception);
 
     [LoggerMessage(

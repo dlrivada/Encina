@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using Encina.Database;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -96,7 +97,7 @@ public sealed partial class ConnectionWarmupHostedService : IHostedService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Log.WarmupConnectionFailed(_logger, i + 1, ex);
+                Log.WarmupConnectionFailed(_logger, i + 1, ex.ForLogging());
                 // Continue warming up remaining connections; a partial warm-up is still beneficial
             }
         }

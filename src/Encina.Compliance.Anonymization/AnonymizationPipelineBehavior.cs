@@ -3,6 +3,7 @@ using System.Reflection;
 
 using Encina.Compliance.Anonymization.Diagnostics;
 using Encina.Compliance.Anonymization.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -193,7 +194,7 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
         }
         catch (Exception ex)
         {
-            _logger.AnonymizationPipelineError(requestTypeName, responseTypeName, ex.Message);
+            _logger.AnonymizationPipelineError(requestTypeName, responseTypeName, ex.ForLogging());
             AnonymizationDiagnostics.RecordFailed(activity, ex.Message);
             AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
                 new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "error"));
@@ -355,7 +356,7 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
     {
         if (_options.EnforcementMode == AnonymizationEnforcementMode.Block)
         {
-            _logger.TransformationBlocked(fieldName, responseTypeName, error.Message);
+            _logger.TransformationBlocked(fieldName, responseTypeName, error.GetCode().IfNone("encina.unknown"));
             AnonymizationDiagnostics.RecordBlocked(activity, fieldName);
             AnonymizationDiagnostics.FieldTransformationsTotal.Add(1,
                 new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "blocked"));
@@ -363,7 +364,7 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         // Warn mode — log warning but allow response with untransformed field
-        _logger.TransformationWarned(fieldName, responseTypeName, error.Message);
+        _logger.TransformationWarned(fieldName, responseTypeName, error.GetCode().IfNone("encina.unknown"));
         AnonymizationDiagnostics.RecordWarned(activity, fieldName);
         AnonymizationDiagnostics.FieldTransformationsTotal.Add(1,
             new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "warned"));

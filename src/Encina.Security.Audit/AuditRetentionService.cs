@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Encina.Diagnostics;
 
 namespace Encina.Security.Audit;
 
@@ -129,7 +130,7 @@ public sealed class AuditRetentionService : BackgroundService
                 },
                 Left: error =>
                 {
-                    Log.AuditRetentionPurgeFailed(_logger, error.Message);
+                    Log.AuditRetentionPurgeFailed(_logger, error.GetCode().IfNone("encina.unknown"));
                 });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -138,7 +139,7 @@ public sealed class AuditRetentionService : BackgroundService
         }
         catch (Exception ex)
         {
-            Log.AuditRetentionPurgeError(_logger, ex);
+            Log.AuditRetentionPurgeError(_logger, ex.ForLogging());
         }
     }
 }

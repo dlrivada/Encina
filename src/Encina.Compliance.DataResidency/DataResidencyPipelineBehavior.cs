@@ -181,8 +181,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             var regionError = (EncinaError)regionResult;
 
             _logger.LogWarning(
-                "Cannot resolve current region for request '{RequestType}': {ErrorMessage}",
-                requestTypeName, regionError.Message);
+                "Cannot resolve current region for request '{RequestType}': {ErrorCode}",
+                requestTypeName, regionError.GetCode().IfNone("encina.unknown"));
 
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
@@ -250,8 +250,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             var policyError = (EncinaError)isAllowedResult;
 
             _logger.LogWarning(
-                "Residency policy check failed for data category '{DataCategory}': {ErrorMessage}",
-                dataCategory, policyError.Message);
+                "Residency policy check failed for data category '{DataCategory}': {ErrorCode}",
+                dataCategory, policyError.GetCode().IfNone("encina.unknown"));
 
             if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
@@ -346,8 +346,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         if (registerResult.IsLeft)
         {
             _logger.LogWarning(
-                "Failed to record data location for entity '{EntityId}': {ErrorMessage}",
-                entityId, ((EncinaError)registerResult).Message);
+                "Failed to record data location for entity '{EntityId}': {ErrorCode}",
+                entityId, ((EncinaError)registerResult).GetCode().IfNone("encina.unknown"));
         }
     }
 

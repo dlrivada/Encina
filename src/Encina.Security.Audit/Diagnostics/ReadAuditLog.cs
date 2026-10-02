@@ -88,11 +88,11 @@ public static partial class ReadAuditLog
     [LoggerMessage(
         EventId = 1712,
         Level = LogLevel.Warning,
-        Message = "Failed to log read audit entry. EntityType={EntityType}, ErrorMessage={ErrorMessage}")]
+        Message = "Failed to log read audit entry. EntityType={EntityType}, ErrorCode={ErrorCode}")]
     public static partial void EntryLogFailed(
         ILogger logger,
         string entityType,
-        string errorMessage);
+        string errorCode);
 
     // ========================================================================
     // Store query operations (1720-1729)
@@ -122,11 +122,11 @@ public static partial class ReadAuditLog
     [LoggerMessage(
         EventId = 1722,
         Level = LogLevel.Warning,
-        Message = "Read audit query failed. QueryType={QueryType}, ErrorMessage={ErrorMessage}")]
+        Message = "Read audit query failed. QueryType={QueryType}, ErrorCode={ErrorCode}")]
     public static partial void QueryFailed(
         ILogger logger,
         string queryType,
-        string errorMessage);
+        string errorCode);
 
     // ========================================================================
     // Retention/purge service (1730-1739)
@@ -189,10 +189,10 @@ public static partial class ReadAuditLog
     [LoggerMessage(
         EventId = 1736,
         Level = LogLevel.Warning,
-        Message = "Read audit purge failed: {ErrorMessage}")]
+        Message = "Read audit purge failed: {ErrorCode}")]
     public static partial void PurgeFailed(
         ILogger logger,
-        string errorMessage);
+        string errorCode);
 
     /// <summary>Read audit purge was cancelled.</summary>
     [LoggerMessage(

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
+using Encina.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -268,7 +269,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         }
         catch (Exception ex)
         {
-            Log.FailedToResolveUserId(_logger, ex);
+            Log.FailedToResolveUserId(_logger, ex.ForLogging());
             return null;
         }
     }
@@ -422,7 +423,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         }
         catch (Exception ex)
         {
-            Log.FailedToPersistAuditEntries(_logger, ex);
+            Log.FailedToPersistAuditEntries(_logger, ex.ForLogging());
         }
         finally
         {
@@ -467,7 +468,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         }
         catch (Exception ex)
         {
-            Log.FailedToPersistAuditEntries(_logger, ex);
+            Log.FailedToPersistAuditEntries(_logger, ex.ForLogging());
         }
         finally
         {

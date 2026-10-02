@@ -1,6 +1,9 @@
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 using Encina.Security.Secrets.Abstractions;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Auditing;
@@ -119,7 +122,7 @@ public sealed class AuditedSecretRotatorDecorator : ISecretRotator
         }
         catch (Exception ex)
         {
-            Log.AuditEntryFailed(_logger, secretName, ex);
+            Log.AuditEntryFailed(_logger, secretName, ex.ForLogging());
         }
     }
 }

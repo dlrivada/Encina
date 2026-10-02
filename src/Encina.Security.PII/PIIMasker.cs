@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Diagnostics;
@@ -114,7 +115,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (RegexParseException ex)
         {
-            _logger.LogWarning(ex, "Invalid regex pattern for PII masking: {Pattern}", pattern);
+            _logger.LogWarning(ex.ForLogging(), "Invalid regex pattern for PII masking: {Pattern}", pattern);
             return value;
         }
     }
@@ -179,7 +180,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             activity?.Dispose();
 
             // Structured log failure
-            PIILogMessages.PIIMaskingFailed(_logger, typeName, ex.Message);
+            PIILogMessages.PIIMaskingFailed(_logger, typeName, ex.ForLogging());
 
             // Record error metrics
             if (_options.EnableMetrics)
@@ -220,7 +221,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _logger.LogWarning(ex, "Failed to mask PII for audit on type {TypeName}", typeof(T).Name);
+            _logger.LogWarning(ex.ForLogging(), "Failed to mask PII for audit on type {TypeName}", typeof(T).Name);
             return request;
         }
     }
@@ -241,7 +242,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _logger.LogWarning(ex, "Failed to mask PII for audit on type {TypeName}", request.GetType().Name);
+            _logger.LogWarning(ex.ForLogging(), "Failed to mask PII for audit on type {TypeName}", request.GetType().Name);
             return request;
         }
     }
@@ -326,7 +327,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (JsonException ex)
         {
-            PIILogMessages.SerializationFailed(_logger, ex, type.Name);
+            PIILogMessages.SerializationFailed(_logger, ex.ForLogging(), type.Name);
             return obj;
         }
     }

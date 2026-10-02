@@ -1,6 +1,9 @@
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 using Encina.Security.Secrets.Abstractions;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Auditing;
@@ -145,7 +148,7 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
         catch (Exception ex)
         {
             // Audit failures must never block secret operations
-            Log.AuditEntryFailed(_logger, secretName, ex);
+            Log.AuditEntryFailed(_logger, secretName, ex.ForLogging());
         }
     }
 }

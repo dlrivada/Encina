@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -72,7 +73,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveChannel);
+            Log.FailedToPublishMessage(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveChannel);
 
             return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -110,7 +111,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
             }
             catch (Exception ex)
             {
-                Log.ErrorProcessingMessage(_logger, ex, effectiveChannel);
+                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), effectiveChannel);
             }
         });
 
@@ -146,7 +147,7 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
             }
             catch (Exception ex)
             {
-                Log.ErrorProcessingMessage(_logger, ex, message.Channel!);
+                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), message.Channel!);
             }
         });
 

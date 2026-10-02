@@ -75,7 +75,7 @@ internal sealed class PurposeRegistrationHostedService : IHostedService
                     failed++;
                     PrivacyByDesignDiagnostics.PurposeRegistrationFailuresTotal.Add(1);
                     _logger.PbDPurposeRegistrationFailed(
-                        purpose.Name, purpose.ModuleId ?? "(global)", error.Message);
+                        purpose.Name, purpose.ModuleId ?? "(global)", error.GetCode().IfNone("encina.unknown"));
                 });
         }
 

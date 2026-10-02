@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -274,7 +275,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         catch (Exception ex)
         {
             // Cache infrastructure failure — fallback to inner store directly
-            LogCacheError(_logger, operationName, cacheKey, ex);
+            LogCacheError(_logger, operationName, cacheKey, ex.ForLogging());
             return await factory(cancellationToken).ConfigureAwait(false);
         }
     }
@@ -302,7 +303,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, operationName, cacheKey, ex);
+            LogCacheError(_logger, operationName, cacheKey, ex.ForLogging());
         }
 
         // 2. Cache miss — load from inner store
@@ -332,7 +333,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         }
         catch (Exception ex)
         {
-            LogCacheWriteError(_logger, key, ex);
+            LogCacheWriteError(_logger, key, ex.ForLogging());
         }
     }
 
@@ -356,7 +357,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
             }
             catch (Exception ex)
             {
-                LogCacheInvalidationError(_logger, key, ex);
+                LogCacheInvalidationError(_logger, key, ex.ForLogging());
             }
         }
 
@@ -379,7 +380,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
             }
             catch (Exception ex)
             {
-                LogPubSubError(_logger, entityType, entityId, _options.InvalidationChannel, ex);
+                LogPubSubError(_logger, entityType, entityId, _options.InvalidationChannel, ex.ForLogging());
             }
         }
     }

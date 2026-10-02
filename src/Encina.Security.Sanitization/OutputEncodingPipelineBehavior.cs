@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Diagnostics;
@@ -161,7 +162,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             catch (Exception ex)
             {
                 SanitizationLogMessages.OutputEncodingPropertyFailed(
-                    _logger, prop.Property.Name, responseTypeName, ex.Message);
+                    _logger, prop.Property.Name, responseTypeName, ex.ForLogging());
 
                 return SanitizationErrors.PropertyError(prop.Property.Name, ex);
             }
@@ -197,7 +198,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
                 catch (Exception ex)
                 {
                     SanitizationLogMessages.OutputEncodingPropertyFailed(
-                        _logger, prop.Name, responseTypeName, ex.Message);
+                        _logger, prop.Name, responseTypeName, ex.ForLogging());
 
                     return SanitizationErrors.PropertyError(prop.Name, ex);
                 }

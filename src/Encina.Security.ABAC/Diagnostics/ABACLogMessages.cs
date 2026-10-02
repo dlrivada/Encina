@@ -46,16 +46,16 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9004,
         Level = LogLevel.Warning,
-        Message = "ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorMessage}. Allowing request to proceed")]
+        Message = "ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed")]
     internal static partial void EnforcementWarnMode(
-        ILogger logger, string requestType, string errorMessage);
+        ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(
         EventId = 9005,
         Level = LogLevel.Warning,
-        Message = "Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorMessage}")]
+        Message = "Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorCode}")]
     internal static partial void PermitObligationsFailed(
-        ILogger logger, string requestType, string errorMessage);
+        ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(
         EventId = 9006,
@@ -97,9 +97,9 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9011,
         Level = LogLevel.Error,
-        Message = "Obligation handler for {ObligationId} failed: {ErrorMessage}. Access denied per XACML 7.18")]
+        Message = "Obligation handler for {ObligationId} failed: {ErrorCode}. Access denied per XACML 7.18")]
     internal static partial void ObligationHandlerFailed(
-        ILogger logger, string obligationId, string errorMessage);
+        ILogger logger, string obligationId, string errorCode);
 
     [LoggerMessage(
         EventId = 9012,
@@ -118,9 +118,9 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9014,
         Level = LogLevel.Warning,
-        Message = "OnDeny obligation failed for {RequestType}: {ErrorMessage}")]
+        Message = "OnDeny obligation failed for {RequestType}: {ErrorCode}")]
     internal static partial void OnDenyObligationFailed(
-        ILogger logger, string requestType, string errorMessage);
+        ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(
         EventId = 9015,
@@ -141,9 +141,9 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9021,
         Level = LogLevel.Warning,
-        Message = "Advice handler for {AdviceId} failed: {ErrorMessage}. Continuing (advice is best-effort)")]
+        Message = "Advice handler for {AdviceId} failed: {ErrorCode}. Continuing (advice is best-effort)")]
     internal static partial void AdviceHandlerFailed(
-        ILogger logger, string adviceId, string errorMessage);
+        ILogger logger, string adviceId, string errorCode);
 
     [LoggerMessage(
         EventId = 9022,
@@ -250,9 +250,9 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9052,
         Level = LogLevel.Warning,
-        Message = "XACML XML deserialization failed for {EntityType}: {ErrorMessage}")]
+        Message = "XACML XML deserialization failed for {EntityType}: {Reason}")]
     internal static partial void XacmlXmlDeserializationFailed(
-        ILogger logger, string entityType, string errorMessage);
+        ILogger logger, string entityType, string reason);
 
     [LoggerMessage(
         EventId = 9053,

@@ -1,7 +1,10 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Diagnostics;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Caching;
@@ -126,7 +129,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         catch (Exception ex)
         {
             // Cache read failure — fall through to inner reader via GetOrSetAsync
-            Log.CacheError(_logger, secretName, cacheKey, ex);
+            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
         }
 
         // 2. Cache miss — use GetOrSetAsync for stampede protection
@@ -174,7 +177,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         catch (Exception ex)
         {
             // Cache infrastructure failure — fallback to inner reader
-            Log.CacheError(_logger, secretName, cacheKey, ex);
+            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
             return await _inner.GetSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -209,7 +212,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         catch (Exception ex)
         {
             // Cache read failure — fall through to inner reader via GetOrSetAsync
-            Log.CacheError(_logger, secretName, cacheKey, ex);
+            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
         }
 
         // 2. Cache miss — use GetOrSetAsync for stampede protection
@@ -257,7 +260,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         catch (Exception ex)
         {
             // Cache infrastructure failure — fallback to inner reader
-            Log.CacheError(_logger, secretName, cacheKey, ex);
+            Log.CacheError(_logger, secretName, cacheKey, ex.ForLogging());
             return await _inner.GetSecretAsync<T>(secretName, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -292,7 +295,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            Log.CacheKeyRemovalError(_logger, key, ex);
+            Log.CacheKeyRemovalError(_logger, key, ex.ForLogging());
         }
     }
 
@@ -304,7 +307,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            Log.CacheKeyRemovalError(_logger, pattern, ex);
+            Log.CacheKeyRemovalError(_logger, pattern, ex.ForLogging());
         }
     }
 
@@ -323,7 +326,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            Log.CacheWriteError(_logger, lkgKey, ex);
+            Log.CacheWriteError(_logger, lkgKey, ex.ForLogging());
         }
     }
 
@@ -340,7 +343,7 @@ public sealed class CachingSecretReaderDecorator : ISecretReader
         }
         catch (Exception ex)
         {
-            Log.CacheError(_logger, secretName, lkgKey, ex);
+            Log.CacheError(_logger, secretName, lkgKey, ex.ForLogging());
             return default;
         }
     }

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
+using Encina.Diagnostics;
 using Encina.Sharding;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -306,7 +307,7 @@ internal sealed class ShardedCdcConnector : IShardedCdcConnector
         }
         catch (Exception ex)
         {
-            CdcLog.ShardStreamError(_logger, ex, shardId, _connectorId);
+            CdcLog.ShardStreamError(_logger, ex.ForLogging(), shardId, _connectorId);
 
             await writer.WriteAsync(
                 Left<EncinaError, ShardedChangeEvent>(CdcErrors.ShardStreamFailed(shardId, ex)),

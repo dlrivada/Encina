@@ -56,11 +56,11 @@ internal static partial class MartenAuditLog
     [LoggerMessage(
         EventId = 2552,
         Level = LogLevel.Error,
-        Message = "Failed to record audit entry {EntryId}: {ErrorMessage}")]
+        Message = "Failed to record audit entry {EntryId}: {ErrorCode}")]
     internal static partial void RecordFailed(
         ILogger logger,
         Guid entryId,
-        string errorMessage,
+        string errorCode,
         Exception? exception);
 
     /// <summary>Encryption of PII fields succeeded.</summary>

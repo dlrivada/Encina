@@ -3,6 +3,7 @@ using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -64,7 +65,7 @@ internal sealed class MongoDbIndexCreator : IHostedService
         }
         catch (Exception ex)
         {
-            Log.FailedToCreateIndexes(_logger, ex);
+            Log.FailedToCreateIndexes(_logger, ex.ForLogging());
             throw;
         }
     }

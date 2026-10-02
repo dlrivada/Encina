@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using LanguageExt;
 using Marten;
@@ -65,7 +66,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
+            SnapshotLog.ErrorLoadingSnapshot(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, Option<Snapshot<TAggregate>>>( // NOSONAR S6966
                 EncinaErrors.FromException(
@@ -104,7 +105,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            SnapshotLog.ErrorLoadingSnapshot(_logger, ex, typeof(TAggregate).Name, aggregateId);
+            SnapshotLog.ErrorLoadingSnapshot(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, Option<Snapshot<TAggregate>>>( // NOSONAR S6966
                 EncinaErrors.FromException(
@@ -136,7 +137,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            SnapshotLog.ErrorSavingSnapshot(_logger, ex, typeof(TAggregate).Name, snapshot.AggregateId);
+            SnapshotLog.ErrorSavingSnapshot(_logger, ex.ForLogging(), typeof(TAggregate).Name, snapshot.AggregateId);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -187,7 +188,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            SnapshotLog.ErrorPruningSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
+            SnapshotLog.ErrorPruningSnapshots(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -230,7 +231,7 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
-            SnapshotLog.ErrorDeletingSnapshots(_logger, ex, typeof(TAggregate).Name, aggregateId);
+            SnapshotLog.ErrorDeletingSnapshots(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

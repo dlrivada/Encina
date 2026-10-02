@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.DataResidency.Abstractions;
+using Encina.Diagnostics;
 using Encina.Compliance.DataResidency.Aggregates;
 using Encina.Compliance.DataResidency.Diagnostics;
 using Encina.Compliance.DataResidency.Model;
@@ -108,7 +109,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("CreatePolicy", ex);
+            _logger.ResidencyServiceError("CreatePolicy", ex.ForLogging());
             return DataResidencyErrors.ServiceError("CreatePolicy", ex);
         }
     }
@@ -151,7 +152,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("UpdatePolicy", ex);
+            _logger.ResidencyServiceError("UpdatePolicy", ex.ForLogging());
             return DataResidencyErrors.ServiceError("UpdatePolicy", ex);
         }
     }
@@ -192,7 +193,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("DeletePolicy", ex);
+            _logger.ResidencyServiceError("DeletePolicy", ex.ForLogging());
             return DataResidencyErrors.ServiceError("DeletePolicy", ex);
         }
     }
@@ -231,7 +232,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetPolicy", ex);
+            _logger.ResidencyServiceError("GetPolicy", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetPolicy", ex);
         }
     }
@@ -257,7 +258,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetPolicyByCategory", ex);
+            _logger.ResidencyServiceError("GetPolicyByCategory", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetPolicyByCategory", ex);
         }
     }
@@ -276,7 +277,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetAllPolicies", ex);
+            _logger.ResidencyServiceError("GetAllPolicies", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetAllPolicies", ex);
         }
     }
@@ -331,7 +332,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("IsAllowed", ex);
+            _logger.ResidencyServiceError("IsAllowed", ex.ForLogging());
             return DataResidencyErrors.ServiceError("IsAllowed", ex);
         }
     }
@@ -369,7 +370,7 @@ internal sealed class DefaultResidencyPolicyService : IResidencyPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetAllowedRegions", ex);
+            _logger.ResidencyServiceError("GetAllowedRegions", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetAllowedRegions", ex);
         }
     }

@@ -64,9 +64,9 @@ internal sealed class ABACPolicySeedingHostedService : IHostedService
 
             result.Match(
                 Left: error => _logger.LogWarning(
-                    "Failed to seed policy set '{PolicySetId}': {ErrorMessage}",
+                    "Failed to seed policy set '{PolicySetId}': {ErrorCode}",
                     policySet.Id,
-                    error.Message),
+                    error.GetCode().IfNone("encina.unknown")),
                 Right: _ =>
                 {
                     seededSets++;
@@ -83,9 +83,9 @@ internal sealed class ABACPolicySeedingHostedService : IHostedService
 
             result.Match(
                 Left: error => _logger.LogWarning(
-                    "Failed to seed standalone policy '{PolicyId}': {ErrorMessage}",
+                    "Failed to seed standalone policy '{PolicyId}': {ErrorCode}",
                     policy.Id,
-                    error.Message),
+                    error.GetCode().IfNone("encina.unknown")),
                 Right: _ =>
                 {
                     seededPolicies++;

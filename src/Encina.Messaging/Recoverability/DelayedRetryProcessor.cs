@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -79,7 +80,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
             }
             catch (Exception ex)
             {
-                DelayedRetryProcessorLog.ProcessingError(_logger, ex);
+                DelayedRetryProcessorLog.ProcessingError(_logger, ex.ForLogging());
             }
 
             try
@@ -196,7 +197,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         }
         catch (Exception ex)
         {
-            DelayedRetryProcessorLog.ProcessingException(_logger, ex, message.Id, message.RequestType);
+            DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
             await store.MarkAsFailedAsync(message.Id, ex.Message, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -329,7 +330,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
             {
                 DelayedRetryProcessorLog.OnPermanentFailureCallbackFailed(
                     _logger,
-                    ex,
+                    ex.ForLogging(),
                     message.CorrelationId ?? RecoverabilityConstants.Unknown,
                     message.RequestType);
             }

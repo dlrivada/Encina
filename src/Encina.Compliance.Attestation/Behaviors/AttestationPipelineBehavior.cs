@@ -132,11 +132,11 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
 
             if (attr.FailureMode == AttestationFailureMode.Enforce)
             {
-                AttestationLogMessages.AttestationEnforced(_logger, typeof(TRequest).Name, error.Message);
+                AttestationLogMessages.AttestationEnforced(_logger, typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown"));
                 return Left<EncinaError, TResponse>(error);
             }
 
-            AttestationLogMessages.AttestationLogOnly(_logger, typeof(TRequest).Name, error.Message);
+            AttestationLogMessages.AttestationLogOnly(_logger, typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown"));
         }
 
         return result;

@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Compliance.DataResidency.Abstractions;
+using Encina.Diagnostics;
 using Encina.Compliance.DataResidency.Aggregates;
 using Encina.Compliance.DataResidency.Diagnostics;
 using Encina.Compliance.DataResidency.Model;
@@ -111,7 +112,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("RegisterLocation", ex);
+            _logger.ResidencyServiceError("RegisterLocation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("RegisterLocation", ex);
         }
     }
@@ -153,7 +154,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("MigrateLocation", ex);
+            _logger.ResidencyServiceError("MigrateLocation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("MigrateLocation", ex);
         }
     }
@@ -194,7 +195,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("VerifyLocation", ex);
+            _logger.ResidencyServiceError("VerifyLocation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("VerifyLocation", ex);
         }
     }
@@ -235,7 +236,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("RemoveLocation", ex);
+            _logger.ResidencyServiceError("RemoveLocation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("RemoveLocation", ex);
         }
     }
@@ -274,7 +275,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("RemoveByEntity", ex);
+            _logger.ResidencyServiceError("RemoveByEntity", ex.ForLogging());
             return DataResidencyErrors.ServiceError("RemoveByEntity", ex);
         }
     }
@@ -319,7 +320,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("DetectViolation", ex);
+            _logger.ResidencyServiceError("DetectViolation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("DetectViolation", ex);
         }
     }
@@ -360,7 +361,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("ResolveViolation", ex);
+            _logger.ResidencyServiceError("ResolveViolation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("ResolveViolation", ex);
         }
     }
@@ -399,7 +400,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetLocation", ex);
+            _logger.ResidencyServiceError("GetLocation", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetLocation", ex);
         }
     }
@@ -419,7 +420,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetByEntity", ex);
+            _logger.ResidencyServiceError("GetByEntity", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetByEntity", ex);
         }
     }
@@ -439,7 +440,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetByRegion", ex);
+            _logger.ResidencyServiceError("GetByRegion", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetByRegion", ex);
         }
     }
@@ -459,7 +460,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetByCategory", ex);
+            _logger.ResidencyServiceError("GetByCategory", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetByCategory", ex);
         }
     }
@@ -478,7 +479,7 @@ internal sealed class DefaultDataLocationService : IDataLocationService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ResidencyServiceError("GetViolations", ex);
+            _logger.ResidencyServiceError("GetViolations", ex.ForLogging());
             return DataResidencyErrors.ServiceError("GetViolations", ex);
         }
     }

@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly.CircuitBreaker;
@@ -83,12 +84,12 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
         catch (EncinaResilienceException ex)
         {
             // This is an expected business error wrapped for resilience, return it as-is
-            LogResilienceReturnedError(requestType, ex.Error.Message, context.CorrelationId);
+            LogResilienceReturnedError(requestType, ex.Error.GetCode().IfNone("encina.unknown"), context.CorrelationId);
             return ex.Error;
         }
         catch (BrokenCircuitException ex)
         {
-            LogCircuitBreakerOpen(requestType, ex.Message, context.CorrelationId);
+            LogCircuitBreakerOpen(requestType, ex.ForLogging(), context.CorrelationId);
             return EncinaError.New(
                 $"Circuit breaker is open for {requestType}. The service is temporarily unavailable.",
                 ex);
@@ -102,7 +103,7 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
         }
         catch (Exception ex)
         {
-            LogResilienceFailed(requestType, ex.Message, context.CorrelationId);
+            LogResilienceFailed(requestType, ex.ForLogging(), context.CorrelationId);
             return EncinaError.New(ex);
         }
     }
@@ -124,14 +125,14 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
     [LoggerMessage(
         EventId = 3952,
         Level = LogLevel.Warning,
-        Message = "Standard resilience returned error for {RequestType}: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    private partial void LogResilienceReturnedError(string requestType, string errorMessage, string correlationId);
+        Message = "Standard resilience returned error for {RequestType}: {ErrorCode} (CorrelationId: {CorrelationId})")]
+    private partial void LogResilienceReturnedError(string requestType, string errorCode, string correlationId);
 
     [LoggerMessage(
         EventId = 3953,
         Level = LogLevel.Error,
-        Message = "Circuit breaker is open for {RequestType}: {Message} (CorrelationId: {CorrelationId})")]
-    private partial void LogCircuitBreakerOpen(string requestType, string message, string correlationId);
+        Message = "Circuit breaker is open for {RequestType} (CorrelationId: {CorrelationId})")]
+    private partial void LogCircuitBreakerOpen(string requestType, Exception exception, string correlationId);
 
     [LoggerMessage(
         EventId = 3954,
@@ -142,8 +143,8 @@ public sealed partial class StandardResiliencePipelineBehavior<TRequest, TRespon
     [LoggerMessage(
         EventId = 3955,
         Level = LogLevel.Error,
-        Message = "Standard resilience failed for {RequestType}: {ErrorMessage} (CorrelationId: {CorrelationId})")]
-    private partial void LogResilienceFailed(string requestType, string errorMessage, string correlationId);
+        Message = "Standard resilience failed for {RequestType} (CorrelationId: {CorrelationId})")]
+    private partial void LogResilienceFailed(string requestType, Exception exception, string correlationId);
 
     #endregion
 }

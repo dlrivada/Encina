@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Encina.Caching.Sharding.Configuration;
+using Encina.Diagnostics;
 using Encina.Sharding.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -175,7 +176,7 @@ public sealed class CachedShardDirectoryStore : IShardDirectoryStore
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to refresh directory L1 cache");
+            _logger.LogWarning(ex.ForLogging(), "Failed to refresh directory L1 cache");
         }
     }
 
@@ -252,7 +253,7 @@ public sealed class CachedShardDirectoryStore : IShardDirectoryStore
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to publish directory invalidation for key '{Key}'", key);
+                _logger.LogWarning(ex.ForLogging(), "Failed to publish directory invalidation for key '{Key}'", key);
             }
         });
     }

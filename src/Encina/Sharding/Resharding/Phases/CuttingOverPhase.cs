@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -45,7 +46,7 @@ internal sealed class CuttingOverPhase : IReshardingPhase
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
+                _logger.LogError(ex.ForLogging(),
                     "Cutover predicate threw an exception. ReshardingId={ReshardingId}",
                     context.ReshardingId);
 

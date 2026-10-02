@@ -1,4 +1,5 @@
 using System.Globalization;
+using Encina.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -133,7 +134,7 @@ public sealed class TierTransitionScheduler : BackgroundService
         }
         catch (Exception ex)
         {
-            Log.TransitionCheckError(_logger, ex);
+            Log.TransitionCheckError(_logger, ex.ForLogging());
         }
     }
 
@@ -245,7 +246,7 @@ public sealed class TierTransitionScheduler : BackgroundService
         }
         catch (Exception ex)
         {
-            Log.AutoCreateFailed(_logger, ex, shardId);
+            Log.AutoCreateFailed(_logger, ex.ForLogging(), shardId);
         }
     }
 }

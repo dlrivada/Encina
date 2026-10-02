@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.SecretManager.V1;
@@ -155,7 +156,7 @@ public sealed class GoogleCloudSecretManagerProvider : ISecretReader, ISecretWri
             }
             catch (JsonException ex)
             {
-                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex);
+                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex.ForLogging());
                 return SecretsErrors.DeserializationFailed(secretName, typeof(T), ex);
             }
         }
@@ -166,12 +167,12 @@ public sealed class GoogleCloudSecretManagerProvider : ISecretReader, ISecretWri
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
-            Log.AccessDenied(_logger, secretName, ex.Message, ex);
+            Log.AccessDenied(_logger, secretName, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.AccessDenied(secretName, ex.Message);
         }
         catch (RpcException ex)
         {
-            Log.ProviderUnavailable(_logger, ex.Message, ex);
+            Log.ProviderUnavailable(_logger, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.ProviderUnavailable(ProviderName, ex);
         }
     }
@@ -243,7 +244,7 @@ public sealed class GoogleCloudSecretManagerProvider : ISecretReader, ISecretWri
         }
         catch (RpcException ex)
         {
-            Log.RotationFailed(_logger, secretName, ex.Message, ex);
+            Log.RotationFailed(_logger, secretName, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.RotationFailed(secretName, ex.Message, ex);
         }
     }
@@ -298,13 +299,13 @@ public sealed class GoogleCloudSecretManagerProvider : ISecretReader, ISecretWri
 
     private EncinaError LogAndReturnAccessDenied(string secretName, RpcException ex)
     {
-        Log.AccessDenied(_logger, secretName, ex.Message, ex);
+        Log.AccessDenied(_logger, secretName, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.AccessDenied(secretName, ex.Message);
     }
 
     private EncinaError LogAndReturnProviderUnavailable(RpcException ex)
     {
-        Log.ProviderUnavailable(_logger, ex.Message, ex);
+        Log.ProviderUnavailable(_logger, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.ProviderUnavailable(ProviderName, ex);
     }
 }

@@ -50,9 +50,9 @@ internal static partial class SanitizationLogMessages
     [LoggerMessage(
         EventId = 6,
         Level = LogLevel.Warning,
-        Message = "Output encoding failed for property '{PropertyName}' on {ResponseType}: {ErrorMessage}")]
+        Message = "Output encoding failed for property '{PropertyName}' on {ResponseType}")]
     internal static partial void OutputEncodingPropertyFailed(
-        ILogger logger, string propertyName, string responseType, string errorMessage);
+        ILogger logger, string propertyName, string responseType, Exception exception);
 
     [LoggerMessage(
         EventId = 7,

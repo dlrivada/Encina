@@ -4,6 +4,7 @@ using Encina.Caching;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Diagnostics;
 using Encina.Compliance.NIS2.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -148,7 +149,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.MeasureEvaluationFailed(measureName, ex);
+                    _logger.MeasureEvaluationFailed(measureName, ex.ForLogging());
                     NIS2Diagnostics.RecordFailed(measureActivity, ex.Message);
 
                     NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
@@ -200,7 +201,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ComplianceValidationError(ex);
+            _logger.ComplianceValidationError(ex.ForLogging());
             NIS2Diagnostics.RecordFailed(activity, ex.Message);
 
             NIS2Diagnostics.ComplianceChecksTotal.Add(1,

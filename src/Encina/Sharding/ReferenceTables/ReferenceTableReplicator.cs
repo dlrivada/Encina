@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -221,7 +222,7 @@ internal sealed class ReferenceTableReplicator(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(
-                    ex,
+                    ex.ForLogging(),
                     "Unexpected error replicating to shard '{ShardId}' for reference table '{EntityType}'",
                     shard.ShardId,
                     typeof(TEntity).Name);

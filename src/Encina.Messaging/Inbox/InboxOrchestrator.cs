@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -195,7 +196,7 @@ public sealed class InboxOrchestrator
         }
         catch (Exception ex)
         {
-            Log.ErrorProcessingMessage(_logger, ex, messageId, correlationId);
+            Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageId, correlationId);
 
             await _store.MarkAsFailedAsync(
                 messageId,

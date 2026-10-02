@@ -1,4 +1,5 @@
 using Encina.Cdc.Abstractions;
+using Encina.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -80,12 +81,12 @@ internal sealed class ShardedCdcProcessor : BackgroundService
                 if (consecutiveErrors <= _options.MaxRetries)
                 {
                     var delay = CalculateRetryDelay(consecutiveErrors);
-                    CdcLog.RetryingAfterError(_logger, ex, connectorId, consecutiveErrors, _options.MaxRetries, delay);
+                    CdcLog.RetryingAfterError(_logger, ex.ForLogging(), connectorId, consecutiveErrors, _options.MaxRetries, delay);
                     await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    CdcLog.ErrorProcessingChangeEvents(_logger, ex, connectorId);
+                    CdcLog.ErrorProcessingChangeEvents(_logger, ex.ForLogging(), connectorId);
                     consecutiveErrors = 0;
                     await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
                 }

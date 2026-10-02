@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using Encina.Messaging.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -114,7 +115,7 @@ public sealed class ScheduledMessageProcessor : BackgroundService
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                SchedulingProcessorLog.CycleFailed(_logger, ex);
+                SchedulingProcessorLog.CycleFailed(_logger, ex.ForLogging());
             }
 
             try

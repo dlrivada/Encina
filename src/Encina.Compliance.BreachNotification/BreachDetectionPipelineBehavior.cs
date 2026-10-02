@@ -3,6 +3,7 @@ using System.Reflection;
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -147,8 +148,8 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
                 var error = (EncinaError)detectResult;
 
                 _logger.LogWarning(
-                    "Breach detection failed for '{RequestType}': {ErrorMessage}",
-                    requestTypeName, error.Message);
+                    "Breach detection failed for '{RequestType}': {ErrorCode}",
+                    requestTypeName, error.GetCode().IfNone("encina.unknown"));
 
                 if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
                 {
@@ -201,7 +202,7 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            _logger.LogError(ex.ForLogging(),
                 "Unhandled exception during breach detection for '{RequestType}'", requestTypeName);
 
             if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)

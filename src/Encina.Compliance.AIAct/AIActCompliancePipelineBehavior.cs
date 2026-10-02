@@ -145,7 +145,7 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         {
             var innerError = (EncinaError)validationResult;
             var validatorError = AIActErrors.ValidatorError(requestType, innerError);
-            _logger.ValidatorError(requestTypeName, innerError.Message);
+            _logger.ValidatorError(requestTypeName, innerError.GetCode().IfNone("encina.unknown"));
             RecordFailed(activity, startTimestamp, requestTypeName, AIActErrors.ValidatorErrorCode);
             return Left<EncinaError, TResponse>(validatorError);
         }

@@ -481,14 +481,14 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
             ABACDiagnostics.RecordPapFailure(activity, ex.Message);
-            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", $"XML parse error: {ex.Message}");
+            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", ex.GetType().Name);
             return Left(ABACErrors.DeserializationFailed("PolicySet", $"XML parse error: {ex.Message}"));
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
             ABACDiagnostics.RecordPapFailure(activity, ex.Message);
-            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", ex.Message);
+            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "PolicySet", ex.GetType().Name);
             return Left(ABACErrors.DeserializationFailed("PolicySet", ex.Message));
         }
     }
@@ -535,14 +535,14 @@ public sealed class XacmlXmlPolicySerializer : IPolicySerializer
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
             ABACDiagnostics.RecordPapFailure(activity, ex.Message);
-            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", $"XML parse error: {ex.Message}");
+            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", ex.GetType().Name);
             return Left(ABACErrors.DeserializationFailed("Policy", $"XML parse error: {ex.Message}"));
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or InvalidOperationException)
         {
             ABACDiagnostics.XacmlXmlErrorTotal.Add(1);
             ABACDiagnostics.RecordPapFailure(activity, ex.Message);
-            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", ex.Message);
+            ABACLogMessages.XacmlXmlDeserializationFailed(_logger, "Policy", ex.GetType().Name);
             return Left(ABACErrors.DeserializationFailed("Policy", ex.Message));
         }
     }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -127,11 +128,11 @@ public sealed partial class Encina
 
             if (IsCancellationCode(errorCode))
             {
-                Log.NotificationCancelled(Encina._logger, notificationName, handlerTypeName, exception);
+                Log.NotificationCancelled(Encina._logger, notificationName, handlerTypeName, exception?.ForLogging());
             }
             else if (exception is not null)
             {
-                Log.NotificationHandlerException(Encina._logger, notificationName, handlerTypeName, exception);
+                Log.NotificationHandlerException(Encina._logger, notificationName, handlerTypeName, exception.ForLogging());
             }
             else
             {

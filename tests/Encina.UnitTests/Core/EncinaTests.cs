@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
+using Encina.Diagnostics;
 using Encina.Testing;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -435,7 +436,8 @@ public sealed class EncinaTests
         failureEntry.Message.Contains("The EchoRequest request failed (Encina.failure)").ShouldBeTrue();
         failureEntry.Message.Contains("the operation failed").ShouldBeFalse();
         failureEntry.Exception.ShouldNotBeNull();
-        ReferenceEquals(failureEntry.Exception, exception).ShouldBeTrue();
+        failureEntry.Exception.ShouldBeOfType<RedactedException>();
+        failureEntry.Exception.Message.ShouldBe(exception.GetType().FullName);
         loggerCollector.Entries.Any(entry => entry.LogLevel == LogLevel.Warning).ShouldBeFalse();
     }
 
@@ -711,7 +713,8 @@ public sealed class EncinaTests
         loggerCollector.Entries.Any(entry =>
             entry.LogLevel == LogLevel.Error
             && entry.Exception != null
-            && entry.Exception.Message == "notify-failure"
+            && entry.Exception is RedactedException
+            && !entry.Exception.ToString().Contains("notify-failure")
             && entry.Message.Contains("Error while publishing notification")
             && entry.Message.Contains(nameof(SampleNotification))).ShouldBeTrue();
         var activity = activityCollector.Activities.Last(a => a.DisplayName == "Encina.Publish");

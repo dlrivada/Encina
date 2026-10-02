@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -171,7 +172,7 @@ internal sealed class ReshardingPhaseExecutor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex,
+                    _logger.LogWarning(ex.ForLogging(),
                         "OnPhaseCompleted callback failed. ReshardingId={ReshardingId}, Phase={Phase}",
                         state.Id, phase);
                     // Callback failures are non-fatal — the phase already succeeded

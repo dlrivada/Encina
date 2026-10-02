@@ -1,4 +1,5 @@
 using Encina.Audit.Marten.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -93,7 +94,7 @@ internal sealed class MartenAuditRetentionService : BackgroundService
                     MartenAuditLog.RecordFailed(
                         _logger,
                         Guid.Empty,
-                        $"Retention purge failed: {error.Message}",
+                        error.GetCode().IfNone("encina.unknown"),
                         null);
                 });
         }
@@ -103,7 +104,7 @@ internal sealed class MartenAuditRetentionService : BackgroundService
         }
         catch (Exception ex)
         {
-            MartenAuditLog.RetentionCycleFailed(_logger, ex);
+            MartenAuditLog.RetentionCycleFailed(_logger, ex.ForLogging());
         }
     }
 }

@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -149,7 +150,7 @@ public sealed class DeadLetterOrchestrator
             }
             catch (Exception ex)
             {
-                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex, message.Id);
+                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex.ForLogging(), message.Id);
             }
         }
 
@@ -223,7 +224,7 @@ public sealed class DeadLetterOrchestrator
             }
             catch (Exception ex)
             {
-                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex, message.Id);
+                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex.ForLogging(), message.Id);
             }
         }
 

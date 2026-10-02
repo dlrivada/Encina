@@ -117,10 +117,10 @@ internal sealed class EncryptionOrchestrator : IEncryptionOrchestrator
                     }
 
                     _logger.LogWarning(
-                        "Encryption failed for property {PropertyName} on {TypeName}, leaving value unchanged: {ErrorMessage}",
+                        "Encryption failed for property {PropertyName} on {TypeName}, leaving value unchanged: {ErrorCode}",
                         prop.Property.Name,
                         typeof(T).Name,
-                        e.Message);
+                        e.GetCode().IfNone("encina.unknown"));
 
                     return null;
                 });
@@ -206,10 +206,10 @@ internal sealed class EncryptionOrchestrator : IEncryptionOrchestrator
                     }
 
                     _logger.LogWarning(
-                        "Decryption failed for property {PropertyName} on {TypeName}, leaving value unchanged: {ErrorMessage}",
+                        "Decryption failed for property {PropertyName} on {TypeName}, leaving value unchanged: {ErrorCode}",
                         prop.Property.Name,
                         typeof(T).Name,
-                        e.Message);
+                        e.GetCode().IfNone("encina.unknown"));
 
                     return null;
                 });

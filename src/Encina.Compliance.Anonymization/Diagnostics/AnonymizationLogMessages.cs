@@ -108,22 +108,22 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8409,
         Level = LogLevel.Warning,
-        Message = "Anonymization transformation blocked. FieldName={FieldName}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void TransformationBlocked(this ILogger logger, string fieldName, string responseType, string errorMessage);
+        Message = "Anonymization transformation blocked. FieldName={FieldName}, ResponseType={ResponseType}, ErrorCode={ErrorCode}")]
+    internal static partial void TransformationBlocked(this ILogger logger, string fieldName, string responseType, string errorCode);
 
     /// <summary>Transformation failure logged as warning but response allowed (Warn mode).</summary>
     [LoggerMessage(
         EventId = 8410,
         Level = LogLevel.Warning,
-        Message = "Anonymization transformation failed — proceeding in Warn mode. FieldName={FieldName}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void TransformationWarned(this ILogger logger, string fieldName, string responseType, string errorMessage);
+        Message = "Anonymization transformation failed — proceeding in Warn mode. FieldName={FieldName}, ResponseType={ResponseType}, ErrorCode={ErrorCode}")]
+    internal static partial void TransformationWarned(this ILogger logger, string fieldName, string responseType, string errorCode);
 
     /// <summary>Unexpected error during pipeline execution.</summary>
     [LoggerMessage(
         EventId = 8411,
         Level = LogLevel.Error,
-        Message = "Anonymization pipeline error. RequestType={RequestType}, ResponseType={ResponseType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void AnonymizationPipelineError(this ILogger logger, string requestType, string responseType, string errorMessage);
+        Message = "Anonymization pipeline error. RequestType={RequestType}, ResponseType={ResponseType}")]
+    internal static partial void AnonymizationPipelineError(this ILogger logger, string requestType, string responseType, Exception exception);
 
     // ========================================================================
     // Auto-registration log messages (8412-8415)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Sharding.Configuration;
 using Encina.Sharding.Diagnostics;
 using LanguageExt;
@@ -269,7 +270,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Query on shard {ShardId} threw an exception", shardId);
+            _logger.LogError(ex.ForLogging(), "Query on shard {ShardId} threw an exception", shardId);
             ShardingActivitySource.CompleteShardQuery(shardActivity, isSuccess: false, ex.GetType().Name);
 
             return ShardQueryTaskResult<T>.Failure(

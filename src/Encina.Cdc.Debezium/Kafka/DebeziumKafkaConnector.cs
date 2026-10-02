@@ -4,6 +4,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -316,7 +317,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            DebeziumCdcLog.PositionRetrievalFailed(_logger, ex, ConnectorId);
+            DebeziumCdcLog.PositionRetrievalFailed(_logger, ex.ForLogging(), ConnectorId);
         }
 
         CdcLog.NoSavedPosition(_logger, ConnectorId);

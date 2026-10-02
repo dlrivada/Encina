@@ -1,5 +1,6 @@
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Model;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -155,8 +156,8 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
                 Left: error =>
                 {
                     _logger.LogWarning(
-                        "Failed to query approaching deadline breaches: {ErrorMessage}",
-                        error.Message);
+                        "Failed to query approaching deadline breaches: {ErrorCode}",
+                        error.GetCode().IfNone("encina.unknown"));
                 });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -166,7 +167,7 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
         catch (Exception ex)
         {
             // Graceful error handling: log + continue, never crash the host
-            _logger.LogError(ex, "Unhandled exception during breach deadline monitoring cycle");
+            _logger.LogError(ex.ForLogging(), "Unhandled exception during breach deadline monitoring cycle");
         }
     }
 
@@ -198,7 +199,7 @@ internal sealed class BreachDeadlineMonitorService : BackgroundService
         catch (Exception ex)
         {
             // Notification publishing should never fail the monitoring cycle
-            _logger.LogWarning(ex, "Failed to publish deadline warning notifications");
+            _logger.LogWarning(ex.ForLogging(), "Failed to publish deadline warning notifications");
         }
     }
 }

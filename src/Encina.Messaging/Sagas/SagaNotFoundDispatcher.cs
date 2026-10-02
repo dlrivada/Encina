@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -65,7 +66,7 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
         }
         catch (Exception ex)
         {
-            Log.SagaNotFoundHandlerFailed(_logger, typeof(TMessage).Name, context.SagaId, ex);
+            Log.SagaNotFoundHandlerFailed(_logger, typeof(TMessage).Name, context.SagaId, ex.ForLogging());
             return EncinaErrors.FromException(
                 SagaErrorCodes.HandlerFailed,
                 ex,

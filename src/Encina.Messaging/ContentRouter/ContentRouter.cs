@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
+using Encina.Diagnostics;
 using LanguageExt;
 
 using Microsoft.Extensions.Logging;
@@ -139,7 +140,7 @@ public sealed class ContentRouter : IContentRouter
         }
         catch (Exception ex)
         {
-            ContentRouterLog.RoutingException(_logger, routingId, ex.Message, ex);
+            ContentRouterLog.RoutingException(_logger, routingId, ex.GetType().Name, ex.ForLogging());
             return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
         }
     }
@@ -180,7 +181,7 @@ public sealed class ContentRouter : IContentRouter
             }
             catch (Exception ex)
             {
-                ContentRouterLog.ConditionEvaluationFailed(_logger, routingId, route.Name, ex.Message, ex);
+                ContentRouterLog.ConditionEvaluationFailed(_logger, routingId, route.Name, ex.GetType().Name, ex.ForLogging());
                 // Skip this route on condition evaluation failure
             }
         }
@@ -233,7 +234,7 @@ public sealed class ContentRouter : IContentRouter
         {
             stepStopwatch.Stop();
             stopwatch.Stop();
-            ContentRouterLog.RouteExecutionFailed(_logger, routingId, defaultRoute.Name, ex.Message);
+            ContentRouterLog.RouteExecutionFailed(_logger, routingId, defaultRoute.Name, ex.GetType().Name);
             return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
         }
     }
@@ -346,7 +347,7 @@ public sealed class ContentRouter : IContentRouter
         catch (Exception ex)
         {
             stopwatch.Stop();
-            ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, ex.Message);
+            ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, ex.GetType().Name);
             var error = EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
             return InternalRouteResult<TResult>.Failure(route.Name, error, stopwatch.Elapsed, executedAt);
         }
@@ -412,8 +413,8 @@ internal static partial class ContentRouterLog
     [LoggerMessage(
         EventId = 2804,
         Level = LogLevel.Warning,
-        Message = "Content routing {RoutingId} route {RouteName} failed: {ErrorMessage}")]
-    public static partial void RouteExecutionFailed(ILogger logger, Guid routingId, string routeName, string errorMessage);
+        Message = "Content routing {RoutingId} route {RouteName} failed: {ErrorCode}")]
+    public static partial void RouteExecutionFailed(ILogger logger, Guid routingId, string routeName, string errorCode);
 
     [LoggerMessage(
         EventId = 2805,
@@ -448,12 +449,12 @@ internal static partial class ContentRouterLog
     [LoggerMessage(
         EventId = 2810,
         Level = LogLevel.Error,
-        Message = "Content routing {RoutingId} failed with exception: {ErrorMessage}")]
-    public static partial void RoutingException(ILogger logger, Guid routingId, string errorMessage, Exception exception);
+        Message = "Content routing {RoutingId} failed with exception: {ExceptionType}")]
+    public static partial void RoutingException(ILogger logger, Guid routingId, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2811,
         Level = LogLevel.Warning,
-        Message = "Content routing {RoutingId} condition evaluation failed for route {RouteName}: {ErrorMessage}")]
-    public static partial void ConditionEvaluationFailed(ILogger logger, Guid routingId, string routeName, string errorMessage, Exception exception);
+        Message = "Content routing {RoutingId} condition evaluation failed for route {RouteName}: {ExceptionType}")]
+    public static partial void ConditionEvaluationFailed(ILogger logger, Guid routingId, string routeName, string exceptionType, Exception exception);
 }

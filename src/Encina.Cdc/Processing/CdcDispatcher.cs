@@ -3,6 +3,7 @@ using System.Text.Json;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
 using Encina.Cdc.Messaging;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -127,7 +128,7 @@ internal sealed class CdcDispatcher : ICdcDispatcher
         }
         catch (Exception ex)
         {
-            CdcLog.HandlerFailed(_logger, ex, handlerType.Name, changeEvent.Operation, changeEvent.TableName);
+            CdcLog.HandlerFailed(_logger, ex.ForLogging(), handlerType.Name, changeEvent.Operation, changeEvent.TableName);
             return Left(CdcErrors.HandlerFailed(changeEvent.TableName, ex));
         }
     }
@@ -234,7 +235,7 @@ internal sealed class CdcDispatcher : ICdcDispatcher
         }
         catch (Exception ex)
         {
-            CdcLog.DeserializationFailed(_logger, ex, operation, tableName, entityType.Name);
+            CdcLog.DeserializationFailed(_logger, ex.ForLogging(), operation, tableName, entityType.Name);
             return null;
         }
     }
@@ -256,7 +257,7 @@ internal sealed class CdcDispatcher : ICdcDispatcher
             {
                 // Log but don't fail — interceptor errors should not prevent position saving
                 CdcLog.HandlerFailed(
-                    _logger, ex, interceptor.GetType().Name, changeEvent.Operation, changeEvent.TableName);
+                    _logger, ex.ForLogging(), interceptor.GetType().Name, changeEvent.Operation, changeEvent.TableName);
             }
         }
     }

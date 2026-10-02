@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -97,7 +98,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
             }
             catch (Exception ex)
             {
-                LogInvalidationError(_logger, typeof(TRequest).Name, attr.KeyPattern, ex);
+                LogInvalidationError(_logger, typeof(TRequest).Name, attr.KeyPattern, ex.ForLogging());
 
                 if (_options.ThrowOnCacheErrors)
                 {
@@ -166,7 +167,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
             }
             catch (Exception ex)
             {
-                LogPubSubError(_logger, pattern, _options.InvalidationChannel, ex);
+                LogPubSubError(_logger, pattern, _options.InvalidationChannel, ex.ForLogging());
 
                 if (_options.ThrowOnCacheErrors)
                 {

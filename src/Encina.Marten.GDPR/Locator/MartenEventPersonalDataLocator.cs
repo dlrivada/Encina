@@ -1,11 +1,8 @@
 using System.Reflection;
-
 using Encina.Compliance.DataSubjectRights;
-
+using Encina.Diagnostics;
 using LanguageExt;
-
 using Marten;
-
 using Microsoft.Extensions.Logging;
 
 using static LanguageExt.Prelude;
@@ -88,7 +85,7 @@ public sealed class MartenEventPersonalDataLocator : IPersonalDataLocator
         catch (Exception ex)
         {
             // The data subject's own identifier is never logged (#1429, following #1314).
-            _logger.LogError(ex, "Failed to locate personal data");
+            _logger.LogError(ex.ForLogging(), "Failed to locate personal data");
 
             return Left<EncinaError, IReadOnlyList<PersonalDataLocation>>(
                 CryptoShreddingErrors.KeyStoreError("LocateAllData", ex));

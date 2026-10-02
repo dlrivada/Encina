@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -119,7 +120,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         }
         catch (Exception ex)
         {
-            DeadLetterLog.MessageReplayException(_logger, ex, messageId);
+            DeadLetterLog.MessageReplayException(_logger, ex.ForLogging(), messageId);
 
             var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
             await _store.MarkAsReplayedAsync(messageId, $"Failed: {errorMessage}", cancellationToken);

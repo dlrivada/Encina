@@ -1,5 +1,6 @@
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.DeadLetter;
+using Encina.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -94,7 +95,7 @@ internal sealed class CdcProcessor : BackgroundService
                     var connector = scope.ServiceProvider.GetService<ICdcConnector>();
                     var connectorId = connector?.ConnectorId ?? "unknown";
 
-                    CdcLog.RetryingAfterError(_logger, ex, connectorId, consecutiveErrors, _options.MaxRetries, delay);
+                    CdcLog.RetryingAfterError(_logger, ex.ForLogging(), connectorId, consecutiveErrors, _options.MaxRetries, delay);
                     await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
                 }
                 else
@@ -197,7 +198,7 @@ internal sealed class CdcProcessor : BackgroundService
     {
         if (_deadLetterStore is null)
         {
-            CdcLog.RetriesExhaustedNoDeadLetter(_logger, exception, connectorId);
+            CdcLog.RetriesExhaustedNoDeadLetter(_logger, exception.ForLogging(), connectorId);
             return;
         }
 
@@ -216,7 +217,7 @@ internal sealed class CdcProcessor : BackgroundService
         result.Match(
             Right: _ => CdcLog.EventDeadLettered(
                 _logger, entry.OriginalEvent.TableName, connectorId, _options.MaxRetries, entry.Id),
-            Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception, connectorId));
+            Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception.ForLogging(), connectorId));
     }
 
     private static ChangeEvent CreatePlaceholderEvent()

@@ -1,4 +1,5 @@
 using Encina.Caching.Sharding.Configuration;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -140,7 +141,7 @@ public sealed class TopologyRefreshHostedService : IHostedService, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error during topology/directory refresh cycle");
+                _logger.LogWarning(ex.ForLogging(), "Error during topology/directory refresh cycle");
             }
         }
     }
