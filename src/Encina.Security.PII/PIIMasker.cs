@@ -330,15 +330,9 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return false;
         }
 
-        var propertyName = _jsonOptions.PropertyNamingPolicy?.ConvertName(prop.Property.Name)
-            ?? prop.Property.Name;
+        var propertyName = ResolveJsonPropertyName(prop);
 
-        if (jsonObj[propertyName] is not JsonValue jsonValue)
-        {
-            return false;
-        }
-
-        var originalValue = jsonValue.ToString();
+        var originalValue = (jsonObj[propertyName] as JsonValue)?.ToString();
         if (string.IsNullOrEmpty(originalValue))
         {
             return false;
@@ -350,15 +344,21 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         // Trace-level log per property
         if (_options.EnableTracing)
         {
-            PIILogMessages.StrategyApplied(
-                _logger,
-                prop.Property.Name,
-                prop.Type.ToString(),
-                GetStrategy(prop.Type).GetType().Name);
+            LogStrategyApplied(prop);
         }
 
         return true;
     }
+
+    private string ResolveJsonPropertyName(PropertyMaskingMetadata prop) =>
+        _jsonOptions.PropertyNamingPolicy?.ConvertName(prop.Property.Name) ?? prop.Property.Name;
+
+    private void LogStrategyApplied(PropertyMaskingMetadata prop) =>
+        PIILogMessages.StrategyApplied(
+            _logger,
+            prop.Property.Name,
+            prop.Type.ToString(),
+            GetStrategy(prop.Type).GetType().Name);
 
     private T MaskViaSensitiveFieldPatterns<T>(T obj, Type type)
     {

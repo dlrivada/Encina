@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Encina.Diagnostics;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
@@ -111,29 +113,33 @@ internal sealed class SanitizationOrchestrator
     {
         foreach (var prop in properties)
         {
-            var value = prop.Getter(request!) as string;
-            if (value is null)
+            var outcome = SanitizeAttributedProperty(request, prop);
+            if (outcome.IsLeft)
             {
-                continue;
+                return outcome;
             }
-
-            var result = SanitizeProperty(value, prop.Attribute);
-
-            if (result.IsLeft)
-            {
-                return result.Match<Either<EncinaError, Unit>>(
-                    Right: _ => Unit.Default,
-                    Left: e => e);
-            }
-
-            var sanitized = result.Match(
-                Right: v => v,
-                Left: _ => value);
-
-            prop.Setter(request!, sanitized);
         }
 
         return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    private Either<EncinaError, Unit> SanitizeAttributedProperty<TRequest>(
+        TRequest request, SanitizablePropertyInfo prop)
+    {
+        var value = prop.Getter(request!) as string;
+        if (value is null)
+        {
+            return Unit.Default;
+        }
+
+        var result = SanitizeProperty(value, prop.Attribute);
+        if (result.IsLeft)
+        {
+            return result.Map(_ => Unit.Default);
+        }
+
+        prop.Setter(request!, result.IfLeft(value));
+        return Unit.Default;
     }
 
     /// <summary>
@@ -156,29 +162,40 @@ internal sealed class SanitizationOrchestrator
                 continue;
             }
 
-            var value = prop.GetValue(request) as string;
-            if (value is null)
+            var outcome = AutoSanitizeProperty(request, requestType, prop);
+            if (outcome.IsLeft)
             {
-                continue;
-            }
-
-            try
-            {
-                var profile = _options.DefaultProfile ?? SanitizationProfiles.StrictText;
-                var sanitized = _sanitizer.Custom(value, profile);
-                prop.SetValue(request, sanitized);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex.ForLogging(),
-                    "Auto-sanitization failed for property '{PropertyName}' on {TypeName}",
-                    prop.Name, requestType.Name);
-
-                return SanitizationErrors.PropertyError(prop.Name, ex);
+                return outcome;
             }
         }
 
         return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    private Either<EncinaError, Unit> AutoSanitizeProperty<TRequest>(
+        TRequest request, Type requestType, PropertyInfo prop)
+    {
+        var value = prop.GetValue(request) as string;
+        if (value is null)
+        {
+            return Unit.Default;
+        }
+
+        try
+        {
+            var profile = _options.DefaultProfile ?? SanitizationProfiles.StrictText;
+            var sanitized = _sanitizer.Custom(value, profile);
+            prop.SetValue(request, sanitized);
+            return Unit.Default;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex.ForLogging(),
+                "Auto-sanitization failed for property '{PropertyName}' on {TypeName}",
+                prop.Name, requestType.Name);
+
+            return SanitizationErrors.PropertyError(prop.Name, ex);
+        }
     }
 
     /// <summary>

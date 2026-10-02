@@ -83,7 +83,7 @@ internal static class SecretAuditRecorder
         return new AuditEntry
         {
             Id = Guid.NewGuid(),
-            CorrelationId = requestContext?.CorrelationId ?? Guid.NewGuid().ToString(),
+            CorrelationId = CorrelationIdOf(requestContext),
             UserId = requestContext?.UserId,
             TenantId = requestContext?.TenantId,
             Action = action,
@@ -94,11 +94,17 @@ internal static class SecretAuditRecorder
             TimestampUtc = completedAt.UtcDateTime,
             StartedAtUtc = startedAt,
             CompletedAtUtc = completedAt,
-            Metadata = new Dictionary<string, object?>
-            {
-                ["secretName"] = secretName,
-                ["result"] = isSuccess ? "success" : "failure"
-            }
+            Metadata = MetadataOf(secretName, isSuccess)
         };
     }
+
+    private static string CorrelationIdOf(IRequestContext? requestContext) =>
+        requestContext?.CorrelationId ?? Guid.NewGuid().ToString();
+
+    private static Dictionary<string, object?> MetadataOf(string secretName, bool isSuccess) =>
+        new()
+        {
+            ["secretName"] = secretName,
+            ["result"] = isSuccess ? "success" : "failure"
+        };
 }
