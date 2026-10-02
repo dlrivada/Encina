@@ -285,7 +285,11 @@ async Task<int> RunStandin(string reason)
     psi.Environment.Remove("ANTHROPIC_API_KEY");
     psi.Environment.Remove("ANTHROPIC_AUTH_TOKEN");
     psi.StandardErrorEncoding = Encoding.UTF8;
-    var timeoutSeconds = int.Parse(Get("--standin-timeout-seconds") ?? "600", CultureInfo.InvariantCulture);
+    if (!int.TryParse(Get("--standin-timeout-seconds") ?? "600", NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeoutSeconds) || timeoutSeconds <= 0)
+    {
+        Console.Error.WriteLine("--standin-timeout-seconds must be a positive integer");
+        return 1;
+    }
 
     Process proc;
     try
@@ -317,6 +321,7 @@ async Task<int> RunStandin(string reason)
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 JsonNode? ev;
                 try { ev = JsonNode.Parse(line); } catch (JsonException) { continue; }
+                if (ev is not JsonObject) continue;
                 var type = ev?["type"]?.ToString();
                 if (type == "system" && ev?["subtype"]?.ToString() == "init" && !sawInit)
                 {
@@ -349,7 +354,7 @@ async Task<int> RunStandin(string reason)
         {
             try
             {
-                await proc.StandardInput.WriteAsync(sb.ToString());
+                await proc.StandardInput.WriteAsync(sb.ToString().AsMemory(), timeout.Token);
                 proc.StandardInput.Close();
             }
             catch (IOException)
@@ -357,7 +362,7 @@ async Task<int> RunStandin(string reason)
                 // The CLI exited before reading the prompt (for example an auth failure): its output says why.
             }
             await proc.WaitForExitAsync(timeout.Token);
-            await readTask;
+            await readTask.WaitAsync(timeout.Token);
         }
         catch (OperationCanceledException)
         {
@@ -380,10 +385,14 @@ async Task<int> RunStandin(string reason)
         {
             var detail = $"{result} {reply?["api_error_status"]} {reply?["terminal_reason"]} {stderr}";
             var message = $"stand-in CLI error (exit {proc.ExitCode}): {detail}".TrimEnd();
-            // A login or usage-limit problem is not a per-item failure: exit 4 so a batch stops at once.
-            if (Regex.IsMatch(detail, @"not logged in|please run /login|usage limit|rate limit|limit reached|credit balance|\b(401|429)\b", RegexOptions.IgnoreCase))
+            // A login or usage-limit problem is not a per-item failure: exit 4 so a batch stops at once. Only the
+            // structured status (401/429) and, for a flagged error, the result text count; never stderr digits.
+            var status = reply?["api_error_status"]?.ToString();
+            var authOrLimit = status is "401" or "429"
+                || (isError && Regex.IsMatch(result, @"not logged in|please run /login|usage limit|rate limit|limit reached|credit balance", RegexOptions.IgnoreCase));
+            if (authOrLimit)
             {
-                Console.Error.WriteLine($"{message}\nthe stand-in cannot draft (login or usage limit): fix the login or wait for the limit, or spawn the local-ai-standin agent through the Agent tool");
+                Console.Error.WriteLine($"{message}\nthe stand-in cannot draft (login or usage limit): fix the login or wait for the limit; the local-ai-standin agent shares the same account");
                 return 4;
             }
             Console.Error.WriteLine(message);
