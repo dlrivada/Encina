@@ -29,26 +29,41 @@ internal static partial class SqlSanitizer
         // 1. Escape single quotes (SQL string delimiter): ' → ''
         var result = input.Replace("'", "''", StringComparison.Ordinal);
 
-        // 2. Remove single-line comment markers: --
-        result = result.Replace("--", string.Empty, StringComparison.Ordinal);
+        // 2-5. Removing one dangerous sequence can join the characters around it into a new one
+        // (for example "*;/" becomes "*/"), so repeat the removal until the string is stable.
+        // Every change shortens the string, so the loop always terminates. Quote escaping stays
+        // outside the loop so doubled quotes are never doubled again.
+        string previous;
+        do
+        {
+            previous = result;
+            result = RemoveDangerousSequences(previous);
+        }
+        while (!string.Equals(result, previous, StringComparison.Ordinal));
 
-        // 3. Remove multi-line comment sequences: /* ... */ and unclosed markers
+        return result;
+    }
+
+    private static string RemoveDangerousSequences(string value)
+    {
+        // Single-line comment markers: --
+        var result = value.Replace("--", string.Empty, StringComparison.Ordinal);
+
+        // Multi-line comment sequences: /* ... */ and unclosed markers
         result = BlockCommentPattern().Replace(result, string.Empty);
         result = result.Replace("/*", string.Empty, StringComparison.Ordinal);
         result = result.Replace("*/", string.Empty, StringComparison.Ordinal);
 
-        // 4. Remove semicolons that could terminate statements
+        // Semicolons that could terminate statements
         result = result.Replace(";", string.Empty, StringComparison.Ordinal);
 
-        // 5. Neutralize xp_ extended stored procedure calls (SQL Server)
-        result = ExtendedProcPattern().Replace(result, string.Empty);
-
-        return result;
+        // xp_ extended stored procedure calls (SQL Server), also inside identifiers
+        return ExtendedProcPattern().Replace(result, string.Empty);
     }
 
     [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline | RegexOptions.Compiled)]
     private static partial Regex BlockCommentPattern();
 
-    [GeneratedRegex(@"\bxp_\w+", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    [GeneratedRegex(@"xp_\w*", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex ExtendedProcPattern();
 }

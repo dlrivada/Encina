@@ -4,6 +4,7 @@ using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Encoders;
 using Encina.Security.Sanitization.Profiles;
 using FsCheck;
+using FsCheck.Fluent;
 using FsCheck.Xunit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -83,15 +84,24 @@ public sealed class SanitizationPropertyTests
         return !withoutEscapedQuotes.Contains('\'');
     }
 
-    [Property(MaxTest = 50, Skip = "Known bug #922: SanitizeForSql leaves comment markers after semicolon removal (e.g. '*;/' → '*/')")]
-    public bool SanitizeForSql_NeverContainsCommentMarkers(NonEmptyString value)
+    // Alphabet that makes a removal re-form a marker (e.g. "*;/" -> "*/", "-xp_a-" -> "--").
+    private static Arbitrary<string> SqlMarkerInputs() =>
+        Arb.From(Gen.ArrayOf(Gen.Elements('-', '/', '*', ';', 'x', 'p', '_', 'a', '\'', 'b'))
+            .Select(chars => new string(chars)));
+
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_NeverContainsCommentMarkers()
     {
         var sanitizer = CreateSanitizer();
-        var result = sanitizer.SanitizeForSql(value.Get);
 
-        return !result.Contains("--", StringComparison.Ordinal)
-            && !result.Contains("/*", StringComparison.Ordinal)
-            && !result.Contains("*/", StringComparison.Ordinal);
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+        {
+            var result = sanitizer.SanitizeForSql(value);
+
+            return !result.Contains("--", StringComparison.Ordinal)
+                && !result.Contains("/*", StringComparison.Ordinal)
+                && !result.Contains("*/", StringComparison.Ordinal);
+        });
     }
 
     [Property(MaxTest = 50)]
@@ -102,12 +112,13 @@ public sealed class SanitizationPropertyTests
         return !result.Contains(';');
     }
 
-    [Property(MaxTest = 30)]
-    public bool SanitizeForSql_NeverContainsXpUnderscore(NonEmptyString value)
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_NeverContainsXpUnderscore()
     {
         var sanitizer = CreateSanitizer();
-        var result = sanitizer.SanitizeForSql(value.Get);
-        return !result.Contains("xp_", StringComparison.OrdinalIgnoreCase);
+
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+            !sanitizer.SanitizeForSql(value).Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion

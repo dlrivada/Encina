@@ -150,6 +150,22 @@ public sealed class DefaultSanitizerTests
         result.ShouldNotContain("xp_cmdshell");
     }
 
+    [Theory]
+    [InlineData("*;/", "")]
+    [InlineData("-;-", "")]
+    [InlineData("-/**/-", "")]
+    [InlineData("-xp_a-", "")]
+    [InlineData("//**", "")]
+    [InlineData("**//", "")]
+    [InlineData("xp_", "")]
+    [InlineData("axp_b", "a")]
+    public void SanitizeForSql_RemovalThatReformsMarker_LeavesNoMarker(string input, string expected)
+    {
+        var result = _sut.SanitizeForSql(input);
+
+        result.ShouldBe(expected);
+    }
+
     [Fact]
     public void SanitizeForSql_PlainText_ReturnsUnchanged()
     {
