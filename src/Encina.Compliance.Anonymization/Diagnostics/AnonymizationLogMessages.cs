@@ -197,15 +197,15 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8421,
         Level = LogLevel.Warning,
-        Message = "Encryption failed. KeyId={KeyId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void EncryptionFailed(this ILogger logger, string keyId, string errorMessage);
+        Message = "Encryption failed. KeyId={KeyId}, ErrorCode={ErrorCode}")]
+    internal static partial void EncryptionFailed(this ILogger logger, string keyId, string errorCode);
 
     /// <summary>Decryption operation failed.</summary>
     [LoggerMessage(
         EventId = 8422,
         Level = LogLevel.Warning,
-        Message = "Decryption failed. KeyId={KeyId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void DecryptionFailed(this ILogger logger, string keyId, string errorMessage);
+        Message = "Decryption failed. KeyId={KeyId}, ErrorCode={ErrorCode}")]
+    internal static partial void DecryptionFailed(this ILogger logger, string keyId, string errorCode);
 
     // ========================================================================
     // Pseudonymization log messages (8423-8426)
@@ -222,8 +222,8 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8424,
         Level = LogLevel.Warning,
-        Message = "Pseudonymization failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void PseudonymizationFailed(this ILogger logger, string errorMessage);
+        Message = "Pseudonymization failed. ErrorCode={ErrorCode}")]
+    internal static partial void PseudonymizationFailed(this ILogger logger, string errorCode);
 
     /// <summary>Depseudonymization operation completed successfully.</summary>
     [LoggerMessage(
@@ -236,8 +236,8 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8426,
         Level = LogLevel.Warning,
-        Message = "Depseudonymization failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void DepseudonymizationFailed(this ILogger logger, string errorMessage);
+        Message = "Depseudonymization failed. ErrorCode={ErrorCode}")]
+    internal static partial void DepseudonymizationFailed(this ILogger logger, string errorCode);
 
     // ========================================================================
     // Tokenization log messages (8427-8431)
@@ -268,8 +268,8 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8431,
         Level = LogLevel.Warning,
-        Message = "Tokenization failed. ErrorMessage={ErrorMessage}")]
-    internal static partial void TokenizationFailed(this ILogger logger, string errorMessage);
+        Message = "Tokenization failed. ErrorCode={ErrorCode}")]
+    internal static partial void TokenizationFailed(this ILogger logger, string errorCode);
 
     // ========================================================================
     // Risk assessment log messages (8432-8434)
@@ -286,8 +286,8 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8433,
         Level = LogLevel.Warning,
-        Message = "Risk assessment failed. DatasetSize={DatasetSize}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RiskAssessmentFailed(this ILogger logger, int datasetSize, string errorMessage);
+        Message = "Risk assessment failed. DatasetSize={DatasetSize}, ErrorCode={ErrorCode}")]
+    internal static partial void RiskAssessmentFailed(this ILogger logger, int datasetSize, string errorCode);
 
     /// <summary>Re-identification risk threshold exceeded.</summary>
     [LoggerMessage(
@@ -311,6 +311,6 @@ internal static partial class AnonymizationLogMessages
     [LoggerMessage(
         EventId = 8436,
         Level = LogLevel.Warning,
-        Message = "Failed to record anonymization audit entry. Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void AuditEntryFailed(this ILogger logger, string operation, string errorMessage);
+        Message = "Failed to record anonymization audit entry. Operation={Operation}, ErrorCode={ErrorCode}")]
+    internal static partial void AuditEntryFailed(this ILogger logger, string operation, string errorCode);
 }
