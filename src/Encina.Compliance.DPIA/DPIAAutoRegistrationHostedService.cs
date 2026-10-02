@@ -102,6 +102,19 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
         // Step 1: Discover types with [RequiresDPIA] attribute
         var discoveredTypes = new Dictionary<string, Type>();
 
+        AddAttributedTypes(assemblies, discoveredTypes);
+
+        // Step 2: Optionally apply auto-detection heuristics
+        if (_options.AutoDetectHighRisk)
+        {
+            AddAutoDetectedTypes(assemblies, discoveredTypes);
+        }
+
+        return discoveredTypes;
+    }
+
+    private static void AddAttributedTypes(IReadOnlyList<Assembly> assemblies, Dictionary<string, Type> discoveredTypes)
+    {
         ScanTypes(assemblies, type =>
         {
             if (type.GetCustomAttribute<RequiresDPIAAttribute>() is not null)
@@ -109,25 +122,22 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
                 discoveredTypes.TryAdd(type.FullName ?? type.Name, type);
             }
         });
+    }
 
-        // Step 2: Optionally apply auto-detection heuristics
-        if (_options.AutoDetectHighRisk)
+    private void AddAutoDetectedTypes(IReadOnlyList<Assembly> assemblies, Dictionary<string, Type> discoveredTypes)
+    {
+        var autoDetector = new DPIAAutoDetector(_logger);
+
+        ScanTypes(assemblies, type =>
         {
-            var autoDetector = new DPIAAutoDetector(_logger);
+            var fullName = type.FullName ?? type.Name;
 
-            ScanTypes(assemblies, type =>
+            // Skip types already discovered via attribute
+            if (!discoveredTypes.ContainsKey(fullName) && autoDetector.IsHighRisk(type))
             {
-                var fullName = type.FullName ?? type.Name;
-
-                // Skip types already discovered via attribute
-                if (!discoveredTypes.ContainsKey(fullName) && autoDetector.IsHighRisk(type))
-                {
-                    discoveredTypes.TryAdd(fullName, type);
-                }
-            });
-        }
-
-        return discoveredTypes;
+                discoveredTypes.TryAdd(fullName, type);
+            }
+        });
     }
 
     private static void ScanTypes(IReadOnlyList<Assembly> assemblies, Action<Type> visit)

@@ -111,6 +111,18 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
+        return await DispatchAsync(context, nextStep, cancellationToken).ConfigureAwait(false);
+    }
+
+    // ================================================================
+    // Private helpers
+    // ================================================================
+
+    private ValueTask<Either<EncinaError, TResponse>> DispatchAsync(
+        IRequestContext context,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
@@ -118,7 +130,7 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Disabled)
         {
             _logger.ProcessorPipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         // Step 2: Check for [RequiresProcessor] attribute (cached)
@@ -133,7 +145,7 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             {
                 { ProcessorAgreementDiagnostics.TagRequestType, requestTypeName }
             });
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         var processorIdStr = attribute.ProcessorId;
@@ -142,21 +154,25 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         if (!Guid.TryParse(processorIdStr, out var processorId))
         {
             _logger.ProcessorPipelineNoAttribute(requestTypeName);
-            return Left<EncinaError, TResponse>(
-                ProcessorAgreementErrors.ValidationFailed(processorIdStr, $"ProcessorId '{processorIdStr}' is not a valid GUID."));
+            return ValueTask.FromResult(Left<EncinaError, TResponse>(
+                ProcessorAgreementErrors.ValidationFailed(processorIdStr, $"ProcessorId '{processorIdStr}' is not a valid GUID.")));
         }
 
+        return RunTracedCheckAsync(context, requestTypeName, processorIdStr, processorId, nextStep, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> RunTracedCheckAsync(
+        IRequestContext context,
+        string requestTypeName,
+        string processorIdStr,
+        Guid processorId,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         // Step 3: Start tracing and logging
         var startedAt = Stopwatch.GetTimestamp();
         using var activity = ProcessorAgreementDiagnostics.StartPipelineCheck(requestTypeName);
-        activity?.SetTag(ProcessorAgreementDiagnostics.TagProcessorId, processorIdStr);
-        activity?.SetTag(ProcessorAgreementDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
-
-        // Propagate tenant context to traces for cross-cutting observability
-        if (context.TenantId is not null)
-        {
-            activity?.SetTag("encina.tenant_id", context.TenantId);
-        }
+        TagActivity(activity, context, processorIdStr);
 
         _logger.ProcessorPipelineStarted(requestTypeName, processorIdStr, _options.EnforcementMode.ToString());
 
@@ -172,9 +188,17 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         }
     }
 
-    // ================================================================
-    // Private helpers
-    // ================================================================
+    private void TagActivity(Activity? activity, IRequestContext context, string processorIdStr)
+    {
+        activity?.SetTag(ProcessorAgreementDiagnostics.TagProcessorId, processorIdStr);
+        activity?.SetTag(ProcessorAgreementDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
+
+        // Propagate tenant context to traces for cross-cutting observability
+        if (context.TenantId is not null)
+        {
+            activity?.SetTag("encina.tenant_id", context.TenantId);
+        }
+    }
 
     private readonly record struct CheckContext(
         Activity? Activity,

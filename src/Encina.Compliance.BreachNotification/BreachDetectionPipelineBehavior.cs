@@ -173,6 +173,16 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
             return result;
         }
 
+        return await EnforceBreachesAsync(requestTypeName, breaches, result, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> EnforceBreachesAsync(
+        string requestTypeName,
+        IReadOnlyList<PotentialBreach> breaches,
+        Either<EncinaError, TResponse> result,
+        CancellationToken cancellationToken)
+    {
         // Breaches detected
         var ruleNames = string.Join(", ", breaches.Select(b => b.DetectionRuleName));
 
@@ -182,16 +192,7 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
             requestTypeName, breaches.Count, ruleNames);
 
         // Record each detected breach via the event-sourced service
-        foreach (var breach in breaches)
-        {
-            await _breachService.RecordBreachAsync(
-                nature: breach.Description,
-                severity: breach.Severity,
-                detectedByRule: breach.DetectionRuleName,
-                estimatedAffectedSubjects: 0,
-                description: $"Auto-detected by pipeline for request '{requestTypeName}'",
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-        }
+        await RecordBreachesAsync(requestTypeName, breaches, cancellationToken).ConfigureAwait(false);
 
         // Block mode — return error to the caller
         if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
@@ -202,6 +203,23 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
 
         // Warn mode — log and return the original response
         return result;
+    }
+
+    private async ValueTask RecordBreachesAsync(
+        string requestTypeName,
+        IReadOnlyList<PotentialBreach> breaches,
+        CancellationToken cancellationToken)
+    {
+        foreach (var breach in breaches)
+        {
+            await _breachService.RecordBreachAsync(
+                nature: breach.Description,
+                severity: breach.Severity,
+                detectedByRule: breach.DetectionRuleName,
+                estimatedAffectedSubjects: 0,
+                description: $"Auto-detected by pipeline for request '{requestTypeName}'",
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private Either<EncinaError, TResponse> HandleDetectionFailure(

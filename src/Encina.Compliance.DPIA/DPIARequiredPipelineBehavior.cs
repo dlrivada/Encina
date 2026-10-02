@@ -110,6 +110,14 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
+        return await DispatchAsync(context, nextStep, cancellationToken).ConfigureAwait(false);
+    }
+
+    private ValueTask<Either<EncinaError, TResponse>> DispatchAsync(
+        IRequestContext context,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
@@ -117,7 +125,7 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
         if (_options.EnforcementMode == DPIAEnforcementMode.Disabled)
         {
             _logger.DPIAPipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         // Step 2: Check for [RequiresDPIA] attribute (cached)
@@ -132,19 +140,25 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
             {
                 { DPIADiagnostics.TagRequestType, requestTypeName }
             });
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
+
+        return RunTracedCheckAsync(context, requestType, attribute, nextStep, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> RunTracedCheckAsync(
+        IRequestContext context,
+        Type requestType,
+        RequiresDPIAAttribute attribute,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
+        var requestTypeName = requestType.Name;
 
         // Step 3: Start tracing and logging
         var startedAt = Stopwatch.GetTimestamp();
         using var activity = DPIADiagnostics.StartPipelineCheck(requestTypeName);
-        activity?.SetTag(DPIADiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
-
-        // Propagate tenant and module context to traces for cross-cutting observability
-        if (context.TenantId is not null)
-        {
-            activity?.SetTag("encina.tenant_id", context.TenantId);
-        }
+        TagActivity(activity, context);
 
         _logger.DPIAPipelineStarted(requestTypeName, _options.EnforcementMode.ToString());
 
@@ -172,6 +186,17 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
     // ================================================================
     // Private helpers
     // ================================================================
+
+    private void TagActivity(Activity? activity, IRequestContext context)
+    {
+        activity?.SetTag(DPIADiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
+
+        // Propagate tenant and module context to traces for cross-cutting observability
+        if (context.TenantId is not null)
+        {
+            activity?.SetTag("encina.tenant_id", context.TenantId);
+        }
+    }
 
     private readonly record struct CheckContext(
         Activity? Activity,

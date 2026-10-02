@@ -89,6 +89,14 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        return await DispatchAsync(request, nextStep, cancellationToken).ConfigureAwait(false);
+    }
+
+    private ValueTask<Either<EncinaError, TResponse>> DispatchAsync(
+        TRequest request,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
@@ -96,7 +104,7 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         if (_options.EnforcementMode == AIActEnforcementMode.Disabled)
         {
             _logger.PipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         // Step 2: Check for AI Act attributes (cached)
@@ -110,8 +118,20 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
             {
                 { AIActDiagnostics.TagRequestType, requestTypeName }
             });
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
+
+        return RunCheckAsync(request, attrInfo, requestType, nextStep, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> RunCheckAsync(
+        TRequest request,
+        AIActAttributeInfo attrInfo,
+        Type requestType,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
+        var requestTypeName = requestType.Name;
 
         // Step 3: Start timing and activity span
         var startTimestamp = Stopwatch.GetTimestamp();
@@ -128,34 +148,48 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
 
         var check = new CheckContext(activity, startTimestamp, requestType, requestTypeName);
 
-        // Handle validator errors
-        if (validationResult.IsLeft)
-        {
-            return HandleValidatorError((EncinaError)validationResult, check);
-        }
-
-        var compliance = (AIActComplianceResult)validationResult;
-        AIActDiagnostics.SetSystemId(activity, compliance.SystemId);
-        AIActDiagnostics.SetRiskLevel(activity, compliance.RiskLevel.ToString());
-
-        // Step 5: Prohibited practices are ALWAYS blocked (Art. 5 — no exceptions)
-        if (compliance.IsProhibited)
-        {
-            return BlockProhibited(compliance, check);
-        }
-
-        // Step 6: Check for violations in Block vs Warn mode
-        if (TryBlockOnViolations(compliance, check, out var blocked))
+        if (TryBlock(validationResult, check, out var blocked, out var compliance))
         {
             return blocked;
         }
 
         // Steps 7 and 8: Human oversight (Art. 14) and transparency (Art. 13, Art. 50) obligations
-        LogObligations(compliance, requestTypeName);
+        LogObligations(compliance!, requestTypeName);
 
         // Step 9: Record success and proceed
-        RecordPassed(activity, startTimestamp, requestTypeName, compliance.RiskLevel.ToString());
+        RecordPassed(activity, startTimestamp, requestTypeName, compliance!.RiskLevel.ToString());
         return await nextStep().ConfigureAwait(false);
+    }
+
+    private bool TryBlock(
+        Either<EncinaError, AIActComplianceResult> validationResult,
+        CheckContext check,
+        out Either<EncinaError, TResponse> blocked,
+        out AIActComplianceResult? compliance)
+    {
+        blocked = default;
+        compliance = null;
+
+        // Handle validator errors
+        if (validationResult.IsLeft)
+        {
+            blocked = HandleValidatorError((EncinaError)validationResult, check);
+            return true;
+        }
+
+        compliance = (AIActComplianceResult)validationResult;
+        AIActDiagnostics.SetSystemId(check.Activity, compliance.SystemId);
+        AIActDiagnostics.SetRiskLevel(check.Activity, compliance.RiskLevel.ToString());
+
+        // Step 5: Prohibited practices are ALWAYS blocked (Art. 5 — no exceptions)
+        if (compliance.IsProhibited)
+        {
+            blocked = BlockProhibited(compliance, check);
+            return true;
+        }
+
+        // Step 6: Check for violations in Block vs Warn mode
+        return TryBlockOnViolations(compliance, check, out blocked);
     }
 
     private static AIActAttributeInfo? ResolveAttributeInfo(Type type)
@@ -169,10 +203,11 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
             return null;
         }
 
-        var systemId = highRisk?.SystemId ?? oversight?.SystemId;
-
-        return new AIActAttributeInfo(highRisk, oversight, transparency, systemId);
+        return new AIActAttributeInfo(highRisk, oversight, transparency, ResolveSystemId(highRisk, oversight));
     }
+
+    private static string? ResolveSystemId(HighRiskAIAttribute? highRisk, RequireHumanOversightAttribute? oversight)
+        => highRisk?.SystemId ?? oversight?.SystemId;
 
     private Either<EncinaError, TResponse> HandleValidatorError(EncinaError innerError, CheckContext check)
     {
