@@ -54,6 +54,19 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         ICdcPositionStore positionStore,
         ILogger<DebeziumKafkaConnector> logger,
         TimeProvider? timeProvider = null)
+        : this(options, positionStore, logger, timeProvider, consumer: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance with an explicit consumer (tests supply a fake; <c>null</c> builds the Kafka consumer).
+    /// </summary>
+    internal DebeziumKafkaConnector(
+        DebeziumKafkaOptions options,
+        ICdcPositionStore positionStore,
+        ILogger<DebeziumKafkaConnector> logger,
+        TimeProvider? timeProvider,
+        IConsumer<string, string>? consumer)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(positionStore);
@@ -63,7 +76,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         _positionStore = positionStore;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _consumer = BuildConsumer();
+        _consumer = consumer ?? BuildConsumer();
         SubscribeToTopics();
     }
 
@@ -107,86 +120,39 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            ConsumeResult<string, string>? consumeResult = null;
-            Either<EncinaError, ChangeEvent>? consumeError = null;
-
-            try
-            {
-                consumeResult = _consumer.Consume(cancellationToken);
-            }
-            catch (OperationCanceledException)
+            var outcome = TryConsume(cancellationToken);
+            if (outcome.Cancelled)
             {
                 yield break;
             }
-            catch (ConsumeException ex)
-            {
-                DebeziumKafkaLog.ConsumerError(_logger, ex.Error.Code.ToString());
-                consumeError = Left(CdcErrors.StreamInterrupted(ex));
-            }
 
-            if (consumeError is not null)
+            if (outcome.Error is not null)
             {
-                yield return consumeError.Value;
+                yield return outcome.Error.Value;
                 continue;
             }
 
+            var consumeResult = outcome.Result;
             if (consumeResult?.Message?.Value is null)
             {
                 continue;
             }
 
-            var topic = consumeResult.Topic;
-            var partition = consumeResult.Partition.Value;
-            var offset = consumeResult.Offset.Value;
+            DebeziumKafkaLog.EventConsumed(
+                _logger, consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value);
 
-            DebeziumKafkaLog.EventConsumed(_logger, topic, partition, offset);
+            var result = ParseAndEnrich(consumeResult);
 
-            // Parse the Debezium event JSON
-            Either<EncinaError, ChangeEvent> result;
-            try
+            // Skip events that were already processed before restart
+            if (result.IsRight && !passedResumePoint)
             {
-                using var doc = JsonDocument.Parse(consumeResult.Message.Value);
-                var eventJson = doc.RootElement.Clone();
-                result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger, _timeProvider);
-            }
-            catch (JsonException ex)
-            {
-                result = Left(CdcErrors.DeserializationFailed(
-                    topic,
-                    typeof(ChangeEvent),
-                    ex));
-            }
-
-            // Replace position with Kafka-specific position that includes topic/partition/offset
-            if (result.IsRight)
-            {
-                var changeEvent = (ChangeEvent)result;
-                var kafkaPosition = new DebeziumKafkaPosition(
-                    changeEvent.Metadata.Position is DebeziumCdcPosition debPos
-                        ? debPos.OffsetJson
-                        : "{\"kafka\":true}",
-                    topic,
-                    partition,
-                    offset);
-
-                var enrichedMetadata = changeEvent.Metadata with { Position = kafkaPosition };
-                var enrichedEvent = changeEvent with { Metadata = enrichedMetadata };
-                result = Right<EncinaError, ChangeEvent>(enrichedEvent);
-
-                // Skip events that were already processed before restart
-                if (!passedResumePoint)
+                if (IsAlreadyProcessed(resumePosition, consumeResult))
                 {
-                    if (resumePosition is not null &&
-                        string.Equals(topic, resumePosition.Topic, StringComparison.Ordinal) &&
-                        partition == resumePosition.Partition &&
-                        offset <= resumePosition.Offset)
-                    {
-                        DebeziumKafkaLog.EventSkippedAlreadyProcessed(_logger);
-                        continue;
-                    }
-
-                    passedResumePoint = true;
+                    DebeziumKafkaLog.EventSkippedAlreadyProcessed(_logger);
+                    continue;
                 }
+
+                passedResumePoint = true;
             }
 
             yield return result;
@@ -195,64 +161,82 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
         DebeziumKafkaLog.ConsumerStopped(_logger);
     }
 
+    private readonly record struct ConsumeOutcome(
+        bool Cancelled,
+        ConsumeResult<string, string>? Result,
+        Either<EncinaError, ChangeEvent>? Error);
+
+    /// <summary>
+    /// Polls the consumer once; cancellation and consume errors are reported through the outcome
+    /// because an iterator cannot yield from inside a catch block.
+    /// </summary>
+    private ConsumeOutcome TryConsume(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return new ConsumeOutcome(false, _consumer.Consume(cancellationToken), null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new ConsumeOutcome(true, null, null);
+        }
+        catch (ConsumeException ex)
+        {
+            DebeziumKafkaLog.ConsumerError(_logger, ex.Error.Code.ToString());
+            Either<EncinaError, ChangeEvent> error = Left(CdcErrors.StreamInterrupted(ex));
+            return new ConsumeOutcome(false, null, error);
+        }
+    }
+
+    /// <summary>
+    /// Parses the Debezium event JSON and, on success, replaces the position with the Kafka-specific
+    /// one that carries topic, partition and offset.
+    /// </summary>
+    private Either<EncinaError, ChangeEvent> ParseAndEnrich(ConsumeResult<string, string> consumeResult)
+    {
+        var topic = consumeResult.Topic;
+        Either<EncinaError, ChangeEvent> result;
+        try
+        {
+            using var doc = JsonDocument.Parse(consumeResult.Message.Value);
+            var eventJson = doc.RootElement.Clone();
+            result = DebeziumEventMapper.MapEvent(eventJson, _options.EventFormat, _logger, _timeProvider);
+        }
+        catch (JsonException ex)
+        {
+            return Left(CdcErrors.DeserializationFailed(topic, typeof(ChangeEvent), ex));
+        }
+
+        if (result.IsLeft)
+        {
+            return result;
+        }
+
+        var changeEvent = (ChangeEvent)result;
+        var kafkaPosition = new DebeziumKafkaPosition(
+            changeEvent.Metadata.Position is DebeziumCdcPosition debPos
+                ? debPos.OffsetJson
+                : "{\"kafka\":true}",
+            topic,
+            consumeResult.Partition.Value,
+            consumeResult.Offset.Value);
+
+        var enrichedMetadata = changeEvent.Metadata with { Position = kafkaPosition };
+        return Right<EncinaError, ChangeEvent>(changeEvent with { Metadata = enrichedMetadata });
+    }
+
+    private static bool IsAlreadyProcessed(DebeziumKafkaPosition? resumePosition, ConsumeResult<string, string> consumeResult) =>
+        resumePosition is not null &&
+        string.Equals(consumeResult.Topic, resumePosition.Topic, StringComparison.Ordinal) &&
+        consumeResult.Partition.Value == resumePosition.Partition &&
+        consumeResult.Offset.Value <= resumePosition.Offset;
+
     /// <summary>
     /// Builds the Kafka consumer from configured options.
     /// </summary>
     private IConsumer<string, string> BuildConsumer()
     {
-        var config = new ConsumerConfig
-        {
-            BootstrapServers = _options.BootstrapServers,
-            GroupId = _options.GroupId,
-            AutoOffsetReset = _options.AutoOffsetReset switch
-            {
-                "latest" => Confluent.Kafka.AutoOffsetReset.Latest,
-                "earliest" => Confluent.Kafka.AutoOffsetReset.Earliest,
-                _ => Confluent.Kafka.AutoOffsetReset.Earliest
-            },
-            EnableAutoCommit = false,
-            SessionTimeoutMs = _options.SessionTimeoutMs,
-            MaxPollIntervalMs = _options.MaxPollIntervalMs
-        };
-
-        // Apply security settings if configured
-        if (!string.IsNullOrEmpty(_options.SecurityProtocol))
-        {
-            config.SecurityProtocol = _options.SecurityProtocol switch
-            {
-                "SSL" => Confluent.Kafka.SecurityProtocol.Ssl,
-                "SASL_PLAINTEXT" => Confluent.Kafka.SecurityProtocol.SaslPlaintext,
-                "SASL_SSL" => Confluent.Kafka.SecurityProtocol.SaslSsl,
-                _ => Confluent.Kafka.SecurityProtocol.Plaintext
-            };
-        }
-
-        if (!string.IsNullOrEmpty(_options.SaslMechanism))
-        {
-            config.SaslMechanism = _options.SaslMechanism switch
-            {
-                "PLAIN" => Confluent.Kafka.SaslMechanism.Plain,
-                "SCRAM-SHA-256" => Confluent.Kafka.SaslMechanism.ScramSha256,
-                "SCRAM-SHA-512" => Confluent.Kafka.SaslMechanism.ScramSha512,
-                "GSSAPI" => Confluent.Kafka.SaslMechanism.Gssapi,
-                _ => Confluent.Kafka.SaslMechanism.Plain
-            };
-        }
-
-        if (!string.IsNullOrEmpty(_options.SaslUsername))
-        {
-            config.SaslUsername = _options.SaslUsername;
-        }
-
-        if (!string.IsNullOrEmpty(_options.SaslPassword))
-        {
-            config.SaslPassword = _options.SaslPassword;
-        }
-
-        if (!string.IsNullOrEmpty(_options.SslCaLocation))
-        {
-            config.SslCaLocation = _options.SslCaLocation;
-        }
+        var config = BuildConfig(_options);
 
         return new ConsumerBuilder<string, string>(config)
             .SetPartitionsAssignedHandler((_, partitions) =>
@@ -270,6 +254,72 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
                 DebeziumKafkaLog.ConsumerError(_logger, error.Code.ToString());
             })
             .Build();
+    }
+
+    /// <summary>
+    /// Maps the options to the Confluent consumer configuration.
+    /// </summary>
+    internal static ConsumerConfig BuildConfig(DebeziumKafkaOptions options)
+    {
+        var config = new ConsumerConfig
+        {
+            BootstrapServers = options.BootstrapServers,
+            GroupId = options.GroupId,
+            AutoOffsetReset = options.AutoOffsetReset == "latest"
+                ? Confluent.Kafka.AutoOffsetReset.Latest
+                : Confluent.Kafka.AutoOffsetReset.Earliest,
+            EnableAutoCommit = false,
+            SessionTimeoutMs = options.SessionTimeoutMs,
+            MaxPollIntervalMs = options.MaxPollIntervalMs
+        };
+
+        ApplySecurity(config, options);
+        return config;
+    }
+
+    private static void ApplySecurity(ConsumerConfig config, DebeziumKafkaOptions options)
+    {
+        if (!string.IsNullOrEmpty(options.SecurityProtocol))
+        {
+            config.SecurityProtocol = options.SecurityProtocol switch
+            {
+                "SSL" => Confluent.Kafka.SecurityProtocol.Ssl,
+                "SASL_PLAINTEXT" => Confluent.Kafka.SecurityProtocol.SaslPlaintext,
+                "SASL_SSL" => Confluent.Kafka.SecurityProtocol.SaslSsl,
+                _ => Confluent.Kafka.SecurityProtocol.Plaintext
+            };
+        }
+
+        if (!string.IsNullOrEmpty(options.SaslMechanism))
+        {
+            config.SaslMechanism = options.SaslMechanism switch
+            {
+                "SCRAM-SHA-256" => Confluent.Kafka.SaslMechanism.ScramSha256,
+                "SCRAM-SHA-512" => Confluent.Kafka.SaslMechanism.ScramSha512,
+                "GSSAPI" => Confluent.Kafka.SaslMechanism.Gssapi,
+                _ => Confluent.Kafka.SaslMechanism.Plain
+            };
+        }
+
+        ApplyCredentials(config, options);
+    }
+
+    private static void ApplyCredentials(ConsumerConfig config, DebeziumKafkaOptions options)
+    {
+        if (!string.IsNullOrEmpty(options.SaslUsername))
+        {
+            config.SaslUsername = options.SaslUsername;
+        }
+
+        if (!string.IsNullOrEmpty(options.SaslPassword))
+        {
+            config.SaslPassword = options.SaslPassword;
+        }
+
+        if (!string.IsNullOrEmpty(options.SslCaLocation))
+        {
+            config.SslCaLocation = options.SslCaLocation;
+        }
     }
 
     /// <summary>

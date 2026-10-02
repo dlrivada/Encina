@@ -61,6 +61,82 @@ public sealed class SecretsResiliencePipelineFactoryTests
 
     #endregion
 
+    #region Create - Pipeline behaviour
+
+    [Fact]
+    public async Task Execute_WhenATransientFailureIsRetried_LogsTheExceptionTypeNeverItsMessage()
+    {
+        const string Sentinel = "vault secret-for-patient-12345 unreachable";
+        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        var options = new SecretsResilienceOptions
+        {
+            MaxRetryAttempts = 1,
+            RetryBaseDelay = TimeSpan.Zero,
+            RetryMaxDelay = TimeSpan.FromMilliseconds(10)
+        };
+        var pipeline = SecretsResiliencePipelineFactory.Create(options, new SecretsCircuitBreakerState(), _logger);
+        var attempts = 0;
+
+        var result = await pipeline.ExecuteAsync(async _ =>
+        {
+            await Task.Yield();
+            if (Interlocked.Increment(ref attempts) == 1)
+            {
+                throw new TransientSecretException(EncinaErrors.Create("secrets.provider_unavailable", Sentinel));
+            }
+
+            return 42;
+        });
+
+        result.ShouldBe(42);
+        attempts.ShouldBe(2);
+        var logged = _logger.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(ILogger.Log))
+            .Select(call => call.GetArguments()[2]?.ToString() ?? string.Empty)
+            .ToList();
+        logged.ShouldContain(text => text.Contains(nameof(TransientSecretException)));
+        logged.ShouldNotContain(text => text.Contains(Sentinel));
+    }
+
+    [Fact]
+    public async Task Execute_WhenRepeatedFailuresTripTheBreaker_StateBecomesOpened()
+    {
+        var options = new SecretsResilienceOptions
+        {
+            MaxRetryAttempts = 0,
+            CircuitBreakerMinimumThroughput = 2,
+            CircuitBreakerFailureRatio = 0.5,
+            CircuitBreakerSamplingDuration = TimeSpan.FromSeconds(30),
+            CircuitBreakerBreakDuration = TimeSpan.FromSeconds(30)
+        };
+        var state = new SecretsCircuitBreakerState();
+        var pipeline = SecretsResiliencePipelineFactory.Create(options, state, _logger);
+
+        for (var i = 0; i < 2; i++)
+        {
+            await Should.ThrowAsync<IOException>(async () =>
+                await pipeline.ExecuteAsync<int>(_ => throw new IOException("disk")));
+        }
+
+        state.State.ShouldBe(CircuitBreakerStateValue.Opened);
+    }
+
+    [Fact]
+    public async Task Execute_WhenTheOperationExceedsTheTimeout_ThrowsTimeoutRejected()
+    {
+        var options = new SecretsResilienceOptions
+        {
+            MaxRetryAttempts = 0,
+            OperationTimeout = TimeSpan.FromMilliseconds(50)
+        };
+        var pipeline = SecretsResiliencePipelineFactory.Create(options, new SecretsCircuitBreakerState(), _logger);
+
+        await Should.ThrowAsync<global::Polly.Timeout.TimeoutRejectedException>(async () =>
+            await pipeline.ExecuteAsync(async token => await Task.Delay(Timeout.InfiniteTimeSpan, token)));
+    }
+
+    #endregion
+
     #region Create - Null Arguments
 
     [Fact]
