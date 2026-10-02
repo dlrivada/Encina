@@ -27,6 +27,10 @@ public sealed class AddEncinaServiceGraphTests
 
     public sealed record GraphRequest : IRequest<GraphResponse>;
 
+    public sealed record GraphCommand : ICommand<GraphResponse>;
+
+    public sealed record GraphQuery : IQuery<GraphResponse>;
+
     public sealed record GraphResponse;
 
     public sealed class GraphBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
@@ -105,7 +109,7 @@ public sealed class AddEncinaServiceGraphTests
         var act = () => AssertGraphResolves(services, added);
 
         // Assert
-        act.ShouldThrow<InvalidOperationException>();
+        act.ShouldThrow<InvalidOperationException>().Message.ShouldContain(nameof(IRequestContextAccessor));
     }
 
     private static List<ServiceDescriptor> Capture(IServiceCollection services, Action<IServiceCollection> register)
@@ -117,9 +121,6 @@ public sealed class AddEncinaServiceGraphTests
 
     private static void AssertGraphResolves(IServiceCollection services, IReadOnlyList<ServiceDescriptor> added)
     {
-        StrictOptions.ValidateOnBuild.ShouldBeTrue();
-        StrictOptions.ValidateScopes.ShouldBeTrue();
-
         using var provider = services.BuildServiceProvider(StrictOptions);
         using var scope = provider.CreateScope();
 
@@ -130,54 +131,54 @@ public sealed class AddEncinaServiceGraphTests
 
         foreach (var serviceType in serviceTypes)
         {
-            var resolvable = serviceType.IsGenericTypeDefinition
-                ? CloseOverGraphPair(serviceType)
-                : serviceType;
-
-            if (resolvable is null)
-            {
-                continue;
-            }
-
             if (NamedServiceTypes.Contains(serviceType))
             {
                 scope.ServiceProvider.GetRequiredService(serviceType).ShouldNotBeNull();
             }
             else if (serviceType.IsGenericTypeDefinition)
             {
-                // An open registration may legitimately yield nothing for the test pair (generic
-                // constraints of the implementation); resolving must still not throw.
-                Should.NotThrow(() => scope.ServiceProvider.GetServices(resolvable).ToList());
+                // An open registration may legitimately yield nothing for a given request kind
+                // (generic constraints of the implementation); resolving must still not throw.
+                foreach (var closed in CloseOverRequestKinds(serviceType))
+                {
+                    Should.NotThrow(() => scope.ServiceProvider.GetServices(closed).ToList());
+                }
             }
             else
             {
-                scope.ServiceProvider.GetServices(resolvable).ShouldNotBeEmpty($"{resolvable} resolved to no implementation");
+                scope.ServiceProvider.GetServices(serviceType).ShouldNotBeEmpty($"{serviceType} resolved to no implementation");
             }
         }
+
+        // Encina's own open-generic behaviors only apply to commands and queries: prove they are
+        // instantiated, so a missing dependency of theirs cannot hide behind an empty result.
+        scope.ServiceProvider.GetServices<IPipelineBehavior<GraphCommand, GraphResponse>>()
+            .ShouldNotBeEmpty("no pipeline behavior resolved for a command");
+        scope.ServiceProvider.GetServices<IPipelineBehavior<GraphQuery, GraphResponse>>()
+            .ShouldNotBeEmpty("no pipeline behavior resolved for a query");
     }
 
-    private static Type? CloseOverGraphPair(Type openGeneric)
+    private static IEnumerable<Type> CloseOverRequestKinds(Type openGeneric)
     {
-        var arguments = openGeneric.GetGenericArguments().Length switch
+        if (openGeneric.GetGenericArguments().Length != 2)
         {
-            1 => new[] { typeof(GraphRequest) },
-            2 => [typeof(GraphRequest), typeof(GraphResponse)],
-            _ => null,
-        };
-
-        if (arguments is null)
-        {
-            return null;
+            yield break;
         }
 
-        try
+        foreach (var request in new[] { typeof(GraphRequest), typeof(GraphCommand), typeof(GraphQuery) })
         {
-            return openGeneric.MakeGenericType(arguments);
-        }
-        catch (ArgumentException)
-        {
-            // The generic constraints exclude the test pair (a behavior for another request kind).
-            return null;
+            Type? closed;
+            try
+            {
+                closed = openGeneric.MakeGenericType(request, typeof(GraphResponse));
+            }
+            catch (ArgumentException)
+            {
+                // The service type's own constraints exclude this request kind.
+                continue;
+            }
+
+            yield return closed;
         }
     }
 }
