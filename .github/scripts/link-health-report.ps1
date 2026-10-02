@@ -51,12 +51,14 @@ $script:BodyHeaders = @(
 function Get-StatusCode {
     param($Status)
     if ($null -eq $Status) { return $null }
+    # The code is preferred; the text is a fallback so a 404/410 is never read as transient because
+    # lychee changed its text format ("Rejected status code: 404 Not Found", "404 Not Found", ...).
     if ($Status -is [string]) {
-        if ($Status -match '^\s*(\d{3})\b') { return [int] $Matches[1] }
+        if ($Status -match '\b(\d{3})\b') { return [int] $Matches[1] }
         return $null
     }
     if ($Status.PSObject.Properties['code'] -and $null -ne $Status.code) { return [int] $Status.code }
-    if ($Status.PSObject.Properties['text'] -and $Status.text -match '^\s*(\d{3})\b') { return [int] $Matches[1] }
+    if ($Status.PSObject.Properties['text'] -and $Status.text -match '\b(\d{3})\b') { return [int] $Matches[1] }
     return $null
 }
 
@@ -78,7 +80,8 @@ function Read-LinkFailures {
         if ($json.PSObject.Properties[$name]) { $map = $json.$name; break }
     }
     $failures = [System.Collections.Generic.List[object]]::new()
-    if ($null -eq $map) { return , $failures }
+    # Fail closed on schema drift: a report without the failure map must never read as a clean scan.
+    if ($null -eq $map) { throw "Unrecognized lychee report: neither error_map nor fail_map in $Path" }
     foreach ($source in $map.PSObject.Properties) {
         foreach ($entry in @($source.Value)) {
             $code = Get-StatusCode $entry.status
@@ -93,6 +96,11 @@ function Read-LinkFailures {
                 })
         }
     }
+    foreach ($totalName in 'errors', 'timeouts') {
+        if ($json.PSObject.Properties[$totalName] -and [int] $json.$totalName -gt 0 -and $failures.Count -eq 0) {
+            throw "Unrecognized lychee report: $totalName is $($json.$totalName) but the failure map is empty in $Path"
+        }
+    }
     return , $failures
 }
 
@@ -105,8 +113,16 @@ function New-IssueBody {
     param($Failures, [string] $RunUrl)
     $broken = @($Failures | Where-Object Class -eq 'broken').Count
     $transient = @($Failures | Where-Object Class -eq 'transient').Count
-    $rows = foreach ($f in ($Failures | Sort-Object @{Expression = { $_.Class }; Descending = $false }, File, @{Expression = { [int]($_.Line -replace '\D', '0') } })) {
-        '| `{0}:{1}` | {2} | {3} | {4} |' -f (ConvertTo-TableCell $f.File), $f.Line, (ConvertTo-TableCell $f.Url), (ConvertTo-TableCell $f.Status), $f.Class
+    # GitHub rejects issue bodies over 65,536 characters (a network outage makes every link transient):
+    # broken links sort first and the table is capped, with a note for the rest.
+    $maxRows = 250
+    $sorted = @($Failures | Sort-Object @{Expression = { $_.Class }; Descending = $false }, File, @{Expression = { [int]($_.Line -replace '\D', '0') } })
+    $rows = @(foreach ($f in ($sorted | Select-Object -First $maxRows)) {
+            '| `{0}:{1}` | {2} | {3} | {4} |' -f (ConvertTo-TableCell $f.File), $f.Line, (ConvertTo-TableCell $f.Url), (ConvertTo-TableCell $f.Status), $f.Class
+        })
+    if ($sorted.Count -gt $maxRows) {
+        $rows += ''
+        $rows += "Table truncated: $($sorted.Count - $maxRows) more failure(s) are in the run log of $RunUrl."
     }
     $lines = @(
         '## Category', '',
@@ -257,6 +273,12 @@ function Invoke-SelfTest {
     & $check ($byUrl['https://example.org/overloaded'].Class -eq 'transient') '504 is transient'
     $t = Read-LinkFailures -Path (Join-Path $fixtures 'transient-only.json')
     & $check (@($t | Where-Object { $_.Status -like '403*' -and $_.Class -eq 'transient' }).Count -eq 1) '403 is transient'
+    $threw = $false
+    try { Read-LinkFailures -Path (Join-Path $fixtures 'schema-drift.json') | Out-Null } catch { $threw = $true }
+    & $check $threw 'a report without error_map fails closed instead of reading as clean'
+    $many = 1..300 | ForEach-Object { [pscustomobject]@{ File = 'a.md'; Line = "$_"; Url = "https://example.org/$_"; Status = '500 Internal Server Error'; Class = 'transient' } }
+    $big = New-IssueBody -Failures $many -RunUrl 'https://example.test/run/1'
+    & $check ($big.Length -lt 65000 -and $big.Contains('Table truncated: 50 more')) 'a body with 300 failures is truncated below the issue size limit'
     $body = New-IssueBody -Failures $mixed -RunUrl 'https://example.test/run/1'
     & $check ($body.Contains('moved-away%7Cpipe')) 'pipe in a URL is escaped in the table'
 

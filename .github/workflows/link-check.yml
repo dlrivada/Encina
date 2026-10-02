@@ -83,6 +83,8 @@ jobs:
                   $ErrorActionPreference = 'Stop'
                   # The same files the offline scan above covers (docs/**, .github/**, changelog.d/** and the root pages).
                   $inGlob = '^(docs/.+\.md|\.github/.+\.md|changelog\.d/.+\.md|README\.md|CHANGELOG\.md|CONTRIBUTING\.md|ROADMAP\.md)$'
+                  # Mirrors exclude_path of .github/lychee.toml: lychee may not apply it to files passed explicitly.
+                  $excluded = '^(docs/INVENTORY\.md|docs/specifications/research/|docs/engineering/ENGINEERING-HANDBOOK\.md)'
                   # A change to any of these can change any result, so every in-glob file is scanned.
                   $configFiles = @('.github/lychee.toml', '.lycheeignore', '.github/workflows/link-check.yml', '.github/scripts/link-health-report.ps1')
 
@@ -91,16 +93,17 @@ jobs:
 
                   $changed = $null
                   if ($from -and $from -notmatch '^0+$') {
-                      $changed = @(git diff --name-only --diff-filter=ACMR "$from" "$to")
+                      # Three dots: changes since the merge base, not files that moved on main meanwhile.
+                      $changed = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR "$from...$to")
                       if ($LASTEXITCODE -ne 0) { $changed = $null; Write-Host "git diff $from $to failed; scanning every in-glob file." }
                   }
                   else { Write-Host 'No usable base commit; scanning every in-glob file.' }
 
                   if ($null -eq $changed -or @($changed | Where-Object { $configFiles -contains $_ }).Count -gt 0) {
-                      $files = @(git ls-files '*.md' | Where-Object { $_ -match $inGlob })
+                      $files = @(git -c core.quotepath=false ls-files '*.md' | Where-Object { $_ -match $inGlob -and $_ -notmatch $excluded })
                   }
                   else {
-                      $files = @($changed | Where-Object { $_ -match $inGlob -and (Test-Path -LiteralPath $_) })
+                      $files = @($changed | Where-Object { $_ -match $inGlob -and $_ -notmatch $excluded -and (Test-Path -LiteralPath $_) })
                   }
 
                   $list = Join-Path $env:RUNNER_TEMP 'changed-markdown.txt'
