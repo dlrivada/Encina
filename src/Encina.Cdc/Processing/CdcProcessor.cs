@@ -209,7 +209,7 @@ internal sealed class CdcProcessor : BackgroundService
         var entry = new CdcDeadLetterEntry(
             Id: Guid.NewGuid(),
             OriginalEvent: failedEvent ?? CreatePlaceholderEvent(),
-            ErrorMessage: exception.Message,
+            ErrorMessage: exception.GetType().Name,
             StackTrace: exception.StackTrace ?? string.Empty,
             RetryCount: _options.MaxRetries,
             FailedAtUtc: DateTime.UtcNow,

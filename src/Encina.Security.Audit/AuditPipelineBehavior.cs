@@ -105,7 +105,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 Left: error =>
                 {
                     outcome = MapErrorToOutcome(error);
-                    errorMessage = error.Message;
+                    errorMessage = error.GetCode().IfNone("encina.unknown");
                     return LanguageExt.Unit.Default;
                 });
         }
@@ -122,7 +122,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
         catch (Exception ex)
         {
             outcome = AuditOutcome.Error;
-            errorMessage = ex.Message;
+            errorMessage = ex.GetType().Name;
 
             // Capture completion time and record exception
             var completedAtUtc = DateTimeOffset.UtcNow;

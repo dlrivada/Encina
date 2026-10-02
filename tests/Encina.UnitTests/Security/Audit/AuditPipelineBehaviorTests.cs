@@ -324,7 +324,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("not authorized")),
+            Arg.Is<string>(s => s == "encina.unknown"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -349,7 +349,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("forbidden")),
+            Arg.Is<string>(s => s == "encina.unknown"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -374,7 +374,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Failure,
-            Arg.Is<string>(s => s.Contains("Validation") || s.Contains("required")),
+            Arg.Is<string>(s => s == "encina.unknown"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -430,7 +430,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Error,
-            Arg.Is<string>(s => s.Contains("Something went wrong")),
+            Arg.Is<string>(s => s == nameof(InvalidOperationException)),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
