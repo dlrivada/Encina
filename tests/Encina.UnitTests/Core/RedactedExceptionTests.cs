@@ -135,10 +135,10 @@ public sealed class RedactedExceptionTests
     }
 
     [Fact]
-    public void ForLogging_HundredDeepInnerChain_IsRedactedWithoutOverflow()
+    public void ForLogging_ThousandDeepInnerChain_IsCappedWithoutOverflow()
     {
         Exception original = new InvalidOperationException(Sentinel);
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < 1000; i++)
         {
             original = new ArgumentException($"level {i} {Sentinel}", original);
         }
@@ -152,8 +152,62 @@ public sealed class RedactedExceptionTests
             current.Message.ShouldNotContain(Sentinel);
         }
 
-        depth.ShouldBe(101);
+        depth.ShouldBe(33);
         redacted.ToString().ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public void ForLogging_ChainWithinTheCap_IsKeptInFull()
+    {
+        Exception original = new InvalidOperationException(Sentinel);
+        for (var i = 0; i < 30; i++)
+        {
+            original = new ArgumentException($"level {i} {Sentinel}", original);
+        }
+
+        var depth = 0;
+        for (var current = original.ForLogging(); current is not null; current = current.InnerException)
+        {
+            depth++;
+        }
+
+        depth.ShouldBe(31);
+    }
+
+    [Fact]
+    public void ForLogging_SelfReferencingInnerException_StopsAtTheCycle()
+    {
+        // Exception.InnerException is not virtual and only the constructor sets it, so a real cycle
+        // can only be built by writing the private backing field.
+        var original = new InvalidOperationException(Sentinel);
+        var field = typeof(Exception).GetField("_innerException", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.ShouldNotBeNull();
+        field.SetValue(original, original);
+
+        var redacted = original.ForLogging().ShouldBeOfType<RedactedException>();
+
+        redacted.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        var inner = redacted.InnerException.ShouldBeOfType<RedactedException>();
+        inner.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        inner.InnerException.ShouldBeNull();
+        redacted.ToString().ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public void ForLogging_SameExceptionInTwoAggregateBranches_IsRedactedInBoth()
+    {
+        var shared = new FormatException(Sentinel);
+        var original = new AggregateException(
+            new AggregateException(shared),
+            new AggregateException(shared));
+
+        var redacted = original.ForLogging().ShouldBeOfType<RedactedException>();
+
+        foreach (var branch in redacted.InnerExceptions.Cast<RedactedException>())
+        {
+            branch.InnerExceptions.Single().Message.ShouldBe(typeof(FormatException).FullName);
+            branch.InnerExceptions.Single().InnerException.ShouldBeNull();
+        }
     }
 
     [Fact]

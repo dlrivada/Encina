@@ -35,6 +35,8 @@ namespace Encina.Diagnostics;
 /// </example>
 public sealed class RedactedException : Exception
 {
+    private const int MaxDepth = 32;
+
     private readonly string? _stackTrace;
 
     private RedactedException(string typeName, string? stackTrace, IReadOnlyList<Exception> innerExceptions)
@@ -62,13 +64,20 @@ public sealed class RedactedException : Exception
     /// <returns>
     /// A <see cref="RedactedException"/> with the type, stack trace and redacted inners. It never
     /// throws for a non-null exception: when reading the stack trace or the inner exceptions fails,
-    /// the result carries only the type full name.
+    /// the result carries only the type full name. The inner chain is followed up to 32 levels and
+    /// stops, with the type full name only, at a deeper level or at an inner exception that is
+    /// already on the current path (a cyclic chain).
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="exception"/> is <c>null</c>.</exception>
     public static RedactedException From(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
+        return Redact(exception, 0, new HashSet<Exception>(ReferenceEqualityComparer.Instance));
+    }
+
+    private static RedactedException Redact(Exception exception, int depth, HashSet<Exception> path)
+    {
         if (exception is RedactedException alreadyRedacted)
         {
             return alreadyRedacted;
@@ -77,9 +86,16 @@ public sealed class RedactedException : Exception
         var type = exception.GetType();
         var typeName = type.FullName ?? type.Name;
 
+        // Beyond the depth cap, or for an exception already on the current path (a cyclic chain),
+        // keep only the type name.
+        if (depth >= MaxDepth || !path.Add(exception))
+        {
+            return new RedactedException(typeName, null, []);
+        }
+
         try
         {
-            var inners = GetInnerExceptions(exception).Select(From).ToArray<Exception>();
+            var inners = GetInnerExceptions(exception).Select(inner => Redact(inner, depth + 1, path)).ToArray<Exception>();
 
             return new RedactedException(typeName, exception.StackTrace, inners);
         }
@@ -88,6 +104,10 @@ public sealed class RedactedException : Exception
 #pragma warning restore CA1031
         {
             return new RedactedException(typeName, null, []);
+        }
+        finally
+        {
+            path.Remove(exception);
         }
     }
 

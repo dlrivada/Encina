@@ -300,8 +300,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2891,
         Level = LogLevel.Warning,
-        Message = "Saga {SagaId} step {StepNumber} failed: {StepName} - {ErrorMessage}")]
-    public static partial void StepFailed(ILogger logger, Guid sagaId, int stepNumber, string stepName, string errorMessage);
+        Message = "Saga {SagaId} step {StepNumber} failed: {StepName} - {ErrorCode}")]
+    public static partial void StepFailed(ILogger logger, Guid sagaId, int stepNumber, string stepName, string errorCode);
 
     [LoggerMessage(
         EventId = 2892,
