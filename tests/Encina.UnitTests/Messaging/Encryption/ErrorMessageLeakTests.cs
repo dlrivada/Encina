@@ -19,8 +19,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using static LanguageExt.Prelude;
-using OtelTagNames = global::Encina.OpenTelemetry.ActivityTagNames;
 using EfScheduledMessageFactory = Encina.EntityFrameworkCore.Scheduling.ScheduledMessageFactory;
+using OtelTagNames = global::Encina.OpenTelemetry.ActivityTagNames;
 
 namespace Encina.UnitTests.Messaging.Encryption;
 
