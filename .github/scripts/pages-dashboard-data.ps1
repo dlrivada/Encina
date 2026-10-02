@@ -130,6 +130,7 @@ function Invoke-Git {
     if ($AllowedExitCodes -notcontains $code) {
         throw "git $($Arguments -join ' ') failed with exit code ${code}: $($output -join [Environment]::NewLine)"
     }
+    $global:LASTEXITCODE = 0
     return [pscustomobject]@{ ExitCode = $code; Output = $output }
 }
 
@@ -489,3 +490,4 @@ switch ($Mode) {
     'Persist' { Invoke-Persist }
     'Assemble' { Invoke-Assemble }
 }
+exit 0  # Success ends with exit code 0 so a leftover native exit code (e.g., from ls-remote) does not fail the step.
