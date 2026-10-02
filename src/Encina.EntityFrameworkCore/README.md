@@ -1152,10 +1152,9 @@ result.IfLeft(error =>
     var details = error.GetDetails();
 
     _logger.LogError(
-        "Bulk operation failed. Code: {Code}, EntityCount: {Count}, Reason: {Reason}",
-        code.IfNone("Unknown"),
-        details.GetValueOrDefault("EntityCount"),
-        error.Message
+        "Bulk operation failed. Code: {Code}, EntityCount: {Count}",
+        code.IfNone("encina.unknown"),
+        details.GetValueOrDefault("EntityCount")
     );
 });
 ```
