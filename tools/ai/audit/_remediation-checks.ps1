@@ -446,7 +446,9 @@ function Test-PartialDuplicateEvidence {
     $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
         # A package or project name (`Encina.Kafka`, `Encina`) names an area, never the defect: it is no symbol
-        # evidence in either route (every project folder under src/ is named Encina or Encina.<Something>).
+        # evidence in either route (every project folder under src/ is named Encina or Encina.<Something>). The
+        # pattern covers every Encina-prefixed dotted token, so a fully qualified type name is skipped too: the
+        # conservative direction (fewer partial lines, never a false duplicate).
         if ($sa -match '^Encina(?:\.\w+)*$') { continue }
         if ($fileMatched -and (Test-SymbolAnchorMatch $sa $candidateTokens $title)) { return $true }
         # Route (b): the declared type is one of the candidate's own backticked location tokens, exactly, or a

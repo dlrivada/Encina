@@ -416,7 +416,7 @@ if ($onlyKeys) {
     if (-not (Test-Path -LiteralPath $stageOut)) { Stop-Remediation "-Only requires an existing $stageOut to update; run a full -Prepare (no -Only) and the drafter first." }
     # #1592: an -Only run restamps the whole manifest, which would vouch for the untouched findings' drafts
     # written under an older partially related rule; a different rule version needs a full -Prepare. Checked
-    # here, before any gh call.
+    # here, before the duplicate search.
     if (Test-Path -LiteralPath $manifestPath) {
         $previousRuleVersion = 0
         try { $previousRuleVersion = [int](Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).partialRuleVersion } catch { $previousRuleVersion = 0 }

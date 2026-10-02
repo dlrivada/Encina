@@ -2143,6 +2143,7 @@ Test.
             $finalizeOldRule.Code -eq 1 -and $finalizeOldRule.Output -match 'stale manifest: it was written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
         }
         $prepareOnlyOldRule = Invoke-Remediation $finWt @('-Prepare', '-NoGh', '-Only', 'code 1')
+        $finDraftsAfter = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
         Test-RemediationCase '#1592 -Prepare -Only refuses a previous manifest of another partially related rule version' {
             $prepareOnlyOldRule.Code -eq 1 -and $prepareOnlyOldRule.Output -match 'written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
         }
@@ -3698,7 +3699,8 @@ The fluent builder chain described in the documentation is fictional. The parame
     }
     Test-RemediationChecksCase '#1592 a package name is no symbol evidence in the declared-type route either' {
         $declaredWithPackage1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('Encina', 'Encina.Kafka'), [System.StringComparer]::Ordinal)
-        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina` and `Encina.Kafka` are mentioned.' $candidateKafkaPackage1592 $declaredWithPackage1592)
+        $candidateCorePackage1592 = "[DEBT] Core cleanup`n## Location`n`n- **Package(s)**: ``Encina`` (core)`n"
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina` is mentioned.' $candidateCorePackage1592 $declaredWithPackage1592)
     }
     Test-RemediationChecksCase '#1592 the partial rule has version 3, which -Prepare writes into the manifest and -Finalize checks' {
         $script:PartialRuleVersion -eq 3
