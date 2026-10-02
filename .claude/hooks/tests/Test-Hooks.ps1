@@ -3691,6 +3691,15 @@ The fluent builder chain described in the documentation is fictional. The parame
     Test-RemediationChecksCase '#1592 a compound declared type named as a plain word of the candidate title IS partially related' {
         Test-PartialDuplicateEvidence $findingDeclared1592 "[BUG] KafkaConsumerFactory ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n" $declaredWithFactory1592
     }
+    # Review of PR #1601: a dotted package name backticked by the candidate is file-only evidence, not a symbol.
+    $candidateKafkaPackage1592 = "[DEBT] Kafka options cleanup`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n- **Package(s)**: ``Encina.Kafka```n"
+    Test-RemediationChecksCase '#1592 docs-3 vs a candidate that backticks the package name Encina.Kafka is NOT partially related (file + package name)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaPackage1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 a package name is no symbol evidence in the declared-type route either' {
+        $declaredWithPackage1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('Encina', 'Encina.Kafka'), [System.StringComparer]::Ordinal)
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina` and `Encina.Kafka` are mentioned.' $candidateKafkaPackage1592 $declaredWithPackage1592)
+    }
     Test-RemediationChecksCase '#1592 the partial rule has version 3, which -Prepare writes into the manifest and -Finalize checks' {
         $script:PartialRuleVersion -eq 3
     }

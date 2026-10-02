@@ -422,6 +422,10 @@ $script:PartialRuleVersion = 3
 # house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a finding with no
 # symbol anchor is never "partially" related to anything.
 #
+# Route (b) also relates findings across providers when a type is declared in several packages (for example
+# `OutboxProcessor`), which is intended: the same type named in a candidate's location is part of the same defect
+# family, and the drafter only cites it as a partial relation.
+#
 # $DeclaredTypes is the set of type names declared in src/ (Get-DeclaredEncinaTypes), computed once per -Prepare
 # run and injectable, so tests pass a small fake set. Without it (null or empty) only route (a) applies.
 function Test-PartialDuplicateEvidence {
@@ -441,6 +445,9 @@ function Test-PartialDuplicateEvidence {
 
     $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
+        # A package or project name (`Encina.Kafka`, `Encina`) names an area, never the defect: it is no symbol
+        # evidence in either route (every project folder under src/ is named Encina or Encina.<Something>).
+        if ($sa -match '^Encina(?:\.\w+)*$') { continue }
         if ($fileMatched -and (Test-SymbolAnchorMatch $sa $candidateTokens $title)) { return $true }
         # Route (b): the declared type is one of the candidate's own backticked location tokens, exactly, or a
         # compound name (two or more capitals, 'IChoreographyStateStore') standing alone in its title, where

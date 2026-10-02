@@ -414,6 +414,16 @@ $keptLessons = [System.Collections.Generic.List[string]]::new()
 $existingLessons = [System.Collections.Generic.List[string]]::new()
 if ($onlyKeys) {
     if (-not (Test-Path -LiteralPath $stageOut)) { Stop-Remediation "-Only requires an existing $stageOut to update; run a full -Prepare (no -Only) and the drafter first." }
+    # #1592: an -Only run restamps the whole manifest, which would vouch for the untouched findings' drafts
+    # written under an older partially related rule; a different rule version needs a full -Prepare. Checked
+    # here, before any gh call.
+    if (Test-Path -LiteralPath $manifestPath) {
+        $previousRuleVersion = 0
+        try { $previousRuleVersion = [int](Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).partialRuleVersion } catch { $previousRuleVersion = 0 }
+        if ($previousRuleVersion -ne $script:PartialRuleVersion) {
+            Stop-Remediation "the previous manifest was written under partially related rule version $previousRuleVersion, the current rule is version $($script:PartialRuleVersion) (#1592); -Only would keep drafts written under the old rule, run -Prepare without -Only."
+        }
+    }
     $inLessons = $false
     foreach ($rawLine in (Get-Content -LiteralPath $stageOut)) {
         if ($rawLine -eq $lessonsHeading) { $inLessons = $true; continue }
@@ -587,13 +597,6 @@ foreach ($gi in $touchedGroupIndexes) {
 # by name.
 $previousDraftByKey = @{}
 if ($onlyKeys -and (Test-Path -LiteralPath $manifestPath)) {
-    # #1592: an -Only run restamps the whole manifest, which would vouch for the untouched findings' drafts
-    # written under an older partially related rule; a different rule version needs a full -Prepare.
-    $previousRuleVersion = 0
-    try { $previousRuleVersion = [int](Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).partialRuleVersion } catch { $previousRuleVersion = 0 }
-    if ($previousRuleVersion -ne $script:PartialRuleVersion) {
-        Stop-Remediation "the previous manifest was written under partially related rule version $previousRuleVersion, the current rule is version $($script:PartialRuleVersion) (#1592); -Only would keep drafts written under the old rule, run -Prepare without -Only."
-    }
     try { foreach ($pf in @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).findings)) { if ($pf.draftFile) { $previousDraftByKey[[string]$pf.key] = [IO.Path]::GetFullPath([string]$pf.draftFile) } } }
     catch { $previousDraftByKey = @{} }
 }

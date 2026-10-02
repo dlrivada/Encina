@@ -235,9 +235,9 @@ candidate's real `gh issue view` title/body) against EVERY candidate the duplica
 more candidates pass, the finding is a duplicate of the lowest-numbered passing candidate, so the same finding
 against the same set of open issues always classifies the same way (#1424). When no candidate passes, every
 candidate that covers part of the same defect -- a file anchor AND a specific symbol anchor of the finding in
-its location text, or a symbol anchor that is a type declared under the audited worktree's `src/` (#1592) -- is listed in the manifest as "partially related" (the drafter cites it verbatim;
-`-Finalize` adds the line back if it is missing, and refuses a manifest written under a different rule version),
-and the other search hits as
+its location text, or a symbol anchor that is a type declared under the audited worktree's `src/` (#1592) --
+is listed in the manifest as "partially related" (the drafter cites it verbatim; `-Finalize` adds the line back
+if it is missing, and refuses a manifest written under a different rule version), and the other search hits as
 "possibly related" (awareness only, never cited). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
 clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a
 "partially related" note instead of being accepted as the same defect (#1400). The candidate must be ABOUT the
@@ -253,9 +253,10 @@ AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol evi
 text matches at least one file anchor AND at least one specific symbol anchor of the finding, or names a
 symbol anchor that is an interface, class, record, struct or enum declared under the audited worktree's `src/`
 (`Get-DeclaredEncinaTypes`, scanned once per `-Prepare`), but not the full duplicate bar, is "partially related",
-never a duplicate. A shared file or package alone, or a symbol that is not a declared type (a package or project
-name, a framework type such as `IServiceCollection`, a member name, or a bare connection-setting name such as
-`Host`, which is also never a duplicate's only symbol), is only "possibly related" (#1592).
+never a duplicate. A package or project name (`Encina`, `Encina.Kafka`) is never symbol evidence in either route.
+A shared file or package alone, or a symbol that is not a declared type (a framework type such as
+`IServiceCollection`, a member name, or a bare connection-setting name such as `Host`, which is also never a
+duplicate's only symbol), is only "possibly related" (#1592).
 `audit-draft-remediation.ps1 -Finalize` also strips an outer code fence from a draft (`Remove-OuterFence`),
 fills a bug draft's `## Environment` section (`Set-BugEnvironment`), and reports as a problem any of the issue
 template's own placeholder text still in the draft (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description`
