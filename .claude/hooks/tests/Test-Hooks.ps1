@@ -2132,7 +2132,7 @@ Test.
         # one) is refused, so -Finalize never re-inserts a line the current rule rejects.
         $finManifestPath = Join-Path $finWt "artifacts\knowledge\remediation\_manifest-$finN.json"
         $finManifestBackup = Get-Content -LiteralPath $finManifestPath -Raw
-        Test-RemediationCase '#1592 -Prepare writes partialRuleVersion into the manifest' { [int](Get-RemediationManifest $finWt $finN).partialRuleVersion -ge 2 }
+        Test-RemediationCase '#1592 -Prepare writes partialRuleVersion into the manifest' { [int](Get-RemediationManifest $finWt $finN).partialRuleVersion -eq 3 }
         $finManifestOld = $finManifestBackup | ConvertFrom-Json
         $finManifestOld.PSObject.Properties.Remove('partialRuleVersion')
         Set-Content -LiteralPath $finManifestPath -Value ($finManifestOld | ConvertTo-Json -Depth 12) -Encoding utf8
@@ -3674,6 +3674,22 @@ The fluent builder chain described in the documentation is fictional. The parame
         Set-Content -LiteralPath (Join-Path $srcFake1592 'Encina.Foo\A.cs') -Value "namespace Foo;`n/// the class Commented is not a declaration`npublic sealed partial class Widget<T> where T : class`n{`n}`ninternal interface IThing { }`npublic readonly record struct Ident(int V);`npublic enum Mode { A }`npublic record Rec(int V);`n"
         $types1592 = Get-DeclaredEncinaTypes $srcFake1592
         ($types1592.Contains('Widget')) -and ($types1592.Contains('IThing')) -and ($types1592.Contains('Ident')) -and ($types1592.Contains('Mode')) -and ($types1592.Contains('Rec')) -and (-not $types1592.Contains('Commented')) -and (-not $types1592.Contains('struct')) -and ((Get-DeclaredEncinaTypes (Join-Path $work 'no-such-src-1592')).Count -eq 0)
+    }
+    Test-RemediationChecksCase '#1592 Get-DeclaredEncinaTypes drops the core package class Encina, Log and project folder names' {
+        $srcFake1592b = Join-Path $work 'declared-types-1592b\src'
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592b 'Encina.Messaging') | Out-Null
+        Set-Content -LiteralPath (Join-Path $srcFake1592b 'Encina.Messaging\A.cs') -Value "public sealed partial class Encina { }`ninternal static class Log { }`npublic class Messaging { }`npublic class RealType { }`n"
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592b 'Messaging') | Out-Null
+        $types1592b = Get-DeclaredEncinaTypes $srcFake1592b
+        $types1592b.Contains('RealType') -and -not $types1592b.Contains('Encina') -and -not $types1592b.Contains('Log') -and -not $types1592b.Contains('Messaging')
+    }
+    $candidateTitleWordOnly1592 = "[BUG] Widget ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n"
+    $declaredWithWidget1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('Widget'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a single-word declared type named only as a plain word of the candidate title is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Foo/X.cs:1`: `Widget` is wrong.' $candidateTitleWordOnly1592 $declaredWithWidget1592)
+    }
+    Test-RemediationChecksCase '#1592 a compound declared type named as a plain word of the candidate title IS partially related' {
+        Test-PartialDuplicateEvidence $findingDeclared1592 "[BUG] KafkaConsumerFactory ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n" $declaredWithFactory1592
     }
     Test-RemediationChecksCase '#1592 the partial rule has version 3, which -Prepare writes into the manifest and -Finalize checks' {
         $script:PartialRuleVersion -eq 3

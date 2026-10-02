@@ -236,7 +236,7 @@ more candidates pass, the finding is a duplicate of the lowest-numbered passing 
 against the same set of open issues always classifies the same way (#1424). When no candidate passes, every
 candidate that covers part of the same defect -- a file anchor AND a specific symbol anchor of the finding in
 its location text, or a symbol anchor that is a type declared under the audited worktree's `src/` (#1592) -- is listed in the manifest as "partially related" (the drafter cites it verbatim;
-`-Finalize` adds the line back if it is missing, and refuses a manifest written under an older rule version),
+`-Finalize` adds the line back if it is missing, and refuses a manifest written under a different rule version),
 and the other search hits as
 "possibly related" (awareness only, never cited). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
 clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a

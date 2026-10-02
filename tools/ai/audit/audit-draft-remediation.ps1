@@ -476,7 +476,7 @@ if ($duplicateOfEntries) {
 $entriesByKey = @{}
 $ghIssueCache = @{}
 # #1592: the types declared in the audited worktree's src/, for the "partially related" rule (route (b) of
-# Test-PartialDuplicateEvidence); scanned once per run, and only when a duplicate search will run.
+# Test-PartialDuplicateEvidence); scanned once per run, skipped under -NoGh (no duplicate search runs then).
 $declaredTypes = if ($NoGh) { , [System.Collections.Generic.HashSet[string]]::new() } else { Get-DeclaredEncinaTypes (Join-Path $wt 'src') }
 foreach ($gi in $touchedGroupIndexes) {
     $group = $groups[$gi]

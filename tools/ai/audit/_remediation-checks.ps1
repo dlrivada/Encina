@@ -414,8 +414,10 @@ $script:PartialRuleVersion = 3
 # wrong), or matched a package name (code-3 vs #725, through the `Encina.MQTT`-style tokens of its Affected
 # Packages list), a generic setting name (docs-7, `Host`, see $script:GenericOptionSettingNames) or a framework
 # type (docs-9 vs #1474 and #1323, `IServiceCollection`). None of those is a type declared in src/, so route (b)
-# never accepts them: package and project names contain a dot, framework types are declared elsewhere, member
-# names are not types, and generic option names are excluded from the anchors. Uses the same location text and
+# never accepts them: package and project names contain a dot or are removed from the declared set (the core
+# package `Encina` is also a class), framework types are declared elsewhere, member names are not types, and
+# generic option names are excluded from the anchors. Route (b) also needs the type as one of the candidate's
+# own backticked location tokens, never a plain word of its title. Uses the same location text and
 # generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a shared
 # house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a finding with no
 # symbol anchor is never "partially" related to anything.
@@ -439,9 +441,17 @@ function Test-PartialDuplicateEvidence {
 
     $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
-        if (-not (Test-SymbolAnchorMatch $sa $candidateTokens $title)) { continue }
-        if ($fileMatched) { return $true }
-        if ($DeclaredTypes -and $DeclaredTypes.Count -gt 0 -and $sa -match '^[A-Za-z_]\w*(?:<[^`]*>)?$' -and $DeclaredTypes.Contains(($sa -replace '<.*$', ''))) { return $true }
+        if ($fileMatched -and (Test-SymbolAnchorMatch $sa $candidateTokens $title)) { return $true }
+        # Route (b): the declared type is one of the candidate's own backticked location tokens, exactly, or a
+        # compound name (two or more capitals, 'IChoreographyStateStore') standing alone in its title, where
+        # issues name a type without backticks (#592). A single-word title hit such as 'Audit' or 'Connection'
+        # (also type names in src/) is vocabulary, not evidence of the same type.
+        if ($DeclaredTypes -and $DeclaredTypes.Count -gt 0 -and $sa -match '^[A-Za-z_]\w*(?:<[^`]*>)?$') {
+            $typeName = $sa -replace '<.*$', ''
+            if (-not $DeclaredTypes.Contains($typeName)) { continue }
+            if ($candidateTokens.Contains($sa) -or $candidateTokens.Contains($typeName)) { return $true }
+            if ($typeName -cmatch '^[A-Za-z_]*[A-Z][A-Za-z0-9_]*[A-Z]' -and (Test-SymbolAnchorMatch $typeName ([System.Collections.Generic.HashSet[string]]::new()) $title)) { return $true }
+        }
     }
     return $false
 }
@@ -460,6 +470,11 @@ function Get-DeclaredEncinaTypes {
         if ($file.FullName -match '[\\/](?:obj|bin)[\\/]') { continue }
         foreach ($m in $pattern.Matches([System.IO.File]::ReadAllText($file.FullName))) { [void]$set.Add($m.Groups['name'].Value) }
     }
+    # A package or project name is never a type for this purpose: the core package is the class `Encina` and
+    # every package declares a `Log`, yet backticked `Encina` in a candidate's Package(s) field names the package.
+    [void]$set.Remove('Encina')
+    [void]$set.Remove('Log')
+    foreach ($projectDir in Get-ChildItem -LiteralPath $SourceRoot -Directory -ErrorAction SilentlyContinue) { [void]$set.Remove($projectDir.Name) }
     return , $set
 }
 
