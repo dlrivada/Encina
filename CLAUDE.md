@@ -27,7 +27,7 @@ Before starting work, read the plan of your area and continue from where the las
 ## Model routing
 
 - Workers and reviewers run on Sonnet; Opus only when the brief states why (unknown root cause, design-heavy task, security or personal data). Haiku for polling and already-decided edits.
-- Drafts, classification, summaries and first drafts of issue files go to the free local model through `tools/ai/local-ai-ask.cs` (`local-ai-task` skill; routing in `docs/engineering/ai-task-routing.md`). Record token usage in `artifacts/local-ai/ledger.csv` and `artifacts/agent-usage/ledger.csv`.
+- Drafts, classification, summaries and first drafts of issue files go to the free local model through `tools/ai/local-ai-ask.cs` (`local-ai-task` skill; routing in `docs/engineering/ai-task-routing.md`). Record token usage in `artifacts/local-ai/ledger.csv` and `artifacts/agent-usage/ledger.csv`. When the maintainer has switched the local model off (`tools/ai/local-ai-state.ps1 -Status`), `local-ai-ask.cs` drafts through the `local-ai-standin` route instead (paid, recorded in `artifacts/local-ai/standin-ledger.csv`); exit code 3 means spawn the `local-ai-standin` agent, and the `local-ai-task` skill has the procedure.
 
 ## Closed-issue audit (SPEC-003)
 
