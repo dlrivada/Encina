@@ -196,10 +196,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
             var result = await evaluator.EvaluateAsync(context, cancellationToken);
             var measureResult = result.Match(
                 Right: r => r,
-                Left: error => NIS2MeasureResult.NotSatisfied(
-                    evaluator.Measure,
-                    $"Evaluation failed: {error.Message}",
-                    [$"Resolve evaluation error: {error.Message}"]));
+                Left: error => EvaluationFailed(evaluator.Measure, error.GetCode().IfNone("encina.unknown")));
 
             results.Add(measureResult);
 
@@ -214,12 +211,15 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
                 new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
                 new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"));
 
-            results.Add(NIS2MeasureResult.NotSatisfied(
-                evaluator.Measure,
-                $"Evaluation failed: {ex.Message}",
-                [$"Resolve evaluation error: {ex.Message}"]));
+            results.Add(EvaluationFailed(evaluator.Measure, ex.GetType().Name));
         }
     }
+
+    private static NIS2MeasureResult EvaluationFailed(NIS2Measure measure, string failureCode) =>
+        NIS2MeasureResult.NotSatisfied(
+            measure,
+            $"Evaluation failed: {failureCode}",
+            [$"Resolve evaluation error: {failureCode}"]);
 
     private void RecordMeasureOutcome(
         NIS2MeasureResult measureResult,
