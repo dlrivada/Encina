@@ -37,10 +37,12 @@ The fix has three modes:
   -Mode Assemble  (docs.yml deploy job, inside the "pages" concurrency lock)
       Lays the dashboard data over the built site: first the live Pages copy of every managed file
       (a base for dashboards that have not persisted anything yet), then the "dashboard-data" branch
-      (always at least as fresh as the live copy). The committed, older copies that Jekyll copied from
-      docs/<domain>/data are removed first, so they are never published by accident. Any failure to
-      read the live site (other than a 404 for a file that dashboard does not publish) or the branch
-      fails the deploy, and every dashboard must end with a latest.json and a history.json.
+      (always at least as fresh as the live copy). Every file that Jekyll copied from
+      docs/<domain>/data (committed latest, history and timestamped snapshots) and the committed
+      badges are removed first, except cited-by.json, so they are never published by accident. Any
+      failure to read the live site (other than a 404 for a file that dashboard does not publish) or
+      the branch fails the deploy, every JSON file of the assembled data (live or from the branch)
+      must parse, and every dashboard must end with a latest.json and a history.json.
       cited-by.json is not touched: the build renders it from the docref indexes.
 
 Running inside the lock is what closes the lost-update race: deploys are serialized, and each one
@@ -300,6 +302,43 @@ function Save-LiveFile {
     throw "Could not read the live $RelativePath from $BaseUrl; refusing to deploy without it."
 }
 
+# Removes everything Jekyll copied from docs/<domain>/ that this script manages: every file under
+# <domain>/data/ except cited-by.json (rendered by the build) and the badges. Committed snapshots
+# such as 2026-03-29T101913Z.json would otherwise be published next to the branch's latest one.
+function Clear-DomainData {
+    param([string] $Root, [string] $Domain)
+    $dataDir = Join-Path $Root "$Domain/data"
+    if (Test-Path -LiteralPath $dataDir -PathType Container) {
+        Get-ChildItem -LiteralPath $dataDir -Recurse -File |
+            Where-Object { $_.Name -ne 'cited-by.json' } |
+            Remove-Item -Force
+    }
+    foreach ($file in $RootFiles) {
+        $path = Join-Path $Root "$Domain/$file"
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+    }
+}
+
+# Fails the deploy on the first JSON file of the assembled domain that does not parse, whether it
+# came from the live site or from the dashboard-data branch.
+function Assert-DomainJsonValid {
+    param([string] $Root, [string] $Domain)
+    $dataDir = Join-Path $Root "$Domain/data"
+    $files = @()
+    if (Test-Path -LiteralPath $dataDir -PathType Container) {
+        $files += Get-ChildItem -LiteralPath $dataDir -Recurse -File -Filter '*.json'
+    }
+    $badge = Join-Path $Root "$Domain/badge.json"
+    if (Test-Path -LiteralPath $badge) { $files += Get-Item -LiteralPath $badge }
+    foreach ($file in $files) {
+        try { Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -Depth 100 | Out-Null }
+        catch {
+            $relative = [IO.Path]::GetRelativePath($Root, $file.FullName).Replace('\', '/')
+            throw "Refusing to deploy: $relative is not valid JSON: $($_.Exception.Message)"
+        }
+    }
+}
+
 function Invoke-Assemble {
     if (-not $SiteRoot) { throw 'Assemble needs -SiteRoot.' }
     if (-not (Test-Path -LiteralPath $SiteRoot -PathType Container)) { throw "Site root $SiteRoot does not exist." }
@@ -308,11 +347,10 @@ function Invoke-Assemble {
     $origin = @{}
 
     foreach ($domain in $Domains) {
+        Clear-DomainData -Root $SiteRoot -Domain $domain
         $managed = @($DataFiles | ForEach-Object { "$domain/data/$_" }) + @($RootFiles | ForEach-Object { "$domain/$_" })
         foreach ($relative in $managed) {
-            # Drop the committed copy Jekyll brought from docs/: only live or persisted data is published.
             $path = Join-Path $SiteRoot $relative
-            if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
             if (Save-LiveFile -RelativePath $relative -Destination $path -CacheBuster $cacheBuster) {
                 $origin[$relative] = 'live'
             }
@@ -345,6 +383,8 @@ function Invoke-Assemble {
     else {
         Write-Host "Branch $Branch does not exist yet; every dashboard keeps its live data."
     }
+
+    foreach ($domain in $Domains) { Assert-DomainJsonValid -Root $SiteRoot -Domain $domain }
 
     $missing = @()
     foreach ($domain in $Domains) {
