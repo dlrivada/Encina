@@ -34,6 +34,8 @@ public sealed class DebeziumCdcOptionsValidatorTests
     [InlineData("http://bad host")]
     [InlineData("http://::1")]
     [InlineData("http://[not-ipv6]")]
+    [InlineData("http://[")]
+    [InlineData("http://[]")]
     public void Validate_InvalidListenPrefixes_Fail(string listenUrl)
     {
         var result = _sut.Validate(null, new DebeziumCdcOptions { ListenUrl = listenUrl });
