@@ -28,8 +28,9 @@ The fix has three modes:
       "dashboard-data" (layout <domain>/..., like the site). The branch is the durable record of the
       last published data of each dashboard, so a cancelled or failed deploy loses no dashboard data:
       the next deploy, whatever triggered it, reads the branch. Files the publisher leaves out of its overlay
-      (guarded, e.g. an empty mutation run) keep their previous committed version; timestamped
-      snapshots (yyyy-MM-ddTHHmmssZ.json) of earlier runs are pruned, and the branch keeps a single
+      (guarded, e.g. an empty mutation run) keep their previous committed version, including the
+      snapshot that goes with it; timestamped snapshots (yyyy-MM-ddTHHmmssZ.json) of earlier runs
+      are pruned only when the overlay brings a new snapshot, and the branch keeps a single
       parentless commit replaced with --force-with-lease, so neither the branch nor the site grows
       without bound. A push that loses a race with another publisher is rejected and retried on top
       of the new branch head, so it never drops the other publisher's data.
@@ -164,6 +165,14 @@ function Expand-Commit {
     }
 }
 
+# True when the overlay of a domain carries at least one timestamped snapshot (yyyy-MM-ddTHHmmssZ.json).
+function Test-OverlayHasSnapshot {
+    param([string] $Source)
+    $snapshots = @(Get-ChildItem -LiteralPath $Source -Recurse -File -Force |
+            Where-Object { $_.Name -match $SnapshotPattern })
+    return $snapshots.Count -gt 0
+}
+
 function Invoke-Persist {
     if (-not $Domain) { throw 'Persist needs -Domain.' }
     if (-not $OverlayRoot) { throw 'Persist needs -OverlayRoot.' }
@@ -207,7 +216,9 @@ function Invoke-Persist {
 
             $target = Join-Path $tree $Domain
             $targetData = Join-Path $target 'data'
-            if (Test-Path -LiteralPath $targetData) {
+            # Earlier snapshots are pruned only when this overlay brings a new one: a run that leaves
+            # latest.json and its snapshot out (an empty mutation run) keeps the previous pair.
+            if ((Test-Path -LiteralPath $targetData) -and (Test-OverlayHasSnapshot -Source $source)) {
                 Get-ChildItem -LiteralPath $targetData -File |
                     Where-Object { $_.Name -match $SnapshotPattern } |
                     Remove-Item -Force
