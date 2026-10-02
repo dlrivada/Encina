@@ -60,6 +60,8 @@
 #                 everything else in the repository is denied, because the agent is read-only on the
 #                 repository (it never posts to GitHub itself: the orchestrator posts its report as a PR
 #                 review).
+#   local-ai-standin  (#1593) writes ONLY under artifacts/local-ai/out/** (main checkout or a worktree), the
+#                 drafting stand-in for the local model while it is switched off; its ledger row is the caller's.
 #   others        not restricted (mechanical-fixer is the delegate).
 #
 # docs/plans/** stays with the issue-worker: an implementation plan is an issue-scoped working document
@@ -106,9 +108,6 @@
 #
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
 # (except the authorship-sidecar write above, which denies on its own failure instead — see #1374).
-
-#   local-ai-standin  (#1593) writes only under artifacts/local-ai/out/** (main checkout or a worktree), the
-#                 drafting stand-in for the local model while it is switched off.
 
 param([string]$Agent)
 

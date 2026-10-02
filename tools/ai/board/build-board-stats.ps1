@@ -139,7 +139,9 @@ foreach ($row in $standinRows) {
     if (-not $localByDay.Contains($day)) { $localByDay[$day] = New-LocalDayEntry $day }
     $entry = $localByDay[$day]
     $entry.standinCalls += 1
-    $entry.standinTokens += [double]$row.completionTokens
+    # totalTokens (prompt + completion for CLI rows, the subagent total for agent rows); rows from before that
+    # column existed fall back to completionTokens.
+    $entry.standinTokens += if ($row.PSObject.Properties['totalTokens'] -and $row.totalTokens) { [double]$row.totalTokens } else { [double]$row.completionTokens }
     if ($row.PSObject.Properties['costUsd'] -and $row.costUsd) { $entry.standinCostUsd += [double]::Parse($row.costUsd, [System.Globalization.CultureInfo]::InvariantCulture) }
 }
 foreach ($row in $rows) {

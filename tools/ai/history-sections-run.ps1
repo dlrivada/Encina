@@ -35,7 +35,7 @@ foreach ($g in ($rows | Group-Object area | Sort-Object Name)) {
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         $af = Join-Path $outDir ("$area.attempt$attempt.md")
         $log = & dotnet run $script -- --task "history-$area" --brief $bf --system $sys --out $af --max-tokens 4096 2>&1
-        if ($LASTEXITCODE -eq 3) { [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable ($($log -join ' ')); stopping the whole run (#1593)"); exit 3 }
+        if ($LASTEXITCODE -in 3, 4) { $stopCode = $LASTEXITCODE; [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable or refused (exit ${stopCode}: $($log -join ' ')); stopping the whole run (#1593)"); exit $stopCode }
         $t = Get-Content $af -Raw
         $cited = @([regex]::Matches($t, '#(\d+)') | ForEach-Object { [int]$_.Groups[1].Value } | Select-Object -Unique)
         $badCites = @($cited | Where-Object { $allowed -notcontains $_ })

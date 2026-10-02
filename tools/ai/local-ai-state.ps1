@@ -33,7 +33,7 @@
     The draft's output file, written exactly as it was passed to the stand-in. The ledger lives in
     <directory of OutFile>\..\standin-ledger.csv (the artifacts\local-ai folder of the same root).
 .PARAMETER Tokens
-    The agent's subagent_tokens (stored as completionTokens; promptTokens stays empty).
+    The agent's subagent_tokens (stored as totalTokens; promptTokens and completionTokens stay empty).
 .PARAMETER Seconds
     The agent's duration in seconds (optional).
 #>
@@ -69,11 +69,13 @@ if ($RecordStandin) {
     $ledger = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($OutFile))) '..\standin-ledger.csv'))
     New-Item -ItemType Directory -Force (Split-Path -Parent $ledger) | Out-Null
     if (-not (Test-Path -LiteralPath $ledger)) {
-        Add-Content -LiteralPath $ledger -Value 'timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile,costUsd'
+        Add-Content -LiteralPath $ledger -Value 'timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile,costUsd,totalTokens'
     }
     $secs = if ($PSBoundParameters.ContainsKey('Seconds')) { $Seconds.ToString('F1', [Globalization.CultureInfo]::InvariantCulture) } else { '' }
-    $file = if ($OutFile -match '[",\n]') { '"' + ($OutFile -replace '"', '""') + '"' } else { $OutFile }
-    $row = '{0},{1},,{2},{3},,{4},' -f [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'), $Task, $Tokens, $secs, $file
+    # RFC 4180: a free-text field with a comma, a quote or a line break is quoted, quotes doubled.
+    function ConvertTo-CsvField([string]$Value) { if ($Value -match '[",\r\n]') { '"' + ($Value -replace '"', '""') + '"' } else { $Value } }
+    # Agent route: the subagent's total goes in totalTokens; prompt and completion are unknown (empty).
+    $row = '{0},{1},,,{2},,{3},,{4}' -f [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'), (ConvertTo-CsvField $Task), $secs, (ConvertTo-CsvField $OutFile), $Tokens
     Add-Content -LiteralPath $ledger -Value $row
     "recorded: $row -> $ledger"
     return

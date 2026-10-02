@@ -18,14 +18,23 @@
 // - Switch (#1593): the first thing it does is read the local-model switch, <main checkout>\artifacts\local-ai\state.json
 //   (managed by tools/ai/local-ai-state.ps1; absent = on; --state-file overrides the path). With the switch OFF the
 //   same prompt goes to the stand-in engine instead of llama-server, no health retries: the Claude Code CLI
-//   (`claude -p --model haiku --effort low --setting-sources "" --tools "" --output-format json`, the prompt on stdin,
-//   the body of .claude/agents/local-ai-standin.md as --system-prompt, working directory the repository root of
-//   --out). The reply is written to --out exactly like a llama reply, and one row is appended to
-//   <artifacts root>\local-ai\standin-ledger.csv: the ledger.csv columns plus costUsd (paid tokens, never mixed into
-//   ledger.csv). --engine local|standin|auto (default auto = follow the switch) forces a route, for tests.
+//   (`claude -p --model haiku --effort low --setting-sources "" --tools "" --strict-mcp-config --output-format
+//   stream-json --verbose`, the prompt on stdin, the body of .claude/agents/local-ai-standin.md as --system-prompt,
+//   working directory the repository root of --out). FAIL CLOSED: the first system/init event must list no tool
+//   and no MCP server (the account's claude.ai connectors would otherwise load), else the process is killed and the
+//   call exits 1. The reply, usage, cost and duration come from the final result event. The reply is written to
+//   --out exactly like a llama reply, and one row is appended to <ledger folder>\standin-ledger.csv: the
+//   ledger.csv columns plus costUsd and totalTokens (paid tokens, never mixed into ledger.csv).
+//   --engine local|standin|auto (default auto = follow the switch) forces a route, for tests.
+//   On the stand-in route: --max-tokens becomes CLAUDE_CODE_MAX_OUTPUT_TOKENS of the child; --standin-timeout-seconds
+//   (default 600) kills a hung CLI; ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN are removed from the child so it always
+//   uses the subscription login; --url, --health-attempts and --health-wait-seconds are ignored.
+// - Free-text ledger fields (task, outFile) are RFC 4180 quoted in every ledger row.
 // - Exit code 0 on success, 1 on any failure (server down after every retry, HTTP error, empty reply, a stand-in CLI
-//   error), 3 when the switch is OFF and the claude CLI is not available: spawn the local-ai-standin agent through the
-//   Agent tool with the same --task/--brief/--input/--out and record it with local-ai-state.ps1 -RecordStandin.
+//   error, a stand-in timeout or fail-closed refusal), 3 when the switch is OFF and the claude CLI is not available:
+//   spawn the local-ai-standin agent through the Agent tool with the same --task/--brief/--input/--out and record it
+//   with local-ai-state.ps1 -RecordStandin; 4 when the switch is OFF and the CLI fails on a login or usage-limit
+//   problem (batch scripts stop the whole run on 3 or 4).
 //
 // This is for "read -> produce an artifact" work (classification, summaries, drafts). Agentic coding tasks that must
 // edit files and run builds still go through opencode; their token usage is read from the llama-server log instead.
@@ -33,6 +42,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -187,11 +197,15 @@ Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(ledgerPath))!);
 if (!File.Exists(ledgerPath))
     File.WriteAllText(ledgerPath, "timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile\n");
 File.AppendAllText(ledgerPath, string.Create(CultureInfo.InvariantCulture,
-    $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ},{task},{promptTokens},{completionTokens},{seconds:F1},{tps:F1},{outPath}\n"));
+    $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ},{Csv(task)},{promptTokens},{completionTokens},{seconds:F1},{tps:F1},{Csv(outPath)}\n"));
 
 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
     $"task={task} prompt={promptTokens} completion={completionTokens} seconds={seconds:F1} tok/s={tps:F1} out={outPath}"));
 return 0;
+
+// RFC 4180 quoting for a free-text ledger field: quoted when it holds a comma, a quote or a line break.
+string Csv(string value) =>
+    value.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
 
 // <main checkout>\artifacts\local-ai\state.json: the parent of `git rev-parse --path-format=absolute --git-common-dir`
 // run from this script's own folder, so every worktree resolves the same file (same rule as local-ai-state.ps1).
@@ -258,11 +272,20 @@ async Task<int> RunStandin(string reason)
         StandardInputEncoding = new UTF8Encoding(false),
         StandardOutputEncoding = Encoding.UTF8,
     };
-    foreach (var a in new[] { "-p", "--model", "haiku", "--effort", "low", "--setting-sources", "", "--tools", "", "--system-prompt", standinPrompt, "--output-format", "json", "--no-session-persistence" })
+    // --tools "" removes only the built-in tools: the account's claude.ai MCP connectors would still load, so
+    // --strict-mcp-config (with no --mcp-config) is what leaves the stand-in with no tool at all. The init event
+    // is checked below and the call fails closed when any tool or MCP server is present.
+    foreach (var a in new[] { "-p", "--model", "haiku", "--effort", "low", "--setting-sources", "", "--tools", "", "--strict-mcp-config", "--system-prompt", standinPrompt, "--output-format", "stream-json", "--verbose", "--no-session-persistence" })
         psi.ArgumentList.Add(a);
     // --setting-sources "" does not stop the repository CLAUDE.md/AGENTS.md from loading (about 2k extra tokens).
     psi.Environment["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1";
+    // --max-tokens maps to the CLI's output cap.
+    psi.Environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = maxTokens.ToString(CultureInfo.InvariantCulture);
+    // Always the subscription login, never API billing.
+    psi.Environment.Remove("ANTHROPIC_API_KEY");
+    psi.Environment.Remove("ANTHROPIC_AUTH_TOKEN");
     psi.StandardErrorEncoding = Encoding.UTF8;
+    var timeoutSeconds = int.Parse(Get("--standin-timeout-seconds") ?? "600", CultureInfo.InvariantCulture);
 
     Process proc;
     try
@@ -278,35 +301,92 @@ async Task<int> RunStandin(string reason)
     using (proc)
     {
         var sw2 = Stopwatch.StartNew();
-        var stdoutTask = proc.StandardOutput.ReadToEndAsync();
         var stderrTask = proc.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+        // Fail closed: the first event must be system/init with no tool and no MCP server. Any other state kills
+        // the process before a single reply is trusted. The last "result" event carries the reply and the usage.
+        string? violation = null;
+        JsonNode? reply = null;
+        var readTask = Task.Run(async () =>
+        {
+            var sawInit = false;
+            string? line;
+            while ((line = await proc.StandardOutput.ReadLineAsync()) is not null)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                JsonNode? ev;
+                try { ev = JsonNode.Parse(line); } catch (JsonException) { continue; }
+                var type = ev?["type"]?.ToString();
+                if (type == "system" && ev?["subtype"]?.ToString() == "init" && !sawInit)
+                {
+                    sawInit = true;
+                    var toolCount = (ev["tools"] as JsonArray)?.Count ?? -1;
+                    var mcpCount = (ev["mcp_servers"] as JsonArray)?.Count ?? -1;
+                    Console.Error.WriteLine($"stand-in init: tools={toolCount} mcp_servers={mcpCount}");
+                    if (toolCount != 0 || mcpCount != 0)
+                    {
+                        violation = $"init event lists tools={toolCount} mcp_servers={mcpCount}; the stand-in must have none";
+                        try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                        return;
+                    }
+                }
+                else if (type == "result")
+                {
+                    if (!sawInit)
+                    {
+                        violation = "a result arrived without a system/init event";
+                        try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                        return;
+                    }
+                    reply = ev;
+                }
+            }
+            if (!sawInit && violation is null) violation = "the CLI produced no system/init event";
+        });
+
         try
         {
-            await proc.StandardInput.WriteAsync(sb.ToString());
-            proc.StandardInput.Close();
+            try
+            {
+                await proc.StandardInput.WriteAsync(sb.ToString());
+                proc.StandardInput.Close();
+            }
+            catch (IOException)
+            {
+                // The CLI exited before reading the prompt (for example an auth failure): its output says why.
+            }
+            await proc.WaitForExitAsync(timeout.Token);
+            await readTask;
         }
-        catch (IOException)
+        catch (OperationCanceledException)
         {
-            // The CLI exited before reading the prompt (for example an auth failure): its output below says why.
+            try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            Console.Error.WriteLine($"stand-in CLI timed out after {timeoutSeconds} s and was killed (--standin-timeout-seconds)");
+            return 1;
         }
-        await proc.WaitForExitAsync();
-        var stdout = await stdoutTask;
         var stderr = await stderrTask;
         sw2.Stop();
 
-        JsonNode? reply;
-        try { reply = JsonNode.Parse(stdout); }
-        catch (JsonException)
+        if (violation is not null)
         {
-            Console.Error.WriteLine($"stand-in CLI returned no JSON (exit {proc.ExitCode}): {stderr} {stdout}");
+            Console.Error.WriteLine($"stand-in refused (fail closed): {violation}. {stderr}".TrimEnd());
             return 1;
         }
 
         var isError = reply?["is_error"]?.GetValue<bool>() ?? true;
         var result = reply?["result"]?.ToString() ?? string.Empty;
-        if (isError || proc.ExitCode != 0)
+        if (isError || proc.ExitCode != 0 || reply is null)
         {
-            Console.Error.WriteLine($"stand-in CLI error (exit {proc.ExitCode}): {result} {stderr}".TrimEnd());
+            var detail = $"{result} {reply?["api_error_status"]} {reply?["terminal_reason"]} {stderr}";
+            var message = $"stand-in CLI error (exit {proc.ExitCode}): {detail}".TrimEnd();
+            // A login or usage-limit problem is not a per-item failure: exit 4 so a batch stops at once.
+            if (Regex.IsMatch(detail, @"not logged in|please run /login|usage limit|rate limit|limit reached|credit balance|\b(401|429)\b", RegexOptions.IgnoreCase))
+            {
+                Console.Error.WriteLine($"{message}\nthe stand-in cannot draft (login or usage limit): fix the login or wait for the limit, or spawn the local-ai-standin agent through the Agent tool");
+                return 4;
+            }
+            Console.Error.WriteLine(message);
             return 1;
         }
 
@@ -330,9 +410,9 @@ async Task<int> RunStandin(string reason)
         var standinLedger = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(ledgerPath))!, "standin-ledger.csv");
         Directory.CreateDirectory(Path.GetDirectoryName(standinLedger)!);
         if (!File.Exists(standinLedger))
-            File.WriteAllText(standinLedger, "timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile,costUsd\n");
+            File.WriteAllText(standinLedger, "timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile,costUsd,totalTokens\n");
         File.AppendAllText(standinLedger, string.Create(CultureInfo.InvariantCulture,
-            $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ},{task},{inTokens},{outTokens},{secs:F1},{tokPerSec:F1},{outPath},{cost:F4}\n"));
+            $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ},{Csv(task)},{inTokens},{outTokens},{secs:F1},{tokPerSec:F1},{Csv(outPath)},{cost:F4},{inTokens + outTokens}\n"));
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"stand-in ({reason}) task={task} prompt={inTokens} completion={outTokens} seconds={secs:F1} costUsd={cost:F4} out={outPath}"));

@@ -92,9 +92,10 @@ function Invoke-JudgedScores {
         # error while the batch continues to the next issue.
         try {
             $log = & dotnet run $localAiScript -- --task "priority-$($IssueRecord.number)" --brief $RubricFile --input $inputFile --out $outFile --ledger $ledgerFile --max-tokens 1024 2>&1
-            if ($LASTEXITCODE -eq 3) {
-                [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable ($($log -join ' ')); stopping the whole run (#1593)")
-                exit 3
+            if ($LASTEXITCODE -in 3, 4) {
+                $stopCode = $LASTEXITCODE
+                [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable or refused (exit $stopCode`: $($log -join ' ')); stopping the whole run (#1593)")
+                exit $stopCode
             }
             if ($LASTEXITCODE -ne 0) {
                 $lastError = "local-ai-ask.cs exited $LASTEXITCODE`: $log"
