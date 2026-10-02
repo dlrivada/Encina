@@ -1,6 +1,7 @@
 using Encina.Security.Secrets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using VaultSharp;
 
 namespace Encina.Security.Secrets.HashiCorpVault;
@@ -34,11 +35,13 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// // With token auth (development)
+    /// // With token auth against a local dev server (both opt-outs log a warning at startup)
     /// services.AddHashiCorpVaultSecrets(
     ///     vault =>
     ///     {
     ///         vault.VaultAddress = "http://localhost:8200";
+    ///         vault.AllowInsecureHttp = true;
+    ///         vault.AllowLocalEndpoints = true;
     ///         vault.AuthMethod = new TokenAuthMethodInfo("hvs.dev-root-token");
     ///     },
     ///     secrets =>
@@ -51,9 +54,13 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="services"/> or <paramref name="configureVault"/> is <c>null</c>.
     /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when <see cref="HashiCorpVaultOptions.VaultAddress"/> is empty or
-    /// <see cref="HashiCorpVaultOptions.AuthMethod"/> is <c>null</c>.
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when <see cref="HashiCorpVaultOptions.VaultAddress"/> is missing, is not an absolute
+    /// <c>https</c> URL (unless <see cref="HashiCorpVaultOptions.AllowInsecureHttp"/> is set), targets a
+    /// loopback address (unless <see cref="HashiCorpVaultOptions.AllowLocalEndpoints"/> is set) or a
+    /// link-local, cloud metadata or unspecified address, or when
+    /// <see cref="HashiCorpVaultOptions.AuthMethod"/> is <c>null</c>. The same validation runs again at
+    /// host startup (<c>ValidateOnStart</c>).
     /// </exception>
     public static IServiceCollection AddHashiCorpVaultSecrets(
         this IServiceCollection services,
@@ -63,28 +70,26 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configureVault);
 
+        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
         var vaultOptions = new HashiCorpVaultOptions();
         configureVault(vaultOptions);
-
-        if (string.IsNullOrWhiteSpace(vaultOptions.VaultAddress))
+        var validation = new HashiCorpVaultOptionsValidator().Validate(Options.DefaultName, vaultOptions);
+        if (validation.Failed)
         {
-            throw new InvalidOperationException(
-                "HashiCorpVaultOptions.VaultAddress is required. " +
-                "Provide the Vault server address (e.g., 'https://vault.example.com:8200').");
+            throw new OptionsValidationException(Options.DefaultName, typeof(HashiCorpVaultOptions), validation.Failures);
         }
 
-        if (vaultOptions.AuthMethod is null)
-        {
-            throw new InvalidOperationException(
-                "HashiCorpVaultOptions.AuthMethod is required. " +
-                "Provide an IAuthMethodInfo implementation (e.g., TokenAuthMethodInfo, AppRoleAuthMethodInfo).");
-        }
+        services.AddOptions<HashiCorpVaultOptions>()
+            .Configure(configureVault)
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<HashiCorpVaultOptions>, HashiCorpVaultOptionsValidator>());
+
+        // Register options for injection (resolved through IOptions, so validation always runs)
+        services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<HashiCorpVaultOptions>>().Value);
 
         // Register IVaultClient as singleton (TryAdd allows pre-registration)
-        services.TryAddSingleton<IVaultClient>(_ => CreateClient(vaultOptions));
-
-        // Register options for injection
-        services.TryAddSingleton(vaultOptions);
+        services.TryAddSingleton<IVaultClient>(sp => CreateClient(sp.GetRequiredService<HashiCorpVaultOptions>()));
 
         // Register as ISecretWriter and ISecretRotator (TryAdd allows pre-registration)
         services.TryAddSingleton<HashiCorpVaultSecretProvider>();
