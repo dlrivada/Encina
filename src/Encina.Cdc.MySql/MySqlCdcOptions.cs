@@ -18,10 +18,15 @@ namespace Encina.Cdc.MySql;
 public sealed class MySqlCdcOptions
 {
     /// <summary>
-    /// Gets or sets the MySQL connection string (used for health checks).
+    /// Gets or sets the MySQL connection string (used to read the current binlog position).
     /// </summary>
     /// <remarks>
-    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// <para>
+    /// Required. Every server in it must use TCP and must not target a loopback host (unless
+    /// <see cref="AllowLocalEndpoints"/> is set) or a link-local, cloud metadata or unspecified address.
+    /// Unix socket, named pipe and shared memory connections count as local endpoints.
+    /// </para>
+    /// <para>WARNING: Contains sensitive credential data. Never log or serialize.</para>
     /// </remarks>
     [JsonIgnore]
     public string ConnectionString { get; set; } = string.Empty;
@@ -29,7 +34,22 @@ public sealed class MySqlCdcOptions
     /// <summary>
     /// Gets or sets the MySQL server hostname for binlog replication.
     /// </summary>
+    /// <remarks>
+    /// Must not target a loopback host (unless <see cref="AllowLocalEndpoints"/> is set) or a
+    /// link-local, cloud metadata or unspecified address. The default <c>localhost</c> is therefore
+    /// rejected at registration unless <see cref="AllowLocalEndpoints"/> is set.
+    /// </remarks>
     public string Hostname { get; set; } = "localhost";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="Hostname"/> and the servers in
+    /// <see cref="ConnectionString"/> may target <c>localhost</c>, a loopback address or a local socket.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>. Set to <c>true</c> for local development or a database on the same
+    /// host; a warning is logged at startup when it is set.
+    /// </value>
+    public bool AllowLocalEndpoints { get; set; }
 
     /// <summary>
     /// Gets or sets the MySQL server port for binlog replication.
