@@ -60,6 +60,7 @@ public sealed class AddEncinaServiceGraphTests
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddLogging();
 
         // Act
         var added = Capture(services, s => s.AddEncina(typeof(IEncina).Assembly));
@@ -74,10 +75,12 @@ public sealed class AddEncinaServiceGraphTests
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddLogging();
 
         // Act
         var added = Capture(services, s => s.AddEncina(
             configuration => configuration
+                .UseParallelNotificationDispatch(NotificationDispatchStrategy.ParallelWhenAll, maxDegreeOfParallelism: 3)
                 .AddPipelineBehavior(typeof(GraphBehavior<,>))
                 .AddRequestPreProcessor<GraphPreProcessor>()
                 .AddRequestPostProcessor<GraphPostProcessor>(),
@@ -94,6 +97,10 @@ public sealed class AddEncinaServiceGraphTests
             .ShouldContain(p => p is GraphPreProcessor);
         scope.ServiceProvider.GetServices<IRequestPostProcessor<GraphRequest, GraphResponse>>()
             .ShouldContain(p => p is GraphPostProcessor);
+
+        var dispatch = scope.ServiceProvider.GetRequiredService<IOptions<NotificationDispatchOptions>>().Value;
+        dispatch.Strategy.ShouldBe(NotificationDispatchStrategy.ParallelWhenAll);
+        dispatch.MaxDegreeOfParallelism.ShouldBe(3);
     }
 
     [Fact]
@@ -101,6 +108,7 @@ public sealed class AddEncinaServiceGraphTests
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddLogging();
         var added = Capture(services, s => s.AddEncina(typeof(IEncina).Assembly));
         var accessor = services.Single(d => d.ServiceType == typeof(IRequestContextAccessor));
         services.Remove(accessor);
