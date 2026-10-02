@@ -5,7 +5,10 @@
 # are read at run time, so the hook never drifts from them.
 #
 # #1410: a `--body-file` call must also show the body was drafted by the free local model
-# (tools/ai/local-ai-ask.cs), never paid tokens, before the header check even runs. One of:
+# (tools/ai/local-ai-ask.cs), never paid tokens, before the header check even runs. #1593: while the local
+# model is switched off, the local-ai-standin agent's drafts count the same: a row of
+# artifacts/local-ai/standin-ledger.csv (same columns, same 24-hour window, same roots) is evidence exactly like
+# a row of ledger.csv. One of:
 #   (a) the file's first line is `<!-- local-draft: <path> -->` (<path> relative to the repository root, or
 #       absolute) where <path> exists AND a row of a local-ai/ledger.csv from the last 24 hours (the
 #       repository root's own, or any .claude/worktrees/*/artifacts/local-ai/ledger.csv) names <path> as its
@@ -114,14 +117,18 @@ try {
 
     function Get-RecentLedgerRows([string]$Root, [datetime]$Since) {
         $rows = [System.Collections.Generic.List[object]]::new()
-        $ledger = Join-Path $Root 'artifacts/local-ai/ledger.csv'
-        if (-not (Test-Path -LiteralPath $ledger)) { return $rows }
-        $parsed = $null
-        try { $parsed = Import-Csv -LiteralPath $ledger } catch { return $rows }
-        foreach ($row in $parsed) {
-            $ts = ConvertFrom-LedgerTimestamp ([string]$row.timestampUtc)
-            if ($null -eq $ts -or $ts -lt $Since) { continue }
-            $rows.Add($row)
+        # ledger.csv (the local model) and standin-ledger.csv (the local-ai-standin agent, #1593) carry the
+        # same columns and count the same way as evidence.
+        foreach ($ledgerName in 'ledger.csv', 'standin-ledger.csv') {
+            $ledger = Join-Path $Root "artifacts/local-ai/$ledgerName"
+            if (-not (Test-Path -LiteralPath $ledger)) { continue }
+            $parsed = $null
+            try { $parsed = Import-Csv -LiteralPath $ledger } catch { continue }
+            foreach ($row in $parsed) {
+                $ts = ConvertFrom-LedgerTimestamp ([string]$row.timestampUtc)
+                if ($null -eq $ts -or $ts -lt $Since) { continue }
+                $rows.Add($row)
+            }
         }
         return $rows
     }
@@ -244,7 +251,7 @@ try {
         return (Test-RemediationDraftMatch $Body $TitleText $Root $since)
     }
 
-    $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
+    $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
 
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')

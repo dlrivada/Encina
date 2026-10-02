@@ -29,6 +29,7 @@ for ($c = 0; $c -lt $chunks; $c++) {
     $ok = $false
     for ($attempt = 1; $attempt -le 2 -and -not $ok; $attempt++) {
         $log = & dotnet run $script -- --task ("areas-{0:D2}" -f ($c + 1)) --brief $bf --system $sys --out $of --max-tokens 6144 2>&1
+        if ($LASTEXITCODE -in 3, 4) { $stopCode = $LASTEXITCODE; [Console]::Error.WriteLine("local model switched off and the stand-in is unavailable or refused (exit ${stopCode}: $($log -join ' ')); stopping the whole run (#1593)"); exit $stopCode }
         $raw = (Get-Content $of -Raw) -replace '^\s*```(json)?\s*', '' -replace '\s*```\s*$', ''
         try {
             $arr = @($raw | ConvertFrom-Json)
