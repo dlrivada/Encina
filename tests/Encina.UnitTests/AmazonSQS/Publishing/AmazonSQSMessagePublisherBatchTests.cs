@@ -30,8 +30,9 @@ public sealed class AmazonSQSMessagePublisherBatchTests
             }));
     }
 
+    // Pins today's behaviour; #1604 makes a partial failure visible to the caller and changes this test.
     [Fact]
-    public async Task SendBatchAsync_WhenSomeEntriesFail_ReturnsOnlyTheSuccessfulIdsAndLogsAWarning()
+    public async Task SendBatchAsync_WhenSomeEntriesFail_CurrentlyReturnsOnlyTheSuccessfulIds()
     {
         // Arrange
         SendMessageBatchRequest? sent = null;
