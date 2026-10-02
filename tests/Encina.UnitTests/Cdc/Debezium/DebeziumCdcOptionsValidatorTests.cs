@@ -18,6 +18,7 @@ public sealed class DebeziumCdcOptionsValidatorTests
     [InlineData("http://127.0.0.1")]
     [InlineData("https://cdc.example.com")]
     [InlineData("http://0.0.0.0")]
+    [InlineData("http://[::1]")]
     public void Validate_ValidListenPrefixes_Succeed(string listenUrl)
     {
         _sut.Validate(null, new DebeziumCdcOptions { ListenUrl = listenUrl }).Succeeded.ShouldBeTrue();
@@ -31,6 +32,8 @@ public sealed class DebeziumCdcOptionsValidatorTests
     [InlineData("http://host:8080")]
     [InlineData("http://host/path")]
     [InlineData("http://bad host")]
+    [InlineData("http://::1")]
+    [InlineData("http://[not-ipv6]")]
     public void Validate_InvalidListenPrefixes_Fail(string listenUrl)
     {
         var result = _sut.Validate(null, new DebeziumCdcOptions { ListenUrl = listenUrl });

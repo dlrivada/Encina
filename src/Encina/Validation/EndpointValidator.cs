@@ -52,10 +52,16 @@ public static class EndpointValidator
         StringComparer.OrdinalIgnoreCase,
         "localhost",
         "ip6-localhost",
-        "ip6-loopback");
+        "ip6-loopback",
+        "localhost.localdomain",
+        "localhost4",
+        "localhost4.localdomain4",
+        "localhost6",
+        "localhost6.localdomain6");
 
     private static readonly FrozenSet<string> MetadataNames = FrozenSet.Create(
         StringComparer.OrdinalIgnoreCase,
+        "metadata",
         "metadata.google.internal",
         "metadata.goog",
         "instance-data",
@@ -252,7 +258,7 @@ public static class EndpointValidator
     // crap-exempt: single-question switch — classifies one IPv4 address into its range.
     private static EndpointHostKind ClassifyIPv4(uint value) => value switch
     {
-        0xA9FEA9FE or 0x646464C8 => EndpointHostKind.CloudMetadata, // 169.254.169.254, 100.100.100.200
+        0xA9FEA9FE or 0x646464C8 or 0xA83F8110 => EndpointHostKind.CloudMetadata, // 169.254.169.254, 100.100.100.200, 168.63.129.16
         _ when value >> 24 == 0 => EndpointHostKind.Unspecified,     // 0.0.0.0/8
         _ when value >> 24 == 127 => EndpointHostKind.Loopback,      // 127.0.0.0/8
         _ when value >> 16 == 0xA9FE => EndpointHostKind.LinkLocal,  // 169.254.0.0/16

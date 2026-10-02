@@ -86,7 +86,10 @@ internal sealed class MySqlCdcOptionsValidator : IValidateOptions<MySqlCdcOption
         string[] hosts = string.IsNullOrWhiteSpace(servers) ? ["localhost"] : servers.Split(',', StringSplitOptions.TrimEntries);
         foreach (var host in hosts)
         {
-            var error = EndpointValidator.ValidateHost(host, property, policy);
+            // MySqlConnector connects through a Unix socket when Server is an absolute path.
+            var error = host.StartsWith('/')
+                ? ValidateLocalTransport(property, policy)
+                : EndpointValidator.ValidateHost(host, property, policy);
             if (error is not null)
             {
                 return error;

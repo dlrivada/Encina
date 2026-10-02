@@ -25,8 +25,8 @@ public sealed class EndpointPolicy
     public required IReadOnlyList<string> AllowedSchemes { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether loopback hosts (<c>localhost</c>, 127.0.0.0/8, ::1, local
-    /// sockets) are accepted. Intended for local development and sidecars only.
+    /// Gets a value indicating whether loopback hosts (<c>localhost</c>, 127.0.0.0/8, ::1) are
+    /// accepted. Intended for local development and sidecars only.
     /// </summary>
     public bool AllowLocalEndpoints { get; init; }
 

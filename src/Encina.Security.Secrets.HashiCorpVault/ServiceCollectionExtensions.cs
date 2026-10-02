@@ -89,7 +89,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<HashiCorpVaultOptions>>().Value);
 
         // Register IVaultClient as singleton (TryAdd allows pre-registration)
-        services.TryAddSingleton<IVaultClient>(sp => CreateClient(sp.GetRequiredService<HashiCorpVaultOptions>()));
+        // Built from IOptions (not the concrete registration) so a pre-registered options instance cannot skip validation.
+        services.TryAddSingleton<IVaultClient>(sp => CreateClient(sp.GetRequiredService<IOptions<HashiCorpVaultOptions>>().Value));
 
         // Register as ISecretWriter and ISecretRotator (TryAdd allows pre-registration)
         services.TryAddSingleton<HashiCorpVaultSecretProvider>();

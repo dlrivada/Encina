@@ -18,13 +18,13 @@ public enum EndpointHostKind
     /// <summary>The host is an RFC 1918 IPv4 address (10/8, 172.16/12, 192.168/16) or an IPv6 unique local address (fc00::/7).</summary>
     Private = 1,
 
-    /// <summary>The host is a loopback address (127.0.0.0/8, ::1), a local socket path, or a loopback name such as <c>localhost</c>.</summary>
+    /// <summary>The host is a loopback address (127.0.0.0/8, ::1) or a loopback name such as <c>localhost</c> or <c>localhost.localdomain</c>.</summary>
     Loopback = 2,
 
     /// <summary>The host is a link-local address (169.254.0.0/16, fe80::/10).</summary>
     LinkLocal = 3,
 
-    /// <summary>The host is a cloud instance metadata endpoint (for example 169.254.169.254, fd00:ec2::254, 100.100.100.200 or metadata.google.internal).</summary>
+    /// <summary>The host is a cloud instance metadata endpoint (for example 169.254.169.254, fd00:ec2::254, 100.100.100.200, the Azure WireServer 168.63.129.16, metadata or metadata.google.internal).</summary>
     CloudMetadata = 4,
 
     /// <summary>The host is an unspecified address (0.0.0.0/8, ::).</summary>

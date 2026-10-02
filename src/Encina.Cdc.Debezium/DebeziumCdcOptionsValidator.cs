@@ -49,7 +49,14 @@ internal sealed class DebeziumCdcOptionsValidator : IValidateOptions<DebeziumCdc
             return false;
         }
 
-        var host = listenUrl![prefix.Length..];
-        return host is "+" or "*" || Uri.CheckHostName(host) != UriHostNameType.Unknown;
+        return IsValidListenHost(listenUrl![prefix.Length..]);
     }
+
+    // HttpListener needs IPv6 literals in brackets ("http://[::1]"); "http://::1" fails at Prefixes.Add.
+    private static bool IsValidListenHost(string host) => host switch
+    {
+        "+" or "*" => true,
+        ['[', .. var inner, ']'] => Uri.CheckHostName(inner) == UriHostNameType.IPv6,
+        _ => Uri.CheckHostName(host) is UriHostNameType.Dns or UriHostNameType.IPv4,
+    };
 }

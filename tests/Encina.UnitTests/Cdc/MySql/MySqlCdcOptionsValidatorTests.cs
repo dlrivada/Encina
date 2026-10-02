@@ -59,6 +59,7 @@ public sealed class MySqlCdcOptionsValidatorTests
     [InlineData("Server=169.254.169.254;Password=topsecret", "metadata")]
     [InlineData("Server=/var/run/mysqld/mysqld.sock;Protocol=Unix;Password=topsecret", "local transport")]
     [InlineData("Server=.;Protocol=Pipe;Password=topsecret", "local transport")]
+    [InlineData("Server=/var/run/mysqld/mysqld.sock;Password=topsecret", "local transport")]
     [InlineData("NotAKey=1;Password=topsecret", "not a valid MySQL connection string")]
     [InlineData("", "must be configured")]
     public void Validate_UnsafeConnectionString_FailsWithoutEchoingIt(string connectionString, string reason)
@@ -71,10 +72,12 @@ public sealed class MySqlCdcOptionsValidatorTests
         result.FailureMessage.ShouldNotContain("topsecret");
     }
 
-    [Fact]
-    public void Validate_LocalTransportWithOptOut_Succeeds()
+    [Theory]
+    [InlineData("Server=/var/run/mysqld/mysqld.sock;Protocol=Unix")]
+    [InlineData("Server=/var/run/mysqld/mysqld.sock")]
+    public void Validate_LocalTransportWithOptOut_Succeeds(string connectionString)
     {
-        var options = Options("localhost", "Server=/var/run/mysqld/mysqld.sock;Protocol=Unix", local: true);
+        var options = Options("localhost", connectionString, local: true);
 
         new MySqlCdcOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
     }
