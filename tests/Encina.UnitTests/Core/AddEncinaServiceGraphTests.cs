@@ -35,14 +35,38 @@ public sealed class AddEncinaServiceGraphTests
 
     private static readonly Lazy<Assembly> ScannedAssembly = new(BuildScannedAssembly);
 
-    public static TheoryData<Type> SingleInstanceServices => new()
+    /// <summary>
+    /// Every non-generic service type <c>AddEncina</c> registers exactly once, derived from the
+    /// descriptors it adds so a new <c>TryAdd*</c> is covered automatically. Options configuration
+    /// descriptors are excluded: <c>IOptions&lt;T&gt;</c> always resolves, and the configured values
+    /// are asserted by the configure-overload test instead.
+    /// </summary>
+    public static TheoryData<Type> SingleInstanceServices
     {
-        typeof(IEncina),
-        typeof(IRequestContextAccessor),
-        typeof(IEncinaMetrics),
-        typeof(IFunctionalFailureDetector),
-        typeof(IModuleHandlerRegistry),
-    };
+        get
+        {
+            var data = new TheoryData<Type>();
+            foreach (var type in DeriveSingleInstanceServices())
+            {
+                data.Add(type);
+            }
+
+            return data;
+        }
+    }
+
+    private static List<Type> DeriveSingleInstanceServices()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var added = Capture(services, s => s.AddEncina(typeof(IEncina).Assembly));
+        return added
+            .Where(d => !d.ServiceType.IsGenericType && !d.ServiceType.IsGenericTypeDefinition)
+            .GroupBy(d => d.ServiceType)
+            .Where(g => g.Count() == 1)
+            .Select(g => g.Key)
+            .ToList();
+    }
 
     public sealed record GraphRequest : IRequest<GraphResponse>;
 
@@ -234,7 +258,19 @@ public sealed class AddEncinaServiceGraphTests
         var act = () => AssertGraphResolves(services, addedWithout);
 
         // Assert
-        act.ShouldThrow<Exception>().Message.ShouldContain(missing.Name);
+        act.ShouldThrow<Exception>().Message.ShouldContain(missing.FullName!);
+    }
+
+    [Fact]
+    public void SingleInstanceServices_ContainTheKnownRegistrations()
+    {
+        var derived = DeriveSingleInstanceServices();
+
+        derived.ShouldContain(typeof(IEncina));
+        derived.ShouldContain(typeof(IRequestContextAccessor));
+        derived.ShouldContain(typeof(IEncinaMetrics));
+        derived.ShouldContain(typeof(IFunctionalFailureDetector));
+        derived.ShouldContain(typeof(IModuleHandlerRegistry));
     }
 
     private static List<ServiceDescriptor> Capture(IServiceCollection services, Action<IServiceCollection> register)
