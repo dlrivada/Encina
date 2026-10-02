@@ -470,6 +470,11 @@ function Invoke-Read {
             return
         }
         Copy-Tree -Source $source -Destination $OutDir
+        # An empty file is treated as missing, so the workflows' hashFiles conditions and -s tests agree.
+        Get-ChildItem -LiteralPath $OutDir -File -Force | Where-Object { $_.Length -eq 0 } | ForEach-Object {
+            Write-Host "  ignoring empty $($_.Name) from $Branch"
+            Remove-Item -LiteralPath $_.FullName -Force
+        }
         Write-Host "Read $Domain/data from $Branch at ${head}:"
         Get-ChildItem -LiteralPath $source -File | ForEach-Object { Write-Host "  $($_.Name)" }
     }
