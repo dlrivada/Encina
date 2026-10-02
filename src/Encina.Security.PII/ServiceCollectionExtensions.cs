@@ -4,6 +4,8 @@ using Encina.Security.PII.Health;
 using Encina.Security.PII.Strategies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.PII;
 
@@ -87,6 +89,11 @@ public static class ServiceCollectionExtensions
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when the configured <see cref="PIIOptions"/> are invalid, for example
+    /// <see cref="MaskingMode.Hash"/> as the default mode without a <see cref="PIIOptions.HashKey"/>
+    /// and without <see cref="PIIOptions.AllowUnkeyedHash"/>.
+    /// </exception>
     public static IServiceCollection AddEncinaPII(
         this IServiceCollection services,
         Action<PIIOptions>? configure = null)
@@ -117,6 +124,20 @@ public static class ServiceCollectionExtensions
         // Register custom strategy types from options (if configured)
         var optionsInstance = new PIIOptions();
         configure?.Invoke(optionsInstance);
+
+        // Fail closed at registration for non-host compositions, and again on start through
+        // ValidateOnStart for options bound from other sources (configuration, later Configure calls).
+        var validation = new PIIOptionsValidator(NullLogger<PIIOptionsValidator>.Instance)
+            .Validate(Options.DefaultName, optionsInstance);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(
+                Options.DefaultName, typeof(PIIOptions), validation.Failures ?? []);
+        }
+
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<PIIOptions>, PIIOptionsValidator>());
+        services.AddOptions<PIIOptions>().ValidateOnStart();
 
         foreach (var (_, strategyType) in optionsInstance.CustomStrategies)
         {

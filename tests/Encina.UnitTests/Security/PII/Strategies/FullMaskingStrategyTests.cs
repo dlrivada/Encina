@@ -225,21 +225,21 @@ public sealed class FullMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "full-salt"
+            HashKey = "full-key"
         };
 
-        var resultNoSalt = _sut.Apply("sensitive-data", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("sensitive-data", optionsWithSalt);
+        var resultNoKey = _sut.Apply("sensitive-data", optionsNoKey);
+        var resultWithKey = _sut.Apply("sensitive-data", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]

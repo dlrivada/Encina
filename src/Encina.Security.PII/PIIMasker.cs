@@ -89,7 +89,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
 
         var strategy = GetStrategy(type);
-        var maskingOptions = BuildMaskingOptions(type, _options.DefaultMode);
+        var maskingOptions = ResolveMaskingOptions(type, _options.DefaultMode);
 
         return strategy.Apply(value, maskingOptions);
     }
@@ -438,7 +438,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
 
         // Strategy-based masking
         var strategy = GetStrategy(metadata.Type);
-        var options = BuildMaskingOptions(metadata.Type, metadata.Mode);
+        var options = ResolveMaskingOptions(metadata.Type, metadata.Mode);
         return strategy.Apply(value, options);
     }
 
@@ -565,6 +565,25 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
 
         return strategies;
+    }
+
+    /// <summary>
+    /// Builds the per-type masking options and applies the configured hash key.
+    /// </summary>
+    /// <remarks>
+    /// Fails closed: <see cref="MaskingMode.Hash"/> with no key and no <see cref="PIIOptions.AllowUnkeyedHash"/>
+    /// (for example a property whose attribute selects Hash while <see cref="PIIOptions.DefaultMode"/> does not)
+    /// is downgraded to <see cref="MaskingMode.Redact"/> and logged, never an unkeyed hash.
+    /// </remarks>
+    private MaskingOptions ResolveMaskingOptions(PIIType type, MaskingMode mode)
+    {
+        if (mode == MaskingMode.Hash && _options.HashKey is null && !_options.AllowUnkeyedHash)
+        {
+            PIILogMessages.HashWithoutKeyRedacted(_logger, type.ToString());
+            mode = MaskingMode.Redact;
+        }
+
+        return BuildMaskingOptions(type, mode) with { HashKey = _options.HashKey };
     }
 
     private static MaskingOptions BuildMaskingOptions(PIIType type, MaskingMode mode)

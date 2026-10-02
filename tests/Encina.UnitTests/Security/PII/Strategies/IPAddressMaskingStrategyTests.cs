@@ -141,21 +141,21 @@ public sealed class IPAddressMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = false,
-            HashSalt = "ip-salt"
+            HashKey = "ip-key"
         };
 
-        var resultNoSalt = _sut.Apply("192.168.1.100", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("192.168.1.100", optionsWithSalt);
+        var resultNoKey = _sut.Apply("192.168.1.100", optionsNoKey);
+        var resultWithKey = _sut.Apply("192.168.1.100", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]

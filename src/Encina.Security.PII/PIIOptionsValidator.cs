@@ -1,0 +1,50 @@
+using Encina.Security.PII.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Encina.Security.PII;
+
+/// <summary>
+/// Validates <see cref="PIIOptions"/> so that <see cref="MaskingMode.Hash"/> fails closed:
+/// it needs a <see cref="PIIOptions.HashKey"/> unless <see cref="PIIOptions.AllowUnkeyedHash"/>
+/// is set explicitly.
+/// </summary>
+internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
+{
+    private readonly ILogger _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PIIOptionsValidator"/> class.
+    /// </summary>
+    /// <param name="logger">The logger that receives the unkeyed-hash warning.</param>
+    public PIIOptionsValidator(ILogger<PIIOptionsValidator> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public ValidateOptionsResult Validate(string? name, PIIOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (options.HashKey is not null && string.IsNullOrWhiteSpace(options.HashKey))
+        {
+            return ValidateOptionsResult.Fail(
+                "PIIOptions.HashKey must not be empty or whitespace; set a real key or leave it null.");
+        }
+
+        if (options.HashKey is null && options.DefaultMode == MaskingMode.Hash && !options.AllowUnkeyedHash)
+        {
+            return ValidateOptionsResult.Fail(
+                "MaskingMode.Hash requires PIIOptions.HashKey; set a key or opt out explicitly with PIIOptions.AllowUnkeyedHash.");
+        }
+
+        if (options.HashKey is null && options.AllowUnkeyedHash)
+        {
+            PIILogMessages.UnkeyedHashAllowed(_logger);
+        }
+
+        return ValidateOptionsResult.Success;
+    }
+}

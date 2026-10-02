@@ -37,18 +37,19 @@ public enum MaskingMode
     Full,
 
     /// <summary>
-    /// Produces a deterministic SHA-256 hash of the value.
+    /// Produces a deterministic keyed HMAC-SHA256 hash of the value.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Useful for correlation analysis without exposing the original value.
-    /// The same input always produces the same hash, enabling joins and grouping
+    /// The same input and key always produce the same hash, enabling joins and grouping
     /// in analytics without PII exposure.
     /// </para>
     /// <para>
-    /// <b>Note:</b> While hashing is irreversible, short or low-entropy values
-    /// (e.g., phone numbers) may be vulnerable to brute-force reversal.
-    /// Consider adding a salt via <see cref="MaskingOptions"/> for added protection.
+    /// <b>Key required:</b> the key comes from <see cref="PIIOptions.HashKey"/>. An unkeyed hash of
+    /// low-entropy PII (SSN, phone number, date of birth) can be reversed by a dictionary attack,
+    /// so using this mode without a key fails at startup unless
+    /// <see cref="PIIOptions.AllowUnkeyedHash"/> is set explicitly.
     /// </para>
     /// </remarks>
     Hash,

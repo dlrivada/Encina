@@ -89,20 +89,20 @@ public sealed class EmailMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
-            HashSalt = "my-salt"
+            HashKey = "my-key"
         };
 
-        var resultNoSalt = _sut.Apply("john@example.com", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("john@example.com", optionsWithSalt);
+        var resultNoKey = _sut.Apply("john@example.com", optionsNoKey);
+        var resultWithKey = _sut.Apply("john@example.com", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]

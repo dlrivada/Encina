@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Encina.Security.PII.Abstractions;
 
 namespace Encina.Security.PII;
@@ -102,6 +103,35 @@ public sealed class PIIOptions
     /// <see cref="Attributes.PIIAttribute.Mode"/>.
     /// </remarks>
     public MaskingMode DefaultMode { get; set; } = MaskingMode.Partial;
+
+    /// <summary>
+    /// Gets or sets the secret key (UTF-8 key material) for <see cref="MaskingMode.Hash"/>,
+    /// which computes HMAC-SHA256 keyed by it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Required when <see cref="DefaultMode"/> is <see cref="MaskingMode.Hash"/>, unless
+    /// <see cref="AllowUnkeyedHash"/> is set. An empty or whitespace key is invalid.
+    /// Load it from a secret store, never from source code.
+    /// </para>
+    /// <para>
+    /// Changing the key changes every hash, so hashes computed under different keys do not correlate.
+    /// The key is excluded from JSON serialization and from <see cref="ToString"/>.
+    /// </para>
+    /// </remarks>
+    [JsonIgnore]
+    public string? HashKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether <see cref="MaskingMode.Hash"/> may run without a <see cref="HashKey"/>,
+    /// using an unkeyed SHA-256.
+    /// </summary>
+    /// <remarks>
+    /// Default is <c>false</c> (fail closed). An unkeyed hash of low-entropy PII (SSN, phone number,
+    /// date of birth) can be reversed by a dictionary attack. Enabling this opt-out is explicit
+    /// and logs one warning at startup.
+    /// </remarks>
+    public bool AllowUnkeyedHash { get; set; }
 
     /// <summary>
     /// Gets or sets whether to register the PII masking health check.
@@ -216,4 +246,13 @@ public sealed class PIIOptions
         _sensitiveFieldPatterns.Remove(pattern);
         return this;
     }
+
+    /// <summary>
+    /// Returns a description of the options that never includes <see cref="HashKey"/>.
+    /// </summary>
+    /// <returns>The non-secret options as text.</returns>
+    public override string ToString() =>
+        $"PIIOptions {{ MaskInResponses = {MaskInResponses}, MaskInLogs = {MaskInLogs}, " +
+        $"MaskInAuditTrails = {MaskInAuditTrails}, DefaultMode = {DefaultMode}, " +
+        $"HashKeyConfigured = {HashKey is not null}, AllowUnkeyedHash = {AllowUnkeyedHash} }}";
 }

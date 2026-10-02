@@ -204,7 +204,7 @@ public sealed class PIIContractTests
         properties.Length.ShouldBe(7,
             "MaskingOptions must define exactly 7 properties: " +
             "Mode, MaskCharacter, PreserveLength, VisibleCharactersStart, " +
-            "VisibleCharactersEnd, RedactedPlaceholder, HashSalt");
+            "VisibleCharactersEnd, RedactedPlaceholder, HashKey");
 
         var propertyNames = properties.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
         propertyNames.ShouldContain("Mode");
@@ -213,7 +213,7 @@ public sealed class PIIContractTests
         propertyNames.ShouldContain("VisibleCharactersStart");
         propertyNames.ShouldContain("VisibleCharactersEnd");
         propertyNames.ShouldContain("RedactedPlaceholder");
-        propertyNames.ShouldContain("HashSalt");
+        propertyNames.ShouldContain("HashKey");
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class PIIContractTests
         options.VisibleCharactersStart.ShouldBe(0);
         options.VisibleCharactersEnd.ShouldBe(0);
         options.RedactedPlaceholder.ShouldBe("[REDACTED]");
-        options.HashSalt.ShouldBeNull();
+        options.HashKey.ShouldBeNull();
     }
 
     #endregion

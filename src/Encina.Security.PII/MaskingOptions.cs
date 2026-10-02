@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Security.PII;
 
 /// <summary>
@@ -85,16 +87,32 @@ public readonly record struct MaskingOptions
     public string? RedactedPlaceholder { get; init; }
 
     /// <summary>
-    /// Gets the optional salt used for <see cref="MaskingMode.Hash"/> operations.
+    /// Gets the optional key used for <see cref="MaskingMode.Hash"/> operations.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Adding a salt prevents rainbow-table attacks on hashed PII values.
-    /// When <c>null</c>, hashing is performed without a salt (not recommended
-    /// for low-entropy values like phone numbers).
+    /// When set, the value is hashed with HMAC-SHA256 keyed by the UTF-8 bytes of this key,
+    /// which prevents dictionary and rainbow-table attacks on low-entropy PII.
+    /// When <c>null</c>, hashing falls back to an unkeyed SHA-256 (reversible for
+    /// low-entropy values such as phone numbers); <see cref="PIIOptions"/> only allows that
+    /// through <see cref="PIIOptions.AllowUnkeyedHash"/>.
+    /// </para>
+    /// <para>
+    /// This is secret material: it is excluded from JSON serialization and from
+    /// <see cref="ToString"/>.
     /// </para>
     /// </remarks>
-    public string? HashSalt { get; init; }
+    [JsonIgnore]
+    public string? HashKey { get; init; }
+
+    /// <summary>
+    /// Returns a description of the options that never includes <see cref="HashKey"/>.
+    /// </summary>
+    /// <returns>The non-secret options as text.</returns>
+    public override string ToString() =>
+        $"MaskingOptions {{ Mode = {Mode}, MaskCharacter = {MaskCharacter}, PreserveLength = {PreserveLength}, " +
+        $"VisibleCharactersStart = {VisibleCharactersStart}, VisibleCharactersEnd = {VisibleCharactersEnd}, " +
+        $"HashKeyConfigured = {HashKey is not null} }}";
 
     /// <summary>
     /// Creates a new <see cref="MaskingOptions"/> instance with default values.
@@ -107,6 +125,6 @@ public readonly record struct MaskingOptions
         VisibleCharactersStart = 0;
         VisibleCharactersEnd = 0;
         RedactedPlaceholder = "[REDACTED]";
-        HashSalt = null;
+        HashKey = null;
     }
 }

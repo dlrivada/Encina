@@ -131,21 +131,21 @@ public sealed class DateOfBirthMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "dob-salt"
+            HashKey = "dob-key"
         };
 
-        var resultNoSalt = _sut.Apply("03/15/1990", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("03/15/1990", optionsWithSalt);
+        var resultNoKey = _sut.Apply("03/15/1990", optionsNoKey);
+        var resultWithKey = _sut.Apply("03/15/1990", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]
