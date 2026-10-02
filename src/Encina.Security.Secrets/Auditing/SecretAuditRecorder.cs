@@ -68,7 +68,7 @@ internal static class SecretAuditRecorder
             return null;
         }
 
-        return result.Value.MatchUnsafe(Right: _ => (string?)null, Left: e => e.Message);
+        return result.Value.MatchUnsafe(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
     }
 
     private static AuditEntry BuildEntry(
