@@ -1,8 +1,8 @@
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.MySql;
 using Encina.Cdc.MySql.Health;
-using Microsoft.Extensions.DependencyInjection;
 using Encina.UnitTests.Validation.Endpoints;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
