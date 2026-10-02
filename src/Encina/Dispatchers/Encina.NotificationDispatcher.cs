@@ -117,15 +117,25 @@ public sealed partial class Encina
             var errorCode = error.GetEncinaCode();
             activity?.SetStatus(ActivityStatusCode.Error, errorCode);
             activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
-            // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
-            // uses to hold the code and details, whose Message IS the error message and may carry
-            // personal data (#1319). Using error.Exception directly would leak it into the logged
-            // exception object below.
-            var exception = error.GetCause().MatchUnsafe(
-                Some: ex => (Exception?)ex,
-                None: () => (Exception?)null);
+            var exception = GetLoggableCause(error);
             var handlerTypeName = handlerInstance.GetType().Name;
 
+            LogNotificationFailure(Encina, notificationName, handlerTypeName, errorCode, exception);
+
+            return true;
+        }
+
+        // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
+        // uses to hold the code and details, whose Message IS the error message and may carry
+        // personal data (#1319). Using error.Exception directly would leak it into the logged
+        // exception object.
+        private static Exception? GetLoggableCause(EncinaError error) =>
+            error.GetCause().MatchUnsafe(
+                Some: ex => (Exception?)ex,
+                None: () => (Exception?)null);
+
+        private static void LogNotificationFailure(Encina Encina, string notificationName, string handlerTypeName, string errorCode, Exception? exception)
+        {
             if (IsCancellationCode(errorCode))
             {
                 Log.NotificationCancelled(Encina._logger, notificationName, handlerTypeName, exception?.ForLogging());
@@ -138,8 +148,6 @@ public sealed partial class Encina
             {
                 Log.NotificationHandlerFailure(Encina._logger, notificationName, handlerTypeName, errorCode);
             }
-
-            return true;
         }
 
         /// <summary>

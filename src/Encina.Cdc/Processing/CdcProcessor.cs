@@ -89,23 +89,12 @@ internal sealed class CdcProcessor : BackgroundService
 
                 if (consecutiveErrors <= _options.MaxRetries)
                 {
-                    var delay = CalculateRetryDelay(consecutiveErrors);
-
-                    using var scope = _serviceProvider.CreateScope();
-                    var connector = scope.ServiceProvider.GetService<ICdcConnector>();
-                    var connectorId = connector?.ConnectorId ?? "unknown";
-
-                    CdcLog.RetryingAfterError(_logger, ex.ForLogging(), connectorId, consecutiveErrors, _options.MaxRetries, delay);
-                    await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+                    await RetryAfterErrorAsync(ex, consecutiveErrors, stoppingToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var connector = scope.ServiceProvider.GetService<ICdcConnector>();
-                    var connectorId = connector?.ConnectorId ?? "unknown";
-
                     await PersistToDeadLetterAsync(
-                        lastFailedEvent, ex, connectorId, stoppingToken).ConfigureAwait(false);
+                        lastFailedEvent, ex, ResolveConnectorId(), stoppingToken).ConfigureAwait(false);
 
                     consecutiveErrors = 0;
                     lastFailedEvent = null;
@@ -117,6 +106,21 @@ internal sealed class CdcProcessor : BackgroundService
         }
 
         CdcLog.ProcessorStopped(_logger);
+    }
+
+    private async Task RetryAfterErrorAsync(Exception exception, int consecutiveErrors, CancellationToken stoppingToken)
+    {
+        var delay = CalculateRetryDelay(consecutiveErrors);
+
+        CdcLog.RetryingAfterError(_logger, exception.ForLogging(), ResolveConnectorId(), consecutiveErrors, _options.MaxRetries, delay);
+        await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+    }
+
+    private string ResolveConnectorId()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var connector = scope.ServiceProvider.GetService<ICdcConnector>();
+        return connector?.ConnectorId ?? "unknown";
     }
 
     private async Task<ChangeEvent?> ProcessChangesAsync(CancellationToken cancellationToken)

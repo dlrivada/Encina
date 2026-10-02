@@ -135,7 +135,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     /// Retrieves the last saved position from the position store for resume logic.
     /// Returns <c>null</c> if no saved position exists or if retrieval fails.
     /// </summary>
-    private async Task<DebeziumCdcPosition?> GetResumePositionAsync(CancellationToken cancellationToken)
+    internal async Task<DebeziumCdcPosition?> GetResumePositionAsync(CancellationToken cancellationToken)
     {
         try
         {

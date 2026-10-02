@@ -246,7 +246,7 @@ public sealed class ModuleArchitectureAnalyzer
         }
     }
 
-    private void LogReflectionTypeLoadException(ReflectionType sourceType, ReflectionAssembly assembly, System.Reflection.ReflectionTypeLoadException rtle)
+    internal void LogReflectionTypeLoadException(ReflectionType sourceType, ReflectionAssembly assembly, System.Reflection.ReflectionTypeLoadException rtle)
     {
         var asmName = assembly.GetName().Name ?? "<unknown assembly>";
         var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";
@@ -283,7 +283,7 @@ public sealed class ModuleArchitectureAnalyzer
         }
     }
 
-    private void LogAnalysisException(ReflectionType sourceType, ReflectionAssembly assembly, Exception ex)
+    internal void LogAnalysisException(ReflectionType sourceType, ReflectionAssembly assembly, Exception ex)
     {
         var asmName = assembly.GetName().Name ?? "<unknown assembly>";
         var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";

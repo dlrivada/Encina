@@ -60,6 +60,15 @@ internal sealed class ReferenceTableReplicationService(
             return;
         }
 
+        await RunPollingLoopAsync(pollingConfigs, stoppingToken).ConfigureAwait(false);
+
+        _logger.LogInformation("Reference table replication service stopped");
+    }
+
+    private async Task RunPollingLoopAsync(
+        List<ReferenceTableConfiguration> pollingConfigs,
+        CancellationToken stoppingToken)
+    {
         // Track last poll time per table for individual intervals
         var lastPollTimes = pollingConfigs.ToDictionary(
             c => c.EntityType,
@@ -71,48 +80,13 @@ internal sealed class ReferenceTableReplicationService(
         {
             try
             {
-                var now = DateTime.UtcNow;
-
-                foreach (var config in pollingConfigs)
-                {
-                    if (stoppingToken.IsCancellationRequested)
-                        break;
-
-                    var lastPoll = lastPollTimes[config.EntityType];
-                    var interval = config.Options.PollingInterval;
-
-                    if (now - lastPoll < interval)
-                        continue;
-
-                    lastPollTimes[config.EntityType] = now;
-
-                    var result = await _pollingDetector
-                        .CheckAndReplicateAsync(config, stoppingToken)
-                        .ConfigureAwait(false);
-
-                    result.Match(
-                        Right: _ => { },
-                        Left: error => _logger.LogWarning(
-                            "Polling check failed for reference table '{EntityType}': {ErrorCode}",
-                            config.EntityType.Name,
-                            error.GetEncinaCode()));
-                }
-
+                await PollDueTablesAsync(pollingConfigs, lastPollTimes, stoppingToken).ConfigureAwait(false);
                 consecutiveErrors = 0;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 consecutiveErrors++;
-
-                var delay = CalculateRetryDelay(consecutiveErrors);
-
-                _logger.LogWarning(
-                    ex.ForLogging(),
-                    "Error in reference table polling loop (attempt {Attempt}) — retrying in {Delay}ms",
-                    consecutiveErrors,
-                    delay.TotalMilliseconds);
-
-                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+                await DelayAfterPollingErrorAsync(ex, consecutiveErrors, stoppingToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -120,8 +94,52 @@ internal sealed class ReferenceTableReplicationService(
             var shortestInterval = pollingConfigs.Min(c => c.Options.PollingInterval);
             await Task.Delay(shortestInterval, stoppingToken).ConfigureAwait(false);
         }
+    }
 
-        _logger.LogInformation("Reference table replication service stopped");
+    private async Task PollDueTablesAsync(
+        List<ReferenceTableConfiguration> pollingConfigs,
+        Dictionary<Type, DateTime> lastPollTimes,
+        CancellationToken stoppingToken)
+    {
+        var now = DateTime.UtcNow;
+
+        foreach (var config in pollingConfigs)
+        {
+            if (stoppingToken.IsCancellationRequested)
+                break;
+
+            var lastPoll = lastPollTimes[config.EntityType];
+            var interval = config.Options.PollingInterval;
+
+            if (now - lastPoll < interval)
+                continue;
+
+            lastPollTimes[config.EntityType] = now;
+
+            var result = await _pollingDetector
+                .CheckAndReplicateAsync(config, stoppingToken)
+                .ConfigureAwait(false);
+
+            result.Match(
+                Right: _ => { },
+                Left: error => _logger.LogWarning(
+                    "Polling check failed for reference table '{EntityType}': {ErrorCode}",
+                    config.EntityType.Name,
+                    error.GetEncinaCode()));
+        }
+    }
+
+    private async Task DelayAfterPollingErrorAsync(Exception ex, int consecutiveErrors, CancellationToken stoppingToken)
+    {
+        var delay = CalculateRetryDelay(consecutiveErrors);
+
+        _logger.LogWarning(
+            ex.ForLogging(),
+            "Error in reference table polling loop (attempt {Attempt}) — retrying in {Delay}ms",
+            consecutiveErrors,
+            delay.TotalMilliseconds);
+
+        await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
     }
 
     private async Task RunStartupSyncAsync(

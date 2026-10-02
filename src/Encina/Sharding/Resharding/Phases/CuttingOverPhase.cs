@@ -34,43 +34,10 @@ internal sealed class CuttingOverPhase : IReshardingPhase
         // 1. Invoke the OnCutoverStarting predicate (user-defined validation)
         if (context.Options.OnCutoverStarting is not null)
         {
-            _logger.LogInformation(
-                "Invoking cutover predicate. ReshardingId={ReshardingId}",
-                context.ReshardingId);
-
-            bool proceed;
-            try
+            var veto = await InvokePredicateAsync(context, context.Options.OnCutoverStarting, cancellationToken);
+            if (veto is { } vetoResult)
             {
-                proceed = await context.Options.OnCutoverStarting(
-                    context.Plan, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.ForLogging(),
-                    "Cutover predicate threw an exception. ReshardingId={ReshardingId}",
-                    context.ReshardingId);
-
-                return Either<EncinaError, PhaseResult>.Left(
-                    EncinaErrors.FromException(
-                        ReshardingErrorCodes.CutoverFailed,
-                        ex,
-                        "The OnCutoverStarting predicate threw an exception."));
-            }
-
-            if (!proceed)
-            {
-                _logger.LogWarning(
-                    "Cutover aborted by predicate. ReshardingId={ReshardingId}",
-                    context.ReshardingId);
-
-                var abortedProgress = new ReshardingProgress(
-                    context.ReshardingId,
-                    ReshardingPhase.CuttingOver,
-                    context.Progress.OverallPercentComplete,
-                    context.Progress.PerStepProgress);
-
-                return Either<EncinaError, PhaseResult>.Right(
-                    new PhaseResult(PhaseStatus.Aborted, abortedProgress, context.Checkpoint));
+                return vetoResult;
             }
         }
 
@@ -78,60 +45,10 @@ internal sealed class CuttingOverPhase : IReshardingPhase
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(context.Options.CutoverTimeout);
 
+        Either<EncinaError, Unit> switched;
         try
         {
-            // 3. Wait for final CDC drain — check all source shards have zero lag
-            _logger.LogInformation(
-                "Waiting for final CDC drain. ReshardingId={ReshardingId}, Timeout={Timeout}",
-                context.ReshardingId, context.Options.CutoverTimeout);
-
-            foreach (var step in context.Plan.Steps)
-            {
-                timeoutCts.Token.ThrowIfCancellationRequested();
-
-                var lagResult = await context.Services.GetReplicationLagAsync(
-                    step.SourceShardId, timeoutCts.Token);
-
-                if (lagResult.IsLeft)
-                {
-                    _logger.LogWarning(
-                        "Failed to check replication lag during cutover. ReshardingId={ReshardingId}, Source={SourceShardId}",
-                        context.ReshardingId, step.SourceShardId);
-
-                    return Either<EncinaError, PhaseResult>.Left(
-                        EncinaErrors.Create(
-                            ReshardingErrorCodes.CutoverFailed,
-                            $"Failed to verify replication lag for shard '{step.SourceShardId}' during cutover."));
-                }
-            }
-
-            // 4. Build the new topology from the current topology + plan
-            var currentTopology = _topologyProvider.GetTopology();
-            var newTopology = BuildNewTopology(currentTopology);
-
-            // 5. Atomically swap the topology
-            _logger.LogInformation(
-                "Swapping topology. ReshardingId={ReshardingId}",
-                context.ReshardingId);
-
-            var swapResult = await context.Services.SwapTopologyAsync(
-                newTopology, timeoutCts.Token);
-
-            if (swapResult.IsLeft)
-            {
-                _logger.LogError(
-                    "Topology swap failed. ReshardingId={ReshardingId}",
-                    context.ReshardingId);
-
-                return Either<EncinaError, PhaseResult>.Left(
-                    EncinaErrors.Create(
-                        ReshardingErrorCodes.CutoverFailed,
-                        "Failed to swap the shard topology during cutover."));
-            }
-
-            _logger.LogInformation(
-                "Topology swap succeeded. ReshardingId={ReshardingId}",
-                context.ReshardingId);
+            switched = await DrainAndSwapAsync(context, timeoutCts.Token);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
@@ -145,6 +62,117 @@ internal sealed class CuttingOverPhase : IReshardingPhase
                     $"The cutover phase exceeded the configured timeout of {context.Options.CutoverTimeout}."));
         }
 
+        return switched.Map(_ => BuildCompletedResult(context));
+    }
+
+    /// <summary>
+    /// Runs the user predicate. Returns <c>null</c> when the cutover may proceed, otherwise the
+    /// result that ends the phase (a failure when the predicate threw, an aborted phase when it vetoed).
+    /// </summary>
+    private async Task<Either<EncinaError, PhaseResult>?> InvokePredicateAsync(
+        PhaseContext context,
+        Func<ReshardingPlan, CancellationToken, Task<bool>> predicate,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Invoking cutover predicate. ReshardingId={ReshardingId}",
+            context.ReshardingId);
+
+        bool proceed;
+        try
+        {
+            proceed = await predicate(context.Plan, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex.ForLogging(),
+                "Cutover predicate threw an exception. ReshardingId={ReshardingId}",
+                context.ReshardingId);
+
+            return Either<EncinaError, PhaseResult>.Left(
+                EncinaErrors.FromException(
+                    ReshardingErrorCodes.CutoverFailed,
+                    ex,
+                    "The OnCutoverStarting predicate threw an exception."));
+        }
+
+        if (proceed)
+        {
+            return null;
+        }
+
+        _logger.LogWarning(
+            "Cutover aborted by predicate. ReshardingId={ReshardingId}",
+            context.ReshardingId);
+
+        var abortedProgress = new ReshardingProgress(
+            context.ReshardingId,
+            ReshardingPhase.CuttingOver,
+            context.Progress.OverallPercentComplete,
+            context.Progress.PerStepProgress);
+
+        return Either<EncinaError, PhaseResult>.Right(
+            new PhaseResult(PhaseStatus.Aborted, abortedProgress, context.Checkpoint));
+    }
+
+    private async Task<Either<EncinaError, Unit>> DrainAndSwapAsync(PhaseContext context, CancellationToken timeoutToken)
+    {
+        // 3. Wait for final CDC drain — check all source shards have zero lag
+        _logger.LogInformation(
+            "Waiting for final CDC drain. ReshardingId={ReshardingId}, Timeout={Timeout}",
+            context.ReshardingId, context.Options.CutoverTimeout);
+
+        foreach (var step in context.Plan.Steps)
+        {
+            timeoutToken.ThrowIfCancellationRequested();
+
+            var lagResult = await context.Services.GetReplicationLagAsync(step.SourceShardId, timeoutToken);
+
+            if (lagResult.IsLeft)
+            {
+                _logger.LogWarning(
+                    "Failed to check replication lag during cutover. ReshardingId={ReshardingId}, Source={SourceShardId}",
+                    context.ReshardingId, step.SourceShardId);
+
+                return Either<EncinaError, Unit>.Left(
+                    EncinaErrors.Create(
+                        ReshardingErrorCodes.CutoverFailed,
+                        $"Failed to verify replication lag for shard '{step.SourceShardId}' during cutover."));
+            }
+        }
+
+        // 4. Build the new topology from the current topology + plan
+        var currentTopology = _topologyProvider.GetTopology();
+        var newTopology = BuildNewTopology(currentTopology);
+
+        // 5. Atomically swap the topology
+        _logger.LogInformation(
+            "Swapping topology. ReshardingId={ReshardingId}",
+            context.ReshardingId);
+
+        var swapResult = await context.Services.SwapTopologyAsync(newTopology, timeoutToken);
+
+        if (swapResult.IsLeft)
+        {
+            _logger.LogError(
+                "Topology swap failed. ReshardingId={ReshardingId}",
+                context.ReshardingId);
+
+            return Either<EncinaError, Unit>.Left(
+                EncinaErrors.Create(
+                    ReshardingErrorCodes.CutoverFailed,
+                    "Failed to swap the shard topology during cutover."));
+        }
+
+        _logger.LogInformation(
+            "Topology swap succeeded. ReshardingId={ReshardingId}",
+            context.ReshardingId);
+
+        return Either<EncinaError, Unit>.Right(Unit.Default);
+    }
+
+    private static PhaseResult BuildCompletedResult(PhaseContext context)
+    {
         var overallPercent = 90.0; // Copy(40%) + Replicate(20%) + Verify(15%) + Cutover(15%)
 
         var updatedProgress = new ReshardingProgress(
@@ -153,8 +181,7 @@ internal sealed class CuttingOverPhase : IReshardingPhase
             overallPercent,
             context.Progress.PerStepProgress);
 
-        return Either<EncinaError, PhaseResult>.Right(
-            new PhaseResult(PhaseStatus.Completed, updatedProgress, context.Checkpoint));
+        return new PhaseResult(PhaseStatus.Completed, updatedProgress, context.Checkpoint);
     }
 
     /// <summary>
