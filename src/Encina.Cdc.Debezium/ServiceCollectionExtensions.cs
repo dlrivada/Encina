@@ -5,6 +5,7 @@ using Encina.Cdc.Debezium.Health;
 using Encina.Cdc.Debezium.Kafka;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Cdc.Debezium;
 
@@ -29,6 +30,12 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// </para>
     /// </remarks>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when <see cref="DebeziumCdcOptions.ListenUrl"/> is not an <c>http</c>/<c>https</c> listener
+    /// prefix without port or path, <see cref="DebeziumCdcOptions.ListenPort"/> is outside 1-65535, or
+    /// <see cref="DebeziumCdcOptions.ListenPath"/> does not start with <c>/</c>. The same validation runs
+    /// again at host startup (<c>ValidateOnStart</c>).
+    /// </exception>
     public static IServiceCollection AddEncinaCdcDebezium(
         this IServiceCollection services,
         Action<DebeziumCdcOptions> configure)
@@ -38,20 +45,33 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
 
+        // Validate eagerly so a plain BuildServiceProvider (no host, no ValidateOnStart) is protected too.
         var options = new DebeziumCdcOptions();
         configure(options);
+        var validation = new DebeziumCdcOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(Options.DefaultName, typeof(DebeziumCdcOptions), validation.Failures);
+        }
 
-        services.AddSingleton(options);
+        services.AddOptions<DebeziumCdcOptions>()
+            .Configure(configure)
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<DebeziumCdcOptions>, DebeziumCdcOptionsValidator>());
+
+        // The listener and connector take the concrete options; resolve them through IOptions so validation always runs.
+        services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<DebeziumCdcOptions>>().Value);
 
         // Register a bounded channel for passing events from HTTP listener to connector.
         // When the channel is full, the HTTP listener returns 503 to apply backpressure.
-        var channel = Channel.CreateBounded<JsonElement>(new BoundedChannelOptions(options.ChannelCapacity)
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.Wait
-        });
-        services.AddSingleton(channel);
+        services.TryAddSingleton(sp => Channel.CreateBounded<JsonElement>(
+            new BoundedChannelOptions(sp.GetRequiredService<DebeziumCdcOptions>().ChannelCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            }));
 
         // Register the HTTP listener as a hosted service
         services.AddHostedService<DebeziumHttpListener>();
