@@ -122,12 +122,61 @@ public sealed class SanitizationPropertyTests
             !sanitizer.SanitizeForSql(value).Contains("xp_", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Property(MaxTest = 500)]
+    public Property SanitizeForSql_QuoteRunsAreAlwaysEven()
+    {
+        var sanitizer = CreateSanitizer();
+
+        return Prop.ForAll(SqlMarkerInputs(), value =>
+        {
+            var result = sanitizer.SanitizeForSql(value);
+            var run = 0;
+            foreach (var c in result.Append('x'))
+            {
+                if (c == '\'')
+                {
+                    run++;
+                    continue;
+                }
+
+                if (run % 2 != 0)
+                {
+                    return false;
+                }
+
+                run = 0;
+            }
+
+            return true;
+        });
+    }
+
+    [Fact]
+    public void SanitizeForSql_ManyUnclosedCommentMarkers_StaysFastAndLeavesNoMarker()
+    {
+        // Only the first "/*" opens a comment; the rest is content scanned once more (not per marker).
+        var value = string.Concat(Enumerable.Repeat("/*;-xp_a*", 10_000)) + "/*";
+
+        var sanitizer = CreateSanitizer();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var result = sanitizer.SanitizeForSql(value);
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
+        result.ShouldNotContain("/*");
+        result.ShouldNotContain("*/");
+        result.ShouldNotContain("--");
+        result.ShouldNotContain(";");
+        result.ShouldNotContain("xp_", Case.Insensitive);
+    }
+
     // The single-pass scanner equals the old repeat-until-stable implementation (kept below as an
     // oracle) for each token family on its own. The two differ, on purpose, where tokens overlap:
     // the scanner removes the leftmost completed token as characters arrive, the oracle removes
     // by pass order. Examples: "xx*/*..." (the scanner drops "*/" before "/*" can form), "xp_-" +
     // "-a" (the oracle removes "--" first and so swallows "a" with the xp_ match), "/*x*;/" (a
-    // "*/" joined by removing ';' closes the comment and its content goes too). Every output
+    // "*/" joined by removing ';' closes the comment and its content goes too; "-/*-*/" gives ""
+    // because the "--" formed across the comment boundary also drops the "-" before it). Every output
     // satisfies the contract, which the properties above prove over the full mixed alphabet.
     // Block comments are covered by deterministic unit tests for the same reason ("*a*/a**/*'*/b").
     [Property(MaxTest = 3000)]
