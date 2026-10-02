@@ -126,7 +126,8 @@ committed:
    documentation drift) or, for a code finding, the kinds the drafter chooses from, the draft file to write, the
    `Reported by:` line and the exact `stages/remediation.md` line. A full Prepare first removes this audit's
    previous drafts, inputs and manifest; every `gh` call runs before that cleanup, through a retry helper
-   (3 retries after 5, 15 and 45 s on a TLS/connection/5xx/rate-limit failure, none on a 4xx; #1548).
+   (3 retries after 5, 15 and 45 s on a TLS, dial or connection failure, an HTTP 5xx, or a rate limit reported
+   as HTTP 403 or 429; no retry on any other 4xx; a malformed JSON reply stops the run; #1548).
 2. Spawn `remediation-drafter` **in the foreground**, naming `#<n>`, `wia-<n>` and the manifest path. It writes
    every draft and `stages/remediation.md`; its definition holds the drafting rules (facts verified in `src/`
    with `file:line`, only the packages the finding names, only figures measured in `stages/tests.md`, no
@@ -138,9 +139,10 @@ committed:
    It applies the sanitizers below to every regenerated draft, then checks each draft's header block
    (title prefix, labels, milestone, `kind:`), the template headers in order, leftover placeholders, missing
    drafts, stale drafts for duplicate or merged findings, and that `stages/remediation.md` carries the manifest's
-   line for every finding, that no `<n>-*.md` outside the manifest's drafts exists (an orphan or a second draft
-   would become an extra issue), and that the current code/tests/docs findings still match the manifest (a
-   stage re-committed after Prepare makes it stale: run `-Prepare` again). It prints every problem and exits 1
+   line for every finding, and that the current code/tests/docs findings (keys, severities and text) still match
+   the manifest (a stage re-committed after Prepare makes it stale: run `-Prepare` again). It removes, with a
+   note, any `<n>-*.md` that is not a manifest draft (an orphan or a second draft of one group would become an
+   extra issue; nobody else can delete it). It prints every problem and exits 1
    when any remains: re-spawn `remediation-drafter` (naming `#<n>` and `wia-<n>`) and paste Finalize's whole
    output into its prompt — the drafter keeps every draft that output does not name and rewrites only the ones it
    names — then run `-Finalize` again.
@@ -162,7 +164,8 @@ pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -Next
 ```
 
 The first must print `remediation-drafter`/`sonnet` (a parse error means the edit broke the JSON: the hooks then
-deny every stage write and spawn until it is fixed); the second must print the three remediation steps.
+deny every stage write and spawn until it is fixed); once the docs stage is committed, the second must print
+the three remediation steps (before that it prints the earlier stage that is still due).
 
 `-DryRun` (either mode) works only inside the sandbox `artifacts/knowledge/remediation/_dryrun-<n>/`: Prepare
 writes its inputs, manifest and draft paths there (the stage-file preview is `_dryrun-<n>/remediation.md`),

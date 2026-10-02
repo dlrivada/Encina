@@ -1048,6 +1048,8 @@ try {
     Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') '{ not json'
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'an unparseable pipeline.json denies even the assigned stage agent a stage-artifact write (#1572, fail closed)' 'issue-auditor'
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'an unparseable pipeline.json denies the orchestrator a stage-artifact write (#1572, fail closed)' $null
+    Remove-Item -LiteralPath (Join-Path $wt 'tools\ai\audit\pipeline.json') -Force
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'a missing pipeline.json denies a stage-artifact write too (#1572, fail closed)' 'issue-auditor'
     Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') $ownershipPipelineJson
     # Fail closed: an unreadable current-audit.json leaves no caller able to write any draft.
     Set-Content -LiteralPath $draftAuditPath -Value '{ not json'
@@ -1393,6 +1395,10 @@ try {
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (no pipeline.json)." $null 2 'audit-stage-guard: a missing pipeline.json denies the stage spawn (#1572, fail closed)'
         Invoke-AuditCase 'general-purpose' 'Unrelated research, no audit context.' $null 0 'audit-stage-guard: an unrelated spawn is unaffected by a broken audit pipeline.json'
         Initialize-AuditWorktree $defaultPipelineJson
+        $savedProjectDir = $env:CLAUDE_PROJECT_DIR
+        $env:CLAUDE_PROJECT_DIR = ''
+        Invoke-HookCase $auditGuard (@{ tool_name = 'Agent'; cwd = $auditWt; tool_input = @{ subagent_type = 'issue-archivist'; prompt = "Audit #$auditN in worktree wia-$auditN." } } | ConvertTo-Json -Compress) 2 'audit-stage-guard: an audit-stage spawn with no CLAUDE_PROJECT_DIR is denied (#1572, fail closed)'
+        $env:CLAUDE_PROJECT_DIR = $savedProjectDir
 
         Invoke-HookCase $auditGuard 'not json' 0 'audit-stage-guard: malformed payload'
 
@@ -2090,8 +2096,9 @@ Test.
         $orphanDraft = Join-Path $finWt "artifacts\knowledge\remediation\$finN-code-1-second-draft.md"
         Set-Content -LiteralPath $orphanDraft -Value 'a second draft of the code 1 group'
         $finalizeOrphan = Invoke-Remediation $finWt @('-Finalize')
-        Test-RemediationCase '#1572 -Finalize reports a <n>-*.md that is not a manifest draft (orphan or second draft of one group)' { $finalizeOrphan.Code -eq 1 -and $finalizeOrphan.Output -match "$finN-code-1-second-draft\.md is not a draft the manifest names" }
-        Remove-Item -LiteralPath $orphanDraft -Force
+        Test-RemediationCase '#1572 -Finalize removes and reports a <n>-*.md that is not a manifest draft (orphan or second draft of one group), keeping every manifest draft' {
+            $finalizeOrphan.Code -eq 0 -and $finalizeOrphan.Output -match "removed $finN-code-1-second-draft\.md: not a draft the manifest names" -and -not (Test-Path -LiteralPath $orphanDraft) -and (Test-Path -LiteralPath $finCode1.draftFile) -and (Test-Path -LiteralPath $finTests1.draftFile)
+        }
         # A stage re-committed after -Prepare (a FAIL-loop re-run) makes the manifest stale.
         $finTestsStage = Join-Path $finWt 'artifacts\knowledge\stages\tests.md'
         $finTestsBackup = Get-Content -LiteralPath $finTestsStage -Raw
@@ -2103,6 +2110,9 @@ Test.
         Set-Content -LiteralPath $finTestsStage -Value "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
         $finalizeRemoved = Invoke-Remediation $finWt @('-Finalize')
         Test-RemediationCase '#1572 -Finalize reports a stale manifest: a finding removed after -Prepare' { $finalizeRemoved.Code -eq 1 -and $finalizeRemoved.Output -match "stale manifest: finding 'tests 1' is in the manifest but no longer in the stage artifacts" }
+        Set-Content -LiteralPath $finTestsStage -Value "## Findings`n1. **Minor** -- ``tests/Encina.UnitTests/Foo/ATests.cs:7`` no unit test covers the failed write (line corrected).`n## Lessons for the pipeline`n- none`n"
+        $finalizeRewritten = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a stale manifest: same id and severity, rewritten text' { $finalizeRewritten.Code -eq 1 -and $finalizeRewritten.Output -match "stale manifest: finding 'tests 1' has different text" }
         Set-Content -LiteralPath $finTestsStage -Value $finTestsBackup -NoNewline
         # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.
         $debtDraft = New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] A.Write reports success after a failed write' 'technical-debt' '' 'debt'
@@ -2132,8 +2142,8 @@ Test.
         Test-RemediationCase '#1572 -Finalize reports a finding without its stages/remediation.md line' { $finalizeMissing.Output -match [regex]::Escape("lacks the manifest's line for docs 1 (Minor)") }
         # A stale draft for a merged finding.
         Set-Content -LiteralPath (Join-Path $finWt "artifacts\knowledge\remediation\$finN-docs-1-stale.md") -Value 'stale'
-        $finalizeStale = Invoke-Remediation $finWt @('-Finalize')
-        Test-RemediationCase '#1572 -Finalize reports a draft that exists for a merged finding' { $finalizeStale.Code -eq 1 -and $finalizeStale.Output -match "$finN-docs-1-stale\.md exists" }
+        $finalizeMergedDraft = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize removes and reports a draft written for a merged finding' { $finalizeMergedDraft.Output -match "removed $finN-docs-1-stale\.md" -and -not (Test-Path -LiteralPath (Join-Path $finWt "artifacts\knowledge\remediation\$finN-docs-1-stale.md")) }
         # No manifest at all.
         $noManifestWt = New-RemediationFixture 'RemediationNoManifestWt' 5152
         $finalizeNoManifest = Invoke-Remediation $noManifestWt @('-Finalize')

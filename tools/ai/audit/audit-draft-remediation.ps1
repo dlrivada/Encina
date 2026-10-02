@@ -50,10 +50,11 @@
 # reported as HTTP 403 or 429) are retried 3 times after 5, 15 and 45 seconds; any other 4xx is not retried. A
 # malformed JSON reply fails the stage rather than reading as "no candidates".
 #
-# -Finalize also fails on a stale manifest (the current code/tests/docs findings no longer match the manifest's,
-# e.g. after a FAIL-loop re-commit of a stage) and on any '<n>-*.md' in the output folder that is not a manifest
-# draft (an orphan or a second draft of one group). Both modes refuse an audit worktree whose pipeline.json does
-# not assign the remediation stage to remediation-drafter.
+# -Finalize also fails on a stale manifest (the current code/tests/docs findings -- keys, severities or text --
+# no longer match the manifest's, e.g. after a FAIL-loop re-commit of a stage), and removes, with a note, any
+# '<n>-*.md' in the output folder that is not a manifest draft (an orphan or a second draft of one group), so
+# open-remediation.ps1 can never open two issues for one group. Both modes refuse an audit worktree whose
+# pipeline.json does not assign the remediation stage to remediation-drafter.
 
 param(
     [switch]$Prepare,
@@ -187,17 +188,31 @@ if ($Finalize) {
     foreach ($key in $currentByKey.Keys) {
         if (-not $findingsByKey.ContainsKey($key)) { $problems.Add("stale manifest: finding '$key' is in the stage artifacts but not in the manifest; run -Prepare again.") }
         elseif ([string]$findingsByKey[$key].severity -ne [string]$currentByKey[$key].Severity) { $problems.Add("stale manifest: finding '$key' is $($currentByKey[$key].Severity) in the stage artifacts but $($findingsByKey[$key].severity) in the manifest; run -Prepare again.") }
+        else {
+            # Same id and severity but rewritten text (a corrected file:line after a FAIL) is stale too: the input
+            # file holds the text -Prepare drafted from.
+            $inputFile = [string]$findingsByKey[$key].inputFile
+            if ($inputFile -and (Test-Path -LiteralPath $inputFile) -and (Get-Content -LiteralPath $inputFile -Raw).Trim() -ne ([string]$currentByKey[$key].Text).Trim()) {
+                $problems.Add("stale manifest: finding '$key' has different text in the stage artifacts than in $(Split-Path -Leaf $inputFile); run -Prepare again.")
+            }
+        }
     }
     foreach ($key in $findingsByKey.Keys) {
         if (-not $currentByKey.ContainsKey($key)) { $problems.Add("stale manifest: finding '$key' is in the manifest but no longer in the stage artifacts; run -Prepare again.") }
     }
 
     # Exactly one draft per drafted group: any '<n>-*.md' in the output folder that is not a manifest draftFile
-    # (an orphan, or a second draft of one group) would be opened as an extra issue by open-remediation.ps1.
+    # (an orphan, a second draft of one group, or a draft of a duplicate/merged finding) would be opened as an
+    # extra issue by open-remediation.ps1. Finalize removes it and reports it: nobody else can (the drafter has no
+    # delete tool and enforce-path-ownership.ps1 denies every other caller the open audit's drafts), and a full
+    # -Prepare would throw away every draft that already passed.
     $expectedDrafts = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($f in @($manifest.findings)) { if ($f.draftFile) { [void]$expectedDrafts.Add([IO.Path]::GetFullPath([string]$f.draftFile)) } }
     foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)) {
-        if (-not $expectedDrafts.Contains($onDisk.FullName)) { $problems.Add("$($onDisk.Name) is not a draft the manifest names (an orphan or a second draft of one group); open-remediation.ps1 would open it as an extra issue. Remove it or re-run -Prepare.") }
+        if (-not $expectedDrafts.Contains($onDisk.FullName)) {
+            Remove-Item -LiteralPath $onDisk.FullName -Force
+            $notes.Add("removed $($onDisk.Name): not a draft the manifest names (an orphan, a second draft of one group, or a draft of a duplicate/merged finding); open-remediation.ps1 would have opened it as an extra issue.")
+        }
     }
 
     foreach ($f in @($manifest.findings)) {
@@ -206,11 +221,8 @@ if ($Finalize) {
             if ($f.draftFile -and -not (Test-Path -LiteralPath $f.draftFile)) { $problems.Add("$label`: its existing draft $(Split-Path -Leaf $f.draftFile) is missing (an -Only run keeps it untouched, but it must exist).") }
             continue
         }
-        if (-not $f.draftFile) {
-            $stale = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.stage)-$($f.id)-*.md" -File -ErrorAction SilentlyContinue)
-            foreach ($s in $stale) { $problems.Add("$label`: $(Split-Path -Leaf $s.FullName) exists, but the manifest records this finding as '$($f.remediationLine)'; no draft may exist for it.") }
-            continue
-        }
+        # A duplicate or merged finding has no draft; any leftover file of it was removed by the orphan sweep above.
+        if (-not $f.draftFile) { continue }
         $draftPath = [string]$f.draftFile
         $draftName = Split-Path -Leaf $draftPath
         if (-not (Test-InScope $draftPath)) { $problems.Add("$label`: $draftPath is outside the dry-run sandbox $sandboxDir; not touched."); continue }

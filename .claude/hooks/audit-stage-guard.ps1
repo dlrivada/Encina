@@ -61,7 +61,10 @@ try {
     $auditStageSpawn = $true
 
     $projectDir = [string]$env:CLAUDE_PROJECT_DIR
-    if ([string]::IsNullOrWhiteSpace($projectDir)) { exit 0 }
+    if ([string]::IsNullOrWhiteSpace($projectDir)) {
+        [Console]::Error.WriteLine('Blocked: CLAUDE_PROJECT_DIR is not set, so the open SPEC-003 audit cannot be located and this audit-stage spawn cannot be checked (#1572, fail closed).')
+        exit 2
+    }
     $mainRoot = $projectDir
     $marker = [IO.Path]::DirectorySeparatorChar + '.claude' + [IO.Path]::DirectorySeparatorChar + 'worktrees' + [IO.Path]::DirectorySeparatorChar
     $at = $mainRoot.IndexOf($marker, [StringComparison]::OrdinalIgnoreCase)
