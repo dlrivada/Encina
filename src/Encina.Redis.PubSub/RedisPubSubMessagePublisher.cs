@@ -99,21 +99,8 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         var channelQueue = await _subscriber.SubscribeAsync(
             RedisChannel.Literal(effectiveChannel)).ConfigureAwait(false);
 
-        channelQueue.OnMessage(async message =>
-        {
-            try
-            {
-                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>(message.Message.ToString());
-                if (wrapper?.Payload is not null)
-                {
-                    await handler(wrapper.Payload).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), effectiveChannel);
-            }
-        });
+        channelQueue.OnMessage(message =>
+            DeliverAsync(message.Message.ToString(), handler, _logger, effectiveChannel));
 
         return new RedisSubscription(channelQueue);
     }
@@ -135,24 +122,40 @@ public sealed class RedisPubSubMessagePublisher : IRedisPubSubMessagePublisher
         var channelQueue = await _subscriber.SubscribeAsync(
             RedisChannel.Pattern(fullPattern)).ConfigureAwait(false);
 
-        channelQueue.OnMessage(async message =>
-        {
-            try
-            {
-                var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>(message.Message.ToString());
-                if (wrapper?.Payload is not null)
-                {
-                    await handler(message.Channel!, wrapper.Payload).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.ErrorProcessingMessage(_logger, ex.ForLogging(), message.Channel!);
-            }
-        });
+        channelQueue.OnMessage(message =>
+            DeliverPatternAsync(message.Message.ToString(), message.Channel!, handler, _logger));
 
         return new RedisSubscription(channelQueue);
     }
+
+    internal static async Task DeliverAsync<TMessage>(
+        string json,
+        Func<TMessage, ValueTask> handler,
+        ILogger logger,
+        string channel)
+        where TMessage : class
+    {
+        try
+        {
+            var wrapper = JsonSerializer.Deserialize<RedisMessageWrapper<TMessage>>(json);
+            if (wrapper?.Payload is not null)
+            {
+                await handler(wrapper.Payload).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.ErrorProcessingMessage(logger, ex.ForLogging(), channel);
+        }
+    }
+
+    internal static Task DeliverPatternAsync<TMessage>(
+        string json,
+        string channel,
+        Func<string, TMessage, ValueTask> handler,
+        ILogger logger)
+        where TMessage : class =>
+        DeliverAsync<TMessage>(json, payload => handler(channel, payload), logger, channel);
 }
 
 internal sealed class RedisMessageWrapper<T>
