@@ -129,29 +129,30 @@ internal static class SqlSanitizer
         }
 
         // Removes one dangerous token from the end of the output; false when there is none.
+        // The tokens end in different characters, so the order of the checks does not matter.
         private bool ReduceTail()
+            => ReduceStatementToken()
+            || (_commentStart < 0 && ReduceCommentToken())
+            || (EndsWithExtendedProc() && DropExtendedProc());
+
+        private bool ReduceStatementToken()
         {
             if (EndsWith(';'))
             {
                 return Drop(1);
             }
 
-            if (EndsWith('-', '-'))
+            return EndsWith('-', '-') && Drop(2);
+        }
+
+        private bool ReduceCommentToken()
+        {
+            if (EndsWith('*', '/'))
             {
                 return Drop(2);
             }
 
-            if (_commentStart < 0 && EndsWith('*', '/'))
-            {
-                return Drop(2);
-            }
-
-            if (_commentStart < 0 && EndsWith('/', '*'))
-            {
-                return OpenComment();
-            }
-
-            return EndsWithExtendedProc() && DropExtendedProc();
+            return EndsWith('/', '*') && OpenComment();
         }
 
         private bool EndsWith(char last) => _length >= 1 && _buffer[_length - 1] == last;
