@@ -249,17 +249,11 @@ public sealed class SagaOrchestrator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
 
-        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
-        if (stateResult.IsLeft)
-            return stateResult.LeftToArray()[0];
+        var loaded = await LoadStateAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (loaded.IsLeft)
+            return loaded.LeftToArray()[0];
 
-        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
-        if (stateOpt.IsNone)
-        {
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
-        }
-
-        var state = stateOpt.Match(Some: s => s, None: () => default!);
+        var state = loaded.RightToArray()[0];
 
         if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
         {
@@ -277,6 +271,21 @@ public sealed class SagaOrchestrator
         Log.SagaCompensating(_logger, sagaId, state.CurrentStep, errorCode);
 
         return state.CurrentStep;
+    }
+
+    private async Task<Either<EncinaError, ISagaState>> LoadStateAsync(Guid sagaId, CancellationToken cancellationToken)
+    {
+        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (stateResult.IsLeft)
+            return stateResult.LeftToArray()[0];
+
+        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        if (stateOpt.IsNone)
+        {
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+        }
+
+        return Right<EncinaError, ISagaState>(stateOpt.Match(Some: s => s, None: () => default!));
     }
 
     /// <summary>
@@ -343,17 +352,11 @@ public sealed class SagaOrchestrator
         string errorCode,
         CancellationToken cancellationToken = default)
     {
-        var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
-        if (stateResult.IsLeft)
-            return stateResult.LeftToArray()[0];
+        var loaded = await LoadStateAsync(sagaId, cancellationToken).ConfigureAwait(false);
+        if (loaded.IsLeft)
+            return loaded.LeftToArray()[0];
 
-        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
-        if (stateOpt.IsNone)
-        {
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
-        }
-
-        var state = stateOpt.Match(Some: s => s, None: () => default!);
+        var state = loaded.RightToArray()[0];
 
         state.Status = SagaStatus.Failed;
         state.ErrorMessage = errorCode;
