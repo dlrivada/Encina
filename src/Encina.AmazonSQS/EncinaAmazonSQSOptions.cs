@@ -15,7 +15,31 @@ public sealed class EncinaAmazonSQSOptions
     /// <summary>
     /// Gets or sets the default queue URL for commands.
     /// </summary>
+    /// <remarks>
+    /// Optional. When set, it must be an absolute <c>https</c> URL that does not target a loopback,
+    /// link-local, cloud metadata or unspecified address; <see cref="AllowInsecureHttp"/> and
+    /// <see cref="AllowLocalEndpoints"/> relax the scheme and loopback rules for local emulators.
+    /// </remarks>
     public string? DefaultQueueUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="DefaultQueueUrl"/> may use plain <c>http</c>.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>. Set to <c>true</c> only for a local emulator; a warning is logged at
+    /// startup when it is set.
+    /// </value>
+    public bool AllowInsecureHttp { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="DefaultQueueUrl"/> may target <c>localhost</c>
+    /// or a loopback address.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>. Set to <c>true</c> only for a local emulator; a warning is logged at
+    /// startup when it is set.
+    /// </value>
+    public bool AllowLocalEndpoints { get; set; }
 
     /// <summary>
     /// Gets or sets the default topic ARN for events.
