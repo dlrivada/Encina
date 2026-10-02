@@ -160,12 +160,15 @@ if ($Finalize) {
         if (-not (Test-Path -LiteralPath $draftPath)) { $problems.Add("$label`: missing draft $draftName (remediation-drafter must write it)."); continue }
 
         $memberTexts = [System.Collections.Generic.List[string]]::new()
+        $primaryText = ''
         foreach ($memberKey in @($f.groupMembers)) {
             $member = $findingsByKey[[string]$memberKey]
             if ($null -eq $member -or -not $member.inputFile -or -not (Test-Path -LiteralPath $member.inputFile)) { $problems.Add("$label`: the input file of group member '$memberKey' is missing; re-run -Prepare."); continue }
-            $memberTexts.Add((Get-Content -LiteralPath $member.inputFile -Raw))
+            $memberText = Get-Content -LiteralPath $member.inputFile -Raw
+            $memberTexts.Add($memberText)
+            # The group's own primary (this entry), never simply the first member: groupMembers is in group order.
+            if ([string]$memberKey -eq [string]$f.key) { $primaryText = $memberText }
         }
-        $primaryText = if ($memberTexts.Count -gt 0) { $memberTexts[0] } else { '' }
         $allTexts = $memberTexts -join "`n"
 
         $raw = Get-Content -LiteralPath $draftPath -Raw
@@ -230,6 +233,11 @@ if ($Finalize) {
         }
         if (@($manifest.findings).Count -eq 0 -and $stageLines -notcontains [string]$manifest.emptyLine) { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the line '$($manifest.emptyLine)'.") }
         if ($stageLines -notcontains $lessonsHeading) { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the '$lessonsHeading' section.") }
+        # The manifest's lessons (kept ones from an -Only run, and this run's, e.g. a #1534 manual-override log)
+        # must reach the stage file verbatim: audit-verifier and the lessons history read them there.
+        foreach ($lesson in @(@($manifest.keptLessons) + @($manifest.lessons) | Where-Object { $_ })) {
+            if ($stageLines -notcontains "- $lesson") { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the manifest's lesson '- $lesson' under '$lessonsHeading'.") }
+        }
     }
 
     foreach ($note in $notes) { "note: $note" }

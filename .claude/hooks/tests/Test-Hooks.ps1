@@ -1032,7 +1032,10 @@ try {
         @('remediation-drafter', 'Write', $otherAuditDraft, 2, 'remediation-drafter: a draft of an audit that is not open is denied (#1572)'),
         @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_input-777-code-1.md'), 2, 'remediation-drafter: the script-owned input file is denied (#1572)'),
         @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_manifest-777.json'), 2, 'remediation-drafter: the script-owned manifest is denied (#1572)'),
-        @($null, 'Write', $otherAuditDraft, 0, 'the orchestrator: a draft of an audit that is not open is not covered (#1572)')
+        @($null, 'Write', $otherAuditDraft, 0, 'the orchestrator: a draft of an audit that is not open is not covered (#1572)'),
+        @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_dryrun-777\777-code-1-stale-comment.md'), 0, 'remediation-drafter: a dry-run sandbox draft of the open audit (#1540, #1572)'),
+        @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_dryrun-777\remediation.md'), 0, 'remediation-drafter: the dry-run stage-file preview of the open audit (#1540, #1572)'),
+        @($null, 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_dryrun-777\777-code-1-stale-comment.md'), 2, 'the orchestrator writing a dry-run sandbox draft of the open audit is denied (#1572)')
     )
     foreach ($case in $draftOwnershipCases) {
         $hookAgent, $tool, $path, $expected, $label, $agentType = $case
@@ -1041,6 +1044,10 @@ try {
         Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
     }
     Invoke-HookCase $ownership (@{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "Set-Content -LiteralPath '$openDraft' -Value 'rewritten'" } } | ConvertTo-Json -Compress) 2 'shell vector (#1572): the orchestrator rewriting an open-audit draft with Set-Content is denied' $null
+    # Fail closed: an unreadable current-audit.json leaves no caller able to write any draft.
+    Set-Content -LiteralPath $draftAuditPath -Value '{ not json'
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main; tool_input = @{ file_path = $openDraft } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies even the orchestrator a draft write (#1572, fail closed)' $null
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main; tool_input = @{ file_path = $openDraft } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies remediation-drafter a draft write too (#1572, fail closed)' 'remediation-drafter'
     Remove-Item -LiteralPath $draftAuditPath -Force
 
     # #1345: every allowed stage-artifact write above recorded its author in the sidecar, and the sidecar
@@ -1888,7 +1895,9 @@ Test.
         foreach ($s in 'pipeline.json', '_audit-lib.ps1', '_remediation-checks.ps1', 'audit-draft-remediation.ps1') { Copy-Item (Join-Path $repo "tools\ai\audit\$s") (Join-Path $root "tools\ai\audit\$s") }
         foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') { Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $root ".github\ISSUE_TEMPLATE\$t") }
         & git -C $root -c user.name=hooks -c user.email=hooks@example.invalid init -q -b main 2>&1 | Out-Null
-        & git -C $root -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
+        & git -C $root config user.name hooks 2>&1 | Out-Null
+        & git -C $root config user.email hooks@example.invalid 2>&1 | Out-Null
+        & git -C $root commit -q --allow-empty -m base 2>&1 | Out-Null
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\code.md') "## Findings`n$Code`n## Lessons for the pipeline`n- none`n"
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\tests.md') "## Findings`n$Tests`n## Lessons for the pipeline`n- none`n"
         Set-Content (Join-Path $root 'artifacts\knowledge\stages\docs.md') "## Findings`n$Docs`n## Lessons for the pipeline`n- none`n"
@@ -1931,14 +1940,15 @@ Test.
         return ($out -join "`n")
     }
     # What remediation-drafter writes for stages/remediation.md: the manifest's own header, lines and lessons.
-    function Write-StageFromManifest($Manifest, [string[]]$SkipKeys = @()) {
+    function Write-StageFromManifest($Manifest, [string[]]$SkipKeys = @(), [switch]$NoLessons) {
         $out = [System.Collections.Generic.List[string]]::new()
         $out.Add([string]$Manifest.stageHeader)
         foreach ($f in @($Manifest.findings)) { if ($SkipKeys -notcontains $f.key) { $out.Add([string]$f.remediationLine) } }
         if (@($Manifest.findings).Count -eq 0) { $out.Add([string]$Manifest.emptyLine) }
         $out.Add('')
         $out.Add('## Lessons for the pipeline')
-        $out.Add('- none')
+        $manifestLessons = if ($NoLessons) { @() } else { @(@($Manifest.keptLessons) + @($Manifest.lessons) | Where-Object { $_ }) }
+        if ($manifestLessons.Count -eq 0) { $out.Add('- none') } else { foreach ($l in $manifestLessons) { $out.Add("- $l") } }
         Set-Content -LiteralPath $Manifest.stageFile -Encoding utf8 -Value ($out -join "`n")
     }
 
@@ -2043,11 +2053,21 @@ Test.
         Test-RemediationCase '#1572 -Finalize fills the bug Environment section (Set-BugEnvironment)' { $finBugText -match '- \*\*\.NET Version\*\*: \.NET 10' -and $finBugText -match 'found by static review' }
         Test-RemediationCase '#1572 -Finalize removes an unverified issue reference (Limit-RelatedIssues) and reports it' { $finBugText -notmatch '#9999' -and $finalizeDirty.Output -match 'removed unverified issue reference #9999' }
         Test-RemediationCase '#1572 -Finalize inserts the group''s Reported-by line after ## Description (Add-ReportedByLine)' { $finBugText -match '## Description\s+Reported by: code 1, docs 1\.' }
+        # audit-commit-stage.ps1 -Stage remediation refuses while -Finalize is not clean (the drafter's authorship alone is not enough).
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-commit-stage.ps1') (Join-Path $finWt 'tools\ai\audit\audit-commit-stage.ps1')
+        @{ remediation = @{ agent = 'remediation-drafter'; utc = '2026-01-01T00:00:00Z' } } | ConvertTo-Json | Set-Content (Join-Path $finWt 'artifacts\knowledge\stages\.authors.json')
+        $commitDirty = & pwsh -NoProfile -File (Join-Path $finWt 'tools\ai\audit\audit-commit-stage.ps1') -Stage remediation 2>&1
+        $commitDirtyCode = $LASTEXITCODE
+        # Matched on the error's short prefix and the problem text: the host re-wraps a long Write-Error message.
+        Test-RemediationCase '#1572 audit-commit-stage -Stage remediation refuses while -Finalize reports problems' { $commitDirtyCode -ne 0 -and (Get-FlatOutput $commitDirty) -match "refusing to commit 'remediation'" -and (Get-FlatOutput $commitDirty) -match 'template placeholder' }
 
         # Fix the placeholder: now clean, exit 0.
         Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $finTemplates 'test_implementation.md') '[TEST] Unit test for the failed write of A' 'area-testing' '' 'test')
         $finalizeClean = Invoke-Remediation $finWt @('-Finalize')
         Test-RemediationCase '#1572 -Finalize exits 0 once every draft and the stage file are clean' { $finalizeClean.Code -eq 0 -and $finalizeClean.Output -match '-Finalize clean' }
+        $commitClean = & pwsh -NoProfile -File (Join-Path $finWt 'tools\ai\audit\audit-commit-stage.ps1') -Stage remediation 2>&1
+        $commitCleanCode = $LASTEXITCODE
+        Test-RemediationCase '#1572 audit-commit-stage -Stage remediation commits once -Finalize is clean and remediation-drafter is the recorded author' { $commitCleanCode -eq 0 -and (Get-FlatOutput $commitClean) -match "committed stage 'remediation'" }
         Test-RemediationCase '#1572 -Finalize is idempotent (a second clean run leaves the drafts byte-identical)' {
             $before = Get-Content -LiteralPath $finCode1.draftFile -Raw
             $again = Invoke-Remediation $finWt @('-Finalize')
@@ -3231,6 +3251,9 @@ Two SagaStoreADO test classes duplicate the same setup.
             (Get-ManifestFinding $nonPrimaryManifest 'docs 1').remediationLine -eq '- docs 1 (Minor): duplicate of #998 (manual override)' -and (Get-ManifestFinding $nonPrimaryManifest 'code 1').remediationLine -eq '- code 1 (Major): duplicate of #998 (manual override)'
         }
         # A -Finalize on duplicates only (docs 12 and the code 1 group): nothing to draft, only the stage file.
+        Write-StageFromManifest $nonPrimaryManifest -NoLessons
+        $noLessonFinalize = Invoke-Remediation $remWt1534 @('-Finalize')
+        Test-RemediationCase '#1534 -Finalize reports a stage file that dropped the manifest''s manual-override lesson' { $noLessonFinalize.Code -eq 1 -and $noLessonFinalize.Output -match [regex]::Escape('docs 1: recorded as duplicate of #998 by manual override') }
         Write-StageFromManifest $nonPrimaryManifest
         $dupFinalize = Invoke-Remediation $remWt1534 @('-Finalize')
         Test-RemediationCase '#1572 -Finalize with only duplicate findings needs no draft and passes on the stage file alone' { $dupFinalize.Code -eq 0 }

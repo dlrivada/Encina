@@ -141,7 +141,15 @@ committed:
    line for every finding. It prints every problem and exits 1 when any remains: re-spawn `remediation-drafter`
    with that output, then run `-Finalize` again.
 4. Commit: `pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation` (it refuses unless
-   `.authors.json` records `remediation-drafter` as the last writer of `stages/remediation.md`).
+   `.authors.json` records `remediation-drafter` as the last writer of `stages/remediation.md` and `-Finalize`,
+   which it runs again, is clean; the manifest's lessons must also appear in the stage file's Lessons section).
+
+**An audit opened before #1572** (audit #18 is one) carries its own copy of `tools/ai/audit/pipeline.json`
+in `wia-<n>`, whose remediation entry still names the local-model script; `audit-stage-guard.ps1`,
+`enforce-path-ownership.ps1` and `audit-commit-stage.ps1` all read that copy, so `remediation-drafter` could
+not write or commit the stage. Before its remediation stage, change that worktree copy's remediation entry to
+`"agent": "remediation-drafter", "model": "sonnet"` with the Edit tool (the orchestrator may edit it; no commit
+is needed, since `audit-commit-stage.ps1` stages only `artifacts/knowledge`).
 
 `-DryRun` (either mode) works only inside the sandbox `artifacts/knowledge/remediation/_dryrun-<n>/`: Prepare
 writes its inputs, manifest and draft paths there (the stage-file preview is `_dryrun-<n>/remediation.md`),

@@ -206,7 +206,8 @@ try {
     }
 
     # #1572: the issue number of the open SPEC-003 audit (artifacts/knowledge/current-audit.json of the MAIN
-    # checkout), read once per hook run; $null when no audit is open or the file cannot be read.
+    # checkout), read once per hook run; $null when no audit is open, 'unreadable' when the file exists but has
+    # no readable issue number (the draft rule then fails closed, AGENTS.md §3).
     $script:OpenAuditIssue = $null
     $script:OpenAuditIssueRead = $false
     function Get-OpenAuditIssue {
@@ -214,7 +215,12 @@ try {
             $script:OpenAuditIssueRead = $true
             $currentAuditPath = Join-Path $layout.MainRoot 'artifacts\knowledge\current-audit.json'
             if (Test-Path -LiteralPath $currentAuditPath) {
-                try { $script:OpenAuditIssue = [string](Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json).issue } catch { $script:OpenAuditIssue = $null }
+                $script:OpenAuditIssue = 'unreadable'
+                try {
+                    $issueValue = [string](Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json).issue
+                    if ($issueValue -match '^\d+$') { $script:OpenAuditIssue = $issueValue }
+                }
+                catch { $script:OpenAuditIssue = 'unreadable' }
             }
         }
         return $script:OpenAuditIssue
@@ -296,10 +302,18 @@ try {
         # <n> the issue in artifacts/knowledge/current-audit.json) belong to remediation-drafter alone, for the
         # same reason a stage artifact belongs to its agent: no other caller, the orchestrator included, may write
         # or rewrite a draft the verifier will judge. The script's own _input-<n>-*/_manifest-<n>.json files start
-        # with '_' and are not drafts; another audit's drafts are not covered.
-        if (-not $location.InWorktree -and $relative -match '(?i)^artifacts/knowledge/remediation/(?<n>\d+)-[^/]+\.md$') {
+        # with '_' and are not drafts; another audit's drafts are not covered. The dry-run sandbox's drafts and
+        # stage-file preview (_dryrun-<n>/<n>-*.md, _dryrun-<n>/remediation.md, #1540) follow the same rule, so a
+        # dry run can be completed by the drafter too. An unreadable current-audit.json fails closed: nobody may
+        # write any draft until it is repaired.
+        if (-not $location.InWorktree -and $relative -match '(?i)^artifacts/knowledge/remediation/(?:_dryrun-(?<n>\d+)/(?:\d+-[^/]+\.md|remediation\.md)|(?<n>\d+)-[^/]+\.md)$') {
             $draftIssue = $Matches['n']
-            if ($draftIssue -eq (Get-OpenAuditIssue)) {
+            $openIssue = Get-OpenAuditIssue
+            if ($openIssue -eq 'unreadable') {
+                [Console]::Error.WriteLine("Blocked: '$relative' looks like a SPEC-003 remediation draft, but artifacts/knowledge/current-audit.json exists and has no readable issue number, so its owner cannot be decided; repair current-audit.json first (#1572, fail closed).")
+                return $false
+            }
+            if ($draftIssue -eq $openIssue) {
                 if ($Agent -ne 'remediation-drafter') {
                     $callerLabel = if ([string]::IsNullOrWhiteSpace($Agent)) { 'the orchestrator (main session)' } else { $Agent }
                     [Console]::Error.WriteLine("Blocked: '$relative' is a remediation draft of the open SPEC-003 audit (#$draftIssue), owned by remediation-drafter (#1572); $callerLabel may not write it. Re-spawn remediation-drafter with the correction instead.")

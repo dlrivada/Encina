@@ -38,7 +38,8 @@ You are the remediation stage of the SPEC-003 audit pipeline (#1345, #1572), for
 ## Owns
 
 - `artifacts\knowledge\remediation\<n>-<stage>-<id>-<slug>.md` in the MAIN checkout: one draft per manifest finding that has a `draftFile`. `enforce-path-ownership.ps1` lets only you write these files while audit `<n>` is open.
-- `artifacts\knowledge\stages\remediation.md` in the audit worktree `wia-<n>` (see Output). The hook records you as its author; `audit-commit-stage.ps1 -Stage remediation` refuses any other author.
+- `artifacts\knowledge\stages\remediation.md` in the audit worktree `wia-<n>` (see Output).
+- For a dry run (the manifest says `"dryRun": true`): the drafts and the stage-file preview inside `artifacts\knowledge\remediation\_dryrun-<n>\` of the main checkout, exactly at the manifest's paths. The hook records you as its author; `audit-commit-stage.ps1 -Stage remediation` refuses any other author.
 
 ## Does not own
 
@@ -71,7 +72,7 @@ The draft starts with this header block, then the template body:
 ```
 <!--
 title: <prefix> <specific title drawn from the finding>
-labels: <the route's labels, comma-separated, in the manifest's order>
+labels: <the route's labels joined with ", " (comma and one space), in the manifest's order>
 milestone: <the route's milestone, empty when it is empty>
 kind: <bug|test|debt|docs>
 -->

@@ -15,7 +15,8 @@
 # means the artifact was never actually written by its assigned agent through that tool (or was hand-edited
 # by something the sidecar never saw). Every stage has an agent author since #1572, the remediation stage
 # included: remediation-drafter writes stages/remediation.md with the Write/Edit tool (the
-# audit-draft-remediation.ps1 -Prepare/-Finalize script never writes it), so no stage is exempt.
+# audit-draft-remediation.ps1 -Prepare/-Finalize script never writes it), so no stage is exempt. -Stage
+# remediation also refuses unless audit-draft-remediation.ps1 -Finalize exits 0.
 #
 # #1457: -Stage archivist additionally refuses when the knowledge record it just wrote
 # (artifacts\knowledge\issues\<n>.md) fails `dotnet run --file .github/scripts/knowledge-records.cs --
@@ -114,6 +115,18 @@ if ($null -eq $authorship -or [string]$authorship.agent -ne $expectedAgent) {
     $found = if ($null -eq $authorship) { 'no recorded author' } else { "recorded author '$($authorship.agent)'" }
     Write-Error "audit-commit-stage: refusing to commit '$Stage' for #${n}: pipeline.json assigns it to $expectedAgent, but artifacts\knowledge\stages\.authors.json has $found. The artifact must be written by $expectedAgent through the Write/Edit tool (enforce-path-ownership.ps1 records authorship there); a hand-edited or fabricated artifact is not accepted (#1345)."
     exit 1
+}
+
+# #1572: the remediation stage commits only once audit-draft-remediation.ps1 -Finalize is clean -- the
+# sanitizers and checks are part of the stage, never an optional step before an unchecked commit. -Finalize is
+# idempotent on clean drafts, so running it again here changes nothing that was already finalized.
+if ($Stage -eq 'remediation') {
+    $finalizeScript = Join-Path $PSScriptRoot 'audit-draft-remediation.ps1'
+    $finalizeOutput = & pwsh -NoProfile -File $finalizeScript -Finalize 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "audit-commit-stage: refusing to commit 'remediation' for #${n}: audit-draft-remediation.ps1 -Finalize is not clean (re-spawn remediation-drafter with this output):`n$($finalizeOutput -join "`n")"
+        exit 1
+    }
 }
 
 # #1457: the archivist stage's whole job is the knowledge record (artifacts\knowledge\issues\<n>.md), so this
