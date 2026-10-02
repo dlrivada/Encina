@@ -74,7 +74,7 @@ internal sealed class EELExpressionPrecompilationService : IHostedService
             assemblies.Count);
 
         var stopwatch = Stopwatch.StartNew();
-        var failures = new List<(Type RequestType, string Expression, string ErrorMessage)>();
+        var failures = new List<(Type RequestType, string Expression, string ErrorCode)>();
 
         // Compile expressions concurrently with bounded parallelism.
         var concurrency = Math.Max(1, Environment.ProcessorCount);
@@ -93,7 +93,7 @@ internal sealed class EELExpressionPrecompilationService : IHostedService
                     {
                         lock (failures)
                         {
-                            failures.Add((entry.RequestType, entry.Expression, error.Message));
+                            failures.Add((entry.RequestType, entry.Expression, error.GetCode().IfNone("encina.unknown")));
                         }
                     },
                     Right: _ => { });
@@ -109,20 +109,20 @@ internal sealed class EELExpressionPrecompilationService : IHostedService
 
         if (failures.Count > 0)
         {
-            foreach (var (requestType, expression, errorMessage) in failures)
+            foreach (var (requestType, expression, errorCode) in failures)
             {
                 _logger.LogError(
-                    "EEL compilation failed for {RequestType}: expression '{Expression}' — {ErrorMessage}",
+                    "EEL compilation failed for {RequestType}: expression '{Expression}' — {ErrorCode}",
                     requestType.FullName,
                     expression,
-                    errorMessage);
+                    errorCode);
             }
 
             throw new InvalidOperationException(
                 $"EEL precompilation failed: {failures.Count} expression(s) could not be compiled. " +
                 $"See logs for details. Failing expressions: " +
                 string.Join("; ", failures.Select(f =>
-                    $"[{f.RequestType.Name}] \"{f.Expression}\" → {f.ErrorMessage}")));
+                    $"[{f.RequestType.Name}] \"{f.Expression}\" → {f.ErrorCode}")));
         }
 
         _logger.LogInformation(
