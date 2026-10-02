@@ -196,7 +196,7 @@ internal sealed class MqttSubscription<TMessage> : IAsyncDisposable
         _client.ApplicationMessageReceivedAsync += OnMessageReceived;
     }
 
-    private async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs args)
+    internal async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs args)
     {
         if (args.ApplicationMessage.Topic == _topic)
         {
@@ -249,7 +249,7 @@ internal sealed class MqttPatternSubscription<TMessage> : IAsyncDisposable
         _client.ApplicationMessageReceivedAsync += OnMessageReceived;
     }
 
-    private async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs args)
+    internal async Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs args)
     {
         // Simple pattern matching (could be improved with proper MQTT topic matching)
         if (MatchesTopic(args.ApplicationMessage.Topic, _topicFilter))
