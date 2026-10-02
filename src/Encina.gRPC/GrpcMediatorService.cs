@@ -56,60 +56,15 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.ProcessingRequest(_logger, requestType);
 
-            var type = _typeResolver.ResolveRequestType(requestType);
-            if (type is null)
+            var (plan, error) = PrepareSend(requestType, requestData);
+            if (plan is null)
             {
-                return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
-                    EncinaErrors.Create(
-                        GrpcTypeNotFound,
-                        $"Request type '{requestType}' not found."));
+                return Left<EncinaError, byte[]>(error!); // NOSONAR S6966: Left is a pure function
             }
 
-            var request = JsonSerializer.Deserialize(requestData, type);
-            if (request is null)
-            {
-                return Left<EncinaError, byte[]>( // NOSONAR S6966: Left is a pure function
-                    EncinaErrors.Create(
-                        GrpcDeserializeFailed,
-                        "Failed to deserialize request."));
-            }
+            dynamic result = await InvokeSendAsync(plan, cancellationToken).ConfigureAwait(false);
 
-            // Use reflection to call the generic Send method
-            // IEncina.Send<TResponse> has 1 generic parameter (the response type)
-            var sendMethod = typeof(IEncina)
-                .GetMethods()
-                .FirstOrDefault(m => m.Name == "Send" && m.GetGenericArguments().Length == 1 && m.GetParameters().Length == 2);
-
-            if (sendMethod is null)
-            {
-                return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
-                    EncinaErrors.Create(
-                        "GRPC_SEND_METHOD_NOT_FOUND",
-                        $"IEncina does not expose a generic Send<TResponse> method. " +
-                        $"Ensure the IEncina interface defines a Send method with exactly one generic type parameter."));
-            }
-
-            var responseType = type.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
-                ?.GetGenericArguments()[0];
-
-            if (responseType is null)
-            {
-                return Left<EncinaError, byte[]>( // NOSONAR S6966: LanguageExt Left is a pure function
-                    EncinaErrors.Create(
-                        "GRPC_RESPONSE_TYPE_NOT_FOUND",
-                        $"Could not determine response type for request '{requestType}'."));
-            }
-
-            var genericMethod = sendMethod.MakeGenericMethod(responseType);
-            var invokeResult = genericMethod.Invoke(_encina, [request, cancellationToken])
-                ?? throw new InvalidOperationException(
-                    $"IEncina.Send<{responseType.Name}> returned null. " +
-                    $"The method must return a non-null ValueTask.");
-            var task = (dynamic)invokeResult;
-            dynamic result = await task;
-
-            return ExtractEitherResult(result, responseType, requestType);
+            return ExtractEitherResult(result, plan.ResponseType, requestType);
         }
         catch (GrpcSerializationException ex)
         {
@@ -156,48 +111,13 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
         {
             Log.ProcessingNotification(_logger, notificationType);
 
-            var type = _typeResolver.ResolveNotificationType(notificationType);
-            if (type is null)
+            var (plan, error) = PreparePublish(notificationType, notificationData);
+            if (plan is null)
             {
-                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
-                    EncinaErrors.Create(
-                        GrpcTypeNotFound,
-                        $"Notification type '{notificationType}' not found."));
+                return Left<EncinaError, Unit>(error!); // NOSONAR S6966: Left is a pure function
             }
 
-            var notification = JsonSerializer.Deserialize(notificationData, type);
-            if (notification is null)
-            {
-                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
-                    EncinaErrors.Create(
-                        GrpcDeserializeFailed,
-                        "Failed to deserialize notification."));
-            }
-
-            // Use reflection to call the generic Publish method
-            // IEncina.Publish<TNotification> returns ValueTask<Either<EncinaError, Unit>>
-            var publishMethod = typeof(IEncina)
-                .GetMethods()
-                .FirstOrDefault(m => m.Name == "Publish" && m.GetGenericArguments().Length == 1 && m.GetParameters().Length == 2);
-
-            if (publishMethod is null)
-            {
-                return Left<EncinaError, Unit>( // NOSONAR S6966: Left is a pure function
-                    EncinaErrors.Create(
-                        "GRPC_PUBLISH_METHOD_NOT_FOUND",
-                        $"IEncina does not expose a generic Publish<TNotification> method. " +
-                        $"Ensure the IEncina interface defines a Publish method with exactly one generic type parameter."));
-            }
-
-            var genericMethod = publishMethod.MakeGenericMethod(type);
-            var invokeResult = genericMethod.Invoke(_encina, [notification, cancellationToken])
-                ?? throw new InvalidOperationException(
-                    $"IEncina.Publish<{type.Name}> returned null. " +
-                    $"The method must return a non-null ValueTask.");
-            var task = (dynamic)invokeResult;
-            Either<EncinaError, Unit> result = await task;
-
-            return result;
+            return await InvokePublishAsync(plan, cancellationToken).ConfigureAwait(false);
         }
         catch (JsonException ex)
         {
@@ -234,6 +154,127 @@ public sealed class GrpcEncinaService : IGrpcEncinaService
             EncinaErrors.Create(
                 "GRPC_STREAMING_NOT_IMPLEMENTED",
                 "Streaming is not yet implemented."));
+    }
+
+    private (DispatchPlan? Plan, EncinaError? Error) PrepareSend(string requestType, byte[] requestData)
+    {
+        var type = _typeResolver.ResolveRequestType(requestType);
+        var (request, error) = DeserializeMessage(
+            type,
+            requestData,
+            $"Request type '{requestType}' not found.",
+            "Failed to deserialize request.");
+
+        if (request is null)
+        {
+            return (null, error);
+        }
+
+        // Use reflection to call the generic Send method
+        // IEncina.Send<TResponse> has 1 generic parameter (the response type)
+        var sendMethod = FindGenericMethod("Send");
+        if (sendMethod is null)
+        {
+            return (null, EncinaErrors.Create(
+                "GRPC_SEND_METHOD_NOT_FOUND",
+                $"IEncina does not expose a generic Send<TResponse> method. " +
+                $"Ensure the IEncina interface defines a Send method with exactly one generic type parameter."));
+        }
+
+        var responseType = ResolveResponseType(type!);
+        if (responseType is null)
+        {
+            return (null, EncinaErrors.Create(
+                "GRPC_RESPONSE_TYPE_NOT_FOUND",
+                $"Could not determine response type for request '{requestType}'."));
+        }
+
+        return (new DispatchPlan(request, sendMethod, responseType), null);
+    }
+
+    private (DispatchPlan? Plan, EncinaError? Error) PreparePublish(string notificationType, byte[] notificationData)
+    {
+        var type = _typeResolver.ResolveNotificationType(notificationType);
+        var (notification, error) = DeserializeMessage(
+            type,
+            notificationData,
+            $"Notification type '{notificationType}' not found.",
+            "Failed to deserialize notification.");
+
+        if (notification is null)
+        {
+            return (null, error);
+        }
+
+        // Use reflection to call the generic Publish method
+        // IEncina.Publish<TNotification> returns ValueTask<Either<EncinaError, Unit>>
+        var publishMethod = FindGenericMethod("Publish");
+        if (publishMethod is null)
+        {
+            return (null, EncinaErrors.Create(
+                "GRPC_PUBLISH_METHOD_NOT_FOUND",
+                $"IEncina does not expose a generic Publish<TNotification> method. " +
+                $"Ensure the IEncina interface defines a Publish method with exactly one generic type parameter."));
+        }
+
+        return (new DispatchPlan(notification, publishMethod, type!), null);
+    }
+
+    private static (object? Message, EncinaError? Error) DeserializeMessage(
+        Type? type,
+        byte[] data,
+        string notFoundMessage,
+        string deserializeFailedMessage)
+    {
+        if (type is null)
+        {
+            return (null, EncinaErrors.Create(GrpcTypeNotFound, notFoundMessage));
+        }
+
+        var message = JsonSerializer.Deserialize(data, type);
+
+        return message is null
+            ? (null, EncinaErrors.Create(GrpcDeserializeFailed, deserializeFailedMessage))
+            : (message, null);
+    }
+
+    private static System.Reflection.MethodInfo? FindGenericMethod(string name) =>
+        typeof(IEncina)
+            .GetMethods()
+            .FirstOrDefault(m => m.Name == name && m.GetGenericArguments().Length == 1 && m.GetParameters().Length == 2);
+
+    private static Type? ResolveResponseType(Type requestType) =>
+        requestType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+            ?.GetGenericArguments()[0];
+
+    private async Task<dynamic> InvokeSendAsync(DispatchPlan plan, CancellationToken cancellationToken)
+    {
+        var task = (dynamic)InvokeGeneric(plan, "Send", cancellationToken);
+        return await task;
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> InvokePublishAsync(DispatchPlan plan, CancellationToken cancellationToken)
+    {
+        var task = (dynamic)InvokeGeneric(plan, "Publish", cancellationToken);
+        Either<EncinaError, Unit> result = await task;
+
+        return result;
+    }
+
+    private object InvokeGeneric(DispatchPlan plan, string methodName, CancellationToken cancellationToken)
+    {
+        var genericMethod = plan.OpenMethod.MakeGenericMethod(plan.GenericArgument);
+
+        return genericMethod.Invoke(_encina, [plan.Message, cancellationToken])
+            ?? throw new InvalidOperationException(
+                $"IEncina.{methodName}<{plan.GenericArgument.Name}> returned null. " +
+                $"The method must return a non-null ValueTask.");
+    }
+
+    private sealed record DispatchPlan(object Message, System.Reflection.MethodInfo OpenMethod, Type GenericArgument)
+    {
+        public Type ResponseType => GenericArgument;
     }
 
     /// <summary>
