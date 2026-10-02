@@ -43,6 +43,8 @@ Each role in the `AI-DEVELOPMENT-MODEL.md` §8 pipeline (`HISTORIAN → AUDITOR 
 
 High volume + low error cost → local AI candidate. Low volume + high error cost → Claude.
 
+Rule (maintainer, 2026-10-02): the local model is used only for tasks it does reliably. Free is not cheap when its output needs rework, so a task whose local drafts have to be repaired, regenerated or re-verified goes to Claude. The evidence for the first task moved under this rule is in §7.
+
 ---
 
 ## 4. Proposed routing by role
@@ -59,6 +61,7 @@ High volume + low error cost → local AI candidate. Low volume + high error cos
 | **IMPLEMENTER** — new feature following an approved SPEC | 🔴 Claude | Interpreting the nuances of a specification is not a bounded task. |
 | **VERIFIER** — first mechanical pass (tests, documentation drift, gates such as `--check-dangling`) | 🟢 Local | Cheap, and verified reliable for this kind of cross-check. |
 | **VERIFIER** — final gate before merging anything non-trivial | 🔴 Claude | `ENCINA-1.0-RECONCILIATION.md` §19 names "false confidence from metrics" as a risk; the last word on correctness must not come from a model tier that sometimes skips parts of an instruction. |
+| **REMEDIATION DRAFTER** — SPEC-003 audit stage that turns findings into remediation issue drafts | 🔴 Claude (`remediation-drafter`, Sonnet) | Moved from the local model on 2026-10-02 (#1572): its drafts contradicted their findings and needed rework (evidence in §7). The preparation (`-Prepare`) and the checks (`-Finalize`) of `audit-draft-remediation.ps1` are deterministic and call no model. |
 | **ADVERSARIAL REVIEWER** | 🔴 Claude | The most demanding reasoning task in the pipeline. |
 
 ### Claude subagent tiers
@@ -73,6 +76,7 @@ The table above routes *roles* between the local model and Claude. Within the Cl
 | `mechanical-fixer` | Sonnet 5 / low | Executes an already-decided change in a given worktree, verifies, commits | Yes (in its worktree) |
 | `adversarial-reviewer` | Opus 5 / high | SDD Adversarial Reviewer: verified findings against spec, providers, cross-cutting rule, tests, API and claims | No |
 | `pr-reviewer` | Sonnet 5 / high (Opus only for security, personal-data or unusually large-diff PRs, passed by the orchestrator) | CodeRabbit-style review of a *published* PR against `AGENTS.md`, `CLAUDE.md`, the `path_instructions` of `.coderabbit.yaml` and its linked issue's acceptance criteria; fallback for when CodeRabbit is unavailable or rate-limited (#1447). Distinct from `adversarial-reviewer`, which reviews a pre-push diff against a closed brief | Yes (only `artifacts/pr-review/**`, never pushes/comments/opens) |
+| `remediation-drafter` | Sonnet / high | Remediation stage of the SPEC-003 audit pipeline (#1572): writes one remediation issue draft per non-duplicate finding group from the manifest `audit-draft-remediation.ps1 -Prepare` produced, and `stages/remediation.md` | Yes (the remediation drafts and its stage file, never code) |
 | `issue-worker` | Sonnet 5 / medium (Opus when the root cause is unknown) | Implements one issue from the orchestrator's brief in a pre-created worktree, verifies, reports | Yes (in its worktree, never pushes) |
 
 Decided mechanical edits go to the local model (`local-ai-task` skill) when they are bulk/low-risk drafts, and to `mechanical-fixer` when they must be applied and verified in a worktree.
@@ -106,13 +110,17 @@ Reliable for the local model:
 
 - **Translation with a reference** (2026-09-23): SQL scripts translated against an existing store's SQL as the reference produced 10 of 10 usable drafts.
 - **Mirroring an existing pattern across providers** (2026-09-23): given one provider's implementation as the template, drafting the equivalent for another provider.
-- **Drafting an issue from given facts** (2026-09-23/24): the local model writes the first draft of a follow-up issue file when the facts (title, location, behaviour, root cause) are already established; see the Delegation table in `.claude/agents/README.md`.
+- **Drafting an issue from given facts** (2026-09-23/24): the local model writes the first draft of a follow-up issue file when the facts (title, location, behaviour, root cause) are already established; this excludes the audit's remediation drafts, which need judgement over findings and moved to Claude on 2026-10-02 (below); see the Delegation table in `.claude/agents/README.md`.
 - **Triage and classification tasks** (2026-09-23/24): labelling or sorting a batch of items against a stated rule.
 
 Unreliable for the local model:
 
 - **Type-level reasoning** (2026-09-24): a task requiring reflection over `ValueTask` produced a draft that was not usable.
 - **Any task where the target API is not included in its input** (2026-09-23/24): the model invents members it cannot see. Asking it to list which parts of its draft are "unverified" helps the reviewer find where to look first, but does not replace the reviewer checking every identifier.
+
+Unreliable for the local model, moved to Claude on 2026-10-02 (#1572):
+
+- **Remediation drafting for the SPEC-003 audit** (audit #18): the local model's drafts contradicted their own findings. A finding that named five packages was attributed to one package, the test-category checkboxes were ticked wrongly, coverage figures were invented, the described code behaviour was wrong and some drafts contained meta-text. Audit #18 failed verifier pass 4 on them, two regenerations did not converge, and the deterministic regex repairs proposed in #1565 (PR #1571, closed unmerged) damaged drafts that were correct. The `remediation-drafter` agent (Sonnet) now writes the drafts; the script only prepares its input and checks its output. The details are in the audit #18 stage files and in #1572 and #1565. The decision is recorded in [SPEC-003](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md) §5.4 and §16.
 
 Firm rule, not a suggestion: every local-model draft is audited by the delegating agent before use (`local-ai-task` skill §4).
 
