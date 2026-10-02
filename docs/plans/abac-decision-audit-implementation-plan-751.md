@@ -24,7 +24,7 @@ What the plan also fixes, because the audit cannot be trustworthy without it (al
 - Resource attributes receive `default!` instead of the request (`:397`).
 - `AddEncinaABAC` registers the PEP with `TryAddTransient` on the open generic `IPipelineBehavior<,>` (`ServiceCollectionExtensions.cs:244`), which is silently skipped when `Encina.Security` registered its behavior first (`Encina.Security/ServiceCollectionExtensions.cs:81`): no enforcement and no audit. Switch ABAC to `TryAddEnumerable`. The reverse order is also broken: `Encina.Security`'s `TryAddTransient` is skipped once ABAC has added its descriptor, so `SecurityPipelineBehavior` silently disappears. This plan therefore also switches `Encina.Security` to `TryAddEnumerable` and tests both orders (see Phase 4); the other packages are covered by the deferred repo-wide issue plus a startup warning, so order independence is claimed only for these two packages.
 - The persistent PAP factory resolves a possibly scoped `IAuditStore` from the root provider (`ServiceCollectionExtensions.cs:203`), uses `DateTimeOffset.UtcNow` (`PersistentPolicyAdministrationPoint.cs:601`) and logs `error.Message` (`:657-658`).
-- `error.Message` / `ex.Message` reach logs, the activity status and returned errors, against AGENTS.md section 3: PEP `ABACPipelineBehavior.cs:163` (raw exception passed to `EvaluationFailed`, EventId 9009, without `ForLogging()`), `:168`, `:229-231`, `:289-291`, `:421-423`; PDP `XACMLPolicyDecisionPoint.cs:81`, `:117` (`error.Message`), `:162` (raw exception), `:170` (`StatusMessage` built from `ex.Message`); `ABACErrors.EvaluationFailed` embeds `exception.Message` (`ABACErrors.cs:163`). All of these are fixed in Phase 1 and 2. `ObligationExecutor` (`:115-117`, `:200-202`) and `AuditPipelineBehavior` stay out of scope (deferred issues).
+- `error.Message` / `ex.Message` reach logs, the activity status and returned errors, against AGENTS.md section 3: PEP `ABACPipelineBehavior.cs:163` (raw exception passed to `EvaluationFailed`, EventId 9009, without `ForLogging()`), `:168`, `:229-231`, `:289-291`, `:421-423`; PDP `XACMLPolicyDecisionPoint.cs:81`, `:117` (`error.Message`), `:162` (raw exception), `:170` (`StatusMessage` built from `ex.Message`); `ABACErrors.EvaluationFailed` embeds `exception.Message` (`ABACErrors.cs:163`). All of these are fixed in Phase 1 and 2. `ObligationExecutor` (`:115-117`, `:200-202`) stays out of scope (issue to open, see the deferred table), and `AuditPipelineBehavior` is fixed by PR #1606 (#1557).
 - The persistent-PAP and decision-point paths can also decide on incomplete policies: a failed standalone-policy retrieval is non-fatal (`XACMLPolicyDecisionPoint.cs:113-135`). This plan fixes it (Indeterminate, fail closed) rather than recording a "complete" Granted decision made on partial data (see Phase 1 task 4).
 
 **Mapping of the issue's events**: `AccessGranted` / `AccessDenied` become the enforced outcome of the record; `PolicyEvaluated` becomes the evaluation trace carried inside the record (not one row per policy); `PolicyCacheHit` is not an audit event (it has no subject and no compliance meaning, and the policy-store cache gives no hit signal on the PDP hot path, `Persistence/CachingPolicyStoreDecorator.cs:247-301`): it becomes the metric `abac.policy_cache.lookups{result}`.
@@ -224,7 +224,7 @@ What the plan also fixes, because the audit cannot be trustworthy without it (al
 ### Rationale
 
 - Tenant gate (fails closed, AGENTS.md section 3): the reader forces the ambient tenant and rejects an explicit mismatching tenant with `Left(InvalidDecisionAuditQuery("tenant_mismatch"))` (SPEC-002 REQ-061). When **no ambient tenant is resolvable** the reader does not query across tenants: `AuditQuery.TenantId == null` means "no filter" (`AuditQuery.cs:49`; `AuditStoreEF.cs:196`), so it returns `Left(InvalidDecisionAuditQuery("tenant_required"))` unless an explicit, logged opt-out is configured (`DecisionAudit.AllowCrossTenantQueries`, default false, for single-tenant deployments and operator tooling). Store-level automatic tenant filtering stays in #798.
-- Reader and export are **not** authorized by this feature: they expose access history, so the application must put them behind its own authorization (documented; the reader is a plain service, not an endpoint). Auditing the reads of the audit trail itself is deferred to #1193 (evidential read audit); a deferred issue is proposed.
+- Reader and export are **not** authorized by this feature: they expose access history, so the application must put them behind its own authorization (documented; the reader is a plain service, not an endpoint). Auditing the reads of the audit trail itself is deferred to #1193 (evidential read audit): issue to open (see the deferred table in the Cross-Cutting Integration Matrix).
 - Queries validate page size (<= 1000) and `FromUtc <= ToUtc`, returning `Left`. The reader resolves `IAuditStore` lazily from an injected `IServiceProvider` (see Design 5) and returns `Left(DecisionAuditStoreUnavailable)` when it is missing, so it can be registered unconditionally.
 - Export is JSON Lines, schema `encina.abac.decision/1`, codes only.
 
@@ -654,7 +654,19 @@ src/Encina.Security.ABAC/ABACPipelineBehavior.cs, ServiceCollectionExtensions.cs
 | 11 | Module Isolation | ⏭️ | `abac.module_id` in metadata now; a queryable `ModuleId` on `AuditEntry`/`AuditQuery` for all providers is deferred as `[FEATURE]` (related #753). |
 | 12 | Audit Trail | ✅ | This is the feature. |
 
-Deferred issues proposed to the orchestrator (see `deferredIssues` in the report): provider registration `[BUG]` (Phase 0), auditing of reads of the decision-audit trail (with #1193), `ModuleId` on audit entries, OTel subscription of ABAC, repo-wide `TryAddTransient` open-generic behavior collision, `AuditPipelineBehavior` storing message text, ABAC fail-open gaps, auditing of `ObligationExecutor` overrides and direct PDP callers.
+Deferred items, each with a drafted issue file (the orchestrator fills the numbers):
+
+| Deferred item | Status |
+|---|---|
+| Provider registration and DDL (Phase 0) | issue to open: "[BUG] IAuditStore is not registered for ADO.NET x3, Dapper x3 and MongoDB, and no SecurityAuditEntries DDL exists" (#____) |
+| Queryable `ModuleId` on audit entries | issue to open: "[FEATURE] Queryable ModuleId on AuditEntry and AuditQuery for all audit store providers" (#____) |
+| OTel subscription of the ABAC source and meter | issue to open: "[DEBT] Encina.OpenTelemetry does not subscribe to the Encina.Security.ABAC ActivitySource and Meter" (#____) |
+| Repo-wide open-generic `TryAddTransient` collisions plus startup warning | issue to open: "[BUG] Open-generic TryAddTransient of IPipelineBehavior silently skips behaviors registered after another one (about 15 packages)" (#____) |
+| `RequirePolicy.PolicyName`/`RequireCondition` ignored, `ObligationExecutor` uncaught handler exceptions | issue to open: "[BUG] ABAC ignores RequirePolicy.PolicyName and RequireCondition at request time, and ObligationExecutor lets handler exceptions escape" (#____) |
+| Audit of obligation overrides and direct PDP callers | issue to open: "[FEATURE] Audit ABAC obligation overrides and decisions of direct IPolicyDecisionPoint callers" (#____) |
+| Audit of reads of the decision-audit trail (relates to #1193) | issue to open: "[FEATURE] Audit reads of the ABAC decision-audit trail (reader and export)" (#____) |
+| Policy-cache hit/miss counter | issue to open: "[DEBT] CachingPolicyStoreDecorator exposes no cache hit/miss metric (abac.policy_cache.lookups)" (#____) |
+| `AuditPipelineBehavior` storing `error.Message` | no new issue: fixed by PR #1606 (#1557) |
 
 ---
 
@@ -672,7 +684,7 @@ Deferred issues proposed to the orchestrator (see `deferredIssues` in the report
 - **Double rows** when `AuditPipelineBehavior` is also registered (different events, joined by `CorrelationId`).
 - **Direct PDP callers** are not audited.
 - **Isolated scope assumption**: tenant and connection resolution in a new scope must come from ambient state (`IRequestContextAccessor`, `ModuleExecutionContext`); a database-per-tenant setup holding the tenant in a scoped object would write to the default database (revisit with #798).
-- **Out of scope defects** (own issues; the standalone-policy retrieval fail-open is fixed here, Phase 1 task 4): `RequirePolicy.PolicyName` and `RequireCondition` are ignored at request time; `ObligationExecutor` does not catch handler exceptions and logs `error.Message` (`:115-117,200-202`); `AuditPipelineBehavior` stores `error.Message` and classifies by text (`AuditPipelineBehavior.cs:104,121,187-198`).
+- **Out of scope defects** (own issues; the standalone-policy retrieval fail-open is fixed here, Phase 1 task 4): `RequirePolicy.PolicyName` and `RequireCondition` are ignored at request time; `ObligationExecutor` does not catch handler exceptions and logs `error.Message` (`:115-117,200-202`); `AuditPipelineBehavior` stores `error.Message` and classifies by text (`AuditPipelineBehavior.cs:104,121,187-198`), which PR #1606 (#1557) fixes.
 
 ---
 
