@@ -67,6 +67,16 @@ foreach ($ruleFile in 'AGENTS.md', 'CLAUDE.md') {
     }
 }
 
+# #1592: the generic connection-setting names. Nearly every options class has a `Host`, `Port`, `Username`,
+# `Password`, `ConnectionString` or `Url`, so a bare token of this kind names a KIND of setting, never this
+# defect, exactly as a bare 'UseXxx' toggle names a feature area (Get-FindingAnchors). Audit #18's docs-7 (a
+# documentation page names the MQTT option `BrokerAddress` where the real one is `Host`) matched #1584 (endpoint
+# validation of the `Host` option) through the MQTT options file plus this one token. A qualified token
+# (`options.Host`, `EncinaMQTTOptions.Host`) stays a symbol anchor: it names one property of one class.
+$script:GenericOptionSettingNames = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@('Host', 'HostName', 'Port', 'Username', 'UserName', 'Password', 'ConnectionString', 'Url', 'Uri', 'Endpoint', 'Address'),
+    [System.StringComparer]::OrdinalIgnoreCase)
+
 # #1400 decision 1: every finding in the code/tests/docs stage artifacts is written as "`loc1`, `loc2`, ...:
 # narrative" -- a leading, comma/semicolon-joined list of backtick-delimited file citations (the finding's own
 # claimed defect locations), followed by a colon that opens the prose explaining the defect. That colon is
@@ -156,6 +166,7 @@ function Get-FindingAnchors {
         if ($token -match '^:\d') { continue }
         if ($token.Contains('/') -and $token -match '^[\w.{},*/\\-]+(?::[\d,-]+)?$') { continue }
         if ($script:HouseRuleTokens.Contains($token)) { continue }
+        if ($script:GenericOptionSettingNames.Contains($token)) { continue }
         # A bare 'UseXxx' token (no dot, parens or generic brackets) is AGENTS.md's own generic naming
         # convention for a messaging pattern's opt-in flag ("Every messaging pattern... is optional... Example:
         # `config.UseOutbox = true;`"), so it recurs, unqualified, across many unrelated issues in this
@@ -374,28 +385,47 @@ function Test-DuplicateEvidence {
     return $false
 }
 
-# #1400 decision 1, widened by #1393 decision 3 and #1572: decides which search candidates
-# audit-draft-remediation.ps1 -Prepare lists as "partially related" for a finding that is not a duplicate (the
-# candidate's location text covers at least one of the finding's own file anchors OR one of its specific
-# symbol anchors, but not enough for a duplicate) versus "possibly related" (a search hit with no anchor
-# matched at all, listed for awareness only). A candidate that matches only part of a multi-anchor finding is therefore "partially
-# related", never a duplicate: audit #16's docs-2 names `IChoreographyEventBus`, `IChoreographyStateStore` and
-# the missing registration surface, and #592 covers only `IChoreographyStateStore`. Uses the same location
-# text and generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a
-# shared house-rule quote never makes it "partially related" either. Never used to accept a duplicate; a
-# finding with zero file anchors is never "partially" related to anything by definition.
+# The version of the "partially related" rule below. -Prepare writes it into the manifest as
+# partialRuleVersion; -Finalize refuses a manifest written under an older rule, because it re-inserts every
+# manifest partiallyRelated line into the drafts and would otherwise resurrect a line the current rule rejects
+# (#1592). Bump it whenever Test-PartialDuplicateEvidence (or the anchor rules it uses) gets stricter.
+$script:PartialRuleVersion = 2
+
+# #1400 decision 1, widened by #1393 decision 3 and #1572, then narrowed again by #1592: decides which search
+# candidates audit-draft-remediation.ps1 -Prepare lists as "partially related" for a finding that is not a
+# duplicate versus "possibly related" (a search hit that does not qualify, listed to the drafter for awareness
+# only, never published). A candidate is "partially related" only when it covers part of the same DEFECT: its
+# location text matches at least one of the finding's file anchors AND at least one of its specific symbol
+# anchors, but not enough for a duplicate (Test-DuplicateEvidence wants every file anchor). This is how audit
+# #16's docs-2, which names `IChoreographyEventBus`, `IChoreographyStateStore` and the missing registration
+# surface, is only partially related to #592, which covers `IChoreographyStateStore` alone.
+#
+# A file match alone is not evidence of a shared defect (#1592): audit #18's drafts carried false "partially
+# related" lines because the candidate only listed the same source file or package (docs-3 and docs-7 vs #1584,
+# which lists the options classes whose property names the docs page gets wrong), and a symbol match alone is
+# just as weak when the symbol names an area or a framework type (code-3 vs #725 through the package names in
+# its Affected Packages list, docs-9 vs #1474 and #1323 through `IServiceCollection`). Requiring both, plus the
+# generic connection-setting names that Get-FindingAnchors now excludes (`Host`, `Port`, ... see
+# $script:GenericOptionSettingNames), removes all five. Uses the same location text and generic-token exclusions
+# as Test-DuplicateEvidence, so a mention in a candidate's Description or a shared house-rule quote never makes
+# it "partially related" either. Never used to accept a duplicate; a finding with no file anchor or no symbol
+# anchor is never "partially" related to anything by definition.
 function Test-PartialDuplicateEvidence {
     param([string]$FindingText, [string]$CandidateTitleAndBody)
 
     $anchors = Get-FindingAnchors $FindingText
-    if ($anchors.FileAnchors.Count -eq 0) { return $false }
+    if ($anchors.FileAnchors.Count -eq 0 -or $anchors.SymbolAnchors.Count -eq 0) { return $false }
 
     $candidate = if ($null -eq $CandidateTitleAndBody) { '' } else { $CandidateTitleAndBody }
     $title = ($candidate -split "`r?`n", 2)[0]
     $location = Get-CandidateLocationText $candidate
+
+    $fileMatched = $false
     foreach ($fa in $anchors.FileAnchors) {
-        if (Test-FileAnchorMatch $fa $location) { return $true }
+        if (Test-FileAnchorMatch $fa $location) { $fileMatched = $true; break }
     }
+    if (-not $fileMatched) { return $false }
+
     $candidateTokens = Get-CandidateTokenSet $location
     foreach ($sa in $anchors.SymbolAnchors) {
         if (Test-SymbolAnchorMatch $sa $candidateTokens $title) { return $true }

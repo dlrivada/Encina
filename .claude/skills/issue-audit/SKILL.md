@@ -234,8 +234,10 @@ runs `Test-DuplicateEvidence` (the finding's own evidence -- a cited file AND a 
 candidate's real `gh issue view` title/body) against EVERY candidate the duplicate search returned. When one or
 more candidates pass, the finding is a duplicate of the lowest-numbered passing candidate, so the same finding
 against the same set of open issues always classifies the same way (#1424). When no candidate passes, every
-candidate that matches part of the finding's anchors is listed in the manifest as "partially related" (the
-drafter cites it verbatim; `-Finalize` adds the line back if it is missing), and the other search hits as
+candidate that covers part of the same defect -- a file anchor AND a specific symbol anchor of the finding in
+its location text (#1592) -- is listed in the manifest as "partially related" (the drafter cites it verbatim;
+`-Finalize` adds the line back if it is missing, and refuses a manifest written under an older rule version),
+and the other search hits as
 "possibly related" (awareness only, never cited). `Test-DuplicateEvidence` requires EVERY file anchor of the finding's own leading location
 clause to match, not just one, so a candidate that covers only part of a multi-location finding gets a
 "partially related" note instead of being accepted as the same defect (#1400). The candidate must be ABOUT the
@@ -248,8 +250,9 @@ Proposed Fix, Additional Context or Related Issues; a file matches only by its f
 root, or a brace pattern that expands to it, never by a bare file name (`README.md`, `OutboxStoreADO.cs` exists
 once per provider) or a directory segment; and a folder (`src/`), a line reference or a token that
 AGENTS.md/CLAUDE.md itself backticks (`EncinaError.Message`) is never symbol evidence. A candidate whose location
-text matches at least one of the finding's anchors but not the full duplicate bar is "partially related", never
-a duplicate.
+text matches at least one file anchor AND at least one specific symbol anchor of the finding, but not the full
+duplicate bar, is "partially related", never a duplicate; a shared file or package alone, or a symbol alone
+(including a bare connection-setting name such as `Host`), is only "possibly related" (#1592).
 `audit-draft-remediation.ps1 -Finalize` also strips an outer code fence from a draft (`Remove-OuterFence`),
 fills a bug draft's `## Environment` section (`Set-BugEnvironment`), and reports as a problem any of the issue
 template's own placeholder text still in the draft (`[e.g., ...]`, `#___`, an untouched `Test <n>: Description`

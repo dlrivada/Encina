@@ -53,7 +53,9 @@
 # -Finalize also fails on a stale manifest (the current code/tests/docs findings -- keys, severities or text --
 # no longer match the manifest's, e.g. after a FAIL-loop re-commit of a stage), and removes, with a note, any
 # '<n>-*.md' in the output folder that is not a manifest draft (an orphan or a second draft of one group), so
-# open-remediation.ps1 can never open two issues for one group. Both modes refuse an audit worktree whose
+# open-remediation.ps1 can never open two issues for one group. A manifest also records the version of the
+# "partially related" rule it was written under (partialRuleVersion, #1592); -Finalize refuses one written under
+# an older rule, because it would re-insert lines the current rule rejects. Both modes refuse an audit worktree whose
 # pipeline.json does not assign the remediation stage to remediation-drafter.
 
 param(
@@ -169,6 +171,13 @@ if ($Finalize) {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $problems = [System.Collections.Generic.List[string]]::new()
     $notes = [System.Collections.Generic.List[string]]::new()
+
+    # #1592: -Finalize re-inserts every manifest partiallyRelated line, so a manifest written under an older
+    # (looser) "partially related" rule would resurrect lines the current rule rejects. The manifest holds no
+    # candidate text to re-validate them against, so it is refused outright and -Prepare must be run again.
+    if ([int]$manifest.partialRuleVersion -ne $script:PartialRuleVersion) {
+        $problems.Add("stale manifest: it was written under partially related rule version $([int]$manifest.partialRuleVersion), the current rule is version $($script:PartialRuleVersion) (#1592); run -Prepare again.")
+    }
 
     # #1540: a dry-run Finalize touches nothing outside its own sandbox, whatever the manifest says.
     function Test-InScope([string]$Path) {
@@ -622,6 +631,7 @@ $manifest = [ordered]@{
     only           = if ($Only) { @($Only) } else { $null }
     outputDir      = $outDir
     stageFile      = $stageOut
+    partialRuleVersion = $script:PartialRuleVersion
     stageHeader    = "Remediation for #$n`:"
     emptyLine      = "No findings from the code, tests or docs stages for #$n; no remediation drafts were written."
     lessonsHeading = $lessonsHeading

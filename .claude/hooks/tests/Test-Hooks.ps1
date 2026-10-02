@@ -2128,6 +2128,19 @@ Test.
         $finalizeRewritten = Invoke-Remediation $finWt @('-Finalize')
         Test-RemediationCase '#1572 -Finalize reports a stale manifest: same id and severity, rewritten text' { $finalizeRewritten.Code -eq 1 -and $finalizeRewritten.Output -match "stale manifest: finding 'tests 1' has different text" }
         Set-Content -LiteralPath $finTestsStage -Value $finTestsBackup -NoNewline
+        # #1592: a manifest written under an older "partially related" rule (no partialRuleVersion, or a lower
+        # one) is refused, so -Finalize never re-inserts a line the current rule rejects.
+        $finManifestPath = Join-Path $finWt "artifacts\knowledge\remediation\_manifest-$finN.json"
+        $finManifestBackup = Get-Content -LiteralPath $finManifestPath -Raw
+        Test-RemediationCase '#1592 -Prepare writes partialRuleVersion into the manifest' { [int](Get-RemediationManifest $finWt $finN).partialRuleVersion -ge 2 }
+        $finManifestOld = $finManifestBackup | ConvertFrom-Json
+        $finManifestOld.PSObject.Properties.Remove('partialRuleVersion')
+        Set-Content -LiteralPath $finManifestPath -Value ($finManifestOld | ConvertTo-Json -Depth 12) -Encoding utf8
+        $finalizeOldRule = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1592 -Finalize refuses a manifest written before the partially related rule had a version' {
+            $finalizeOldRule.Code -eq 1 -and $finalizeOldRule.Output -match 'stale manifest: it was written under partially related rule version 0'
+        }
+        Set-Content -LiteralPath $finManifestPath -Value $finManifestBackup -NoNewline -Encoding utf8
         # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.
         $debtDraft = New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] A.Write reports success after a failed write' 'technical-debt' '' 'debt'
         Set-Content -LiteralPath $finCode1.draftFile -Encoding utf8 -NoNewline -Value ($debtDraft -replace '- \[ \] Documentation gap', '- [x] Documentation gap')
@@ -2302,7 +2315,7 @@ function global:gh {
 '@
         $ghRulesPath = Join-Path $work 'gh-stub-rules.json'
         $candidate1170 = @{ title = '[BUG] Store.OpenConnectionAsync is a no-op'; body = "## Location`n`n- **File(s)**: ``src/Encina.Foo/Store.cs```n`n## Current Behavior`n`n``OpenConnectionAsync`` never opens the connection." } | ConvertTo-Json -Compress
-        $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`nSomething else entirely." } | ConvertTo-Json -Compress
+        $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`n``DoThing`` returns the wrong type in this file only." } | ConvertTo-Json -Compress
         $candidate1200 = @{ title = '[DEBT] Unrelated'; body = "## Location`n`n- **File(s)**: ``src/Encina.Other/Z.cs```n" } | ConvertTo-Json -Compress
         @(
             @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
@@ -2318,7 +2331,7 @@ function global:gh {
         $ghWt = New-RemediationFixture 'RemediationGhStubWt' $ghN `
             "1. **Major** -- ``src/Encina.Foo/Store.cs:10``: ``OpenConnectionAsync`` never opens the connection." `
             '- none' `
-            "1. **Minor** -- ``src/Encina.Bar/B.cs:5``: ``DoThing`` is documented with the wrong return type."
+            "1. **Minor** -- ``src/Encina.Bar/B.cs:5``, ``src/Encina.Bar/C.cs:9``: ``DoThing`` is documented with the wrong return type."
         $ghPrepare = Invoke-Remediation $ghWt @('-Prepare') $ghStubPath
         $ghManifest = Get-RemediationManifest $ghWt $ghN
         $ghCode1 = Get-ManifestFinding $ghManifest 'code 1'
@@ -2327,7 +2340,9 @@ function global:gh {
         Test-RemediationCase '#1572 -Prepare records a full-evidence duplicate (#1170) with its line and no draft' {
             $ghCode1.duplicateOf -eq '1170' -and $ghCode1.duplicateSource -eq 'evidence' -and $null -eq $ghCode1.draftFile -and $ghCode1.remediationLine -eq '- code 1 (Major): duplicate of #1170'
         }
-        Test-RemediationCase '#1572 -Prepare lists a candidate covering only the file as partially related, and the rest as possibly related' {
+        # #1592: partially related = one of the finding's two files (B.cs, not C.cs) AND its symbol (DoThing) in the
+        # candidate's location text; a candidate with no such pair is only possibly related.
+        Test-RemediationCase '#1572 -Prepare lists a candidate covering one file and the symbol of the finding as partially related, and the rest as possibly related' {
             (@($ghDocs1.partiallyRelated) -join '|') -eq '- #1300 - partially related (it covers only part of this finding)' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1170: ' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1200: '
         }
         Test-RemediationCase '#1572 -Prepare drops area-documentation from the docs route when the repository has no such label' { (@($ghDocs1.labels) -join ',') -eq 'technical-debt' -and (@($ghManifest.routes.docs.labels) -join ',') -eq 'technical-debt' }
@@ -3408,8 +3423,11 @@ Two SagaStoreADO test classes duplicate the same setup.
     Test-RemediationChecksCase '#1393 16-docs-4 vs #1299 is NOT a duplicate (only a generic `src/` token and a bare README.md in prose matched)' {
         -not (Test-DuplicateEvidence $findingDocs4For1393 $candidate1299)
     }
-    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is partially related, NOT a duplicate (#592 covers IChoreographyStateStore only)' {
-        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592)
+    # #1592: #592 covers `IChoreographyStateStore` but cites none of the finding's files (docs/messaging/sagas.md
+    # and the others), so it matched by that symbol alone; "partially related" now needs a file AND a symbol
+    # match, so it is only "possibly related" (listed to the drafter, never published).
+    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is NOT a duplicate and, since #1592, NOT partially related either (a symbol match alone)' {
+        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (-not (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592))
     }
     Test-RemediationChecksCase '#1393 16-code-4 vs #1170 is still a duplicate (the one true duplicate)' {
         Test-DuplicateEvidence $findingCode4For1393 $candidate1170For1393
@@ -3494,6 +3512,139 @@ Two SagaStoreADO test classes duplicate the same setup.
         (Get-CandidateLocationText "Title`n## **Location**`n`n- File: ``src/Encina.Foo/Bar/Widget.cs```n").Contains('src/Encina.Foo/Bar/Widget.cs')
     }
     # ---- end #1393 block ----
+
+    # ---- #1592: "partially related" needs a file anchor AND a specific symbol anchor of the finding in the
+    # candidate's location text. Audit #18 verifier pass 5 found five false "partially related" lines; the five
+    # finding texts (stages/code.md finding 3, stages/docs.md findings 3, 7 and 9, trimmed to the parts that
+    # matter) and the candidate texts (`gh issue view <n> --json title,body`, trimmed to the sections that
+    # matter) are captured as literals, so no gh call is made. Diagnosis of what matched before the change:
+    #   code-3 vs #725   symbol only: the `Encina.MQTT`-style package tokens of #725's Affected Packages list
+    #   docs-3 vs #1584  file only: src/Encina.Kafka/EncinaKafkaOptions.cs in #1584's Location
+    #   docs-7 vs #1584  file (src/Encina.MQTT/EncinaMQTTOptions.cs) plus the generic setting name `Host`
+    #   docs-9 vs #1474 and #1323  symbol only: the framework type `IServiceCollection` in Actual Behavior
+    $findingCode3For1592 = @'
+`src/Encina.RabbitMQ`, `src/Encina.Kafka`, `src/Encina.NATS`, `src/Encina.AzureServiceBus` and `src/Encina.AmazonSQS` each contain only an options class, an `I{X}MessagePublisher` interface, its implementation, `Log.cs`, `ServiceCollectionExtensions.cs` and a health check (confirmed by full directory listing of all five packages) — none has a subscribe, consume or dead-letter-handling type anywhere in the package. Grepping all five for `SubscribeAsync|ConsumeAsync|Subscribe\(` and for `DeadLetter|DLQ|DeadLetterQueue` returns zero matches in every one. This contradicts AGENTS.md §5's Transports row, which lists "subscription management" and "error handling and DLQ" as things "every provider MUST support" for the same category this issue's own decision defines (`docs/messaging/transports.md`'s FAQ, condensed from the issue, is the source of that "every transport keeps its full native API" promise). Only `Encina.MQTT`, `Encina.Redis.PubSub` and `Encina.InMemory` (of the 8 messaging transports; `Encina.gRPC` and `Encina.GraphQL` are API bridges, and `Encina.GraphQL` declares `SubscribeAsync` at `GraphQLMediatorBridge.cs:124` as a bridge API, not as transport subscription management) actually implement `SubscribeAsync`/`Subscribe` — the other 5 are send-only. The doc also presents consume samples for four of these five: `docs/messaging/transports.md` shows `IMessageHandler<OrderCreated>` at :235 (RabbitMQ section).
+'@
+    $findingDocs3For1592 = @'
+`docs/messaging/transports.md:257-262` documents `options.ConsumerGroup = "my-service"` and `options.DefaultTopic = "events"` on Kafka options; `src/Encina.Kafka/EncinaKafkaOptions.cs` has `GroupId` and `DefaultCommandTopic`/`DefaultEventTopic` instead — neither documented name exists. Lines 270-273 (`consumer.ConsumeFromAsync(topic: "events", offset: 12345, ct)`) reference a consumer type/method that does not exist anywhere in `Encina.Kafka` (the package's only files are `EncinaKafkaOptions.cs`, `IKafkaMessagePublisher.cs`, `KafkaMessagePublisher.cs`, `Log.cs`, `ServiceCollectionExtensions.cs` — publisher only, no consumer).
+'@
+    $findingDocs7For1592 = @'
+`docs/messaging/transports.md:410` (`options.BrokerAddress = "localhost";`) does not match `src/Encina.MQTT/EncinaMQTTOptions.cs`, which exposes `Host` (also `Port`, `ClientId`, `TopicPrefix`, `Username`, `Password`, `QualityOfService`, `UseTls`, `CleanSession`, `KeepAliveSeconds`), never `BrokerAddress`.
+'@
+    $findingDocs9For1592 = @'
+`docs/messaging/transports.md:462-464` documents `services.AddEncinaGraphQL().AddQueryType<QueryRoot>().AddMutationType<MutationRoot>();`. `src/Encina.GraphQL/ServiceCollectionExtensions.cs:17` shows `AddEncinaGraphQL` returns `IServiceCollection`, which has no `AddQueryType`/`AddMutationType` members (those belong to HotChocolate's `IRequestExecutorBuilder`, obtained from `services.AddGraphQLServer()`, a call this page never shows). The sample as written does not compile.
+'@
+    $candidate725For1592 = @'
+[FEATURE] Add OpenTelemetry instrumentation to Message Transport providers
+## Summary
+
+Add OpenTelemetry instrumentation to all message transport providers (RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS, Redis PubSub, InMemory, gRPC, GraphQL).
+
+## Proposed Solution
+
+1. Add `ActivitySource` for transport operations: Publish, Consume, Acknowledge, Reject, Subscribe
+2. Add `Meter` with metrics: message throughput, publish/consume latency, error rate, queue depth
+
+## Affected Packages
+
+- All `Encina.RabbitMQ`, `Encina.Kafka`, `Encina.NATS`, `Encina.MQTT`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Redis.PubSub`, `Encina.InMemory`, `Encina.gRPC`, `Encina.GraphQL`
+- `Encina.OpenTelemetry` (messaging enrichers)
+
+## Acceptance Criteria
+
+- [ ] All transports emit traces for publish/consume
+'@
+    $candidate1584For1592 = @'
+[DEBT] Apply the #852 endpoint validation policy to the remaining broker, cache, SDK and CDC endpoint options
+## Description
+
+#852 added the public core helper `Encina.Validation.EndpointValidator` and applied it to a first set of options. Decisions 8 and 9 of #852 left the other endpoint options out of that front.
+
+## Location
+
+- **File(s)**:
+  - `src/Encina.Kafka/EncinaKafkaOptions.cs` — `BootstrapServers` (default `localhost:9092`, comma-separated `host:port` list)
+  - `src/Encina.MQTT/EncinaMQTTOptions.cs` — `Host` (default `localhost`)
+  - `src/Encina.RabbitMQ/EncinaRabbitMQOptions.cs` — `HostName` (default `localhost`)
+- **Package(s)**: Encina.Kafka, Encina.MQTT, Encina.RabbitMQ
+
+## Current Behavior
+
+None of these options has an `IValidateOptions<T>`, `ValidateOnStart` or eager validation in its `Add*` method.
+'@
+    $candidate1474For1592 = @'
+[BUG] Encina.Messaging README.md documents non-existent fluent builder extension methods
+## Description
+
+The "Fluent Builder (Alternative Syntax)" section in the `Encina.Messaging` README documents a fluent API chain (`AddTransactions()`, `AddOutbox()`, `AddInbox()`, `AddSagas()`, `AddScheduling()`) that does not exist in the codebase.
+
+## Actual Behavior
+
+The fluent builder chain described in the documentation is fictional. The parameterless overload of `AddEncinaEntityFrameworkCore<AppDbContext>()` (`ServiceCollectionExtensions.cs:429`) returns a plain `IServiceCollection`, which has no such fluent members to chain.
+
+## Environment
+
+- **Package(s) Affected**: Encina.Messaging
+'@
+    $candidate1323For1592 = @'
+[BUG] Encina.ADO.PostgreSQL README Quick Start calls AddEncinaADOPostgreSQL, a method that does not exist
+## Description
+
+`src/Encina.ADO.PostgreSQL/README.md` line 37 shows a Quick Start sample calling `AddEncinaADOPostgreSQL(...)`. The real registration entry points are the `AddEncinaADO(...)` overloads in `src/Encina.ADO.PostgreSQL/ServiceCollectionExtensions.cs:39,118,150`.
+
+## Actual Behavior
+
+`CS0117`-class error: `AddEncinaADOPostgreSQL` is not a member of `IServiceCollection` (extension method does not exist under that name).
+'@
+    Test-RemediationChecksCase '#1592 audit #18 code-3 vs #725 is NOT partially related (no shared file; only package-name tokens matched)' {
+        -not (Test-PartialDuplicateEvidence $findingCode3For1592 $candidate725For1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-3 vs #1584 is NOT partially related (shared options file, no shared symbol)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidate1584For1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-7 vs #1584 is NOT partially related (shared options file, only the generic setting name Host)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs7For1592 $candidate1584For1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1474 is NOT partially related (only the framework type IServiceCollection matched)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1474For1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1323 is NOT partially related (only the framework type IServiceCollection matched)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1323For1592)
+    }
+    Test-RemediationChecksCase '#1592 none of the five audit #18 pairs is a duplicate either (Find-DuplicateAmongCandidates)' {
+        $null -eq (Find-DuplicateAmongCandidates $findingCode3For1592 @([pscustomobject]@{ Number = '725'; TitleAndBody = $candidate725For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs3For1592 @([pscustomobject]@{ Number = '1584'; TitleAndBody = $candidate1584For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs7For1592 @([pscustomobject]@{ Number = '1584'; TitleAndBody = $candidate1584For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs9For1592 @([pscustomobject]@{ Number = '1474'; TitleAndBody = $candidate1474For1592 }, [pscustomobject]@{ Number = '1323'; TitleAndBody = $candidate1323For1592 }))
+    }
+    Test-RemediationChecksCase '#1592 the generic setting name Host is not a symbol anchor, a specific property name still is' {
+        $anchors = Get-FindingAnchors $findingDocs7For1592
+        $symbols = @($anchors.SymbolAnchors)
+        ($symbols -notcontains 'Host') -and ($symbols -notcontains 'Port') -and ($symbols -contains 'ClientId') -and ($symbols -contains 'QualityOfService')
+    }
+
+    # The positive case: the candidate's own location text carries one of the finding's file anchors and a
+    # specific symbol anchor (`GroupId`), but not the finding's other file (docs/messaging/transports.md), so it
+    # is partially related and not a duplicate.
+    $candidateKafkaGroupId1592 = "[BUG] Kafka options expose GroupId without a default consumer group`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n`n## Current Behavior`n`n``GroupId`` is empty unless the application sets it.`n"
+    Test-RemediationChecksCase '#1592 file anchor + specific symbol anchor (GroupId) in the candidate''s location IS partially related, and not a duplicate' {
+        (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaGroupId1592) -and -not (Test-DuplicateEvidence $findingDocs3For1592 $candidateKafkaGroupId1592)
+    }
+    $candidateKafkaFileOnly1592 = "[DEBT] Kafka options cleanup`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n`n## Current Behavior`n`nThe class has no XML docs.`n"
+    Test-RemediationChecksCase '#1592 a candidate that only lists the finding''s file is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaFileOnly1592)
+    }
+    $candidateSymbolOnly1592 = "[BUG] GroupId is ignored by the consumer factory`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n`n## Current Behavior`n`n``GroupId`` is never read.`n"
+    Test-RemediationChecksCase '#1592 a candidate that only names the finding''s symbol is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateSymbolOnly1592)
+    }
+    Test-RemediationChecksCase '#1592 a finding with a file anchor but no symbol anchor is never partially related, even when the candidate lists the file' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Kafka/EncinaKafkaOptions.cs:12`: the class is undocumented.' $candidateKafkaFileOnly1592)
+    }
+    Test-RemediationChecksCase '#1592 the partial rule has a version that -Prepare writes into the manifest and -Finalize checks' {
+        $script:PartialRuleVersion -ge 2
+    }
+    # ---- end #1592 block ----
 
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /
