@@ -74,20 +74,14 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         // set by IEncina.Send/Publish/Stream is read at validation time, not captured at
         // construction, since this validator is registered as a singleton.
         var tenantId = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
-        var cacheKey = tenantId is not null
-            ? $"{CacheKeyPrefix}{tenantId}:{entityTypeName}:{sectorName}"
-            : $"{CacheKeyPrefix}{entityTypeName}:{sectorName}";
+        var cacheKey = BuildCacheKey(tenantId, entityTypeName, sectorName);
 
         // Try cache first
-        if (cache is not null)
+        var cached = await TryGetCachedResultAsync(cache, cacheKey, opts.ExternalCallTimeout, cancellationToken)
+            .ConfigureAwait(false);
+        if (cached is not null)
         {
-            var cached = await TryGetFromCacheAsync(cache, cacheKey, opts.ExternalCallTimeout, cancellationToken)
-                .ConfigureAwait(false);
-            if (cached is not null)
-            {
-                _logger.ComplianceCacheHit(cacheKey);
-                return Right<EncinaError, NIS2ComplianceResult>(cached);
-            }
+            return Right<EncinaError, NIS2ComplianceResult>(cached);
         }
 
         using var activity = NIS2Diagnostics.StartComplianceCheck(entityTypeName, sectorName);
@@ -109,58 +103,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
 
             foreach (var evaluator in evaluatorList)
             {
-                var measureName = evaluator.Measure.ToString();
-
-                using var measureActivity = NIS2Diagnostics.StartMeasureEvaluation(measureName);
-                var measureStart = Stopwatch.GetTimestamp();
-
-                try
-                {
-                    var result = await evaluator.EvaluateAsync(context, cancellationToken);
-                    var measureResult = result.Match(
-                        Right: r => r,
-                        Left: error => NIS2MeasureResult.NotSatisfied(
-                            evaluator.Measure,
-                            $"Evaluation failed: {error.Message}",
-                            [$"Resolve evaluation error: {error.Message}"]));
-
-                    results.Add(measureResult);
-
-                    // Record measure metrics
-                    var measureOutcome = measureResult.IsSatisfied ? "satisfied" : "not_satisfied";
-                    NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
-                        new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
-                        new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, measureOutcome));
-
-                    var measureElapsed = Stopwatch.GetElapsedTime(measureStart).TotalMilliseconds;
-                    NIS2Diagnostics.MeasureEvaluationDuration.Record(measureElapsed,
-                        new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName));
-
-                    _logger.MeasureEvaluated(measureName, measureResult.IsSatisfied, measureResult.Details);
-
-                    if (measureResult.IsSatisfied)
-                    {
-                        NIS2Diagnostics.RecordCompleted(measureActivity);
-                    }
-                    else
-                    {
-                        NIS2Diagnostics.RecordFailed(measureActivity, measureResult.Details);
-                    }
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.MeasureEvaluationFailed(measureName, ex.ForLogging());
-                    NIS2Diagnostics.RecordFailed(measureActivity, ex.Message);
-
-                    NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
-                        new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
-                        new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"));
-
-                    results.Add(NIS2MeasureResult.NotSatisfied(
-                        evaluator.Measure,
-                        $"Evaluation failed: {ex.Message}",
-                        [$"Resolve evaluation error: {ex.Message}"]));
-                }
+                await EvaluateMeasureAsync(evaluator, context, results, cancellationToken);
             }
 
             var complianceResult = NIS2ComplianceResult.Create(
@@ -169,23 +112,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
                 results,
                 _timeProvider.GetUtcNow());
 
-            // Record aggregate compliance metrics
-            var complianceOutcome = complianceResult.IsCompliant ? "compliant" : "non_compliant";
-            NIS2Diagnostics.ComplianceChecksTotal.Add(1,
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, complianceOutcome),
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName),
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagSector, sectorName));
-
-            var elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
-            NIS2Diagnostics.ComplianceCheckDuration.Record(elapsedMs,
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName));
-
-            var satisfiedCount = results.Count(r => r.IsSatisfied);
-            _logger.ComplianceValidationCompleted(
-                complianceResult.IsCompliant,
-                satisfiedCount,
-                complianceResult.MissingCount,
-                complianceResult.CompliancePercentage);
+            RecordComplianceMetrics(complianceResult, results, entityTypeName, sectorName, startTimestamp);
 
             NIS2Diagnostics.RecordCompleted(activity);
 
@@ -201,16 +128,144 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ComplianceValidationError(ex.ForLogging());
-            NIS2Diagnostics.RecordFailed(activity, ex.Message);
-
-            NIS2Diagnostics.ComplianceChecksTotal.Add(1,
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"),
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName),
-                new KeyValuePair<string, object?>(NIS2Diagnostics.TagSector, sectorName));
-
-            return NIS2Errors.ComplianceCheckFailed(0, ex);
+            return HandleValidationFailure(ex, activity, entityTypeName, sectorName);
         }
+    }
+
+    private static string BuildCacheKey(string? tenantId, string entityTypeName, string sectorName) =>
+        tenantId is not null
+            ? $"{CacheKeyPrefix}{tenantId}:{entityTypeName}:{sectorName}"
+            : $"{CacheKeyPrefix}{entityTypeName}:{sectorName}";
+
+    private async ValueTask<NIS2ComplianceResult?> TryGetCachedResultAsync(
+        ICacheProvider? cache,
+        string cacheKey,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        if (cache is null)
+        {
+            return null;
+        }
+
+        var cached = await TryGetFromCacheAsync(cache, cacheKey, timeout, cancellationToken)
+            .ConfigureAwait(false);
+        if (cached is not null)
+        {
+            _logger.ComplianceCacheHit(cacheKey);
+        }
+
+        return cached;
+    }
+
+    private async ValueTask EvaluateMeasureAsync(
+        INIS2MeasureEvaluator evaluator,
+        NIS2MeasureContext context,
+        List<NIS2MeasureResult> results,
+        CancellationToken cancellationToken)
+    {
+        var measureName = evaluator.Measure.ToString();
+
+        using var measureActivity = NIS2Diagnostics.StartMeasureEvaluation(measureName);
+        var measureStart = Stopwatch.GetTimestamp();
+
+        try
+        {
+            var result = await evaluator.EvaluateAsync(context, cancellationToken);
+            var measureResult = result.Match(
+                Right: r => r,
+                Left: error => NIS2MeasureResult.NotSatisfied(
+                    evaluator.Measure,
+                    $"Evaluation failed: {error.Message}",
+                    [$"Resolve evaluation error: {error.Message}"]));
+
+            results.Add(measureResult);
+
+            RecordMeasureOutcome(measureResult, measureName, measureStart, measureActivity);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.MeasureEvaluationFailed(measureName, ex.ForLogging());
+            NIS2Diagnostics.RecordFailed(measureActivity, ex.Message);
+
+            NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
+                new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
+                new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"));
+
+            results.Add(NIS2MeasureResult.NotSatisfied(
+                evaluator.Measure,
+                $"Evaluation failed: {ex.Message}",
+                [$"Resolve evaluation error: {ex.Message}"]));
+        }
+    }
+
+    private void RecordMeasureOutcome(
+        NIS2MeasureResult measureResult,
+        string measureName,
+        long measureStart,
+        Activity? measureActivity)
+    {
+        var measureOutcome = measureResult.IsSatisfied ? "satisfied" : "not_satisfied";
+        NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, measureOutcome));
+
+        var measureElapsed = Stopwatch.GetElapsedTime(measureStart).TotalMilliseconds;
+        NIS2Diagnostics.MeasureEvaluationDuration.Record(measureElapsed,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName));
+
+        _logger.MeasureEvaluated(measureName, measureResult.IsSatisfied, measureResult.Details);
+
+        if (measureResult.IsSatisfied)
+        {
+            NIS2Diagnostics.RecordCompleted(measureActivity);
+        }
+        else
+        {
+            NIS2Diagnostics.RecordFailed(measureActivity, measureResult.Details);
+        }
+    }
+
+    private void RecordComplianceMetrics(
+        NIS2ComplianceResult complianceResult,
+        List<NIS2MeasureResult> results,
+        string entityTypeName,
+        string sectorName,
+        long startTimestamp)
+    {
+        var complianceOutcome = complianceResult.IsCompliant ? "compliant" : "non_compliant";
+        NIS2Diagnostics.ComplianceChecksTotal.Add(1,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, complianceOutcome),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagSector, sectorName));
+
+        var elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+        NIS2Diagnostics.ComplianceCheckDuration.Record(elapsedMs,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName));
+
+        var satisfiedCount = results.Count(r => r.IsSatisfied);
+        _logger.ComplianceValidationCompleted(
+            complianceResult.IsCompliant,
+            satisfiedCount,
+            complianceResult.MissingCount,
+            complianceResult.CompliancePercentage);
+    }
+
+    private Either<EncinaError, NIS2ComplianceResult> HandleValidationFailure(
+        Exception ex,
+        Activity? activity,
+        string entityTypeName,
+        string sectorName)
+    {
+        _logger.ComplianceValidationError(ex.ForLogging());
+        NIS2Diagnostics.RecordFailed(activity, ex.Message);
+
+        NIS2Diagnostics.ComplianceChecksTotal.Add(1,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagEntityType, entityTypeName),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagSector, sectorName));
+
+        return NIS2Errors.ComplianceCheckFailed(0, ex);
     }
 
     /// <inheritdoc />

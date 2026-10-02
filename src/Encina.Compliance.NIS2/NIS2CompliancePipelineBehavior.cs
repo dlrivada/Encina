@@ -122,109 +122,23 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
         _logger.NIS2PipelineStarted(requestTypeName, enforcementModeName);
 
         // Track checks performed for audit trail
-        var checksPerformed = new List<string>();
-        var checksFailed = new List<string>();
-        string? actionTaken = null;
+        var run = new PipelineRun(context, requestTypeName, enforcementModeName, activity, startTimestamp);
 
         // Step 3: Pre-execution compliance checks
         try
         {
-            // 3a: MFA enforcement
-            if (CachedAttributeInfo.RequiresMFA && _options.EnforceMFA)
+            var blockError = await RunChecksAsync(request, run, cancellationToken).ConfigureAwait(false);
+            if (blockError is { } blocked)
             {
-                checksPerformed.Add("MFA");
-                NIS2Diagnostics.MFAChecksTotal.Add(1,
-                    new KeyValuePair<string, object?>(NIS2Diagnostics.TagRequestType, requestTypeName));
-
-                var mfaResult = await _mfaEnforcer.RequireMFAAsync(request, context, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (mfaResult.IsLeft)
-                {
-                    var error = (EncinaError)mfaResult;
-                    checksFailed.Add("MFA");
-
-                    if (_options.EnforcementMode == NIS2EnforcementMode.Block)
-                    {
-                        actionTaken = "Blocked: MFA check failed";
-                        _logger.NIS2PipelineBlocked(requestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
-                        NIS2Diagnostics.RecordBlocked(activity, "MFA check failed");
-                        RecordPipelineMetrics(startTimestamp, "blocked", enforcementModeName);
-
-                        // Fire-and-forget audit
-                        _ = RecordAuditAsync(context, requestTypeName, checksPerformed, checksFailed, actionTaken);
-
-                        return Left<EncinaError, TResponse>(NIS2Errors.MFARequired(requestTypeName));
-                    }
-
-                    _logger.NIS2PipelineWarning(requestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
-                }
-            }
-
-            // 3b: Supply chain checks
-            foreach (var supplierId in CachedAttributeInfo.SupplyChainChecks)
-            {
-                checksPerformed.Add($"SupplyChain:{supplierId}");
-                NIS2Diagnostics.SupplyChainChecksTotal.Add(1,
-                    new KeyValuePair<string, object?>(NIS2Diagnostics.TagSupplierId, supplierId),
-                    new KeyValuePair<string, object?>(NIS2Diagnostics.TagRequestType, requestTypeName));
-
-                var validationResult = await _supplyChainValidator
-                    .ValidateSupplierForOperationAsync(supplierId, cancellationToken)
-                    .ConfigureAwait(false);
-
-                var isAcceptable = validationResult.Match(
-                    Right: ok => ok,
-                    Left: _ => false);
-
-                if (!isAcceptable)
-                {
-                    checksFailed.Add($"SupplyChain:{supplierId}");
-
-                    if (_options.EnforcementMode == NIS2EnforcementMode.Block)
-                    {
-                        actionTaken = $"Blocked: Supply chain check failed for supplier '{supplierId}'";
-                        _logger.NIS2PipelineBlocked(requestTypeName, "SupplyChain",
-                            $"Supplier '{supplierId}' failed validation");
-                        NIS2Diagnostics.RecordBlocked(activity, $"Supply chain: {supplierId}");
-                        RecordPipelineMetrics(startTimestamp, "blocked", enforcementModeName);
-
-                        // Fire-and-forget audit
-                        _ = RecordAuditAsync(context, requestTypeName, checksPerformed, checksFailed, actionTaken);
-
-                        return Left<EncinaError, TResponse>(
-                            NIS2Errors.PipelineBlocked(requestTypeName,
-                                $"Supply chain check failed for supplier '{supplierId}'."));
-                    }
-
-                    _logger.NIS2PipelineWarning(requestTypeName, "SupplyChain",
-                        $"Supplier '{supplierId}' failed validation");
-                }
-            }
-
-            // 3c: NIS2 Critical — enhanced observability
-            if (CachedAttributeInfo.IsNIS2Critical)
-            {
-                checksPerformed.Add("NIS2Critical");
-                _logger.NIS2PipelineCriticalOperation(requestTypeName,
-                    CachedAttributeInfo.CriticalDescription ?? "N/A");
-                activity?.SetTag(NIS2Diagnostics.TagCheckType, "critical");
+                return Left<EncinaError, TResponse>(blocked);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.NIS2PipelineError(requestTypeName, ex.ForLogging());
-            NIS2Diagnostics.RecordFailed(activity, ex.Message);
-
-            if (_options.EnforcementMode == NIS2EnforcementMode.Block)
+            var blockError = HandleCheckException(ex, run);
+            if (blockError is { } blocked)
             {
-                actionTaken = $"Blocked: Compliance check exception: {ex.Message}";
-                RecordPipelineMetrics(startTimestamp, "blocked", enforcementModeName);
-                _ = RecordAuditAsync(context, requestTypeName, checksPerformed, checksFailed, actionTaken);
-
-                return Left<EncinaError, TResponse>(
-                    NIS2Errors.PipelineBlocked(requestTypeName,
-                        $"Compliance check failed with exception: {ex.Message}"));
+                return Left<EncinaError, TResponse>(blocked);
             }
         }
 
@@ -232,25 +146,231 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
         var result = await nextStep().ConfigureAwait(false);
 
         // Step 5: Record metrics and audit
-        var outcome = checksFailed.Count > 0 ? "warned" : "passed";
-        actionTaken ??= checksFailed.Count > 0 ? "Warned: checks failed but allowed" : "Passed";
+        CompleteRun(run);
 
-        if (checksFailed.Count > 0)
+        return result;
+    }
+
+    /// <summary>
+    /// Mutable state of one pipeline execution: what was checked, what failed and the action taken.
+    /// </summary>
+    private sealed class PipelineRun(
+        IRequestContext context,
+        string requestTypeName,
+        string enforcementModeName,
+        Activity? activity,
+        long startTimestamp)
+    {
+        public IRequestContext Context { get; } = context;
+
+        public string RequestTypeName { get; } = requestTypeName;
+
+        public string EnforcementModeName { get; } = enforcementModeName;
+
+        public Activity? Activity { get; } = activity;
+
+        public long StartTimestamp { get; } = startTimestamp;
+
+        public List<string> ChecksPerformed { get; } = [];
+
+        public List<string> ChecksFailed { get; } = [];
+
+        public string? ActionTaken { get; set; }
+    }
+
+    /// <summary>
+    /// Runs the pre-execution checks in order (MFA, supply chain, critical). Returns the error
+    /// that blocks the request, or <c>null</c> when processing may continue.
+    /// </summary>
+    private async ValueTask<EncinaError?> RunChecksAsync(
+        TRequest request,
+        PipelineRun run,
+        CancellationToken cancellationToken)
+    {
+        // 3a: MFA enforcement
+        var mfaBlock = await RunMfaCheckAsync(request, run, cancellationToken).ConfigureAwait(false);
+        if (mfaBlock is not null)
         {
-            NIS2Diagnostics.RecordWarned(activity, string.Join(", ", checksFailed));
+            return mfaBlock;
+        }
+
+        // 3b: Supply chain checks
+        var supplyChainBlock = await RunSupplyChainChecksAsync(run, cancellationToken).ConfigureAwait(false);
+        if (supplyChainBlock is not null)
+        {
+            return supplyChainBlock;
+        }
+
+        // 3c: NIS2 Critical — enhanced observability
+        RecordCriticalOperation(run);
+        return null;
+    }
+
+    private async ValueTask<EncinaError?> RunMfaCheckAsync(
+        TRequest request,
+        PipelineRun run,
+        CancellationToken cancellationToken)
+    {
+        if (!CachedAttributeInfo.RequiresMFA || !_options.EnforceMFA)
+        {
+            return null;
+        }
+
+        run.ChecksPerformed.Add("MFA");
+        NIS2Diagnostics.MFAChecksTotal.Add(1,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagRequestType, run.RequestTypeName));
+
+        var mfaResult = await _mfaEnforcer.RequireMFAAsync(request, run.Context, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!mfaResult.IsLeft)
+        {
+            return null;
+        }
+
+        var error = (EncinaError)mfaResult;
+        run.ChecksFailed.Add("MFA");
+
+        if (_options.EnforcementMode == NIS2EnforcementMode.Block)
+        {
+            run.ActionTaken = "Blocked: MFA check failed";
+            _logger.NIS2PipelineBlocked(run.RequestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
+            FinishBlocked(run, "MFA check failed");
+
+            return NIS2Errors.MFARequired(run.RequestTypeName);
+        }
+
+        _logger.NIS2PipelineWarning(run.RequestTypeName, "MFA", error.GetCode().IfNone("encina.unknown"));
+        return null;
+    }
+
+    private async ValueTask<EncinaError?> RunSupplyChainChecksAsync(
+        PipelineRun run,
+        CancellationToken cancellationToken)
+    {
+        foreach (var supplierId in CachedAttributeInfo.SupplyChainChecks)
+        {
+            var block = await CheckSupplierAsync(supplierId, run, cancellationToken).ConfigureAwait(false);
+            if (block is not null)
+            {
+                return block;
+            }
+        }
+
+        return null;
+    }
+
+    private async ValueTask<EncinaError?> CheckSupplierAsync(
+        string supplierId,
+        PipelineRun run,
+        CancellationToken cancellationToken)
+    {
+        run.ChecksPerformed.Add($"SupplyChain:{supplierId}");
+        NIS2Diagnostics.SupplyChainChecksTotal.Add(1,
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagSupplierId, supplierId),
+            new KeyValuePair<string, object?>(NIS2Diagnostics.TagRequestType, run.RequestTypeName));
+
+        var validationResult = await _supplyChainValidator
+            .ValidateSupplierForOperationAsync(supplierId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var isAcceptable = validationResult.Match(
+            Right: ok => ok,
+            Left: _ => false);
+
+        if (isAcceptable)
+        {
+            return null;
+        }
+
+        run.ChecksFailed.Add($"SupplyChain:{supplierId}");
+
+        if (_options.EnforcementMode == NIS2EnforcementMode.Block)
+        {
+            run.ActionTaken = $"Blocked: Supply chain check failed for supplier '{supplierId}'";
+            _logger.NIS2PipelineBlocked(run.RequestTypeName, "SupplyChain",
+                $"Supplier '{supplierId}' failed validation");
+            FinishBlocked(run, $"Supply chain: {supplierId}");
+
+            return NIS2Errors.PipelineBlocked(run.RequestTypeName,
+                $"Supply chain check failed for supplier '{supplierId}'.");
+        }
+
+        _logger.NIS2PipelineWarning(run.RequestTypeName, "SupplyChain",
+            $"Supplier '{supplierId}' failed validation");
+        return null;
+    }
+
+    private void RecordCriticalOperation(PipelineRun run)
+    {
+        if (!CachedAttributeInfo.IsNIS2Critical)
+        {
+            return;
+        }
+
+        run.ChecksPerformed.Add("NIS2Critical");
+        _logger.NIS2PipelineCriticalOperation(run.RequestTypeName,
+            CachedAttributeInfo.CriticalDescription ?? "N/A");
+        run.Activity?.SetTag(NIS2Diagnostics.TagCheckType, "critical");
+    }
+
+    /// <summary>
+    /// Records the blocked outcome (activity, metrics) and queues the fire-and-forget audit.
+    /// </summary>
+    private void FinishBlocked(PipelineRun run, string activityReason)
+    {
+        NIS2Diagnostics.RecordBlocked(run.Activity, activityReason);
+        RecordPipelineMetrics(run.StartTimestamp, "blocked", run.EnforcementModeName);
+
+        // Fire-and-forget audit
+        _ = RecordAuditAsync(
+            run.Context, run.RequestTypeName, run.ChecksPerformed, run.ChecksFailed, run.ActionTaken!);
+    }
+
+    /// <summary>
+    /// Handles an unexpected exception raised by a compliance check. Returns the blocking error in
+    /// <see cref="NIS2EnforcementMode.Block"/> mode, or <c>null</c> in Warn mode.
+    /// </summary>
+    private EncinaError? HandleCheckException(Exception ex, PipelineRun run)
+    {
+        _logger.NIS2PipelineError(run.RequestTypeName, ex.ForLogging());
+        NIS2Diagnostics.RecordFailed(run.Activity, ex.Message);
+
+        if (_options.EnforcementMode != NIS2EnforcementMode.Block)
+        {
+            return null;
+        }
+
+        run.ActionTaken = $"Blocked: Compliance check exception: {ex.Message}";
+        RecordPipelineMetrics(run.StartTimestamp, "blocked", run.EnforcementModeName);
+        _ = RecordAuditAsync(
+            run.Context, run.RequestTypeName, run.ChecksPerformed, run.ChecksFailed, run.ActionTaken);
+
+        return NIS2Errors.PipelineBlocked(run.RequestTypeName,
+            $"Compliance check failed with exception: {ex.Message}");
+    }
+
+    private void CompleteRun(PipelineRun run)
+    {
+        var anyFailed = run.ChecksFailed.Count > 0;
+        var outcome = anyFailed ? "warned" : "passed";
+        run.ActionTaken ??= anyFailed ? "Warned: checks failed but allowed" : "Passed";
+
+        if (anyFailed)
+        {
+            NIS2Diagnostics.RecordWarned(run.Activity, string.Join(", ", run.ChecksFailed));
         }
         else
         {
-            NIS2Diagnostics.RecordCompleted(activity);
+            NIS2Diagnostics.RecordCompleted(run.Activity);
         }
 
-        RecordPipelineMetrics(startTimestamp, outcome, enforcementModeName);
-        _logger.NIS2PipelineCompleted(requestTypeName, checksPerformed.Count);
+        RecordPipelineMetrics(run.StartTimestamp, outcome, run.EnforcementModeName);
+        _logger.NIS2PipelineCompleted(run.RequestTypeName, run.ChecksPerformed.Count);
 
         // Fire-and-forget audit
-        _ = RecordAuditAsync(context, requestTypeName, checksPerformed, checksFailed, actionTaken);
-
-        return result;
+        _ = RecordAuditAsync(
+            run.Context, run.RequestTypeName, run.ChecksPerformed, run.ChecksFailed, run.ActionTaken);
     }
 
     /// <summary>
@@ -268,6 +388,42 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
 
         NIS2Diagnostics.PipelineExecutionsTotal.Add(1, tags);
         NIS2Diagnostics.PipelineDuration.Record(elapsedMs, tags);
+    }
+
+    private AuditEntry BuildAuditEntry(
+        IRequestContext context,
+        string requestTypeName,
+        List<string> checksPerformed,
+        List<string> checksFailed,
+        string actionTaken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new AuditEntry
+        {
+            Id = Guid.NewGuid(),
+            CorrelationId = context.CorrelationId ?? Guid.NewGuid().ToString("N"),
+            UserId = context.UserId,
+            TenantId = context.TenantId,
+            Action = "NIS2ComplianceCheck",
+            EntityType = requestTypeName,
+            Outcome = checksFailed.Count == 0 ? AuditOutcome.Success : AuditOutcome.Failure,
+            ErrorMessage = checksFailed.Count > 0
+                ? $"Failed checks: {string.Join(", ", checksFailed)}"
+                : null,
+            TimestampUtc = now.UtcDateTime,
+            StartedAtUtc = now,
+            CompletedAtUtc = now,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["nis2.enforcement_mode"] = _options.EnforcementMode.ToString(),
+                ["nis2.checks_performed"] = string.Join(", ", checksPerformed),
+                ["nis2.checks_failed"] = string.Join(", ", checksFailed),
+                ["nis2.action_taken"] = actionTaken,
+                ["nis2.is_critical"] = CachedAttributeInfo.IsNIS2Critical,
+                ["nis2.requires_mfa"] = CachedAttributeInfo.RequiresMFA,
+                ["nis2.supply_chain_suppliers"] = string.Join(", ", CachedAttributeInfo.SupplyChainChecks)
+            }
+        };
     }
 
     /// <summary>
@@ -288,33 +444,7 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
                 return;
             }
 
-            var now = DateTimeOffset.UtcNow;
-            var entry = new AuditEntry
-            {
-                Id = Guid.NewGuid(),
-                CorrelationId = context.CorrelationId ?? Guid.NewGuid().ToString("N"),
-                UserId = context.UserId,
-                TenantId = context.TenantId,
-                Action = "NIS2ComplianceCheck",
-                EntityType = requestTypeName,
-                Outcome = checksFailed.Count == 0 ? AuditOutcome.Success : AuditOutcome.Failure,
-                ErrorMessage = checksFailed.Count > 0
-                    ? $"Failed checks: {string.Join(", ", checksFailed)}"
-                    : null,
-                TimestampUtc = now.UtcDateTime,
-                StartedAtUtc = now,
-                CompletedAtUtc = now,
-                Metadata = new Dictionary<string, object?>
-                {
-                    ["nis2.enforcement_mode"] = _options.EnforcementMode.ToString(),
-                    ["nis2.checks_performed"] = string.Join(", ", checksPerformed),
-                    ["nis2.checks_failed"] = string.Join(", ", checksFailed),
-                    ["nis2.action_taken"] = actionTaken,
-                    ["nis2.is_critical"] = CachedAttributeInfo.IsNIS2Critical,
-                    ["nis2.requires_mfa"] = CachedAttributeInfo.RequiresMFA,
-                    ["nis2.supply_chain_suppliers"] = string.Join(", ", CachedAttributeInfo.SupplyChainChecks)
-                }
-            };
+            var entry = BuildAuditEntry(context, requestTypeName, checksPerformed, checksFailed, actionTaken);
 
             var result = await auditStore.RecordAsync(entry).ConfigureAwait(false);
 
