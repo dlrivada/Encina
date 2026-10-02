@@ -76,13 +76,20 @@ internal sealed class CompositeEncinaHealthCheck : IHealthCheck
             ? string.Join("; ", descriptions)
             : $"All {checks.Count} Encina health checks passed";
 
-        return overallStatus switch
+        return ToAspNetResult(overallStatus, description, results);
+    }
+
+    // crap-exempt: single-question switch — maps one status to its ASP.NET result
+    private static AspNetHealthCheckResult ToAspNetResult(
+        EncinaHealthStatus status,
+        string description,
+        IReadOnlyDictionary<string, object> results)
+        => status switch
         {
             EncinaHealthStatus.Healthy => AspNetHealthCheckResult.Healthy(description, results),
             // The exception object of a check is never forwarded to the endpoint result.
             EncinaHealthStatus.Degraded => AspNetHealthCheckResult.Degraded(description, data: results),
             EncinaHealthStatus.Unhealthy => AspNetHealthCheckResult.Unhealthy(description, data: results),
-            _ => AspNetHealthCheckResult.Unhealthy($"Unknown health status: {overallStatus}")
+            _ => AspNetHealthCheckResult.Unhealthy($"Unknown health status: {status}")
         };
-    }
 }
