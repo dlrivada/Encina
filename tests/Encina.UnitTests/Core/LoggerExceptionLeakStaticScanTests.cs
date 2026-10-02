@@ -73,6 +73,8 @@ public sealed partial class LoggerExceptionLeakStaticScanTests
     [InlineData("Log.StepFailed(_logger, id, ex.GetType().Name, ex);", "raw-exception")]
     [InlineData("Log.ConnectionFailed(_logger, eventData.Exception);", "raw-exception")]
     [InlineData("LogCacheError(_logger, key, innerException);", "raw-exception")]
+    [InlineData("Log.MaskingFailed(_logger, ex.InnerException!, name);", "raw-exception")]
+    [InlineData("Log.ConsumerError(_logger, ex.Error.Reason);", "message")]
     [InlineData("_logger.LogWarning(\"failed: {Error}\", error.Message);", "message")]
     [InlineData("_logger.LogWarning($\"failed: {ex.Message}\");", "message")]
     [InlineData("Left: error => Log.Failed(_logger, id,\n    error.Message)", "message")]
@@ -171,10 +173,10 @@ internal static partial class LoggerLeakScanner
     [GeneratedRegex(@"^\s*(?:\[[^\]]*\]\s*)*(?:public|internal|private|protected)\b")]
     private static partial Regex DeclarationRegex();
 
-    [GeneratedRegex(@"\.Message\b")]
+    [GeneratedRegex(@"\.Message\b|\b[eE]rror\.Reason\b")]
     private static partial Regex MessageAccessRegex();
 
-    [GeneratedRegex(@"^(?:\w+\s*:\s*)?(?:\w+\??\.)*(?:ex|e|exception|innerException|\w+Exception|\w+Ex|Exception)$")]
+    [GeneratedRegex(@"^(?:\w+\s*:\s*)?(?:\w+\??\.)*(?:ex|e|exception|innerException|\w+Exception|\w+Ex|Exception)[!?]*$")]
     private static partial Regex BareExceptionRegex();
 
     [GeneratedRegex(@"\b(?:ex|e|exception|\w+Exception|\w+Ex)\s*\??\.\s*ToString\s*\(")]

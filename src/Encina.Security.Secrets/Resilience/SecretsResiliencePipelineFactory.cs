@@ -74,7 +74,7 @@ internal static class SecretsResiliencePipelineFactory
                 OnRetry = args =>
                 {
                     var attemptNumber = args.AttemptNumber + 1;
-                    var reason = args.Outcome.Exception?.Message ?? "Transient error";
+                    var reason = args.Outcome.Exception?.GetType().Name ?? "Transient error";
 
                     Log.ResilienceRetryAttempt(
                         logger,

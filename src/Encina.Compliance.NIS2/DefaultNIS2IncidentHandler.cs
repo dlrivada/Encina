@@ -98,7 +98,7 @@ internal sealed class DefaultNIS2IncidentHandler : INIS2IncidentHandler
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.IncidentHandlingError(incidentIdStr, ex.ForLogging());
-            NIS2Diagnostics.RecordFailed(activity, ex.Message);
+            NIS2Diagnostics.RecordFailed(activity, ex.GetType().Name);
 
             NIS2Diagnostics.IncidentReportsTotal.Add(1,
                 new KeyValuePair<string, object?>(NIS2Diagnostics.TagIncidentSeverity, severityName),

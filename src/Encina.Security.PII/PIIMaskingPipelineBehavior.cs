@@ -171,7 +171,7 @@ public sealed class PIIMaskingPipelineBehavior<TRequest, TResponse> : IPipelineB
         {
             // Masking failures should never cause request failures.
             // Log warning and return the original response.
-            RecordMaskingFailure(ex.InnerException!, responseTypeName);
+            RecordMaskingFailure(ex.InnerException ?? ex, responseTypeName);
 
             return response;
         }

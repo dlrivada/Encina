@@ -147,7 +147,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         catch (Exception ex)
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
-            await store.MarkAsFailedAsync(message.Id, ex.Message, cancellationToken).ConfigureAwait(false);
+            await store.MarkAsFailedAsync(message.Id, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
         }
     }
 

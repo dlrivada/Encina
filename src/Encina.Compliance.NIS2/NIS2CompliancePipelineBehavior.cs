@@ -334,20 +334,20 @@ public sealed class NIS2CompliancePipelineBehavior<TRequest, TResponse> : IPipel
     private EncinaError? HandleCheckException(Exception ex, PipelineRun run)
     {
         _logger.NIS2PipelineError(run.RequestTypeName, ex.ForLogging());
-        NIS2Diagnostics.RecordFailed(run.Activity, ex.Message);
+        NIS2Diagnostics.RecordFailed(run.Activity, ex.GetType().Name);
 
         if (_options.EnforcementMode != NIS2EnforcementMode.Block)
         {
             return null;
         }
 
-        run.ActionTaken = $"Blocked: Compliance check exception: {ex.Message}";
+        run.ActionTaken = $"Blocked: Compliance check exception: {ex.GetType().Name}";
         RecordPipelineMetrics(run.StartTimestamp, "blocked", run.EnforcementModeName);
         _ = RecordAuditAsync(
             run.Context, run.RequestTypeName, run.ChecksPerformed, run.ChecksFailed, run.ActionTaken);
 
         return NIS2Errors.PipelineBlocked(run.RequestTypeName,
-            $"Compliance check failed with exception: {ex.Message}");
+            $"Compliance check failed with exception: {ex.GetType().Name}");
     }
 
     private void CompleteRun(PipelineRun run)

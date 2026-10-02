@@ -120,7 +120,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
             }
             catch (ConsumeException ex)
             {
-                DebeziumKafkaLog.ConsumerError(_logger, ex.Error.Reason);
+                DebeziumKafkaLog.ConsumerError(_logger, ex.Error.Code.ToString());
                 consumeError = Left(CdcErrors.StreamInterrupted(ex));
             }
 
@@ -267,7 +267,7 @@ internal sealed class DebeziumKafkaConnector : ICdcConnector, IDisposable
             })
             .SetErrorHandler((_, error) =>
             {
-                DebeziumKafkaLog.ConsumerError(_logger, error.Reason);
+                DebeziumKafkaLog.ConsumerError(_logger, error.Code.ToString());
             })
             .Build();
     }

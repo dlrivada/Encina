@@ -218,7 +218,7 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
         Activity? activity)
     {
         _logger.AnonymizationPipelineError(requestTypeName, responseTypeName, ex.ForLogging());
-        AnonymizationDiagnostics.RecordFailed(activity, ex.Message);
+        AnonymizationDiagnostics.RecordFailed(activity, ex.GetType().Name);
         AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
             new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "error"));
 

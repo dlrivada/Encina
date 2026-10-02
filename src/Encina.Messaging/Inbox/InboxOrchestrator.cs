@@ -200,7 +200,7 @@ public sealed class InboxOrchestrator
 
             await _store.MarkAsFailedAsync(
                 messageId,
-                ex.Message,
+                ex.GetType().FullName ?? ex.GetType().Name, // type only: the message may carry personal data
                 _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
                 cancellationToken).ConfigureAwait(false);
 

@@ -286,7 +286,8 @@ public class NIS2CompliancePipelineBehaviorTests
         result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
         error.GetCode().IfNone(string.Empty).ShouldBe(NIS2Errors.PipelineBlockedCode);
-        error.Message.ShouldContain("MFA service unavailable");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("MFA service unavailable");
     }
 
     [Fact]

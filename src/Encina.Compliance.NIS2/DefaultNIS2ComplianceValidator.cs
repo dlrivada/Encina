@@ -208,7 +208,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.MeasureEvaluationFailed(measureName, ex.ForLogging());
-            NIS2Diagnostics.RecordFailed(measureActivity, ex.Message);
+            NIS2Diagnostics.RecordFailed(measureActivity, ex.GetType().Name);
 
             NIS2Diagnostics.MeasureEvaluationsTotal.Add(1,
                 new KeyValuePair<string, object?>(NIS2Diagnostics.TagMeasure, measureName),
@@ -280,7 +280,7 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         string sectorName)
     {
         _logger.ComplianceValidationError(ex.ForLogging());
-        NIS2Diagnostics.RecordFailed(activity, ex.Message);
+        NIS2Diagnostics.RecordFailed(activity, ex.GetType().Name);
 
         NIS2Diagnostics.ComplianceChecksTotal.Add(1,
             new KeyValuePair<string, object?>(NIS2Diagnostics.TagOutcome, "error"),
