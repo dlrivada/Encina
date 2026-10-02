@@ -3504,6 +3504,15 @@ Two SagaStoreADO test classes duplicate the same setup.
             $only1632.Code -eq 0 -and (Get-ManifestFinding $onlyManifest1632 'code 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'code 4').regenerate -and
             -not (Get-ManifestFinding $onlyManifest1632 'tests 1').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)'
         }
+
+        # A higher-severity source: docs 2 (Major) into code 3 (Minor) makes docs 2 the merged group's primary.
+        $sev1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 3')
+        $sevManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $sd2 = Get-ManifestFinding $sevManifest1632 'docs 2'; $sc3 = Get-ManifestFinding $sevManifest1632 'code 3'
+        Test-RemediationCase '#1632 -MergeInto: a higher-severity source becomes the merged group''s primary and the lesson says so' {
+            $sev1632.Code -eq 0 -and $sd2.draftFile -and $null -eq $sc3.draftFile -and $sc3.remediationLine -eq '- code 3 (Minor): merged into docs 2 (manual override)' -and $sc3.mergeSource -eq 'manual override' -and
+            $sd2.reportedByLine -eq 'Reported by: code 3, docs 2.' -and (@($sevManifest1632.lessons) -join '|') -match [regex]::Escape("docs 2: merged into code 3 by manual override (the merged group's primary is docs 2)")
+        }
     }
     else {
         'SKIP #1632 fixture: git is not on PATH'

@@ -478,7 +478,6 @@ if ($mergeIntoEntries) {
         foreach ($checked in @(@{ Idx = $si; Name = $srcName; Role = 'source' }, @{ Idx = $ti; Name = $tgtName; Role = 'target' })) {
             if ($groupDuplicateIssue.ContainsKey($checked.Idx)) { Stop-Remediation "-MergeInto '$srcName=$tgtName': the $($checked.Role) '$($checked.Name)' belongs to a group a -DuplicateOf override records as a duplicate of #$($groupDuplicateIssue[$checked.Idx])." }
         }
-        $mergeLessons.Add("${srcName}: merged into $tgtName by manual override")
     }
     foreach ($srcIdx in $mergeSourceOrder) {
         $tgtIdx = [int]$groupMergedInto[$srcIdx]
@@ -489,6 +488,18 @@ if ($mergeIntoEntries) {
         }
         $groups[$srcIdx].Members.Clear()
         if (-not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
+    }
+    # The merged group's primary is the highest-severity member again (#1491 decision 2), so a Blocker merged
+    # into a Minor drafts from the Blocker; ties keep the target group's own first member.
+    foreach ($tgtIdx in $mergeTargetGroupIndexes) { $groups[$tgtIdx].Primary = Get-GroupPrimary $groups[$tgtIdx].Members }
+    foreach ($mergeSrc in $mergeIntoEntries.Keys) {
+        $mergeTgt = $mergeIntoEntries[$mergeSrc]
+        $mergedPrimary = $groups[[int]$groupIndexByKey[$mergeTgt]].Primary
+        $tgtName = $mergeTgt -replace '\|', ' '
+        $primaryName = "$($mergedPrimary.Stage) $($mergedPrimary.Id)"
+        # A named target that lost the primary role to a higher-severity source is merged by the override too.
+        if ($primaryName -ine $tgtName) { [void]$manualMergeKeys.Add($mergeTgt) }
+        $mergeLessons.Add("$($mergeSrc -replace '\|', ' '): merged into $tgtName by manual override$(if ($primaryName -ine $tgtName) { " (the merged group's primary is $primaryName)" })")
     }
 }
 
