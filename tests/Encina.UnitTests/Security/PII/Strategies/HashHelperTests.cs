@@ -24,14 +24,21 @@ public sealed class HashHelperTests
         hash.ShouldBe("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void ComputeHash_WithoutKey_IsPlainSha256(string? key)
+    [Fact]
+    public void ComputeHash_WithNullKey_IsPlainSha256()
     {
-        var hash = HashHelper.ComputeHash("abc", key);
+        var hash = HashHelper.ComputeHash("abc", null);
 
         hash.ShouldBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+
+    [Fact]
+    public void ComputeHash_WithEmptyKey_IsHmacNotPlainSha256()
+    {
+        var hash = HashHelper.ComputeHash("abc", "");
+
+        hash.ShouldNotBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        hash.Length.ShouldBe(64);
     }
 
     [Fact]

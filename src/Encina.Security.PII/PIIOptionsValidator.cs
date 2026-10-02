@@ -13,6 +13,7 @@ namespace Encina.Security.PII;
 internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 {
     private readonly ILogger _logger;
+    private int _warned;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PIIOptionsValidator"/> class.
@@ -36,7 +37,9 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
             return ValidateOptionsResult.Fail(failure);
         }
 
-        if (options.HashKey is null && options.AllowUnkeyedHash)
+        // The validator is a singleton and runs once per options cache (startup validation and
+        // IOptions resolution), so the flag keeps the warning to one line per process.
+        if (options.HashKey is null && options.AllowUnkeyedHash && Interlocked.Exchange(ref _warned, 1) == 0)
         {
             PIILogMessages.UnkeyedHashAllowed(_logger);
         }

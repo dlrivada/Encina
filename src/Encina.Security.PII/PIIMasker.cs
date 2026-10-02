@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -46,6 +47,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     private readonly PIIOptions _options;
     private readonly ILogger<PIIMasker> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ConcurrentDictionary<PIIType, byte> _hashRedactionLogged = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PIIMasker"/> class.
@@ -577,14 +579,24 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     /// </remarks>
     private MaskingOptions ResolveMaskingOptions(PIIType type, MaskingMode mode)
     {
-        if (mode == MaskingMode.Hash && _options.HashKey is null && !_options.AllowUnkeyedHash)
+        if (mode == MaskingMode.Hash && !HasUsableHashKeyOrOptOut())
         {
-            PIILogMessages.HashWithoutKeyRedacted(_logger, type.ToString());
+            if (_hashRedactionLogged.TryAdd(type, 0))
+            {
+                PIILogMessages.HashWithoutKeyRedacted(_logger, type.ToString());
+            }
+
             mode = MaskingMode.Redact;
         }
 
         return BuildMaskingOptions(type, mode) with { HashKey = _options.HashKey };
     }
+
+    // A blank key is never "no key": it fails closed even when the options skipped validation.
+    private bool HasUsableHashKeyOrOptOut() =>
+        _options.HashKey is null
+            ? _options.AllowUnkeyedHash
+            : !string.IsNullOrWhiteSpace(_options.HashKey);
 
     private static MaskingOptions BuildMaskingOptions(PIIType type, MaskingMode mode)
     {

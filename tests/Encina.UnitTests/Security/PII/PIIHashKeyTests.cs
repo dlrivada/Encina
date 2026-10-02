@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
+using Encina.Security.PII.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -211,6 +212,127 @@ public sealed class PIIHashKeyTests
 
         masked.ShouldBe("[REDACTED]");
         logger.Entries.ShouldContain(e => e.EventId.Id == 8020 && e.Level == LogLevel.Error);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Mask_HashModeWithBlankKeyThatSkippedValidation_RedactsEvenWithOptOutOff(string key)
+    {
+        var masker = CreateMasker(new PIIOptions { DefaultMode = MaskingMode.Hash, HashKey = key });
+
+        masker.Mask("abc", PIIType.Custom).ShouldBe("[REDACTED]");
+    }
+
+    [Fact]
+    public void Mask_HashModeWithoutKey_LogsTheRedactionOncePerPIIType()
+    {
+        var logger = new CapturingLogger<PIIMasker>();
+        var masker = CreateMasker(new PIIOptions { DefaultMode = MaskingMode.Hash }, logger);
+
+        masker.Mask("abc", PIIType.Custom);
+        masker.Mask("def", PIIType.Custom);
+        masker.Mask("123", PIIType.Phone);
+
+        logger.Entries.Count(e => e.EventId.Id == 8020).ShouldBe(2);
+    }
+
+    [Fact]
+    public void MaskObject_AttributeSelectsHashWithKey_ProducesKeyedHash()
+    {
+        var masker = CreateMasker(new PIIOptions { HashKey = "Jefe" });
+
+        var masked = masker.MaskObject(new HashedDto { Phone = "what do ya want for nothing?" });
+
+        masked.Phone.ShouldBe("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+    }
+
+    [Fact]
+    public void MaskObject_AttributeSelectsHashWithoutKey_RedactsAndLogs()
+    {
+        var logger = new CapturingLogger<PIIMasker>();
+        var masker = CreateMasker(new PIIOptions(), logger);
+
+        var masked = masker.MaskObject(new HashedDto { Phone = "555-1234" });
+
+        masked.Phone.ShouldBe("[REDACTED]");
+        logger.Entries.ShouldContain(e => e.EventId.Id == 8020);
+    }
+
+    [Fact]
+    public void MaskObject_AttributeSelectsHashWithOptOut_ProducesUnkeyedSha256()
+    {
+        var masker = CreateMasker(new PIIOptions { AllowUnkeyedHash = true });
+
+        masker.MaskObject(new HashedDto { Phone = "abc" }).Phone
+            .ShouldBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+
+    [Fact]
+    public void AddEncinaPII_ConfiguredKey_ReachesTheMaskerThroughDI()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaPII(o =>
+        {
+            o.DefaultMode = MaskingMode.Hash;
+            o.HashKey = "Jefe";
+        });
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<IPIIMasker>().Mask("what do ya want for nothing?", PIIType.Custom)
+            .ShouldBe("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+    }
+
+    [Fact]
+    public void AddEncinaPII_CalledTwice_StillBuildsAndValidates()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaPII(o => o.HashKey = Secret);
+        services.AddEncinaPII(o => o.HashKey = Secret);
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<IStartupValidator>().Validate();
+        provider.GetRequiredService<IPIIMasker>().ShouldBeOfType<PIIMasker>();
+    }
+
+    [Fact]
+    public void AddEncinaPII_WithoutLoggingRegistered_ValidatesOnStart()
+    {
+        var services = new ServiceCollection();
+        services.AddEncinaPII(o => o.AllowUnkeyedHash = true);
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = true });
+
+        Should.NotThrow(() => provider.GetRequiredService<IStartupValidator>().Validate());
+    }
+
+    [Fact]
+    public void AddEncinaPII_AllowUnkeyedHash_WarnsOnceAcrossStartupAndOptionsResolution()
+    {
+        var logger = new CapturingLogger<PIIOptionsValidator>();
+        var services = new ServiceCollection();
+        services.AddSingleton<ILogger<PIIOptionsValidator>>(logger);
+        services.AddLogging();
+        services.AddEncinaPII(o => o.AllowUnkeyedHash = true);
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IStartupValidator>().Validate();
+        _ = provider.GetRequiredService<IOptions<PIIOptions>>().Value;
+
+        logger.Entries.Count(e => e.EventId.Id == 8019).ShouldBe(1);
+    }
+
+    private sealed class HashedDto
+    {
+        [PII(PIIType.Phone, Mode = MaskingMode.Hash)]
+        public string Phone { get; set; } = "";
     }
 
     private static PIIMasker CreateMasker(PIIOptions options, ILogger<PIIMasker>? logger = null) =>

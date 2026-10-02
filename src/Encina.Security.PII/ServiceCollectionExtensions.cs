@@ -91,7 +91,10 @@ public static class ServiceCollectionExtensions
     /// <exception cref="OptionsValidationException">
     /// Thrown when the configured <see cref="PIIOptions"/> are invalid, for example
     /// <see cref="MaskingMode.Hash"/> as the default mode without a <see cref="PIIOptions.HashKey"/>
-    /// and without <see cref="PIIOptions.AllowUnkeyedHash"/>.
+    /// and without <see cref="PIIOptions.AllowUnkeyedHash"/>. This registration-time check sees only the
+    /// <paramref name="configure"/> delegate of this call: set <see cref="PIIOptions.HashKey"/> there, or
+    /// bind it from another source and leave <see cref="PIIOptions.DefaultMode"/> to the same source, which
+    /// <c>ValidateOnStart</c> then validates.
     /// </exception>
     public static IServiceCollection AddEncinaPII(
         this IServiceCollection services,
