@@ -3,7 +3,9 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.HashiCorpVault;
+using Encina.UnitTests.Validation.Endpoints;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -142,7 +144,7 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
     #region Validation
 
     [Fact]
-    public void AddHashiCorpVaultSecrets_MissingVaultAddress_ThrowsInvalidOperationException()
+    public void AddHashiCorpVaultSecrets_MissingVaultAddress_ThrowsOptionsValidationException()
     {
         var services = CreateServicesWithMockClient();
 
@@ -152,11 +154,11 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // VaultAddress intentionally left empty
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"VaultAddress.*required");
+        Should.Throw<OptionsValidationException>(act).Message.ShouldContain("VaultAddress must be configured");
     }
 
     [Fact]
-    public void AddHashiCorpVaultSecrets_MissingAuthMethod_ThrowsInvalidOperationException()
+    public void AddHashiCorpVaultSecrets_MissingAuthMethod_ThrowsOptionsValidationException()
     {
         var services = CreateServicesWithMockClient();
 
@@ -166,11 +168,11 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             // AuthMethod intentionally left null
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"AuthMethod.*required");
+        Should.Throw<OptionsValidationException>(act).Message.ShouldMatch(@"AuthMethod.*required");
     }
 
     [Fact]
-    public void AddHashiCorpVaultSecrets_WhitespaceVaultAddress_ThrowsInvalidOperationException()
+    public void AddHashiCorpVaultSecrets_WhitespaceVaultAddress_ThrowsOptionsValidationException()
     {
         var services = CreateServicesWithMockClient();
 
@@ -180,7 +182,102 @@ public sealed class HashiCorpVaultServiceCollectionExtensionsTests
             vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
         });
 
-        Should.Throw<InvalidOperationException>(act).Message.ShouldMatch(@"VaultAddress.*required");
+        Should.Throw<OptionsValidationException>(act).Message.ShouldContain("VaultAddress must be configured");
+    }
+
+    [Theory]
+    [InlineData("http://vault.example.com:8200", "HTTPS")]
+    [InlineData("https://localhost:8200", "AllowLocalEndpoints")]
+    [InlineData("https://169.254.169.254", "metadata")]
+    [InlineData("https://[::ffff:169.254.10.1]:8200", "link-local")]
+    [InlineData("https://0.0.0.0:8200", "unspecified")]
+    public void AddHashiCorpVaultSecrets_UnsafeVaultAddress_ThrowsOptionsValidationException(string address, string reason)
+    {
+        var services = CreateServicesWithMockClient();
+
+        var act = () => services.AddHashiCorpVaultSecrets(vault =>
+        {
+            vault.VaultAddress = address;
+            vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
+        });
+
+        Should.Throw<OptionsValidationException>(act).Message.ShouldContain(reason);
+    }
+
+    [Fact]
+    public void AddHashiCorpVaultSecrets_LocalDevServerWithOptOuts_Registers()
+    {
+        var services = CreateServicesWithMockClient();
+
+        services.AddHashiCorpVaultSecrets(vault =>
+        {
+            vault.VaultAddress = "http://localhost:8200";
+            vault.AllowInsecureHttp = true;
+            vault.AllowLocalEndpoints = true;
+            vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
+        });
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<HashiCorpVaultOptions>().VaultAddress.ShouldBe("http://localhost:8200");
+    }
+
+    [Fact]
+    public void AddHashiCorpVaultSecrets_WithOptOuts_LogsWarningOnce()
+    {
+        var logger = new CollectingLoggerProvider();
+        var services = CreateServicesWithMockClient();
+        services.AddLogging(b => b.AddProvider(logger));
+        services.AddHashiCorpVaultSecrets(vault =>
+        {
+            vault.VaultAddress = "http://localhost:8200";
+            vault.AllowInsecureHttp = true;
+            vault.AllowLocalEndpoints = true;
+            vault.AuthMethod = new TokenAuthMethodInfo("hvs.test");
+        });
+
+        using var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<HashiCorpVaultOptions>();
+        _ = provider.GetRequiredService<IOptionsMonitor<HashiCorpVaultOptions>>().CurrentValue;
+
+        logger.Count(5308, LogLevel.Warning).ShouldBe(1);
+    }
+
+    [Fact]
+    public void AddHashiCorpVaultSecrets_RegistersOptionsValidator()
+    {
+        var services = CreateServicesWithMockClient();
+
+        services.AddHashiCorpVaultSecrets(ValidVaultConfig);
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IValidateOptions<HashiCorpVaultOptions>) &&
+            d.ImplementationType == typeof(HashiCorpVaultOptionsValidator));
+    }
+
+    [Fact]
+    public void AddHashiCorpVaultSecrets_ValidOptions_ProviderBuildsWithValidateOnBuildAndScopes()
+    {
+        var services = CreateServicesWithMockClient();
+        services.AddHashiCorpVaultSecrets(ValidVaultConfig);
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        provider.GetRequiredService<HashiCorpVaultOptions>().VaultAddress.ShouldBe("https://vault.example.com:8200");
+    }
+
+    [Fact]
+    public void AddHashiCorpVaultSecrets_RealClientFactory_UsesValidatedAddress()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<ICacheProvider>());
+        services.AddHashiCorpVaultSecrets(ValidVaultConfig);
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<IVaultClient>().Settings.VaultServerUriWithPort
+            .ShouldBe("https://vault.example.com:8200");
     }
 
     #endregion

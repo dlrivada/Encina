@@ -133,10 +133,11 @@ public sealed class CdcServiceRegistrationContractTests
         // Arrange
         var services = new ServiceCollection();
 
-        // Act
+        // Act (loopback endpoints need the explicit opt-out, #852)
         services.AddEncinaCdcMySql(options =>
         {
             options.ConnectionString = "Server=localhost;Database=test";
+            options.AllowLocalEndpoints = true;
         });
 
         // Assert
@@ -156,10 +157,11 @@ public sealed class CdcServiceRegistrationContractTests
         // Arrange
         var services = new ServiceCollection();
 
-        // Act
+        // Act (loopback endpoints need the explicit opt-out, #852)
         services.AddEncinaCdcMySql(options =>
         {
             options.ConnectionString = "Server=localhost;Database=test";
+            options.AllowLocalEndpoints = true;
         });
 
         // Assert

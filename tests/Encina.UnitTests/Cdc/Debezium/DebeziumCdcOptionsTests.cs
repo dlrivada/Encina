@@ -42,16 +42,6 @@ public sealed class DebeziumCdcOptionsTests
     }
 
     /// <summary>
-    /// Verifies the default DebeziumServerUrl is null.
-    /// </summary>
-    [Fact]
-    public void Defaults_DebeziumServerUrl_IsNull()
-    {
-        var options = new DebeziumCdcOptions();
-        options.DebeziumServerUrl.ShouldBeNull();
-    }
-
-    /// <summary>
     /// Verifies the default BearerToken is null.
     /// </summary>
     [Fact]
@@ -117,7 +107,6 @@ public sealed class DebeziumCdcOptionsTests
             ListenUrl = "http://localhost",
             ListenPort = 9090,
             ListenPath = "/events",
-            DebeziumServerUrl = "http://debezium:8083",
             BearerToken = "secret-token",
             EventFormat = DebeziumEventFormat.Flat,
             ChannelCapacity = 500,
@@ -129,7 +118,6 @@ public sealed class DebeziumCdcOptionsTests
         options.ListenUrl.ShouldBe("http://localhost");
         options.ListenPort.ShouldBe(9090);
         options.ListenPath.ShouldBe("/events");
-        options.DebeziumServerUrl.ShouldBe("http://debezium:8083");
         options.BearerToken.ShouldBe("secret-token");
         options.EventFormat.ShouldBe(DebeziumEventFormat.Flat);
         options.ChannelCapacity.ShouldBe(500);

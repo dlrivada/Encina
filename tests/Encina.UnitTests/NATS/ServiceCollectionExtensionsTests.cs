@@ -1,5 +1,7 @@
 using Encina.Messaging.Health;
 using Encina.NATS;
+using Encina.UnitTests.Validation.Endpoints;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 
@@ -10,6 +12,8 @@ namespace Encina.UnitTests.NATS;
 /// </summary>
 public sealed class ServiceCollectionExtensionsTests
 {
+    private const string RemoteUrl = "nats://nats.example.com:4222";
+
     [Fact]
     public void AddEncinaNATS_WithNullServices_ThrowsArgumentNullException()
     {
@@ -22,19 +26,31 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaNATS_WithoutConfiguration_RegistersDefaultOptions()
+    public void AddEncinaNATS_WithoutConfiguration_ThrowsBecauseDefaultUrlIsLoopback()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act & Assert
+        var ex = Should.Throw<OptionsValidationException>(() => services.AddEncinaNATS());
+        ex.Message.ShouldContain("AllowLocalEndpoints");
+    }
+
+    [Fact]
+    public void AddEncinaNATS_WithLocalEndpointsAllowed_RegistersDefaultOptions()
     {
         // Arrange
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS();
+        services.AddEncinaNATS(opt => opt.AllowLocalEndpoints = true);
 
         // Assert
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<EncinaNATSOptions>>();
 
         options.Value.Url.ShouldBe("nats://localhost:4222");
+        options.Value.AllowLocalEndpoints.ShouldBeTrue();
         options.Value.SubjectPrefix.ShouldBe("encina");
         options.Value.UseJetStream.ShouldBeFalse();
         options.Value.StreamName.ShouldBe("ENCINA");
@@ -53,7 +69,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaNATS(opt =>
         {
-            opt.Url = "nats://nats.example.com:4222";
+            opt.Url = RemoteUrl;
             opt.SubjectPrefix = "myapp";
             opt.UseJetStream = true;
             opt.StreamName = "my-stream";
@@ -67,7 +83,7 @@ public sealed class ServiceCollectionExtensionsTests
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<EncinaNATSOptions>>();
 
-        options.Value.Url.ShouldBe("nats://nats.example.com:4222");
+        options.Value.Url.ShouldBe(RemoteUrl);
         options.Value.SubjectPrefix.ShouldBe("myapp");
         options.Value.UseJetStream.ShouldBeTrue();
         options.Value.StreamName.ShouldBe("my-stream");
@@ -77,6 +93,77 @@ public sealed class ServiceCollectionExtensionsTests
         options.Value.MaxDeliver.ShouldBe(5);
     }
 
+    [Theory]
+    [InlineData("nats://169.254.169.254:4222")]
+    [InlineData("nats://[::ffff:127.0.0.1]:4222")]
+    [InlineData("http://nats.example.com:4222")]
+    [InlineData("nats://nats.example.com:4222,nats://0.0.0.0:4222")]
+    public void AddEncinaNATS_WithUnsafeUrl_ThrowsOptionsValidationException(string url)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act & Assert
+        var ex = Should.Throw<OptionsValidationException>(() => services.AddEncinaNATS(opt => opt.Url = url));
+        ex.Message.ShouldContain("Url");
+    }
+
+    [Fact]
+    public void AddEncinaNATS_RegistersOptionsValidator()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+
+        // Act
+        services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
+
+        // Assert
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IValidateOptions<EncinaNATSOptions>) &&
+            d.ImplementationType == typeof(EncinaNATSOptionsValidator));
+    }
+
+    [Fact]
+    public async Task AddEncinaNATS_ValidOptions_ProviderBuildsWithValidateOnBuildAndScopes()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // NATSMessagePublisher requires INatsJSContext, which is only registered with JetStream.
+        services.AddEncinaNATS(opt =>
+        {
+            opt.Url = RemoteUrl;
+            opt.UseJetStream = true;
+        });
+
+        // Act (NatsConnection is only IAsyncDisposable)
+        await using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        // Assert
+        provider.GetRequiredService<IOptions<EncinaNATSOptions>>().Value.Url.ShouldBe(RemoteUrl);
+        provider.GetRequiredService<INatsConnection>().Opts.Url.ShouldBe(RemoteUrl);
+    }
+
+    [Fact]
+    public void AddEncinaNATS_WithLocalEndpointsAllowed_LogsWarningOnce()
+    {
+        // Arrange
+        var logger = new CollectingLoggerProvider();
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.AddProvider(logger));
+        services.AddEncinaNATS(opt => opt.AllowLocalEndpoints = true);
+
+        // Act
+        using var provider = services.BuildServiceProvider();
+        _ = provider.GetRequiredService<IOptions<EncinaNATSOptions>>().Value;
+        _ = provider.GetRequiredService<IOptionsMonitor<EncinaNATSOptions>>().CurrentValue;
+
+        // Assert
+        logger.Count(4209, LogLevel.Warning).ShouldBe(1);
+    }
+
     [Fact]
     public void AddEncinaNATS_RegistersPublisherAsScoped()
     {
@@ -84,7 +171,7 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS();
+        services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(INATSMessagePublisher));
@@ -99,7 +186,7 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS();
+        services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(INatsConnection));
@@ -114,7 +201,11 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS(opt => opt.UseJetStream = false);
+        services.AddEncinaNATS(opt =>
+        {
+            opt.Url = RemoteUrl;
+            opt.UseJetStream = false;
+        });
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(INatsJSContext));
@@ -128,7 +219,11 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS(opt => opt.UseJetStream = true);
+        services.AddEncinaNATS(opt =>
+        {
+            opt.Url = RemoteUrl;
+            opt.UseJetStream = true;
+        });
 
         // Assert
         var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(INatsJSContext));
@@ -143,7 +238,7 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        var result = services.AddEncinaNATS();
+        var result = services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
 
         // Assert
         result.ShouldBeSameAs(services);
@@ -158,6 +253,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaNATS(opt =>
         {
+            opt.Url = RemoteUrl;
             opt.ProviderHealthCheck.Enabled = true;
             opt.ProviderHealthCheck.Name = "custom-nats";
         });
@@ -177,6 +273,7 @@ public sealed class ServiceCollectionExtensionsTests
         // Act
         services.AddEncinaNATS(opt =>
         {
+            opt.Url = RemoteUrl;
             opt.ProviderHealthCheck.Enabled = false;
         });
 
@@ -192,8 +289,8 @@ public sealed class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         // Act
-        services.AddEncinaNATS();
-        services.AddEncinaNATS();
+        services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
+        services.AddEncinaNATS(opt => opt.Url = RemoteUrl);
 
         // Assert - Should only have one publisher registration due to TryAddScoped
         var publisherDescriptors = services.Where(d =>

@@ -167,6 +167,54 @@ public class HttpAttestationOptionsValidatorTests
         result.Succeeded.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("https://[::ffff:169.254.169.254]/api/attest")]
+    [InlineData("https://[::ffff:127.0.0.1]/api/attest")]
+    [InlineData("https://[::ffff:10.0.0.1]/api/attest")]
+    [InlineData("https://0.0.0.0/api/attest")]
+    public void Validate_IPv4MappedAndUnspecifiedForms_ReturnFail(string url)
+    {
+        var options = new HttpAttestationOptions { AttestEndpointUrl = new Uri(url) };
+
+        _sut.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_MulticastFf80_IsNotMistakenForLinkLocal()
+    {
+        var options = new HttpAttestationOptions { AttestEndpointUrl = new Uri("https://[ff80::1]/api/attest") };
+
+        _sut.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("http://localhost:5001/api/attest")]
+    [InlineData("http://192.168.1.10/api/attest")]
+    public void Validate_LocalOrPrivate_WithAllowInsecure_ReturnsSuccess(string url)
+    {
+        var options = new HttpAttestationOptions { AttestEndpointUrl = new Uri(url), AllowInsecureHttp = true };
+
+        _sut.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("http://169.254.169.254/latest/meta-data")]
+    [InlineData("http://169.254.0.1/api/attest")]
+    public void Validate_MetadataOrLinkLocal_WithAllowInsecure_StillReturnsFail(string url)
+    {
+        var options = new HttpAttestationOptions { AttestEndpointUrl = new Uri(url), AllowInsecureHttp = true };
+
+        _sut.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_LocalhostHttps_MessageNamesAllowInsecureHttp()
+    {
+        var options = new HttpAttestationOptions { AttestEndpointUrl = new Uri("https://localhost:5001/api/attest") };
+
+        _sut.Validate(null, options).FailureMessage!.ShouldContain("AllowInsecureHttp");
+    }
+
     [Fact]
     public void Validate_InvalidVerifyUrl_ReturnsFail()
     {

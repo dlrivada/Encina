@@ -40,6 +40,7 @@ public class ConnectorBenchmarks
         {
             options.ConnectionString = _container.ConnectionString;
             options.Hostname = "localhost";
+            options.AllowLocalEndpoints = true; // Testcontainers endpoint (#852)
             options.Port = 3306;
             options.Username = "root";
             options.Password = "mysql";

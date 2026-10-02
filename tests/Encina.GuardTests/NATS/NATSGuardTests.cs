@@ -129,7 +129,10 @@ public sealed class NATSGuardTests
         services.AddLogging();
 
         var result = services.AddEncinaNATS(o =>
-            o.Url = "nats://localhost:4222");
+        {
+            o.Url = "nats://localhost:4222";
+            o.AllowLocalEndpoints = true;
+        });
 
         result.ShouldNotBeNull();
 
