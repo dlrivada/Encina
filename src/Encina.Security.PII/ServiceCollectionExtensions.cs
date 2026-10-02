@@ -4,7 +4,6 @@ using Encina.Security.PII.Health;
 using Encina.Security.PII.Strategies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Security.PII;
@@ -127,7 +126,7 @@ public static class ServiceCollectionExtensions
 
         // Fail closed at registration for non-host compositions, and again on start through
         // ValidateOnStart for options bound from other sources (configuration, later Configure calls).
-        var validation = new PIIOptionsValidator(NullLogger<PIIOptionsValidator>.Instance)
+        var validation = new PIIOptionsValidator()
             .Validate(Options.DefaultName, optionsInstance);
         if (validation.Failed)
         {

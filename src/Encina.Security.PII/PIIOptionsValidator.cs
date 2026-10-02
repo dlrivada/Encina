@@ -1,5 +1,6 @@
 using Encina.Security.PII.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Security.PII;
@@ -16,11 +17,12 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
     /// <summary>
     /// Initializes a new instance of the <see cref="PIIOptionsValidator"/> class.
     /// </summary>
-    /// <param name="logger">The logger that receives the unkeyed-hash warning.</param>
-    public PIIOptionsValidator(ILogger<PIIOptionsValidator> logger)
+    /// <param name="logger">
+    /// The logger that receives the unkeyed-hash warning; <c>null</c> (no logging registered) discards it.
+    /// </param>
+    public PIIOptionsValidator(ILogger<PIIOptionsValidator>? logger = null)
     {
-        ArgumentNullException.ThrowIfNull(logger);
-        _logger = logger;
+        _logger = logger ?? NullLogger<PIIOptionsValidator>.Instance;
     }
 
     /// <inheritdoc />
