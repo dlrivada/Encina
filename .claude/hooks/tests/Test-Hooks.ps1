@@ -3218,6 +3218,174 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1534 block ----
 
+    # ---- #1565: tools/ai/audit/_remediation-checks.ps1 and audit-draft-remediation.ps1 -- the five defect classes
+    # audit #18's verifier loop kept finding in the local model's drafts, each decided deterministically from the
+    # finding's own text: (1) packages dropped (a five-package finding drafted as NATS-only), (2) the wrong Test
+    # Category (a unit-flag gap drafted with Integration ticked), (3) a coverage figure the finding never gave
+    # (0% against a measured 71.1%), (4) "throws" for a Left-returning RequestAsync, (5) pipeline meta-text in a
+    # draft ("not provided in finding"). Pure functions only: the model and `gh` are never called here, and the
+    # fixtures live under a temporary root, never the repository.
+    $pkgRoot1565 = Join-Path $work 'Pkg1565'
+    if (Test-Path $pkgRoot1565) { Remove-Item -Recurse -Force $pkgRoot1565 }
+    foreach ($pkg1565 in 'Encina.NATS', 'Encina.RabbitMQ', 'Encina.MQTT', 'Encina.AzureServiceBus', 'Encina.Kafka') {
+        New-Item -ItemType Directory -Force (Join-Path $pkgRoot1565 "src\$pkg1565") | Out-Null
+    }
+    New-Item -ItemType Directory -Force (Join-Path $pkgRoot1565 '.github\coverage-manifest') | Out-Null
+    Set-Content -LiteralPath (Join-Path $pkgRoot1565 '.github\coverage-manifest\Encina.NATS.json') -Value '{ "package": "Encina.NATS", "targets": { "guard": 15, "unit": 55 } }'
+    $manifestDir1565 = Join-Path $pkgRoot1565 '.github\coverage-manifest'
+
+    $finding1565 = 'Five transport packages (`src/Encina.NATS/NATSMessagePublisher.cs`, `src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs`, `Encina.MQTT/MqttMessagePublisher.cs`, Encina.AzureServiceBus and `src/Encina.Kafka/`) are below the unit flag target: unit and guard flags cover 71.1% of the lines. `NatsMessagePublisher.RequestAsync` returns `Left` when the request times out. Not related: Encina.Invented, Encina.Messaging.Outbox.'
+    $tplTest1565 = (Get-Content (Join-Path $repo '.github\ISSUE_TEMPLATE\test_implementation.md') -Raw) -replace '(?s)^---.*?---\r?\n', ''
+
+    # (1) packages
+    $packages1565 = @(Get-FindingPackages $finding1565 $pkgRoot1565)
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: derives the five existing packages, sorted, from src/ paths, Encina.<X>/<file> paths and bare tokens' {
+        ($packages1565 -join ',') -eq 'Encina.AzureServiceBus,Encina.Kafka,Encina.MQTT,Encina.NATS,Encina.RabbitMQ'
+    }
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: an invented name and a namespace-only token never pass' {
+        ($packages1565 -notcontains 'Encina.Invented') -and ($packages1565 -notcontains 'Encina.Messaging.Outbox') -and ($packages1565 -notcontains 'Encina.Messaging')
+    }
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: a finding with no repo root or no package yields an empty set' {
+        @(Get-FindingPackages 'No package here.' $pkgRoot1565).Count -eq 0 -and @(Get-FindingPackages $finding1565 '').Count -eq 0
+    }
+    $natsOnlyDraft1565 = "## Packages / Providers Affected`n`n- **Package(s)**: Encina.NATS`n- **Provider(s)**: NATS`n`n## Description`n`nEncina.NATS has no unit tests for NatsMessagePublisher.`n"
+    Test-RemediationChecksCase '#1565 Get-MissingPackages (failing case): a five-package finding drafted as NATS-only misses the other four' {
+        ((@(Get-MissingPackages $natsOnlyDraft1565 $packages1565)) -join ',') -eq 'Encina.AzureServiceBus,Encina.Kafka,Encina.MQTT,Encina.RabbitMQ'
+    }
+    Test-RemediationChecksCase '#1565 Get-MissingPackages (passing case): a draft naming every package in its body misses none, and the package line itself does not count' {
+        $fullDraft = $natsOnlyDraft1565 + "`nAlso Encina.RabbitMQ, src/Encina.MQTT/X.cs, Encina.AzureServiceBus and Encina.Kafka.Extensions.`n"
+        (@(Get-MissingPackages $fullDraft $packages1565)).Count -eq 0
+    }
+    Test-RemediationChecksCase '#1565 Get-MissingPackages: a package that is only a prefix of a longer name is still missing' {
+        (@(Get-MissingPackages 'Only Encina.NATSExtras is named.' @('Encina.NATS'))) -contains 'Encina.NATS'
+    }
+    $setPkgTest1565 = Set-PackageLine $natsOnlyDraft1565 $packages1565 'test_implementation.md'
+    Test-RemediationChecksCase '#1565 Set-PackageLine: writes the sorted comma-separated set into the test_implementation.md Package(s) line' {
+        (@($setPkgTest1565 -split "`n")) -contains '- **Package(s)**: Encina.AzureServiceBus, Encina.Kafka, Encina.MQTT, Encina.NATS, Encina.RabbitMQ'
+    }
+    Test-RemediationChecksCase '#1565 Set-PackageLine: writes the set into the bug_report.md Package(s) Affected line and leaves other lines untouched' {
+        $bugDraft = "## Environment`n`n- **OS**: Windows`n- **Package(s) Affected**: [e.g., Encina.Dapper.SqlServer]`n"
+        $r = @((Set-PackageLine $bugDraft @('Encina.Kafka', 'Encina.NATS') 'bug_report.md') -split "`n")
+        ($r -contains '- **Package(s) Affected**: Encina.Kafka, Encina.NATS') -and ($r -contains '- **OS**: Windows')
+    }
+    Test-RemediationChecksCase '#1565 Set-PackageLine: an empty set leaves the draft unchanged' {
+        (Set-PackageLine $natsOnlyDraft1565 @() 'test_implementation.md') -eq $natsOnlyDraft1565
+    }
+
+    # (2) test category
+    $badCategoryDraft1565 = $tplTest1565 -replace '- \[ \] Integration Tests \(Docker/Testcontainers\)', '- [x] Integration Tests (Docker/Testcontainers)' `
+        -replace '- \[ \] Docker / Testcontainers', '- [x] Docker / Testcontainers' `
+        -replace '(?m)^- \*\*Collection\*\*:.*$', '- **Collection**: `ADO-PostgreSQL`' `
+        -replace '(?m)^- \*\*Fixture\*\*:.*$', '- **Fixture**: `PostgreSqlFixture`'
+    $unitFlagFinding1565 = 'The unit flag of `src/Encina.NATS/NATSMessagePublisher.cs` is below target; the guard flag too.'
+    $fixedCategory1565 = @((Set-TestCategory $badCategoryDraft1565 $unitFlagFinding1565) -split "`n")
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: the unit/guard flag ticks Unit Tests and Guard Clause Tests, never Integration Tests' {
+        $ticks = @(Get-TestCategoryTicks $unitFlagFinding1565)
+        ($ticks -contains 'Unit Tests') -and ($ticks -contains 'Guard Clause Tests') -and ($ticks -notcontains 'Integration Tests') -and ($ticks -contains 'Coverage Gap')
+    }
+    Test-RemediationChecksCase '#1565 Set-TestCategory (failing case): a unit-flag gap drafted with Integration ticked is rewritten to Unit only' {
+        ($fixedCategory1565 -contains '- [x] Unit Tests') -and ($fixedCategory1565 -contains '- [ ] Integration Tests (Docker/Testcontainers)') -and ($fixedCategory1565 -contains '- [x] Guard Clause Tests')
+    }
+    Test-RemediationChecksCase '#1565 Set-TestCategory: without Integration, Infrastructure ticks only "None (pure unit tests)"' {
+        $infraTicked = @($fixedCategory1565 | Where-Object { $_ -match '^- \[x\] (Docker|Real database|Message broker|NBomber|BenchmarkDotNet|None)' })
+        $infraTicked.Count -eq 1 -and $infraTicked[0] -eq '- [x] None (pure unit tests)'
+    }
+    Test-RemediationChecksCase '#1565 Set-TestCategory: without Integration, the Collection Fixture body is exactly "Not applicable" and keeps the header and quoted AGENTS.md line' {
+        $text = $fixedCategory1565 -join "`n"
+        $text -match '(?s)## Collection Fixture \(Integration Tests Only\)\n\n> Per `AGENTS\.md` §9[^\n]*\n\nNot applicable: no integration tests\.\n\n## Related Issues' -and $text -notmatch 'ADO-PostgreSQL'
+    }
+    $integrationFinding1565 = 'The integration flag is 0%: no Testcontainers test exercises `src/Encina.NATS/NATSMessagePublisher.cs` against a real broker container.'
+    $keptIntegration1565 = @((Set-TestCategory $badCategoryDraft1565 $integrationFinding1565) -split "`n")
+    Test-RemediationChecksCase '#1565 Set-TestCategory (passing case): a finding about the integration flag/Testcontainers keeps Integration ticked and leaves Infrastructure and Collection Fixture alone' {
+        ($keptIntegration1565 -contains '- [x] Integration Tests (Docker/Testcontainers)') -and ($keptIntegration1565 -contains '- [x] Docker / Testcontainers') -and
+            ($keptIntegration1565 -contains '- **Collection**: `ADO-PostgreSQL`') -and ($keptIntegration1565 -notcontains '- [x] Unit Tests')
+    }
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: "Unit of Work" alone does not tick Unit Tests, and other boxes tick only when named' {
+        $uow = @(Get-TestCategoryTicks 'The Unit of Work leaks a connection.')
+        $named = @(Get-TestCategoryTicks 'Add property-based tests (FsCheck) and a benchmark; the contract flag is empty.')
+        $uow.Count -eq 0 -and ($named -contains 'Property-Based Tests') -and ($named -contains 'Benchmark Tests') -and ($named -contains 'Contract Tests') -and ($named -notcontains 'Unit Tests')
+    }
+    Test-RemediationChecksCase '#1565 Set-TestCategory: a draft without the sections is returned unchanged' {
+        (Set-TestCategory "## Description`n`nNothing.`n" $unitFlagFinding1565) -eq "## Description`n`nNothing.`n"
+    }
+
+    # (3) figures
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures (failing case): 0% against a measured 71.1% is flagged' {
+        $flagged = @(Get-UnsupportedFigures '| Encina.NATS | 0% | 85% | -85% |' $finding1565 $tplTest1565 $packages1565 $manifestDir1565)
+        $flagged.Count -eq 1 -and $flagged[0] -eq '0%'
+    }
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures (passing case): the finding figure, the template figure and a manifest target are all accepted' {
+        (@(Get-UnsupportedFigures 'Measured 71.1%; template target 85%; manifest unit target 55% and guard target 15%.' $finding1565 $tplTest1565 $packages1565 $manifestDir1565)).Count -eq 0
+    }
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures: a manifest target only counts for a package of the set' {
+        (@(Get-UnsupportedFigures 'Unit target 55%.' 'No figures.' '' @('Encina.Kafka') $manifestDir1565)) -contains '55%'
+    }
+    Test-RemediationChecksCase '#1565 Get-UnsupportedFigures: a rounded figure (71%) is not the finding''s 71.1%, and repeats are listed once' {
+        (@(Get-UnsupportedFigures 'About 71% and 71%.' $finding1565 '' $packages1565 $manifestDir1565)).Count -eq 1
+    }
+
+    # (4) Either semantics
+    $eitherFinding1565 = '`NatsMessagePublisher.RequestAsync` returns `Left` (an `EncinaError`) when the request times out instead of surfacing the failure.'
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations (failing case): a Left-returning RequestAsync drafted as "throws" is flagged' {
+        $v = @(Get-EitherSemanticsViolations $eitherFinding1565 "RequestAsync throws a TimeoutException on timeout.`nIt should return a Left.")
+        $v.Count -eq 1 -and $v[0] -match 'throws a TimeoutException'
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations (passing case): "throw" on a line naming ArgumentNullException is a legitimate guard clause' {
+        (@(Get-EitherSemanticsViolations $eitherFinding1565 'The guard clause throws ArgumentNullException for a null request; a timeout returns Left.')).Count -eq 0
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: no violation when the finding itself says throws, or never mentions Left/Either' {
+        $withThrow = Get-EitherSemanticsViolations 'RequestAsync returns Left, but a null argument throws.' 'It throws on null.'
+        $noEither = Get-EitherSemanticsViolations 'RequestAsync mishandles a timeout.' 'It throws on timeout.'
+        @($withThrow).Count -eq 0 -and @($noEither).Count -eq 0
+    }
+
+    # (5) meta-text
+    Test-RemediationChecksCase '#1565 Get-MetaTextLines (failing case): a Location of "Specific file path not provided in finding" is flagged, case-insensitively' {
+        $v = @(Get-MetaTextLines "## Location`n`n- **File(s)**: Specific file path NOT PROVIDED IN FINDING`n- #12 (the local model proposed it as a duplicate; the evidence check rejected it)")
+        $v.Count -eq 2
+    }
+    Test-RemediationChecksCase '#1565 Get-MetaTextLines (passing case): a clean draft has no meta-text' {
+        (@(Get-MetaTextLines "## Location`n`n- **File(s)**: ``src/Encina.NATS/NATSMessagePublisher.cs:93-141```n- #12 - possibly related (a similar open issue)")).Count -eq 0
+    }
+
+    # combined pass, marks and the re-ask note
+    $badAll1565 = $natsOnlyDraft1565 + "`nCoverage is 0%. RequestAsync throws on timeout. Specific file path not provided in finding.`n"
+    $violations1565 = Get-DraftViolations $badAll1565 $eitherFinding1565 $tplTest1565 $packages1565 $manifestDir1565
+    Test-RemediationChecksCase '#1565 Get-DraftViolations: one pass finds every class together' {
+        $violations1565.Any -and $violations1565.MissingPackages.Count -eq 4 -and $violations1565.Figures.Count -eq 1 -and $violations1565.ThrowLines.Count -eq 1 -and $violations1565.MetaLines.Count -eq 1
+    }
+    Test-RemediationChecksCase '#1565 Get-DraftViolationMarks: names each surviving class (PACKAGES MISSING, FIGURES NOT IN FINDING, SEMANTICS, META-TEXT LEFT)' {
+        $marks = (@(Get-DraftViolationMarks $violations1565)) -join ' | '
+        $marks -match 'PACKAGES MISSING: Encina\.AzureServiceBus, Encina\.Kafka, Encina\.MQTT, Encina\.RabbitMQ' -and $marks -match 'FIGURES NOT IN FINDING: 0%' -and
+            $marks -match 'SEMANTICS: throws vs Either' -and $marks -match 'META-TEXT LEFT'
+    }
+    Test-RemediationChecksCase '#1565 Format-DraftViolationNote: ONE note names every violation for the single combined re-ask' {
+        $note = Format-DraftViolationNote $violations1565
+        $note -match 'Encina\.Kafka' -and $note -match '0%' -and $note -match 'throws on timeout' -and $note -match 'not provided in finding'
+    }
+    Test-RemediationChecksCase '#1565 Get-DraftViolations (passing case): a clean draft has no violation, no marks and an empty note' {
+        $cleanDraft = $natsOnlyDraft1565 + "`nEncina.RabbitMQ, Encina.MQTT, Encina.AzureServiceBus and Encina.Kafka share the 71.1% unit coverage; a timeout returns Left.`n"
+        $clean = Get-DraftViolations $cleanDraft $eitherFinding1565 $tplTest1565 $packages1565 $manifestDir1565
+        $cleanNoFig = Get-DraftViolations ($cleanDraft -replace '71\.1%', 'low') $eitherFinding1565 $tplTest1565 $packages1565 $manifestDir1565
+        -not $cleanNoFig.Any -and @(Get-DraftViolationMarks $cleanNoFig).Count -eq 0 -and (Format-DraftViolationNote $cleanNoFig) -eq '' -and $clean.Figures.Count -eq 1
+    }
+
+    # wiring: audit-draft-remediation.ps1 applies the checks inside Repair-Draft, re-asks once with every violation,
+    # marks the finding's line and exits 1; no real run happens here (audit #18 is open: #1540).
+    $draftScript1565 = Get-Content (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -Raw
+    Test-RemediationChecksCase '#1565 audit-draft-remediation.ps1 applies Set-PackageLine/Set-TestCategory in Repair-Draft and makes ONE combined re-ask' {
+        $draftScript1565 -match 'Set-PackageLine \$repaired \$Packages \$RouteTemplateFile' -and $draftScript1565 -match 'Set-TestCategory \$repaired \$FindingText' -and
+            ([regex]::Matches($draftScript1565, 'Format-DraftViolationNote')).Count -eq 1 -and $draftScript1565 -match 'reask-checks'
+    }
+    Test-RemediationChecksCase '#1565 audit-draft-remediation.ps1 marks surviving violations and fails the run like PLACEHOLDERS LEFT' {
+        $draftScript1565 -match 'Get-DraftViolationMarks' -and $draftScript1565 -match '\$checkFailures\.Count -gt 0\) \{ exit 1 \}'
+    }
+    Test-RemediationChecksCase '#1565 the possibly-related note the script appends to a draft is itself free of meta-text' {
+        $noteMatch = [regex]::Match($draftScript1565, '"- #\$duplicateOf - possibly related \([^"]*\)"')
+        $noteMatch.Success -and (@(Get-MetaTextLines $noteMatch.Value)).Count -eq 0
+    }
+    # ---- end #1565 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,

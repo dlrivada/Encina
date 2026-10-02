@@ -310,7 +310,7 @@ Guidance:
 # per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
 # (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
 # finding was drafted against.
-function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot, [string]$DebtType) {
+function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot, [string]$DebtType, [string[]]$Packages = @()) {
     $raw = Get-Content -LiteralPath $Path -Raw
     $defenced = Remove-OuterFence $raw
     if ($defenced -ne $raw) {
@@ -325,6 +325,11 @@ function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile,
     $repaired = if ($RouteTemplateFile -eq 'bug_report.md') { Set-BugEnvironment $defenced $RepoRoot $FindingText }
     elseif ($RouteTemplateFile -eq 'technical_debt.md' -and $DebtType) { Set-DebtType $defenced $DebtType }
     else { $defenced }
+    # #1565 decisions 1 and 2: the package line (bug_report.md, test_implementation.md) and the test_implementation.md
+    # Test Category / Infrastructure / Collection Fixture sections are overwritten from the finding's own text the
+    # same way, so a re-asked reply gets them applied again.
+    $repaired = Set-PackageLine $repaired $Packages $RouteTemplateFile
+    if ($RouteTemplateFile -eq 'test_implementation.md') { $repaired = Set-TestCategory $repaired $FindingText }
     if ($repaired -ne $raw) {
         Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $repaired
     }
@@ -488,7 +493,7 @@ if ($onlyKeys) {
         # to be the one exception, matching "_brief-<n>-code-10.md" too and deleting an untouched finding's
         # brief without ever regenerating it; it is now two exact patterns (the base brief and its "-reask"
         # variant), like the input/classify patterns already were.
-        $narrowPatterns = "$n-$keyStage-$keyId-*.md", "_input-$n-$keyStage-$keyId.md", "_classify-brief-$n-$keyStage-$keyId.md", "_classify-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId-reask.md"
+        $narrowPatterns = "$n-$keyStage-$keyId-*.md", "_input-$n-$keyStage-$keyId.md", "_classify-brief-$n-$keyStage-$keyId.md", "_classify-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId-reask.md", "_brief-$n-$keyStage-$keyId-reask-checks.md"
         foreach ($pattern in $narrowPatterns) {
             foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
                 Remove-Item -LiteralPath $staleFile.FullName -Force
@@ -538,6 +543,7 @@ else {
 $computedLinesByKey = @{}
 $lessons = [System.Collections.Generic.List[string]]::new()
 $placeholderFailures = [System.Collections.Generic.List[string]]::new()
+$checkFailures = [System.Collections.Generic.List[string]]::new()
 $ghIssueCache = @{}
 
 # #1491 decision 3: writes $LinesByKey[$PrimaryKey] = $PrimaryLine for the group's primary finding (the one
@@ -753,7 +759,9 @@ $candidateLinesForClassify
             "- #$duplicateOf - partially related (it covers only part of this finding)"
         }
         else {
-            "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
+            # #1565 decision 5: worded without pipeline meta-text ('local model', 'evidence check'), which the
+            # meta-text guard would otherwise flag in the draft this very line is appended to.
+            "- #$duplicateOf - possibly related (a similar open issue; no shared file and symbol in its title or body)"
         }
         $duplicateOf = $null
     }
@@ -791,7 +799,9 @@ $candidateLinesForClassify
     # template's own placeholder text survived into the draft. A draft that still has placeholders after the
     # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
     # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
+    # #1565 decision 1: the finding's canonical package set, derived once, before either Repair-Draft call.
+    $packageSet = @(Get-FindingPackages $finding.Text $wt)
+    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType $packageSet
     if ($placeholders.Count -gt 0) {
         $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
         $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
@@ -816,8 +826,42 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
             Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
             exit 1
         }
-        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType $packageSet
     }
+
+    # #1565 decisions 1, 3, 4, 5 and 6: the draft must keep the finding's facts -- every package of the set named,
+    # no percentage the finding/template/coverage manifest does not give, no "throws" for a Left-returning
+    # symbol, no pipeline meta-text. ALL violations found are combined into ONE extra model call per draft (after
+    # the placeholder re-ask above, so never more than the existing re-ask budget plus one); what still violates
+    # after it is marked in stages/remediation.md and fails the run at the end.
+    $templateTextForChecks = Get-Content -LiteralPath (Join-Path $templatesDir $route.Template) -Raw
+    $manifestDir = Join-Path $wt '.github\coverage-manifest'
+    $violations = Get-DraftViolations (Get-Content -LiteralPath $outFile -Raw) $finding.Text $templateTextForChecks $packageSet $manifestDir
+    if ($violations.Any) {
+        $checkReaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask-checks.md"
+        Set-Content -LiteralPath $checkReaskBrief -Encoding utf8 -Value @"
+$(Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
+
+Your previous reply lost facts of the finding or contained text that does not belong in an issue:
+
+$(Format-DraftViolationNote $violations)
+"@
+        Push-Location $mainRoot
+        try {
+            $checkReaskOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$n-$($finding.Stage)-$($finding.Id)-reask-checks" --brief $checkReaskBrief --input $inputFile --out $outFile 2>&1
+            $checkReaskExit = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+        if ($checkReaskExit -ne 0 -or -not (Test-Path -LiteralPath $outFile)) {
+            Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $checkReaskExit, output present: $(Test-Path -LiteralPath $outFile)): $checkReaskOutput"
+            exit 1
+        }
+        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType $packageSet
+        $violations = Get-DraftViolations (Get-Content -LiteralPath $outFile -Raw) $finding.Text $templateTextForChecks $packageSet $manifestDir
+    }
+    $violationMarks = @(Get-DraftViolationMarks $violations)
 
     # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
     # rejected is still worth a human glance -- append it to the draft's own Related Issues section.
@@ -868,10 +912,16 @@ an 'Example.Package' row or a literal 'Test N: Description' row untouched.
         }
     }
 
-    if ($placeholders.Count -gt 0) {
-        $placeholderFailures.Add((Split-Path -Leaf $outFile))
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)" $otherMembers $finding.Stage $finding.Id
-        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
+    if ($placeholders.Count -gt 0 -or $violationMarks.Count -gt 0) {
+        # #1565: every surviving defect class is marked on the finding's line, and the run exits 1 at the end,
+        # exactly like the existing PLACEHOLDERS LEFT handling.
+        $allMarks = [System.Collections.Generic.List[string]]::new()
+        if ($placeholders.Count -gt 0) { $allMarks.Add('PLACEHOLDERS LEFT after one re-ask'); $placeholderFailures.Add((Split-Path -Leaf $outFile)) }
+        foreach ($mark in $violationMarks) { $allMarks.Add($mark) }
+        if ($violationMarks.Count -gt 0) { $checkFailures.Add("$(Split-Path -Leaf $outFile) ($($violationMarks -join '; '))") }
+        $marksText = $allMarks -join '; '
+        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) ($marksText)" $otherMembers $finding.Stage $finding.Id
+        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- $marksText"
     }
     elseif ($sanitized.Removed.Count -gt 0) {
         $removedList = ($sanitized.Removed | ForEach-Object { "#$_" }) -join ', '
@@ -950,5 +1000,10 @@ else {
 # report success -- the orchestrator needs to see this before audit-verifier does.
 if ($placeholderFailures.Count -gt 0) {
     "audit-draft-remediation: $($placeholderFailures.Count) draft(s) still have unfilled template placeholders after one re-ask: $($placeholderFailures -join ', ')"
-    exit 1
 }
+# #1565: a draft that still lost a package, states a figure the finding does not give, says "throws" for a
+# Left-returning symbol or carries pipeline meta-text after its one combined re-ask is kept and marked the same way.
+if ($checkFailures.Count -gt 0) {
+    "audit-draft-remediation: $($checkFailures.Count) draft(s) still violate the finding's facts after one re-ask: $($checkFailures -join ', ')"
+}
+if ($placeholderFailures.Count -gt 0 -or $checkFailures.Count -gt 0) { exit 1 }

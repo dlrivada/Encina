@@ -1051,3 +1051,273 @@ function Add-ReportedByLine {
     }
     return [pscustomobject]@{ Text = $text; Found = $false }
 }
+
+# ---- #1565: the five defect classes audit #18's verifier loop kept finding in the local model's drafts --------
+# A draft that drops a fact of its finding (a package, the unit/guard test category, a measured figure, the
+# Left-returning semantics) or carries pipeline meta-text never converges by re-rolling the model, so each class
+# is decided here, deterministically, from the finding's own text. All functions are pure (plain strings and a
+# repo root / manifest directory in, plain values out): no model call, no `gh`.
+
+# Decision 1: the canonical package set of a finding -- every 'src/Encina.<X>/' path and every bare 'Encina.<X>'
+# token (which also covers an 'Encina.<X>/<file>' path), kept only when '<RepoRoot>/src/Encina.<X>' exists as a
+# directory, so an invented or namespace-only name ('Encina.Messaging.Outbox') never passes. Returns the
+# ordinal-sorted, distinct names ('Encina' alone is not 'Encina.<X>' and is never returned).
+function Get-FindingPackages {
+    param([string]$FindingText, [string]$RepoRoot)
+
+    if ([string]::IsNullOrWhiteSpace($FindingText) -or [string]::IsNullOrWhiteSpace($RepoRoot)) { return @() }
+    $found = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in [regex]::Matches($FindingText, 'src[\\/](Encina\.[A-Za-z0-9._-]*[A-Za-z0-9])[\\/]')) { $names.Add($m.Groups[1].Value) }
+    foreach ($m in [regex]::Matches($FindingText, '(?<![\w.\\/-])(Encina(?:\.[A-Za-z0-9]+)+)')) { $names.Add($m.Groups[1].Value) }
+    foreach ($name in $names) {
+        if (Test-Path -LiteralPath (Join-Path $RepoRoot "src\$name") -PathType Container) { [void]$found.Add($name) }
+    }
+    return @($found)
+}
+
+# The package line of the two routed templates that carry one: bug_report.md '- **Package(s) Affected**: ...'
+# and test_implementation.md '- **Package(s)**: ...'.
+function Get-PackageLinePattern {
+    param([string]$TemplateFile)
+
+    if ($TemplateFile -eq 'bug_report.md') { return '^(?<indent>\s*-\s*)\*\*Package\(s\)\s*Affected\*\*:.*$' }
+    if ($TemplateFile -eq 'test_implementation.md') { return '^(?<indent>\s*-\s*)\*\*Package\(s\)\*\*:.*$' }
+    return $null
+}
+
+# Decision 1: writes the sorted, comma-separated set into the routed template's package line, like Set-DebtType
+# does for the Type box. An empty set (the finding names no existing package) or a template without that line
+# leaves the draft unchanged.
+function Set-PackageLine {
+    param([string]$DraftText, [string[]]$Packages, [string]$TemplateFile)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $pattern = Get-PackageLinePattern $TemplateFile
+    if ($null -eq $pattern -or $null -eq $Packages -or $Packages.Count -eq 0) { return $text }
+    $label = if ($TemplateFile -eq 'bug_report.md') { 'Package(s) Affected' } else { 'Package(s)' }
+    $lines = @($text -split "`r?`n")
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $m = [regex]::Match($lines[$i], $pattern)
+        if ($m.Success) { $lines[$i] = $m.Groups['indent'].Value + "**$label**: " + ($Packages -join ', ') }
+    }
+    return ($lines -join "`n")
+}
+
+# Decision 1, second half: the packages of the set the draft body never names, outside the package line itself.
+# 'Encina.NATS' counts as named in 'src/Encina.NATS/X.cs' and in 'Encina.NATS.NatsOptions', but not as a prefix of
+# a longer package name ('Encina.NATSExtras').
+function Get-MissingPackages {
+    param([string]$DraftText, [string[]]$Packages)
+
+    $missing = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $Packages -or $Packages.Count -eq 0) { return @() }
+    $body = (@(($DraftText -split "`r?`n") | Where-Object { $_ -notmatch '^\s*-\s*\*\*Package\(s\)(?:\s*Affected)?\*\*:' })) -join "`n"
+    foreach ($package in $Packages) {
+        if (-not [regex]::IsMatch($body, '(?<![\w.])' + [regex]::Escape($package) + '(?![A-Za-z0-9_-])')) { $missing.Add($package) }
+    }
+    return @($missing)
+}
+
+# Decision 2: the Test Category boxes (test_implementation.md) that the finding's text names, as the labels'
+# leading words. Unit Tests when the finding mentions the unit or guard flag or unit/guard tests; Integration
+# Tests only when it mentions the integration flag, Docker, Testcontainers, a real database or broker
+# container; every other box only when it is named.
+function Get-TestCategoryTicks {
+    param([string]$FindingText)
+
+    $t = if ($null -eq $FindingText) { '' } else { $FindingText -replace '[`*_]', '' }
+    $ticks = [System.Collections.Generic.List[string]]::new()
+    if ($t -match '(?i)\b(?:unit|guard)(?:\s*/\s*(?:unit|guard))?[\s-]+(?:flags?|tests?|coverage)\b') { $ticks.Add('Unit Tests') }
+    if ($t -match '(?i)\bintegration[\s-]+(?:flags?|tests?|coverage)\b|\bdocker\b|\btestcontainers?\b|\breal\s+(?:databases?|brokers?)\b|\b(?:database|broker)\s+containers?\b') { $ticks.Add('Integration Tests') }
+    if ($t -match '(?i)\bproperty[\s-]+(?:based[\s-]+)?(?:flags?|tests?)\b|\bfscheck\b') { $ticks.Add('Property-Based Tests') }
+    if ($t -match '(?i)\bcontract[\s-]+(?:flags?|tests?)\b') { $ticks.Add('Contract Tests') }
+    if ($t -match '(?i)\bguard[\s-]+(?:clauses?|flags?|tests?)\b|\bunit\s*/\s*guard\b|\bguard\s*/\s*unit\b') { $ticks.Add('Guard Clause Tests') }
+    if ($t -match '(?i)\bload[\s-]+tests?\b|\bnbomber\b') { $ticks.Add('Load Tests') }
+    if ($t -match '(?i)\bbenchmarks?\b|\bbenchmarkdotnet\b') { $ticks.Add('Benchmark Tests') }
+    if ($t -match '(?i)\bcoverage\s+gap\b|\bbelow\s+(?:the\s+)?(?:\d+(?:\.\d+)?%\s+)?target\b') { $ticks.Add('Coverage Gap') }
+    return @($ticks)
+}
+
+# The [start, end) line range of one '## <name>' section (header line excluded from the body, end = the next '## '
+# header or the end of the text); $null when the header is missing.
+function Get-DraftSectionRange {
+    param([string[]]$Lines, [string]$Name)
+
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if ($Lines[$i].Trim() -ne "## $Name") { continue }
+        $end = $Lines.Count
+        for ($j = $i + 1; $j -lt $Lines.Count; $j++) {
+            if ($Lines[$j] -match '^##\s') { $end = $j; break }
+        }
+        return [pscustomobject]@{ Header = $i; End = $end }
+    }
+    return $null
+}
+
+# Decision 2: rewrites every Test Category box from Get-TestCategoryTicks, then, when Integration Tests is not
+# ticked: ticks only 'None (pure unit tests)' under '## Infrastructure Required', and replaces the body of
+# '## Collection Fixture (Integration Tests Only)' with "Not applicable: no integration tests." (the header and
+# the quoted AGENTS.md line stay). A section the draft does not have is skipped, never invented.
+function Set-TestCategory {
+    param([string]$DraftText, [string]$FindingText)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $lines = @($text -split "`r?`n")
+    $ticks = @(Get-TestCategoryTicks $FindingText)
+    $integration = $ticks -contains 'Integration Tests'
+    $checkbox = '^(?<prefix>\s*-\s*\[)[ xX](?<rest>\]\s*(?<label>.*))$'
+
+    $category = Get-DraftSectionRange $lines 'Test Category'
+    if ($category) {
+        for ($i = $category.Header + 1; $i -lt $category.End; $i++) {
+            $m = [regex]::Match($lines[$i], $checkbox)
+            if (-not $m.Success) { continue }
+            $label = ($m.Groups['label'].Value -replace '\*', '').Trim()
+            $on = $false
+            foreach ($tick in $ticks) { if ($label.StartsWith($tick, [System.StringComparison]::OrdinalIgnoreCase)) { $on = $true; break } }
+            $lines[$i] = $m.Groups['prefix'].Value + $(if ($on) { 'x' } else { ' ' }) + $m.Groups['rest'].Value
+        }
+    }
+    if ($integration) { return ($lines -join "`n") }
+
+    $infra = Get-DraftSectionRange $lines 'Infrastructure Required'
+    if ($infra) {
+        for ($i = $infra.Header + 1; $i -lt $infra.End; $i++) {
+            $m = [regex]::Match($lines[$i], $checkbox)
+            if (-not $m.Success) { continue }
+            $label = ($m.Groups['label'].Value -replace '\*', '').Trim()
+            $on = $label.StartsWith('None (pure unit tests)', [System.StringComparison]::OrdinalIgnoreCase)
+            $lines[$i] = $m.Groups['prefix'].Value + $(if ($on) { 'x' } else { ' ' }) + $m.Groups['rest'].Value
+        }
+    }
+
+    $fixture = Get-DraftSectionRange $lines 'Collection Fixture (Integration Tests Only)'
+    if ($fixture) {
+        $rebuilt = [System.Collections.Generic.List[string]]::new()
+        for ($i = 0; $i -le $fixture.Header; $i++) { $rebuilt.Add($lines[$i]) }
+        $rebuilt.Add('')
+        for ($i = $fixture.Header + 1; $i -lt $fixture.End; $i++) {
+            if ($lines[$i].TrimStart().StartsWith('>')) { $rebuilt.Add($lines[$i]); $rebuilt.Add('') }
+        }
+        $rebuilt.Add('Not applicable: no integration tests.')
+        $rebuilt.Add('')
+        for ($i = $fixture.End; $i -lt $lines.Count; $i++) { $rebuilt.Add($lines[$i]) }
+        $lines = $rebuilt.ToArray()
+    }
+    return ($lines -join "`n")
+}
+
+# Decision 3: every percentage of the draft that appears (numerically) neither in the finding text, nor in the
+# routed template's own text, nor as a target of '<ManifestDir>/<Package>.json' for a package of the set. Returns
+# the offending figures as written in the draft, in order of appearance, without repeats.
+function Get-UnsupportedFigures {
+    param([string]$DraftText, [string]$FindingText, [string]$TemplateText, [string[]]$Packages, [string]$ManifestDir)
+
+    $culture = [System.Globalization.CultureInfo]::InvariantCulture
+    $figurePattern = '\d+(?:\.\d+)?%'
+    $allowed = [System.Collections.Generic.HashSet[double]]::new()
+    foreach ($source in @($FindingText, $TemplateText)) {
+        if ([string]::IsNullOrEmpty($source)) { continue }
+        foreach ($m in [regex]::Matches($source, $figurePattern)) { [void]$allowed.Add([double]::Parse($m.Value.TrimEnd('%'), $culture)) }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ManifestDir)) {
+        foreach ($package in @($Packages)) {
+            $manifestPath = Join-Path $ManifestDir "$package.json"
+            if (-not (Test-Path -LiteralPath $manifestPath)) { continue }
+            $manifest = $null
+            try { $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $manifest = $null }
+            if ($null -eq $manifest -or $null -eq $manifest.targets) { continue }
+            foreach ($target in $manifest.targets.PSObject.Properties) {
+                $number = 0.0
+                if ([double]::TryParse([string]$target.Value, [System.Globalization.NumberStyles]::Float, $culture, [ref]$number)) { [void]$allowed.Add($number) }
+            }
+        }
+    }
+
+    $unsupported = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in [regex]::Matches([string]$DraftText, $figurePattern)) {
+        if ($allowed.Contains([double]::Parse($m.Value.TrimEnd('%'), $culture))) { continue }
+        if ($unsupported -notcontains $m.Value) { $unsupported.Add($m.Value) }
+    }
+    return @($unsupported)
+}
+
+# Decision 4: when the finding says the code returns Left/Either and never says "throw" in any form, a draft line
+# saying throw/throws/thrown is a violation, unless the same line names ArgumentNullException or
+# ArgumentException (guard clauses legitimately throw). Returns the offending lines, trimmed.
+function Get-EitherSemanticsViolations {
+    param([string]$FindingText, [string]$DraftText)
+
+    if ([string]::IsNullOrEmpty($FindingText) -or $FindingText -cnotmatch '\b(?:Left|Either)\b' -or $FindingText -match '(?i)\bthrow') { return @() }
+    $bad = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in ([string]$DraftText -split "`r?`n")) {
+        if ($line -notmatch '(?i)\b(?:throw|throws|thrown)\b') { continue }
+        if ($line -match 'ArgumentNullException|ArgumentException') { continue }
+        $bad.Add($line.Trim())
+    }
+    return @($bad)
+}
+
+# Decision 5: pipeline meta-text the model sometimes writes into a draft ("Specific file path not provided in
+# finding", "the evidence check rejected it"). Returns the offending lines, trimmed (case-insensitive).
+function Get-MetaTextLines {
+    param([string]$DraftText)
+
+    $bad = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in ([string]$DraftText -split "`r?`n")) {
+        if ($line -match '(?i)local model|evidence check|not provided in finding|proposed it as a duplicate') { $bad.Add($line.Trim()) }
+    }
+    return @($bad)
+}
+
+# Decisions 1, 3, 4, 5 in one pass over a finished draft: what audit-draft-remediation.ps1 re-asks the model
+# about (once, all violations together) and, when a violation survives, marks.
+function Get-DraftViolations {
+    param([string]$DraftText, [string]$FindingText, [string]$TemplateText, [string[]]$Packages, [string]$ManifestDir)
+
+    $missing = @(Get-MissingPackages $DraftText $Packages)
+    $figures = @(Get-UnsupportedFigures $DraftText $FindingText $TemplateText $Packages $ManifestDir)
+    $throwLines = @(Get-EitherSemanticsViolations $FindingText $DraftText)
+    $metaLines = @(Get-MetaTextLines $DraftText)
+    return [pscustomobject]@{
+        MissingPackages = $missing
+        Figures         = $figures
+        ThrowLines      = $throwLines
+        MetaLines       = $metaLines
+        Any             = (($missing.Count + $figures.Count + $throwLines.Count + $metaLines.Count) -gt 0)
+    }
+}
+
+# The stages/remediation.md marks for the violations that survived the re-ask, one per class.
+function Get-DraftViolationMarks {
+    param([pscustomobject]$Violations)
+
+    $marks = [System.Collections.Generic.List[string]]::new()
+    if ($Violations.MissingPackages.Count -gt 0) { $marks.Add('PACKAGES MISSING: ' + ($Violations.MissingPackages -join ', ')) }
+    if ($Violations.Figures.Count -gt 0) { $marks.Add('FIGURES NOT IN FINDING: ' + ($Violations.Figures -join ', ')) }
+    if ($Violations.ThrowLines.Count -gt 0) { $marks.Add('SEMANTICS: throws vs Either') }
+    if ($Violations.MetaLines.Count -gt 0) { $marks.Add('META-TEXT LEFT') }
+    return @($marks)
+}
+
+# The text appended to the draft brief for the ONE combined re-ask of decision 6: every violation found, each
+# with what to do about it.
+function Format-DraftViolationNote {
+    param([pscustomobject]$Violations)
+
+    $parts = [System.Collections.Generic.List[string]]::new()
+    if ($Violations.MissingPackages.Count -gt 0) {
+        $parts.Add("The draft body never names these packages of the finding: $($Violations.MissingPackages -join ', '). Cover every one of them in the draft (Description, Current Coverage, Test Plan or Location), not only one package.")
+    }
+    if ($Violations.Figures.Count -gt 0) {
+        $parts.Add("The draft states these percentages, which are not in the finding: $($Violations.Figures -join ', '). Use only figures the finding itself gives; when it gives none, state no figure.")
+    }
+    if ($Violations.ThrowLines.Count -gt 0) {
+        $parts.Add("The finding says the code returns Left/Either, but these draft lines say it throws:`n" + (($Violations.ThrowLines | ForEach-Object { "- $_" }) -join "`n") + "`nDescribe the Left/Either result instead; never say it throws.")
+    }
+    if ($Violations.MetaLines.Count -gt 0) {
+        $parts.Add("These draft lines talk about the drafting pipeline instead of the finding:`n" + (($Violations.MetaLines | ForEach-Object { "- $_" }) -join "`n") + "`nRewrite each with facts from the finding only; when a fact is missing, leave the detail out rather than saying it is missing.")
+    }
+    return ($parts -join "`n`n")
+}
