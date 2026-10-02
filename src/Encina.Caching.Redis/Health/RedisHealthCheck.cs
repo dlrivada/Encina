@@ -74,7 +74,7 @@ public sealed class RedisHealthCheck : EncinaHealthCheck
         }
         catch (RedisException ex)
         {
-            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.Message}");
+            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.GetType().Name}");
         }
     }
 }

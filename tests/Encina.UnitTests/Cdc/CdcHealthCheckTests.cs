@@ -103,6 +103,7 @@ public sealed class CdcHealthCheckTests
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("not accessible");
+        result.Data["connector_error"].ShouldBe("encina.unknown");
     }
 
     [Fact]
@@ -122,6 +123,7 @@ public sealed class CdcHealthCheckTests
 
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description!.ShouldContain("position store");
+        result.Data["store_error"].ShouldBe("encina.unknown");
     }
 
     [Fact]

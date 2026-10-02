@@ -70,6 +70,21 @@ public sealed class DataSubjectRightsHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        try
+        {
+            return await RunChecksAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Only the exception type: the message and the exception object can carry personal data
+            // or host names, and the health service would otherwise copy both to the report entry.
+            return HealthCheckResult.Unhealthy(
+                $"DSR health check failed with exception: {ex.GetType().Name}");
+        }
+    }
+
+    private async Task<HealthCheckResult> RunChecksAsync(CancellationToken cancellationToken)
+    {
         var data = new Dictionary<string, object>();
         var warnings = new List<string>();
 

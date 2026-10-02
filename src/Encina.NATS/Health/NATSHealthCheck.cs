@@ -45,7 +45,7 @@ public sealed class NATSHealthCheck : EncinaHealthCheck
         }
         catch (NatsException ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.Message}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.GetType().Name}"));
         }
     }
 }

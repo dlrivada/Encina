@@ -157,6 +157,7 @@ public sealed class ShardedCdcHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain("cannot retrieve positions");
+        result.Data["connector_error"].ShouldBe("encina.unknown");
     }
 
     #endregion
@@ -178,6 +179,7 @@ public sealed class ShardedCdcHealthCheckTests
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain("position store is not accessible");
+        result.Data["store_error"].ShouldBe("encina.unknown");
     }
 
     #endregion
@@ -247,7 +249,6 @@ public sealed class ShardedCdcHealthCheckTests
         // The base class only reports the exception type, never its message or the exception
         // object itself (#1259 review).
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBeNull();
         result.Description!.ShouldContain(nameof(TimeoutException));
         result.Description!.ShouldNotContain("Connection timeout");
     }

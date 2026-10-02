@@ -60,9 +60,6 @@ public sealed class EntityFrameworkCoreHealthCheck : EncinaHealthCheck
         {
             return HealthCheckResult.Unhealthy($"{Name} health check timed out after {_options.Timeout.TotalSeconds}s");
         }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.Message}");
-        }
+        // Any other failure is reported by the EncinaHealthCheck base class (exception type only).
     }
 }

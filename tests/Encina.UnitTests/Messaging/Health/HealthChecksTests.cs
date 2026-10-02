@@ -44,7 +44,6 @@ public sealed class HealthChecksTests
         result.Description.ShouldNotBeNull();
         result.Description!.ShouldContain(nameof(InvalidOperationException));
         result.Description!.ShouldNotContain("Database connection failed");
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]

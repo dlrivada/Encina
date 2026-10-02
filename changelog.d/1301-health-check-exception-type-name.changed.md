@@ -1,0 +1,1 @@
+- The `EncinaHealthCheck` base class now reports `GetType().Name` instead of the full type name when a check throws, consistent with every other sanitized health check (#1301).

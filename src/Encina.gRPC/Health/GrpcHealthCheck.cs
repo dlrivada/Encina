@@ -41,23 +41,17 @@ public sealed class GrpcHealthCheck : EncinaHealthCheck
     /// <inheritdoc/>
     protected override Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            // Create a scope to resolve scoped services
-            using var scope = _serviceProvider.CreateScope();
-            var grpcService = scope.ServiceProvider.GetService<IGrpcEncinaService>();
+        // Unexpected failures are reported by the EncinaHealthCheck base class (exception type only).
+        // Create a scope to resolve scoped services
+        using var scope = _serviceProvider.CreateScope();
+        var grpcService = scope.ServiceProvider.GetService<IGrpcEncinaService>();
 
-            if (grpcService is null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    $"{Name} is not configured. Call AddEncinaGrpc() to register gRPC services."));
-            }
-
-            return Task.FromResult(HealthCheckResult.Healthy($"{Name} is configured and ready"));
-        }
-        catch (Exception ex)
+        if (grpcService is null)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} check failed: {ex.Message}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy(
+                $"{Name} is not configured. Call AddEncinaGrpc() to register gRPC services."));
         }
+
+        return Task.FromResult(HealthCheckResult.Healthy($"{Name} is configured and ready"));
     }
 }

@@ -46,15 +46,15 @@ internal sealed class EncinaHealthCheckAdapter : IHealthCheck
                 result.Description,
                 ConvertData(result.Data)),
 
+            // The exception object is never forwarded to the endpoint result: ASP.NET health writers
+            // and logging providers can print its message, which may carry host names or personal data.
             EncinaHealthStatus.Degraded => AspNetHealthCheckResult.Degraded(
                 result.Description,
-                result.Exception,
-                ConvertData(result.Data)),
+                data: ConvertData(result.Data)),
 
             EncinaHealthStatus.Unhealthy => AspNetHealthCheckResult.Unhealthy(
                 result.Description,
-                result.Exception,
-                ConvertData(result.Data)),
+                data: ConvertData(result.Data)),
 
             _ => AspNetHealthCheckResult.Unhealthy($"Unknown health status: {result.Status}")
         };

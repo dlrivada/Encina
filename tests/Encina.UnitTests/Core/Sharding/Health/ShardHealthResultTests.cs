@@ -102,11 +102,11 @@ public sealed class ShardHealthResultTests
     }
 
     [Fact]
-    public void Degraded_WithException_SetsException()
+    public void Degraded_WithPoolStats_SetsPoolStats()
     {
-        var ex = new TimeoutException("Timed out");
-        var result = ShardHealthResult.Degraded("shard-1", exception: ex);
-        result.Exception.ShouldBeSameAs(ex);
+        var stats = new ConnectionPoolStats(1, 2, 3, 0, 10);
+        var result = ShardHealthResult.Degraded("shard-1", "Slow", stats);
+        result.PoolStats.ShouldBe(stats);
     }
 
     [Fact]
@@ -119,11 +119,10 @@ public sealed class ShardHealthResultTests
     }
 
     [Fact]
-    public void Unhealthy_WithException_SetsException()
+    public void ShardHealthResult_DoesNotExposeAnException()
     {
-        var ex = new InvalidOperationException("DB error");
-        var result = ShardHealthResult.Unhealthy("shard-1", exception: ex);
-        result.Exception.ShouldBeSameAs(ex);
+        // A health result can reach a health endpoint: it never carries an exception object.
+        typeof(ShardHealthResult).GetProperty("Exception").ShouldBeNull();
     }
 
     // ────────────────────────────────────────────────────────────

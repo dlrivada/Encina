@@ -87,10 +87,11 @@ public static class HealthCheckBuilderExtensions
             {
                 EncinaHealthStatus.Healthy => AspNetHealthCheckResult.Healthy(
                     result.Description, ConvertData(result.Data)),
+                // The exception object is never forwarded to the endpoint result.
                 EncinaHealthStatus.Degraded => AspNetHealthCheckResult.Degraded(
-                    result.Description, result.Exception, ConvertData(result.Data)),
+                    result.Description, data: ConvertData(result.Data)),
                 EncinaHealthStatus.Unhealthy => AspNetHealthCheckResult.Unhealthy(
-                    result.Description, result.Exception, ConvertData(result.Data)),
+                    result.Description, data: ConvertData(result.Data)),
                 _ => AspNetHealthCheckResult.Unhealthy($"Unknown health status: {result.Status}")
             };
         }

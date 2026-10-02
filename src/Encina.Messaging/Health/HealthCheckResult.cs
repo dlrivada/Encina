@@ -26,17 +26,14 @@ public readonly record struct HealthCheckResult
     /// </summary>
     /// <param name="status">The health status.</param>
     /// <param name="description">An optional description of the health status.</param>
-    /// <param name="exception">An optional exception that caused the health check to fail.</param>
     /// <param name="data">Optional additional data about the health check.</param>
     public HealthCheckResult(
         HealthStatus status,
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
     {
         Status = status;
         Description = description;
-        Exception = exception;
         Data = data ?? ImmutableDictionary<string, object>.Empty;
     }
 
@@ -49,11 +46,6 @@ public readonly record struct HealthCheckResult
     /// Gets an optional description of the health status.
     /// </summary>
     public string? Description { get; }
-
-    /// <summary>
-    /// Gets an optional exception that caused the health check to fail.
-    /// </summary>
-    public Exception? Exception { get; }
 
     /// <summary>
     /// Gets optional additional data about the health check.
@@ -72,33 +64,30 @@ public readonly record struct HealthCheckResult
     public static HealthCheckResult Healthy(
         string? description = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(HealthStatus.Healthy, description, null, data);
+        => new(HealthStatus.Healthy, description, data);
 
     /// <summary>
     /// Creates a degraded result.
     /// </summary>
     /// <param name="description">An optional description.</param>
-    /// <param name="exception">An optional exception.</param>
     /// <param name="data">Optional additional data.</param>
     /// <returns>A degraded result.</returns>
     public static HealthCheckResult Degraded(
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(HealthStatus.Degraded, description, exception, data);
+        => new(HealthStatus.Degraded, description, data);
 
     /// <summary>
     /// Creates an unhealthy result.
     /// </summary>
-    /// <param name="description">An optional description.</param>
-    /// <param name="exception">An optional exception.</param>
+    /// <param name="description">An optional description. Never put an exception message in it:
+    /// a health result can reach a health endpoint, so name the exception type instead.</param>
     /// <param name="data">Optional additional data.</param>
     /// <returns>An unhealthy result.</returns>
     public static HealthCheckResult Unhealthy(
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(HealthStatus.Unhealthy, description, exception, data);
+        => new(HealthStatus.Unhealthy, description, data);
 }
 
 /// <summary>

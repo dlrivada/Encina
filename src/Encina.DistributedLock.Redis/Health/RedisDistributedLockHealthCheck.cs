@@ -59,7 +59,7 @@ public sealed class RedisDistributedLockHealthCheck : IEncinaHealthCheck
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy($"Redis connection failed: {ex.Message}");
+            return HealthCheckResult.Unhealthy($"Redis connection failed: {ex.GetType().Name}");
         }
     }
 }

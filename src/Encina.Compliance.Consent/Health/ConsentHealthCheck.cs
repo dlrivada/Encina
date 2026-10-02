@@ -67,6 +67,21 @@ public sealed class ConsentHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        try
+        {
+            return RunChecks();
+        }
+        catch (Exception ex)
+        {
+            // Only the exception type: the health service would otherwise copy the message and the
+            // exception object to the report entry.
+            return Task.FromResult(HealthCheckResult.Unhealthy(
+                $"Consent health check failed with exception: {ex.GetType().Name}"));
+        }
+    }
+
+    private Task<HealthCheckResult> RunChecks()
+    {
         var data = new Dictionary<string, object>();
         var warnings = new List<string>();
 

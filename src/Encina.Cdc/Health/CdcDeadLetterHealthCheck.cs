@@ -91,7 +91,8 @@ internal sealed class CdcDeadLetterHealthCheck : EncinaHealthCheck
             {
                 var data = new Dictionary<string, object>
                 {
-                    ["store_error"] = error.ToString()
+                    // Only the error code: EncinaError.ToString() prints its Message and exception.
+                    ["store_error"] = error.GetCode().IfNone("encina.unknown")
                 };
 
                 return HealthCheckResult.Unhealthy(

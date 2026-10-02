@@ -183,7 +183,8 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return (false, ex.Message);
+            // Only the exception type: the message can carry the server name or credentials.
+            return (false, ex.GetType().Name);
         }
     }
 }

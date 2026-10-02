@@ -60,7 +60,6 @@ public sealed class AwsLambdaHealthCheck : IEncinaHealthCheck
         var result = new HealthCheckResult(
             HealthStatus.Healthy,
             "AWS Lambda integration is configured and ready",
-            exception: null,
             data: data);
 
         return Task.FromResult(result);

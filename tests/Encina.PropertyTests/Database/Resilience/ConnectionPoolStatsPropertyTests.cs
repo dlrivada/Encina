@@ -277,7 +277,7 @@ public sealed class ConnectionPoolStatsPropertyTests
 
         return result.Status == DatabaseHealthStatus.Healthy
             && result.Description == "test"
-            && result.Exception is null;
+            && result.Data.Count == 0;
     }
 
     [Property(MaxTest = 50)]
@@ -298,7 +298,7 @@ public sealed class ConnectionPoolStatsPropertyTests
 
         return result.Status == DatabaseHealthStatus.Degraded
             && result.Description == "test"
-            && result.Exception is null;
+            && result.Data.Count == 0;
     }
 
     [Property(MaxTest = 50)]

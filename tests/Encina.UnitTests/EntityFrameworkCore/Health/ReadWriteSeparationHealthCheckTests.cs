@@ -142,7 +142,27 @@ public sealed class ReadWriteSeparationHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldNotBeNull();
-        result.Description!.ShouldContain("Scope creation failed");
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Scope creation failed");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WhenPrimaryIsNotReachable_ReturnsUnhealthy()
+    {
+        // Arrange - the selector is registered but no DbContext can be resolved
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<IReadWriteConnectionSelector>());
+        var options = new ReadWriteSeparationOptions { WriteConnectionString = "Server=primary;" };
+
+        var sut = new ReadWriteSeparationHealthCheck(services.BuildServiceProvider(), options);
+
+        // Act
+        var result = await sut.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("Primary database is not reachable");
+        result.Data["primary"].ShouldBe("unreachable");
     }
 
     #endregion
@@ -278,6 +298,10 @@ public sealed class ReadWriteSeparationHealthCheckTests
         result.Data["healthy_replica_count"].ShouldBe(0);
         result.Data.ShouldContainKey("total_replica_count");
         result.Data["total_replica_count"].ShouldBe(2);
+
+        // Replicas are labelled by a stable index, never by the host name in the connection string.
+        var replicas = result.Data["replicas"].ShouldBeOfType<Dictionary<string, string>>();
+        replicas.Keys.ShouldBe(["replica_1", "replica_2"]);
     }
 
     #endregion

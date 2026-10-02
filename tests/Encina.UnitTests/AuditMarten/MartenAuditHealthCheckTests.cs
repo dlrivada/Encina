@@ -117,6 +117,12 @@ public sealed class MartenAuditHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Data.ShouldContainKey("error");
+
+        // Only the error code travels, never EncinaError.Message.
+        var expectedCode = MartenAuditErrors.StoreUnavailable("unreachable").GetCode().IfNone("encina.unknown");
+        result.Data["error"].ShouldBe(expectedCode);
+        result.Description!.ShouldContain(expectedCode);
+        result.Description!.ShouldNotContain("unreachable");
     }
 
     [Fact]
@@ -138,6 +144,8 @@ public sealed class MartenAuditHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldNotBeNull();
+        result.Exception.ShouldBeNull();
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("boom");
     }
 }

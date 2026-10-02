@@ -27,6 +27,21 @@ public sealed class SchemaDriftHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WhenCoordinatorThrows_ReportsOnlyTheExceptionType()
+    {
+        _coordinator.DetectDriftAsync(Arg.Any<DriftDetectionOptions>(), Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, SchemaDriftReport>>(_ => throw new InvalidOperationException("secret-host-4711"));
+        var healthCheck = new SchemaDriftHealthCheck(_coordinator, _options);
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret-host-4711");
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
     public void Constructor_NullCoordinator_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
@@ -140,6 +155,10 @@ public sealed class SchemaDriftHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Schema drift detection failed");
+
+        // Only the error code travels, never EncinaError.Message.
+        result.Description!.ShouldNotContain("Connection failed");
+        result.Data["error"].ShouldBe("encina.unknown");
     }
 
     [Fact]

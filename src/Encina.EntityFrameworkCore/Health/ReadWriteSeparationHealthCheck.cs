@@ -111,96 +111,98 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
     protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         var data = new Dictionary<string, object>();
-        var unhealthyReplicas = new List<string>();
-        var healthyReplicas = new List<string>();
-
-        // Check primary (write) database using the connection selector
-        bool primaryHealthy;
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var connectionSelector = scope.ServiceProvider.GetService<IReadWriteConnectionSelector>();
-
-            if (connectionSelector is null)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "IReadWriteConnectionSelector is not registered. " +
-                    "Ensure UseReadWriteSeparation is enabled in the configuration.",
-                    data: data);
-            }
-
-            // Test primary database connectivity by trying to create a context
-            primaryHealthy = await CheckPrimaryAsync(scope.ServiceProvider, cancellationToken);
-            data["primary"] = primaryHealthy ? "reachable" : "unreachable";
-
-            if (!primaryHealthy)
-            {
-                return HealthCheckResult.Unhealthy(
-                    "Primary database is not reachable. Write operations will fail.",
-                    data: data);
-            }
-
-            // Check if replicas are configured
-            if (!connectionSelector.HasReadReplicas)
-            {
-                data["replicas"] = "none configured (using primary for reads)";
-                return HealthCheckResult.Healthy(
-                    "Primary database is reachable (no replicas configured)",
-                    data: data);
-            }
-
-            // Test read replica connectivity
-            var replicaResults = new Dictionary<string, string>();
-            var replicaIndex = 1;
-
-            foreach (var replicaConnectionString in _options.ReadConnectionStrings)
-            {
-                var replicaName = GetReplicaIdentifier(replicaConnectionString, replicaIndex);
-                var replicaHealthy = await CheckReplicaAsync(
-                    scope.ServiceProvider,
-                    replicaConnectionString,
-                    cancellationToken);
-
-                replicaResults[replicaName] = replicaHealthy ? "reachable" : "unreachable";
-
-                if (replicaHealthy)
-                {
-                    healthyReplicas.Add(replicaName);
-                }
-                else
-                {
-                    unhealthyReplicas.Add(replicaName);
-                }
-
-                replicaIndex++;
-            }
-
-            data["replicas"] = replicaResults;
-            data["healthy_replica_count"] = healthyReplicas.Count;
-            data["total_replica_count"] = _options.ReadConnectionStrings.Count;
+            return await CheckConnectivityAsync(data, cancellationToken);
         }
         catch (Exception ex)
         {
+            // Only the exception type: neither the message nor the exception object may reach the endpoint.
             return HealthCheckResult.Unhealthy(
-                $"Failed to check database connectivity: {ex.Message}",
-                exception: ex,
+                $"Failed to check database connectivity: {ex.GetType().Name}",
+                data: data);
+        }
+    }
+
+    private async Task<HealthCheckResult> CheckConnectivityAsync(
+        Dictionary<string, object> data,
+        CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var connectionSelector = scope.ServiceProvider.GetService<IReadWriteConnectionSelector>();
+
+        if (connectionSelector is null)
+        {
+            return HealthCheckResult.Unhealthy(
+                "IReadWriteConnectionSelector is not registered. " +
+                "Ensure UseReadWriteSeparation is enabled in the configuration.",
                 data: data);
         }
 
-        // Determine overall status
-        if (unhealthyReplicas.Count == 0)
+        // Test primary database connectivity by trying to create a context
+        var primaryHealthy = await CheckPrimaryAsync(scope.ServiceProvider, cancellationToken);
+        data["primary"] = primaryHealthy ? "reachable" : "unreachable";
+
+        if (!primaryHealthy)
+        {
+            return HealthCheckResult.Unhealthy(
+                "Primary database is not reachable. Write operations will fail.",
+                data: data);
+        }
+
+        // Check if replicas are configured
+        if (!connectionSelector.HasReadReplicas)
+        {
+            data["replicas"] = "none configured (using primary for reads)";
+            return HealthCheckResult.Healthy(
+                "Primary database is reachable (no replicas configured)",
+                data: data);
+        }
+
+        var replicaResults = await CheckReplicasAsync(scope.ServiceProvider, cancellationToken);
+        var healthyCount = replicaResults.Values.Count(r => r == "reachable");
+
+        data["replicas"] = replicaResults;
+        data["healthy_replica_count"] = healthyCount;
+        data["total_replica_count"] = _options.ReadConnectionStrings.Count;
+
+        return Summarize(healthyCount, _options.ReadConnectionStrings.Count - healthyCount, data);
+    }
+
+    private async Task<Dictionary<string, string>> CheckReplicasAsync(
+        IServiceProvider scopedProvider,
+        CancellationToken cancellationToken)
+    {
+        var replicaResults = new Dictionary<string, string>();
+        var replicaIndex = 1;
+
+        foreach (var replicaConnectionString in _options.ReadConnectionStrings)
+        {
+            var replicaHealthy = await CheckReplicaAsync(scopedProvider, replicaConnectionString, cancellationToken);
+
+            // A stable index, never the host name parsed from the connection string.
+            replicaResults[$"replica_{replicaIndex}"] = replicaHealthy ? "reachable" : "unreachable";
+            replicaIndex++;
+        }
+
+        return replicaResults;
+    }
+
+    private HealthCheckResult Summarize(int healthyCount, int unhealthyCount, Dictionary<string, object> data)
+    {
+        if (unhealthyCount == 0)
         {
             return HealthCheckResult.Healthy(
                 $"Primary and all {_options.ReadConnectionStrings.Count} replicas are reachable",
                 data: data);
         }
 
-        if (healthyReplicas.Count > 0)
+        if (healthyCount > 0)
         {
             return HealthCheckResult.Degraded(
-                $"Primary is reachable but {unhealthyReplicas.Count} of {_options.ReadConnectionStrings.Count} replicas are unreachable. " +
-                $"Read operations will use {healthyReplicas.Count} available replicas.",
+                $"Primary is reachable but {unhealthyCount} of {_options.ReadConnectionStrings.Count} replicas are unreachable. " +
+                $"Read operations will use {healthyCount} available replicas.",
                 data: data);
         }
 
@@ -273,39 +275,5 @@ public sealed class ReadWriteSeparationHealthCheck : EncinaHealthCheck
         {
             return false;
         }
-    }
-
-    private static string GetReplicaIdentifier(string connectionString, int index)
-    {
-        // Try to extract a meaningful identifier from the connection string
-        // This works for most ADO.NET providers that use Server= or Data Source= syntax
-        try
-        {
-            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var part in parts)
-            {
-                var keyValue = part.Split('=', 2);
-                if (keyValue.Length == 2)
-                {
-                    var key = keyValue[0].Trim().ToUpperInvariant();
-                    if (key is "SERVER" or "DATA SOURCE" or "HOST")
-                    {
-                        var value = keyValue[1].Trim();
-                        // Remove port if present
-                        var serverName = value.Split(',')[0].Split(':')[0].Split('\\')[0];
-                        if (!string.IsNullOrWhiteSpace(serverName))
-                        {
-                            return $"replica_{serverName}";
-                        }
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // Ignore parsing errors
-        }
-
-        return $"replica_{index}";
     }
 }

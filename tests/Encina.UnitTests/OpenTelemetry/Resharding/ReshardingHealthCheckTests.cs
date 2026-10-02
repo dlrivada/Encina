@@ -53,6 +53,21 @@ public sealed class ReshardingHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WhenStateStoreThrows_ReportsOnlyTheExceptionType()
+    {
+        _stateStore.GetActiveReshardingsAsync(Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, IReadOnlyList<ReshardingState>>>(_ => throw new InvalidOperationException("secret-host-4711"));
+        var healthCheck = new ReshardingHealthCheck(_stateStore, _options);
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret-host-4711");
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
     public void Constructor_NullStateStore_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
@@ -172,6 +187,10 @@ public sealed class ReshardingHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Failed to query resharding state");
+
+        // Only the error code travels, never EncinaError.Message.
+        result.Description!.ShouldNotContain("Database connection failed");
+        result.Data["error"].ShouldBe("encina.unknown");
     }
 
     [Fact]

@@ -98,17 +98,20 @@ public sealed class MartenAuditHealthCheck : IHealthCheck
                             data: data);
                 },
                 Left: error => HealthCheckResult.Degraded(
-                    $"Marten audit temporal key provider returned an error: {error.Message}",
+                    $"Marten audit temporal key provider returned an error: {ErrorCode(error)}",
                     data: new Dictionary<string, object>
                     {
-                        ["error"] = error.Message
+                        ["error"] = ErrorCode(error)
                     }));
         }
         catch (Exception ex)
         {
+            // Only the exception type: the message and the exception object can carry personal data.
             return HealthCheckResult.Unhealthy(
-                $"Marten audit health check failed with exception: {ex.Message}",
-                exception: ex);
+                $"Marten audit health check failed with exception: {ex.GetType().Name}");
         }
     }
+
+    // Only the error code: EncinaError.Message can carry personal data.
+    private static string ErrorCode(EncinaError error) => error.GetCode().IfNone("encina.unknown");
 }

@@ -36,17 +36,14 @@ public readonly record struct DatabaseHealthResult
     /// </summary>
     /// <param name="status">The health status of the database.</param>
     /// <param name="description">An optional human-readable description of the health status.</param>
-    /// <param name="exception">An optional exception that caused the health check to fail.</param>
     /// <param name="data">Optional additional data about the health check (e.g., pool statistics).</param>
     public DatabaseHealthResult(
         DatabaseHealthStatus status,
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
     {
         Status = status;
         Description = description;
-        Exception = exception;
         Data = data ?? ImmutableDictionary<string, object>.Empty;
     }
 
@@ -59,11 +56,6 @@ public readonly record struct DatabaseHealthResult
     /// Gets an optional human-readable description of the health status.
     /// </summary>
     public string? Description { get; }
-
-    /// <summary>
-    /// Gets an optional exception that caused the health check to fail.
-    /// </summary>
-    public Exception? Exception { get; }
 
     /// <summary>
     /// Gets optional additional data about the health check.
@@ -82,33 +74,30 @@ public readonly record struct DatabaseHealthResult
     public static DatabaseHealthResult Healthy(
         string? description = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(DatabaseHealthStatus.Healthy, description, null, data);
+        => new(DatabaseHealthStatus.Healthy, description, data);
 
     /// <summary>
     /// Creates a degraded result indicating the database is reachable but experiencing issues.
     /// </summary>
     /// <param name="description">An optional description.</param>
-    /// <param name="exception">An optional exception.</param>
     /// <param name="data">Optional additional data.</param>
     /// <returns>A degraded <see cref="DatabaseHealthResult"/>.</returns>
     public static DatabaseHealthResult Degraded(
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(DatabaseHealthStatus.Degraded, description, exception, data);
+        => new(DatabaseHealthStatus.Degraded, description, data);
 
     /// <summary>
     /// Creates an unhealthy result indicating the database is unreachable or failing.
     /// </summary>
-    /// <param name="description">An optional description.</param>
-    /// <param name="exception">An optional exception.</param>
+    /// <param name="description">An optional description. Never put an exception message in it:
+    /// a health result can reach a health endpoint, so name the exception type instead.</param>
     /// <param name="data">Optional additional data.</param>
     /// <returns>An unhealthy <see cref="DatabaseHealthResult"/>.</returns>
     public static DatabaseHealthResult Unhealthy(
         string? description = null,
-        Exception? exception = null,
         IReadOnlyDictionary<string, object>? data = null)
-        => new(DatabaseHealthStatus.Unhealthy, description, exception, data);
+        => new(DatabaseHealthStatus.Unhealthy, description, data);
 }
 
 /// <summary>

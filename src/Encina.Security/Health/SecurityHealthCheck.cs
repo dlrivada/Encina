@@ -51,6 +51,21 @@ public sealed class SecurityHealthCheck : IHealthCheck
     /// <inheritdoc />
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        try
+        {
+            return RunChecks();
+        }
+        catch (Exception ex)
+        {
+            // Only the exception type: the health service would otherwise copy the message and the
+            // exception object to the report entry.
+            return Task.FromResult(HealthCheckResult.Unhealthy(
+                $"Security health check failed with exception: {ex.GetType().Name}"));
+        }
+    }
+
+    private Task<HealthCheckResult> RunChecks()
+    {
         var missingServices = new List<string>();
 
         using var scope = _serviceProvider.CreateScope();

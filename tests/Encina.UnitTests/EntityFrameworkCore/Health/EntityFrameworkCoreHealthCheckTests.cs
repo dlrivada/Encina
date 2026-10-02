@@ -114,7 +114,8 @@ public sealed class EntityFrameworkCoreHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("Connection error");
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Connection error");
     }
 
     [Fact]

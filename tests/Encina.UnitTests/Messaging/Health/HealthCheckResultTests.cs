@@ -15,20 +15,17 @@ public sealed class HealthCheckResultTests
     public void Constructor_WithAllParameters_SetsAllProperties()
     {
         // Arrange
-        var exception = new InvalidOperationException("Test");
         var data = new Dictionary<string, object> { ["key"] = "value" };
 
         // Act
         var result = new HealthCheckResult(
             HealthStatus.Unhealthy,
             "Test description",
-            exception,
             data);
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldBe("Test description");
-        result.Exception.ShouldBe(exception);
         result.Data.ShouldContainKey("key");
         result.Data["key"].ShouldBe("value");
     }
@@ -53,7 +50,6 @@ public sealed class HealthCheckResultTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldBeNull();
-        result.Exception.ShouldBeNull();
         result.Data.ShouldBeEmpty();
     }
 
@@ -70,7 +66,6 @@ public sealed class HealthCheckResultTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Description.ShouldBeNull();
-        result.Exception.ShouldBeNull();
         result.Data.ShouldBeEmpty();
     }
 
@@ -109,7 +104,6 @@ public sealed class HealthCheckResultTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Description.ShouldBeNull();
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]
@@ -124,27 +118,13 @@ public sealed class HealthCheckResultTests
     }
 
     [Fact]
-    public void Degraded_WithException_ReturnsDegradedResultWithException()
-    {
-        // Arrange
-        var exception = new TimeoutException("Connection slow");
-
-        // Act
-        var result = HealthCheckResult.Degraded("Slow", exception);
-
-        // Assert
-        result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Exception.ShouldBe(exception);
-    }
-
-    [Fact]
     public void Degraded_WithData_ReturnsDegradedResultWithData()
     {
         // Arrange
         var data = new Dictionary<string, object> { ["latency"] = 500 };
 
         // Act
-        var result = HealthCheckResult.Degraded("Slow", null, data);
+        var result = HealthCheckResult.Degraded("Slow", data);
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Degraded);
@@ -160,7 +140,6 @@ public sealed class HealthCheckResultTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldBeNull();
-        result.Exception.ShouldBeNull();
     }
 
     [Fact]
@@ -175,33 +154,24 @@ public sealed class HealthCheckResultTests
     }
 
     [Fact]
-    public void Unhealthy_WithException_ReturnsUnhealthyResultWithException()
+    public void HealthCheckResult_DoesNotExposeAnException()
     {
-        // Arrange
-        var exception = new InvalidOperationException("Cannot connect");
-
-        // Act
-        var result = HealthCheckResult.Unhealthy("Failed", exception);
-
-        // Assert
-        result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Exception.ShouldBe(exception);
+        // A health result can reach a health endpoint: it never carries an exception object.
+        typeof(HealthCheckResult).GetProperty("Exception").ShouldBeNull();
     }
 
     [Fact]
     public void Unhealthy_WithAllParameters_ReturnsUnhealthyResultWithAllProperties()
     {
         // Arrange
-        var exception = new InvalidOperationException("Error");
         var data = new Dictionary<string, object> { ["errorCount"] = 10 };
 
         // Act
-        var result = HealthCheckResult.Unhealthy("Critical failure", exception, data);
+        var result = HealthCheckResult.Unhealthy("Critical failure", data);
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldBe("Critical failure");
-        result.Exception.ShouldBe(exception);
         result.Data["errorCount"].ShouldBe(10);
     }
 

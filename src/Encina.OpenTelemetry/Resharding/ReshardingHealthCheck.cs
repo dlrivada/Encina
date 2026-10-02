@@ -149,17 +149,25 @@ public sealed class ReshardingHealthCheck : IHealthCheck
                         $"{activeInProgress.Count} resharding operation(s) in progress.",
                         data: data);
                 },
+                // Only the error code: EncinaError.Message can carry personal data.
                 Left: error => HealthCheckResult.Unhealthy(
-                    $"Failed to query resharding state: {error.Message}",
+                    $"Failed to query resharding state: {error.GetCode().IfNone("encina.unknown")}",
                     data: new Dictionary<string, object>
                     {
-                        ["error"] = error.Message
+                        ["error"] = error.GetCode().IfNone("encina.unknown")
                     }));
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             return HealthCheckResult.Unhealthy(
                 $"Resharding health check timed out after {_options.Timeout.TotalSeconds}s.");
+        }
+        catch (Exception ex)
+        {
+            // Only the exception type: the health service would otherwise copy the message and the
+            // exception object to the report entry.
+            return HealthCheckResult.Unhealthy(
+                $"Resharding health check failed with exception: {ex.GetType().Name}");
         }
     }
 }

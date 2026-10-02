@@ -130,9 +130,9 @@ public sealed class MongoDbDatabaseHealthMonitor : IDatabaseHealthMonitor
         catch (Exception ex)
         {
             _isCircuitOpen = true;
+            // Only the exception type: the message can carry the host name or credentials.
             return DatabaseHealthResult.Unhealthy(
-                $"Database health check failed for provider '{ProviderName}': {ex.Message}",
-                ex);
+                $"Database health check failed for provider '{ProviderName}': {ex.GetType().Name}");
         }
     }
 

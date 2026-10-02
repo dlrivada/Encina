@@ -139,9 +139,11 @@ public sealed class HangfireHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        // Either "not configured" from DI check or "has not been initialized" from JobStorage.Current
+        // Either "not configured" from the DI check or the base class reporting the exception
+        // type that JobStorage.Current throws when it was never initialized (never its message).
         (result.Description!.Contains("not configured") ||
-         result.Description!.Contains("has not been initialized")).ShouldBeTrue();
+         result.Description!.Contains(nameof(InvalidOperationException))).ShouldBeTrue();
+        result.Description!.ShouldNotContain("has not been initialized");
     }
 
     [Fact]
@@ -158,6 +160,7 @@ public sealed class HangfireHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("Connection failed");
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("Connection failed");
     }
 }

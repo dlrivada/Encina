@@ -52,7 +52,7 @@ public sealed class AmazonSQSHealthCheck : EncinaHealthCheck
         }
         catch (AmazonSQSException ex)
         {
-            return HealthCheckResult.Unhealthy($"{Name} error: {ex.ErrorCode} - {ex.Message}");
+            return HealthCheckResult.Unhealthy($"{Name} error: {ex.ErrorCode} ({ex.GetType().Name})");
         }
     }
 }

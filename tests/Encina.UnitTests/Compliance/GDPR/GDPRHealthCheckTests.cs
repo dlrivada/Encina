@@ -55,6 +55,36 @@ public sealed class GDPRHealthCheckTests
     }
 
     [Fact]
+    public async Task GDPRHealthCheck_WhenRegistryThrows_ReportsOnlyTheExceptionType()
+    {
+        // Arrange
+        var registry = Substitute.For<IProcessingActivityRegistry>();
+#pragma warning disable CA2012 // ValueTask consumed by the NSubstitute mock setup
+        registry.GetAllActivitiesAsync(Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<ProcessingActivity>>>>(
+                _ => throw new InvalidOperationException("secret-host-4711"));
+#pragma warning restore CA2012
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped(_ => registry);
+
+        var provider = services.BuildServiceProvider();
+        var healthCheck = new GDPRHealthCheck(
+            provider,
+            provider.GetRequiredService<ILogger<GDPRHealthCheck>>());
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret-host-4711");
+        result.Exception.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task GDPRHealthCheck_WithoutRegistry_ButWithOptions_ShouldReturnUnhealthy()
     {
         // Arrange - options resolve with defaults, but registry is missing

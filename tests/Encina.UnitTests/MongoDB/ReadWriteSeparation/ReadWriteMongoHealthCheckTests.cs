@@ -1,9 +1,11 @@
+using System.Net;
 using Encina.Messaging.Health;
 using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Clusters;
+using MongoDB.Driver.Core.Servers;
 using NSubstitute;
 using Shouldly;
 
@@ -89,6 +91,77 @@ public sealed class ReadWriteMongoHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Failed");
-        result.Data.ShouldContainKey("error");
+        result.Description!.ShouldContain(nameof(MongoException));
+        result.Description!.ShouldNotContain("Connection failed");
+        result.Data["error"].ShouldBe(nameof(MongoException));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WithNoServers_ReturnsUnhealthy()
+    {
+        var result = await CheckAsync(ClusterType.Unknown);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("no servers");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WithStandalone_ReturnsDegraded()
+    {
+        var result = await CheckAsync(ClusterType.Standalone, ServerType.Standalone);
+
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Description!.ShouldContain("standalone");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WithShardedCluster_ReturnsHealthy()
+    {
+        var result = await CheckAsync(ClusterType.Sharded, ServerType.ShardRouter);
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Description!.ShouldContain("sharded");
+        result.Data["servers"].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_ReplicaSetWithoutPrimary_ReturnsUnhealthy()
+    {
+        var result = await CheckAsync(ClusterType.ReplicaSet, ServerType.ReplicaSetSecondary, ServerType.ReplicaSetArbiter);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Data["primary"].ShouldBe("unavailable");
+        result.Data["arbiters"].ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_ReplicaSetWithoutSecondaries_ReturnsDegraded()
+    {
+        var result = await CheckAsync(ClusterType.ReplicaSet, ServerType.ReplicaSetPrimary);
+
+        result.Status.ShouldBe(HealthStatus.Degraded);
+        result.Data["primary"].ShouldBe("available");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_ReplicaSetWithPrimaryAndSecondary_ReturnsHealthy()
+    {
+        var result = await CheckAsync(ClusterType.ReplicaSet, ServerType.ReplicaSetPrimary, ServerType.ReplicaSetSecondary);
+
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data["secondaries"].ShouldBe(1);
+    }
+
+    private async Task<HealthCheckResult> CheckAsync(ClusterType clusterType, params ServerType[] serverTypes)
+    {
+        var clusterId = new ClusterId();
+        var servers = serverTypes.Select((type, i) =>
+        {
+            var endPoint = new DnsEndPoint($"host-{i}", 27017);
+            return new ServerDescription(new ServerId(clusterId, endPoint), endPoint, type: type);
+        });
+        _cluster.Description.Returns(new ClusterDescription(clusterId, false, null, clusterType, servers));
+
+        return await new ReadWriteMongoHealthCheck(_mongoClient, _options).CheckHealthAsync();
     }
 }

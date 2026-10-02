@@ -9,7 +9,6 @@ namespace Encina.Sharding.Health;
 /// <param name="Status">The health status of this shard.</param>
 /// <param name="PoolStats">Connection pool statistics for this shard.</param>
 /// <param name="Description">An optional human-readable description.</param>
-/// <param name="Exception">An optional exception if the shard is unhealthy.</param>
 /// <remarks>
 /// <para>
 /// Health status semantics follow a three-state model:
@@ -25,7 +24,7 @@ namespace Encina.Sharding.Health;
 /// </para>
 /// <para>
 /// Use the static factory methods <see cref="Healthy"/>, <see cref="Degraded"/>, and
-/// <see cref="Unhealthy(string, string?, Exception?)"/> to construct results with sensible defaults.
+/// <see cref="Unhealthy(string, string?)"/> to construct results with sensible defaults.
 /// These factories automatically set <see cref="PoolStats"/> to <see cref="ConnectionPoolStats.CreateEmpty"/>
 /// when not explicitly provided.
 /// </para>
@@ -35,7 +34,7 @@ namespace Encina.Sharding.Health;
 /// // Create health results using factory methods
 /// var healthy = ShardHealthResult.Healthy("shard-1", poolStats);
 /// var degraded = ShardHealthResult.Degraded("shard-2", "High connection pool usage");
-/// var unhealthy = ShardHealthResult.Unhealthy("shard-3", "Connection refused", ex);
+/// var unhealthy = ShardHealthResult.Unhealthy("shard-3", "Connection failed (SocketException)");
 ///
 /// // Use in health checks
 /// if (result.IsHealthy)
@@ -43,15 +42,14 @@ namespace Encina.Sharding.Health;
 /// else if (result.IsDegraded)
 ///     logger.LogWarning("Shard {ShardId}: {Description}", result.ShardId, result.Description);
 /// else
-///     logger.LogError(result.Exception, "Shard {ShardId} is down", result.ShardId);
+///     logger.LogError("Shard {ShardId} is down: {Description}", result.ShardId, result.Description);
 /// </code>
 /// </example>
 public sealed record ShardHealthResult(
     string ShardId,
     DatabaseHealthStatus Status,
     ConnectionPoolStats PoolStats,
-    string? Description = null,
-    Exception? Exception = null)
+    string? Description = null)
 {
     /// <summary>
     /// Gets the shard identifier.
@@ -94,25 +92,22 @@ public sealed record ShardHealthResult(
     /// <param name="shardId">The shard identifier.</param>
     /// <param name="description">An optional description.</param>
     /// <param name="poolStats">The pool statistics.</param>
-    /// <param name="exception">An optional exception.</param>
     /// <returns>A degraded <see cref="ShardHealthResult"/>.</returns>
     public static ShardHealthResult Degraded(
         string shardId,
         string? description = null,
-        ConnectionPoolStats? poolStats = null,
-        Exception? exception = null)
-        => new(shardId, DatabaseHealthStatus.Degraded, poolStats ?? ConnectionPoolStats.CreateEmpty(), description, exception);
+        ConnectionPoolStats? poolStats = null)
+        => new(shardId, DatabaseHealthStatus.Degraded, poolStats ?? ConnectionPoolStats.CreateEmpty(), description);
 
     /// <summary>
     /// Creates an unhealthy shard result.
     /// </summary>
     /// <param name="shardId">The shard identifier.</param>
-    /// <param name="description">An optional description.</param>
-    /// <param name="exception">An optional exception.</param>
+    /// <param name="description">An optional description. Never put an exception message in it:
+    /// a health result can reach a health endpoint, so name the exception type instead.</param>
     /// <returns>An unhealthy <see cref="ShardHealthResult"/>.</returns>
     public static ShardHealthResult Unhealthy(
         string shardId,
-        string? description = null,
-        Exception? exception = null)
-        => new(shardId, DatabaseHealthStatus.Unhealthy, ConnectionPoolStats.CreateEmpty(), description, exception);
+        string? description = null)
+        => new(shardId, DatabaseHealthStatus.Unhealthy, ConnectionPoolStats.CreateEmpty(), description);
 }

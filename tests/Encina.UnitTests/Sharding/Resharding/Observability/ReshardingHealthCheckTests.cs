@@ -182,8 +182,8 @@ public sealed class ReshardingHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Failed to query resharding state");
-        result.Description!.ShouldContain("Database connection failed");
-        result.Data.ShouldContainKey("error");
+        result.Description!.ShouldNotContain("Database connection failed");
+        result.Data["error"].ShouldBe("encina.unknown");
     }
 
     [Fact]

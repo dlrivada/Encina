@@ -103,5 +103,7 @@ public sealed class AzureServiceBusHealthCheckTests
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("ServiceCommunicationProblem");
+        result.Description!.ShouldContain(nameof(ServiceBusException));
+        result.Description!.ShouldNotContain("Connection failed");
     }
 }

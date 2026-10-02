@@ -94,7 +94,7 @@ Providers that do not expose pool statistics (EF Core) return `ConnectionPoolSta
 
 ### DatabaseHealthResult
 
-Readonly record struct with factory methods for health check results.
+Readonly record struct with factory methods for health check results. A result carries a description and data, never an exception object or its message; report the exception type name or an error code instead.
 
 ```csharp
 var result = await monitor.CheckHealthAsync(ct);

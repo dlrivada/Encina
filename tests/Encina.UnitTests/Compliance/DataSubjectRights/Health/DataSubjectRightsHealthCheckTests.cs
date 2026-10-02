@@ -120,6 +120,23 @@ public class DataSubjectRightsHealthCheckTests
         result.Description!.ShouldContain("IDSRService");
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_DsrServiceThrows_ReportsOnlyTheExceptionType()
+    {
+        SetupOptions(new DataSubjectRightsOptions());
+        SetupDsrService();
+        _dsrService.GetOverdueRequestsAsync(Arg.Any<CancellationToken>())
+            .Returns<Either<EncinaError, IReadOnlyList<DSRRequestReadModel>>>(
+                _ => throw new InvalidOperationException("secret-host-4711"));
+
+        var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain(nameof(InvalidOperationException));
+        result.Description!.ShouldNotContain("secret-host-4711");
+        result.Exception.ShouldBeNull();
+    }
+
     #endregion
 
     #region Degraded scenarios
