@@ -72,70 +72,9 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
 
         foreach (var assembly in assemblies)
         {
-            Type[] types;
-            try
+            foreach (var type in LoadTypes(assembly))
             {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                // Some types may fail to load; process what we can
-                types = ex.Types.Where(t => t is not null).ToArray()!;
-                _logger.LogWarning(
-                    ex.ForLogging(),
-                    "Some types in assembly {AssemblyName} could not be loaded during crypto-shredding scan",
-                    assembly.GetName().Name);
-            }
-
-            foreach (var type in types)
-            {
-                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-                var hasCryptoShredded = false;
-
-                foreach (var property in properties)
-                {
-                    var cryptoAttr = property.GetCustomAttribute<CryptoShreddedAttribute>();
-                    if (cryptoAttr is null)
-                    {
-                        continue;
-                    }
-
-                    hasCryptoShredded = true;
-
-                    // Validate [PersonalData] co-existence
-                    var personalDataAttr = property.GetCustomAttribute<PersonalDataAttribute>();
-                    if (personalDataAttr is null)
-                    {
-                        var error = $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] "
-                            + "but is missing [PersonalData]. Both attributes are required.";
-                        validationErrors.Add(error);
-                        _logger.LogError("{ValidationError}", error);
-                    }
-
-                    // Validate SubjectIdProperty reference
-                    var subjectIdProp = type.GetProperty(
-                        cryptoAttr.SubjectIdProperty,
-                        BindingFlags.Public | BindingFlags.Instance);
-
-                    if (subjectIdProp is null)
-                    {
-                        var error = $"Property '{property.Name}' on type '{type.FullName}' references "
-                            + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which does not exist "
-                            + "as a public instance property on the declaring type.";
-                        validationErrors.Add(error);
-                        _logger.LogError("{ValidationError}", error);
-                    }
-                    else if (subjectIdProp.PropertyType != typeof(string))
-                    {
-                        var error = $"Property '{property.Name}' on type '{type.FullName}' references "
-                            + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which is of type "
-                            + $"'{subjectIdProp.PropertyType.Name}' instead of 'string'.";
-                        validationErrors.Add(error);
-                        _logger.LogError("{ValidationError}", error);
-                    }
-                }
-
-                if (hasCryptoShredded)
+                if (ScanType(type, validationErrors))
                 {
                     // Pre-populate the static property cache for this type
                     CryptoShreddedPropertyCache.GetFields(type);
@@ -152,5 +91,86 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
         }
 
         return typesWithCryptoShredding;
+    }
+
+    private Type[] LoadTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            // Some types may fail to load; process what we can
+            _logger.LogWarning(
+                ex.ForLogging(),
+                "Some types in assembly {AssemblyName} could not be loaded during crypto-shredding scan",
+                assembly.GetName().Name);
+            return ex.Types.Where(t => t is not null).ToArray()!;
+        }
+    }
+
+    /// <summary>Validates every crypto-shredded property of <paramref name="type"/>; returns whether it has any.</summary>
+    private bool ScanType(Type type, List<string> validationErrors)
+    {
+        var hasCryptoShredded = false;
+
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var cryptoAttr = property.GetCustomAttribute<CryptoShreddedAttribute>();
+            if (cryptoAttr is null)
+            {
+                continue;
+            }
+
+            hasCryptoShredded = true;
+            ValidateProperty(type, property, cryptoAttr, validationErrors);
+        }
+
+        return hasCryptoShredded;
+    }
+
+    private void ValidateProperty(
+        Type type,
+        PropertyInfo property,
+        CryptoShreddedAttribute cryptoAttr,
+        List<string> validationErrors)
+    {
+        // Validate [PersonalData] co-existence
+        if (property.GetCustomAttribute<PersonalDataAttribute>() is null)
+        {
+            ReportError(
+                validationErrors,
+                $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] "
+                + "but is missing [PersonalData]. Both attributes are required.");
+        }
+
+        // Validate SubjectIdProperty reference
+        var subjectIdProp = type.GetProperty(
+            cryptoAttr.SubjectIdProperty,
+            BindingFlags.Public | BindingFlags.Instance);
+
+        if (subjectIdProp is null)
+        {
+            ReportError(
+                validationErrors,
+                $"Property '{property.Name}' on type '{type.FullName}' references "
+                + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which does not exist "
+                + "as a public instance property on the declaring type.");
+        }
+        else if (subjectIdProp.PropertyType != typeof(string))
+        {
+            ReportError(
+                validationErrors,
+                $"Property '{property.Name}' on type '{type.FullName}' references "
+                + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which is of type "
+                + $"'{subjectIdProp.PropertyType.Name}' instead of 'string'.");
+        }
+    }
+
+    private void ReportError(List<string> validationErrors, string error)
+    {
+        validationErrors.Add(error);
+        _logger.LogError("{ValidationError}", error);
     }
 }
