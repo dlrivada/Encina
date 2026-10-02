@@ -93,6 +93,33 @@ public class AwsLambdaHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_InsideLambda_IncludesFunctionDetails()
+    {
+        // Arrange
+        var previous = Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME");
+        Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", "orders-fn");
+
+        try
+        {
+            var healthCheck = new AwsLambdaHealthCheck(Options.Create(new EncinaAwsLambdaOptions()));
+
+            // Act
+            var result = await healthCheck.CheckHealthAsync();
+
+            // Assert
+            result.Data["isInLambdaEnvironment"].ShouldBe(true);
+            result.Data["functionName"].ShouldBe("orders-fn");
+            result.Data.ShouldContainKey("functionVersion");
+            result.Data.ShouldContainKey("region");
+            result.Data.ShouldContainKey("memoryLimitMB");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", previous);
+        }
+    }
+
+    [Fact]
     public void Constructor_WithNullOptions_ThrowsArgumentNullException()
     {
         // Act
