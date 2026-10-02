@@ -264,6 +264,15 @@ function Invoke-Persist {
     throw "Could not persist $Domain to $Branch after $maxAttempts attempts."
 }
 
+# Throws when the file is empty or not valid JSON (ConvertFrom-Json returns $null for empty text
+# instead of throwing, so a truncated zero-byte file would otherwise pass).
+function Assert-JsonFile {
+    param([string] $Path)
+    $text = Get-Content -LiteralPath $Path -Raw
+    if ([string]::IsNullOrWhiteSpace($text)) { throw 'the file is empty' }
+    $text | ConvertFrom-Json -Depth 100 | Out-Null
+}
+
 # Downloads one live file. Returns $true when written, $false on a 404; throws on anything else.
 function Save-LiveFile {
     param([string] $RelativePath, [string] $Destination, [string] $CacheBuster)
@@ -283,7 +292,7 @@ function Save-LiveFile {
         }
         if ($status -eq 200) {
             if ($RelativePath.EndsWith('.json')) {
-                try { Get-Content -LiteralPath $download -Raw | ConvertFrom-Json -Depth 100 | Out-Null }
+                try { Assert-JsonFile -Path $download }
                 catch {
                     Remove-Item -LiteralPath $download -Force
                     throw "Live $RelativePath is not valid JSON: $($_.Exception.Message)"
@@ -309,7 +318,7 @@ function Clear-DomainData {
     param([string] $Root, [string] $Domain)
     $dataDir = Join-Path $Root "$Domain/data"
     if (Test-Path -LiteralPath $dataDir -PathType Container) {
-        Get-ChildItem -LiteralPath $dataDir -Recurse -File |
+        Get-ChildItem -LiteralPath $dataDir -Recurse -File -Force |
             Where-Object { $_.Name -ne 'cited-by.json' } |
             Remove-Item -Force
     }
@@ -326,12 +335,12 @@ function Assert-DomainJsonValid {
     $dataDir = Join-Path $Root "$Domain/data"
     $files = @()
     if (Test-Path -LiteralPath $dataDir -PathType Container) {
-        $files += Get-ChildItem -LiteralPath $dataDir -Recurse -File -Filter '*.json'
+        $files += Get-ChildItem -LiteralPath $dataDir -Recurse -File -Force -Filter '*.json'
     }
     $badge = Join-Path $Root "$Domain/badge.json"
     if (Test-Path -LiteralPath $badge) { $files += Get-Item -LiteralPath $badge }
     foreach ($file in $files) {
-        try { Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json -Depth 100 | Out-Null }
+        try { Assert-JsonFile -Path $file.FullName }
         catch {
             $relative = [IO.Path]::GetRelativePath($Root, $file.FullName).Replace('\', '/')
             throw "Refusing to deploy: $relative is not valid JSON: $($_.Exception.Message)"
