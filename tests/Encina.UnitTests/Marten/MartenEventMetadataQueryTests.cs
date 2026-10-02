@@ -1,6 +1,6 @@
 using Encina.Marten;
-using Marten;
 using Encina.UnitTests.Support;
+using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;

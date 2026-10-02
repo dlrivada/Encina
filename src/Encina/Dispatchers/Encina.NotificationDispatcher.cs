@@ -120,7 +120,7 @@ public sealed partial class Encina
             var exception = GetLoggableCause(error);
             var handlerTypeName = handlerInstance.GetType().Name;
 
-            LogNotificationFailure(Encina, notificationName, handlerTypeName, errorCode, exception);
+            ReportNotificationFailure(Encina, notificationName, handlerTypeName, errorCode, exception);
 
             return true;
         }
@@ -134,7 +134,7 @@ public sealed partial class Encina
                 Some: ex => (Exception?)ex,
                 None: () => (Exception?)null);
 
-        private static void LogNotificationFailure(Encina Encina, string notificationName, string handlerTypeName, string errorCode, Exception? exception)
+        private static void ReportNotificationFailure(Encina Encina, string notificationName, string handlerTypeName, string errorCode, Exception? exception)
         {
             if (IsCancellationCode(errorCode))
             {
