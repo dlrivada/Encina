@@ -18,7 +18,8 @@ namespace Encina.Security.Sanitization.Sanitizers;
 /// Because removal happens at the output tail as characters arrive, a removal that joins its
 /// neighbours into a new token is reduced again immediately, so no marker can be returned.
 /// A <c>/* ... */</c> block is removed with its content: once a <c>/*</c> opens, the raw content
-/// is kept untouched until the first <c>*/</c> closes it. A <c>/*</c> that never closes loses only
+/// is kept until the first <c>*/</c> closes it; inside the open comment <c>;</c>, <c>--</c> and
+/// <c>xp_</c> are still reduced, so <c>/*x*;/y</c> gives <c>y</c>. A <c>/*</c> that never closes loses only
 /// the marker; its content is scanned once more in plain mode. Every character is appended a
 /// bounded number of times and removed at most once, so the work is linear in the input length.
 /// </para>

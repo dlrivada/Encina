@@ -152,17 +152,16 @@ public sealed class SanitizationPropertyTests
     }
 
     [Fact]
-    public void SanitizeForSql_ManyUnclosedCommentMarkers_StaysFastAndLeavesNoMarker()
+    public void SanitizeForSql_ManyUnclosedCommentMarkers_LeavesNoMarker()
     {
-        // Only the first "/*" opens a comment; the rest is content scanned once more (not per marker).
+        // Only the first "/*" opens a comment; the rest is content scanned once more. This is a
+        // correctness test without a time bound: no input shape of this kind makes the old loop slow,
+        // the quadratic case is covered by the nested adversarial test below.
         var value = string.Concat(Enumerable.Repeat("/*;-xp_a*", 10_000)) + "/*";
 
         var sanitizer = CreateSanitizer();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var result = sanitizer.SanitizeForSql(value);
-        stopwatch.Stop();
 
-        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
         result.ShouldNotContain("/*");
         result.ShouldNotContain("*/");
         result.ShouldNotContain("--");
@@ -173,12 +172,10 @@ public sealed class SanitizationPropertyTests
     // The single-pass scanner equals the old repeat-until-stable implementation (kept below as an
     // oracle) for each token family on its own. The two differ, on purpose, where tokens overlap:
     // the scanner removes the leftmost completed token as characters arrive, the oracle removes
-    // by pass order. Examples: "xx*/*..." (the scanner drops "*/" before "/*" can form), "xp_-" +
-    // "-a" (the oracle removes "--" first and so swallows "a" with the xp_ match), "/*x*;/" (a
-    // "*/" joined by removing ';' closes the comment and its content goes too; "-/*-*/" gives ""
-    // because the "--" formed across the comment boundary also drops the "-" before it). Every output
-    // satisfies the contract, which the properties above prove over the full mixed alphabet.
-    // Block comments are covered by deterministic unit tests for the same reason ("*a*/a**/*'*/b").
+    // by pass order, for example when a "*/" is joined by removing ';' ("/*x*;/y": the scanner
+    // closes the comment and drops its content). Every output satisfies the contract, which the
+    // properties above prove over the full mixed alphabet. Block comments are covered by the
+    // deterministic unit tests (DefaultSanitizerTests) instead of an oracle comparison.
     [Property(MaxTest = 3000)]
     public Property SanitizeForSql_DashesAndSemicolons_MatchFixedPointOracle()
         => MatchesOracle('-', ';', 'a', '\'', 'b');
@@ -202,20 +199,20 @@ public sealed class SanitizationPropertyTests
     [Fact]
     public void SanitizeForSql_NestedAdversarialInput_FinishesQuicklyAndLeavesNoMarker()
     {
-        // Each wrap re-forms "--" one level further out; a repeat-until-stable implementation
-        // needs one full pass per level (quadratic). The tail scanner handles it in one pass.
-        var value = "-xp_a-";
-        while (value.Length < 50_000)
-        {
-            value = "-x" + value + "p_-";
-        }
+        // About 1,000,000 characters: "-x" repeated, then "-xp_a-", then "p_-" repeated. Each level
+        // re-forms "--" one level further out, so a repeat-until-stable implementation needs one full
+        // pass per level (quadratic, about a minute here). The tail scanner needs a few milliseconds.
+        const int levels = 200_000;
+        var value = string.Concat(Enumerable.Repeat("-x", levels))
+            + "-xp_a-"
+            + string.Concat(Enumerable.Repeat("p_-", levels));
 
         var sanitizer = CreateSanitizer();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var result = sanitizer.SanitizeForSql(value);
         stopwatch.Stop();
 
-        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(15));
         result.ShouldNotContain("--");
         result.ShouldNotContain("xp_", Case.Insensitive);
     }
