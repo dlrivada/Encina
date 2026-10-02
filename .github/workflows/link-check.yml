@@ -1,34 +1,59 @@
+# Link Check: what runs on which event (#1494, #1097)
+#
+#   pull_request, push to main (paths: Markdown, .lycheeignore, lychee.toml, this workflow, the report script)
+#       job check-links
+#         1. internal links and anchors of the WHOLE site, offline (deterministic, seconds long);
+#         2. external AND internal links of ONLY the Markdown files the event changes, online.
+#            When lychee.toml, .lycheeignore, this workflow or the report script changed, step 2
+#            scans every in-glob file (a configuration change can change any result).
+#       A failure here means the change itself introduced a broken link. Third-party flakiness in
+#       files the change does not touch can no longer fail a pull request or turn main red.
+#   schedule (daily 03:00 UTC), workflow_dispatch
+#       job full-external-scan
+#         the full external scan with lychee JSON output and fail: false, then
+#         .github/scripts/link-health-report.ps1 classifies failures (404/410 = broken, anything
+#         else = transient), maintains ONE tracking issue (label link-health) and fails the job
+#         only when a broken link exists. Transient failures are reported, never blocking.
+#   Permissions are declared per job (AGENTS.md section 10), never at workflow level.
 name: Link Check
 
 on:
     push:
+        branches: [main]
         paths:
             - "**.md"
             - ".lycheeignore"
             - ".github/lychee.toml"
+            - ".github/workflows/link-check.yml"
+            - ".github/scripts/link-health-report.ps1"
     pull_request:
         paths:
             - "**.md"
+            - ".lycheeignore"
+            - ".github/lychee.toml"
+            - ".github/workflows/link-check.yml"
+            - ".github/scripts/link-health-report.ps1"
     schedule:
-        # Run weekly on Sundays at 3:00 AM UTC
-        - cron: "0 3 * * 0"
+        # Run daily at 3:00 AM UTC
+        - cron: "0 3 * * *"
     workflow_dispatch:
-
-permissions:
-    contents: read
 
 jobs:
     check-links:
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         steps:
             - name: Checkout
               uses: actions/checkout@v7
+              with:
+                  # Full history so the changed-files diff against the base or previous commit works.
+                  fetch-depth: 0
 
-            # Pull requests check internal links and anchors only (--offline): deterministic and
-            # seconds long. Third-party availability failed three PRs in one day with zero real
-            # broken links (#1097); the external scan runs on push to main, weekly and on dispatch.
-            - name: Check markdown links (internal only, pull requests)
-              if: github.event_name == 'pull_request'
+            # Internal links and anchors of the whole site, offline: deterministic and seconds long.
+            # Third-party availability failed three PRs in one day with zero real broken links (#1097).
+            - name: Check markdown links (internal only, whole site)
               uses: lycheeverse/lychee-action@v2
               with:
                   args: >-
@@ -45,8 +70,71 @@ jobs:
                       'ROADMAP.md'
                   fail: true
 
-            - name: Check markdown links (full scan)
-              if: github.event_name != 'pull_request'
+            - name: List changed markdown files
+              id: changed
+              shell: pwsh
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  BEFORE_SHA: ${{ github.event.before }}
+                  AFTER_SHA: ${{ github.sha }}
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  # The same files the offline scan above covers (docs/**, .github/**, changelog.d/** and the root pages).
+                  $inGlob = '^(docs/.+\.md|\.github/.+\.md|changelog\.d/.+\.md|README\.md|CHANGELOG\.md|CONTRIBUTING\.md|ROADMAP\.md)$'
+                  # A change to any of these can change any result, so every in-glob file is scanned.
+                  $configFiles = @('.github/lychee.toml', '.lycheeignore', '.github/workflows/link-check.yml', '.github/scripts/link-health-report.ps1')
+
+                  if ($env:EVENT_NAME -eq 'pull_request') { $from = $env:BASE_SHA; $to = $env:HEAD_SHA }
+                  else { $from = $env:BEFORE_SHA; $to = $env:AFTER_SHA }
+
+                  $changed = $null
+                  if ($from -and $from -notmatch '^0+$') {
+                      $changed = @(git diff --name-only --diff-filter=ACMR "$from" "$to")
+                      if ($LASTEXITCODE -ne 0) { $changed = $null; Write-Host "git diff $from $to failed; scanning every in-glob file." }
+                  }
+                  else { Write-Host 'No usable base commit; scanning every in-glob file.' }
+
+                  if ($null -eq $changed -or @($changed | Where-Object { $configFiles -contains $_ }).Count -gt 0) {
+                      $files = @(git ls-files '*.md' | Where-Object { $_ -match $inGlob })
+                  }
+                  else {
+                      $files = @($changed | Where-Object { $_ -match $inGlob -and (Test-Path -LiteralPath $_) })
+                  }
+
+                  $list = Join-Path $env:RUNNER_TEMP 'changed-markdown.txt'
+                  # One path per line: survives spaces in names (lychee --files-from).
+                  [IO.File]::WriteAllLines($list, [string[]] $files)
+                  Write-Host "Changed markdown files to scan online: $($files.Count)"
+                  $files | ForEach-Object { Write-Host "  $_" }
+                  "count=$($files.Count)" >> $env:GITHUB_OUTPUT
+                  "list=$list" >> $env:GITHUB_OUTPUT
+
+            - name: Check markdown links (changed files, external and internal)
+              if: steps.changed.outputs.count != '0'
+              uses: lycheeverse/lychee-action@v2
+              with:
+                  args: >-
+                      --verbose
+                      --no-progress
+                      --config '.github/lychee.toml'
+                      --files-from '${{ steps.changed.outputs.list }}'
+                  fail: true
+
+    full-external-scan:
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            # fail: false, JSON output: the report script decides the outcome, so a third-party
+            # flake is reported to the tracking issue instead of failing the run.
+            - name: Check markdown links (full external scan)
               uses: lycheeverse/lychee-action@v2
               with:
                   args: >-
@@ -60,4 +148,19 @@ jobs:
                       'changelog.d/**/*.md'
                       'CONTRIBUTING.md'
                       'ROADMAP.md'
-                  fail: true
+                  format: json
+                  output: lychee/report.json
+                  jobSummary: false
+                  fail: false
+
+            - name: Report link health
+              shell: pwsh
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  ./.github/scripts/link-health-report.ps1 `
+                      -ReportPath 'lychee/report.json' `
+                      -RunUrl $env:RUN_URL `
+                      -Repo $env:GITHUB_REPOSITORY
+                  exit $LASTEXITCODE
