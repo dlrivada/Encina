@@ -6,18 +6,18 @@
 #                     ci-diagnoser, pr-watcher, site-steward, Explore, Plan, claude-code-guide, general-purpose,
 #                     issue-archivist, issue-auditor, test-auditor, remediation-drafter (#1572), audit-verifier
 #                     (the SPEC-003 audit pipeline's stage agents, #1345 — audit-stage-guard.ps1 enforces which
-#                     one, in which order, and for which open audit)
+#                     one, in which order, and for which open audit), local-ai-standin (#1593)
 #   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer,
 #                     docs-reviewer (#1345: the docs stage of the SPEC-003 audit pipeline spawns docs-reviewer
-#                     directly, without going through docs-writer)
-#   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore
+#                     directly, without going through docs-writer), local-ai-standin (#1593)
+#   docs-writer       mechanical-fixer, docs-reviewer (self-review), Explore, local-ai-standin (#1593)
 #   mechanical-fixer  ci-diagnoser, Explore
 #   site-steward      ci-diagnoser (#1382): a failing publisher or freshness check goes there for root-causing;
 #                     site-steward never diagnoses it itself.
 #   pr-reviewer       Explore only (#1447): read-only cross-file research while reviewing a published PR; it
 #                     never diagnoses CI, it reviews, so ci-diagnoser is not in its allowlist.
 #   issue-archivist, issue-auditor, test-auditor, remediation-drafter, audit-verifier, docs-reviewer,
-#   adversarial-reviewer, ci-diagnoser, pr-watcher   empty (#1345, #1572). Each is either a SPEC-003 audit stage agent (single-owner,
+#   adversarial-reviewer, ci-diagnoser, pr-watcher, local-ai-standin   empty (#1345, #1572, #1593). Each is either a SPEC-003 audit stage agent (single-owner,
 #                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
 #                     spawn they attempt is denied.
 #
@@ -50,9 +50,9 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier')
-        'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
-        'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier', 'local-ai-standin')
+        'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer', 'local-ai-standin')
+        'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore', 'local-ai-standin')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
         'site-steward'          = @('ci-diagnoser')
         'pr-reviewer'           = @('Explore')
@@ -65,6 +65,7 @@ try {
         'adversarial-reviewer'  = @()
         'ci-diagnoser'          = @()
         'pr-watcher'            = @()
+        'local-ai-standin'      = @()
     }
 
     $caller = [string]$payload.agent_type

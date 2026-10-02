@@ -99,6 +99,17 @@ $ledgerNow,case-b,10,20,1.0,20.0,artifacts/local-ai/out/case-b.md
 $ledgerStale,case-h,10,20,1.0,20.0,artifacts/local-ai/out/case-h.md
 "@
 
+# #1593: local-ai-standin drafts are evidence through artifacts/local-ai/standin-ledger.csv, 24-hour window.
+$ledgerStale25 = (Get-Date).ToUniversalTime().AddHours(-25).ToString('yyyy-MM-ddTHH:mm:ssZ')
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-s.md') 'drafted by local-ai-standin (case s, fresh stand-in ledger row)'
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/out/case-t.md') 'drafted by local-ai-standin (case t, 25-hour-old stand-in ledger row)'
+Set-Content (Join-Path $issueRoot 'artifacts/local-ai/standin-ledger.csv') @"
+timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile
+$ledgerNow,case-s,,900,12.0,,artifacts/local-ai/out/case-s.md
+$ledgerStale25,case-t,,900,12.0,,artifacts/local-ai/out/case-t.md
+"@
+Set-Content (Join-Path $work 'draft-pointer-s.md') "<!-- local-draft: artifacts/local-ai/out/case-s.md -->`n$debtCore"
+Set-Content (Join-Path $work 'draft-pointer-t.md') "<!-- local-draft: artifacts/local-ai/out/case-t.md -->`n$debtCore"
 Set-Content (Join-Path $work 'draft-pointer-a.md') "<!-- local-draft: artifacts/local-ai/out/case-a.md -->`n$debtCore"
 Set-Content (Join-Path $work 'draft-pointer-g.md') "<!-- local-draft: artifacts/local-ai/out/case-g.md -->`n$debtCore"
 Set-Content (Join-Path $work 'draft-pointer-h.md') "<!-- local-draft: artifacts/local-ai/out/case-h.md -->`n$debtCore"
@@ -296,6 +307,12 @@ $spawnCases = @(
     @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
     @('orchestrator', $null, 'remediation-drafter', 0, 'orchestrator: remediation-drafter (the SPEC-003 remediation stage, #1572) is allowed'),
     @('remediation-drafter', $null, 'Explore', 2, 'remediation-drafter: a stage agent never delegates, not even to Explore (#1572)'),
+    # #1593: the drafting stand-in for the switched-off local model; orchestrator, issue-worker and docs-writer only.
+    @('orchestrator', $null, 'local-ai-standin', 0, 'orchestrator: local-ai-standin is allowed (#1593)'),
+    @('issue-worker', $null, 'local-ai-standin', 0, 'issue-worker: local-ai-standin is allowed (#1593)'),
+    @('docs-writer', $null, 'local-ai-standin', 0, 'docs-writer: local-ai-standin is allowed (#1593)'),
+    @('mechanical-fixer', $null, 'local-ai-standin', 2, 'mechanical-fixer: local-ai-standin is blocked (#1593)'),
+    @('local-ai-standin', $null, 'Explore', 2, 'local-ai-standin: the stand-in never delegates (#1593)'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
     @('orchestrator', $null, $null, 0, 'orchestrator: missing subagent_type is general-purpose, allowed'),
     @('orchestrator', $null, 'claude', 2, 'orchestrator: claude is blocked'),
@@ -702,7 +719,11 @@ $ownershipCases = @(
     @('pr-reviewer', 'Write', "$wt\artifacts\pr-review\1447.md", $wt, 0, 'pr-reviewer: its own review under artifacts/pr-review'),
     @('pr-reviewer', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'pr-reviewer: a repo source file is denied'),
     @('pr-reviewer', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'pr-reviewer: documentation is denied'),
-    @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied')
+    @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied'),
+    # #1593: local-ai-standin writes only under artifacts/local-ai/out/**.
+    @('local-ai-standin', 'Write', "$wt\artifacts\local-ai\out\x.md", $wt, 0, 'local-ai-standin: its output file under artifacts/local-ai/out'),
+    @('local-ai-standin', 'Write', "$wt\src\Encina\x.cs", $wt, 2, 'local-ai-standin: a repo source file is denied'),
+    @('local-ai-standin', 'Write', "$wt\artifacts\local-ai\standin-ledger.csv", $wt, 2, 'local-ai-standin: the ledger is the caller''s, denied')
 )
 
 # agent_type (payload), agent_id, subagent_type, run_in_background, expected, label[, -Agent (hook CLI arg)]
@@ -939,6 +960,8 @@ try {
         @("gh issue create --title `"[DEBT] x`" --body-file debt-optout-empty.md", 2, 'local-draft: refused with an opt-out without a reason'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-g.md", 2, 'local-draft: pointer to a file with no ledger line refused'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-h.md", 2, 'local-draft: ledger line older than 24h refused'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-s.md", 0, 'local-draft: accepted with pointer + fresh standin-ledger row (#1593)'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-t.md", 2, 'local-draft: standin-ledger row 25 hours old refused (#1593)'),
         @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"", 0, 'local-draft: accepted for an open-remediation draft'),
         # Adversarial review of #1410: content-only remediation matching would let one legitimately drafted
         # remediation file be replayed under any other title within the 24-hour window; the title carried in

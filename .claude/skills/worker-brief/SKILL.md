@@ -65,8 +65,9 @@ Rules:
   tests you cannot make pass), stop and report with evidence.
 - Report: files changed; verification commands and output; self-review result; delegation (what went to whom);
   follow-ups as issue files in <wt>/artifacts/issues/<slug>.md (template headers verbatim, header block per
-  your agent definition, first draft by the local model), listed by path; token usage of every nested spawn
-  (subagent_tokens from its completion notice) and each line of <wt>/artifacts/local-ai/ledger.csv, verbatim.
+  your agent definition, first draft by the local model, or by local-ai-standin when the local model is switched
+  off), listed by path; token usage of every nested spawn (subagent_tokens from its completion notice) and each
+  line of <wt>/artifacts/local-ai/ledger.csv and <wt>/artifacts/local-ai/standin-ledger.csv, verbatim.
 - Usage ledger, as your last step: append one line to <wt>/artifacts/agent-usage/ledger.csv with Add-Content
   (create the folder and the header timestampUtc,agent,task,model,subagentTokens,notes when missing): UTC
   time, your agent name, issue-<n>, your model, the sum of your nested spawns' tokens, a short quoted note.

@@ -3,7 +3,7 @@ name: docs-writer
 description: Writes or restructures one Encina documentation page (or one documentation issue) in a worktree the orchestrator created, following the encina-docs skill - one Diátaxis quadrant per page, real API names verified in src/, cited figures, just-the-docs front matter. Verifies links and lint, commits locally, never pushes. Use for the documentation milestone issues and for any page under docs/ or a package README.
 model: sonnet
 effort: medium
-tools: Agent(mechanical-fixer, docs-reviewer, Explore), PowerShell, Read, Edit, Write, Grep, Glob
+tools: Agent(mechanical-fixer, docs-reviewer, Explore, local-ai-standin), PowerShell, Read, Edit, Write, Grep, Glob
 maxTurns: 60
 color: blue
 hooks:

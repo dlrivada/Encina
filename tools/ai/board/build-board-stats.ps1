@@ -119,14 +119,34 @@ $rows = foreach ($ledgerPath in $ledgerPaths) {
     Import-Csv -LiteralPath $ledgerPath
 }
 
+# #1593: the local-ai-standin's paid drafts (artifacts/local-ai/standin-ledger.csv, same roots) are their own
+# counter (standinCalls, standinTokens, standinCostUsd); they are never added to the free local-model calls.
+$standinRows = foreach ($ledgerPath in $ledgerPaths) {
+    $standinPath = Join-Path (Split-Path -Parent $ledgerPath) 'standin-ledger.csv'
+    if (-not (Test-Path -LiteralPath $standinPath)) { continue }
+    Import-Csv -LiteralPath $standinPath
+}
+
+function New-LocalDayEntry([string]$Day) {
+    return [ordered]@{ day = $Day; calls = 0; promptTokens = 0.0; completion = 0.0; seconds = 0.0; standinCalls = 0; standinTokens = 0.0; standinCostUsd = 0.0 }
+}
+
 $localByDay = [ordered]@{}
+foreach ($row in $standinRows) {
+    $ts = [DateTimeOffset]::Parse($row.timestampUtc, [System.Globalization.CultureInfo]::InvariantCulture)
+    if ($ts.UtcDateTime -lt $sinceDate) { continue }
+    $day = $ts.ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+    if (-not $localByDay.Contains($day)) { $localByDay[$day] = New-LocalDayEntry $day }
+    $entry = $localByDay[$day]
+    $entry.standinCalls += 1
+    $entry.standinTokens += [double]$row.completionTokens
+    if ($row.PSObject.Properties['costUsd'] -and $row.costUsd) { $entry.standinCostUsd += [double]::Parse($row.costUsd, [System.Globalization.CultureInfo]::InvariantCulture) }
+}
 foreach ($row in $rows) {
     $ts = [DateTimeOffset]::Parse($row.timestampUtc, [System.Globalization.CultureInfo]::InvariantCulture)
     if ($ts.UtcDateTime -lt $sinceDate) { continue }
     $day = $ts.ToString('yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
-    if (-not $localByDay.Contains($day)) {
-        $localByDay[$day] = [ordered]@{ day = $day; calls = 0; promptTokens = 0.0; completion = 0.0; seconds = 0.0 }
-    }
+    if (-not $localByDay.Contains($day)) { $localByDay[$day] = New-LocalDayEntry $day }
     $entry = $localByDay[$day]
     $entry.calls += 1
     $entry.promptTokens += [double]$row.promptTokens
@@ -136,7 +156,7 @@ foreach ($row in $rows) {
 
 $localai = @($localByDay.Values | ForEach-Object {
         $tokPerSec = if ($_.seconds -gt 0) { [math]::Round($_.completion / $_.seconds, 1) } else { $null }
-        [ordered]@{ day = $_.day; calls = $_.calls; promptTokens = $_.promptTokens; completion = $_.completion; seconds = $_.seconds; tokPerSec = $tokPerSec }
+        [ordered]@{ day = $_.day; calls = $_.calls; promptTokens = $_.promptTokens; completion = $_.completion; seconds = $_.seconds; tokPerSec = $tokPerSec; standinCalls = $_.standinCalls; standinTokens = $_.standinTokens; standinCostUsd = [math]::Round($_.standinCostUsd, 4) }
     })
 $localaiPath = Join-Path $OutDir 'localai.json'
 $localai | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding utf8 $localaiPath
@@ -184,6 +204,8 @@ $days = foreach ($d in $st.days) {
         issuesClosed = @($gh.issuesClosed | Where-Object { ([string]$_.at).StartsWith($day) }).Count
         localCalls = $(if ($l) { $l.calls } else { 0 })
         localTokPerSec = $(if ($l) { $l.tokPerSec } else { $null })
+        standinCalls = $(if ($l) { $l.standinCalls } else { 0 })
+        standinTokens = $(if ($l) { $l.standinTokens } else { 0 })
     }
 }
 [ordered]@{ days = @($days) } | ConvertTo-Json -Depth 6 -Compress | Set-Content -Encoding utf8 (Join-Path $OutDir 'db-days.json')
@@ -214,6 +236,9 @@ foreach ($s in $st.sessions) {
 $lc = ($loc | Measure-Object calls -Sum).Sum
 $lcomp = ($loc | Measure-Object completion -Sum).Sum
 $lsec = ($loc | Measure-Object seconds -Sum).Sum
+$sc = ($loc | Measure-Object standinCalls -Sum).Sum
+$stok = ($loc | Measure-Object standinTokens -Sum).Sum
+$scost = ($loc | Measure-Object standinCostUsd -Sum).Sum
 
 $summary = [ordered]@{
     generatedUtc = $st.generatedUtc
@@ -235,6 +260,9 @@ $summary = [ordered]@{
         localCalls = $(if ($lc) { $lc } else { 0 })
         localCompletion = $(if ($lcomp) { $lcomp } else { 0 })
         localTokPerSec = [math]::Round($(if ($lcomp) { $lcomp } else { 0 }) / [math]::Max(1, $(if ($lsec) { $lsec } else { 0 })), 1)
+        standinCalls = $(if ($sc) { $sc } else { 0 })
+        standinTokens = $(if ($stok) { $stok } else { 0 })
+        standinCostUsd = [math]::Round($(if ($scost) { $scost } else { 0 }), 4)
     }
     models = $models
     agents = @($ag.Values | Sort-Object { $_.total } -Descending)
