@@ -6,7 +6,7 @@ nav_exclude: true
 
 # How to cut a release by hand
 
-This guide is for the maintainer. It shows how to publish an Encina release (tag, GitHub Release, version bump) by hand under the current branch protection, the way v0.13.0's version bumps and tag were done (steps 1, 2 and 5; v0.13.0 has no GitHub Release yet, so step 4 follows the earlier v0.10.0 to v0.12.0 pre-releases), until [#1100](https://github.com/dlrivada/Encina/issues/1100) automates it. It assumes you can use `git`, `gh` and PowerShell and have write access to the repository.
+This guide is for the maintainer. It shows how to publish an Encina release (tag, GitHub Release, version bump) by hand under the current branch protection, until [#1100](https://github.com/dlrivada/Encina/issues/1100) automates it. It assumes you can use `git`, `gh` and PowerShell and have write access to the repository.
 
 Every command runs from the repository root. Replace `0.14.0` with the version you are releasing, the date with today's date and the title with the milestone name without its `vX.Y.Z` prefix (for example `Hardening`).
 
@@ -56,7 +56,7 @@ git switch -c release/v0.14.0
 
 ### Fold the changelog fragments
 
-Check that the fragments are valid, preview the result, then fold them into a dated section. The command deletes the fragment files it folds in.
+Check that the fragments are valid, preview the result, then fold them into a dated section. The command deletes the fragment files it folds in. This is the intended path, but it was not used for v0.13.0: PR #1101 renamed the `[Unreleased]` heading by hand. Treat the first release made this way as its dry run, and read the `--preview` output before running `--release`.
 
 ```powershell
 dotnet run .github/scripts/changelog-fragments.cs -- --check
@@ -107,7 +107,7 @@ git add CHANGELOG.md changelog.d Directory.Build.props docs/releases/v0.14.0
 git commit -m "chore(release): bump version to 0.14.0"
 git push -u origin release/v0.14.0
 gh pr create --repo dlrivada/Encina --base main --head release/v0.14.0 --title "chore(release): bump version to 0.14.0" --body "Cuts v0.14.0. Refs #1100."
-gh pr merge --repo dlrivada/Encina --auto --squash
+gh pr merge release/v0.14.0 --repo dlrivada/Encina --auto --squash
 ```
 
 How to check it worked: the PR passes the same required checks as any other PR and merges; `gh pr view --repo dlrivada/Encina release/v0.14.0 --json state,mergeCommit` shows `MERGED` and the merge commit. A CodeRabbit thread must be resolved like on any PR before it merges.
@@ -120,7 +120,7 @@ Tag the commit that the release PR created on `main`, not a branch tip. Branch p
 git switch main
 git pull --ff-only
 git log --oneline -1
-git tag -a v0.14.0 -m "Release v0.14.0 - Hardening"
+git tag -a v0.14.0 -m "Release v0.14.0 — Hardening"
 git push origin v0.14.0
 ```
 
@@ -139,7 +139,7 @@ The first command prints the tag's object id and `refs/tags/v0.14.0`; the second
 
 Two workflows start on any tag matching `v*`:
 
-- [`ci-full.yml`](../../.github/workflows/ci-full.yml) (`CI Full`, trigger `push: tags: ["v*"]`) builds and runs the full test suite. Its `pack` job packs `src/Encina/Encina.csproj` and, because the ref is a `v*` tag, pushes the package to GitHub Packages with `dotnet nuget push`. `pack` runs even when a test job fails, so check every job, not only the push.
+- [`ci-full.yml`](../../.github/workflows/ci-full.yml) (`CI Full`, trigger `push: tags: ["v*"]`) builds and runs the full test suite. Its `pack` job packs `src/Encina/Encina.csproj` and, because the ref is a `v*` tag, pushes the package to GitHub Packages with `dotnet nuget push`. The `pack` job declares `needs:` the six `test-*` jobs and `if: always() && needs.build.result == 'success'` (`ci-full.yml` lines 532-541), so by its condition it is not skipped when a test job fails; that was never exercised, so check every job of the run, not only the push.
 - [`sbom.yml`](../../.github/workflows/sbom.yml) (`SBOM`, trigger `push: tags: ["v*"]`) generates the software bill of materials.
 
 How to check it worked:
@@ -148,7 +148,13 @@ How to check it worked:
 gh run list --repo dlrivada/Encina --event push --branch v0.14.0 --limit 5
 ```
 
-Both `CI Full` and `SBOM` appear; wait until each shows `completed`. If `pack` fails, open the run with `gh run view <run-id> --repo dlrivada/Encina --log-failed`. Nothing in these workflows publishes to NuGet.org or creates the GitHub Release.
+Both `CI Full` and `SBOM` appear; wait until each shows `completed`. Then confirm the package was pushed, using the run id from the list above:
+
+```powershell
+gh run view <run-id> --repo dlrivada/Encina --json jobs --jq '.jobs[] | select(.name=="pack") | .steps[] | select(.name=="Publish to GitHub Packages") | .conclusion'
+```
+
+The output is `success`. For v0.13.0 it was `failure` (the push got a 403 before the job-level `packages: write` permission was added), and nothing else in the run showed it. If it fails, open the run with `gh run view <run-id> --repo dlrivada/Encina --log-failed`. Nothing in these workflows publishes to NuGet.org or creates the GitHub Release.
 
 ## Step 4: create the GitHub Release from the changelog
 
@@ -160,11 +166,13 @@ $lines = Get-Content CHANGELOG.md
 $start = ($lines | Select-String -Pattern '^## \[0\.14\.0\] - ').LineNumber
 $next = ($lines | Select-String -Pattern '^## \[' | Where-Object { $_.LineNumber -gt $start } | Select-Object -First 1).LineNumber
 $end = if ($next) { $next - 2 } else { $lines.Count - 1 }
-$lines[$start..$end] | Set-Content artifacts/release/v0.14.0-notes.md
-gh release create v0.14.0 --repo dlrivada/Encina --verify-tag --prerelease --title "v0.14.0 - Hardening" --notes-file artifacts/release/v0.14.0-notes.md
+$body = ($lines[$start..$end] -join "`n").Trim()
+$body = ($body -replace '(\r?\n)*---\s*$', '').Trim()
+Set-Content artifacts/release/v0.14.0-notes.md $body
+gh release create v0.14.0 --repo dlrivada/Encina --verify-tag --prerelease --title "v0.14.0 — Hardening" --notes-file artifacts/release/v0.14.0-notes.md
 ```
 
-`$lines` is zero-based while `LineNumber` is one-based, so `$lines[$start]` is the first line after the heading. The file contains the section's body without its `## [0.14.0]` heading.
+`$lines` is zero-based while `LineNumber` is one-based, so `$lines[$start]` is the first line after the heading. The file contains the section's body without its `## [0.14.0]` heading, trimmed of blank lines and of a trailing `---` separator. The snippet assumes the section was produced by `changelog-fragments.cs --release` (a blank line before the next `## [` heading); open the file and check it before creating the release. Release titles use an em dash, like the existing releases (`v0.12.0 — Database & Repository`).
 
 How to check it worked:
 
@@ -191,10 +199,23 @@ git add Directory.Build.props
 git commit -m "chore: bump version to 0.15.0-dev"
 git push -u origin chore/version-0.15.0-dev
 gh pr create --repo dlrivada/Encina --base main --head chore/version-0.15.0-dev --title "chore: bump version to 0.15.0-dev" --body "Next development version after v0.14.0. Refs #1100."
-gh pr merge --repo dlrivada/Encina --auto --squash
+gh pr merge chore/version-0.15.0-dev --repo dlrivada/Encina --auto --squash
 ```
 
 How to check it worked: after the merge, `Select-String -Path Directory.Build.props -Pattern 'Version(Prefix|Suffix)'` on an updated `main` shows `0.15.0` and `dev`.
+
+## Step 6: close the milestone
+
+Find the milestone number, then close it:
+
+```powershell
+gh api --paginate repos/dlrivada/Encina/milestones --jq '.[] | [.number, .title] | @tsv'
+gh api -X PATCH repos/dlrivada/Encina/milestones/<number> -f state=closed
+```
+
+How to check it worked: the milestone no longer appears in the first command's output, which lists open milestones only.
+
+Keep the descriptive suffix in milestone titles (`v0.14.0 — Hardening`, as today). A milestone titled exactly `vX.Y.0` would start `release-on-milestone.yml`, which pushes to `main` and fails under the branch protection. This holds until #1100 replaces the workflow.
 
 ## Why this is manual
 
