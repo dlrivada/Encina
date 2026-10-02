@@ -1,5 +1,6 @@
 using System.Text;
 using Encina;
+using Encina.Diagnostics;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Diagnostics;
 using Encina.Messaging.Encryption.Model;
@@ -150,7 +151,7 @@ public sealed class MessageEncryptionHealthCheck : IHealthCheck
         }
         catch (Exception ex)
         {
-            _logger.HealthCheckException(ex);
+            _logger.HealthCheckException(ex.ForLogging());
             // The exception object goes to the logger only; the result carries just its type.
             return HealthCheckResult.Unhealthy(
                 $"Message encryption health check failed with exception: {ex.GetType().Name}");

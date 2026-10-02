@@ -27,8 +27,6 @@ public sealed partial class LoggerExceptionLeakStaticScanTests
         ("src/Encina.Security.Secrets.GoogleCloudSecretManager/GoogleCloudSecretManagerProvider.cs", "return LogAndReturn", "private helper that logs through ForLogging() itself"),
         ("src/Encina.Security.Secrets.HashiCorpVault/HashiCorpVaultSecretProvider.cs", "return LogAndReturn", "private helper that logs through ForLogging() itself"),
         ("src/Encina.Testing.Respawn/RespawnerFactory.cs", "LogParseFailure(", "opt-in verbose test diagnostic written to Debug output and a callback, not an ILogger"),
-        ("src/Encina.Compliance.NIS2/Health/NIS2ComplianceHealthCheck.cs", "_logger.LogError(ex,", "health checks are reworked in #1587; remove this entry there"),
-        ("src/Encina.Messaging.Encryption/Health/MessageEncryptionHealthCheck.cs", "_logger.HealthCheckException(ex)", "health checks are reworked in #1587; remove this entry there"),
     ];
 
     [Fact]
