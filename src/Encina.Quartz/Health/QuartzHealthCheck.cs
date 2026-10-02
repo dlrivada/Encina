@@ -57,19 +57,10 @@ public sealed class QuartzHealthCheck : EncinaHealthCheck
             };
 
             // Check status before calling GetMetaData (which may fail)
-            if (scheduler.IsShutdown)
+            var notOperational = CheckOperationalState(scheduler, data);
+            if (notOperational is not null)
             {
-                return HealthCheckResult.Unhealthy($"{Name} scheduler is shut down", data: data);
-            }
-
-            if (scheduler.InStandbyMode)
-            {
-                return HealthCheckResult.Degraded($"{Name} scheduler is in standby mode", data: data);
-            }
-
-            if (!scheduler.IsStarted)
-            {
-                return HealthCheckResult.Degraded($"{Name} scheduler is not started", data: data);
+                return notOperational.Value;
             }
 
             // Only get metadata for operational schedulers
@@ -87,5 +78,25 @@ public sealed class QuartzHealthCheck : EncinaHealthCheck
         {
             return HealthCheckResult.Unhealthy($"{Name} health check failed: {ex.GetType().Name}");
         }
+    }
+
+    private HealthCheckResult? CheckOperationalState(IScheduler scheduler, Dictionary<string, object> data)
+    {
+        if (scheduler.IsShutdown)
+        {
+            return HealthCheckResult.Unhealthy($"{Name} scheduler is shut down", data: data);
+        }
+
+        if (scheduler.InStandbyMode)
+        {
+            return HealthCheckResult.Degraded($"{Name} scheduler is in standby mode", data: data);
+        }
+
+        if (!scheduler.IsStarted)
+        {
+            return HealthCheckResult.Degraded($"{Name} scheduler is not started", data: data);
+        }
+
+        return null;
     }
 }
