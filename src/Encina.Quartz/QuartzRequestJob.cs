@@ -24,6 +24,12 @@ namespace Encina.Quartz;
 /// the error code and whose <see cref="Exception.Data"/> carries the error code and the
 /// <see cref="IErrorClassifier"/> classification (see <see cref="EncinaJobFailureData"/>).</description></item>
 /// </list>
+/// <para>
+/// On success the handler's response is not placed on <see cref="IJobExecutionContext.Result"/>, because
+/// listeners and plugins can persist it outside Encina's retention and erasure controls. Set
+/// <see cref="EncinaQuartzOptions.ExposeResponseInJobContext"/> to opt in for responses that carry no
+/// personal data (#1258).
+/// </para>
 /// </remarks>
 [DisallowConcurrentExecution]
 public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
@@ -32,6 +38,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     private readonly IEncina _encina;
     private readonly ILogger<QuartzRequestJob<TRequest, TResponse>> _logger;
     private readonly IErrorClassifier _errorClassifier;
+    private readonly bool _exposeResponse;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QuartzRequestJob{TRequest, TResponse}"/> class.
@@ -42,10 +49,15 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
     /// The classifier that decides whether a failure is permanent or transient. When <c>null</c>,
     /// <see cref="DefaultErrorClassifier"/> is used.
     /// </param>
+    /// <param name="options">
+    /// The Quartz integration options. When <c>null</c>, the response is not exposed (see
+    /// <see cref="EncinaQuartzOptions.ExposeResponseInJobContext"/>).
+    /// </param>
     public QuartzRequestJob(
         IEncina encina,
         ILogger<QuartzRequestJob<TRequest, TResponse>> logger,
-        IErrorClassifier? errorClassifier = null)
+        IErrorClassifier? errorClassifier = null,
+        EncinaQuartzOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(encina);
         ArgumentNullException.ThrowIfNull(logger);
@@ -53,6 +65,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         _encina = encina;
         _logger = logger;
         _errorClassifier = errorClassifier ?? new DefaultErrorClassifier();
+        _exposeResponse = options?.ExposeResponseInJobContext ?? false;
     }
 
     /// <summary>
@@ -96,10 +109,12 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
             {
                 Log.RequestJobCompleted(_logger, context.JobDetail.Key, requestType);
 
-                // Expose the response to Quartz listeners through context.Result. Quartz does
-                // not persist this value; a custom listener or plugin may store it outside
-                // Encina's retention/erasure controls (tracked in #1258).
-                context.Result = response;
+                // A listener or plugin can store context.Result outside Encina's retention and
+                // erasure controls, so the response is exposed only on explicit opt-in (#1258).
+                if (_exposeResponse)
+                {
+                    context.Result = response;
+                }
             },
             Left: error => throw ToException(error, context, requestType));
     }
