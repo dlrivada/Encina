@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 using Amazon.SimpleNotificationService;
-using Encina.Diagnostics;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

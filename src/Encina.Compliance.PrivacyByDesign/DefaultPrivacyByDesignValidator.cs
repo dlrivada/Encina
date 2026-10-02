@@ -4,8 +4,8 @@ using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
-using Encina.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 

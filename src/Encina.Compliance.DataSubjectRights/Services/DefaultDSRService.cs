@@ -1,12 +1,12 @@
 using System.Diagnostics;
 
 using Encina.Caching;
-using Encina.Diagnostics;
 using Encina.Compliance.DataSubjectRights.Abstractions;
 using Encina.Compliance.DataSubjectRights.Aggregates;
 using Encina.Compliance.DataSubjectRights.Diagnostics;
 using Encina.Compliance.DataSubjectRights.Projections;
 using Encina.Compliance.GDPR;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 

@@ -5,8 +5,8 @@ using System.Reflection;
 
 using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
-using Encina.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 

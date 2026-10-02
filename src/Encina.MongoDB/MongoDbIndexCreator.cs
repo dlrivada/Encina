@@ -1,9 +1,9 @@
+using Encina.Diagnostics;
 using Encina.MongoDB.Auditing;
 using Encina.MongoDB.Inbox;
 using Encina.MongoDB.Outbox;
 using Encina.MongoDB.Sagas;
 using Encina.MongoDB.Scheduling;
-using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

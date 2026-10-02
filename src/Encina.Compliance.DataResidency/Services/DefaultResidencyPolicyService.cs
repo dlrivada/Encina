@@ -1,10 +1,10 @@
 using Encina.Caching;
 using Encina.Compliance.DataResidency.Abstractions;
-using Encina.Diagnostics;
 using Encina.Compliance.DataResidency.Aggregates;
 using Encina.Compliance.DataResidency.Diagnostics;
 using Encina.Compliance.DataResidency.Model;
 using Encina.Compliance.DataResidency.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;

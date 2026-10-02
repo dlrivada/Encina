@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
-using Encina.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 

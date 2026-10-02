@@ -1,7 +1,7 @@
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
-using Encina.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 

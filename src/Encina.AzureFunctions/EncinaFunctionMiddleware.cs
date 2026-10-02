@@ -1,8 +1,8 @@
+using Encina.Diagnostics;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Middleware;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Encina.Diagnostics;
 
 namespace Encina.AzureFunctions;
 

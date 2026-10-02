@@ -1,5 +1,5 @@
-using Encina.DomainModeling;
 using Encina.Diagnostics;
+using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,7 +1,7 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
-using Encina.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;

@@ -1,10 +1,10 @@
 using Encina.Caching;
 using Encina.Compliance.ProcessorAgreements.Abstractions;
-using Encina.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
