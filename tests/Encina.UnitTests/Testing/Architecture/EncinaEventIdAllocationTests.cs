@@ -54,6 +54,7 @@ public sealed class EncinaEventIdAllocationTests
             ["Encina.Caching.Redis"] = [nameof(EventIdRanges.CachingRedis)],
             ["Encina.Cdc"] = [nameof(EventIdRanges.Cdc)],
             ["Encina.Cdc.Debezium"] = [nameof(EventIdRanges.CdcDebezium)],
+            ["Encina.Cdc.MySql"] = [nameof(EventIdRanges.CdcMySql)],
             ["Encina.Cdc.SqlServer"] = [nameof(EventIdRanges.CdcSqlServer)],
             ["Encina.Compliance.AIAct"] = [nameof(EventIdRanges.ComplianceAIAct)],
             ["Encina.Compliance.Anonymization"] = [nameof(EventIdRanges.ComplianceAnonymization)],
