@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -216,9 +217,9 @@ public sealed class SagaRunner : ISagaRunner
         Exception ex)
         where TData : class, new()
     {
-        // The exception object goes to the logger as the structured exception; its Message is
-        // never part of the log text, the persisted state or the returned error (#1469).
-        Log.SagaException(_logger, sagaId, ex.GetType().Name, ex);
+        // The logger gets the redacted exception (type and stack trace, never the message); the
+        // message is never part of the log text, the persisted state or the returned error (#1469).
+        Log.SagaException(_logger, sagaId, ex.GetType().Name, ex.ForLogging());
 
         // Run compensation for completed steps
         await CompensateAsync(definition, progress.Data, progress.StepsExecuted - 1, requestContext, CancellationToken.None)
@@ -266,7 +267,7 @@ public sealed class SagaRunner : ISagaRunner
             catch (Exception ex)
             {
                 // Log but continue with other compensations
-                Log.CompensationFailed(_logger, i + 1, step.Name, ex.GetType().Name, ex);
+                Log.CompensationFailed(_logger, i + 1, step.Name, ex.GetType().Name, ex.ForLogging());
             }
         }
     }

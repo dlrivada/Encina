@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using Encina.Messaging.ContentRouter;
 using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Diagnostics;
@@ -563,7 +564,8 @@ public sealed class ErrorMessageLeakTests
         error.Message.ShouldNotContain(ExceptionSentinel);
         error.Exception.IsSome.ShouldBeTrue();
 
-        harness.Logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+        AssertNoExceptionSentinel(harness.Logger);
+        harness.Logger.Collector.GetSnapshot().ShouldContain(r => r.Exception is RedactedException);
         harness.MockState.Received().ErrorMessage = SagaErrorCodes.HandlerFailed;
         harness.MockState.ErrorMessage.ShouldBe(SagaErrorCodes.HandlerFailed);
 
@@ -598,7 +600,8 @@ public sealed class ErrorMessageLeakTests
         result.IsLeft.ShouldBeTrue();
         var logs = harness.Logger.Collector.GetSnapshot();
         logs.ShouldContain(r => r.Message.Contains("Compensation failed"));
-        logs.ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+        logs.ShouldContain(r => r.Exception is RedactedException);
+        AssertNoExceptionSentinel(harness.Logger);
     }
 
     [Fact]
@@ -617,7 +620,7 @@ public sealed class ErrorMessageLeakTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         harness.MockState.Received().ErrorMessage = SagaErrorCodes.HandlerCancelled;
-        harness.Logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(ExceptionSentinel));
+        AssertNoExceptionSentinel(harness.Logger);
     }
 
     [Fact]
@@ -645,6 +648,19 @@ public sealed class ErrorMessageLeakTests
     public sealed record SensitiveRequest : IRequest<string>;
 
     private const string ExceptionSentinel = "exception-secret-patient-777";
+
+    private static void AssertNoExceptionSentinel(FakeLogger<SagaRunner> logger)
+    {
+        foreach (var record in logger.Collector.GetSnapshot())
+        {
+            record.Message.ShouldNotContain(ExceptionSentinel);
+            if (record.Exception is { } exception)
+            {
+                exception.Message.ShouldNotContain(ExceptionSentinel);
+                exception.ToString().ShouldNotContain(ExceptionSentinel);
+            }
+        }
+    }
 
     /// <summary>A real <see cref="SagaRunner"/> over a mocked store, exposing the persisted state and the logger.</summary>
     private sealed class SagaRunnerHarness
