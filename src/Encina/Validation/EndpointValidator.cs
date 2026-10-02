@@ -61,6 +61,9 @@ public static class EndpointValidator
         "localhost6",
         "localhost6.localdomain6");
 
+    // 169.254.169.254 (AWS, Azure, GCP), 100.100.100.200 (Alibaba), 168.63.129.16 (Azure WireServer), 192.0.0.192 (Oracle).
+    private static readonly FrozenSet<uint> MetadataIPv4 = FrozenSet.Create(0xA9FEA9FEu, 0x646464C8u, 0xA83F8110u, 0xC00000C0u);
+
     private static readonly FrozenSet<string> MetadataNames = FrozenSet.Create(
         StringComparer.OrdinalIgnoreCase,
         "metadata",
@@ -260,8 +263,7 @@ public static class EndpointValidator
     // crap-exempt: single-question switch — classifies one IPv4 address into its range.
     private static EndpointHostKind ClassifyIPv4(uint value) => value switch
     {
-        // 169.254.169.254 (AWS, Azure, GCP), 100.100.100.200 (Alibaba), 168.63.129.16 (Azure WireServer), 192.0.0.192 (Oracle)
-        0xA9FEA9FE or 0x646464C8 or 0xA83F8110 or 0xC00000C0 => EndpointHostKind.CloudMetadata,
+        _ when MetadataIPv4.Contains(value) => EndpointHostKind.CloudMetadata,
         _ when value >> 24 == 0 => EndpointHostKind.Unspecified,     // 0.0.0.0/8
         _ when value >> 24 == 127 => EndpointHostKind.Loopback,      // 127.0.0.0/8
         _ when value >> 16 == 0xA9FE => EndpointHostKind.LinkLocal,  // 169.254.0.0/16
