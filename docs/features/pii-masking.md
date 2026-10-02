@@ -208,8 +208,10 @@ public string CorrelationToken { get; set; }
 Hash mode fails closed:
 
 - `DefaultMode = MaskingMode.Hash` without a key throws `OptionsValidationException` from `AddEncinaPII` and again at startup (`ValidateOnStart`). An empty or whitespace key is invalid.
-- A property masked through a strategy (no `Pattern` or `Replacement` on its attribute) whose `[PII]` or other attribute selects Hash while no key and no opt-out exist is replaced by `[REDACTED]`, and an error is logged (EventId 8020).
-- The explicit opt-out `PIIOptions.AllowUnkeyedHash = true` keeps a plain, unkeyed SHA-256 and logs one warning at startup (EventId 8019).
+- The check inside `AddEncinaPII` sees only the `configure` delegate of that call, so set `HashKey` (and `AllowUnkeyedHash`) in the same delegate. Options bound or configured elsewhere are validated by `ValidateOnStart` instead.
+- Masking in Hash mode (selected by an attribute, or by `DefaultMode` when validation was skipped) while no key and no opt-out exist replaces the value with `[REDACTED]`; this covers a property masked through a strategy (no `Pattern` or `Replacement` on its attribute). An error is logged once per `PIIType`, not on every call (EventId 8020).
+- A blank (empty or whitespace) key that skipped validation is treated like a missing key: values are redacted, never hashed with it.
+- The explicit opt-out `PIIOptions.AllowUnkeyedHash = true` keeps a plain, unkeyed SHA-256. One warning is logged per service provider (host), when the options are validated with the opt-out set and no key, whatever the default mode (EventId 8019).
 
 An unkeyed SHA-256 of a low-entropy value (SSN, phone number, date of birth) can be reversed with a dictionary attack. Load the key from a secret store, never from source code. `HashKey` is excluded from JSON serialization and from `ToString()`. `MaskingOptions.HashKey` carries the key to custom `IMaskingStrategy` implementations.
 
@@ -231,7 +233,7 @@ services.AddEncinaPII(options =>
 |----------|------|---------|-------------|
 | `DefaultMode` | `MaskingMode` | `Partial` | Default masking mode for all strategies |
 | `HashKey` | `string?` | `null` | Secret key for `MaskingMode.Hash` (HMAC-SHA256); required when `DefaultMode` is `Hash` unless `AllowUnkeyedHash` is set; never serialized or printed |
-| `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs a warning at startup |
+| `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs one warning per service provider when the options are validated without a key |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
 | `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
