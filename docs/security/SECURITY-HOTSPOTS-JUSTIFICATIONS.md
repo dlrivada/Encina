@@ -50,7 +50,7 @@ This code is part of test infrastructure (`Encina.Testing.Respawn`) used exclusi
 
 **File:** `.github/workflows/link-check.yml`
 **Rule:** S2612 - Make sure this permission is safe
-**Lines:** 45-46 (job `check-links`) and 128-130 (job `full-external-scan`); permissions are declared per job, never at workflow level (#1494)
+**Lines:** 45-46 (job `check-links`) and 143-145 (job `full-external-scan`); permissions are declared per job, never at workflow level (#1494)
 
 **Context:**
 ```yaml
