@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,81 +173,130 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
                 return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
             }
 
-            object? resultReadModel = null;
-            var shouldDelete = false;
-
-            switch (handlerInfo.Value.HandlerType)
-            {
-                case ProjectionHandlerType.Creator:
-                    if (existingReadModel != null)
-                    {
-                        // Already exists, skip creation
-                        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
-                    }
-
-                    resultReadModel = handlerInfo.Value.InvokeCreate(projection, @event, context);
-                    ProjectionLog.CreatedReadModel(
-                        _logger,
-                        registration.ReadModelType.Name,
-                        context.StreamId,
-                        eventType.Name);
-                    break;
-
-                case ProjectionHandlerType.Handler:
-                    if (existingReadModel == null)
-                    {
-                        // No existing read model, nothing to update
-                        return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
-                    }
-
-                    resultReadModel = handlerInfo.Value.InvokeApply(projection, @event, existingReadModel, context);
-                    ProjectionLog.AppliedEvent(
-                        _logger,
-                        eventType.Name,
-                        registration.ReadModelType.Name,
-                        context.StreamId);
-                    break;
-
-                case ProjectionHandlerType.Deleter:
-                    if (existingReadModel != null)
-                    {
-                        shouldDelete = handlerInfo.Value.InvokeShouldDelete(projection, @event, existingReadModel, context);
-                        if (shouldDelete)
-                        {
-                            ProjectionLog.DeletedReadModelFromEvent(
-                                _logger,
-                                registration.ReadModelType.Name,
-                                context.StreamId,
-                                eventType.Name);
-                        }
-                    }
-
-                    break;
-            }
+            var (resultReadModel, shouldDelete) = EvaluateHandler(
+                handlerInfo.Value, projection, @event, existingReadModel, context, registration, eventType);
 
             // Persist the changes
-            if (shouldDelete)
-            {
-                await DeleteReadModelAsync(registration.ReadModelType, context.StreamId, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else if (resultReadModel != null)
-            {
-                await StoreReadModelAsync(resultReadModel, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            await PersistAsync(resultReadModel, shouldDelete, registration, context, cancellationToken)
+                .ConfigureAwait(false);
 
             return Right<EncinaError, Unit>(Unit.Default); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
-            ProjectionLog.ErrorApplyingEvent(_logger, ex, eventType.Name, registration.ProjectionName);
+            ProjectionLog.ErrorApplyingEvent(_logger, ex.ForLogging(), eventType.Name, registration.ProjectionName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
                     ProjectionErrorCodes.ApplyFailed,
                     ex,
                     $"Failed to apply event {eventType.Name} to projection {registration.ProjectionName}."));
+        }
+    }
+
+    /// <summary>
+    /// Runs the handler of the event and returns the read model to store and whether the stored one
+    /// must be deleted; <c>(null, false)</c> means there is nothing to persist.
+    /// </summary>
+    private (object? ResultReadModel, bool ShouldDelete) EvaluateHandler(
+        ProjectionHandlerInfo handlerInfo,
+        object projection,
+        object @event,
+        object? existingReadModel,
+        ProjectionContext context,
+        ProjectionRegistration registration,
+        Type eventType)
+    {
+        switch (handlerInfo.HandlerType)
+        {
+            case ProjectionHandlerType.Creator:
+                return (CreateReadModel(handlerInfo, projection, @event, existingReadModel, context, registration, eventType), false);
+
+            case ProjectionHandlerType.Handler:
+                return (ApplyToReadModel(handlerInfo, projection, @event, existingReadModel, context, registration, eventType), false);
+
+            case ProjectionHandlerType.Deleter:
+                return (null, ShouldDeleteReadModel(handlerInfo, projection, @event, existingReadModel, context, registration, eventType));
+
+            default:
+                return (null, false);
+        }
+    }
+
+    private object? CreateReadModel(
+        ProjectionHandlerInfo handlerInfo,
+        object projection,
+        object @event,
+        object? existingReadModel,
+        ProjectionContext context,
+        ProjectionRegistration registration,
+        Type eventType)
+    {
+        if (existingReadModel != null)
+        {
+            // Already exists, skip creation
+            return null;
+        }
+
+        var created = handlerInfo.InvokeCreate(projection, @event, context);
+        ProjectionLog.CreatedReadModel(_logger, registration.ReadModelType.Name, context.StreamId, eventType.Name);
+        return created;
+    }
+
+    private object? ApplyToReadModel(
+        ProjectionHandlerInfo handlerInfo,
+        object projection,
+        object @event,
+        object? existingReadModel,
+        ProjectionContext context,
+        ProjectionRegistration registration,
+        Type eventType)
+    {
+        if (existingReadModel == null)
+        {
+            // No existing read model, nothing to update
+            return null;
+        }
+
+        var updated = handlerInfo.InvokeApply(projection, @event, existingReadModel, context);
+        ProjectionLog.AppliedEvent(_logger, eventType.Name, registration.ReadModelType.Name, context.StreamId);
+        return updated;
+    }
+
+    private bool ShouldDeleteReadModel(
+        ProjectionHandlerInfo handlerInfo,
+        object projection,
+        object @event,
+        object? existingReadModel,
+        ProjectionContext context,
+        ProjectionRegistration registration,
+        Type eventType)
+    {
+        if (existingReadModel == null || !handlerInfo.InvokeShouldDelete(projection, @event, existingReadModel, context))
+        {
+            return false;
+        }
+
+        ProjectionLog.DeletedReadModelFromEvent(_logger, registration.ReadModelType.Name, context.StreamId, eventType.Name);
+        return true;
+    }
+
+    private async Task PersistAsync(
+        object? resultReadModel,
+        bool shouldDelete,
+        ProjectionRegistration registration,
+        ProjectionContext context,
+        CancellationToken cancellationToken)
+    {
+        if (shouldDelete)
+        {
+            await DeleteReadModelAsync(registration.ReadModelType, context.StreamId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else if (resultReadModel != null)
+        {
+            await StoreReadModelAsync(resultReadModel, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

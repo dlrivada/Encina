@@ -151,26 +151,13 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
         var requestTypeName = typeof(TRequest).Name;
 
-        // Step 1: Disabled mode — no-op, no logging, no metrics
-        if (_options.EnforcementMode == DataResidencyEnforcementMode.Disabled)
-        {
-            _logger.LogDebug(
-                "Data residency enforcement disabled for '{RequestType}'", requestTypeName);
-            return await nextStep().ConfigureAwait(false);
-        }
-
-        var residencyInfo = CachedResidencyInfo;
-        var noCrossInfo = CachedNoCrossInfo;
-
-        // Step 2: No attributes → skip entirely
-        if (residencyInfo is null && noCrossInfo is null)
+        // Steps 1-2: disabled mode or no attributes → skip entirely
+        if (ShouldSkipEnforcement(requestTypeName))
         {
             return await nextStep().ConfigureAwait(false);
         }
 
-        var dataCategory = residencyInfo?.DataCategory
-            ?? noCrossInfo?.DataCategory
-            ?? requestTypeName;
+        var dataCategory = ResolveDataCategory(CachedResidencyInfo, CachedNoCrossInfo, requestTypeName);
 
         // Step 3: Get current region from IRegionContextProvider
         var regionResult = await _regionContextProvider.GetCurrentRegionAsync(cancellationToken)
@@ -178,56 +165,124 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
         if (regionResult.IsLeft)
         {
-            var regionError = (EncinaError)regionResult;
-
-            _logger.LogWarning(
-                "Cannot resolve current region for request '{RequestType}': {ErrorMessage}",
-                requestTypeName, regionError.Message);
-
-            if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(regionError);
-            }
-
-            // Warn mode — proceed without region validation
-            return await nextStep().ConfigureAwait(false);
+            return await HandleRegionErrorAsync((EncinaError)regionResult, requestTypeName, nextStep)
+                .ConfigureAwait(false);
         }
 
-        var currentRegion = (Region)regionResult;
+        return await ExecuteInRegionAsync(
+            (Region)regionResult, dataCategory, requestTypeName, nextStep, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
-        // Step 4: [DataResidency] validation — check allowed regions via IResidencyPolicyService
-        if (residencyInfo is not null)
+    private bool ShouldSkipEnforcement(string requestTypeName)
+    {
+        // Step 1: Disabled mode — no-op, no logging, no metrics
+        if (_options.EnforcementMode == DataResidencyEnforcementMode.Disabled)
         {
-            var policyResult = await ValidateResidencyPolicyAsync(
-                residencyInfo, currentRegion, dataCategory, requestTypeName, cancellationToken)
-                .ConfigureAwait(false);
+            _logger.LogDebug(
+                "Data residency enforcement disabled for '{RequestType}'", requestTypeName);
+            return true;
+        }
 
-            if (policyResult.IsLeft)
-            {
-                return Left<EncinaError, TResponse>((EncinaError)policyResult);
-            }
+        // Step 2: No attributes → skip entirely
+        return CachedResidencyInfo is null && CachedNoCrossInfo is null;
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> ExecuteInRegionAsync(
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
+        // Step 4: [DataResidency] validation — check allowed regions via IResidencyPolicyService
+        var policyResult = await ValidateResidencyAttributeAsync(
+            CachedResidencyInfo, currentRegion, dataCategory, requestTypeName, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (policyResult.IsLeft)
+        {
+            return Left<EncinaError, TResponse>((EncinaError)policyResult);
         }
 
         // Step 5: [NoCrossBorderTransfer] — record constraint and validate no movement
-        if (noCrossInfo is not null)
-        {
-            _logger.LogDebug(
-                "No cross-border transfer constraint active for '{RequestType}' in region '{RegionCode}'",
-                requestTypeName, currentRegion.Code);
-        }
+        LogNoCrossBorderConstraint(requestTypeName, currentRegion);
 
         // Step 6: Call next handler
         var result = await nextStep().ConfigureAwait(false);
 
         // Step 7: Record data location (on success, if tracking enabled)
+        await TryRecordDataLocationOnSuccessAsync(result, currentRegion, dataCategory, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result;
+    }
+
+    private void LogNoCrossBorderConstraint(string requestTypeName, Region currentRegion)
+    {
+        if (CachedNoCrossInfo is not null)
+        {
+            _logger.LogDebug(
+                "No cross-border transfer constraint active for '{RequestType}' in region '{RegionCode}'",
+                requestTypeName, currentRegion.Code);
+        }
+    }
+
+    private static string ResolveDataCategory(
+        DataResidencyAttributeInfo? residencyInfo,
+        NoCrossBorderTransferInfo? noCrossInfo,
+        string requestTypeName) =>
+        residencyInfo?.DataCategory
+            ?? noCrossInfo?.DataCategory
+            ?? requestTypeName;
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleRegionErrorAsync(
+        EncinaError regionError,
+        string requestTypeName,
+        RequestHandlerCallback<TResponse> nextStep)
+    {
+        _logger.LogWarning(
+            "Cannot resolve current region for request '{RequestType}': {ErrorCode}",
+            requestTypeName, regionError.GetCode().IfNone("encina.unknown"));
+
+        if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(regionError);
+        }
+
+        // Warn mode — proceed without region validation
+        return await nextStep().ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> ValidateResidencyAttributeAsync(
+        DataResidencyAttributeInfo? info,
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName,
+        CancellationToken cancellationToken)
+    {
+        if (info is null)
+        {
+            return Right<EncinaError, Unit>(unit);
+        }
+
+        return await ValidateResidencyPolicyAsync(
+            info, currentRegion, dataCategory, requestTypeName, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask TryRecordDataLocationOnSuccessAsync(
+        Either<EncinaError, TResponse> result,
+        Region currentRegion,
+        string dataCategory,
+        CancellationToken cancellationToken)
+    {
         if (result.IsRight && _options.TrackDataLocations)
         {
             await TryRecordDataLocationAsync(
                 (TResponse)result, currentRegion, dataCategory, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        return result;
     }
 
     // ================================================================
@@ -247,37 +302,71 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
         if (isAllowedResult.IsLeft)
         {
-            var policyError = (EncinaError)isAllowedResult;
-
-            _logger.LogWarning(
-                "Residency policy check failed for data category '{DataCategory}': {ErrorMessage}",
-                dataCategory, policyError.Message);
-
-            if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
-            {
-                return Left<EncinaError, Unit>(policyError);
-            }
-
-            // Warn mode — proceed despite policy lookup failure
-            return Right<EncinaError, Unit>(unit);
+            return HandlePolicyLookupFailure((EncinaError)isAllowedResult, dataCategory);
         }
 
+        var allowedCheck = EvaluateAllowedRegion(isAllowedResult, currentRegion, dataCategory, requestTypeName);
+
+        if (allowedCheck.IsLeft || !info.RequireAdequacyDecision)
+        {
+            return allowedCheck;
+        }
+
+        return await CheckAdequacyAsync(currentRegion, dataCategory, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Either<EncinaError, Unit> EvaluateAllowedRegion(
+        Either<EncinaError, bool> isAllowedResult,
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName)
+    {
         var isAllowed = isAllowedResult.Match(Right: r => r, Left: _ => false);
 
-        if (!isAllowed)
+        return isAllowed
+            ? Right<EncinaError, Unit>(unit)
+            : HandleRegionNotAllowed(currentRegion, dataCategory, requestTypeName);
+    }
+
+    private Either<EncinaError, Unit> HandlePolicyLookupFailure(EncinaError policyError, string dataCategory)
+    {
+        _logger.LogWarning(
+            "Residency policy check failed for data category '{DataCategory}': {ErrorCode}",
+            dataCategory, policyError.GetCode().IfNone("encina.unknown"));
+
+        if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
         {
-            var error = DataResidencyErrors.RegionNotAllowed(dataCategory, currentRegion.Code);
-
-            _logger.LogWarning(
-                "Region '{RegionCode}' is not allowed for data category '{DataCategory}' on request '{RequestType}'",
-                currentRegion.Code, dataCategory, requestTypeName);
-
-            if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
-            {
-                return Left<EncinaError, Unit>(error);
-            }
+            return Left<EncinaError, Unit>(policyError);
         }
 
+        // Warn mode — proceed despite policy lookup failure
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    private Either<EncinaError, Unit> HandleRegionNotAllowed(
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName)
+    {
+        var error = DataResidencyErrors.RegionNotAllowed(dataCategory, currentRegion.Code);
+
+        _logger.LogWarning(
+            "Region '{RegionCode}' is not allowed for data category '{DataCategory}' on request '{RequestType}'",
+            currentRegion.Code, dataCategory, requestTypeName);
+
+        if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
+        {
+            return Left<EncinaError, Unit>(error);
+        }
+
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> CheckAdequacyAsync(
+        Region currentRegion,
+        string dataCategory,
+        CancellationToken cancellationToken)
+    {
         // Check if an EU adequacy decision is required for the current region. Adequacy and
         // certification are read through IAdequacyDecisionProvider (which resolves the canonical
         // registered region by code internally), not from currentRegion's own flags, since
@@ -286,36 +375,33 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         // Region.RequiresRecipientCertification) only counts as adequate when
         // IRecipientCertificationResolver confirms the recipient; with none registered, the
         // answer is false and the check fails closed.
-        if (info.RequireAdequacyDecision)
+        var isCertified = await _certificationResolver
+            .IsCertifiedAsync(currentRegion, dataCategory, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!_adequacyProvider.HasAdequacy(currentRegion, isCertified))
         {
-            var isCertified = await _certificationResolver
-                .IsCertifiedAsync(currentRegion, dataCategory, cancellationToken)
-                .ConfigureAwait(false);
+            // If certification would have made this region adequate, the gap is the missing
+            // certification confirmation, not a missing adequacy decision altogether.
+            var certificationGap = !isCertified
+                && _adequacyProvider.HasAdequacy(currentRegion, isRecipientCertified: true);
 
-            if (!_adequacyProvider.HasAdequacy(currentRegion, isCertified))
+            var reason = certificationGap
+                ? $"Region '{currentRegion.Code}' has a partial adequacy decision that requires " +
+                  $"recipient certification (e.g. DPF for US, PIPEDA for CA), which was not confirmed " +
+                  $"for data category '{dataCategory}'."
+                : $"Adequacy decision required for data category '{dataCategory}' but region '{currentRegion.Code}' does not have one.";
+
+            var error = DataResidencyErrors.CrossBorderTransferDenied(
+                currentRegion.Code, currentRegion.Code, reason);
+
+            _logger.LogWarning(
+                "Region '{RegionCode}' lacks a confirmed adequacy decision required for data category '{DataCategory}'",
+                currentRegion.Code, dataCategory);
+
+            if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
             {
-                // If certification would have made this region adequate, the gap is the missing
-                // certification confirmation, not a missing adequacy decision altogether.
-                var certificationGap = !isCertified
-                    && _adequacyProvider.HasAdequacy(currentRegion, isRecipientCertified: true);
-
-                var reason = certificationGap
-                    ? $"Region '{currentRegion.Code}' has a partial adequacy decision that requires " +
-                      $"recipient certification (e.g. DPF for US, PIPEDA for CA), which was not confirmed " +
-                      $"for data category '{dataCategory}'."
-                    : $"Adequacy decision required for data category '{dataCategory}' but region '{currentRegion.Code}' does not have one.";
-
-                var error = DataResidencyErrors.CrossBorderTransferDenied(
-                    currentRegion.Code, currentRegion.Code, reason);
-
-                _logger.LogWarning(
-                    "Region '{RegionCode}' lacks a confirmed adequacy decision required for data category '{DataCategory}'",
-                    currentRegion.Code, dataCategory);
-
-                if (_options.EnforcementMode == DataResidencyEnforcementMode.Block)
-                {
-                    return Left<EncinaError, Unit>(error);
-                }
+                return Left<EncinaError, Unit>(error);
             }
         }
 
@@ -346,8 +432,8 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         if (registerResult.IsLeft)
         {
             _logger.LogWarning(
-                "Failed to record data location for entity '{EntityId}': {ErrorMessage}",
-                entityId, ((EncinaError)registerResult).Message);
+                "Failed to record data location for entity '{EntityId}': {ErrorCode}",
+                entityId, ((EncinaError)registerResult).GetCode().IfNone("encina.unknown"));
         }
     }
 

@@ -114,7 +114,7 @@ public sealed class ObligationExecutor
                 {
                     ABACLogMessages.ObligationHandlerFailed(_logger,
                         obligation.Id,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
 
                     ABACDiagnostics.ObligationFailed.Add(1,
                         new KeyValuePair<string, object?>(ABACDiagnostics.TagObligationId, obligation.Id));
@@ -199,7 +199,7 @@ public sealed class ObligationExecutor
             result.Match(
                 Left: error => ABACLogMessages.AdviceHandlerFailed(_logger,
                     advice.Id,
-                    error.Message),
+                    error.GetCode().IfNone("encina.unknown")),
                 Right: _ =>
                 {
                     ABACLogMessages.AdviceExecuted(_logger, advice.Id);

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using LanguageExt;
@@ -655,11 +656,11 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             result.Match(
                 Right: _ => { },
                 Left: error => LogAuditRecordingFailed(
-                    _logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", error.Message));
+                    _logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", error.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex)
         {
-            LogAuditRecordingException(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", ex);
+            LogAuditRecordingException(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", ex.ForLogging());
         }
     }
 
@@ -678,13 +679,13 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     [LoggerMessage(
         EventId = 9056,
         Level = LogLevel.Warning,
-        Message = "Failed to record audit entry for {Action} on {EntityType} '{EntityId}': {ErrorMessage}")]
+        Message = "Failed to record audit entry for {Action} on {EntityType} '{EntityId}': {ErrorCode}")]
     private static partial void LogAuditRecordingFailed(
         ILogger logger,
         string action,
         string entityType,
         string entityId,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 9057,

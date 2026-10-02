@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -116,29 +117,37 @@ public sealed partial class Encina
             var errorCode = error.GetEncinaCode();
             activity?.SetStatus(ActivityStatusCode.Error, errorCode);
             activity?.SetTag(ActivityTagNames.FailureReason, errorCode);
-            // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
-            // uses to hold the code and details, whose Message IS the error message and may carry
-            // personal data (#1319). Using error.Exception directly would leak it into the logged
-            // exception object below.
-            var exception = error.GetCause().MatchUnsafe(
-                Some: ex => (Exception?)ex,
-                None: () => (Exception?)null);
+            var exception = GetLoggableCause(error);
             var handlerTypeName = handlerInstance.GetType().Name;
 
+            ReportNotificationFailure(Encina, notificationName, handlerTypeName, errorCode, exception);
+
+            return true;
+        }
+
+        // GetCause() never returns the internal EncinaException carrier that EncinaErrors.Create
+        // uses to hold the code and details, whose Message IS the error message and may carry
+        // personal data (#1319). Using error.Exception directly would leak it into the logged
+        // exception object.
+        private static Exception? GetLoggableCause(EncinaError error) =>
+            error.GetCause().MatchUnsafe(
+                Some: ex => (Exception?)ex,
+                None: () => (Exception?)null);
+
+        private static void ReportNotificationFailure(Encina Encina, string notificationName, string handlerTypeName, string errorCode, Exception? exception)
+        {
             if (IsCancellationCode(errorCode))
             {
-                Log.NotificationCancelled(Encina._logger, notificationName, handlerTypeName, exception);
+                Log.NotificationCancelled(Encina._logger, notificationName, handlerTypeName, exception?.ForLogging());
             }
             else if (exception is not null)
             {
-                Log.NotificationHandlerException(Encina._logger, notificationName, handlerTypeName, exception);
+                Log.NotificationHandlerException(Encina._logger, notificationName, handlerTypeName, exception.ForLogging());
             }
             else
             {
                 Log.NotificationHandlerFailure(Encina._logger, notificationName, handlerTypeName, errorCode);
             }
-
-            return true;
         }
 
         /// <summary>

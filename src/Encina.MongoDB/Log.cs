@@ -95,9 +95,6 @@ internal static partial class Log
     [LoggerMessage(EventId = 3127, Level = LogLevel.Warning, Message = "Saga {SagaId} not found for completion")]
     public static partial void SagaNotFoundForCompletion(ILogger logger, Guid sagaId);
 
-    [LoggerMessage(EventId = 3128, Level = LogLevel.Debug, Message = "Failed saga {SagaId}: {ErrorMessage}")]
-    public static partial void FailedSaga(ILogger logger, Guid sagaId, string errorMessage);
-
     [LoggerMessage(EventId = 3129, Level = LogLevel.Warning, Message = "Saga {SagaId} not found for failure")]
     public static partial void SagaNotFoundForFailure(ILogger logger, Guid sagaId);
 

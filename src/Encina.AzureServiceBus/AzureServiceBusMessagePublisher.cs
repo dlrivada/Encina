@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -68,7 +69,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         }
         catch (Exception ex)
         {
-            Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, effectiveQueueName);
+            Log.FailedToSendToQueue(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveQueueName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -110,7 +111,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishToTopic(_logger, ex, typeof(TMessage).Name, effectiveTopicName);
+            Log.FailedToPublishToTopic(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveTopicName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -156,7 +157,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         }
         catch (Exception ex)
         {
-            Log.FailedToScheduleMessage(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToScheduleMessage(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -187,7 +188,7 @@ public sealed class AzureServiceBusMessagePublisher : IAzureServiceBusMessagePub
         }
         catch (Exception ex)
         {
-            Log.FailedToCancelMessage(_logger, ex, sequenceNumber);
+            Log.FailedToCancelMessage(_logger, ex.ForLogging(), sequenceNumber);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Encina.Diagnostics;
 using Encina.Messaging.Encryption.Abstractions;
 using Encina.Messaging.Encryption.Model;
 using LanguageExt;
@@ -84,7 +85,7 @@ public sealed partial class DataProtectionMessageEncryptionProvider : IMessageEn
         }
         catch (Exception ex)
         {
-            Log.EncryptionFailed(_logger, context.MessageType ?? "unknown", ex.Message, ex);
+            Log.EncryptionFailed(_logger, context.MessageType ?? "unknown", ex.GetType().Name, ex.ForLogging());
             return ValueTask.FromResult<Either<EncinaError, EncryptedPayload>>(
                 Left<EncinaError, EncryptedPayload>(
                     MessageEncryptionErrors.EncryptionFailed(context.MessageType, ex)));
@@ -110,7 +111,7 @@ public sealed partial class DataProtectionMessageEncryptionProvider : IMessageEn
         }
         catch (Exception ex)
         {
-            Log.DecryptionFailed(_logger, payload.KeyId, ex.Message, ex);
+            Log.DecryptionFailed(_logger, payload.KeyId, ex.GetType().Name, ex.ForLogging());
             return ValueTask.FromResult<Either<EncinaError, ImmutableArray<byte>>>(
                 Left<EncinaError, ImmutableArray<byte>>(
                     MessageEncryptionErrors.DecryptionFailed(payload.KeyId, context.MessageType, ex)));

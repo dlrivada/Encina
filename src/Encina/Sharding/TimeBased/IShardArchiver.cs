@@ -23,7 +23,7 @@ namespace Encina.Sharding.TimeBased;
 /// var result = await archiver.TransitionTierAsync("orders-2025-10", ShardTier.Warm);
 /// result.Match(
 ///     Right: _ => logger.LogInformation("Transition complete"),
-///     Left: error => logger.LogError("Transition failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Transition failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Archive a cold shard to external storage
 /// var archiveResult = await archiver.ArchiveShardAsync("orders-2024-01",

@@ -4,6 +4,7 @@ using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -118,7 +119,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("CreatePolicy", ex);
+            _logger.RetentionServiceError("CreatePolicy", ex.ForLogging());
             return RetentionErrors.ServiceError("CreatePolicy", ex);
         }
     }
@@ -163,7 +164,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("UpdatePolicy", ex);
+            _logger.RetentionServiceError("UpdatePolicy", ex.ForLogging());
             return RetentionErrors.ServiceError("UpdatePolicy", ex);
         }
     }
@@ -205,7 +206,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("DeactivatePolicy", ex);
+            _logger.RetentionServiceError("DeactivatePolicy", ex.ForLogging());
             return RetentionErrors.ServiceError("DeactivatePolicy", ex);
         }
     }
@@ -244,7 +245,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetPolicy", ex);
+            _logger.RetentionServiceError("GetPolicy", ex.ForLogging());
             return RetentionErrors.ServiceError("GetPolicy", ex);
         }
     }
@@ -270,7 +271,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetPolicyByCategory", ex);
+            _logger.RetentionServiceError("GetPolicyByCategory", ex.ForLogging());
             return RetentionErrors.ServiceError("GetPolicyByCategory", ex);
         }
     }
@@ -289,7 +290,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetActivePolicies", ex);
+            _logger.RetentionServiceError("GetActivePolicies", ex.ForLogging());
             return RetentionErrors.ServiceError("GetActivePolicies", ex);
         }
     }
@@ -327,7 +328,7 @@ internal sealed class DefaultRetentionPolicyService : IRetentionPolicyService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetRetentionPeriod", ex);
+            _logger.RetentionServiceError("GetRetentionPeriod", ex.ForLogging());
             return RetentionErrors.ServiceError("GetRetentionPeriod", ex);
         }
     }

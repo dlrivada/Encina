@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -128,7 +129,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex);
+            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -159,7 +160,7 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         }
         catch (Exception ex)
         {
-            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex);
+            LogCacheError(_logger, typeof(TRequest).Name, cacheKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {

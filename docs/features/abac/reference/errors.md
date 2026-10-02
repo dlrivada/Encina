@@ -91,7 +91,7 @@ if (result.IsLeft)
     switch (error.Code)
     {
         case ABACErrors.AccessDeniedCode:
-            logger.LogWarning("Access denied: {Message}", error.Message);
+            logger.LogWarning("Access denied: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
             break;
 
         case ABACErrors.ObligationFailedCode:

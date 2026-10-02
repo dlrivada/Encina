@@ -766,7 +766,7 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Policy check failed: {Code} - {Message}", error.Code, error.Message);
+        logger.LogError("Policy check failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
     }
 );
 ```

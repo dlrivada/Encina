@@ -117,9 +117,9 @@ public sealed class DefaultRegionRouter : IRegionRouter
                     {
                         // Policy not found — route to current region (policy errors handled upstream)
                         _logger.LogDebug(
-                            "Could not check policy for category '{DataCategory}': {ErrorMessage} — "
+                            "Could not check policy for category '{DataCategory}': {ErrorCode} — "
                             + "routing to current region '{RegionCode}'",
-                            dataCategory, error.Message, currentRegion.Code);
+                            dataCategory, error.GetCode().IfNone("encina.unknown"), currentRegion.Code);
                         return Right<EncinaError, Region>(currentRegion);
                     });
             },

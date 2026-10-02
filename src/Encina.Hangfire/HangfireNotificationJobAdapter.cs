@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Recoverability;
 using Microsoft.Extensions.Logging;
 
@@ -73,7 +74,7 @@ public sealed class HangfireNotificationJobAdapter<TNotification>
         }
         catch (Exception ex)
         {
-            Log.NotificationJobException(_logger, ex, notificationType);
+            Log.NotificationJobException(_logger, ex.ForLogging(), notificationType);
 
             throw;
         }

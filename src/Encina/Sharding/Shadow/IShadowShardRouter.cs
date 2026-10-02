@@ -37,7 +37,7 @@ namespace Encina.Sharding.Shadow;
 ///     var shadowResult = await shadowRouter.RouteShadowAsync("customer-123", cancellationToken);
 ///     shadowResult.Match(
 ///         Right: shardId => logger.LogDebug("Shadow routed to {ShardId}", shardId),
-///         Left: error => logger.LogWarning("Shadow routing failed: {Error}", error.Message));
+///         Left: error => logger.LogWarning("Shadow routing failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// }
 /// </code>
 /// </example>

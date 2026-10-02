@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -274,7 +275,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         catch (Exception ex)
         {
             // Cache infrastructure failure — fallback to inner store directly
-            LogCacheError(_logger, operationName, cacheKey, ex);
+            LogCacheError(_logger, operationName, cacheKey, ex.ForLogging());
             return await factory(cancellationToken).ConfigureAwait(false);
         }
     }
@@ -291,35 +292,60 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         CancellationToken cancellationToken) where T : class
     {
         // 1. Try cache read
-        try
+        var cached = await TryReadCachedAsync<T>(cacheKey, operationName, cancellationToken).ConfigureAwait(false);
+        if (cached is not null)
         {
-            var cached = await _cache.GetAsync<T>(cacheKey, cancellationToken).ConfigureAwait(false);
-            if (cached is not null)
-            {
-                LogCacheHit(_logger, operationName, cacheKey);
-                return Some(cached);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogCacheError(_logger, operationName, cacheKey, ex);
+            return Some(cached);
         }
 
         // 2. Cache miss — load from inner store
         var result = await factory(cancellationToken).ConfigureAwait(false);
 
         // 3. Cache successful Some results only
-        if (result.IsRight)
-        {
-            var option = result.Match(Right: v => v, Left: _ => Option<T>.None);
-            if (option.IsSome)
-            {
-                var value = option.Match(Some: v => v, None: () => default!);
-                await TryCacheAsync(cacheKey, value, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await CacheSomeResultAsync(cacheKey, result, cancellationToken).ConfigureAwait(false);
 
         return result;
+    }
+
+    /// <summary>
+    /// Reads a cached value; returns <c>null</c> on a miss or when the cache fails (logged).
+    /// </summary>
+    private async ValueTask<T?> TryReadCachedAsync<T>(
+        string cacheKey,
+        string operationName,
+        CancellationToken cancellationToken) where T : class
+    {
+        try
+        {
+            var cached = await _cache.GetAsync<T>(cacheKey, cancellationToken).ConfigureAwait(false);
+            if (cached is not null)
+            {
+                LogCacheHit(_logger, operationName, cacheKey);
+            }
+
+            return cached;
+        }
+        catch (Exception ex)
+        {
+            LogCacheError(_logger, operationName, cacheKey, ex.ForLogging());
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Caches the value of a successful <c>Some</c> result; <c>None</c> and errors are not cached.
+    /// </summary>
+    private async ValueTask CacheSomeResultAsync<T>(
+        string cacheKey,
+        Either<EncinaError, Option<T>> result,
+        CancellationToken cancellationToken) where T : class
+    {
+        var option = result.Match(Right: v => v, Left: _ => Option<T>.None);
+        if (option.IsSome)
+        {
+            var value = option.Match(Some: v => v, None: () => default!);
+            await TryCacheAsync(cacheKey, value, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     // ── Write Helpers ──────────────────────────────────────────────
@@ -332,7 +358,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         }
         catch (Exception ex)
         {
-            LogCacheWriteError(_logger, key, ex);
+            LogCacheWriteError(_logger, key, ex.ForLogging());
         }
     }
 
@@ -356,7 +382,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
             }
             catch (Exception ex)
             {
-                LogCacheInvalidationError(_logger, key, ex);
+                LogCacheInvalidationError(_logger, key, ex.ForLogging());
             }
         }
 
@@ -379,7 +405,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
             }
             catch (Exception ex)
             {
-                LogPubSubError(_logger, entityType, entityId, _options.InvalidationChannel, ex);
+                LogPubSubError(_logger, entityType, entityId, _options.InvalidationChannel, ex.ForLogging());
             }
         }
     }

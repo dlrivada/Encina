@@ -313,7 +313,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
-        var error = EncinaError.New("User is not authorized to perform this action");
+        var error = EncinaErrors.Create("authz.not_authorized", "User is not authorized to perform this action");
 
         // Act
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(error), CancellationToken.None);
@@ -324,7 +324,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("not authorized")),
+            Arg.Is<string>(s => s == "authz.not_authorized"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -338,7 +338,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
-        var error = EncinaError.New("Access forbidden");
+        var error = EncinaErrors.Create("authz.forbidden", "Access forbidden");
 
         // Act
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(error), CancellationToken.None);
@@ -349,7 +349,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Denied,
-            Arg.Is<string>(s => s.Contains("forbidden")),
+            Arg.Is<string>(s => s == "authz.forbidden"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -363,7 +363,7 @@ public class AuditPipelineBehaviorTests : IDisposable
 
         var request = new TestCommand();
         var context = RequestContext.CreateForTest();
-        var error = EncinaError.New("Validation failed: Name is required");
+        var error = EncinaErrors.Create("validation.failed", "Validation failed: Name is required");
 
         // Act
         await behavior.Handle(request, context, () => new ValueTask<Either<EncinaError, Unit>>(error), CancellationToken.None);
@@ -374,7 +374,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Failure,
-            Arg.Is<string>(s => s.Contains("Validation") || s.Contains("required")),
+            Arg.Is<string>(s => s == "validation.failed"),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }
@@ -430,7 +430,7 @@ public class AuditPipelineBehaviorTests : IDisposable
             Arg.Any<Unit?>(),
             Arg.Any<IRequestContext>(),
             AuditOutcome.Error,
-            Arg.Is<string>(s => s.Contains("Something went wrong")),
+            Arg.Is<string>(s => s == nameof(InvalidOperationException)),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<DateTimeOffset>());
     }

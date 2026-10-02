@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Marten;
 using Microsoft.Extensions.Logging;
 
@@ -158,7 +159,7 @@ internal sealed partial class EventMetadataEnrichmentService
             catch (Exception ex)
             {
                 // Log but don't fail event persistence
-                Log.EnricherFailed(_logger, ex, enricher.GetType().Name);
+                Log.EnricherFailed(_logger, ex.ForLogging(), enricher.GetType().Name);
             }
         }
     }

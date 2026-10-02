@@ -67,13 +67,6 @@ internal static partial class ProcessorAgreementLogMessages
         Message = "Processor agreement pipeline check failed (no valid DPA). RequestType={RequestType}, ProcessorId={ProcessorId}")]
     internal static partial void ProcessorPipelineNoValidDPA(this ILogger logger, string requestType, string processorId);
 
-    /// <summary>Processor agreement pipeline check failed — detailed validation found issues.</summary>
-    [LoggerMessage(
-        EventId = 9405,
-        Level = LogLevel.Warning,
-        Message = "Processor agreement pipeline check failed (validation). RequestType={RequestType}, ProcessorId={ProcessorId}, Reason={Reason}")]
-    internal static partial void ProcessorPipelineValidationFailed(this ILogger logger, string requestType, string processorId, string reason);
-
     /// <summary>Processor agreement pipeline blocked the request in Block enforcement mode.</summary>
     [LoggerMessage(
         EventId = 9406,
@@ -241,8 +234,8 @@ internal static partial class ProcessorAgreementLogMessages
     [LoggerMessage(
         EventId = 9442,
         Level = LogLevel.Error,
-        Message = "DPA expiration check error. Operation={Operation}, ErrorMessage={ErrorMessage}")]
-    internal static partial void ExpirationCheckError(this ILogger logger, string operation, string errorMessage);
+        Message = "DPA expiration check error. Operation={Operation}, ErrorCode={ErrorCode}")]
+    internal static partial void ExpirationCheckError(this ILogger logger, string operation, string errorCode);
 
     /// <summary>Expired DPA detected — status transitioned and notification published.</summary>
     [LoggerMessage(
@@ -333,13 +326,6 @@ internal static partial class ProcessorAgreementLogMessages
         Message = "Processor service operation completed. Operation={Operation}, ProcessorId={ProcessorId}")]
     internal static partial void ProcessorServiceOperationCompleted(this ILogger logger, string operation, string processorId);
 
-    /// <summary>Processor service operation failed.</summary>
-    [LoggerMessage(
-        EventId = 9472,
-        Level = LogLevel.Warning,
-        Message = "Processor service operation failed. Operation={Operation}, ProcessorId={ProcessorId}, Reason={Reason}")]
-    internal static partial void ProcessorServiceOperationFailed(this ILogger logger, string operation, string processorId, string reason);
-
     /// <summary>Processor service cache hit.</summary>
     [LoggerMessage(
         EventId = 9473,
@@ -367,13 +353,6 @@ internal static partial class ProcessorAgreementLogMessages
         Level = LogLevel.Debug,
         Message = "DPA service operation completed. Operation={Operation}, DPAId={DPAId}")]
     internal static partial void DPAServiceOperationCompleted(this ILogger logger, string operation, string dpaId);
-
-    /// <summary>DPA service operation failed.</summary>
-    [LoggerMessage(
-        EventId = 9477,
-        Level = LogLevel.Warning,
-        Message = "DPA service operation failed. Operation={Operation}, DPAId={DPAId}, Reason={Reason}")]
-    internal static partial void DPAServiceOperationFailed(this ILogger logger, string operation, string dpaId, string reason);
 
     /// <summary>DPA service cache hit.</summary>
     [LoggerMessage(

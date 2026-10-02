@@ -54,27 +54,6 @@ internal static partial class DataResidencyLogMessages
         Message = "Data residency check passed. RequestType={RequestType}, Region={Region}, DataCategory={DataCategory}")]
     internal static partial void ResidencyCheckPassed(this ILogger logger, string requestType, string region, string dataCategory);
 
-    /// <summary>Data residency check blocked — region not allowed in Block enforcement mode.</summary>
-    [LoggerMessage(
-        EventId = 8603,
-        Level = LogLevel.Warning,
-        Message = "Data residency check blocked. RequestType={RequestType}, Region={Region}, DataCategory={DataCategory}, Reason={Reason}")]
-    internal static partial void ResidencyCheckBlocked(this ILogger logger, string requestType, string region, string dataCategory, string reason);
-
-    /// <summary>Data residency check warning — region not allowed but enforcement is in Warn mode.</summary>
-    [LoggerMessage(
-        EventId = 8604,
-        Level = LogLevel.Warning,
-        Message = "Data residency check warning (proceeding in Warn mode). RequestType={RequestType}, Region={Region}, DataCategory={DataCategory}, Reason={Reason}")]
-    internal static partial void ResidencyCheckWarning(this ILogger logger, string requestType, string region, string dataCategory, string reason);
-
-    /// <summary>Region resolution failed — could not determine the current data region.</summary>
-    [LoggerMessage(
-        EventId = 8605,
-        Level = LogLevel.Error,
-        Message = "Region resolution failed. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RegionResolutionFailed(this ILogger logger, string requestType, string errorMessage);
-
     /// <summary>Data residency pipeline started processing a request.</summary>
     [LoggerMessage(
         EventId = 8606,
@@ -113,13 +92,6 @@ internal static partial class DataResidencyLogMessages
         Level = LogLevel.Debug,
         Message = "Cross-border transfer allowed. SourceRegion={SourceRegion}, TargetRegion={TargetRegion}, LegalBasis={LegalBasis}")]
     internal static partial void TransferAllowed(this ILogger logger, string sourceRegion, string targetRegion, string legalBasis);
-
-    /// <summary>Cross-border transfer denied.</summary>
-    [LoggerMessage(
-        EventId = 8611,
-        Level = LogLevel.Warning,
-        Message = "Cross-border transfer denied. SourceRegion={SourceRegion}, TargetRegion={TargetRegion}, Reason={Reason}")]
-    internal static partial void TransferDenied(this ILogger logger, string sourceRegion, string targetRegion, string reason);
 
     /// <summary>Adequacy decision check performed for cross-border transfer.</summary>
     [LoggerMessage(
@@ -234,13 +206,6 @@ internal static partial class DataResidencyLogMessages
         Level = LogLevel.Debug,
         Message = "Data location recorded. EntityId={EntityId}, Region={Region}, DataCategory={DataCategory}")]
     internal static partial void LocationRecorded(this ILogger logger, string entityId, string region, string dataCategory);
-
-    /// <summary>Failed to record data location.</summary>
-    [LoggerMessage(
-        EventId = 8651,
-        Level = LogLevel.Warning,
-        Message = "Failed to record data location. EntityId={EntityId}, Region={Region}, ErrorMessage={ErrorMessage}")]
-    internal static partial void LocationRecordFailed(this ILogger logger, string entityId, string region, string errorMessage);
 
     /// <summary>Exception while recording data location.</summary>
     [LoggerMessage(

@@ -85,7 +85,7 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
                 },
                 Left: error =>
                 {
-                    LogWarning($"Failed to load secret '{secretName}': {error.Message}");
+                    LogWarning($"Failed to load secret '{secretName}': {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
 

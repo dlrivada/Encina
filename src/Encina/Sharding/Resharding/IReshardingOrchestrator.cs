@@ -35,7 +35,7 @@ namespace Encina.Sharding.Resharding;
 /// // Handle result
 /// result.Match(
 ///     Right: r => logger.LogInformation("Resharding completed: {Phase}", r.FinalPhase),
-///     Left: error => logger.LogError("Resharding failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Resharding failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public interface IReshardingOrchestrator

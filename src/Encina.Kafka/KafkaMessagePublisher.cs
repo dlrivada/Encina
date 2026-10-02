@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -82,7 +83,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceMessage(_logger, ex, typeof(TMessage).Name, effectiveTopic);
+            Log.FailedToProduceMessage(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveTopic);
 
             return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -110,22 +111,18 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
             {
                 var result = await ProduceAsync(message, effectiveTopic, key, cancellationToken).ConfigureAwait(false);
 
-                if (result.IsLeft)
+                var failure = CollectOrFail(result, results);
+                if (failure is not null)
                 {
-                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                        result.Match(
-                            Right: _ => throw new InvalidOperationException(),
-                            Left: error => error));
+                    return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(failure); // NOSONAR S6966: LanguageExt Left is a pure function
                 }
-
-                result.IfRight(results.Add);
             }
 
             return Right<EncinaError, IReadOnlyList<KafkaDeliveryResult>>(results); // NOSONAR S6966: LanguageExt Right is a pure function
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceBatch(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToProduceBatch(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, IReadOnlyList<KafkaDeliveryResult>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -133,6 +130,18 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
                     ex,
                     $"Failed to produce batch of messages of type {typeof(TMessage).Name}."));
         }
+    }
+
+    private static EncinaError? CollectOrFail(
+        Either<EncinaError, KafkaDeliveryResult> result,
+        List<KafkaDeliveryResult> results)
+    {
+        EncinaError? failure = null;
+        result.Match(
+            Right: delivery => { results.Add(delivery); },
+            Left: error => { failure = error; });
+
+        return failure;
     }
 
     /// <inheritdoc />
@@ -182,7 +191,7 @@ public sealed class KafkaMessagePublisher : IKafkaMessagePublisher, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToProduceMessageWithHeaders(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToProduceMessageWithHeaders(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, KafkaDeliveryResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

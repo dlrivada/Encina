@@ -6,7 +6,7 @@ namespace Encina.Cdc.DeadLetter;
 /// </summary>
 /// <param name="Id">Unique identifier for this dead letter entry.</param>
 /// <param name="OriginalEvent">The original <see cref="ChangeEvent"/> that failed processing.</param>
-/// <param name="ErrorMessage">The error message from the last failed processing attempt.</param>
+/// <param name="ErrorMessage">The exception type name of the last failed processing attempt (never the exception message).</param>
 /// <param name="StackTrace">The stack trace from the last failed processing attempt.</param>
 /// <param name="RetryCount">The number of retry attempts that were made before dead-lettering.</param>
 /// <param name="FailedAtUtc">The UTC timestamp when the event was moved to the dead letter queue.</param>

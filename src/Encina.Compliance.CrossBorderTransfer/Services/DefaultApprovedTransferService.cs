@@ -5,6 +5,7 @@ using Encina.Compliance.CrossBorderTransfer.Diagnostics;
 using Encina.Compliance.CrossBorderTransfer.Errors;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -96,12 +97,12 @@ internal sealed class DefaultApprovedTransferService : IApprovedTransferService
         }
         catch (ArgumentException ex)
         {
-            _logger.TransferStoreError("ApproveTransfer", ex);
+            _logger.TransferStoreError("ApproveTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.TransferBlocked(ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TransferStoreError("ApproveTransfer", ex);
+            _logger.TransferStoreError("ApproveTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("ApproveTransfer", ex);
         }
     }
@@ -139,12 +140,12 @@ internal sealed class DefaultApprovedTransferService : IApprovedTransferService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TransferStoreError("RevokeTransfer", ex);
+            _logger.TransferStoreError("RevokeTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.TransferAlreadyRevoked(transferId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TransferStoreError("RevokeTransfer", ex);
+            _logger.TransferStoreError("RevokeTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("RevokeTransfer", ex);
         }
     }
@@ -181,12 +182,12 @@ internal sealed class DefaultApprovedTransferService : IApprovedTransferService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TransferStoreError("RenewTransfer", ex);
+            _logger.TransferStoreError("RenewTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.TransferAlreadyRevoked(transferId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TransferStoreError("RenewTransfer", ex);
+            _logger.TransferStoreError("RenewTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("RenewTransfer", ex);
         }
     }
@@ -222,7 +223,7 @@ internal sealed class DefaultApprovedTransferService : IApprovedTransferService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TransferStoreError("GetApprovedTransfer", ex);
+            _logger.TransferStoreError("GetApprovedTransfer", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("GetApprovedTransfer", ex);
         }
     }

@@ -377,7 +377,7 @@ public sealed class InboxOrchestratorTests
 
         await _store.Received(1).MarkAsFailedAsync(
             messageId,
-            Arg.Is<string>(s => s.Contains("Processing failed")),
+            Arg.Is<string>(s => s == typeof(InvalidOperationException).FullName),
             Arg.Any<DateTime>(),
             Arg.Any<CancellationToken>());
     }

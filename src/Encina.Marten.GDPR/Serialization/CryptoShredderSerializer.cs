@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-
+using Encina.Diagnostics;
 using Encina.Marten.GDPR.Abstractions;
 using Encina.Marten.GDPR.Diagnostics;
 using Encina.Security.Encryption;
@@ -449,7 +449,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-            _logger.EncryptionFailed(propertyName, eventType.Name, ex);
+            _logger.EncryptionFailed(propertyName, eventType.Name, ex.ForLogging());
             return null;
         }
     }
@@ -684,7 +684,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(propertyName, eventType.Name, ex);
+            _logger.DecryptionFailed(propertyName, eventType.Name, ex.ForLogging());
             return _anonymizedPlaceholder;
         }
     }
@@ -731,7 +731,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         catch (Exception ex)
         {
             CryptoShreddingDiagnostics.DecryptionFailedTotal.Add(1);
-            _logger.DecryptionFailed(propertyName, eventType.Name, ex);
+            _logger.DecryptionFailed(propertyName, eventType.Name, ex.ForLogging());
             return _anonymizedPlaceholder;
         }
     }
@@ -799,7 +799,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             // The data subject's own identifier is never logged (#1429, following #1314);
             // correlate via the field name instead.
-            _logger.LogWarning(ex, "Forgotten subject handler failed for field '{FieldName}'", propertyName);
+            _logger.LogWarning(ex.ForLogging(), "Forgotten subject handler failed for field '{FieldName}'", propertyName);
         }
     }
 
@@ -822,7 +822,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             // The data subject's own identifier is never logged (#1429, following #1314);
             // correlate via the field name instead.
-            _logger.LogWarning(ex, "Forgotten subject handler failed for field '{FieldName}'", propertyName);
+            _logger.LogWarning(ex.ForLogging(), "Forgotten subject handler failed for field '{FieldName}'", propertyName);
         }
     }
 }

@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -235,7 +236,7 @@ internal sealed class OutboxBatchProcessor
 
             MessagingLog.OutboxMessageRetriesExhausted(
                 _logger,
-                exception,
+                exception?.ForLogging(),
                 message.Id,
                 message.NotificationType,
                 retryCount,
@@ -262,7 +263,7 @@ internal sealed class OutboxBatchProcessor
 
         MessagingLog.FailedToProcessOutboxMessage(
             _logger,
-            exception,
+            exception?.ForLogging(),
             message.Id,
             failureReason,
             retryCount,

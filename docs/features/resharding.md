@@ -94,7 +94,7 @@ result.Match(
         else
             logger.LogWarning("Resharding ended in phase: {Phase}", r.FinalPhase);
     },
-    Left: error => logger.LogError("Resharding failed: {Error}", error.Message));
+    Left: error => logger.LogError("Resharding failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 ---
@@ -259,7 +259,7 @@ result.IfRight(async r =>
         var rollback = await orchestrator.RollbackAsync(r, ct);
         rollback.Match(
             Right: _ => logger.LogInformation("Rollback completed, original topology restored"),
-            Left: error => logger.LogError("Rollback failed: {Error}", error.Message));
+            Left: error => logger.LogError("Rollback failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
     }
 });
 ```

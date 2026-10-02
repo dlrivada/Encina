@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -136,7 +137,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         }
         catch (Exception ex)
         {
-            Log.RollingBackTransactionDueToException(_logger, ex, typeof(TRequest).Name, context.CorrelationId);
+            Log.RollingBackTransactionDueToException(_logger, ex.ForLogging(), typeof(TRequest).Name, context.CorrelationId);
 
             await RollbackIfActiveAsync(transaction, cancellationToken).ConfigureAwait(false);
 

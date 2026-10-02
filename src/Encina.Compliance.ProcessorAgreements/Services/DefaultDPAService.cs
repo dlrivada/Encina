@@ -4,6 +4,7 @@ using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -112,7 +113,7 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DPAAdditionFailed(processorId.ToString(), ex.Message);
+            _logger.DPAAdditionFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("ExecuteDPA", ex.Message, ex);
         }
     }
@@ -153,12 +154,12 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(dpaId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("AmendDPA", ex.Message, ex);
         }
     }
@@ -198,12 +199,12 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(dpaId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("AuditDPA", ex.Message, ex);
         }
     }
@@ -241,12 +242,12 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(dpaId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("RenewDPA", ex.Message, ex);
         }
     }
@@ -284,12 +285,12 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(dpaId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DPAUpdateFailed(dpaId.ToString(), ex.Message);
+            _logger.DPAUpdateFailed(dpaId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("TerminateDPA", ex.Message, ex);
         }
     }
@@ -468,7 +469,7 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ValidationError(processorId.ToString(), ex);
+            _logger.ValidationError(processorId.ToString(), ex.ForLogging());
             return ProcessorAgreementErrors.StoreError("HasValidDPA", ex.Message, ex);
         }
     }
@@ -546,7 +547,7 @@ internal sealed class DefaultDPAService : IDPAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ValidationError(processorId.ToString(), ex);
+            _logger.ValidationError(processorId.ToString(), ex.ForLogging());
             return ProcessorAgreementErrors.StoreError("ValidateDPA", ex.Message, ex);
         }
     }

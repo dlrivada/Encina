@@ -4,6 +4,7 @@ using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
 using Encina.Compliance.Retention.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -111,7 +112,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("TrackEntity", ex);
+            _logger.RetentionServiceError("TrackEntity", ex.ForLogging());
             return RetentionErrors.ServiceError("TrackEntity", ex);
         }
     }
@@ -152,7 +153,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("MarkExpired", ex);
+            _logger.RetentionServiceError("MarkExpired", ex.ForLogging());
             return RetentionErrors.ServiceError("MarkExpired", ex);
         }
     }
@@ -195,7 +196,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("HoldRecord", ex);
+            _logger.RetentionServiceError("HoldRecord", ex.ForLogging());
             return RetentionErrors.ServiceError("HoldRecord", ex);
         }
     }
@@ -245,7 +246,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("ReleaseRecord", ex);
+            _logger.RetentionServiceError("ReleaseRecord", ex.ForLogging());
             return RetentionErrors.ServiceError("ReleaseRecord", ex);
         }
     }
@@ -287,7 +288,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("MarkDeleted", ex);
+            _logger.RetentionServiceError("MarkDeleted", ex.ForLogging());
             return RetentionErrors.ServiceError("MarkDeleted", ex);
         }
     }
@@ -329,7 +330,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("MarkAnonymized", ex);
+            _logger.RetentionServiceError("MarkAnonymized", ex.ForLogging());
             return RetentionErrors.ServiceError("MarkAnonymized", ex);
         }
     }
@@ -368,7 +369,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetRecord", ex);
+            _logger.RetentionServiceError("GetRecord", ex.ForLogging());
             return RetentionErrors.ServiceError("GetRecord", ex);
         }
     }
@@ -388,7 +389,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetRecordsByEntity", ex);
+            _logger.RetentionServiceError("GetRecordsByEntity", ex.ForLogging());
             return RetentionErrors.ServiceError("GetRecordsByEntity", ex);
         }
     }
@@ -408,7 +409,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetRecordsByStatus", ex);
+            _logger.RetentionServiceError("GetRecordsByStatus", ex.ForLogging());
             return RetentionErrors.ServiceError("GetRecordsByStatus", ex);
         }
     }
@@ -434,7 +435,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetExpiredRecords", ex);
+            _logger.RetentionServiceError("GetExpiredRecords", ex.ForLogging());
             return RetentionErrors.ServiceError("GetExpiredRecords", ex);
         }
     }
@@ -454,7 +455,7 @@ internal sealed class DefaultRetentionRecordService : IRetentionRecordService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetRecordsByPolicy", ex);
+            _logger.RetentionServiceError("GetRecordsByPolicy", ex.ForLogging());
             return RetentionErrors.ServiceError("GetRecordsByPolicy", ex);
         }
     }

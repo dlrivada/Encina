@@ -1,7 +1,11 @@
 using System.Linq.Expressions;
+
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.Security.Audit.Diagnostics;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Audit;
@@ -296,7 +300,7 @@ public sealed class AuditedRepository<TEntity, TId> : IRepository<TEntity, TId>
         catch (Exception ex)
         {
             // Audit failures must never block read operations
-            ReadAuditLog.ReadAccessFailed(_logger, entityTypeName, methodName, ex);
+            ReadAuditLog.ReadAccessFailed(_logger, entityTypeName, methodName, ex.ForLogging());
             ReadAuditMeter.LogFailuresTotal.Add(1,
                 new KeyValuePair<string, object?>(ReadAuditMeter.TagEntityType, entityTypeName));
             ReadAuditActivitySource.Failed(activity, ex.Message);

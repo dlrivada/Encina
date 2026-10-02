@@ -1,9 +1,15 @@
+using System.Reflection;
+
+using Encina.Diagnostics;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Profiles;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using static LanguageExt.Prelude;
 
 namespace Encina.Security.Sanitization;
@@ -80,71 +86,116 @@ internal sealed class SanitizationOrchestrator
         // Attribute-based sanitization
         var properties = SanitizationPropertyCache.GetProperties(requestType);
 
-        foreach (var prop in properties)
+        var attributed = SanitizeAttributedProperties(request, properties);
+        if (attributed.IsLeft)
         {
-            var value = prop.Getter(request) as string;
-            if (value is null)
-            {
-                continue;
-            }
-
-            var result = SanitizeProperty(value, prop.Attribute);
-
-            if (result.IsLeft)
-            {
-                return result.Match<Either<EncinaError, Unit>>(
-                    Right: _ => Unit.Default,
-                    Left: e => e);
-            }
-
-            var sanitized = result.Match(
-                Right: v => v,
-                Left: _ => value);
-
-            prop.Setter(request, sanitized);
+            return attributed;
         }
 
         // Auto-sanitize mode: sanitize all remaining string properties
         if (_options.SanitizeAllStringInputs)
         {
-            var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
-                properties.Select(p => p.Property.Name),
-                StringComparer.Ordinal);
-
-            var stringProperties = SanitizationPropertyCache.GetStringProperties(requestType);
-
-            foreach (var prop in stringProperties)
+            var auto = AutoSanitizeStringProperties(request, requestType, properties);
+            if (auto.IsLeft)
             {
-                // Skip properties that already have explicit attributes
-                if (attributePropertyNames.Contains(prop.Name))
-                {
-                    continue;
-                }
-
-                var value = prop.GetValue(request) as string;
-                if (value is null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var profile = _options.DefaultProfile ?? SanitizationProfiles.StrictText;
-                    var sanitized = _sanitizer.Custom(value, profile);
-                    prop.SetValue(request, sanitized);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex,
-                        "Auto-sanitization failed for property '{PropertyName}' on {TypeName}",
-                        prop.Name, requestType.Name);
-
-                    return SanitizationErrors.PropertyError(prop.Name, ex);
-                }
+                return auto;
             }
         }
 
         return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    /// <summary>
+    /// Sanitizes every property decorated with a sanitization attribute; stops at the first failure.
+    /// </summary>
+    private Either<EncinaError, Unit> SanitizeAttributedProperties<TRequest>(
+        TRequest request, SanitizablePropertyInfo[] properties)
+    {
+        foreach (var prop in properties)
+        {
+            var outcome = SanitizeAttributedProperty(request, prop);
+            if (outcome.IsLeft)
+            {
+                return outcome;
+            }
+        }
+
+        return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    private Either<EncinaError, Unit> SanitizeAttributedProperty<TRequest>(
+        TRequest request, SanitizablePropertyInfo prop)
+    {
+        var value = prop.Getter(request!) as string;
+        if (value is null)
+        {
+            return Unit.Default;
+        }
+
+        var result = SanitizeProperty(value, prop.Attribute);
+        if (result.IsLeft)
+        {
+            return result.Map(_ => Unit.Default);
+        }
+
+        prop.Setter(request!, result.IfLeft(value));
+        return Unit.Default;
+    }
+
+    /// <summary>
+    /// Sanitizes the string properties that carry no explicit attribute with the default profile.
+    /// </summary>
+    private Either<EncinaError, Unit> AutoSanitizeStringProperties<TRequest>(
+        TRequest request, Type requestType, SanitizablePropertyInfo[] attributedProperties)
+    {
+        var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
+            attributedProperties.Select(p => p.Property.Name),
+            StringComparer.Ordinal);
+
+        var stringProperties = SanitizationPropertyCache.GetStringProperties(requestType);
+
+        foreach (var prop in stringProperties)
+        {
+            // Skip properties that already have explicit attributes
+            if (attributePropertyNames.Contains(prop.Name))
+            {
+                continue;
+            }
+
+            var outcome = AutoSanitizeProperty(request, requestType, prop);
+            if (outcome.IsLeft)
+            {
+                return outcome;
+            }
+        }
+
+        return Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    private Either<EncinaError, Unit> AutoSanitizeProperty<TRequest>(
+        TRequest request, Type requestType, PropertyInfo prop)
+    {
+        var value = prop.GetValue(request) as string;
+        if (value is null)
+        {
+            return Unit.Default;
+        }
+
+        try
+        {
+            var profile = _options.DefaultProfile ?? SanitizationProfiles.StrictText;
+            var sanitized = _sanitizer.Custom(value, profile);
+            prop.SetValue(request, sanitized);
+            return Unit.Default;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex.ForLogging(),
+                "Auto-sanitization failed for property '{PropertyName}' on {TypeName}",
+                prop.Name, requestType.Name);
+
+            return SanitizationErrors.PropertyError(prop.Name, ex);
+        }
     }
 
     /// <summary>

@@ -49,8 +49,8 @@ internal static partial class DebeziumKafkaLog
     [LoggerMessage(
         EventId = 4966,
         Level = LogLevel.Error,
-        Message = "Debezium Kafka consumer error: {ErrorReason}")]
-    public static partial void ConsumerError(ILogger logger, string errorReason);
+        Message = "Debezium Kafka consumer error: {ErrorCode}")]
+    public static partial void ConsumerError(ILogger logger, string errorCode);
 
     /// <summary>Logs when the Kafka connector resumes from a saved offset.</summary>
     [LoggerMessage(

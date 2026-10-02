@@ -94,8 +94,8 @@ internal static partial class NIS2LogMessages
     [LoggerMessage(
         EventId = 9208,
         Level = LogLevel.Warning,
-        Message = "NIS2 pipeline audit recording failed. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void NIS2PipelineAuditFailed(this ILogger logger, string requestType, string errorMessage);
+        Message = "NIS2 pipeline audit recording failed. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void NIS2PipelineAuditFailed(this ILogger logger, string requestType, string errorCode);
 
     /// <summary>NIS2 pipeline audit recording exception (fire-and-forget, non-blocking).</summary>
     [LoggerMessage(

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Encina.Caching.Sharding.Configuration;
+using Encina.Diagnostics;
 using Encina.Sharding.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -175,7 +176,7 @@ public sealed class CachedShardDirectoryStore : IShardDirectoryStore
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to refresh directory L1 cache");
+            _logger.LogWarning(ex.ForLogging(), "Failed to refresh directory L1 cache");
         }
     }
 
@@ -241,20 +242,22 @@ public sealed class CachedShardDirectoryStore : IShardDirectoryStore
         var message = new DirectoryCacheInvalidationMessage(key, shardId, isRemoval);
 
         // Fire-and-forget: pub/sub invalidation should not block the synchronous write path
-        _ = Task.Run(async () =>
+        _ = Task.Run(() => PublishInvalidationAsync(_pubSub, message));
+    }
+
+    private async Task PublishInvalidationAsync(IPubSubProvider pubSub, DirectoryCacheInvalidationMessage message)
+    {
+        try
         {
-            try
-            {
-                await _pubSub.PublishAsync(
-                    _options.InvalidationChannel,
-                    message,
-                    CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to publish directory invalidation for key '{Key}'", key);
-            }
-        });
+            await pubSub.PublishAsync(
+                _options.InvalidationChannel,
+                message,
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex.ForLogging(), "Failed to publish directory invalidation for key '{Key}'", message.Key);
+        }
     }
 }
 #pragma warning restore CA1848

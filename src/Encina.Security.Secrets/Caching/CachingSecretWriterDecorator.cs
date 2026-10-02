@@ -1,6 +1,9 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Caching;
@@ -125,7 +128,7 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         }
         catch (Exception ex)
         {
-            Log.CacheKeyRemovalError(_logger, key, ex);
+            Log.CacheKeyRemovalError(_logger, key, ex.ForLogging());
             return false;
         }
     }
@@ -139,7 +142,7 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         }
         catch (Exception ex)
         {
-            Log.CacheKeyRemovalError(_logger, pattern, ex);
+            Log.CacheKeyRemovalError(_logger, pattern, ex.ForLogging());
             return false;
         }
     }
@@ -165,7 +168,7 @@ public sealed class CachingSecretWriterDecorator : ISecretWriter
         }
         catch (Exception ex)
         {
-            Log.PubSubPublishError(_logger, secretName, _options.InvalidationChannel, ex);
+            Log.PubSubPublishError(_logger, secretName, _options.InvalidationChannel, ex.ForLogging());
         }
     }
 

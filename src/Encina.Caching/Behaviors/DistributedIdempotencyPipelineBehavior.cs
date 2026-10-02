@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -85,15 +86,15 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
 
         // Get idempotency key from context
         var idempotencyKey = context.IdempotencyKey;
-        if (string.IsNullOrWhiteSpace(idempotencyKey) && context.IsNestedDispatch())
-        {
-            // A request sent from inside another dispatch without a key of its own: the key belongs
-            // to the entry point, whose idempotency check already covers this nested work.
-            return await nextStep().ConfigureAwait(false);
-        }
-
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
+            if (context.IsNestedDispatch())
+            {
+                // A request sent from inside another dispatch without a key of its own: the key belongs
+                // to the entry point, whose idempotency check already covers this nested work.
+                return await nextStep().ConfigureAwait(false);
+            }
+
             LogMissingIdempotencyKey(_logger, typeof(TRequest).Name, context.CorrelationId);
 
             return EncinaErrors.Create(
@@ -103,6 +104,34 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
 
         var cacheKey = $"{_options.IdempotencyKeyPrefix}:{context.TenantId}:{idempotencyKey}";
 
+        var (isDuplicate, duplicateResult) = await ClaimKeyAsync(cacheKey, idempotencyKey, context, cancellationToken)
+            .ConfigureAwait(false);
+        if (isDuplicate)
+        {
+            return duplicateResult;
+        }
+
+        // Execute the handler
+        var result = await nextStep().ConfigureAwait(false);
+
+        await StoreResultAsync(cacheKey, idempotencyKey, context, result, cancellationToken).ConfigureAwait(false);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Looks for an existing entry and, when there is none, marks the key as in progress.
+    /// </summary>
+    /// <returns>
+    /// <c>IsDuplicate = true</c> with the result to return when an entry exists; otherwise
+    /// <c>IsDuplicate = false</c> (also after a swallowed cache error).
+    /// </returns>
+    private async ValueTask<(bool IsDuplicate, Either<EncinaError, TResponse> Result)> ClaimKeyAsync(
+        string cacheKey,
+        string idempotencyKey,
+        IRequestContext context,
+        CancellationToken cancellationToken)
+    {
         try
         {
             // Check for existing entry
@@ -113,20 +142,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
             {
                 LogIdempotentDuplicate(_logger, typeof(TRequest).Name, idempotencyKey, context.CorrelationId);
 
-                if (existing.IsSuccess && existing.Response is not null)
-                {
-                    return existing.Response;
-                }
-
-                if (existing.HasError)
-                {
-                    return existing.Error;
-                }
-
-                // Entry exists but no response yet - request is in progress
-                return EncinaErrors.Create(
-                    "idempotency.in_progress",
-                    "Request is already being processed");
+                return (true, ResultOf(existing));
             }
 
             // Mark as in progress
@@ -141,7 +157,7 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         }
         catch (Exception ex)
         {
-            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex);
+            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
@@ -151,10 +167,34 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
             // Continue without idempotency on cache error
         }
 
-        // Execute the handler
-        var result = await nextStep().ConfigureAwait(false);
+        return (false, default);
+    }
 
-        // Store the result
+    private static Either<EncinaError, TResponse> ResultOf(IdempotencyEntry<TResponse> existing)
+    {
+        if (existing.IsSuccess && existing.Response is not null)
+        {
+            return existing.Response;
+        }
+
+        if (existing.HasError)
+        {
+            return existing.Error;
+        }
+
+        // Entry exists but no response yet - request is in progress
+        return EncinaErrors.Create(
+            "idempotency.in_progress",
+            "Request is already being processed");
+    }
+
+    private async ValueTask StoreResultAsync(
+        string cacheKey,
+        string idempotencyKey,
+        IRequestContext context,
+        Either<EncinaError, TResponse> result,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var (hasError, errorValue) = result.Match(
@@ -179,15 +219,13 @@ public sealed partial class DistributedIdempotencyPipelineBehavior<TRequest, TRe
         }
         catch (Exception ex)
         {
-            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex);
+            LogIdempotencyError(_logger, typeof(TRequest).Name, idempotencyKey, ex.ForLogging());
 
             if (_options.ThrowOnCacheErrors)
             {
                 throw;
             }
         }
-
-        return result;
     }
 
     [LoggerMessage(

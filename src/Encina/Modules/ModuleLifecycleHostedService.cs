@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -61,7 +62,7 @@ internal sealed class ModuleLifecycleHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                LogModuleStartFailed(_logger, module.Name, ex);
+                LogModuleStartFailed(_logger, module.Name, ex.ForLogging());
                 throw;
             }
         }
@@ -100,7 +101,7 @@ internal sealed class ModuleLifecycleHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                LogModuleStopFailed(_logger, module.Name, ex);
+                LogModuleStopFailed(_logger, module.Name, ex.ForLogging());
                 exceptions.Add(ex);
                 // Continue stopping other modules even if one fails
             }

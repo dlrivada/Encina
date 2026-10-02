@@ -44,7 +44,7 @@ namespace Encina.Sharding.Migrations;
 ///         else
 ///             logger.LogWarning("{Failed} shards failed", r.FailedCount);
 ///     },
-///     Left: error => logger.LogError("Migration coordination error: {Error}", error.Message));
+///     Left: error => logger.LogError("Migration coordination error: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public interface IShardedMigrationCoordinator

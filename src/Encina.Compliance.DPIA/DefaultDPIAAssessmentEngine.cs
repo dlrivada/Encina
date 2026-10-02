@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.GDPR;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -238,7 +239,7 @@ public sealed class DefaultDPIAAssessmentEngine : IDPIAAssessmentEngine
             catch (Exception ex)
             {
                 // Fault isolation: individual criterion failures do not abort the assessment.
-                _logger.CriterionFailed(criterion.Name, ex);
+                _logger.CriterionFailed(criterion.Name, ex.ForLogging());
             }
         }
 

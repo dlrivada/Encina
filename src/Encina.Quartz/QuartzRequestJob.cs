@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -85,7 +86,7 @@ public sealed class QuartzRequestJob<TRequest, TResponse> : IJob
         }
         catch (Exception ex)
         {
-            Log.RequestJobException(_logger, ex, context.JobDetail.Key, requestType);
+            Log.RequestJobException(_logger, ex.ForLogging(), context.JobDetail.Key, requestType);
 
             throw new JobExecutionException(ex);
         }

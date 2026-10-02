@@ -25,7 +25,7 @@ namespace Encina.Sharding.ReferenceTables;
 /// var result = await replicator.ReplicateAsync&lt;Country&gt;(ct);
 /// result.Match(
 ///     Right: r => logger.LogInformation("Synced {Rows} country rows", r.RowsSynced),
-///     Left: e => logger.LogError("Country replication failed: {Error}", e.Message));
+///     Left: e => logger.LogError("Country replication failed: {ErrorCode}", e.GetCode().IfNone("encina.unknown")));
 ///
 /// // Replicate all registered reference tables
 /// var allResult = await replicator.ReplicateAllAsync(ct);

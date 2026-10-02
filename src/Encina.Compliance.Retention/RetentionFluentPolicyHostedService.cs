@@ -1,6 +1,7 @@
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -84,7 +85,7 @@ internal sealed class RetentionFluentPolicyHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                _logger.RetentionAutoRegistrationPolicyFailed(descriptor.DataCategory, ex);
+                _logger.RetentionAutoRegistrationPolicyFailed(descriptor.DataCategory, ex.ForLogging());
             }
         }
 

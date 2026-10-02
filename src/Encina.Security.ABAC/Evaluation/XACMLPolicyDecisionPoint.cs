@@ -1,5 +1,6 @@
 using System.Diagnostics;
 
+using Encina.Diagnostics;
 using Encina.Security.ABAC.CombiningAlgorithms;
 
 using Microsoft.Extensions.Logging;
@@ -78,7 +79,7 @@ public sealed class XACMLPolicyDecisionPoint(
             var policySetsEvaluated = policySetsResult.Match(
                 Left: error =>
                 {
-                    _logger.LogWarning("Failed to retrieve policy sets: {ErrorMessage}", error.Message);
+                    _logger.LogWarning("Failed to retrieve policy sets: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
                     return false;
                 },
                 Right: policySets =>
@@ -114,7 +115,7 @@ public sealed class XACMLPolicyDecisionPoint(
             var policiesEvaluated = policiesResult.Match(
                 Left: error =>
                 {
-                    _logger.LogWarning("Failed to retrieve standalone policies: {ErrorMessage}", error.Message);
+                    _logger.LogWarning("Failed to retrieve standalone policies: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
                     return false;
                 },
                 Right: policies =>
@@ -159,7 +160,7 @@ public sealed class XACMLPolicyDecisionPoint(
         catch (Exception ex)
         {
             stopwatch.Stop();
-            _logger.LogError(ex, "Unexpected error during policy evaluation");
+            _logger.LogError(ex.ForLogging(), "Unexpected error during policy evaluation");
 
             return new PolicyDecision
             {

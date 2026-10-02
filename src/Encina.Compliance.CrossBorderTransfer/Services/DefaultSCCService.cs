@@ -5,6 +5,7 @@ using Encina.Compliance.CrossBorderTransfer.Diagnostics;
 using Encina.Compliance.CrossBorderTransfer.Errors;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -89,7 +90,7 @@ internal sealed class DefaultSCCService : ISCCService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.SCCStoreError("RegisterAgreement", ex);
+            _logger.SCCStoreError("RegisterAgreement", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("RegisterAgreement", ex);
         }
     }
@@ -127,12 +128,12 @@ internal sealed class DefaultSCCService : ISCCService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Cannot add supplementary measure to SCC agreement '{AgreementId}'", agreementId);
+            _logger.LogWarning(ex.ForLogging(), "Cannot add supplementary measure to SCC agreement '{AgreementId}'", agreementId);
             return CrossBorderTransferErrors.SCCAgreementAlreadyRevoked(agreementId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.SCCStoreError("AddSupplementaryMeasure", ex);
+            _logger.SCCStoreError("AddSupplementaryMeasure", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("AddSupplementaryMeasure", ex);
         }
     }
@@ -170,12 +171,12 @@ internal sealed class DefaultSCCService : ISCCService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Cannot revoke SCC agreement '{AgreementId}' — already revoked", agreementId);
+            _logger.LogWarning(ex.ForLogging(), "Cannot revoke SCC agreement '{AgreementId}' — already revoked", agreementId);
             return CrossBorderTransferErrors.SCCAgreementAlreadyRevoked(agreementId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.SCCStoreError("RevokeAgreement", ex);
+            _logger.SCCStoreError("RevokeAgreement", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("RevokeAgreement", ex);
         }
     }
@@ -211,7 +212,7 @@ internal sealed class DefaultSCCService : ISCCService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.SCCStoreError("GetAgreement", ex);
+            _logger.SCCStoreError("GetAgreement", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("GetAgreement", ex);
         }
     }

@@ -4,6 +4,7 @@ using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -155,7 +156,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
         catch (Exception ex)
         {
             // Graceful error handling: log + continue, never crash the host
-            _logger.ReviewReminderCycleFailed(ex);
+            _logger.ReviewReminderCycleFailed(ex.ForLogging());
             DPIADiagnostics.RecordFailed(activity, ex.GetType().Name);
             DPIADiagnostics.ReviewReminderCyclesTotal.Add(1,
                 new KeyValuePair<string, object?>(DPIADiagnostics.TagOutcome, "failed"));
@@ -189,7 +190,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
         catch (Exception ex)
         {
             // Notification publishing should never fail the reminder cycle
-            _logger.ReviewReminderCycleFailed(ex);
+            _logger.ReviewReminderCycleFailed(ex.ForLogging());
         }
     }
 }

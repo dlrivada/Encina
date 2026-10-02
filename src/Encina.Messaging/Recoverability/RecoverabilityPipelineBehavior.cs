@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -277,7 +278,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         {
             RecoverabilityLog.PermanentExceptionOnAttempt(
                 _logger,
-                ex,
+                ex.ForLogging(),
                 recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                 typeof(TRequest).Name,
                 attempt + 1);
@@ -286,7 +287,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
 
         RecoverabilityLog.TransientExceptionOnAttempt(
             _logger,
-            ex,
+            ex.ForLogging(),
             recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
             typeof(TRequest).Name,
             attempt + 1,
@@ -361,7 +362,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
             {
                 RecoverabilityLog.OnPermanentFailureCallbackFailed(
                     _logger,
-                    ex,
+                    ex.ForLogging(),
                     recoverabilityContext.CorrelationId ?? RecoverabilityConstants.Unknown,
                     typeof(TRequest).Name);
             }

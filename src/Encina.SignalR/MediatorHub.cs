@@ -1,6 +1,7 @@
 #pragma warning disable CA1822 // Member can be static
 
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -83,32 +84,8 @@ public abstract class EncinaHub : Hub
     /// The command type must be registered in the application's assembly.
     /// The result is returned as a JSON object containing either the success value or error details.
     /// </remarks>
-    public async Task<object> SendCommand(string commandTypeName, JsonElement commandJson)
-    {
-        try
-        {
-            var commandType = ResolveType(commandTypeName);
-            if (commandType == null)
-            {
-                return CreateErrorResponse("command.type_not_found", $"Command type '{commandTypeName}' not found.");
-            }
-
-            var command = JsonSerializer.Deserialize(commandJson.GetRawText(), commandType, _options.JsonSerializerOptions);
-            if (command == null)
-            {
-                return CreateErrorResponse("command.deserialization_failed", "Failed to deserialize command.");
-            }
-
-            var result = await Encina.Send((dynamic)command, Context.ConnectionAborted);
-
-            return ConvertResult(result);
-        }
-        catch (Exception ex)
-        {
-            Log.ErrorExecutingCommand(_logger, ex, commandTypeName);
-            return CreateErrorResponse("command.execution_failed", GetErrorMessage(ex));
-        }
-    }
+    public Task<object> SendCommand(string commandTypeName, JsonElement commandJson)
+        => SendRequestAsync("command", commandTypeName, commandJson, Log.ErrorExecutingCommand);
 
     /// <summary>
     /// Sends a query through the Encina and returns the result.
@@ -116,32 +93,8 @@ public abstract class EncinaHub : Hub
     /// <param name="queryTypeName">The fully qualified name or simple name of the query type.</param>
     /// <param name="queryJson">The query data as a JSON object.</param>
     /// <returns>The result of the query execution.</returns>
-    public async Task<object> SendQuery(string queryTypeName, JsonElement queryJson)
-    {
-        try
-        {
-            var queryType = ResolveType(queryTypeName);
-            if (queryType == null)
-            {
-                return CreateErrorResponse("query.type_not_found", $"Query type '{queryTypeName}' not found.");
-            }
-
-            var query = JsonSerializer.Deserialize(queryJson.GetRawText(), queryType, _options.JsonSerializerOptions);
-            if (query == null)
-            {
-                return CreateErrorResponse("query.deserialization_failed", "Failed to deserialize query.");
-            }
-
-            var result = await Encina.Send((dynamic)query, Context.ConnectionAborted);
-
-            return ConvertResult(result);
-        }
-        catch (Exception ex)
-        {
-            Log.ErrorExecutingQuery(_logger, ex, queryTypeName);
-            return CreateErrorResponse("query.execution_failed", GetErrorMessage(ex));
-        }
-    }
+    public Task<object> SendQuery(string queryTypeName, JsonElement queryJson)
+        => SendRequestAsync("query", queryTypeName, queryJson, Log.ErrorExecutingQuery);
 
     /// <summary>
     /// Publishes a notification through the Encina.
@@ -167,12 +120,67 @@ public abstract class EncinaHub : Hub
                 return;
             }
 
-            await Encina.Publish((dynamic)notification, Context.ConnectionAborted);
+            await PublishDynamicAsync(notification);
         }
         catch (Exception ex)
         {
-            Log.ErrorPublishingNotification(_logger, ex, notificationTypeName);
+            Log.ErrorPublishingNotification(_logger, ex.ForLogging(), notificationTypeName);
         }
+    }
+
+    /// <summary>
+    /// Resolves, deserializes and sends one request; <paramref name="kind"/> ("command" or
+    /// "query") names the error codes, messages and the failure log of that request kind.
+    /// </summary>
+    private async Task<object> SendRequestAsync(
+        string kind,
+        string requestTypeName,
+        JsonElement requestJson,
+        Action<ILogger, Exception, string> logFailure)
+    {
+        try
+        {
+            var requestType = ResolveType(requestTypeName);
+            if (requestType == null)
+            {
+                return CreateErrorResponse($"{kind}.type_not_found", $"{char.ToUpperInvariant(kind[0])}{kind[1..]} type '{requestTypeName}' not found.");
+            }
+
+            var request = JsonSerializer.Deserialize(requestJson.GetRawText(), requestType, _options.JsonSerializerOptions);
+            if (request == null)
+            {
+                return CreateErrorResponse($"{kind}.deserialization_failed", $"Failed to deserialize {kind}.");
+            }
+
+            return await SendDynamicAsync(request);
+        }
+        catch (Exception ex)
+        {
+            logFailure(_logger, ex.ForLogging(), requestTypeName);
+            return CreateErrorResponse($"{kind}.execution_failed", GetErrorMessage(ex));
+        }
+    }
+
+    // The request's runtime type is only known after deserialization, so the generic helper
+    // that calls the typed IEncina.Send overload binds dynamically. A request that does not
+    // implement IRequest<TResponse> fails to bind and surfaces as an exception, like before.
+    private Task<object> SendDynamicAsync(object request)
+        => SendTypedAsync((dynamic)request);
+
+    private async Task<object> SendTypedAsync<TResponse>(IRequest<TResponse> request)
+    {
+        var result = await Encina.Send(request, Context.ConnectionAborted);
+
+        return ConvertResult(result);
+    }
+
+    private Task PublishDynamicAsync(object notification)
+        => PublishTypedAsync((dynamic)notification);
+
+    private async Task PublishTypedAsync<TNotification>(TNotification notification)
+        where TNotification : INotification
+    {
+        await Encina.Publish(notification, Context.ConnectionAborted);
     }
 
     /// <summary>

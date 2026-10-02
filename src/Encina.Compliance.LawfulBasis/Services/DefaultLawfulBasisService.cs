@@ -4,6 +4,7 @@ using Encina.Compliance.LawfulBasis.Abstractions;
 using Encina.Compliance.LawfulBasis.Aggregates;
 using Encina.Compliance.LawfulBasis.Errors;
 using Encina.Compliance.LawfulBasis.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -127,12 +128,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid argument during RegisterAsync");
+            _logger.LogWarning(ex.ForLogging(), "Invalid argument during RegisterAsync");
             return LawfulBasisErrors.InvalidStateTransition("Register", ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during RegisterAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during RegisterAsync");
             return LawfulBasisErrors.StoreError("RegisterAsync", ex);
         }
     }
@@ -177,12 +178,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid state transition during ChangeBasisAsync for '{RegistrationId}'", registrationId);
+            _logger.LogWarning(ex.ForLogging(), "Invalid state transition during ChangeBasisAsync for '{RegistrationId}'", registrationId);
             return LawfulBasisErrors.RegistrationAlreadyRevoked(registrationId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during ChangeBasisAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during ChangeBasisAsync");
             return LawfulBasisErrors.StoreError("ChangeBasisAsync", ex);
         }
     }
@@ -221,12 +222,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid state transition during RevokeAsync for '{RegistrationId}'", registrationId);
+            _logger.LogWarning(ex.ForLogging(), "Invalid state transition during RevokeAsync for '{RegistrationId}'", registrationId);
             return LawfulBasisErrors.RegistrationAlreadyRevoked(registrationId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during RevokeAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during RevokeAsync");
             return LawfulBasisErrors.StoreError("RevokeAsync", ex);
         }
     }
@@ -286,12 +287,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid argument during CreateLIAAsync");
+            _logger.LogWarning(ex.ForLogging(), "Invalid argument during CreateLIAAsync");
             return LawfulBasisErrors.InvalidStateTransition("CreateLIA", ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during CreateLIAAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during CreateLIAAsync");
             return LawfulBasisErrors.StoreError("CreateLIAAsync", ex);
         }
     }
@@ -331,12 +332,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid state transition during ApproveLIAAsync for '{LIAId}'", liaId);
+            _logger.LogWarning(ex.ForLogging(), "Invalid state transition during ApproveLIAAsync for '{LIAId}'", liaId);
             return LawfulBasisErrors.LIAAlreadyDecided(liaId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during ApproveLIAAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during ApproveLIAAsync");
             return LawfulBasisErrors.StoreError("ApproveLIAAsync", ex);
         }
     }
@@ -376,12 +377,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid state transition during RejectLIAAsync for '{LIAId}'", liaId);
+            _logger.LogWarning(ex.ForLogging(), "Invalid state transition during RejectLIAAsync for '{LIAId}'", liaId);
             return LawfulBasisErrors.LIAAlreadyDecided(liaId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during RejectLIAAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during RejectLIAAsync");
             return LawfulBasisErrors.StoreError("RejectLIAAsync", ex);
         }
     }
@@ -423,12 +424,12 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid state transition during ScheduleLIAReviewAsync for '{LIAId}'", liaId);
+            _logger.LogWarning(ex.ForLogging(), "Invalid state transition during ScheduleLIAReviewAsync for '{LIAId}'", liaId);
             return LawfulBasisErrors.InvalidStateTransition("ScheduleLIAReview", ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during ScheduleLIAReviewAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during ScheduleLIAReviewAsync");
             return LawfulBasisErrors.StoreError("ScheduleLIAReviewAsync", ex);
         }
     }
@@ -465,7 +466,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetRegistrationAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetRegistrationAsync");
             return LawfulBasisErrors.StoreError("GetRegistrationAsync", ex);
         }
     }
@@ -506,7 +507,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetRegistrationByRequestTypeAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetRegistrationByRequestTypeAsync");
             return LawfulBasisErrors.StoreError("GetRegistrationByRequestTypeAsync", ex);
         }
     }
@@ -527,7 +528,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetAllRegistrationsAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetAllRegistrationsAsync");
             return LawfulBasisErrors.StoreError("GetAllRegistrationsAsync", ex);
         }
     }
@@ -560,7 +561,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetLIAAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetLIAAsync");
             return LawfulBasisErrors.StoreError("GetLIAAsync", ex);
         }
     }
@@ -601,7 +602,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetLIAByReferenceAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetLIAByReferenceAsync");
             return LawfulBasisErrors.StoreError("GetLIAByReferenceAsync", ex);
         }
     }
@@ -622,7 +623,7 @@ internal sealed class DefaultLawfulBasisService : ILawfulBasisService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Store operation failed during GetPendingLIAReviewsAsync");
+            _logger.LogError(ex.ForLogging(), "Store operation failed during GetPendingLIAReviewsAsync");
             return LawfulBasisErrors.StoreError("GetPendingLIAReviewsAsync", ex);
         }
     }

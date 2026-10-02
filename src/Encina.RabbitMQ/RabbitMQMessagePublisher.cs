@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -79,7 +80,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToPublishMessage(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -126,7 +127,7 @@ public sealed class RabbitMQMessagePublisher : IRabbitMQMessagePublisher, IAsync
         }
         catch (Exception ex)
         {
-            Log.FailedToSendToQueue(_logger, ex, typeof(TMessage).Name, queueName);
+            Log.FailedToSendToQueue(_logger, ex.ForLogging(), typeof(TMessage).Name, queueName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

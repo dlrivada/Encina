@@ -161,7 +161,7 @@ result.Match(
     {
         "secrets.not_found" => logger.LogWarning("Secret not found"),
         "secrets.access_denied" => logger.LogError("IAM permission denied"),
-        _ => logger.LogError("GCP error: {Message}", error.Message)
+        _ => logger.LogError("GCP error: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
     });
 ```
 

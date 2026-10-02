@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
+using Encina.Diagnostics;
 using Encina.Modules.Isolation;
 
 using LanguageExt;
@@ -143,11 +144,51 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
+        // Steps 1-2: skip entirely when enforcement is disabled or the attribute is absent
+        if (ShouldSkipEnforcement(requestType, requestTypeName))
+        {
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        // Step 3: Resolve optional cross-cutting contexts
+        var moduleId = ResolveModuleId();
+
+        // Step 3b: Check for [ProcessesPersonalData] from Encina.Compliance.GDPR (optional, by name)
+        var processesPersonalData = ProcessesPersonalDataCache.GetOrAdd(requestType, static type =>
+            type.GetCustomAttributes(inherit: true)
+                .Any(static a => a.GetType().Name == "ProcessesPersonalDataAttribute"));
+
+        // Step 4: Start tracing and timing
+        var startedAt = Stopwatch.GetTimestamp();
+        using var activity = StartCheckActivity(requestTypeName, processesPersonalData, context.TenantId, moduleId);
+
+        _logger.PbDPipelineStarted(requestTypeName, _options.EnforcementMode.ToString());
+
+        var check = new CheckState(
+            activity, startedAt, requestTypeName, requestType.FullName ?? requestTypeName,
+            context.TenantId, moduleId, processesPersonalData);
+
+        try
+        {
+            return await EvaluateAsync(request, check, nextStep, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(ex, check, nextStep).ConfigureAwait(false);
+        }
+    }
+
+    // ================================================================
+    // Private helpers
+    // ================================================================
+
+    private bool ShouldSkipEnforcement(Type requestType, string requestTypeName)
+    {
         // Step 1: Check enforcement mode — if disabled, skip entirely
         if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Disabled)
         {
             _logger.PbDPipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
+            return true;
         }
 
         // Step 2: Check for [EnforceDataMinimization] attribute (cached)
@@ -162,171 +203,172 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
             {
                 { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName }
             });
-            return await nextStep().ConfigureAwait(false);
+            return true;
         }
 
-        // Step 3: Resolve optional cross-cutting contexts
-        var moduleContext = _serviceProvider.GetService<IModuleExecutionContext>();
-        var moduleId = moduleContext?.CurrentModule;
-        var tenantId = context.TenantId;
+        return false;
+    }
 
-        // Step 3b: Check for [ProcessesPersonalData] from Encina.Compliance.GDPR (optional, by name)
-        var processesPersonalData = ProcessesPersonalDataCache.GetOrAdd(requestType, static type =>
-            type.GetCustomAttributes(inherit: true)
-                .Any(static a => a.GetType().Name == "ProcessesPersonalDataAttribute"));
+    private string? ResolveModuleId() =>
+        _serviceProvider.GetService<IModuleExecutionContext>()?.CurrentModule;
 
-        // Step 4: Start tracing and timing
-        var startedAt = Stopwatch.GetTimestamp();
-        using var activity = PrivacyByDesignDiagnostics.StartPipelineCheck(requestTypeName);
-        activity?.SetTag(PrivacyByDesignDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
+    private Activity? StartCheckActivity(
+        string requestTypeName,
+        bool processesPersonalData,
+        string? tenantId,
+        string? moduleId)
+    {
+        var activity = PrivacyByDesignDiagnostics.StartPipelineCheck(requestTypeName);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        activity.SetTag(PrivacyByDesignDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
 
         if (processesPersonalData)
         {
-            activity?.SetTag("encina.processes_personal_data", true);
+            activity.SetTag("encina.processes_personal_data", true);
         }
 
         // Propagate tenant and module context to traces for cross-cutting observability
         if (tenantId is not null)
         {
-            activity?.SetTag("encina.tenant_id", tenantId);
+            activity.SetTag("encina.tenant_id", tenantId);
         }
 
         if (moduleId is not null)
         {
-            activity?.SetTag("encina.module_id", moduleId);
+            activity.SetTag("encina.module_id", moduleId);
         }
 
-        _logger.PbDPipelineStarted(requestTypeName, _options.EnforcementMode.ToString());
-
-        var fullTypeName = requestType.FullName ?? requestTypeName;
-
-        try
-        {
-            // Step 5: Run validation via the orchestrator (module-aware)
-            var validationResult = await _validator
-                .ValidateAsync(request, moduleId, cancellationToken)
-                .ConfigureAwait(false);
-
-            // Handle validator infrastructure errors
-            if (validationResult.IsLeft)
-            {
-                var validatorError = (EncinaError)validationResult;
-                RecordFailed(activity, startedAt, requestTypeName, "validator_error");
-
-                if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
-                {
-                    _logger.PbDPipelineBlocked(requestTypeName, validatorError.Message);
-                    return Left<EncinaError, TResponse>(validatorError);
-                }
-
-                _logger.PbDPipelineWarned(requestTypeName, validatorError.Message);
-                return await nextStep().ConfigureAwait(false);
-            }
-
-            var result = (PrivacyValidationResult)validationResult;
-
-            // Step 6: Check minimization score threshold
-            if (result.MinimizationReport is not null
-                && _options.MinimizationScoreThreshold > 0.0
-                && result.MinimizationReport.MinimizationScore < _options.MinimizationScoreThreshold)
-            {
-                var score = result.MinimizationReport.MinimizationScore;
-                _logger.PbDPipelineScoreBelowThreshold(requestTypeName, score, _options.MinimizationScoreThreshold);
-
-                var scoreError = PrivacyByDesignErrors.MinimizationScoreBelowThreshold(
-                    fullTypeName, score, _options.MinimizationScoreThreshold);
-
-                return await HandleFailure(
-                    activity, startedAt, requestTypeName, fullTypeName,
-                    scoreError,
-                    "minimization_score_below_threshold",
-                    result, tenantId, moduleId, processesPersonalData,
-                    nextStep, cancellationToken).ConfigureAwait(false);
-            }
-
-            // Step 7: Check for violations
-            if (!result.IsCompliant)
-            {
-                var violationCount = result.Violations.Count;
-                var minimizationScore = result.MinimizationReport?.MinimizationScore ?? 1.0;
-
-                _logger.PbDPipelineViolations(requestTypeName, violationCount, minimizationScore);
-
-                // Determine the primary violation type for the error
-                var error = DetermineViolationError(result, fullTypeName);
-
-                return await HandleFailure(
-                    activity, startedAt, requestTypeName, fullTypeName,
-                    error,
-                    "privacy_violations_detected",
-                    result, tenantId, moduleId, processesPersonalData,
-                    nextStep, cancellationToken).ConfigureAwait(false);
-            }
-
-            // Step 8: All checks passed — record success and proceed
-            var passScore = result.MinimizationReport?.MinimizationScore ?? 1.0;
-            RecordPassed(activity, startedAt, requestTypeName);
-            _logger.PbDPipelinePassed(requestTypeName, passScore);
-            return await nextStep().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.PbDPipelineError(requestTypeName, ex);
-            RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
-
-            if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(
-                    PrivacyByDesignErrors.StoreError("PipelineCheck", ex.Message, ex));
-            }
-
-            // Warn mode — exception doesn't block the response
-            return await nextStep().ConfigureAwait(false);
-        }
+        return activity;
     }
 
-    // ================================================================
-    // Private helpers
-    // ================================================================
+    private async ValueTask<Either<EncinaError, TResponse>> EvaluateAsync(
+        TRequest request,
+        CheckState check,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
+        // Step 5: Run validation via the orchestrator (module-aware)
+        var validationResult = await _validator
+            .ValidateAsync(request, check.ModuleId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Handle validator infrastructure errors
+        if (validationResult.IsLeft)
+        {
+            return await HandleValidatorErrorAsync((EncinaError)validationResult, check, nextStep).ConfigureAwait(false);
+        }
+
+        var result = (PrivacyValidationResult)validationResult;
+
+        // Step 6: Check minimization score threshold
+        if (IsBelowScoreThreshold(result))
+        {
+            var score = result.MinimizationReport!.MinimizationScore;
+            _logger.PbDPipelineScoreBelowThreshold(check.RequestTypeName, score, _options.MinimizationScoreThreshold);
+
+            var scoreError = PrivacyByDesignErrors.MinimizationScoreBelowThreshold(
+                check.FullTypeName, score, _options.MinimizationScoreThreshold);
+
+            return await HandleFailure(
+                check, scoreError, "minimization_score_below_threshold", result, nextStep, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        // Step 7: Check for violations
+        if (!result.IsCompliant)
+        {
+            _logger.PbDPipelineViolations(check.RequestTypeName, result.Violations.Count, ScoreOrFullMarks(result));
+
+            // Determine the primary violation type for the error
+            var error = DetermineViolationError(result, check.FullTypeName);
+
+            return await HandleFailure(
+                check, error, "privacy_violations_detected", result, nextStep, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        // Step 8: All checks passed — record success and proceed
+        var passScore = ScoreOrFullMarks(result);
+        RecordPassed(check.Activity, check.StartedAt, check.RequestTypeName);
+        _logger.PbDPipelinePassed(check.RequestTypeName, passScore);
+        return await nextStep().ConfigureAwait(false);
+    }
+
+    private bool IsBelowScoreThreshold(PrivacyValidationResult result) =>
+        result.MinimizationReport is not null
+        && _options.MinimizationScoreThreshold > 0.0
+        && result.MinimizationReport.MinimizationScore < _options.MinimizationScoreThreshold;
+
+    private static double ScoreOrFullMarks(PrivacyValidationResult result) =>
+        result.MinimizationReport?.MinimizationScore ?? 1.0;
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleValidatorErrorAsync(
+        EncinaError validatorError,
+        CheckState check,
+        RequestHandlerCallback<TResponse> nextStep)
+    {
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "validator_error");
+
+        if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
+        {
+            _logger.PbDPipelineBlocked(check.RequestTypeName, validatorError.GetCode().IfNone("encina.unknown"));
+            return Left<EncinaError, TResponse>(validatorError);
+        }
+
+        _logger.PbDPipelineWarned(check.RequestTypeName, validatorError.GetCode().IfNone("encina.unknown"));
+        return await nextStep().ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleUnexpectedExceptionAsync(
+        Exception ex,
+        CheckState check,
+        RequestHandlerCallback<TResponse> nextStep)
+    {
+        _logger.PbDPipelineError(check.RequestTypeName, ex.ForLogging());
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "unhandled_exception");
+
+        if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(
+                PrivacyByDesignErrors.StoreError("PipelineCheck", ex.Message, ex));
+        }
+
+        // Warn mode — exception doesn't block the response
+        return await nextStep().ConfigureAwait(false);
+    }
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleFailure(
-        Activity? activity,
-        long startedAt,
-        string requestTypeName,
-        string fullTypeName,
+        CheckState check,
         EncinaError error,
         string failureReason,
         PrivacyValidationResult result,
-        string? tenantId,
-        string? moduleId,
-        bool processesPersonalData,
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
         // Publish violation notification (non-blocking)
-        await PublishViolationNotificationAsync(
-            fullTypeName, result, tenantId, moduleId, processesPersonalData, cancellationToken).ConfigureAwait(false);
+        await PublishViolationNotificationAsync(check, result, cancellationToken).ConfigureAwait(false);
 
         if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Block)
         {
-            RecordFailed(activity, startedAt, requestTypeName, failureReason);
-            _logger.PbDPipelineBlocked(requestTypeName, failureReason);
+            RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, failureReason);
+            _logger.PbDPipelineBlocked(check.RequestTypeName, failureReason);
             return Left<EncinaError, TResponse>(error);
         }
 
         // Warn mode — log but proceed
-        PrivacyByDesignDiagnostics.RecordWarned(activity, failureReason);
-        RecordMetrics(startedAt, requestTypeName, isPass: false, failureReason: failureReason);
-        _logger.PbDPipelineWarned(requestTypeName, failureReason);
+        PrivacyByDesignDiagnostics.RecordWarned(check.Activity, failureReason);
+        RecordMetrics(check.StartedAt, check.RequestTypeName, isPass: false, failureReason: failureReason);
+        _logger.PbDPipelineWarned(check.RequestTypeName, failureReason);
         return await nextStep().ConfigureAwait(false);
     }
 
     private async ValueTask PublishViolationNotificationAsync(
-        string fullTypeName,
+        CheckState check,
         PrivacyValidationResult result,
-        string? tenantId,
-        string? moduleId,
-        bool processesPersonalData,
         CancellationToken cancellationToken)
     {
         try
@@ -337,68 +379,105 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
                 return;
             }
 
-            // When [ProcessesPersonalData] is also present, enrich violations with
-            // processing activity context for cross-module GDPR compliance correlation.
-            var enrichedViolations = processesPersonalData
-                ? EnrichViolationsWithProcessingContext(result.Violations)
-                : result.Violations;
-
-            // Publish DataMinimizationViolationDetected if there are violations
-            if (enrichedViolations.Count > 0)
-            {
-                var notification = new DataMinimizationViolationDetected(
-                    RequestTypeName: fullTypeName,
-                    Violations: enrichedViolations,
-                    EnforcementMode: _options.EnforcementMode,
-                    MinimizationScore: result.MinimizationReport?.MinimizationScore ?? 0.0,
-                    TenantId: tenantId,
-                    ModuleId: moduleId);
-
-                await encina.Publish(notification, cancellationToken).ConfigureAwait(false);
-                PrivacyByDesignDiagnostics.NotificationsPublishedTotal.Add(1);
-                _logger.PbDNotificationPublished(fullTypeName, enrichedViolations.Count);
-            }
-
-            // Publish PrivacyDefaultOverridden if default privacy fields are overridden
-            if (result.MinimizationReport is not null)
-            {
-                var overriddenFields = new List<DefaultPrivacyFieldInfo>();
-
-                // Check for overridden defaults from the validation result
-                // The validator already performed InspectDefaultsAsync in its ValidateAsync flow
-                // and violations with PrivacyViolationType.DefaultPrivacy indicate overrides
-                foreach (var violation in result.Violations)
-                {
-                    if (violation.ViolationType == PrivacyViolationType.DefaultPrivacy)
-                    {
-                        overriddenFields.Add(new DefaultPrivacyFieldInfo(
-                            FieldName: violation.FieldName,
-                            DeclaredDefault: null,
-                            ActualValue: null,
-                            MatchesDefault: false));
-                    }
-                }
-
-                if (overriddenFields.Count > 0)
-                {
-                    var defaultNotification = new PrivacyDefaultOverridden(
-                        RequestTypeName: fullTypeName,
-                        OverriddenFields: overriddenFields,
-                        TenantId: tenantId,
-                        ModuleId: moduleId);
-
-                    await encina.Publish(defaultNotification, cancellationToken).ConfigureAwait(false);
-                    PrivacyByDesignDiagnostics.NotificationsPublishedTotal.Add(1);
-                }
-            }
+            await PublishMinimizationViolationsAsync(encina, check, result, cancellationToken).ConfigureAwait(false);
+            await PublishDefaultOverridesAsync(encina, check, result, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             // Notification failures are non-blocking
             PrivacyByDesignDiagnostics.NotificationsFailedTotal.Add(1);
-            _logger.PbDNotificationFailed(fullTypeName, ex);
+            _logger.PbDNotificationFailed(check.FullTypeName, ex.ForLogging());
         }
     }
+
+    // Publishes DataMinimizationViolationDetected if there are violations. When
+    // [ProcessesPersonalData] is also present, violations are enriched with processing
+    // activity context for cross-module GDPR compliance correlation.
+    private async ValueTask PublishMinimizationViolationsAsync(
+        IEncina encina,
+        CheckState check,
+        PrivacyValidationResult result,
+        CancellationToken cancellationToken)
+    {
+        var enrichedViolations = check.ProcessesPersonalData
+            ? EnrichViolationsWithProcessingContext(result.Violations)
+            : result.Violations;
+
+        if (enrichedViolations.Count == 0)
+        {
+            return;
+        }
+
+        var notification = new DataMinimizationViolationDetected(
+            RequestTypeName: check.FullTypeName,
+            Violations: enrichedViolations,
+            EnforcementMode: _options.EnforcementMode,
+            MinimizationScore: result.MinimizationReport?.MinimizationScore ?? 0.0,
+            TenantId: check.TenantId,
+            ModuleId: check.ModuleId);
+
+        await encina.Publish(notification, cancellationToken).ConfigureAwait(false);
+        PrivacyByDesignDiagnostics.NotificationsPublishedTotal.Add(1);
+        _logger.PbDNotificationPublished(check.FullTypeName, enrichedViolations.Count);
+    }
+
+    // Publishes PrivacyDefaultOverridden if default privacy fields are overridden. The validator
+    // already performed InspectDefaultsAsync in its ValidateAsync flow, and violations with
+    // PrivacyViolationType.DefaultPrivacy indicate overrides.
+    private static async ValueTask PublishDefaultOverridesAsync(
+        IEncina encina,
+        CheckState check,
+        PrivacyValidationResult result,
+        CancellationToken cancellationToken)
+    {
+        if (result.MinimizationReport is null)
+        {
+            return;
+        }
+
+        var overriddenFields = CollectOverriddenDefaults(result.Violations);
+        if (overriddenFields.Count == 0)
+        {
+            return;
+        }
+
+        var defaultNotification = new PrivacyDefaultOverridden(
+            RequestTypeName: check.FullTypeName,
+            OverriddenFields: overriddenFields,
+            TenantId: check.TenantId,
+            ModuleId: check.ModuleId);
+
+        await encina.Publish(defaultNotification, cancellationToken).ConfigureAwait(false);
+        PrivacyByDesignDiagnostics.NotificationsPublishedTotal.Add(1);
+    }
+
+    private static List<DefaultPrivacyFieldInfo> CollectOverriddenDefaults(IReadOnlyList<PrivacyViolation> violations)
+    {
+        var overriddenFields = new List<DefaultPrivacyFieldInfo>();
+
+        foreach (var violation in violations)
+        {
+            if (violation.ViolationType == PrivacyViolationType.DefaultPrivacy)
+            {
+                overriddenFields.Add(new DefaultPrivacyFieldInfo(
+                    FieldName: violation.FieldName,
+                    DeclaredDefault: null,
+                    ActualValue: null,
+                    MatchesDefault: false));
+            }
+        }
+
+        return overriddenFields;
+    }
+
+    private readonly record struct CheckState(
+        Activity? Activity,
+        long StartedAt,
+        string RequestTypeName,
+        string FullTypeName,
+        string? TenantId,
+        string? ModuleId,
+        bool ProcessesPersonalData);
 
     /// <summary>
     /// Enriches violation messages with processing activity context when

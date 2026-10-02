@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Recoverability;
 using Microsoft.Extensions.Logging;
 
@@ -137,7 +138,7 @@ public sealed class HangfireRequestJobAdapter<TRequest, TResponse>
         }
         catch (Exception ex)
         {
-            Log.RequestJobException(_logger, ex, requestType);
+            Log.RequestJobException(_logger, ex.ForLogging(), requestType);
 
             throw;
         }

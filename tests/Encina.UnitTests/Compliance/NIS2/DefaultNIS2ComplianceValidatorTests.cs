@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly (NSubstitute Returns with ValueTask)
 
+using System.Diagnostics;
 using Encina.Caching;
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
@@ -8,6 +9,7 @@ using Encina.Testing.Time;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -142,7 +144,73 @@ public class DefaultNIS2ComplianceValidatorTests
         compliance.MissingMeasures.ShouldContain(NIS2Measure.CyberHygiene);
         var failedResult = compliance.MeasureResults.Single(m => m.Measure == NIS2Measure.CyberHygiene);
         failedResult.IsSatisfied.ShouldBeFalse();
-        failedResult.Details.ShouldContain("Evaluator crashed");
+        failedResult.Details.ShouldNotContain("Evaluator crashed");
+        failedResult.Details.ShouldContain(nameof(InvalidOperationException));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_EvaluatorReturnsLeft_NeverExposesTheErrorMessageToLogsTagsOrCache()
+    {
+        // Arrange
+        const string sentinel = "SENTINEL-secret-error-message";
+        const string code = "nis2.sentinel.code";
+        var evaluator = Substitute.For<INIS2MeasureEvaluator>();
+        evaluator.Measure.Returns(NIS2Measure.CyberHygiene);
+        evaluator.EvaluateAsync(Arg.Any<NIS2MeasureContext>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, NIS2MeasureResult>>(
+                Left<EncinaError, NIS2MeasureResult>(EncinaErrors.Create(code, sentinel))));
+
+        var cache = Substitute.For<ICacheProvider>();
+        cache.GetAsync<NIS2ComplianceResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<NIS2ComplianceResult?>(null));
+        NIS2ComplianceResult? cached = null;
+        cache.SetAsync(Arg.Any<string>(), Arg.Do<NIS2ComplianceResult>(r => cached = r),
+            Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        var sp = Substitute.For<IServiceProvider>();
+        sp.GetService(typeof(ICacheProvider)).Returns(cache);
+
+        var options = CreateDefaultOptions();
+        options.ComplianceCacheTTL = TimeSpan.FromMinutes(5);
+        var logger = new FakeLogger<DefaultNIS2ComplianceValidator>();
+        var sut = new DefaultNIS2ComplianceValidator(
+            [evaluator], Options.Create(options), _timeProvider, sp, logger);
+
+        var tagValues = new List<string>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.NIS2",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity =>
+            {
+                lock (tagValues)
+                {
+                    tagValues.AddRange(activity.Tags.Select(t => t.Value ?? string.Empty));
+                    tagValues.Add(activity.StatusDescription ?? string.Empty);
+                }
+            }
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        // Act
+        var result = await sut.ValidateAsync();
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        cached.ShouldNotBeNull();
+        var measure = cached.MeasureResults.Single();
+        measure.Details.ShouldContain(code);
+        measure.Details.ShouldNotContain(sentinel);
+        measure.Recommendations.ShouldAllBe(s => !s.Contains(sentinel) && s.Contains(code));
+
+        var logged = logger.Collector.GetSnapshot();
+        logged.ShouldNotBeEmpty();
+        logged.ShouldAllBe(r => !r.Message.Contains(sentinel) && !(r.Exception != null && r.Exception.Message.Contains(sentinel)));
+        logged.ShouldContain(r => r.Message.Contains(code));
+
+        tagValues.ShouldNotBeEmpty();
+        tagValues.ShouldAllBe(v => !v.Contains(sentinel));
+        tagValues.ShouldContain(v => v.Contains(code));
     }
 
     #endregion

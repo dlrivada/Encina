@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -99,13 +100,12 @@ public sealed class DeadLetterOrchestrator
         var requestType = runtimeType.AssemblyQualifiedName ?? runtimeType.FullName ?? runtimeType.Name;
         var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var expiresAt = _options.RetentionPeriod.HasValue
-            ? now.Add(_options.RetentionPeriod.Value)
-            : (DateTime?)null;
+        var expiresAt = ExpiryFrom(now);
 
         // EncinaError.Message and Exception.Message can carry personal data (e.g. a data-subject
         // id), so the record and the log keep only the error code and the exception type (#1274).
         var errorCode = ErrorCodeOf(context.Error);
+        var (exceptionType, exceptionStackTrace) = DescribeException(context.Exception);
         var data = new DeadLetterData(
             Id: Guid.NewGuid(),
             RequestType: requestType,
@@ -117,19 +117,15 @@ public sealed class DeadLetterOrchestrator
             DeadLetteredAtUtc: now,
             ExpiresAtUtc: expiresAt,
             CorrelationId: context.CorrelationId,
-            ExceptionType: context.Exception?.GetType().FullName,
+            ExceptionType: exceptionType,
             ExceptionMessage: null,
-            ExceptionStackTrace: context.Exception?.StackTrace);
+            ExceptionStackTrace: exceptionStackTrace);
 
         var message = _messageFactory.Create(data);
 
-        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
-        if (addResult.IsLeft)
-            return addResult.LeftToArray()[0];
-
-        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        if (saveResult.IsLeft)
-            return saveResult.LeftToArray()[0];
+        var stored = await PersistAsync(message, cancellationToken).ConfigureAwait(false);
+        if (stored.IsLeft)
+            return stored.LeftToArray()[0];
 
         DeadLetterLog.MessageAddedToDLQ(
             _logger,
@@ -140,20 +136,46 @@ public sealed class DeadLetterOrchestrator
             context.TotalRetryAttempts,
             context.CorrelationId);
 
-        // Invoke custom callback if configured
-        if (_options.OnDeadLetter is not null)
-        {
-            try
-            {
-                await _options.OnDeadLetter(message, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex, message.Id);
-            }
-        }
+        await InvokeOnDeadLetterAsync(message, cancellationToken).ConfigureAwait(false);
 
         return Either<EncinaError, IDeadLetterMessage>.Right(message);
+    }
+
+    private DateTime? ExpiryFrom(DateTime now)
+        => _options.RetentionPeriod.HasValue
+            ? now.Add(_options.RetentionPeriod.Value)
+            : null;
+
+    private static (string? Type, string? StackTrace) DescribeException(Exception? exception)
+        => (exception?.GetType().FullName, exception?.StackTrace);
+
+    private async Task<Either<EncinaError, Unit>> PersistAsync(IDeadLetterMessage message, CancellationToken cancellationToken)
+    {
+        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
+        if (addResult.IsLeft)
+            return addResult.LeftToArray()[0];
+
+        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        if (saveResult.IsLeft)
+            return saveResult.LeftToArray()[0];
+
+        return Unit.Default;
+    }
+
+    // Invoke custom callback if configured; a failing callback never fails the dead-lettering.
+    private async Task InvokeOnDeadLetterAsync(IDeadLetterMessage message, CancellationToken cancellationToken)
+    {
+        if (_options.OnDeadLetter is null)
+            return;
+
+        try
+        {
+            await _options.OnDeadLetter(message, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex.ForLogging(), message.Id);
+        }
     }
 
     /// <summary>
@@ -172,14 +194,13 @@ public sealed class DeadLetterOrchestrator
         ArgumentException.ThrowIfNullOrEmpty(sourcePattern);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var expiresAt = _options.RetentionPeriod.HasValue
-            ? now.Add(_options.RetentionPeriod.Value)
-            : (DateTime?)null;
+        var expiresAt = ExpiryFrom(now);
 
         // The record is built here, not by the provider factory, so the request goes through
         // IMessageSerializer (encryption applies, using the request's runtime type) and only the
         // error code and exception type are kept (#1274).
         var errorCode = ErrorCodeOf(failedMessage.Error);
+        var (exceptionType, exceptionStackTrace) = DescribeException(failedMessage.Exception);
         var data = new DeadLetterData(
             Id: Guid.NewGuid(),
             RequestType: failedMessage.RequestType,
@@ -191,19 +212,15 @@ public sealed class DeadLetterOrchestrator
             DeadLetteredAtUtc: now,
             ExpiresAtUtc: expiresAt,
             CorrelationId: failedMessage.CorrelationId,
-            ExceptionType: failedMessage.Exception?.GetType().FullName,
+            ExceptionType: exceptionType,
             ExceptionMessage: null,
-            ExceptionStackTrace: failedMessage.Exception?.StackTrace);
+            ExceptionStackTrace: exceptionStackTrace);
 
         var message = _messageFactory.Create(data);
 
-        var addResult = await _store.AddAsync(message, cancellationToken).ConfigureAwait(false);
-        if (addResult.IsLeft)
-            return addResult.LeftToArray()[0];
-
-        var saveResult = await _store.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        if (saveResult.IsLeft)
-            return saveResult.LeftToArray()[0];
+        var stored = await PersistAsync(message, cancellationToken).ConfigureAwait(false);
+        if (stored.IsLeft)
+            return stored.LeftToArray()[0];
 
         DeadLetterLog.MessageAddedToDLQ(
             _logger,
@@ -214,18 +231,7 @@ public sealed class DeadLetterOrchestrator
             failedMessage.TotalAttempts,
             failedMessage.CorrelationId);
 
-        // Invoke custom callback if configured
-        if (_options.OnDeadLetter is not null)
-        {
-            try
-            {
-                await _options.OnDeadLetter(message, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                DeadLetterLog.OnDeadLetterCallbackFailed(_logger, ex, message.Id);
-            }
-        }
+        await InvokeOnDeadLetterAsync(message, cancellationToken).ConfigureAwait(false);
 
         return Either<EncinaError, IDeadLetterMessage>.Right(message);
     }

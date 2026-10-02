@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina.Compliance.DPIA.Abstractions;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -69,21 +70,85 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
         var registeredCount = 0;
         var skippedCount = 0;
 
+        // Steps 1 and 2: discover attributed types, then optionally apply auto-detection heuristics
+        var discoveredTypes = DiscoverTypes(assemblies);
+
+        // Step 3: Create draft assessments for discovered types via IDPIAService
+        foreach (var (fullTypeName, type) in discoveredTypes)
+        {
+            switch (await RegisterTypeAsync(fullTypeName, type, cancellationToken).ConfigureAwait(false))
+            {
+                case RegistrationOutcome.Registered:
+                    registeredCount++;
+                    break;
+                case RegistrationOutcome.Skipped:
+                    skippedCount++;
+                    break;
+            }
+        }
+
+        _logger.AutoRegistrationCompleted(registeredCount, skippedCount);
+    }
+
+    private enum RegistrationOutcome
+    {
+        Registered,
+        Skipped,
+        Failed
+    }
+
+    private Dictionary<string, Type> DiscoverTypes(IReadOnlyList<Assembly> assemblies)
+    {
         // Step 1: Discover types with [RequiresDPIA] attribute
         var discoveredTypes = new Dictionary<string, Type>();
 
+        AddAttributedTypes(assemblies, discoveredTypes);
+
+        // Step 2: Optionally apply auto-detection heuristics
+        if (_options.AutoDetectHighRisk)
+        {
+            AddAutoDetectedTypes(assemblies, discoveredTypes);
+        }
+
+        return discoveredTypes;
+    }
+
+    private static void AddAttributedTypes(IReadOnlyList<Assembly> assemblies, Dictionary<string, Type> discoveredTypes)
+    {
+        ScanTypes(assemblies, type =>
+        {
+            if (type.GetCustomAttribute<RequiresDPIAAttribute>() is not null)
+            {
+                discoveredTypes.TryAdd(type.FullName ?? type.Name, type);
+            }
+        });
+    }
+
+    private void AddAutoDetectedTypes(IReadOnlyList<Assembly> assemblies, Dictionary<string, Type> discoveredTypes)
+    {
+        var autoDetector = new DPIAAutoDetector(_logger);
+
+        ScanTypes(assemblies, type =>
+        {
+            var fullName = type.FullName ?? type.Name;
+
+            // Skip types already discovered via attribute
+            if (!discoveredTypes.ContainsKey(fullName) && autoDetector.IsHighRisk(type))
+            {
+                discoveredTypes.TryAdd(fullName, type);
+            }
+        });
+    }
+
+    private static void ScanTypes(IReadOnlyList<Assembly> assemblies, Action<Type> visit)
+    {
         foreach (var assembly in assemblies)
         {
             try
             {
-                var types = assembly.GetTypes();
-                foreach (var type in types)
+                foreach (var type in assembly.GetTypes())
                 {
-                    if (type.GetCustomAttribute<RequiresDPIAAttribute>() is not null)
-                    {
-                        var fullName = type.FullName ?? type.Name;
-                        discoveredTypes.TryAdd(fullName, type);
-                    }
+                    visit(type);
                 }
             }
             catch (ReflectionTypeLoadException)
@@ -91,106 +156,80 @@ internal sealed class DPIAAutoRegistrationHostedService : IHostedService
                 // Some types in the assembly could not be loaded — skip gracefully.
             }
         }
+    }
 
-        // Step 2: Optionally apply auto-detection heuristics
-        if (_options.AutoDetectHighRisk)
+    private async Task<RegistrationOutcome> RegisterTypeAsync(
+        string fullTypeName,
+        Type type,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            var autoDetector = new DPIAAutoDetector(_logger);
+            // Check if an assessment already exists
+            var existingResult = await _service
+                .GetAssessmentByRequestTypeAsync(fullTypeName, cancellationToken)
+                .ConfigureAwait(false);
 
-            foreach (var assembly in assemblies)
+            if (existingResult.IsRight)
             {
-                try
-                {
-                    var types = assembly.GetTypes();
-                    foreach (var type in types)
-                    {
-                        var fullName = type.FullName ?? type.Name;
-
-                        // Skip types already discovered via attribute
-                        if (discoveredTypes.ContainsKey(fullName))
-                        {
-                            continue;
-                        }
-
-                        if (autoDetector.IsHighRisk(type))
-                        {
-                            discoveredTypes.TryAdd(fullName, type);
-                        }
-                    }
-                }
-                catch (ReflectionTypeLoadException)
-                {
-                    // Some types in the assembly could not be loaded — skip gracefully.
-                }
+                _logger.AutoRegistrationSkipped(fullTypeName);
+                return RegistrationOutcome.Skipped;
             }
-        }
 
-        // Step 3: Create draft assessments for discovered types via IDPIAService
-        foreach (var (fullTypeName, type) in discoveredTypes)
+            // If error is not "not found", it's a real error — skip this type
+            var isNotFound = existingResult.Match(
+                Right: _ => false,
+                Left: error => error.GetCode().Match(
+                    Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+                    None: () => false));
+
+            if (!isNotFound)
+            {
+                _logger.AutoRegistrationFailed(fullTypeName,
+                    new InvalidOperationException("Failed to check existing assessment."));
+                return RegistrationOutcome.Failed;
+            }
+
+            return await CreateDraftAsync(fullTypeName, type, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                // Check if an assessment already exists
-                var existingResult = await _service
-                    .GetAssessmentByRequestTypeAsync(fullTypeName, cancellationToken)
-                    .ConfigureAwait(false);
-
-                var exists = existingResult.IsRight;
-
-                if (exists)
-                {
-                    _logger.AutoRegistrationSkipped(fullTypeName);
-                    skippedCount++;
-                    continue;
-                }
-
-                // If error is not "not found", it's a real error — skip this type
-                var isNotFound = existingResult.Match(
-                    Right: _ => false,
-                    Left: error => error.GetCode().Match(
-                        Some: code => code == DPIAErrors.AssessmentNotFoundCode,
-                        None: () => false));
-
-                if (!isNotFound)
-                {
-                    _logger.AutoRegistrationFailed(fullTypeName,
-                        new InvalidOperationException("Failed to check existing assessment."));
-                    continue;
-                }
-
-                // Create a draft assessment via IDPIAService
-                var attribute = type.GetCustomAttribute<RequiresDPIAAttribute>();
-
-                var createResult = await _service
-                    .CreateAssessmentAsync(
-                        fullTypeName,
-                        attribute?.ProcessingType,
-                        attribute?.Reason ?? "Auto-registered at startup.",
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-
-                createResult.Match(
-                    Right: assessmentId =>
-                    {
-                        _logger.AutoRegistrationDraftCreated(fullTypeName, assessmentId);
-                        DPIADiagnostics.AutoRegistrationCount.Add(1, new TagList
-                        {
-                            { DPIADiagnostics.TagRequestType, type.Name }
-                        });
-                        registeredCount++;
-                    },
-                    Left: error =>
-                    {
-                        _logger.AutoRegistrationFailed(fullTypeName, error.GetCode().IfNone("encina.unknown"));
-                    });
-            }
-            catch (Exception ex)
-            {
-                _logger.AutoRegistrationFailed(fullTypeName, ex);
-            }
+            _logger.AutoRegistrationFailed(fullTypeName, ex.ForLogging());
+            return RegistrationOutcome.Failed;
         }
+    }
 
-        _logger.AutoRegistrationCompleted(registeredCount, skippedCount);
+    private async Task<RegistrationOutcome> CreateDraftAsync(
+        string fullTypeName,
+        Type type,
+        CancellationToken cancellationToken)
+    {
+        // Create a draft assessment via IDPIAService
+        var attribute = type.GetCustomAttribute<RequiresDPIAAttribute>();
+
+        var createResult = await _service
+            .CreateAssessmentAsync(
+                fullTypeName,
+                attribute?.ProcessingType,
+                attribute?.Reason ?? "Auto-registered at startup.",
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return createResult.Match(
+            Right: assessmentId =>
+            {
+                _logger.AutoRegistrationDraftCreated(fullTypeName, assessmentId);
+                DPIADiagnostics.AutoRegistrationCount.Add(1, new TagList
+                {
+                    { DPIADiagnostics.TagRequestType, type.Name }
+                });
+                return RegistrationOutcome.Registered;
+            },
+            Left: error =>
+            {
+                _logger.AutoRegistrationFailed(fullTypeName, error.GetCode().IfNone("encina.unknown"));
+                return RegistrationOutcome.Failed;
+            });
     }
 
     /// <inheritdoc />

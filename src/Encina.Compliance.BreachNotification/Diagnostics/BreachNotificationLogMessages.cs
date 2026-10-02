@@ -146,13 +146,6 @@ internal static partial class BreachNotificationLogMessages
         Message = "Authority notification sent. BreachId={BreachId}, TimeToNotificationHours={TimeToNotificationHours}")]
     internal static partial void AuthorityNotificationSent(this ILogger logger, string breachId, double timeToNotificationHours);
 
-    /// <summary>Authority notification failed for a breach.</summary>
-    [LoggerMessage(
-        EventId = 8722,
-        Level = LogLevel.Error,
-        Message = "Authority notification failed. BreachId={BreachId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void AuthorityNotificationFailed(this ILogger logger, string breachId, string errorMessage);
-
     /// <summary>Data subject notification process started for a breach.</summary>
     [LoggerMessage(
         EventId = 8723,
@@ -166,13 +159,6 @@ internal static partial class BreachNotificationLogMessages
         Level = LogLevel.Information,
         Message = "Subject notification sent. BreachId={BreachId}, SubjectCount={SubjectCount}")]
     internal static partial void SubjectNotificationSent(this ILogger logger, string breachId, int subjectCount);
-
-    /// <summary>Data subject notification failed for a breach.</summary>
-    [LoggerMessage(
-        EventId = 8725,
-        Level = LogLevel.Error,
-        Message = "Subject notification failed. BreachId={BreachId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void SubjectNotificationFailed(this ILogger logger, string breachId, string errorMessage);
 
     /// <summary>Data subject notification exempted per Art. 34(3) for a breach.</summary>
     [LoggerMessage(

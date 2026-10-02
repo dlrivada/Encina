@@ -18,7 +18,7 @@ namespace Encina.Sharding.Migrations;
 ///     Right: p => logger.LogInformation(
 ///         "Migration {Phase}: {Completed}/{Total} shards ({Failed} failed)",
 ///         p.CurrentPhase, p.CompletedShards, p.TotalShards, p.FailedShards),
-///     Left: error => logger.LogWarning("Could not retrieve progress: {Error}", error.Message));
+///     Left: error => logger.LogWarning("Could not retrieve progress: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 /// <param name="MigrationId">The unique identifier of the migration execution being tracked.</param>

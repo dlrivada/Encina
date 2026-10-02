@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Encina.Compliance.PrivacyByDesign.Diagnostics;
 using Encina.Compliance.PrivacyByDesign.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -86,28 +87,7 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
 
             // Step 1: Data minimization analysis.
             var minimizationResult = await _analyzer.AnalyzeAsync(request, cancellationToken).ConfigureAwait(false);
-            MinimizationReport? minimizationReport = null;
-
-            minimizationResult.Match(
-                Right: report =>
-                {
-                    minimizationReport = report;
-                    foreach (var field in report.UnnecessaryFields)
-                    {
-                        if (field.HasValue)
-                        {
-                            violations.Add(new PrivacyViolation(
-                                FieldName: field.FieldName,
-                                ViolationType: PrivacyViolationType.DataMinimization,
-                                Message: $"Field '{field.FieldName}' is not strictly necessary: {field.Reason}",
-                                Severity: field.Severity));
-                        }
-                    }
-                },
-                Left: error =>
-                {
-                    _logger.PbDMinimizationAnalysisFailed(requestTypeName, error.Message);
-                });
+            var minimizationReport = CollectMinimizationViolations(minimizationResult, violations, requestTypeName);
 
             // Step 2: Purpose limitation (if a purpose is declared).
             var attribute = AttributeCache.GetOrAdd(requestType, static type =>
@@ -120,48 +100,14 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
                 var purposeResult = await ValidatePurposeLimitationAsync(
                     request, attribute.Purpose, moduleId, cancellationToken).ConfigureAwait(false);
 
-                purposeResult.Match(
-                    Right: result =>
-                    {
-                        purposeValidation = result;
-                        foreach (var field in result.ViolatingFields)
-                        {
-                            violations.Add(new PrivacyViolation(
-                                FieldName: field,
-                                ViolationType: PrivacyViolationType.PurposeLimitation,
-                                Message: $"Field '{field}' is not allowed for purpose '{attribute.Purpose}'.",
-                                Severity: MinimizationSeverity.Warning));
-                        }
-                    },
-                    Left: error =>
-                    {
-                        _logger.PbDPurposeValidationFailed(requestTypeName, error.Message);
-                    });
+                purposeValidation = CollectPurposeViolations(
+                    purposeResult, attribute.Purpose, violations, requestTypeName);
             }
 
             // Step 3: Default privacy checks.
             var defaultsResult = await _analyzer.InspectDefaultsAsync(request, cancellationToken).ConfigureAwait(false);
 
-            defaultsResult.Match(
-                Right: defaults =>
-                {
-                    foreach (var defaultInfo in defaults)
-                    {
-                        if (!defaultInfo.MatchesDefault)
-                        {
-                            violations.Add(new PrivacyViolation(
-                                FieldName: defaultInfo.FieldName,
-                                ViolationType: PrivacyViolationType.DefaultPrivacy,
-                                Message: $"Field '{defaultInfo.FieldName}' deviates from privacy default "
-                                    + $"(expected: {defaultInfo.DeclaredDefault ?? "null"}, actual: {defaultInfo.ActualValue ?? "null"}).",
-                                Severity: MinimizationSeverity.Info));
-                        }
-                    }
-                },
-                Left: error =>
-                {
-                    _logger.PbDDefaultsInspectionFailed(requestTypeName, error.Message);
-                });
+            CollectDefaultViolations(defaultsResult, violations, requestTypeName);
 
             var result = new PrivacyValidationResult
             {
@@ -175,25 +121,13 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
 
             _logger.PbDValidationCompleted(requestTypeName, result.IsCompliant, violations.Count, moduleId);
 
-            // Record purpose validation metrics when purpose was checked
-            if (purposeValidation is not null)
-            {
-                PrivacyByDesignDiagnostics.PurposeValidationsTotal.Add(1,
-                    new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
-
-                if (purposeValidation.ViolatingFields.Count > 0)
-                {
-                    PrivacyByDesignDiagnostics.PurposeViolationsTotal.Add(
-                        purposeValidation.ViolatingFields.Count,
-                        new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
-                }
-            }
+            RecordPurposeMetrics(purposeValidation, requestTypeName);
 
             return Right<EncinaError, PrivacyValidationResult>(result);
         }
         catch (Exception ex)
         {
-            _logger.PbDValidationError(requestTypeName, ex);
+            _logger.PbDValidationError(requestTypeName, ex.ForLogging());
             return Left<EncinaError, PrivacyValidationResult>(
                 PrivacyByDesignErrors.StoreError("Validate", ex.Message, ex));
         }
@@ -234,57 +168,15 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
             var allowedFieldsSet = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
             var violatingFields = new List<string>();
 
-            var hasPurposeDefinition = purposeResult.Match(
-                Right: option => option.Match(
-                    Some: definition =>
-                    {
-                        foreach (var field in definition.AllowedFields)
-                        {
-                            allowedFieldsSet.Add(field);
-                        }
-
-                        return true;
-                    },
-                    None: () => false),
-                Left: _ => false);
+            var hasPurposeDefinition = TryLoadAllowedFields(purposeResult, allowedFieldsSet);
 
             if (hasPurposeDefinition)
             {
-                // Validate each property against the purpose definition's allowed fields.
-                for (var i = 0; i < cache.Properties.Length; i++)
-                {
-                    var property = cache.Properties[i];
-                    var value = property.GetValue(request);
-
-                    // Only flag fields that have a non-default value and are not in allowed list.
-                    if (value is not null && !allowedFieldsSet.Contains(property.Name))
-                    {
-                        violatingFields.Add(property.Name);
-                    }
-                }
+                CollectViolationsAgainstDefinition(cache, request, allowedFieldsSet, violatingFields);
             }
             else
             {
-                // Fallback: use PurposeLimitation attributes on properties.
-                for (var i = 0; i < cache.Properties.Length; i++)
-                {
-                    var purposeAttr = cache.PurposeLimitation[i];
-                    if (purposeAttr is not null && purposeAttr.Purpose != purpose)
-                    {
-                        var property = cache.Properties[i];
-                        var value = property.GetValue(request);
-
-                        if (value is not null)
-                        {
-                            violatingFields.Add(property.Name);
-                        }
-                    }
-
-                    if (purposeAttr is not null)
-                    {
-                        allowedFieldsSet.Add(cache.Properties[i].Name);
-                    }
-                }
+                CollectViolationsFromAttributes(cache, request, purpose, allowedFieldsSet, violatingFields);
             }
 
             var result = new PurposeValidationResult(
@@ -297,9 +189,188 @@ internal sealed class DefaultPrivacyByDesignValidator : IPrivacyByDesignValidato
         }
         catch (Exception ex)
         {
-            _logger.PbDPurposeLimitationError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex);
+            _logger.PbDPurposeLimitationError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
             return Left<EncinaError, PurposeValidationResult>(
                 PrivacyByDesignErrors.StoreError("ValidatePurposeLimitation", ex.Message, ex));
+        }
+    }
+
+    private MinimizationReport? CollectMinimizationViolations(
+        Either<EncinaError, MinimizationReport> minimizationResult,
+        List<PrivacyViolation> violations,
+        string requestTypeName)
+    {
+        if (minimizationResult.IsLeft)
+        {
+            var error = (EncinaError)minimizationResult;
+            _logger.PbDMinimizationAnalysisFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
+            return null;
+        }
+
+        var report = (MinimizationReport)minimizationResult;
+        AddMinimizationViolations(report, violations);
+        return report;
+    }
+
+    private static void AddMinimizationViolations(MinimizationReport report, List<PrivacyViolation> violations)
+    {
+        foreach (var field in report.UnnecessaryFields)
+        {
+            if (field.HasValue)
+            {
+                violations.Add(new PrivacyViolation(
+                    FieldName: field.FieldName,
+                    ViolationType: PrivacyViolationType.DataMinimization,
+                    Message: $"Field '{field.FieldName}' is not strictly necessary: {field.Reason}",
+                    Severity: field.Severity));
+            }
+        }
+    }
+
+    private PurposeValidationResult? CollectPurposeViolations(
+        Either<EncinaError, PurposeValidationResult> purposeResult,
+        string purpose,
+        List<PrivacyViolation> violations,
+        string requestTypeName)
+    {
+        if (purposeResult.IsLeft)
+        {
+            var error = (EncinaError)purposeResult;
+            _logger.PbDPurposeValidationFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
+            return null;
+        }
+
+        var result = (PurposeValidationResult)purposeResult;
+        foreach (var field in result.ViolatingFields)
+        {
+            violations.Add(new PrivacyViolation(
+                FieldName: field,
+                ViolationType: PrivacyViolationType.PurposeLimitation,
+                Message: $"Field '{field}' is not allowed for purpose '{purpose}'.",
+                Severity: MinimizationSeverity.Warning));
+        }
+
+        return result;
+    }
+
+    private void CollectDefaultViolations(
+        Either<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>> defaultsResult,
+        List<PrivacyViolation> violations,
+        string requestTypeName) =>
+        defaultsResult.Match(
+            Right: defaults => AddDefaultViolations(defaults, violations),
+            Left: error =>
+            {
+                _logger.PbDDefaultsInspectionFailed(requestTypeName, error.GetCode().IfNone("encina.unknown"));
+            });
+
+    private static void AddDefaultViolations(
+        IReadOnlyList<DefaultPrivacyFieldInfo> defaults,
+        List<PrivacyViolation> violations)
+    {
+        foreach (var defaultInfo in defaults)
+        {
+            if (!defaultInfo.MatchesDefault)
+            {
+                violations.Add(new PrivacyViolation(
+                    FieldName: defaultInfo.FieldName,
+                    ViolationType: PrivacyViolationType.DefaultPrivacy,
+                    Message: $"Field '{defaultInfo.FieldName}' deviates from privacy default "
+                        + $"(expected: {defaultInfo.DeclaredDefault ?? "null"}, actual: {defaultInfo.ActualValue ?? "null"}).",
+                    Severity: MinimizationSeverity.Info));
+            }
+        }
+    }
+
+    // Record purpose validation metrics when purpose was checked.
+    private static void RecordPurposeMetrics(PurposeValidationResult? purposeValidation, string requestTypeName)
+    {
+        if (purposeValidation is null)
+        {
+            return;
+        }
+
+        PrivacyByDesignDiagnostics.PurposeValidationsTotal.Add(1,
+            new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
+
+        if (purposeValidation.ViolatingFields.Count > 0)
+        {
+            PrivacyByDesignDiagnostics.PurposeViolationsTotal.Add(
+                purposeValidation.ViolatingFields.Count,
+                new TagList { { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName } });
+        }
+    }
+
+    private static bool TryLoadAllowedFields(
+        Either<EncinaError, Option<PurposeDefinition>> purposeResult,
+        System.Collections.Generic.HashSet<string> allowedFieldsSet)
+    {
+        if (purposeResult.IsLeft)
+        {
+            return false;
+        }
+
+        var option = (Option<PurposeDefinition>)purposeResult;
+        return option.Match(
+            Some: definition => AddAllowedFields(definition, allowedFieldsSet),
+            None: () => false);
+    }
+
+    private static bool AddAllowedFields(
+        PurposeDefinition definition,
+        System.Collections.Generic.HashSet<string> allowedFieldsSet)
+    {
+        foreach (var field in definition.AllowedFields)
+        {
+            allowedFieldsSet.Add(field);
+        }
+
+        return true;
+    }
+
+    // Validates each property against the purpose definition's allowed fields: only fields with a
+    // non-default value that are not in the allowed list are flagged.
+    private static void CollectViolationsAgainstDefinition(
+        FieldMetadataCache cache,
+        object request,
+        System.Collections.Generic.HashSet<string> allowedFieldsSet,
+        List<string> violatingFields)
+    {
+        for (var i = 0; i < cache.Properties.Length; i++)
+        {
+            var property = cache.Properties[i];
+            var value = property.GetValue(request);
+
+            if (value is not null && !allowedFieldsSet.Contains(property.Name))
+            {
+                violatingFields.Add(property.Name);
+            }
+        }
+    }
+
+    // Fallback: use PurposeLimitation attributes on properties.
+    private static void CollectViolationsFromAttributes(
+        FieldMetadataCache cache,
+        object request,
+        string purpose,
+        System.Collections.Generic.HashSet<string> allowedFieldsSet,
+        List<string> violatingFields)
+    {
+        for (var i = 0; i < cache.Properties.Length; i++)
+        {
+            var purposeAttr = cache.PurposeLimitation[i];
+            if (purposeAttr is null)
+            {
+                continue;
+            }
+
+            var property = cache.Properties[i];
+            if (purposeAttr.Purpose != purpose && property.GetValue(request) is not null)
+            {
+                violatingFields.Add(property.Name);
+            }
+
+            allowedFieldsSet.Add(property.Name);
         }
     }
 

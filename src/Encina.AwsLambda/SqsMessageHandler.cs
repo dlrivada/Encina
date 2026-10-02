@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -71,9 +72,9 @@ public static class SqsMessageHandler
                 result.IfLeft(error =>
                 {
                     logger?.LogError(
-                        "Failed to process SQS message {MessageId}: {ErrorMessage}",
+                        "Failed to process SQS message {MessageId}: {ErrorCode}",
                         record.MessageId,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
 
                     batchItemFailures.Add(new SQSBatchResponse.BatchItemFailure
                     {
@@ -84,7 +85,7 @@ public static class SqsMessageHandler
             catch (Exception ex)
             {
                 logger?.LogError(
-                    ex,
+                    ex.ForLogging(),
                     "Exception while processing SQS message {MessageId}",
                     record.MessageId);
 
@@ -138,7 +139,7 @@ public static class SqsMessageHandler
                 }
                 catch (JsonException ex)
                 {
-                    logger?.LogError(ex, "Failed to deserialize SQS message {MessageId}", record.MessageId);
+                    logger?.LogError(ex.ForLogging(), "Failed to deserialize SQS message {MessageId}", record.MessageId);
                     return EncinaErrors.Create(SqsDeserializationFailedCode, $"JSON deserialization failed: {ex.Message}", ex);
                 }
             },

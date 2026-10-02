@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Encina.Database;
+using Encina.Diagnostics;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -100,7 +101,7 @@ public sealed partial class ConnectionPoolMonitoringInterceptor : DbConnectionIn
         ConnectionErrorEventData eventData)
     {
         Interlocked.Increment(ref _totalConnectionsFailed);
-        Log.ConnectionFailed(_logger, eventData.Exception);
+        Log.ConnectionFailed(_logger, eventData.Exception!.ForLogging());
         base.ConnectionFailed(connection, eventData);
     }
 
@@ -111,7 +112,7 @@ public sealed partial class ConnectionPoolMonitoringInterceptor : DbConnectionIn
         CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _totalConnectionsFailed);
-        Log.ConnectionFailed(_logger, eventData.Exception);
+        Log.ConnectionFailed(_logger, eventData.Exception!.ForLogging());
         return base.ConnectionFailedAsync(connection, eventData, cancellationToken);
     }
 

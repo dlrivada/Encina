@@ -6,6 +6,7 @@ using Encina.Compliance.CrossBorderTransfer.Diagnostics;
 using Encina.Compliance.CrossBorderTransfer.Errors;
 using Encina.Compliance.CrossBorderTransfer.Model;
 using Encina.Compliance.CrossBorderTransfer.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -90,7 +91,7 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("CreateTIA", ex);
+            _logger.TIAStoreError("CreateTIA", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("CreateTIA", ex);
         }
     }
@@ -128,12 +129,12 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TIAInvalidStateTransition(tiaId.ToString(), "AssessRisk", ex);
+            _logger.TIAInvalidStateTransition(tiaId.ToString(), "AssessRisk", ex.ForLogging());
             return CrossBorderTransferErrors.InvalidStateTransition("current", "InProgress");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("AssessRisk", ex);
+            _logger.TIAStoreError("AssessRisk", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("AssessRisk", ex);
         }
     }
@@ -171,12 +172,12 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TIAInvalidStateTransition(tiaId.ToString(), "RequireSupplementaryMeasure", ex);
+            _logger.TIAInvalidStateTransition(tiaId.ToString(), "RequireSupplementaryMeasure", ex.ForLogging());
             return CrossBorderTransferErrors.InvalidStateTransition("current", "InProgress");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("RequireSupplementaryMeasure", ex);
+            _logger.TIAStoreError("RequireSupplementaryMeasure", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("RequireSupplementaryMeasure", ex);
         }
     }
@@ -212,12 +213,12 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TIAInvalidStateTransition(tiaId.ToString(), "SubmitForDPOReview", ex);
+            _logger.TIAInvalidStateTransition(tiaId.ToString(), "SubmitForDPOReview", ex.ForLogging());
             return CrossBorderTransferErrors.InvalidStateTransition("current", "PendingDPOReview");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("SubmitForDPOReview", ex);
+            _logger.TIAStoreError("SubmitForDPOReview", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("SubmitForDPOReview", ex);
         }
     }
@@ -276,12 +277,12 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.TIAInvalidStateTransition(tiaId.ToString(), "CompleteDPOReview", ex);
+            _logger.TIAInvalidStateTransition(tiaId.ToString(), "CompleteDPOReview", ex.ForLogging());
             return CrossBorderTransferErrors.InvalidStateTransition("current", approved ? "Completed" : "InProgress");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("CompleteDPOReview", ex);
+            _logger.TIAStoreError("CompleteDPOReview", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("CompleteDPOReview", ex);
         }
     }
@@ -317,7 +318,7 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("GetTIA", ex);
+            _logger.TIAStoreError("GetTIA", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("GetTIA", ex);
         }
     }
@@ -351,7 +352,7 @@ internal sealed class DefaultTIAService : ITIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.TIAStoreError("GetTIAByRoute", ex);
+            _logger.TIAStoreError("GetTIAByRoute", ex.ForLogging());
             return CrossBorderTransferErrors.StoreError("GetTIAByRoute", ex);
         }
     }

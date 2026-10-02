@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -167,7 +168,7 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
         }
         catch (Exception ex)
         {
-            Log.FailedToResolveUserId(_logger, ex);
+            Log.FailedToResolveUserId(_logger, ex.ForLogging());
             return null;
         }
     }

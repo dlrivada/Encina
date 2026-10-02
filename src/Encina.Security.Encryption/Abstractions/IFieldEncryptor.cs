@@ -27,7 +27,7 @@ namespace Encina.Security.Encryption.Abstractions;
 /// // Handle the result with pattern matching
 /// result.Match(
 ///     Right: value => ProcessEncrypted(value),
-///     Left: error => logger.LogError("Encryption failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Encryption failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Decrypting back
 /// var decrypted = await encryptor.DecryptStringAsync(encrypted, context);

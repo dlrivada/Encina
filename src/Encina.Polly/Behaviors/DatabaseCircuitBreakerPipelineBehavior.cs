@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Encina.Database;
+using Encina.Diagnostics;
 using Encina.Polly.Predicates;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -101,7 +102,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         catch (BrokenCircuitException ex)
         {
             var providerName = _healthMonitor.ProviderName;
-            LogCircuitBreakerTripped(_logger, typeof(TRequest).Name, providerName, ex);
+            LogCircuitBreakerTripped(_logger, typeof(TRequest).Name, providerName, ex.ForLogging());
             return EncinaError.New(
                 $"Database circuit breaker tripped for provider '{providerName}'. " +
                 $"Too many failures detected. Break duration: {_options.BreakDuration.TotalSeconds}s.");
@@ -109,7 +110,7 @@ public sealed partial class DatabaseCircuitBreakerPipelineBehavior<TRequest, TRe
         catch (Exception ex) when (_predicate.IsTransient(ex))
         {
             var providerName = _healthMonitor.ProviderName;
-            LogTransientDatabaseError(_logger, typeof(TRequest).Name, providerName, ex);
+            LogTransientDatabaseError(_logger, typeof(TRequest).Name, providerName, ex.ForLogging());
             return EncinaError.New(ex);
         }
     }

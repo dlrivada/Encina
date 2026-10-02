@@ -3,6 +3,7 @@ using Encina.Compliance.Consent.Abstractions;
 using Encina.Compliance.Consent.Aggregates;
 using Encina.Compliance.Consent.Diagnostics;
 using Encina.Compliance.Consent.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using Encina.Tenancy;
@@ -178,7 +179,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("GrantConsent", ex);
+            _logger.ConsentServiceError("GrantConsent", ex.ForLogging());
             return ConsentErrors.ServiceError("GrantConsent", ex);
         }
     }
@@ -231,12 +232,12 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "WithdrawConsent", ex);
+            _logger.ConsentInvalidStateTransition(consentId.ToString(), "WithdrawConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Withdrawn");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("WithdrawConsent", ex);
+            _logger.ConsentServiceError("WithdrawConsent", ex.ForLogging());
             return ConsentErrors.ServiceError("WithdrawConsent", ex);
         }
     }
@@ -289,12 +290,12 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "RenewConsent", ex);
+            _logger.ConsentInvalidStateTransition(consentId.ToString(), "RenewConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("RenewConsent", ex);
+            _logger.ConsentServiceError("RenewConsent", ex.ForLogging());
             return ConsentErrors.ServiceError("RenewConsent", ex);
         }
     }
@@ -355,12 +356,12 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "ProvideReconsent", ex);
+            _logger.ConsentInvalidStateTransition(consentId.ToString(), "ProvideReconsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("ProvideReconsent", ex);
+            _logger.ConsentServiceError("ProvideReconsent", ex.ForLogging());
             return ConsentErrors.ServiceError("ProvideReconsent", ex);
         }
     }
@@ -470,7 +471,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("GetConsent", ex);
+            _logger.ConsentServiceError("GetConsent", ex.ForLogging());
             return ConsentErrors.ServiceError("GetConsent", ex);
         }
     }
@@ -523,7 +524,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("GetConsentBySubjectAndPurpose", ex);
+            _logger.ConsentServiceError("GetConsentBySubjectAndPurpose", ex.ForLogging());
             return ConsentErrors.ServiceError("GetConsentBySubjectAndPurpose", ex);
         }
     }
@@ -548,7 +549,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("GetAllConsents", ex);
+            _logger.ConsentServiceError("GetAllConsents", ex.ForLogging());
             return ConsentErrors.ServiceError("GetAllConsents", ex);
         }
     }
@@ -600,7 +601,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ConsentServiceError("HasValidConsent", ex);
+            _logger.ConsentServiceError("HasValidConsent", ex.ForLogging());
             return ConsentErrors.ServiceError("HasValidConsent", ex);
         }
     }

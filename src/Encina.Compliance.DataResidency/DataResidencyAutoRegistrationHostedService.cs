@@ -3,6 +3,7 @@ using System.Reflection;
 using Encina.Compliance.DataResidency.Abstractions;
 using Encina.Compliance.DataResidency.Attributes;
 using Encina.Compliance.DataResidency.Model;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -196,13 +197,13 @@ internal sealed class DataResidencyAutoRegistrationHostedService : IHostedServic
                 createResult.Match(
                     Right: _ => policiesCreated++,
                     Left: error => _logger.LogWarning(
-                        "Failed to auto-register residency policy for '{DataCategory}': {ErrorMessage}",
-                        discovered.DataCategory, error.Message));
+                        "Failed to auto-register residency policy for '{DataCategory}': {ErrorCode}",
+                        discovered.DataCategory, error.GetCode().IfNone("encina.unknown")));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    ex,
+                    ex.ForLogging(),
                     "Failed to auto-register residency policy for '{DataCategory}'",
                     discovered.DataCategory);
             }

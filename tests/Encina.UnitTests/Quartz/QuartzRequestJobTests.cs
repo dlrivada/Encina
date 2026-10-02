@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Quartz;
 using Encina.UnitTests.Quartz.Fakers;
 using LanguageExt;
@@ -197,7 +198,9 @@ public class QuartzRequestJobTests
             .FirstOrDefault(r => r.Message.Contains("Unhandled exception"));
         logEntry.ShouldNotBeNull();
         logEntry!.Level.ShouldBe(LogLevel.Error);
-        logEntry.Exception.ShouldBe(exception);
+        logEntry.Exception.ShouldBeOfType<RedactedException>();
+        logEntry.Exception!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        logEntry.Exception.ToString().ShouldNotContain("Test exception");
     }
 
     [Fact]

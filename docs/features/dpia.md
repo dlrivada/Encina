@@ -639,9 +639,8 @@ result.Match(
     Left: error =>
     {
         logger.LogError(
-            "Assessment failed: {Code} - {Message}",
-            error.Code,
-            error.Message);
+            "Assessment failed: {ErrorCode}",
+            error.GetCode().IfNone("encina.unknown"));
     }
 );
 ```

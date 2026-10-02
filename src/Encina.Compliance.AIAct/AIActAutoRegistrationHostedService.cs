@@ -91,9 +91,9 @@ internal sealed class AIActAutoRegistrationHostedService : IHostedService
                 result.Match(
                     Right: _ => registered++,
                     Left: error => _logger.LogDebug(
-                        "AI Act auto-registration: failed to register '{SystemId}': {Error}",
+                        "AI Act auto-registration: failed to register '{SystemId}': {ErrorCode}",
                         systemId,
-                        error.Message));
+                        error.GetCode().IfNone("encina.unknown")));
             }
         }
 

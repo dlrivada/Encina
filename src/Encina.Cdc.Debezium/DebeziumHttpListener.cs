@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Channels;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -83,7 +84,7 @@ internal sealed class DebeziumHttpListener : BackgroundService
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    DebeziumCdcLog.RequestFailed(_logger, ex);
+                    DebeziumCdcLog.RequestFailed(_logger, ex.ForLogging());
                     context.Response.StatusCode = 500;
                     context.Response.Close();
                 }
@@ -122,7 +123,7 @@ internal sealed class DebeziumHttpListener : BackgroundService
 
                 if (retryCount > _options.MaxListenerRetries)
                 {
-                    DebeziumCdcLog.ListenerStartFailed(_logger, ex, retryCount);
+                    DebeziumCdcLog.ListenerStartFailed(_logger, ex.ForLogging(), retryCount);
                     throw;
                 }
 

@@ -4,6 +4,7 @@ using Encina.Compliance.BreachNotification.Aggregates;
 using Encina.Compliance.BreachNotification.Diagnostics;
 using Encina.Compliance.BreachNotification.Model;
 using Encina.Compliance.BreachNotification.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -109,7 +110,7 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("RecordBreach", ex);
+            _logger.BreachServiceError("RecordBreach", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("RecordBreach", ex);
         }
     }
@@ -150,12 +151,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "AssessBreach", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "AssessBreach", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "AssessBreach");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("AssessBreach", ex);
+            _logger.BreachServiceError("AssessBreach", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("AssessBreach", ex);
         }
     }
@@ -196,12 +197,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "ReportToDPA", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "ReportToDPA", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "ReportToDPA");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("ReportToDPA", ex);
+            _logger.BreachServiceError("ReportToDPA", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("ReportToDPA", ex);
         }
     }
@@ -242,12 +243,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "NotifySubjects", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "NotifySubjects", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "NotifySubjects");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("NotifySubjects", ex);
+            _logger.BreachServiceError("NotifySubjects", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("NotifySubjects", ex);
         }
     }
@@ -286,12 +287,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "AddPhasedReport", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "AddPhasedReport", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "AddPhasedReport");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("AddPhasedReport", ex);
+            _logger.BreachServiceError("AddPhasedReport", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("AddPhasedReport", ex);
         }
     }
@@ -330,12 +331,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "ContainBreach", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "ContainBreach", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "ContainBreach");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("ContainBreach", ex);
+            _logger.BreachServiceError("ContainBreach", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("ContainBreach", ex);
         }
     }
@@ -374,12 +375,12 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (InvalidOperationException ex)
         {
-            _logger.BreachInvalidStateTransition(breachId.ToString(), "CloseBreach", ex);
+            _logger.BreachInvalidStateTransition(breachId.ToString(), "CloseBreach", ex.ForLogging());
             return BreachNotificationErrors.InvalidStateTransition(breachId, "CloseBreach");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("CloseBreach", ex);
+            _logger.BreachServiceError("CloseBreach", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("CloseBreach", ex);
         }
     }
@@ -418,7 +419,7 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("GetBreach", ex);
+            _logger.BreachServiceError("GetBreach", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("GetBreach", ex);
         }
     }
@@ -438,7 +439,7 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("GetBreachesByStatus", ex);
+            _logger.BreachServiceError("GetBreachesByStatus", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("GetBreachesByStatus", ex);
         }
     }
@@ -458,7 +459,7 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("GetBreachesByTenant", ex);
+            _logger.BreachServiceError("GetBreachesByTenant", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("GetBreachesByTenant", ex);
         }
     }
@@ -483,7 +484,7 @@ internal sealed class DefaultBreachNotificationService : IBreachNotificationServ
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.BreachServiceError("GetApproachingDeadlineBreaches", ex);
+            _logger.BreachServiceError("GetApproachingDeadlineBreaches", ex.ForLogging());
             return BreachNotificationErrors.ServiceError("GetApproachingDeadlineBreaches", ex);
         }
     }

@@ -225,7 +225,7 @@ result.Match(
     {
         "secrets.not_found" => logger.LogWarning("Secret not found in Vault"),
         "secrets.access_denied" => logger.LogError("Vault policy denied access"),
-        _ => logger.LogError("Vault error: {Message}", error.Message)
+        _ => logger.LogError("Vault error: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
     });
 ```
 

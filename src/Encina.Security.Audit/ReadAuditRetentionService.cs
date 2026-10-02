@@ -1,5 +1,8 @@
 using System.Diagnostics;
+
+using Encina.Diagnostics;
 using Encina.Security.Audit.Diagnostics;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -136,8 +139,9 @@ public sealed class ReadAuditRetentionService : BackgroundService
                 },
                 Left: error =>
                 {
-                    ReadAuditLog.PurgeFailed(_logger, error.Message);
-                    ReadAuditActivitySource.Failed(activity, error.Message);
+                    var errorCode = error.GetCode().IfNone("encina.unknown");
+                    ReadAuditLog.PurgeFailed(_logger, errorCode);
+                    ReadAuditActivitySource.Failed(activity, errorCode);
                 });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -147,7 +151,7 @@ public sealed class ReadAuditRetentionService : BackgroundService
         }
         catch (Exception ex)
         {
-            ReadAuditLog.PurgeError(_logger, ex);
+            ReadAuditLog.PurgeError(_logger, ex.ForLogging());
             ReadAuditActivitySource.Failed(activity, ex.Message);
         }
     }

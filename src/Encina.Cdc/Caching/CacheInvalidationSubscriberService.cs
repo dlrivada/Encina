@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -74,7 +75,7 @@ internal sealed class CacheInvalidationSubscriberService : IHostedService
                 }
                 catch (Exception ex)
                 {
-                    CdcCacheInvalidationLog.SubscriberInvalidationFailed(_logger, ex, message);
+                    CdcCacheInvalidationLog.SubscriberInvalidationFailed(_logger, ex.ForLogging(), message);
                 }
             },
             cancellationToken).ConfigureAwait(false);

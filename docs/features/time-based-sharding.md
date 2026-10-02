@@ -228,14 +228,16 @@ The `ITimeBasedShardRouter` routes operations to shards based on timestamps:
 var result = await router.RouteByTimestampAsync(DateTime.UtcNow);
 result.Match(
     Right: shardId => logger.LogInformation("Read from {ShardId}", shardId),
-    Left: error => logger.LogError("Routing failed: {Error}", error.Message));
+    Left: error => logger.LogError("Routing failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 
 // Route a write (enforces Hot tier)
 var writeResult = await router.RouteWriteByTimestampAsync(DateTime.UtcNow);
 writeResult.Match(
     Right: shardId => logger.LogInformation("Writing to {ShardId}", shardId),
-    Left: error => logger.LogError("Write failed: {Error}", error.Message));
+    Left: error => logger.LogError("Write failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
+
+Log the error code, not `error.Message`: messages can carry personal data. Pass exceptions to loggers as `ex.ForLogging()` (namespace `Encina.Diagnostics`), which keeps the type and stack trace and drops the message.
 
 ### Range Queries
 
@@ -250,7 +252,7 @@ var shards = await router.GetShardsInRangeAsync(
 shards.Match(
     Right: ids => ids.ToList().ForEach(id =>
         logger.LogInformation("Query shard: {ShardId}", id)),
-    Left: error => logger.LogError("Range query failed: {Error}", error.Message));
+    Left: error => logger.LogError("Range query failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 ### Tier Inspection
@@ -267,7 +269,7 @@ info.Match(
     Right: ti => logger.LogInformation(
         "Shard {Id}: {Tier}, Period {Start}-{End}, ReadOnly={RO}",
         ti.ShardId, ti.CurrentTier, ti.PeriodStart, ti.PeriodEnd, ti.IsReadOnly),
-    Left: error => logger.LogError("Shard not found: {Error}", error.Message));
+    Left: error => logger.LogError("Shard not found: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 ### Router Implementation
@@ -338,7 +340,7 @@ var result = await archiver.ArchiveShardAsync(
 
 result.Match(
     Right: _ => logger.LogInformation("Archive complete"),
-    Left: error => logger.LogError("Archive failed: {Error}", error.Message));
+    Left: error => logger.LogError("Archive failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 > **Note**: The default `ShardArchiver` implementation is a no-op for archival. Actual data export requires a provider-specific implementation that integrates with your storage backend (S3, Azure Blob, etc.).

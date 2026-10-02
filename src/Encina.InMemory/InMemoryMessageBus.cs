@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -106,7 +107,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToPublishMessage(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -137,7 +138,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
         }
         catch (Exception ex)
         {
-            Log.FailedToEnqueueMessage(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToEnqueueMessage(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -191,7 +192,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
         }
         catch (Exception ex)
         {
-            Log.ErrorProcessingQueuedMessage(_logger, ex);
+            Log.ErrorProcessingQueuedMessage(_logger, ex.ForLogging());
         }
     }
 
@@ -207,7 +208,7 @@ public sealed class InMemoryMessageBus : IInMemoryMessageBus, IDisposable
         }
         catch (Exception ex)
         {
-            Log.ErrorProcessingMessage(_logger, ex, messageType.Name);
+            Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageType.Name);
         }
     }
 

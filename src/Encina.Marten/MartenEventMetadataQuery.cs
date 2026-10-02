@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using JasperFx.Events;
 using LanguageExt;
 using Marten;
@@ -62,7 +63,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         }
         catch (Exception ex)
         {
-            Log.QueryFailed(_logger, ex, "CorrelationId", correlationId);
+            Log.QueryFailed(_logger, ex.ForLogging(), "CorrelationId", correlationId);
             return Left<EncinaError, EventQueryResult>(
                 EncinaErrors.FromException(
                     MartenErrorCodes.QueryFailed,
@@ -95,7 +96,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         }
         catch (Exception ex)
         {
-            Log.QueryFailed(_logger, ex, "CausationId", causationId);
+            Log.QueryFailed(_logger, ex.ForLogging(), "CausationId", causationId);
             return Left<EncinaError, EventQueryResult>(
                 EncinaErrors.FromException(
                     MartenErrorCodes.QueryFailed,
@@ -137,7 +138,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         }
         catch (Exception ex)
         {
-            Log.CausalChainQueryFailed(_logger, ex, eventId);
+            Log.CausalChainQueryFailed(_logger, ex.ForLogging(), eventId);
             return Left<EncinaError, IReadOnlyList<EventWithMetadata>>(
                 EncinaErrors.FromException(
                     MartenErrorCodes.QueryFailed,
@@ -180,7 +181,7 @@ internal sealed partial class MartenEventMetadataQuery : IEventMetadataQuery
         }
         catch (Exception ex)
         {
-            Log.QueryFailed(_logger, ex, "EventId", eventId.ToString());
+            Log.QueryFailed(_logger, ex.ForLogging(), "EventId", eventId.ToString());
             return Left<EncinaError, EventWithMetadata>(
                 EncinaErrors.FromException(
                     MartenErrorCodes.QueryFailed,

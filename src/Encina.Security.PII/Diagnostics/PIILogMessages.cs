@@ -31,9 +31,9 @@ internal static partial class PIILogMessages
     [LoggerMessage(
         EventId = 8012,
         Level = LogLevel.Warning,
-        Message = "PII masking failed for {EntityType}: {ErrorMessage}")]
+        Message = "PII masking failed for {EntityType}")]
     internal static partial void PIIMaskingFailed(
-        ILogger logger, string entityType, string errorMessage);
+        ILogger logger, string entityType, Exception exception);
 
     [LoggerMessage(
         EventId = 8013,

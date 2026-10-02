@@ -377,7 +377,7 @@ public sealed class StreamProductsHandler : IStreamRequestHandler<StreamProducts
 await foreach (var result in encina.Stream(new StreamProducts("Electronics"), ct))
 {
     result.Match(
-        Left: error => logger.LogError("Stream error: {Error}", error.Message),
+        Left: error => logger.LogError("Stream error: {ErrorCode}", error.GetCode().IfNone("encina.unknown")),
         Right: product => Console.WriteLine(product.Name));
 }
 ```

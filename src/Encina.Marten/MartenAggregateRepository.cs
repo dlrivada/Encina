@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -114,7 +115,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         }
         catch (Exception ex)
         {
-            Log.ErrorLoadingAggregate(_logger, ex, typeof(TAggregate).Name, id);
+            Log.ErrorLoadingAggregate(_logger, ex.ForLogging(), typeof(TAggregate).Name, id);
 
             return Left<EncinaError, TAggregate>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -220,7 +221,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
         {
-            Log.ConcurrencyConflict(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
+            Log.ConcurrencyConflict(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             if (_options.ThrowOnConcurrencyConflict)
             {
@@ -255,7 +256,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         }
         catch (Exception ex) when (!IsConcurrencyException(ex))
         {
-            Log.ErrorSavingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
+            Log.ErrorSavingAggregate(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -310,7 +311,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
         {
-            Log.StreamAlreadyExists(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
+            Log.StreamAlreadyExists(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -320,7 +321,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
         }
         catch (Exception ex) when (!IsStreamCollisionException(ex))
         {
-            Log.ErrorCreatingAggregate(_logger, ex, typeof(TAggregate).Name, aggregate.Id);
+            Log.ErrorCreatingAggregate(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

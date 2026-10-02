@@ -3,6 +3,7 @@ using System.Reflection;
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -138,82 +139,124 @@ public sealed class BreachDetectionPipelineBehavior<TRequest, TResponse> : IPipe
         // Step 5: Run breach detection
         try
         {
-            var detectResult = await _detector.DetectAsync(securityEvent, cancellationToken)
+            return await DetectAndEnforceAsync(requestTypeName, securityEvent, result, cancellationToken)
                 .ConfigureAwait(false);
-
-            // If detection itself failed
-            if (detectResult.IsLeft)
-            {
-                var error = (EncinaError)detectResult;
-
-                _logger.LogWarning(
-                    "Breach detection failed for '{RequestType}': {ErrorMessage}",
-                    requestTypeName, error.Message);
-
-                if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
-                {
-                    return Left<EncinaError, TResponse>(error);
-                }
-
-                // Warn mode — detection failure doesn't block the response
-                return result;
-            }
-
-            var breaches = detectResult.Match(
-                Right: r => r,
-                Left: _ => (IReadOnlyList<PotentialBreach>)[]);
-
-            // No breaches detected — return the original response
-            if (breaches.Count == 0)
-            {
-                return result;
-            }
-
-            // Breaches detected
-            var ruleNames = string.Join(", ", breaches.Select(b => b.DetectionRuleName));
-
-            _logger.LogWarning(
-                "Breach detection triggered for '{RequestType}': {BreachCount} potential breach(es) " +
-                "detected by rules [{RuleNames}]",
-                requestTypeName, breaches.Count, ruleNames);
-
-            // Record each detected breach via the event-sourced service
-            foreach (var breach in breaches)
-            {
-                await _breachService.RecordBreachAsync(
-                    nature: breach.Description,
-                    severity: breach.Severity,
-                    detectedByRule: breach.DetectionRuleName,
-                    estimatedAffectedSubjects: 0,
-                    description: $"Auto-detected by pipeline for request '{requestTypeName}'",
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-
-            // Block mode — return error to the caller
-            if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(
-                    BreachNotificationErrors.BreachDetected(requestTypeName, ruleNames));
-            }
-
-            // Warn mode — log and return the original response
-            return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Unhandled exception during breach detection for '{RequestType}'", requestTypeName);
+            return HandleUnhandledException(ex, requestTypeName, result);
+        }
+    }
 
-            if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(
-                    BreachNotificationErrors.DetectionFailed(
-                        $"Unhandled exception during detection for '{requestTypeName}'", ex));
-            }
+    private async ValueTask<Either<EncinaError, TResponse>> DetectAndEnforceAsync(
+        string requestTypeName,
+        SecurityEvent securityEvent,
+        Either<EncinaError, TResponse> result,
+        CancellationToken cancellationToken)
+    {
+        var detectResult = await _detector.DetectAsync(securityEvent, cancellationToken)
+            .ConfigureAwait(false);
 
-            // Warn mode — exception doesn't block the response
+        // If detection itself failed
+        if (detectResult.IsLeft)
+        {
+            return HandleDetectionFailure((EncinaError)detectResult, requestTypeName, result);
+        }
+
+        var breaches = detectResult.Match(
+            Right: r => r,
+            Left: _ => (IReadOnlyList<PotentialBreach>)[]);
+
+        // No breaches detected — return the original response
+        if (breaches.Count == 0)
+        {
             return result;
         }
+
+        return await EnforceBreachesAsync(requestTypeName, breaches, result, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> EnforceBreachesAsync(
+        string requestTypeName,
+        IReadOnlyList<PotentialBreach> breaches,
+        Either<EncinaError, TResponse> result,
+        CancellationToken cancellationToken)
+    {
+        // Breaches detected
+        var ruleNames = string.Join(", ", breaches.Select(b => b.DetectionRuleName));
+
+        _logger.LogWarning(
+            "Breach detection triggered for '{RequestType}': {BreachCount} potential breach(es) " +
+            "detected by rules [{RuleNames}]",
+            requestTypeName, breaches.Count, ruleNames);
+
+        // Record each detected breach via the event-sourced service
+        await RecordBreachesAsync(requestTypeName, breaches, cancellationToken).ConfigureAwait(false);
+
+        // Block mode — return error to the caller
+        if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(
+                BreachNotificationErrors.BreachDetected(requestTypeName, ruleNames));
+        }
+
+        // Warn mode — log and return the original response
+        return result;
+    }
+
+    private async ValueTask RecordBreachesAsync(
+        string requestTypeName,
+        IReadOnlyList<PotentialBreach> breaches,
+        CancellationToken cancellationToken)
+    {
+        foreach (var breach in breaches)
+        {
+            await _breachService.RecordBreachAsync(
+                nature: breach.Description,
+                severity: breach.Severity,
+                detectedByRule: breach.DetectionRuleName,
+                estimatedAffectedSubjects: 0,
+                description: $"Auto-detected by pipeline for request '{requestTypeName}'",
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private Either<EncinaError, TResponse> HandleDetectionFailure(
+        EncinaError error,
+        string requestTypeName,
+        Either<EncinaError, TResponse> result)
+    {
+        _logger.LogWarning(
+            "Breach detection failed for '{RequestType}': {ErrorCode}",
+            requestTypeName, error.GetCode().IfNone("encina.unknown"));
+
+        if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(error);
+        }
+
+        // Warn mode — detection failure doesn't block the response
+        return result;
+    }
+
+    private Either<EncinaError, TResponse> HandleUnhandledException(
+        Exception ex,
+        string requestTypeName,
+        Either<EncinaError, TResponse> result)
+    {
+        _logger.LogError(ex.ForLogging(),
+            "Unhandled exception during breach detection for '{RequestType}'", requestTypeName);
+
+        if (_options.EnforcementMode == BreachDetectionEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(
+                BreachNotificationErrors.DetectionFailed(
+                    $"Unhandled exception during detection for '{requestTypeName}'", ex));
+        }
+
+        // Warn mode — exception doesn't block the response
+        return result;
     }
 
     // ================================================================

@@ -190,7 +190,7 @@ var result = await repository.UpdateAsync(orderId, modifiedOrder);
 
 result.Match(
     Right: order => logger.LogInformation("Updated order to version {Version}", order.Version),
-    Left: error => logger.LogWarning("Update failed: {Error}", error.Message));
+    Left: error => logger.LogWarning("Update failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 ### Dapper

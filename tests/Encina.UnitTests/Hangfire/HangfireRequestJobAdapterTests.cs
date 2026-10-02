@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Hangfire;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -176,7 +177,9 @@ public class HangfireRequestJobAdapterTests
             .FirstOrDefault(r => r.Message.Contains("Unhandled exception"));
         logEntry.ShouldNotBeNull();
         logEntry!.Level.ShouldBe(LogLevel.Error);
-        logEntry.Exception.ShouldBe(exception);
+        logEntry.Exception.ShouldBeOfType<RedactedException>();
+        logEntry.Exception!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        logEntry.Exception.ToString().ShouldNotContain("Test exception");
     }
 
     [Fact]

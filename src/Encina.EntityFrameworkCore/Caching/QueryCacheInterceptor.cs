@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Encina.Caching;
+using Encina.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -382,7 +383,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         }
         catch (Exception ex)
         {
-            QueryCacheLog.FailedToResolveRequestContext(_logger, ex);
+            QueryCacheLog.FailedToResolveRequestContext(_logger, ex.ForLogging());
             return null;
         }
     }
@@ -579,7 +580,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
                 exception);
         }
 
-        QueryCacheLog.CacheOperationFailed(_logger, operation, key, exception);
+        QueryCacheLog.CacheOperationFailed(_logger, operation, key, exception.ForLogging());
     }
 }
 

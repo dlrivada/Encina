@@ -4,6 +4,7 @@ using System.Reflection;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Diagnostics;
 using Encina.Modules;
 
 using LanguageExt;
@@ -216,7 +217,7 @@ public sealed class RetentionValidationPipelineBehavior<TRequest, TResponse> : I
         }
         catch (Exception ex)
         {
-            _logger.RetentionPipelineError(requestTypeName, responseTypeName, ex);
+            _logger.RetentionPipelineError(requestTypeName, responseTypeName, ex.ForLogging());
             RetentionDiagnostics.RecordFailed(activity, ex.GetType().Name);
             RetentionDiagnostics.PipelineExecutionsTotal.Add(1,
                 new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));

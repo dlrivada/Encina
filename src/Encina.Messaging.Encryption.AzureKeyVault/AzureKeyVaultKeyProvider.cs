@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Security.KeyVault.Keys;
 using Azure.Security.KeyVault.Keys.Cryptography;
+using Encina.Diagnostics;
 using Encina.Security.Encryption.Abstractions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -83,13 +84,13 @@ public sealed partial class AzureKeyVaultKeyProvider : IKeyProvider
         }
         catch (RequestFailedException ex) when (ex.Status is 401 or 403)
         {
-            Log.AccessDenied(_logger, keyId, ex.Message, ex);
+            Log.AccessDenied(_logger, keyId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, byte[]>(
                 MessageEncryptionErrors.ProviderUnavailable($"Access denied to key '{keyId}'.", ex));
         }
         catch (RequestFailedException ex)
         {
-            Log.ProviderError(_logger, keyId, ex.Message, ex);
+            Log.ProviderError(_logger, keyId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, byte[]>(
                 MessageEncryptionErrors.ProviderUnavailable(ex.Message, ex));
         }
@@ -122,7 +123,7 @@ public sealed partial class AzureKeyVaultKeyProvider : IKeyProvider
         }
         catch (RequestFailedException ex)
         {
-            Log.ProviderError(_logger, keyName, ex.Message, ex);
+            Log.ProviderError(_logger, keyName, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, string>(
                 MessageEncryptionErrors.ProviderUnavailable(ex.Message, ex));
         }
@@ -151,7 +152,7 @@ public sealed partial class AzureKeyVaultKeyProvider : IKeyProvider
         }
         catch (RequestFailedException ex)
         {
-            Log.RotationFailed(_logger, keyName, ex.Message, ex);
+            Log.RotationFailed(_logger, keyName, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, string>(
                 MessageEncryptionErrors.ProviderUnavailable($"Key rotation failed: {ex.Message}", ex));
         }

@@ -375,7 +375,7 @@ public class LogJobFilter : JobFilterAttribute, IServerFilter
     {
         var logger = context.GetJobParameter<ILogger>("logger");
         if (context.Exception != null)
-            logger?.LogError(context.Exception, "Job {JobId} failed", context.BackgroundJob.Id);
+            logger?.LogError(context.Exception.ForLogging(), "Job {JobId} failed", context.BackgroundJob.Id);
         else
             logger?.LogInformation("Job {JobId} completed", context.BackgroundJob.Id);
     }

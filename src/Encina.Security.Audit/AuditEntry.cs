@@ -130,7 +130,7 @@ public sealed record AuditEntry
     /// Error message when <see cref="Outcome"/> is not <see cref="AuditOutcome.Success"/>.
     /// </summary>
     /// <remarks>
-    /// Contains the error message from <see cref="EncinaError.Message"/> for failed operations.
+    /// Contains the error code (or the exception type name) for failed operations, never the error message.
     /// <c>null</c> for successful operations.
     /// </remarks>
     public string? ErrorMessage { get; init; }
