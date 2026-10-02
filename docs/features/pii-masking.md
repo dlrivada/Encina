@@ -208,10 +208,10 @@ public string CorrelationToken { get; set; }
 Hash mode fails closed:
 
 - `DefaultMode = MaskingMode.Hash` without a key throws `OptionsValidationException` from `AddEncinaPII` and again at startup (`ValidateOnStart`). An empty or whitespace key is invalid.
-- A property whose `[PII]` or other attribute selects Hash while no key and no opt-out exist is replaced by `[REDACTED]`, and an error is logged (EventId 8020).
+- A property masked through a strategy (no `Pattern` or `Replacement` on its attribute) whose `[PII]` or other attribute selects Hash while no key and no opt-out exist is replaced by `[REDACTED]`, and an error is logged (EventId 8020).
 - The explicit opt-out `PIIOptions.AllowUnkeyedHash = true` keeps a plain, unkeyed SHA-256 and logs one warning at startup (EventId 8019).
 
-An unkeyed SHA-256 of a low-entropy value (SSN, phone number, date of birth) can be reversed with a dictionary attack. Load the key from a secret store, never from source code. `HashKey` is excluded from JSON serialization and from `ToString()`. `MaskingOptions.HashKey` carries the key to custom `IMaskingStrategy` implementations; it replaces the former `HashSalt`.
+An unkeyed SHA-256 of a low-entropy value (SSN, phone number, date of birth) can be reversed with a dictionary attack. Load the key from a secret store, never from source code. `HashKey` is excluded from JSON serialization and from `ToString()`. `MaskingOptions.HashKey` carries the key to custom `IMaskingStrategy` implementations.
 
 ```csharp
 services.AddEncinaPII(options =>
@@ -220,8 +220,6 @@ services.AddEncinaPII(options =>
     options.HashKey = configuration["Pii:HashKey"]; // from a secret store
 });
 ```
-
-Pre-1.0 change: hashes differ from those the earlier unkeyed SHA-256 produced.
 
 ---
 
