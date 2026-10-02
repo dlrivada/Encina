@@ -86,6 +86,6 @@ internal static partial class PIILogMessages
     [LoggerMessage(
         EventId = 8020,
         Level = LogLevel.Error,
-        Message = "PII Hash mode requested for PIIType={PIIType} but no HashKey is configured and AllowUnkeyedHash is off; the value was redacted instead")]
+        Message = "PII Hash mode requested for PIIType={PIIType} but there is no usable HashKey (missing or blank) and AllowUnkeyedHash does not apply; the value was redacted instead")]
     internal static partial void HashWithoutKeyRedacted(ILogger logger, string piiType);
 }

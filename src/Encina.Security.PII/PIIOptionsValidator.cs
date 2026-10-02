@@ -1,3 +1,4 @@
+using System.Text;
 using Encina.Security.PII.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,7 +9,8 @@ namespace Encina.Security.PII;
 /// <summary>
 /// Validates <see cref="PIIOptions"/> so that <see cref="MaskingMode.Hash"/> fails closed:
 /// it needs a <see cref="PIIOptions.HashKey"/> unless <see cref="PIIOptions.AllowUnkeyedHash"/>
-/// is set explicitly.
+/// is set explicitly. A key must also be at least <see cref="PIIOptions.MinimumHashKeyBytes"/> UTF-8 bytes
+/// long (a blank key is invalid).
 /// </summary>
 internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 {
@@ -54,6 +56,11 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
             return "PIIOptions.HashKey must not be empty or whitespace; set a real key or leave it null.";
         }
 
+        if (HasShortKey(options))
+        {
+            return $"PIIOptions.HashKey must be at least {PIIOptions.MinimumHashKeyBytes} UTF-8 bytes (the HMAC-SHA256 output length); use a random key from a secret store.";
+        }
+
         if (RequiresMissingKey(options))
         {
             return "MaskingMode.Hash requires PIIOptions.HashKey; set a key or opt out explicitly with PIIOptions.AllowUnkeyedHash.";
@@ -64,6 +71,10 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 
     private static bool HasBlankKey(PIIOptions options) =>
         options.HashKey is not null && string.IsNullOrWhiteSpace(options.HashKey);
+
+    private static bool HasShortKey(PIIOptions options) =>
+        options.HashKey is not null
+        && Encoding.UTF8.GetByteCount(options.HashKey) < PIIOptions.MinimumHashKeyBytes;
 
     private static bool RequiresMissingKey(PIIOptions options) =>
         options.HashKey is null && options.DefaultMode == MaskingMode.Hash && !options.AllowUnkeyedHash;

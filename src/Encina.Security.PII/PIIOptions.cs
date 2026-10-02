@@ -111,8 +111,9 @@ public sealed class PIIOptions
     /// <remarks>
     /// <para>
     /// Required when <see cref="DefaultMode"/> is <see cref="MaskingMode.Hash"/>, unless
-    /// <see cref="AllowUnkeyedHash"/> is set. An empty or whitespace key is invalid.
-    /// Load it from a secret store, never from source code.
+    /// <see cref="AllowUnkeyedHash"/> is set. An empty or whitespace key is invalid, and so is a key
+    /// shorter than <see cref="MinimumHashKeyBytes"/> UTF-8 bytes (the HMAC-SHA256 output length).
+    /// Load a random key from a secret store, never from source code.
     /// </para>
     /// <para>
     /// Changing the key changes every hash, so hashes computed under different keys do not correlate.
@@ -121,6 +122,11 @@ public sealed class PIIOptions
     /// </remarks>
     [JsonIgnore]
     public string? HashKey { get; set; }
+
+    /// <summary>
+    /// The minimum length of <see cref="HashKey"/> in UTF-8 bytes: 32, the HMAC-SHA256 output length.
+    /// </summary>
+    public const int MinimumHashKeyBytes = 32;
 
     /// <summary>
     /// Gets or sets whether <see cref="MaskingMode.Hash"/> may run without a <see cref="HashKey"/>,

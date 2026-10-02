@@ -2,6 +2,7 @@ using System.Text.Json;
 using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
+using Encina.Security.PII.Strategies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,7 +15,7 @@ namespace Encina.UnitTests.Security.PII;
 /// </summary>
 public sealed class PIIHashKeyTests
 {
-    private const string Secret = "super-secret-hash-key-value";
+    private const string Secret = "super-secret-hash-key-value-0123456789abcdef";
 
     #region Options validation
 
@@ -79,14 +80,41 @@ public sealed class PIIHashKeyTests
         result.Failed.ShouldBeTrue();
     }
 
-    [Fact]
-    public void Validate_FailureMessage_NeverContainsTheKey()
+    [Theory]
+    [InlineData(31, false)]
+    [InlineData(32, true)]
+    [InlineData(33, true)]
+    public void Validate_KeyLength_RequiresAtLeast32Utf8Bytes(int bytes, bool valid)
     {
         var sut = new PIIOptionsValidator(NullLogger<PIIOptionsValidator>.Instance);
 
-        var result = sut.Validate(null, new PIIOptions { HashKey = " " });
+        sut.Validate(null, new PIIOptions { HashKey = new string('k', bytes) }).Succeeded.ShouldBe(valid);
+    }
 
-        string.Join(' ', result.Failures!).ShouldNotContain(Secret);
+    [Fact]
+    public void Validate_KeyLength_CountsUtf8BytesNotCharacters()
+    {
+        var sut = new PIIOptionsValidator(NullLogger<PIIOptionsValidator>.Instance);
+
+        // 16 two-byte characters are 32 bytes; 15 are 30.
+        sut.Validate(null, new PIIOptions { HashKey = new string('é', 16) }).Succeeded.ShouldBeTrue();
+        sut.Validate(null, new PIIOptions { HashKey = new string('é', 15) }).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_RejectedKey_NeverAppearsInFailuresOrLogs()
+    {
+        var logger = new CapturingLogger<PIIOptionsValidator>();
+        var sut = new PIIOptionsValidator(logger);
+        const string shortKey = "short-secret-key-31-bytes-long!";
+
+        var failed = sut.Validate(null, new PIIOptions { HashKey = shortKey, AllowUnkeyedHash = true });
+        var passed = sut.Validate(null, new PIIOptions { HashKey = Secret });
+
+        failed.Failed.ShouldBeTrue();
+        passed.Succeeded.ShouldBeTrue();
+        string.Join(' ', failed.Failures!).ShouldNotContain(shortKey);
+        logger.Entries.ShouldAllBe(e => !e.Message.Contains(shortKey) && !e.Message.Contains(Secret));
     }
 
     #endregion
@@ -224,6 +252,17 @@ public sealed class PIIHashKeyTests
         masker.Mask("abc", PIIType.Custom).ShouldBe("[REDACTED]");
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Mask_HashModeWithBlankKeyAndAllowUnkeyedHash_StillRedacts(string key)
+    {
+        var masker = CreateMasker(
+            new PIIOptions { DefaultMode = MaskingMode.Hash, HashKey = key, AllowUnkeyedHash = true });
+
+        masker.Mask("abc", PIIType.Custom).ShouldBe("[REDACTED]");
+    }
+
     [Fact]
     public void Mask_HashModeWithoutKey_LogsTheRedactionOncePerPIIType()
     {
@@ -276,14 +315,14 @@ public sealed class PIIHashKeyTests
         services.AddEncinaPII(o =>
         {
             o.DefaultMode = MaskingMode.Hash;
-            o.HashKey = "Jefe";
+            o.HashKey = Secret;
         });
 
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         provider.GetRequiredService<IPIIMasker>().Mask("what do ya want for nothing?", PIIType.Custom)
-            .ShouldBe("5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+            .ShouldBe(HashHelper.ComputeHash("what do ya want for nothing?", Secret));
     }
 
     [Fact]
@@ -343,7 +382,7 @@ public sealed class PIIHashKeyTests
 
     private sealed class CapturingLogger<T> : ILogger<T>
     {
-        public List<(LogLevel Level, EventId EventId)> Entries { get; } = [];
+        public List<(LogLevel Level, EventId EventId, string Message)> Entries { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -355,6 +394,6 @@ public sealed class PIIHashKeyTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, eventId));
+            Entries.Add((logLevel, eventId, formatter(state, exception)));
     }
 }
