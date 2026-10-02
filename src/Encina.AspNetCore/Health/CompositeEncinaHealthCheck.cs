@@ -46,7 +46,6 @@ internal sealed class CompositeEncinaHealthCheck : IHealthCheck
         var results = new Dictionary<string, object>();
         var overallStatus = EncinaHealthStatus.Healthy;
         var descriptions = new List<string>();
-        Exception? lastException = null;
 
         foreach (var check in checks)
         {
@@ -71,12 +70,6 @@ internal sealed class CompositeEncinaHealthCheck : IHealthCheck
             {
                 descriptions.Add($"{check.Name}: {result.Description}");
             }
-
-            // Keep track of the last exception
-            if (result.Exception is not null)
-            {
-                lastException = result.Exception;
-            }
         }
 
         var description = descriptions.Count > 0
@@ -86,8 +79,9 @@ internal sealed class CompositeEncinaHealthCheck : IHealthCheck
         return overallStatus switch
         {
             EncinaHealthStatus.Healthy => AspNetHealthCheckResult.Healthy(description, results),
-            EncinaHealthStatus.Degraded => AspNetHealthCheckResult.Degraded(description, lastException, results),
-            EncinaHealthStatus.Unhealthy => AspNetHealthCheckResult.Unhealthy(description, lastException, results),
+            // The exception object of a check is never forwarded to the endpoint result.
+            EncinaHealthStatus.Degraded => AspNetHealthCheckResult.Degraded(description, data: results),
+            EncinaHealthStatus.Unhealthy => AspNetHealthCheckResult.Unhealthy(description, data: results),
             _ => AspNetHealthCheckResult.Unhealthy($"Unknown health status: {overallStatus}")
         };
     }

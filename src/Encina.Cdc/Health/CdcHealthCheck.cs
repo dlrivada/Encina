@@ -81,7 +81,8 @@ public class CdcHealthCheck : EncinaHealthCheck
             },
             error =>
             {
-                data["connector_error"] = error.ToString();
+                // Only the error code: EncinaError.ToString() prints its Message and exception.
+                data["connector_error"] = error.GetCode().IfNone("encina.unknown");
                 return false;
             });
 
@@ -106,7 +107,7 @@ public class CdcHealthCheck : EncinaHealthCheck
             },
             error =>
             {
-                data["store_error"] = error.ToString();
+                data["store_error"] = error.GetCode().IfNone("encina.unknown");
                 return false;
             });
 

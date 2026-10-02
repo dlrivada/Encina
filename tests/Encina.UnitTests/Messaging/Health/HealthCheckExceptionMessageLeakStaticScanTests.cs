@@ -19,9 +19,22 @@ namespace Encina.UnitTests.Messaging.Health;
 /// </remarks>
 public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
 {
-    /// <summary>Any member access named <c>Message</c> (exception, <c>EncinaError</c> or lookalike).</summary>
-    [GeneratedRegex(@"\b\w+\.Message\b")]
+    /// <summary>
+    /// Any member access named <c>Message</c> (exception, <c>EncinaError</c> or lookalike), also through
+    /// <c>?.</c>, plus the other members that print an exception's or an error's text: <c>InnerException</c>,
+    /// <c>StackTrace</c>, <c>Error.Reason</c> (a free-text driver message) and <c>.ToString()</c> on an
+    /// exception or error identifier (the generated <c>EncinaError.ToString()</c> prints its message).
+    /// </summary>
+    [GeneratedRegex(
+        @"\b\w+\??\.(Message|InnerException|StackTrace)\b|\.Error\.Reason\b|\b(ex|exception|err|error|\w*Error|\w*Exception)\??\.ToString\(")]
     private static partial Regex MessageAccessRegex();
+
+    /// <summary>
+    /// An exception identifier interpolated whole into a string: <c>{ex}</c>. Identifiers ending in
+    /// <c>Error</c> are not matched here: in health files they hold string error codes (<c>encryptError</c>).
+    /// </summary>
+    [GeneratedRegex(@"\{(ex|exception|\w*Exception)(:[^}]*)?\}")]
+    private static partial Regex InterpolatedErrorRegex();
 
     /// <summary>The <c>exception:</c> named argument that attaches an exception object to a result.</summary>
     [GeneratedRegex(@"(^|[(,])\s*exception\s*:(?>\s*)(?!null\b)")]
@@ -31,7 +44,9 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
     /// An exception passed positionally to a <c>HealthCheckResult</c>, <c>DatabaseHealthResult</c> or
     /// <c>ShardHealthResult</c> factory (<c>Unhealthy(description, ex, data)</c>).
     /// </summary>
-    [GeneratedRegex(@"\.(Unhealthy|Degraded)\([^;]*?,\s*(ex|exception|\w+\.Exception)\s*[,)]", RegexOptions.Singleline)]
+    [GeneratedRegex(
+        @"(\.(Unhealthy|Degraded)|new\s+(HealthCheckResult|DatabaseHealthResult|ShardHealthResult))\([^;]*?,\s*(ex|exception|\w*Exception|\w+\.Exception)\s*[,)]",
+        RegexOptions.Singleline)]
     private static partial Regex PositionalExceptionRegex();
 
     [Fact]
@@ -65,6 +80,12 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
     [InlineData("return ShardHealthResult.Unhealthy(shardId, ex.Message, ex);")]
     [InlineData("    $\"Database health check failed for provider '{ProviderName}': {ex.Message}\",")]
     [InlineData("    exception: ex);")]
+    [InlineData("data[\"store_error\"] = error.ToString();")]
+    [InlineData("return HealthCheckResult.Unhealthy($\"failed: {ex}\");")]
+    [InlineData("return HealthCheckResult.Unhealthy($\"failed: {ex.InnerException?.Message}\");")]
+    [InlineData("return HealthCheckResult.Unhealthy($\"{Name} error: {ex.Error.Reason}\");")]
+    [InlineData("return new HealthCheckResult(HealthStatus.Unhealthy, description, lastException, data);")]
+    [InlineData("return AspNetHealthCheckResult.Unhealthy(description, lastException, results);")]
     [InlineData("return HealthCheckResult.Unhealthy(healthResult.Description, healthResult.Exception, healthResult.Data);")]
     public void Scan_FlagsEveryLeakingShapeFoundBeforeTheFix(string source)
     {
@@ -104,7 +125,9 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
 
         for (var i = 0; i < codeLines.Length; i++)
         {
-            if (MessageAccessRegex().IsMatch(codeLines[i]) || ExceptionNamedArgumentRegex().IsMatch(codeLines[i]))
+            if (MessageAccessRegex().IsMatch(codeLines[i])
+                || InterpolatedErrorRegex().IsMatch(codeLines[i])
+                || ExceptionNamedArgumentRegex().IsMatch(codeLines[i]))
             {
                 violations.Add($"{relativePath}:{i + 1}: {lines[i].Trim()}");
             }

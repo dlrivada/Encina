@@ -88,7 +88,9 @@ public sealed class KafkaHealthCheckTests
 
         // Assert
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description!.ShouldContain("Broker not available");
+        result.Description!.ShouldContain(nameof(ErrorCode.BrokerNotAvailable));
+        result.Description!.ShouldContain(nameof(KafkaException));
+        result.Description!.ShouldNotContain("Broker not available");
     }
 
     [Fact]

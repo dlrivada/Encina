@@ -44,7 +44,7 @@ public sealed class KafkaHealthCheck : EncinaHealthCheck
         }
         catch (KafkaException ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.Error.Reason}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy($"{Name} error: {ex.Error.Code} ({ex.GetType().Name})"));
         }
     }
 }

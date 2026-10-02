@@ -164,7 +164,8 @@ public sealed class CdcDeadLetterHealthCheckTests
         // Assert
         ((int)result.Status).ShouldBe((int)HealthStatus.Unhealthy);
         result.Description!.ShouldContain("Failed to query");
-        result.Data.ShouldContainKey("store_error");
+        result.Data["store_error"].ShouldBe("encina.unknown");
+        result.Data.Values.ShouldAllBe(v => !v.ToString()!.Contains("Database connection failed"));
     }
 
     #endregion
