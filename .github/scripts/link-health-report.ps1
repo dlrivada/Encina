@@ -10,6 +10,11 @@
         when closed);
       - clean scan: comments "Clean scan <run url>" and closes the tracking issue when it is open.
     The exit code is 1 only when at least one broken (404/410) link exists, otherwise 0.
+    Failures are read from lychee 0.24.2's error_map and timeout_map (timeouts are transient).
+    Fail-closed rules (the script throws, the job fails, the tracking issue is left alone):
+      - the report has no error_map;
+      - the errors or timeouts count is positive but its map has no entry;
+      - -LycheeExitCode is a non-zero number but the report shows no failure.
 
 .PARAMETER ReportPath
     Path of the lychee JSON report (lychee --format json --output <file>).
@@ -23,6 +28,9 @@
 .PARAMETER SimulatedIssue
     Only with -DryRun: the state of the tracking issue to pretend exists (none, open, closed).
 
+.PARAMETER LycheeExitCode
+    Exit code of the lychee step (steps.<id>.outputs.exit_code); empty skips the cross-check.
+
 .PARAMETER SelfTest
     Runs the script logic against .github/scripts/fixtures/link-health/*.json in dry-run mode and asserts
     the classification, the body headers, the intended gh commands and the exit code. Needs no gh or network.
@@ -35,7 +43,8 @@ param(
     [switch] $DryRun,
     [ValidateSet('none', 'open', 'closed')]
     [string] $SimulatedIssue = 'none',
-    [switch] $SelfTest
+    [switch] $SelfTest,
+    [string] $LycheeExitCode = ''
 )
 
 Set-StrictMode -Version Latest
@@ -51,14 +60,14 @@ $script:BodyHeaders = @(
 function Get-StatusCode {
     param($Status)
     if ($null -eq $Status) { return $null }
-    # The code is preferred; the text is a fallback so a 404/410 is never read as transient because
-    # lychee changed its text format ("Rejected status code: 404 Not Found", "404 Not Found", ...).
+    # The code is preferred. The text is a fallback only when it STARTS with a three-digit code
+    # ("404 Not Found"): a network-error text that merely contains a URL ending in /404 stays transient.
     if ($Status -is [string]) {
-        if ($Status -match '\b(\d{3})\b') { return [int] $Matches[1] }
+        if ($Status -match '^\s*(\d{3})\b') { return [int] $Matches[1] }
         return $null
     }
     if ($Status.PSObject.Properties['code'] -and $null -ne $Status.code) { return [int] $Status.code }
-    if ($Status.PSObject.Properties['text'] -and $Status.text -match '\b(\d{3})\b') { return [int] $Matches[1] }
+    if ($Status.PSObject.Properties['text'] -and $Status.text -match '^\s*(\d{3})\b') { return [int] $Matches[1] }
     return $null
 }
 
@@ -75,30 +84,34 @@ function Get-StatusText {
 function Read-LinkFailures {
     param([string] $Path)
     $json = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    $map = $null
-    foreach ($name in 'error_map', 'fail_map') {
-        if ($json.PSObject.Properties[$name]) { $map = $json.$name; break }
-    }
+    # lychee 0.24.2 (formatters/stats/response.rs, json.rs): a timeout goes to timeout_map, every
+    # other failure to error_map; both are keyed by source file with { url, status, span } entries.
     $failures = [System.Collections.Generic.List[object]]::new()
     # Fail closed on schema drift: a report without the failure map must never read as a clean scan.
-    if ($null -eq $map) { throw "Unrecognized lychee report: neither error_map nor fail_map in $Path" }
-    foreach ($source in $map.PSObject.Properties) {
-        foreach ($entry in @($source.Value)) {
-            $code = Get-StatusCode $entry.status
-            $line = if ($entry.PSObject.Properties['span'] -and $entry.span -and $entry.span.PSObject.Properties['line']) { [string] $entry.span.line } else { '?' }
-            $class = if ($code -eq 404 -or $code -eq 410) { 'broken' } else { 'transient' }
-            $failures.Add([pscustomobject]@{
-                    File   = [string] $source.Name
-                    Line   = $line
-                    Url    = [string] $entry.url
-                    Status = Get-StatusText $entry.status
-                    Class  = $class
-                })
+    if (-not $json.PSObject.Properties['error_map']) { throw "Unrecognized lychee report: no error_map in $Path" }
+    foreach ($pair in @(@('error_map', 'errors'), @('timeout_map', 'timeouts'))) {
+        $mapName = $pair[0]; $countName = $pair[1]
+        $entries = 0
+        if ($json.PSObject.Properties[$mapName]) {
+            foreach ($source in $json.$mapName.PSObject.Properties) {
+                foreach ($entry in @($source.Value)) {
+                    $entries++
+                    $code = Get-StatusCode $entry.status
+                    $line = if ($entry.PSObject.Properties['span'] -and $entry.span -and $entry.span.PSObject.Properties['line']) { [string] $entry.span.line } else { '?' }
+                    $class = if ($mapName -eq 'error_map' -and ($code -eq 404 -or $code -eq 410)) { 'broken' } else { 'transient' }
+                    $failures.Add([pscustomobject]@{
+                            File   = [string] $source.Name
+                            Line   = $line
+                            Url    = [string] $entry.url
+                            Status = Get-StatusText $entry.status
+                            Class  = $class
+                        })
+                }
+            }
         }
-    }
-    foreach ($totalName in 'errors', 'timeouts') {
-        if ($json.PSObject.Properties[$totalName] -and [int] $json.$totalName -gt 0 -and $failures.Count -eq 0) {
-            throw "Unrecognized lychee report: $totalName is $($json.$totalName) but the failure map is empty in $Path"
+        # A positive count with no entry in its map is schema drift, never a clean scan.
+        if ($json.PSObject.Properties[$countName] -and [int] $json.$countName -gt 0 -and $entries -eq 0) {
+            throw "Unrecognized lychee report: $countName is $($json.$countName) but $mapName has no entries in $Path"
         }
     }
     return , $failures
@@ -114,15 +127,26 @@ function New-IssueBody {
     $broken = @($Failures | Where-Object Class -eq 'broken').Count
     $transient = @($Failures | Where-Object Class -eq 'transient').Count
     # GitHub rejects issue bodies over 65,536 characters (a network outage makes every link transient):
-    # broken links sort first and the table is capped, with a note for the rest.
-    $maxRows = 250
+    # broken links sort first, the Status cell is truncated and rows are added until the accumulated
+    # table reaches the budget, with a note for the rest. The fixed text around the table is < 3,000.
+    $tableBudget = 56000
     $sorted = @($Failures | Sort-Object @{Expression = { $_.Class }; Descending = $false }, File, @{Expression = { [int]($_.Line -replace '\D', '0') } })
-    $rows = @(foreach ($f in ($sorted | Select-Object -First $maxRows)) {
-            '| `{0}:{1}` | {2} | {3} | {4} |' -f (ConvertTo-TableCell $f.File), $f.Line, (ConvertTo-TableCell $f.Url), (ConvertTo-TableCell $f.Status), $f.Class
-        })
-    if ($sorted.Count -gt $maxRows) {
-        $rows += ''
-        $rows += "Table truncated: $($sorted.Count - $maxRows) more failure(s) are in the run log of $RunUrl."
+    $rows = [System.Collections.Generic.List[string]]::new()
+    $used = 0
+    foreach ($f in $sorted) {
+        $status = ConvertTo-TableCell $f.Status
+        if ($status.Length -gt 120) { $status = $status.Substring(0, 117) + '...' }
+        $url = ConvertTo-TableCell $f.Url
+        if ($url.Length -gt 300) { $url = $url.Substring(0, 297) + '...' }
+        $row = '| `{0}:{1}` | {2} | {3} | {4} |' -f (ConvertTo-TableCell $f.File), $f.Line, $url, $status, $f.Class
+        if ($used + $row.Length + 1 -gt $tableBudget) { break }
+        $rows.Add($row)
+        $used += $row.Length + 1
+    }
+    $omitted = $sorted.Count - $rows.Count
+    if ($omitted -gt 0) {
+        $rows.Add('')
+        $rows.Add("Table truncated: $omitted more failure(s) are in the run log of $RunUrl.")
     }
     $lines = @(
         '## Category', '',
@@ -174,12 +198,17 @@ function Invoke-Gh {
 }
 
 function Invoke-LinkHealth {
-    param([string] $Path, [string] $RunUrl, [string] $Repo, [bool] $Dry, [string] $Simulated)
+    param([string] $Path, [string] $RunUrl, [string] $Repo, [bool] $Dry, [string] $Simulated, [string] $LycheeExit = '')
     $script:DryRunMode = $Dry
     $script:Commands = [System.Collections.Generic.List[string]]::new()
     $repoArgs = if ($Repo) { @('--repo', $Repo) } else { @() }
 
     $failures = Read-LinkFailures -Path $Path
+    # Fail closed: lychee exited non-zero (link failures exit 2; a crash, bad input or bad config exits
+    # otherwise) yet the report shows no failure, so the report cannot be trusted as a clean scan.
+    if ($LycheeExit -match '^\d+$' -and [int] $LycheeExit -ne 0 -and $failures.Count -eq 0) {
+        throw "lychee exited with code $LycheeExit but the report lists no failure; not treating it as a clean scan."
+    }
     $broken = @($failures | Where-Object Class -eq 'broken').Count
     $transient = @($failures | Where-Object Class -eq 'transient').Count
     Write-Host "Link health: $broken broken (404/410), $transient transient."
@@ -241,6 +270,8 @@ function Invoke-SelfTest {
         @{ Name = 'clean'; Broken = 0; Transient = 0; Exit = 0; Simulated = 'open'; Expect = @('gh issue comment 1', 'Clean scan https://example.test/run/1', 'gh issue close 1'); Absent = @('gh issue create') },
         @{ Name = 'clean'; Broken = 0; Transient = 0; Exit = 0; Simulated = 'none'; Expect = @(); Absent = @('gh issue') },
         @{ Name = 'transient-only'; Broken = 0; Transient = 3; Exit = 0; Simulated = 'none'; Expect = @('gh label create link-health', 'gh issue create'); Absent = @('gh issue close') },
+        @{ Name = 'timeout-only'; Broken = 0; Transient = 1; Exit = 0; Simulated = 'open'; Expect = @('gh issue edit 1'); Absent = @('gh issue create', 'gh issue close') },
+        @{ Name = 'network-error-404-url'; Broken = 0; Transient = 1; Exit = 0; Simulated = 'none'; Expect = @('gh issue create'); Absent = @('gh issue close') },
         @{ Name = 'broken-and-transient'; Broken = 2; Transient = 2; Exit = 1; Simulated = 'closed'; Expect = @('gh issue edit 1', 'gh issue reopen 1'); Absent = @('gh issue create') }
     )
     foreach ($case in $cases) {
@@ -269,16 +300,35 @@ function Invoke-SelfTest {
     foreach ($f in $mixed) { $byUrl[$f.Url] = $f }
     & $check ($byUrl['https://example.org/gone-for-good'].Class -eq 'broken') '410 is broken'
     & $check ($byUrl['https://example.org/moved-away|pipe'].Class -eq 'broken') '404 is broken'
-    & $check ($byUrl['https://example.org/slow'].Class -eq 'transient') 'timeout (no code) is transient'
+    & $check ($byUrl['https://example.org/slow'].Class -eq 'transient') 'a timeout_map entry is read and is transient'
     & $check ($byUrl['https://example.org/overloaded'].Class -eq 'transient') '504 is transient'
     $t = Read-LinkFailures -Path (Join-Path $fixtures 'transient-only.json')
     & $check (@($t | Where-Object { $_.Status -like '403*' -and $_.Class -eq 'transient' }).Count -eq 1) '403 is transient'
     $threw = $false
     try { Read-LinkFailures -Path (Join-Path $fixtures 'schema-drift.json') | Out-Null } catch { $threw = $true }
     & $check $threw 'a report without error_map fails closed instead of reading as clean'
-    $many = 1..300 | ForEach-Object { [pscustomobject]@{ File = 'a.md'; Line = "$_"; Url = "https://example.org/$_"; Status = '500 Internal Server Error'; Class = 'transient' } }
+    $threw = $false
+    try { Read-LinkFailures -Path (Join-Path $fixtures 'count-drift.json') | Out-Null } catch { $threw = $true }
+    & $check $threw 'a positive errors/timeouts count with an empty map fails closed'
+    $threw = $false
+    try { Invoke-LinkHealth -Path (Join-Path $fixtures 'clean.json') -RunUrl 'u' -Repo '' -Dry $true -Simulated 'open' -LycheeExit '1' | Out-Null } catch { $threw = $true }
+    & $check $threw 'lychee exit code 1 with a clean report fails closed'
+    $threw = $false
+    try { Invoke-LinkHealth -Path (Join-Path $fixtures 'clean.json') -RunUrl 'u' -Repo '' -Dry $true -Simulated 'open' -LycheeExit '0' | Out-Null } catch { $threw = $true }
+    & $check (-not $threw) 'lychee exit code 0 with a clean report is clean'
+    $net = Read-LinkFailures -Path (Join-Path $fixtures 'network-error-404-url.json')
+    & $check ($net[0].Class -eq 'transient') 'a network error whose text contains /404 stays transient'
+    $many = 1..300 | ForEach-Object {
+        [pscustomobject]@{
+            File   = "docs/some/deeply/nested/folder/structure/page-number-$_.md"
+            Line   = "$_"
+            Url    = "https://www.example-host-$_.org/a/rather/long/path/segment/for/realism/page-$_"
+            Status = "Network error: error sending request for url (https://www.example-host-$_.org/a/rather/long/path/segment/for/realism/page-$_): client error (Connect): dns error: failed to lookup address information"
+            Class  = 'transient'
+        }
+    }
     $big = New-IssueBody -Failures $many -RunUrl 'https://example.test/run/1'
-    & $check ($big.Length -lt 65000 -and $big.Contains('Table truncated: 50 more')) 'a body with 300 failures is truncated below the issue size limit'
+    & $check ($big.Length -lt 60000 -and $big.Contains('Table truncated:')) "a body with 300 realistic long failures stays under 60,000 characters (got $($big.Length))"
     $body = New-IssueBody -Failures $mixed -RunUrl 'https://example.test/run/1'
     & $check ($body.Contains('moved-away%7Cpipe')) 'pipe in a URL is escaped in the table'
 
@@ -299,5 +349,5 @@ if (-not (Test-Path -LiteralPath $ReportPath)) {
     # lychee writes no report when it fails before scanning; do not report a clean scan in that case.
     throw "Report not found: $ReportPath"
 }
-$result = Invoke-LinkHealth -Path $ReportPath -RunUrl $RunUrl -Repo $Repo -Dry $DryRun.IsPresent -Simulated $SimulatedIssue
+$result = Invoke-LinkHealth -Path $ReportPath -RunUrl $RunUrl -Repo $Repo -Dry $DryRun.IsPresent -Simulated $SimulatedIssue -LycheeExit $LycheeExitCode
 exit $result.ExitCode

@@ -69,6 +69,7 @@ jobs:
                       'CONTRIBUTING.md'
                       'ROADMAP.md'
                   fail: true
+                  failIfEmpty: false
 
             - name: List changed markdown files
               id: changed
@@ -83,8 +84,13 @@ jobs:
                   $ErrorActionPreference = 'Stop'
                   # The same files the offline scan above covers (docs/**, .github/**, changelog.d/** and the root pages).
                   $inGlob = '^(docs/.+\.md|\.github/.+\.md|changelog\.d/.+\.md|README\.md|CHANGELOG\.md|CONTRIBUTING\.md|ROADMAP\.md)$'
-                  # Mirrors exclude_path of .github/lychee.toml: lychee may not apply it to files passed explicitly.
-                  $excluded = '^(docs/INVENTORY\.md|docs/specifications/research/|docs/engineering/ENGINEERING-HANDBOOK\.md)'
+                  # exclude_path of .github/lychee.toml, read at run time (lychee may not apply it to files
+                  # passed explicitly, and a hand copy would drift). Entries are literal path prefixes.
+                  $toml = Get-Content -LiteralPath '.github/lychee.toml' -Raw
+                  $block = [regex]::Match($toml, '(?ms)^exclude_path\s*=\s*\[(.*?)^\]').Groups[1].Value
+                  $paths = @([regex]::Matches($block, '(?m)^\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+                  if ($paths.Count -eq 0) { throw 'No exclude_path entries found in .github/lychee.toml' }
+                  $excluded = '^(' + (($paths | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')'
                   # A change to any of these can change any result, so every in-glob file is scanned.
                   $configFiles = @('.github/lychee.toml', '.lycheeignore', '.github/workflows/link-check.yml', '.github/scripts/link-health-report.ps1')
 
@@ -124,10 +130,16 @@ jobs:
                       --config '.github/lychee.toml'
                       --files-from '${{ steps.changed.outputs.list }}'
                   fail: true
+                  # A change that only touches link-free Markdown (a changelog fragment) is not an error.
+                  failIfEmpty: false
 
     full-external-scan:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        # One scan at a time, so a dispatch overlapping the schedule cannot create two tracking issues.
+        concurrency:
+            group: link-health
+            cancel-in-progress: false
         permissions:
             contents: read
             issues: write
@@ -138,6 +150,7 @@ jobs:
             # fail: false, JSON output: the report script decides the outcome, so a third-party
             # flake is reported to the tracking issue instead of failing the run.
             - name: Check markdown links (full external scan)
+              id: lychee
               uses: lycheeverse/lychee-action@v2
               with:
                   args: >-
@@ -161,9 +174,11 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  LYCHEE_EXIT_CODE: ${{ steps.lychee.outputs.exit_code }}
               run: |
                   ./.github/scripts/link-health-report.ps1 `
                       -ReportPath 'lychee/report.json' `
                       -RunUrl $env:RUN_URL `
-                      -Repo $env:GITHUB_REPOSITORY
+                      -Repo $env:GITHUB_REPOSITORY `
+                      -LycheeExitCode $env:LYCHEE_EXIT_CODE
                   exit $LASTEXITCODE

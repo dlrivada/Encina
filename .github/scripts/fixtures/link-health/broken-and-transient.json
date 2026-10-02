@@ -1,31 +1,53 @@
 {
   "total": 120,
+  "unique": 118,
   "successful": 114,
-  "errors": 4,
+  "unknown": 0,
+  "unsupported": 0,
+  "timeouts": 1,
+  "redirects": 0,
+  "remaps": 0,
+  "excludes": 0,
+  "errors": 3,
+  "cached": 0,
+  "success_map": {},
   "error_map": {
     "README.md": [
       {
         "url": "https://example.org/gone-for-good",
         "status": { "text": "410 Gone", "code": 410 },
-        "span": { "line": 7, "column": 3 }
+        "span": { "line": 7, "column": 3 },
+        "duration": { "secs": 1, "nanos": 0 }
       }
     ],
     "docs/architecture/overview.md": [
       {
         "url": "https://example.org/moved-away|pipe",
         "status": { "text": "404 Not Found", "code": 404 },
-        "span": { "line": 40, "column": 10 }
-      },
-      {
-        "url": "https://example.org/slow",
-        "status": { "text": "Timeout" },
-        "span": { "line": 41, "column": 10 }
+        "span": { "line": 40, "column": 10 },
+        "duration": { "secs": 1, "nanos": 0 }
       },
       {
         "url": "https://example.org/overloaded",
         "status": { "text": "504 Gateway Timeout", "code": 504 },
-        "span": { "line": 42, "column": 10 }
+        "span": { "line": 42, "column": 10 },
+        "duration": { "secs": 1, "nanos": 0 }
       }
     ]
-  }
+  },
+  "timeout_map": {
+    "docs/architecture/overview.md": [
+      {
+        "url": "https://example.org/slow",
+        "status": { "text": "Timeout", "details": "Request timed out" },
+        "span": { "line": 41, "column": 10 },
+        "duration": { "secs": 20, "nanos": 0 }
+      }
+    ]
+  },
+  "suggestion_map": {},
+  "redirect_map": {},
+  "excluded_map": {},
+  "duration": { "secs": 30, "nanos": 0 },
+  "detailed_stats": true
 }
