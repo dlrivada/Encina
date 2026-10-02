@@ -142,64 +142,83 @@ public sealed class DelayedRetryProcessor : BackgroundService
                 message.RequestType,
                 message.DelayedRetryAttempt + 1);
 
-            // Deserialize the request
-            var requestType = Type.GetType(message.RequestType);
-            if (requestType is null)
-            {
-                DelayedRetryProcessorLog.UnknownRequestType(_logger, message.Id, message.RequestType);
-                await store.MarkAsFailedAsync(message.Id, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            var request = messageSerializer.Deserialize(message.RequestContent, requestType);
-            if (request is null)
-            {
-                DelayedRetryProcessorLog.DeserializationFailed(_logger, message.Id, message.RequestType);
-                await store.MarkAsFailedAsync(message.Id, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            // Execute through Encina pipeline
-            // Note: The RecoverabilityPipelineBehavior will handle any further failures
-            var result = await DispatchRequestAsync(encina, request, cancellationToken).ConfigureAwait(false);
-
-            if (result.IsSuccess)
-            {
-                await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-                DelayedRetryProcessorLog.RetrySucceeded(
-                    _logger,
-                    message.CorrelationId ?? RecoverabilityConstants.Unknown,
-                    message.RequestType,
-                    message.DelayedRetryAttempt + 1);
-            }
-            else
-            {
-                // Check if there are more delayed retries available
-                var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
-                if (nextDelayedRetryAttempt < _options.DelayedRetries.Length)
-                {
-                    // Schedule next delayed retry
-                    await ScheduleNextDelayedRetryAsync(
-                        message,
-                        request,
-                        nextDelayedRetryAttempt,
-                        cancellationToken).ConfigureAwait(false);
-
-                    await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    // All delayed retries exhausted - permanent failure
-                    await store.MarkAsFailedAsync(message.Id, result.ErrorMessage ?? "Unknown error", cancellationToken).ConfigureAwait(false);
-                    await HandlePermanentFailureAsync(message, request, result.ErrorMessage ?? "Unknown error", cancellationToken).ConfigureAwait(false);
-                }
-            }
+            await RetryMessageAsync(message, store, encina, messageSerializer, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             DelayedRetryProcessorLog.ProcessingException(_logger, ex.ForLogging(), message.Id, message.RequestType);
             await store.MarkAsFailedAsync(message.Id, ex.Message, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async Task RetryMessageAsync(
+        IDelayedRetryMessage message,
+        IDelayedRetryStore store,
+        IEncina encina,
+        IMessageSerializer messageSerializer,
+        CancellationToken cancellationToken)
+    {
+        // Deserialize the request
+        var requestType = Type.GetType(message.RequestType);
+        if (requestType is null)
+        {
+            DelayedRetryProcessorLog.UnknownRequestType(_logger, message.Id, message.RequestType);
+            await store.MarkAsFailedAsync(message.Id, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var request = messageSerializer.Deserialize(message.RequestContent, requestType);
+        if (request is null)
+        {
+            DelayedRetryProcessorLog.DeserializationFailed(_logger, message.Id, message.RequestType);
+            await store.MarkAsFailedAsync(message.Id, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // Execute through Encina pipeline
+        // Note: The RecoverabilityPipelineBehavior will handle any further failures
+        var result = await DispatchRequestAsync(encina, request, cancellationToken).ConfigureAwait(false);
+
+        await ApplyDispatchResultAsync(message, store, request, result, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ApplyDispatchResultAsync(
+        IDelayedRetryMessage message,
+        IDelayedRetryStore store,
+        object request,
+        DispatchResult result,
+        CancellationToken cancellationToken)
+    {
+        if (result.IsSuccess)
+        {
+            await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            DelayedRetryProcessorLog.RetrySucceeded(
+                _logger,
+                message.CorrelationId ?? RecoverabilityConstants.Unknown,
+                message.RequestType,
+                message.DelayedRetryAttempt + 1);
+            return;
+        }
+
+        // Check if there are more delayed retries available
+        var nextDelayedRetryAttempt = message.DelayedRetryAttempt + 1;
+        if (nextDelayedRetryAttempt < _options.DelayedRetries.Length)
+        {
+            // Schedule next delayed retry
+            await ScheduleNextDelayedRetryAsync(
+                message,
+                request,
+                nextDelayedRetryAttempt,
+                cancellationToken).ConfigureAwait(false);
+
+            await store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // All delayed retries exhausted - permanent failure
+        var errorMessage = result.ErrorMessage ?? "Unknown error";
+        await store.MarkAsFailedAsync(message.Id, errorMessage, cancellationToken).ConfigureAwait(false);
+        await HandlePermanentFailureAsync(message, request, errorMessage, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<DispatchResult> DispatchRequestAsync(

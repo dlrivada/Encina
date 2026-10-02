@@ -64,70 +64,104 @@ public sealed class DeadLetterManager : IDeadLetterManager
 
         var message = messageOpt.Match(Some: m => m, None: () => default!);
 
-        if (message.IsReplayed)
+        if (IsNotReplayable(message, messageId, out var rejection))
         {
-            return EncinaError.New($"[{DeadLetterErrorCodes.AlreadyReplayed}] Message {messageId} has already been replayed");
-        }
-
-        if (message.IsExpired)
-        {
-            return EncinaError.New($"[{DeadLetterErrorCodes.Expired}] Message {messageId} has expired");
+            return rejection;
         }
 
         DeadLetterLog.ReplayingMessage(_logger, messageId, message.RequestType);
 
         try
         {
-            // Deserialize the request
-            var requestType = Type.GetType(message.RequestType);
-            if (requestType is null)
-            {
-                var error = $"[{DeadLetterErrorCodes.DeserializationFailed}] Cannot resolve type: {message.RequestType}";
-                await _store.MarkAsReplayedAsync(messageId, $"Failed: {error}", cancellationToken);
-                await _store.SaveChangesAsync(cancellationToken);
-                return EncinaError.New(error);
-            }
-
-            var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
-            if (request is null)
-            {
-                var error = $"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content";
-                await _store.MarkAsReplayedAsync(messageId, $"Failed: {error}", cancellationToken);
-                await _store.SaveChangesAsync(cancellationToken);
-                return EncinaError.New(error);
-            }
-
-            // Get IEncina to replay the request
-            var encina = _serviceProvider.GetService(typeof(IEncina)) as IEncina;
-            if (encina is null)
-            {
-                var error = $"[{DeadLetterErrorCodes.ReplayFailed}] IEncina service not available";
-                await _store.MarkAsReplayedAsync(messageId, $"Failed: {error}", cancellationToken);
-                await _store.SaveChangesAsync(cancellationToken);
-                return EncinaError.New(error);
-            }
-
-            // Replay through IEncina.Send, typed by the request's runtime type
-            var replayResult = await ReplayRequestAsync(encina, request, messageId, cancellationToken);
-
-            await _store.MarkAsReplayedAsync(
-                messageId,
-                replayResult.Success ? "Success" : replayResult.ErrorMessage ?? "Failed",
-                cancellationToken);
-            await _store.SaveChangesAsync(cancellationToken);
-
-            return replayResult;
+            return await ReplayStoredMessageAsync(message, messageId, cancellationToken);
         }
         catch (Exception ex)
         {
             DeadLetterLog.MessageReplayException(_logger, ex.ForLogging(), messageId);
 
             var errorMessage = $"[{DeadLetterErrorCodes.ReplayFailed}] Exception during replay: {ex.GetType().FullName}";
-            await _store.MarkAsReplayedAsync(messageId, $"Failed: {errorMessage}", cancellationToken);
-            await _store.SaveChangesAsync(cancellationToken);
+            await RecordReplayOutcomeAsync(messageId, $"Failed: {errorMessage}", cancellationToken);
 
             return ReplayResult.Failed(messageId, errorMessage);
         }
+    }
+
+    private static bool IsNotReplayable(IDeadLetterMessage message, Guid messageId, out EncinaError rejection)
+    {
+        if (message.IsReplayed)
+        {
+            rejection = EncinaError.New($"[{DeadLetterErrorCodes.AlreadyReplayed}] Message {messageId} has already been replayed");
+            return true;
+        }
+
+        if (message.IsExpired)
+        {
+            rejection = EncinaError.New($"[{DeadLetterErrorCodes.Expired}] Message {messageId} has expired");
+            return true;
+        }
+
+        rejection = default;
+        return false;
+    }
+
+    private async Task RecordReplayOutcomeAsync(Guid messageId, string outcome, CancellationToken cancellationToken)
+    {
+        await _store.MarkAsReplayedAsync(messageId, outcome, cancellationToken);
+        await _store.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<Either<EncinaError, ReplayResult>> RejectReplayAsync(
+        Guid messageId,
+        string error,
+        CancellationToken cancellationToken)
+    {
+        await RecordReplayOutcomeAsync(messageId, $"Failed: {error}", cancellationToken);
+        return EncinaError.New(error);
+    }
+
+    private async Task<Either<EncinaError, ReplayResult>> ReplayStoredMessageAsync(
+        IDeadLetterMessage message,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        // Deserialize the request
+        var requestType = Type.GetType(message.RequestType);
+        if (requestType is null)
+        {
+            return await RejectReplayAsync(
+                messageId,
+                $"[{DeadLetterErrorCodes.DeserializationFailed}] Cannot resolve type: {message.RequestType}",
+                cancellationToken);
+        }
+
+        var request = _messageSerializer.Deserialize(message.RequestContent, requestType);
+        if (request is null)
+        {
+            return await RejectReplayAsync(
+                messageId,
+                $"[{DeadLetterErrorCodes.DeserializationFailed}] Failed to deserialize request content",
+                cancellationToken);
+        }
+
+        // Get IEncina to replay the request
+        var encina = _serviceProvider.GetService(typeof(IEncina)) as IEncina;
+        if (encina is null)
+        {
+            return await RejectReplayAsync(
+                messageId,
+                $"[{DeadLetterErrorCodes.ReplayFailed}] IEncina service not available",
+                cancellationToken);
+        }
+
+        // Replay through IEncina.Send, typed by the request's runtime type
+        var replayResult = await ReplayRequestAsync(encina, request, messageId, cancellationToken);
+
+        await RecordReplayOutcomeAsync(
+            messageId,
+            replayResult.Success ? "Success" : replayResult.ErrorMessage ?? "Failed",
+            cancellationToken);
+
+        return replayResult;
     }
 
     private async Task<ReplayResult> ReplayRequestAsync(

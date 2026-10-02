@@ -94,87 +94,37 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
 
         RoutingSlipLog.Started(_logger, routingSlipId, definition.SlipType, initialStepCount);
 
-        var currentData = initialData;
-        var stepsExecuted = 0;
-        var stepsAdded = 0;
+        var progress = new StepProgress<TData>(initialData);
 
         try
         {
             // Execute steps until the itinerary is empty
-            while (remainingSteps.Count > 0)
+            var failure = await ExecuteStepsAsync(context, remainingSteps, progress, cancellationToken)
+                .ConfigureAwait(false);
+            if (failure is { } stepError)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Pop the next step
-                var step = remainingSteps[0];
-                remainingSteps.RemoveAt(0);
-
-                var stepCountBefore = remainingSteps.Count;
-                RoutingSlipLog.StepExecuting(_logger, routingSlipId, stepsExecuted + 1, step.Name);
-
-                var stepResult = await step.Execute(currentData, context, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (stepResult.IsLeft)
-                {
-                    // Step failed - start compensation
-                    var error = stepResult.Match(
-                        Right: _ => EncinaErrors.Create(RoutingSlipErrorCodes.StepFailed, "Unexpected"),
-                        Left: e => e);
-
-                    // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                    RoutingSlipLog.StepFailed(_logger, routingSlipId, stepsExecuted + 1, step.Name, error.GetCode().IfNone("encina.unknown"));
-
-                    // Run compensation for completed steps (in reverse order)
-                    await CompensateAsync(context, cancellationToken).ConfigureAwait(false);
-
-                    stopwatch.Stop();
-                    return error;
-                }
-
-                // Update data
-                currentData = stepResult.Match(
-                    Right: data => data,
-                    Left: _ => currentData);
-
-                // Track if steps were added during this execution
-                var stepsAddedThisStep = remainingSteps.Count - stepCountBefore;
-                if (stepsAddedThisStep > 0)
-                {
-                    stepsAdded += stepsAddedThisStep;
-                    RoutingSlipLog.StepsModified(_logger, routingSlipId, step.Name, stepsAddedThisStep);
-                }
-
-                // Record activity for compensation
-                context.RecordActivity(new RoutingSlipActivityEntry<TData>(
-                    step.Name,
-                    currentData,
-                    step.Compensate,
-                    _timeProvider.GetUtcNow().UtcDateTime,
-                    step.Metadata));
-
-                stepsExecuted++;
-                RoutingSlipLog.StepCompleted(_logger, routingSlipId, stepsExecuted, step.Name);
+                stopwatch.Stop();
+                return stepError;
             }
 
             // Run completion handler if defined
             if (definition.OnCompletion is not null)
             {
                 RoutingSlipLog.CompletionHandlerExecuting(_logger, routingSlipId);
-                await definition.OnCompletion(currentData, context, cancellationToken).ConfigureAwait(false);
+                await definition.OnCompletion(progress.CurrentData, context, cancellationToken).ConfigureAwait(false);
                 RoutingSlipLog.CompletionHandlerCompleted(_logger, routingSlipId);
             }
 
             stopwatch.Stop();
-            var stepsRemoved = initialStepCount + stepsAdded - stepsExecuted;
+            var stepsRemoved = initialStepCount + progress.StepsAdded - progress.StepsExecuted;
 
-            RoutingSlipLog.Completed(_logger, routingSlipId, stepsExecuted, stopwatch.Elapsed);
+            RoutingSlipLog.Completed(_logger, routingSlipId, progress.StepsExecuted, stopwatch.Elapsed);
 
             return new RoutingSlipResult<TData>(
                 routingSlipId,
-                currentData,
-                stepsExecuted,
-                stepsAdded,
+                progress.CurrentData,
+                progress.StepsExecuted,
+                progress.StepsAdded,
                 stepsRemoved > 0 ? stepsRemoved : 0,
                 stopwatch.Elapsed,
                 activityLog);
@@ -197,6 +147,90 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
 
             return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerFailed, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Executes the itinerary until it is empty, updating <paramref name="progress"/>.
+    /// </summary>
+    /// <returns>
+    /// <see langword="null"/> when every step succeeded; otherwise the error of the failed step,
+    /// after the completed steps have been compensated.
+    /// </returns>
+    private async Task<EncinaError?> ExecuteStepsAsync<TData>(
+        RoutingSlipContext<TData> context,
+        List<RoutingSlipStepDefinition<TData>> remainingSteps,
+        StepProgress<TData> progress,
+        CancellationToken cancellationToken)
+        where TData : class, new()
+    {
+        var routingSlipId = context.RoutingSlipId;
+
+        while (remainingSteps.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Pop the next step
+            var step = remainingSteps[0];
+            remainingSteps.RemoveAt(0);
+
+            var stepCountBefore = remainingSteps.Count;
+            RoutingSlipLog.StepExecuting(_logger, routingSlipId, progress.StepsExecuted + 1, step.Name);
+
+            var stepResult = await step.Execute(progress.CurrentData, context, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (stepResult.IsLeft)
+            {
+                // Step failed - start compensation
+                var error = stepResult.Match(
+                    Right: _ => EncinaErrors.Create(RoutingSlipErrorCodes.StepFailed, "Unexpected"),
+                    Left: e => e);
+
+                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+                RoutingSlipLog.StepFailed(_logger, routingSlipId, progress.StepsExecuted + 1, step.Name, error.GetCode().IfNone("encina.unknown"));
+
+                // Run compensation for completed steps (in reverse order)
+                await CompensateAsync(context, cancellationToken).ConfigureAwait(false);
+
+                return error;
+            }
+
+            // Update data
+            progress.CurrentData = stepResult.Match(
+                Right: data => data,
+                Left: _ => progress.CurrentData);
+
+            // Track if steps were added during this execution
+            var stepsAddedThisStep = remainingSteps.Count - stepCountBefore;
+            if (stepsAddedThisStep > 0)
+            {
+                progress.StepsAdded += stepsAddedThisStep;
+                RoutingSlipLog.StepsModified(_logger, routingSlipId, step.Name, stepsAddedThisStep);
+            }
+
+            // Record activity for compensation
+            context.RecordActivity(new RoutingSlipActivityEntry<TData>(
+                step.Name,
+                progress.CurrentData,
+                step.Compensate,
+                _timeProvider.GetUtcNow().UtcDateTime,
+                step.Metadata));
+
+            progress.StepsExecuted++;
+            RoutingSlipLog.StepCompleted(_logger, routingSlipId, progress.StepsExecuted, step.Name);
+        }
+
+        return null;
+    }
+
+    private sealed class StepProgress<TData>(TData initialData)
+        where TData : class
+    {
+        public TData CurrentData { get; set; } = initialData;
+
+        public int StepsExecuted { get; set; }
+
+        public int StepsAdded { get; set; }
     }
 
     private async Task CompensateAsync<TData>(
