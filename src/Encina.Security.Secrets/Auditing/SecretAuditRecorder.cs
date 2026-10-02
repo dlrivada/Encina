@@ -24,7 +24,7 @@ internal static class SecretAuditRecorder
     /// <param name="secretName">The name of the secret.</param>
     /// <param name="isSuccess">Whether the operation succeeded.</param>
     /// <param name="result">
-    /// The operation result used to derive the failure message, or <c>null</c> when none is recorded.
+    /// The operation result used to derive the recorded failure code (never the error message), or <c>null</c> when none is recorded.
     /// </param>
     /// <param name="startedAt">When the operation started.</param>
     /// <param name="completedAt">When the operation completed.</param>
@@ -43,7 +43,7 @@ internal static class SecretAuditRecorder
     {
         try
         {
-            var errorMessage = ErrorMessageOf(isSuccess, result);
+            var errorMessage = ErrorCodeOf(isSuccess, result);
             var requestContext = requestContextAccessor.RequestContext;
 
             var entry = BuildEntry(
@@ -61,7 +61,7 @@ internal static class SecretAuditRecorder
         }
     }
 
-    private static string? ErrorMessageOf<TRight>(bool isSuccess, Either<EncinaError, TRight>? result)
+    private static string? ErrorCodeOf<TRight>(bool isSuccess, Either<EncinaError, TRight>? result)
     {
         if (isSuccess || !result.HasValue)
         {

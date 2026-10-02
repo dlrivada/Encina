@@ -183,8 +183,11 @@ public class DefaultNIS2ComplianceValidatorTests
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity =>
             {
-                tagValues.AddRange(activity.Tags.Select(t => t.Value ?? string.Empty));
-                tagValues.Add(activity.StatusDescription ?? string.Empty);
+                lock (tagValues)
+                {
+                    tagValues.AddRange(activity.Tags.Select(t => t.Value ?? string.Empty));
+                    tagValues.Add(activity.StatusDescription ?? string.Empty);
+                }
             }
         };
         ActivitySource.AddActivityListener(listener);
