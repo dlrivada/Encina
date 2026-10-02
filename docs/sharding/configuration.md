@@ -611,11 +611,13 @@ services.AddEncinaSharding<Order>(options =>
 
 ### Shard Health Monitoring
 
+A health result can reach a health endpoint, so it carries the exception type name (for example `TimeoutException`) in its description, never the exception object or its message.
+
 ```csharp
 // Health results per shard
 var healthy = ShardHealthResult.Healthy("shard-1", poolStats);
 var degraded = ShardHealthResult.Degraded("shard-2", "High pool usage");
-var unhealthy = ShardHealthResult.Unhealthy("shard-3", "Timeout", exception);
+var unhealthy = ShardHealthResult.Unhealthy("shard-3", "Timeout (TimeoutException)");
 
 // Aggregate health summary
 var results = new[] { healthy, degraded, unhealthy };
