@@ -10,7 +10,7 @@ Encina.Security.PII provides automatic masking of personally identifiable inform
 ## Key Features
 
 - **9 built-in strategies** — Email, Phone, CreditCard, SSN, Name, Address, DateOfBirth, IPAddress, Custom
-- **5 masking modes** — Partial, Full, Hash, Tokenize, Redact. Hash is a keyed HMAC-SHA256 and needs `PIIOptions.HashKey` (or the explicit `AllowUnkeyedHash` opt-out); see [Hash mode and its key](../../docs/features/pii-masking.md#hash-mode-and-its-key)
+- **5 masking modes** — Partial, Full, Hash, Tokenize, Redact. Hash is a keyed HMAC-SHA256 and needs `PIIOptions.HashKey` of at least 32 UTF-8 bytes (or the explicit `AllowUnkeyedHash` opt-out); see [Hash mode and its key](../../docs/features/pii-masking.md#hash-mode-and-its-key)
 - **Attribute-based** — `[PII]`, `[SensitiveData]`, `[MaskInLogs]`
 - **Audit trail integration** — implements `IPiiMasker` from `Encina.Security.Audit`
 - **Railway Oriented Programming** — consistent `Either<EncinaError, T>` error handling
