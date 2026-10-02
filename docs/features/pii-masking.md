@@ -197,9 +197,31 @@ public string CorrelationToken { get; set; }
 |------|-------------|-----------------|
 | **Partial** | Show selected characters | `u***@example.com` |
 | **Full** | Replace all characters | `***@example.com` |
-| **Hash** | SHA-256 deterministic hash | `a1b2c3d4e5f6...` |
+| **Hash** | Deterministic keyed hash: HMAC-SHA256, lowercase hex (64 characters), key from `PIIOptions.HashKey` | `a1b2c3d4e5f6...` |
 | **Tokenize** | Passthrough for external systems | `user@example.com` (unchanged) |
 | **Redact** | Fixed replacement text | `[REDACTED]` |
+
+### Hash mode and its key
+
+`MaskingMode.Hash` computes HMAC-SHA256 over the UTF-8 value, keyed by `PIIOptions.HashKey` (a UTF-8 string). The same value and key always give the same hash, so you can correlate records. Changing the key changes every hash, so hashes made under different keys do not correlate.
+
+Hash mode fails closed:
+
+- `DefaultMode = MaskingMode.Hash` without a key throws `OptionsValidationException` from `AddEncinaPII` and again at startup (`ValidateOnStart`). An empty or whitespace key is invalid.
+- A property whose `[PII]` or other attribute selects Hash while no key and no opt-out exist is replaced by `[REDACTED]`, and an error is logged (EventId 8020).
+- The explicit opt-out `PIIOptions.AllowUnkeyedHash = true` keeps a plain, unkeyed SHA-256 and logs one warning at startup (EventId 8019).
+
+An unkeyed SHA-256 of a low-entropy value (SSN, phone number, date of birth) can be reversed with a dictionary attack. Load the key from a secret store, never from source code. `HashKey` is excluded from JSON serialization and from `ToString()`. `MaskingOptions.HashKey` carries the key to custom `IMaskingStrategy` implementations; it replaces the former `HashSalt`.
+
+```csharp
+services.AddEncinaPII(options =>
+{
+    options.DefaultMode = MaskingMode.Hash;
+    options.HashKey = configuration["Pii:HashKey"]; // from a secret store
+});
+```
+
+Pre-1.0 change: hashes differ from those the earlier unkeyed SHA-256 produced.
 
 ---
 
@@ -210,6 +232,8 @@ public string CorrelationToken { get; set; }
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DefaultMode` | `MaskingMode` | `Partial` | Default masking mode for all strategies |
+| `HashKey` | `string?` | `null` | Secret key for `MaskingMode.Hash` (HMAC-SHA256); required when `DefaultMode` is `Hash` unless `AllowUnkeyedHash` is set; never serialized or printed |
+| `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs a warning at startup |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
 | `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
@@ -418,7 +442,7 @@ Assert.Contains("@example.com", result);
 
 - Property metadata is cached per type via `ConcurrentDictionary` — first access incurs reflection cost, subsequent calls are O(1) lookup
 - JSON serialization creates a deep copy — for hot paths with large objects, consider disabling response masking and using `Mask(string, PIIType)` directly
-- Hash mode uses SHA-256 — slightly slower than Partial/Full but deterministic
+- Hash mode computes HMAC-SHA256 — slightly slower than Partial/Full but deterministic for a given key
 
 ### Masking Not Applied in Logs
 
