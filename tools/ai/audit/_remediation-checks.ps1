@@ -1068,7 +1068,7 @@ function Get-FindingPackages {
     if ([string]::IsNullOrWhiteSpace($FindingText) -or [string]::IsNullOrWhiteSpace($RepoRoot)) { return @() }
     $found = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
     $names = [System.Collections.Generic.List[string]]::new()
-    foreach ($m in [regex]::Matches($FindingText, 'src[\\/](Encina\.[A-Za-z0-9._-]*[A-Za-z0-9])[\\/]')) { $names.Add($m.Groups[1].Value) }
+    foreach ($m in [regex]::Matches($FindingText, 'src[\\/](Encina\.[A-Za-z0-9._-]*[A-Za-z0-9])(?![A-Za-z0-9_-])')) { $names.Add($m.Groups[1].Value) }
     foreach ($m in [regex]::Matches($FindingText, '(?<![\w.\\/-])(Encina(?:\.[A-Za-z0-9]+)+)')) { $names.Add($m.Groups[1].Value) }
     foreach ($name in $names) {
         if (Test-Path -LiteralPath (Join-Path $RepoRoot "src\$name") -PathType Container) { [void]$found.Add($name) }
@@ -1261,12 +1261,22 @@ function Get-EitherSemanticsViolations {
 
 # Decision 5: pipeline meta-text the model sometimes writes into a draft ("Specific file path not provided in
 # finding", "the evidence check rejected it"). Returns the offending lines, trimmed (case-insensitive).
+#
+# Adversarial review of #1565: a phrase the finding's own text contains is not meta-text -- the audit also covers
+# issues ABOUT the local model or the evidence check (#1388, #1393, #1565), whose findings and correct drafts
+# legitimately say so -- so only the phrases the finding does not use count.
 function Get-MetaTextLines {
-    param([string]$DraftText)
+    param([string]$DraftText, [string]$FindingText = '')
 
+    $phrases = [System.Collections.Generic.List[string]]::new()
+    foreach ($phrase in 'local model', 'evidence check', 'not provided in finding', 'proposed it as a duplicate') {
+        if ($FindingText.IndexOf($phrase, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { $phrases.Add([regex]::Escape($phrase)) }
+    }
     $bad = [System.Collections.Generic.List[string]]::new()
+    if ($phrases.Count -eq 0) { return @() }
+    $pattern = '(?i)' + ($phrases -join '|')
     foreach ($line in ([string]$DraftText -split "`r?`n")) {
-        if ($line -match '(?i)local model|evidence check|not provided in finding|proposed it as a duplicate') { $bad.Add($line.Trim()) }
+        if ($line -match $pattern) { $bad.Add($line.Trim()) }
     }
     return @($bad)
 }
@@ -1279,7 +1289,7 @@ function Get-DraftViolations {
     $missing = @(Get-MissingPackages $DraftText $Packages)
     $figures = @(Get-UnsupportedFigures $DraftText $FindingText $TemplateText $Packages $ManifestDir)
     $throwLines = @(Get-EitherSemanticsViolations $FindingText $DraftText)
-    $metaLines = @(Get-MetaTextLines $DraftText)
+    $metaLines = @(Get-MetaTextLines $DraftText $FindingText)
     return [pscustomobject]@{
         MissingPackages = $missing
         Figures         = $figures

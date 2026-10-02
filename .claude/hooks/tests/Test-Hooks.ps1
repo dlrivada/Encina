@@ -3348,6 +3348,15 @@ Two SagaStoreADO test classes duplicate the same setup.
         (@(Get-MetaTextLines "## Location`n`n- **File(s)**: ``src/Encina.NATS/NATSMessagePublisher.cs:93-141```n- #12 - possibly related (a similar open issue)")).Count -eq 0
     }
 
+    Test-RemediationChecksCase '#1565 Get-MetaTextLines: a phrase the finding itself uses (an audit of the local model or the evidence check) is not meta-text' {
+        $aboutTooling = 'The evidence check accepts a duplicate that the local model named without a shared symbol.'
+        (@(Get-MetaTextLines 'The evidence check never looks at the local model reply.' $aboutTooling)).Count -eq 0 -and
+            (@(Get-MetaTextLines 'Location: not provided in finding; the evidence check rejected it.' $aboutTooling)).Count -eq 1
+    }
+    Test-RemediationChecksCase '#1565 Get-FindingPackages: a src/Encina.<X> citation without a trailing slash still counts' {
+        (@(Get-FindingPackages 'See `src/Encina.NATS` and src/Encina.Kafka.' $pkgRoot1565) -join ',') -eq 'Encina.Kafka,Encina.NATS'
+    }
+
     # combined pass, marks and the re-ask note
     $badAll1565 = $natsOnlyDraft1565 + "`nCoverage is 0%. RequestAsync throws on timeout. Specific file path not provided in finding.`n"
     $violations1565 = Get-DraftViolations $badAll1565 $eitherFinding1565 $tplTest1565 $packages1565 $manifestDir1565

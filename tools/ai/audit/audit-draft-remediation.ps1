@@ -766,9 +766,9 @@ $candidateLinesForClassify
             "- #$duplicateOf - partially related (it covers only part of this finding)"
         }
         else {
-            # #1565 decision 5: worded without pipeline meta-text ('local model', 'evidence check'), which the
-            # meta-text guard would otherwise flag in the draft this very line is appended to.
-            "- #$duplicateOf - possibly related (a similar open issue; no shared file and symbol in its title or body)"
+            # #1565 decision 5: worded without pipeline meta-text ('local model', 'evidence check'), so a later
+            # meta-text scan of a finished draft never trips on the script's own note.
+            "- #$duplicateOf - possibly related (a similar open issue; no shared file or symbol in its title or body)"
         }
         $duplicateOf = $null
     }
