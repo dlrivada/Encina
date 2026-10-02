@@ -7,7 +7,7 @@ This document provides justifications for Security Hotspots identified by SonarC
 | File | Rule | Status | Justification Summary |
 |------|------|--------|----------------------|
 | SqliteRespawner.cs | S2077 (SQL Injection) | Safe | Test infrastructure only, internal table names |
-| link-check.yml | S2612 (Permissions) | Safe | Read-only permissions, no secrets |
+| link-check.yml | S2612 (Permissions) | Safe | Read-only on pull requests; `issues: write` only in the scheduled job (tracking issue) |
 | sonarcloud.yml (L26-34) | S2612 (Permissions) | Safe | Build artifacts only, no sensitive data |
 | sonarcloud.yml (L91-113) | S2631 (Regex DoS) | Safe | Static patterns, no user input |
 | PackageManager.cs (L58) | S4036 (PATH Injection) | Safe | Hardcoded "dotnet" command |
@@ -50,24 +50,30 @@ This code is part of test infrastructure (`Encina.Testing.Respawn`) used exclusi
 
 **File:** `.github/workflows/link-check.yml`
 **Rule:** S2612 - Make sure this permission is safe
-**Line:** 17
+**Lines:** 45-46 (job `check-links`) and 128-130 (job `full-external-scan`); permissions are declared per job, never at workflow level (#1494)
 
 **Context:**
 ```yaml
-permissions:
-    contents: read
+check-links:
+    permissions:
+        contents: read
+full-external-scan:
+    permissions:
+        contents: read
+        issues: write
 ```
 
 **Justification:**
-This workflow only checks markdown links for validity. It requires `contents: read` to access repository files but performs no write operations.
+This workflow only checks markdown links for validity. The job that runs on pull requests and pushes to `main` (`check-links`) requires `contents: read` to access repository files and performs no write operations. The scheduled job (`full-external-scan`, daily and on manual dispatch) also has `issues: write`, which it needs to maintain the single `link-health` tracking issue (open, update, close) through `.github/scripts/link-health-report.ps1`; it never writes to the repository contents.
 
 **Why it's safe:**
-- Read-only permission (minimal privilege)
-- No secrets or tokens used
-- No external code execution
+- `check-links`, the only job that runs for pull requests, is read-only (minimal privilege)
+- `issues: write` is held only by the scheduled and manually dispatched job, never by a job a pull request can trigger
+- The only token is the job's `GITHUB_TOKEN`, scoped by those permissions; no other secrets are used
+- No external code execution beyond the `lycheeverse/lychee-action` action and the report script from this repository
 - Only validates URLs in markdown files
 
-**Resolution:** Mark as Safe - Minimal Read-Only Permission
+**Resolution:** Mark as Safe - Read-Only Permission on pull requests; `issues: write` limited to the scheduled job
 
 ---
 

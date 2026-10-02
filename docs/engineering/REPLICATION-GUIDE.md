@@ -110,7 +110,7 @@ Copy `.github/workflows/` and adapt names and paths. What each one does and when
 | codeql.yml | CodeQL | push to main; pull_request; schedule (Monday 03:00 UTC); workflow_dispatch | C# analysis in source mode (`build-mode: none`) | fast (PR) |
 | conventional-commits.yml | Conventional Commits | pull_request_target | Validates the PR title type | fast (PR) |
 | docs.yml | Documentation | push to main; pull_request; workflow_dispatch | Builds the docs site (DocFX API + Jekyll) and deploys on main | fast (PR) |
-| link-check.yml | Link Check | push (md/config paths); pull_request (md paths); schedule (Sunday 03:00 UTC); workflow_dispatch | lychee: internal links only on PRs, full scan otherwise | fast (PR) |
+| link-check.yml | Link Check | push to main and pull_request (md/config paths); schedule (daily 03:00 UTC); workflow_dispatch | lychee: on push and PR, internal links of the whole site offline plus the online links of the changed Markdown files; on schedule and dispatch, the full external scan, which never blocks a PR or push and opens or updates one `link-health` tracking issue and fails only for 404/410 | fast (PR) |
 | load-tests.yml | Load Tests | workflow_dispatch; schedule | Load-test suites per area | slow (main/nightly) |
 | mutation-tests.yml | Mutation Tests | workflow_dispatch; schedule (Friday 03:00 UTC) | Baseline tests, 17-shard Stryker matrix, aggregate | slow (main/nightly) |
 | publish-benchmarks.yml, publish-coverage.yml, publish-load-tests.yml, publish-mutations.yml | Publish … Data | workflow_run of the producing workflow; workflow_dispatch | Render citations, publish dashboards to Pages, persist data back | event |
