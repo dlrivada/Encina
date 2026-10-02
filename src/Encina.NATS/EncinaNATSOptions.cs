@@ -8,9 +8,24 @@ namespace Encina.NATS;
 public sealed class EncinaNATSOptions
 {
     /// <summary>
-    /// Gets or sets the NATS server URL.
+    /// Gets or sets the NATS server URL, or a comma-separated list of server URLs.
     /// </summary>
+    /// <remarks>
+    /// Each URL must be absolute with the <c>nats</c>, <c>tls</c>, <c>ws</c> or <c>wss</c> scheme and
+    /// must not target a link-local, cloud metadata or unspecified address. The default targets
+    /// <c>localhost</c>, so it is rejected at registration unless <see cref="AllowLocalEndpoints"/> is set.
+    /// </remarks>
     public string Url { get; set; } = "nats://localhost:4222";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="Url"/> may target <c>localhost</c> or a
+    /// loopback address.
+    /// </summary>
+    /// <value>
+    /// Defaults to <c>false</c>. Set to <c>true</c> for local development or a sidecar on the same
+    /// host; a warning is logged at startup when it is set.
+    /// </value>
+    public bool AllowLocalEndpoints { get; set; }
 
     /// <summary>
     /// Gets or sets the subject prefix for all messages.
