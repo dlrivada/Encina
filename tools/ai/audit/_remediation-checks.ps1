@@ -1089,26 +1089,47 @@ function Get-FindingPackages {
 # True when the match at $Index/$Length of $Text is negated within its own clause ("no integration tests",
 # "without Docker", "integration tests are not needed"), so a mention that says something is NOT needed or NOT
 # done does not count as asking for it. A clause ends at . ; : ! ? , or a line break.
+#
+# Two modes, because the two callers need different things (adversarial review of the first version, which
+# treated "there are no integration tests for X" -- a MISSING-tests finding -- as "not needed"):
+#   Category: only wording that says the category is not NEEDED negates it -- "without Docker", "X tests are not
+#             needed/required/applicable", "no X tests needed/required/involved". A bare "no X tests exist" or "not
+#             covered by X tests" is a gap and still counts as a mention.
+#   Throw:    a throw word negated in its own clause -- never/not/no longer/rather than/instead of/without before it
+#             (the window stops at a conjunction, so "does not retry and throws" is still a violation), or
+#             "throws no exception"/"throws nothing" after it.
 function Test-NegatedMention {
-    param([string]$Text, [int]$Index, [int]$Length)
+    param([string]$Text, [int]$Index, [int]$Length, [ValidateSet('Category', 'Throw')][string]$Mode = 'Category')
 
-    $before = $Text.Substring([Math]::Max(0, $Index - 40), $Index - [Math]::Max(0, $Index - 40))
-    $cut = $before.LastIndexOfAny(@('.', ';', ':', '!', '?', ',', "`n", "`r"))
+    $clauseEnd = @('.', ';', ':', '!', '?', ',', "`n", "`r")
+    $beforeStart = [Math]::Max(0, $Index - 40)
+    $before = $Text.Substring($beforeStart, $Index - $beforeStart)
+    $cut = $before.LastIndexOfAny($clauseEnd)
     if ($cut -ge 0) { $before = $before.Substring($cut + 1) }
-    if ($before -match "(?i)\b(?:no|not|never|without|neither|nor|cannot|can't|\w+n't|rather than|instead of)\s+(?:\w+\s+){0,2}$") { return $true }
     $afterStart = $Index + $Length
     $after = $Text.Substring($afterStart, [Math]::Min(40, $Text.Length - $afterStart))
-    $cut = $after.IndexOfAny(@('.', ';', ':', '!', '?', ',', "`n", "`r"))
+    $cut = $after.IndexOfAny($clauseEnd)
     if ($cut -ge 0) { $after = $after.Substring(0, $cut) }
-    return [regex]::IsMatch($after, '(?i)^\s*(?:\w+\s+){0,3}?(?:are|is|do|does|will)\s+not\s+(?:needed|required|necessary|applicable|relevant)\b')
+
+    if ($Mode -eq 'Throw') {
+        $conjunction = [regex]::Matches($before, '(?i)\b(?:and|but|then|so|yet|or)\b')
+        if ($conjunction.Count -gt 0) { $last = $conjunction[$conjunction.Count - 1]; $before = $before.Substring($last.Index + $last.Length) }
+        if ($before -match "(?i)\b(?:no|not|never|without|neither|nor|cannot|can't|\w+n't|rather than|instead of)\s+(?:\w+\s+){0,2}$") { return $true }
+        return [regex]::IsMatch($after, '(?i)^\s*(?:no|nothing|none)\b')
+    }
+
+    if ($before -match '(?i)\bwithout\s+(?:\w+\s+){0,2}$') { return $true }
+    $neededWording = '(?:needed|required|necessary|applicable|relevant|involved)\b'
+    if ([regex]::IsMatch($after, '(?i)^\s*(?:\w+\s+){0,3}?(?:are|is|do|does|will)\s+not\s+' + $neededWording)) { return $true }
+    return ($before -match '(?i)\bno\s+(?:\w+\s+){0,2}$') -and [regex]::IsMatch($after, '(?i)^\s*(?:\w+\s+){0,3}?(?:(?:are|is)\s+)?' + $neededWording)
 }
 
-# True when $Pattern has at least one match in $Text that is not negated (Test-NegatedMention).
+# True when $Pattern has at least one match in $Text that is not negated (Test-NegatedMention, in $Mode).
 function Test-UnnegatedMatch {
-    param([string]$Text, [string]$Pattern)
+    param([string]$Text, [string]$Pattern, [string]$Mode = 'Category')
 
     foreach ($m in [regex]::Matches($Text, $Pattern)) {
-        if (-not (Test-NegatedMention $Text $m.Index $m.Length)) { return $true }
+        if (-not (Test-NegatedMention $Text $m.Index $m.Length $Mode)) { return $true }
     }
     return $false
 }
@@ -1304,7 +1325,7 @@ function Get-EitherSemanticsViolations {
         # A throw word negated in its own clause ("never throws", "does not throw", "rather than throwing",
         # "instead of throwing", "without throwing", "no longer throws") says the opposite of the violation.
         foreach ($m in [regex]::Matches($line, '(?i)\b(?:throw|throws|thrown|throwing)\b')) {
-            if (-not (Test-NegatedMention $line $m.Index $m.Length)) { $bad.Add($line.Trim()); break }
+            if (-not (Test-NegatedMention $line $m.Index $m.Length 'Throw')) { $bad.Add($line.Trim()); break }
         }
     }
     return @($bad)

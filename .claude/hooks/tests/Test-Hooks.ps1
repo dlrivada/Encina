@@ -3406,6 +3406,20 @@ Two SagaStoreADO test classes duplicate the same setup.
         $v = @(Get-UnsupportedFigures 'Covers 0 % and 12 percent.' 'Measured 71.1%.' '' @() '')
         $v.Count -eq 2
     }
+    Test-RemediationChecksCase '#1565 Get-TestCategoryTicks: a MISSING-tests statement ("no integration tests exist", "not covered by integration tests") still ticks the category' {
+        (@(Get-TestCategoryTicks 'There are no integration tests for the saga store.')) -contains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'No unit tests exist for SagaRunner.')) -contains 'Unit Tests' -and
+            (@(Get-TestCategoryTicks 'The branch is not covered by integration tests.')) -contains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'The store does not have integration tests.')) -contains 'Integration Tests' -and
+            (@(Get-TestCategoryTicks 'No integration tests needed for this change.')) -notcontains 'Integration Tests'
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: a negation of ANOTHER verb before "and throws" does not hide the violation' {
+        $v = @(Get-EitherSemanticsViolations $eitherFinding1565 "It does not retry and throws InvalidOperationException.`nIt cannot recover but throws.`nNo exception is thrown.")
+        $v.Count -eq 2 -and $v[0] -match 'does not retry' -and $v[1] -match 'cannot recover'
+    }
+    Test-RemediationChecksCase '#1565 Get-EitherSemanticsViolations: "throws no exception" and "throws nothing" are not violations' {
+        (@(Get-EitherSemanticsViolations $eitherFinding1565 "The method throws no exception on timeout.`nIt throws nothing; it returns Left.")).Count -eq 0
+    }
     $nsRoot1565 = Join-Path $work 'PkgNs1565'
     if (Test-Path $nsRoot1565) { Remove-Item -Recurse -Force $nsRoot1565 }
     foreach ($nsPkg in 'Encina.Messaging', 'Encina.ADO.SqlServer') { New-Item -ItemType Directory -Force (Join-Path $nsRoot1565 "src\$nsPkg") | Out-Null }
