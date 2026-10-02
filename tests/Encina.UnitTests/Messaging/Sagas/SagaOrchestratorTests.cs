@@ -396,6 +396,56 @@ public sealed class SagaOrchestratorTests
         result.ShouldBeLeft().Message.ShouldContain("status");
     }
 
+    [Fact]
+    public async Task StartCompensationAsync_StoreGetFails_ReturnsStoreError()
+    {
+        // Arrange
+        var sagaId = Guid.NewGuid();
+        var storeError = EncinaErrors.Create("store.failure", "store down");
+        _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(storeError));
+
+        // Act
+        var result = await _orchestrator.StartCompensationAsync(sagaId, SagaErrorCodes.StepFailed);
+
+        // Assert
+        result.ShouldBeLeft().GetCode().IfNone(string.Empty).ShouldBe("store.failure");
+    }
+
+    [Fact]
+    public async Task StartCompensationAsync_SagaNotFound_ReturnsNotFoundError()
+    {
+        // Arrange
+        var sagaId = Guid.NewGuid();
+        _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.None));
+
+        // Act
+        var result = await _orchestrator.StartCompensationAsync(sagaId, SagaErrorCodes.StepFailed);
+
+        // Assert
+        result.ShouldBeLeft().GetCode().IfNone(string.Empty).ShouldBe(SagaErrorCodes.NotFound);
+    }
+
+    [Fact]
+    public async Task StartCompensationAsync_StoreUpdateFails_ReturnsStoreError()
+    {
+        // Arrange
+        var sagaId = Guid.NewGuid();
+        var sagaState = CreateTestSagaState(sagaId, "OrderSaga", SagaStatus.Running, 1);
+        var storeError = EncinaErrors.Create("store.failure", "store down");
+        _store.GetAsync(sagaId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(Option<ISagaState>.Some(sagaState)));
+        _store.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(storeError));
+
+        // Act
+        var result = await _orchestrator.StartCompensationAsync(sagaId, SagaErrorCodes.StepFailed);
+
+        // Assert
+        result.ShouldBeLeft().GetCode().IfNone(string.Empty).ShouldBe("store.failure");
+    }
+
     #endregion
 
     #region CompensateStepAsync Tests
