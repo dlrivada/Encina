@@ -93,33 +93,16 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
         var startedAt = Stopwatch.GetTimestamp();
 
         // Start tracing if enabled
-        using var activity = _options.EnableTracing
-            ? SanitizationDiagnostics.StartInputSanitization(requestTypeName)
-            : null;
+        using var activity = StartActivity(requestTypeName);
 
-        var propertyCount = hasAutoSanitize
-            ? SanitizationPropertyCache.GetStringProperties(requestType).Length
-            : attributeProperties.Length;
-
-        if (hasAutoSanitize)
-        {
-            SanitizationLogMessages.AutoSanitizationStarted(_logger, requestTypeName, propertyCount);
-        }
-        else
-        {
-            SanitizationLogMessages.InputSanitizationStarted(_logger, requestTypeName, propertyCount);
-        }
+        var propertyCount = LogStarted(requestType, requestTypeName, attributeProperties.Length, hasAutoSanitize);
 
         // Perform sanitization
         var sanitizationResult = _orchestrator.Sanitize(request);
 
         if (sanitizationResult.IsLeft)
         {
-            var (errorMessage, errorCode) = sanitizationResult.Match(
-                Right: _ => (string.Empty, string.Empty),
-                Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
-
-            RecordFailure(activity, startedAt, requestTypeName, errorMessage, errorCode);
+            RecordFailure(activity, startedAt, requestTypeName, sanitizationResult);
             return sanitizationResult.Match<Either<EncinaError, TResponse>>(
                 Right: _ => default!,
                 Left: e => e);
@@ -128,6 +111,22 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
         RecordSuccess(activity, startedAt, requestTypeName, propertyCount);
 
         return await nextStep().ConfigureAwait(false);
+    }
+
+    private Activity? StartActivity(string requestTypeName) =>
+        _options.EnableTracing ? SanitizationDiagnostics.StartInputSanitization(requestTypeName) : null;
+
+    private int LogStarted(Type requestType, string requestTypeName, int attributePropertyCount, bool hasAutoSanitize)
+    {
+        if (!hasAutoSanitize)
+        {
+            SanitizationLogMessages.InputSanitizationStarted(_logger, requestTypeName, attributePropertyCount);
+            return attributePropertyCount;
+        }
+
+        var propertyCount = SanitizationPropertyCache.GetStringProperties(requestType).Length;
+        SanitizationLogMessages.AutoSanitizationStarted(_logger, requestTypeName, propertyCount);
+        return propertyCount;
     }
 
     /// <summary>
@@ -163,8 +162,12 @@ internal sealed class InputSanitizationPipelineBehavior<TRequest, TResponse> : I
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string requestTypeName, string errorMessage, string errorCode)
+    private void RecordFailure<T>(Activity? activity, long startedAt, string requestTypeName, Either<EncinaError, T> failed)
     {
+        var (errorMessage, errorCode) = failed.Match(
+            Right: _ => (string.Empty, string.Empty),
+            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+
         if (_options.EnableTracing)
         {
             SanitizationDiagnostics.RecordFailure(activity, "sanitize", errorMessage);

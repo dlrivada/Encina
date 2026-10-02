@@ -104,32 +104,38 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             : null;
 
         return response.Match(
-            Right: responseValue =>
-            {
-                var propertyCount = hasAutoEncode
-                    ? EncodingPropertyCache.GetStringProperties(responseType).Length
-                    : attributeProperties.Length;
-
-                SanitizationLogMessages.OutputEncodingStarted(_logger, responseTypeName, propertyCount);
-
-                var encodingResult = EncodeResponse(responseValue, responseType, responseTypeName);
-
-                if (encodingResult.IsLeft)
-                {
-                    var (errorMessage, errorCode) = encodingResult.Match(
-                        Right: _ => (string.Empty, string.Empty),
-                        Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
-
-                    RecordFailure(activity, startedAt, responseTypeName, errorMessage, errorCode);
-                    return encodingResult.Match<Either<EncinaError, TResponse>>(
-                        Right: _ => default!,
-                        Left: e => e);
-                }
-
-                RecordSuccess(activity, startedAt, responseTypeName, propertyCount);
-                return (Either<EncinaError, TResponse>)responseValue;
-            },
+            Right: responseValue => EncodeAndRecord(
+                responseValue, responseType, responseTypeName, attributeProperties.Length, hasAutoEncode, activity, startedAt),
             Left: e => (Either<EncinaError, TResponse>)e);
+    }
+
+    private Either<EncinaError, TResponse> EncodeAndRecord(
+        TResponse responseValue,
+        Type responseType,
+        string responseTypeName,
+        int attributePropertyCount,
+        bool hasAutoEncode,
+        Activity? activity,
+        long startedAt)
+    {
+        var propertyCount = hasAutoEncode
+            ? EncodingPropertyCache.GetStringProperties(responseType).Length
+            : attributePropertyCount;
+
+        SanitizationLogMessages.OutputEncodingStarted(_logger, responseTypeName, propertyCount);
+
+        var encodingResult = EncodeResponse(responseValue, responseType, responseTypeName);
+
+        if (encodingResult.IsLeft)
+        {
+            RecordFailure(activity, startedAt, responseTypeName, encodingResult);
+            return encodingResult.Match<Either<EncinaError, TResponse>>(
+                Right: _ => default!,
+                Left: e => e);
+        }
+
+        RecordSuccess(activity, startedAt, responseTypeName, propertyCount);
+        return responseValue;
     }
 
     /// <summary>
@@ -288,8 +294,12 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string responseTypeName, string errorMessage, string errorCode)
+    private void RecordFailure<T>(Activity? activity, long startedAt, string responseTypeName, Either<EncinaError, T> failed)
     {
+        var (errorMessage, errorCode) = failed.Match(
+            Right: _ => (string.Empty, string.Empty),
+            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+
         if (_options.EnableTracing)
         {
             SanitizationDiagnostics.RecordFailure(activity, "encode", errorMessage);

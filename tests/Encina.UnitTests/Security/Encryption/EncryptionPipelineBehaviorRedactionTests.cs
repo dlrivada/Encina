@@ -19,6 +19,9 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
     private const string Sentinel = "SENTINEL-encryption-error-message";
     private const string Code = "encryption.sentinel.code";
 
+    private static readonly IOptions<EncryptionOptions> TelemetryOptions =
+        Options.Create(new EncryptionOptions { EnableTracing = true, EnableMetrics = true });
+
     private readonly IEncryptionOrchestrator _orchestrator = Substitute.For<IEncryptionOrchestrator>();
     private readonly IRequestContext _context = RequestContext.CreateForTest(userId: "user-1");
 
@@ -40,7 +43,7 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
     public async Task Handle_DecryptFails_LogsTheErrorCodeNotTheMessage()
     {
         var logger = new FakeLogger<EncryptionPipelineBehavior<TRequestMarker, Unit>>();
-        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(_orchestrator, Options.Create(new EncryptionOptions()), logger);
+        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(_orchestrator, TelemetryOptions, logger);
         _orchestrator.DecryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TRequestMarker>>(Left(SentinelError())));
 
@@ -55,7 +58,7 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
     public async Task Handle_EncryptFails_LogsTheErrorCodeNotTheMessage()
     {
         var logger = new FakeLogger<EncryptionPipelineBehavior<TRequestMarker, Unit>>();
-        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(_orchestrator, Options.Create(new EncryptionOptions()), logger);
+        var sut = new EncryptionPipelineBehavior<TRequestMarker, Unit>(_orchestrator, TelemetryOptions, logger);
         _orchestrator.DecryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, TRequestMarker>>(Right(new TRequestMarker())));
         _orchestrator.EncryptAsync(Arg.Any<TRequestMarker>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
@@ -73,7 +76,7 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
     {
         var logger = new FakeLogger<EncryptionPipelineBehavior<ResponseRequest, EncryptedResponseDto>>();
         var sut = new EncryptionPipelineBehavior<ResponseRequest, EncryptedResponseDto>(
-            _orchestrator, Options.Create(new EncryptionOptions()), logger);
+            _orchestrator, TelemetryOptions, logger);
         _orchestrator.EncryptAsync(Arg.Any<EncryptedResponseDto>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, EncryptedResponseDto>>(Left(SentinelError())));
 

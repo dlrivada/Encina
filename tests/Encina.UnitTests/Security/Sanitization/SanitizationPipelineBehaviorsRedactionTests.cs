@@ -24,6 +24,9 @@ public sealed class SanitizationPipelineBehaviorsRedactionTests : IDisposable
     private const string ErrorMessage = "Sanitization failed for property 'Title'.";
     private const string ErrorCode = SanitizationErrors.PropertyErrorCode;
 
+    private static readonly IOptions<SanitizationOptions> TelemetryOptions =
+        Options.Create(new SanitizationOptions { EnableTracing = true, EnableMetrics = true });
+
     private readonly IRequestContext _context = RequestContext.CreateForTest(userId: "test-user");
 
     public SanitizationPipelineBehaviorsRedactionTests() => SanitizationPropertyCache.ClearCache();
@@ -47,7 +50,7 @@ public sealed class SanitizationPipelineBehaviorsRedactionTests : IDisposable
             sanitizer, Options.Create(new SanitizationOptions()), NullLogger<SanitizationOrchestrator>.Instance);
         var logger = new FakeLogger<InputSanitizationPipelineBehavior<HtmlCommand, Unit>>();
         var sut = new InputSanitizationPipelineBehavior<HtmlCommand, Unit>(
-            orchestrator, Options.Create(new SanitizationOptions()), logger);
+            orchestrator, TelemetryOptions, logger);
 
         var result = await sut.Handle(new HtmlCommand { Title = "x" }, _context,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Right(Unit.Default)), CancellationToken.None);
@@ -63,7 +66,7 @@ public sealed class SanitizationPipelineBehaviorsRedactionTests : IDisposable
         encoder.EncodeForHtml(Arg.Any<string>()).Throws(new InvalidOperationException("boom"));
         var logger = new FakeLogger<OutputEncodingPipelineBehavior<HtmlQuery, HtmlResponse>>();
         var sut = new OutputEncodingPipelineBehavior<HtmlQuery, HtmlResponse>(
-            encoder, Options.Create(new SanitizationOptions()), logger);
+            encoder, TelemetryOptions, logger);
 
         var result = await sut.Handle(new HtmlQuery(), _context,
             () => ValueTask.FromResult<Either<EncinaError, HtmlResponse>>(Right(new HtmlResponse { Title = "x" })),
