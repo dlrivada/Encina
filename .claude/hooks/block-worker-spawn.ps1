@@ -4,9 +4,9 @@
 #
 #   orchestrator      issue-worker, mechanical-fixer, docs-writer, docs-reviewer, adversarial-reviewer,
 #                     ci-diagnoser, pr-watcher, site-steward, Explore, Plan, claude-code-guide, general-purpose,
-#                     issue-archivist, issue-auditor, test-auditor, audit-verifier (the SPEC-003 audit
-#                     pipeline's stage agents, #1345 — audit-stage-guard.ps1 enforces which one, in which
-#                     order, and for which open audit)
+#                     issue-archivist, issue-auditor, test-auditor, remediation-drafter (#1572), audit-verifier
+#                     (the SPEC-003 audit pipeline's stage agents, #1345 — audit-stage-guard.ps1 enforces which
+#                     one, in which order, and for which open audit)
 #   issue-worker      ci-diagnoser, mechanical-fixer, Explore, adversarial-reviewer (self-review), docs-writer,
 #                     docs-reviewer (#1345: the docs stage of the SPEC-003 audit pipeline spawns docs-reviewer
 #                     directly, without going through docs-writer)
@@ -16,8 +16,8 @@
 #                     site-steward never diagnoses it itself.
 #   pr-reviewer       Explore only (#1447): read-only cross-file research while reviewing a published PR; it
 #                     never diagnoses CI, it reviews, so ci-diagnoser is not in its allowlist.
-#   issue-archivist, issue-auditor, test-auditor, audit-verifier, docs-reviewer, adversarial-reviewer,
-#   ci-diagnoser, pr-watcher   empty (#1345). Each is either a SPEC-003 audit stage agent (single-owner,
+#   issue-archivist, issue-auditor, test-auditor, remediation-drafter, audit-verifier, docs-reviewer,
+#   adversarial-reviewer, ci-diagnoser, pr-watcher   empty (#1345, #1572). Each is either a SPEC-003 audit stage agent (single-owner,
 #                     no delegation) or a read-only specialist whose own definition lists no Agent tool; any
 #                     spawn they attempt is denied.
 #
@@ -50,7 +50,7 @@ try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
 
     $allowlists = @{
-        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier')
+        'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier')
         'issue-worker'          = @('ci-diagnoser', 'mechanical-fixer', 'Explore', 'adversarial-reviewer', 'docs-writer', 'docs-reviewer')
         'docs-writer'           = @('mechanical-fixer', 'docs-reviewer', 'Explore')
         'mechanical-fixer'      = @('ci-diagnoser', 'Explore')
@@ -59,6 +59,7 @@ try {
         'issue-archivist'       = @()
         'issue-auditor'         = @()
         'test-auditor'          = @()
+        'remediation-drafter'   = @()
         'audit-verifier'        = @()
         'docs-reviewer'         = @()
         'adversarial-reviewer'  = @()

@@ -294,6 +294,8 @@ $spawnCases = @(
     @('orchestrator', $null, 'pr-reviewer', 0, 'orchestrator: pr-reviewer is allowed (#1447)'),
     @('orchestrator', $null, 'Plan', 0, 'orchestrator: Plan is allowed'),
     @('orchestrator', $null, 'claude-code-guide', 0, 'orchestrator: claude-code-guide is allowed'),
+    @('orchestrator', $null, 'remediation-drafter', 0, 'orchestrator: remediation-drafter (the SPEC-003 remediation stage, #1572) is allowed'),
+    @('remediation-drafter', $null, 'Explore', 2, 'remediation-drafter: a stage agent never delegates, not even to Explore (#1572)'),
     @('orchestrator', $null, 'general-purpose', 0, 'orchestrator: general-purpose is allowed (covered by guard-orchestrator-writes)'),
     @('orchestrator', $null, $null, 0, 'orchestrator: missing subagent_type is general-purpose, allowed'),
     @('orchestrator', $null, 'claude', 2, 'orchestrator: claude is blocked'),
@@ -1921,6 +1923,8 @@ Test.
         foreach ($l in @('<!--', "title: $Title", "labels: $Labels", "milestone: $Milestone", "kind: $Kind", '-->', '')) { $out.Add($l) }
         foreach ($line in ($body -split "`r?`n")) {
             if ($line -match '^##\s') { $out.Add($line); $out.Add(''); $out.Add("Real content for $($line.TrimStart('#').Trim()) of this fixture finding."); continue }
+            # The template's own 'Test N: Description' rows are placeholders a drafter replaces with a real test.
+            if ($line -match '^\s*-\s*\[[ xX]\]\s*Test\s+(?<n>\d+):\s*Description') { $out.Add("- [ ] Test $($Matches['n']): a real test case of this fixture finding"); continue }
             if ($line -match '^\s*-\s*\[[ xX]\]') { $out.Add($line) }
         }
         foreach ($extra in $ExtraLines) { $out.Add($extra) }
