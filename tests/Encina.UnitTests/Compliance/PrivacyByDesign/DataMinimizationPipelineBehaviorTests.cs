@@ -272,6 +272,45 @@ public class DataMinimizationPipelineBehaviorTests
 
     #endregion
 
+    #region Activity Tests
+
+    [Fact]
+    public async Task Handle_WithListener_TagsActivityWithEnforcementModeTenantAndModule()
+    {
+        // Arrange
+        const string tenantId = "tenant-activity-test";
+        var stopped = new System.Collections.Concurrent.ConcurrentBag<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Compliance.PrivacyByDesign",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = stopped.Add
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+
+        var sut = CreateSut(new PrivacyByDesignOptions
+        {
+            EnforcementMode = PrivacyByDesignEnforcementMode.Block
+        });
+        SetupCompliantValidation();
+        _context.TenantId.Returns(tenantId);
+
+        var moduleContext = Substitute.For<IModuleExecutionContext>();
+        moduleContext.CurrentModule.Returns("activity-module");
+        _serviceProvider.GetService(typeof(IModuleExecutionContext)).Returns(moduleContext);
+
+        // Act
+        await sut.Handle(new TestPbDRequest(), _context, SuccessNext(), CancellationToken.None);
+
+        // Assert
+        var activity = stopped.Single(a => Equals(a.GetTagItem("encina.tenant_id"), tenantId));
+        activity.GetTagItem("pbd.enforcement_mode").ShouldBe("Block");
+        activity.GetTagItem("encina.module_id").ShouldBe("activity-module");
+    }
+
+    #endregion
+
     #region Notification Tests
 
     [Fact]

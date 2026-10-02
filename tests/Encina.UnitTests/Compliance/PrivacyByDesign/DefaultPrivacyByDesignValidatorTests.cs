@@ -406,6 +406,74 @@ public class DefaultPrivacyByDesignValidatorTests
 
     #endregion
 
+    #region ValidateAsync — Default Privacy Violations
+
+    [Fact]
+    public async Task ValidateAsync_DefaultDeviates_ShouldAddDefaultPrivacyViolationOnlyForMismatches()
+    {
+        // Arrange
+        var request = new SimpleCommand { Name = "n" };
+        _analyzer.AnalyzeAsync(Arg.Any<SimpleCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, MinimizationReport>(new MinimizationReport
+            {
+                RequestTypeName = "SimpleCommand",
+                NecessaryFields = [],
+                UnnecessaryFields = [],
+                MinimizationScore = 1.0,
+                Recommendations = [],
+                AnalyzedAtUtc = _timeProvider.GetUtcNow(),
+            })));
+        _analyzer.InspectDefaultsAsync(Arg.Any<SimpleCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(
+                new[]
+                {
+                    new DefaultPrivacyFieldInfo("ShareData", false, true, false),
+                    new DefaultPrivacyFieldInfo("Consent", null, null, false),
+                    new DefaultPrivacyFieldInfo("Matching", false, false, true),
+                })));
+
+        // Act
+        var result = await _sut.ValidateAsync(request);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        var validation = (PrivacyValidationResult)result;
+        validation.Violations.Count.ShouldBe(2);
+        validation.Violations.ShouldAllBe(v => v.ViolationType == PrivacyViolationType.DefaultPrivacy);
+        validation.Violations.Select(v => v.FieldName).ShouldBe(["ShareData", "Consent"]);
+        validation.Violations[0].Message.ShouldContain("expected: False, actual: True");
+        validation.Violations[1].Message.ShouldContain("expected: null, actual: null");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DefaultsInspectionFails_ShouldStillReturnRightWithoutDefaultViolations()
+    {
+        // Arrange
+        var request = new SimpleCommand { Name = "n" };
+        _analyzer.AnalyzeAsync(Arg.Any<SimpleCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, MinimizationReport>(new MinimizationReport
+            {
+                RequestTypeName = "SimpleCommand",
+                NecessaryFields = [],
+                UnnecessaryFields = [],
+                MinimizationScore = 1.0,
+                Recommendations = [],
+                AnalyzedAtUtc = _timeProvider.GetUtcNow(),
+            })));
+        _analyzer.InspectDefaultsAsync(Arg.Any<SimpleCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(
+                EncinaErrors.Create("test.defaults_failed", "inspection failed"))));
+
+        // Act
+        var result = await _sut.ValidateAsync(request);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        ((PrivacyValidationResult)result).Violations.ShouldBeEmpty();
+    }
+
+    #endregion
+
     #region Helpers
 
     private void SetupAnalyzerReturnsCompliantReport()

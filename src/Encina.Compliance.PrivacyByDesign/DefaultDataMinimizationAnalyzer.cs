@@ -101,7 +101,7 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
         }
         catch (Exception ex)
         {
-            _logger.PbDAnalysisError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
+            _logger.PbDAnalysisError(GetRequestTypeName(typeof(TRequest)), ex.ForLogging());
             return ValueTask.FromResult(Left<EncinaError, MinimizationReport>(
                 PrivacyByDesignErrors.StoreError("AnalyzeMinimization", ex.Message, ex)));
         }
@@ -128,7 +128,7 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
             }
 
             var matchingCount = results.Count(static f => f.MatchesDefault);
-            var requestTypeName = requestType.FullName ?? requestType.Name;
+            var requestTypeName = GetRequestTypeName(requestType);
             _logger.PbDDefaultsInspectionCompleted(requestTypeName, results.Count, matchingCount);
 
             RecordDefaultOverrides(results.Count - matchingCount, requestTypeName);
@@ -137,11 +137,14 @@ internal sealed class DefaultDataMinimizationAnalyzer : IDataMinimizationAnalyze
         }
         catch (Exception ex)
         {
-            _logger.PbDDefaultsInspectionError(typeof(TRequest).FullName ?? typeof(TRequest).Name, ex.ForLogging());
+            _logger.PbDDefaultsInspectionError(GetRequestTypeName(typeof(TRequest)), ex.ForLogging());
             return ValueTask.FromResult(Left<EncinaError, IReadOnlyList<DefaultPrivacyFieldInfo>>(
                 PrivacyByDesignErrors.StoreError("InspectDefaults", ex.Message, ex)));
         }
     }
+
+    private static string GetRequestTypeName(Type requestType) =>
+        requestType.FullName ?? requestType.Name;
 
     private static void ClassifyProperty(
         FieldMetadataCache cache,

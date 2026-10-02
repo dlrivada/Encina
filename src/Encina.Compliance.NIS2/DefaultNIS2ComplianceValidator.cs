@@ -66,14 +66,12 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         var evaluatorList = _evaluators.ToList();
 
         // Resolve cache provider once for this validation run
-        var cache = opts.ComplianceCacheTTL > TimeSpan.Zero
-            ? _serviceProvider.GetService<ICacheProvider>()
-            : null;
+        var cache = ResolveCache(opts);
 
         // Build cache key — includes TenantId when multi-tenancy is active. The ambient context
         // set by IEncina.Send/Publish/Stream is read at validation time, not captured at
         // construction, since this validator is registered as a singleton.
-        var tenantId = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
+        var tenantId = ResolveTenantId();
         var cacheKey = BuildCacheKey(tenantId, entityTypeName, sectorName);
 
         // Try cache first
@@ -91,28 +89,9 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
 
         try
         {
-            var context = new NIS2MeasureContext
-            {
-                Options = opts,
-                TimeProvider = _timeProvider,
-                ServiceProvider = _serviceProvider,
-                TenantId = tenantId
-            };
-
-            var results = new List<NIS2MeasureResult>();
-
-            foreach (var evaluator in evaluatorList)
-            {
-                await EvaluateMeasureAsync(evaluator, context, results, cancellationToken);
-            }
-
-            var complianceResult = NIS2ComplianceResult.Create(
-                opts.EntityType,
-                opts.Sector,
-                results,
-                _timeProvider.GetUtcNow());
-
-            RecordComplianceMetrics(complianceResult, results, entityTypeName, sectorName, startTimestamp);
+            var complianceResult = await EvaluateAllMeasuresAsync(
+                opts, evaluatorList, tenantId, entityTypeName, sectorName, startTimestamp, cancellationToken)
+                .ConfigureAwait(false);
 
             NIS2Diagnostics.RecordCompleted(activity);
 
@@ -130,6 +109,49 @@ internal sealed class DefaultNIS2ComplianceValidator : INIS2ComplianceValidator
         {
             return HandleValidationFailure(ex, activity, entityTypeName, sectorName);
         }
+    }
+
+    private ICacheProvider? ResolveCache(NIS2Options opts) =>
+        opts.ComplianceCacheTTL > TimeSpan.Zero
+            ? _serviceProvider.GetService<ICacheProvider>()
+            : null;
+
+    private string? ResolveTenantId() =>
+        _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.TenantId;
+
+    private async ValueTask<NIS2ComplianceResult> EvaluateAllMeasuresAsync(
+        NIS2Options opts,
+        List<INIS2MeasureEvaluator> evaluatorList,
+        string? tenantId,
+        string entityTypeName,
+        string sectorName,
+        long startTimestamp,
+        CancellationToken cancellationToken)
+    {
+        var context = new NIS2MeasureContext
+        {
+            Options = opts,
+            TimeProvider = _timeProvider,
+            ServiceProvider = _serviceProvider,
+            TenantId = tenantId
+        };
+
+        var results = new List<NIS2MeasureResult>();
+
+        foreach (var evaluator in evaluatorList)
+        {
+            await EvaluateMeasureAsync(evaluator, context, results, cancellationToken);
+        }
+
+        var complianceResult = NIS2ComplianceResult.Create(
+            opts.EntityType,
+            opts.Sector,
+            results,
+            _timeProvider.GetUtcNow());
+
+        RecordComplianceMetrics(complianceResult, results, entityTypeName, sectorName, startTimestamp);
+
+        return complianceResult;
     }
 
     private static string BuildCacheKey(string? tenantId, string entityTypeName, string sectorName) =>

@@ -144,31 +144,14 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
-        // Step 1: Check enforcement mode — if disabled, skip entirely
-        if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Disabled)
+        // Steps 1-2: skip entirely when enforcement is disabled or the attribute is absent
+        if (ShouldSkipEnforcement(requestType, requestTypeName))
         {
-            _logger.PbDPipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
-        }
-
-        // Step 2: Check for [EnforceDataMinimization] attribute (cached)
-        var attribute = AttributeCache.GetOrAdd(requestType, static type =>
-            type.GetCustomAttribute<EnforceDataMinimizationAttribute>());
-
-        // No attribute — skip entirely
-        if (attribute is null)
-        {
-            _logger.PbDPipelineNoAttribute(requestTypeName);
-            PrivacyByDesignDiagnostics.PipelineCheckSkipped.Add(1, new TagList
-            {
-                { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName }
-            });
             return await nextStep().ConfigureAwait(false);
         }
 
         // Step 3: Resolve optional cross-cutting contexts
-        var moduleContext = _serviceProvider.GetService<IModuleExecutionContext>();
-        var moduleId = moduleContext?.CurrentModule;
+        var moduleId = ResolveModuleId();
 
         // Step 3b: Check for [ProcessesPersonalData] from Encina.Compliance.GDPR (optional, by name)
         var processesPersonalData = ProcessesPersonalDataCache.GetOrAdd(requestType, static type =>
@@ -199,6 +182,36 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
     // Private helpers
     // ================================================================
 
+    private bool ShouldSkipEnforcement(Type requestType, string requestTypeName)
+    {
+        // Step 1: Check enforcement mode — if disabled, skip entirely
+        if (_options.EnforcementMode == PrivacyByDesignEnforcementMode.Disabled)
+        {
+            _logger.PbDPipelineDisabled(requestTypeName);
+            return true;
+        }
+
+        // Step 2: Check for [EnforceDataMinimization] attribute (cached)
+        var attribute = AttributeCache.GetOrAdd(requestType, static type =>
+            type.GetCustomAttribute<EnforceDataMinimizationAttribute>());
+
+        // No attribute — skip entirely
+        if (attribute is null)
+        {
+            _logger.PbDPipelineNoAttribute(requestTypeName);
+            PrivacyByDesignDiagnostics.PipelineCheckSkipped.Add(1, new TagList
+            {
+                { PrivacyByDesignDiagnostics.TagRequestType, requestTypeName }
+            });
+            return true;
+        }
+
+        return false;
+    }
+
+    private string? ResolveModuleId() =>
+        _serviceProvider.GetService<IModuleExecutionContext>()?.CurrentModule;
+
     private Activity? StartCheckActivity(
         string requestTypeName,
         bool processesPersonalData,
@@ -206,22 +219,27 @@ public sealed class DataMinimizationPipelineBehavior<TRequest, TResponse> : IPip
         string? moduleId)
     {
         var activity = PrivacyByDesignDiagnostics.StartPipelineCheck(requestTypeName);
-        activity?.SetTag(PrivacyByDesignDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
+        if (activity is null)
+        {
+            return null;
+        }
+
+        activity.SetTag(PrivacyByDesignDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
 
         if (processesPersonalData)
         {
-            activity?.SetTag("encina.processes_personal_data", true);
+            activity.SetTag("encina.processes_personal_data", true);
         }
 
         // Propagate tenant and module context to traces for cross-cutting observability
         if (tenantId is not null)
         {
-            activity?.SetTag("encina.tenant_id", tenantId);
+            activity.SetTag("encina.tenant_id", tenantId);
         }
 
         if (moduleId is not null)
         {
-            activity?.SetTag("encina.module_id", moduleId);
+            activity.SetTag("encina.module_id", moduleId);
         }
 
         return activity;

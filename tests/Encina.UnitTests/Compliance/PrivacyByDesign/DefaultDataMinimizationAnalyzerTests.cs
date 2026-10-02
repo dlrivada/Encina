@@ -2,6 +2,7 @@
 
 using Encina.Compliance.PrivacyByDesign;
 using Encina.Compliance.PrivacyByDesign.Model;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -270,5 +271,80 @@ public class DefaultDataMinimizationAnalyzerTests
         await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
+    [Fact]
+    public async Task InspectDefaultsAsync_PropertyGetterThrows_ShouldReturnErrorAndLogRedactedException()
+    {
+        // Arrange
+        var logger = new CapturingLogger();
+        var sut = new DefaultDataMinimizationAnalyzer(_timeProvider, logger);
+
+        // Act
+        var result = await sut.InspectDefaultsAsync(new ThrowingDefaultRequest());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        logger.Exceptions.ShouldNotBeEmpty();
+        logger.Exceptions.ShouldAllBe(e => e is RedactedException);
+        logger.Texts.ShouldAllBe(t => !t.Contains(ThrowingSentinel, StringComparison.Ordinal));
+    }
+
     #endregion
+
+    [Fact]
+    public async Task AnalyzeAsync_PropertyGetterThrows_ShouldReturnErrorAndLogRedactedException()
+    {
+        // Arrange
+        var logger = new CapturingLogger();
+        var sut = new DefaultDataMinimizationAnalyzer(_timeProvider, logger);
+
+        // Act
+        var result = await sut.AnalyzeAsync(new ThrowingUnnecessaryRequest());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        logger.Exceptions.ShouldNotBeEmpty();
+        logger.Exceptions.ShouldAllBe(e => e is RedactedException);
+        logger.Texts.ShouldAllBe(t => !t.Contains(ThrowingSentinel, StringComparison.Ordinal));
+    }
+
+    private const string ThrowingSentinel = "SENTINEL-GETTER-MSG";
+
+#pragma warning disable CA1822 // Properties are read through reflection and must be instance members
+    private sealed class ThrowingDefaultRequest
+    {
+        [PrivacyDefault(false)]
+        public bool Flag => throw new InvalidOperationException(ThrowingSentinel);
+    }
+
+    private sealed class ThrowingUnnecessaryRequest
+    {
+        [NotStrictlyNecessary(Reason = "Analytics only")]
+        public string? Extra => throw new InvalidOperationException(ThrowingSentinel);
+    }
+#pragma warning restore CA1822
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<DefaultDataMinimizationAnalyzer>
+    {
+        public List<string> Texts { get; } = [];
+
+        public List<Exception> Exceptions { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Texts.Add(formatter(state, exception));
+            if (exception is not null)
+            {
+                Exceptions.Add(exception);
+            }
+        }
+    }
 }

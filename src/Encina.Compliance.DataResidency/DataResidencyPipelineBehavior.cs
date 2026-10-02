@@ -151,24 +151,13 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
 
         var requestTypeName = typeof(TRequest).Name;
 
-        // Step 1: Disabled mode — no-op, no logging, no metrics
-        if (_options.EnforcementMode == DataResidencyEnforcementMode.Disabled)
-        {
-            _logger.LogDebug(
-                "Data residency enforcement disabled for '{RequestType}'", requestTypeName);
-            return await nextStep().ConfigureAwait(false);
-        }
-
-        var residencyInfo = CachedResidencyInfo;
-        var noCrossInfo = CachedNoCrossInfo;
-
-        // Step 2: No attributes → skip entirely
-        if (residencyInfo is null && noCrossInfo is null)
+        // Steps 1-2: disabled mode or no attributes → skip entirely
+        if (ShouldSkipEnforcement(requestTypeName))
         {
             return await nextStep().ConfigureAwait(false);
         }
 
-        var dataCategory = ResolveDataCategory(residencyInfo, noCrossInfo, requestTypeName);
+        var dataCategory = ResolveDataCategory(CachedResidencyInfo, CachedNoCrossInfo, requestTypeName);
 
         // Step 3: Get current region from IRegionContextProvider
         var regionResult = await _regionContextProvider.GetCurrentRegionAsync(cancellationToken)
@@ -180,11 +169,35 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
                 .ConfigureAwait(false);
         }
 
-        var currentRegion = (Region)regionResult;
+        return await ExecuteInRegionAsync(
+            (Region)regionResult, dataCategory, requestTypeName, nextStep, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
+    private bool ShouldSkipEnforcement(string requestTypeName)
+    {
+        // Step 1: Disabled mode — no-op, no logging, no metrics
+        if (_options.EnforcementMode == DataResidencyEnforcementMode.Disabled)
+        {
+            _logger.LogDebug(
+                "Data residency enforcement disabled for '{RequestType}'", requestTypeName);
+            return true;
+        }
+
+        // Step 2: No attributes → skip entirely
+        return CachedResidencyInfo is null && CachedNoCrossInfo is null;
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> ExecuteInRegionAsync(
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         // Step 4: [DataResidency] validation — check allowed regions via IResidencyPolicyService
         var policyResult = await ValidateResidencyAttributeAsync(
-            residencyInfo, currentRegion, dataCategory, requestTypeName, cancellationToken)
+            CachedResidencyInfo, currentRegion, dataCategory, requestTypeName, cancellationToken)
             .ConfigureAwait(false);
 
         if (policyResult.IsLeft)
@@ -193,12 +206,7 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         // Step 5: [NoCrossBorderTransfer] — record constraint and validate no movement
-        if (noCrossInfo is not null)
-        {
-            _logger.LogDebug(
-                "No cross-border transfer constraint active for '{RequestType}' in region '{RegionCode}'",
-                requestTypeName, currentRegion.Code);
-        }
+        LogNoCrossBorderConstraint(requestTypeName, currentRegion);
 
         // Step 6: Call next handler
         var result = await nextStep().ConfigureAwait(false);
@@ -208,6 +216,16 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             .ConfigureAwait(false);
 
         return result;
+    }
+
+    private void LogNoCrossBorderConstraint(string requestTypeName, Region currentRegion)
+    {
+        if (CachedNoCrossInfo is not null)
+        {
+            _logger.LogDebug(
+                "No cross-border transfer constraint active for '{RequestType}' in region '{RegionCode}'",
+                requestTypeName, currentRegion.Code);
+        }
     }
 
     private static string ResolveDataCategory(
@@ -287,23 +305,27 @@ public sealed class DataResidencyPipelineBehavior<TRequest, TResponse> : IPipeli
             return HandlePolicyLookupFailure((EncinaError)isAllowedResult, dataCategory);
         }
 
+        var allowedCheck = EvaluateAllowedRegion(isAllowedResult, currentRegion, dataCategory, requestTypeName);
+
+        if (allowedCheck.IsLeft || !info.RequireAdequacyDecision)
+        {
+            return allowedCheck;
+        }
+
+        return await CheckAdequacyAsync(currentRegion, dataCategory, cancellationToken).ConfigureAwait(false);
+    }
+
+    private Either<EncinaError, Unit> EvaluateAllowedRegion(
+        Either<EncinaError, bool> isAllowedResult,
+        Region currentRegion,
+        string dataCategory,
+        string requestTypeName)
+    {
         var isAllowed = isAllowedResult.Match(Right: r => r, Left: _ => false);
 
-        if (!isAllowed)
-        {
-            var regionDenied = HandleRegionNotAllowed(currentRegion, dataCategory, requestTypeName);
-            if (regionDenied.IsLeft)
-            {
-                return regionDenied;
-            }
-        }
-
-        if (info.RequireAdequacyDecision)
-        {
-            return await CheckAdequacyAsync(currentRegion, dataCategory, cancellationToken).ConfigureAwait(false);
-        }
-
-        return Right<EncinaError, Unit>(unit);
+        return isAllowed
+            ? Right<EncinaError, Unit>(unit)
+            : HandleRegionNotAllowed(currentRegion, dataCategory, requestTypeName);
     }
 
     private Either<EncinaError, Unit> HandlePolicyLookupFailure(EncinaError policyError, string dataCategory)
