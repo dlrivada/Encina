@@ -99,14 +99,25 @@ jobs:
             --output artifacts/perf-output/fingerprints.json
           cat artifacts/perf-output/fingerprints.json
 
-      - name: Fetch previous fingerprints from Pages
+      - name: Read the previous snapshot from the dashboard-data branch
+        # The branch is the durable record of the last published data; the live
+        # Pages copy lags while a deploy is pending, cancelled or failed (#1386,
+        # #1567). Nothing is written when the branch or the domain is absent.
+        # Needs only the checkout's read access to origin.
+        shell: pwsh
+        run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain benchmarks -OutDir base/benchmarks
+
+      - name: Fetch previous fingerprints (branch, Pages, then repo copy)
         id: prev
         run: |
           mkdir -p artifacts/perf-previous
-          # Pull from the live Pages URL (always the freshest — publish-benchmarks.yml
-          # writes it there on every successful run). Fall back to the repo copy if Pages
-          # is unreachable.
-          if curl -fsSL -o artifacts/perf-previous/latest.json \
+          # Order: the dashboard-data branch copy read above, the live Pages URL,
+          # the repo copy, then an empty snapshot. This one file feeds both the
+          # fingerprint diff and --carry-forward-from.
+          if [ -s base/benchmarks/latest.json ]; then
+            cp -f base/benchmarks/latest.json artifacts/perf-previous/latest.json
+            echo "Using the previous snapshot from the dashboard-data branch."
+          elif curl -fsSL -o artifacts/perf-previous/latest.json \
               "https://dlrivada.github.io/Encina/benchmarks/data/latest.json"; then
             echo "Fetched previous snapshot from Pages."
           elif [ -f docs/benchmarks/data/latest.json ]; then
