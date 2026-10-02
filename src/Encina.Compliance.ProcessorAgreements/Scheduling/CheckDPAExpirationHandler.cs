@@ -118,10 +118,36 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
             Left: _ => (IReadOnlyList<DPAReadModel>)[]);
 
         // Separate truly expired from merely approaching expiration
+        var (expiredAgreements, approachingAgreements) = PartitionByExpiration(expiringAgreements, nowUtc);
+
+        // Step 2: Process expired agreements — transition status via aggregate and publish notifications
+        foreach (var expired in expiredAgreements)
+        {
+            await ProcessExpiredAsync(expired, nowUtc, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Step 3: Process approaching agreements — publish warning notifications
+        foreach (var approaching in approachingAgreements)
+        {
+            await ProcessApproachingAsync(approaching, nowUtc, cancellationToken).ConfigureAwait(false);
+        }
+
+        _logger.ExpirationCheckCompleted(expiredAgreements.Count, approachingAgreements.Count);
+
+        ProcessorAgreementDiagnostics.RecordCompleted(activity);
+        RecordExpirationMetrics(startedAt);
+
+        return Right<EncinaError, Unit>(unit);
+    }
+
+    private static (List<DPAReadModel> Expired, List<DPAReadModel> Approaching) PartitionByExpiration(
+        IReadOnlyList<DPAReadModel> agreements,
+        DateTimeOffset nowUtc)
+    {
         var expiredAgreements = new List<DPAReadModel>();
         var approachingAgreements = new List<DPAReadModel>();
 
-        foreach (var agreement in expiringAgreements)
+        foreach (var agreement in agreements)
         {
             if (agreement.ExpiresAtUtc is not null && agreement.ExpiresAtUtc <= nowUtc)
             {
@@ -133,71 +159,79 @@ public sealed class CheckDPAExpirationHandler : ICommandHandler<CheckDPAExpirati
             }
         }
 
-        // Step 2: Process expired agreements — transition status via aggregate and publish notifications
-        foreach (var expired in expiredAgreements)
+        return (expiredAgreements, approachingAgreements);
+    }
+
+    private async Task ProcessExpiredAsync(
+        DPAReadModel expired,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var processorName = await ResolveProcessorNameAsync(expired.ProcessorId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Transition status to Expired via the event-sourced aggregate
+        var transitioned = await TryMarkExpiredAsync(expired.Id, nowUtc, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!transitioned)
         {
-            var processorName = await ResolveProcessorNameAsync(expired.ProcessorId, cancellationToken)
-                .ConfigureAwait(false);
+            _logger.ExpirationCheckError("UpdateExpired", $"Failed to expire DPA '{expired.Id}'.");
+            return;
+        }
 
-            // Transition status to Expired via the event-sourced aggregate
-            var loadResult = await _dpaRepository.LoadAsync(expired.Id, cancellationToken)
-                .ConfigureAwait(false);
+        _logger.DPAExpiredDetected(expired.ProcessorId.ToString(), expired.Id.ToString(), expired.ExpiresAtUtc!.Value);
 
-            var transitioned = await loadResult.MatchAsync(
-                RightAsync: async aggregate =>
-                {
-                    aggregate.MarkExpired(nowUtc);
-                    var saveResult = await _dpaRepository.SaveAsync(aggregate, cancellationToken)
-                        .ConfigureAwait(false);
-                    return saveResult.IsRight;
-                },
-                Left: _ => false);
+        var notification = new DPAExpiredNotification(
+            expired.ProcessorId.ToString(),
+            expired.Id.ToString(),
+            processorName,
+            expired.ExpiresAtUtc!.Value,
+            nowUtc);
 
-            if (!transitioned)
+        await _encina.Publish(notification, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> TryMarkExpiredAsync(
+        Guid dpaId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var loadResult = await _dpaRepository.LoadAsync(dpaId, cancellationToken)
+            .ConfigureAwait(false);
+
+        return await loadResult.MatchAsync(
+            RightAsync: async aggregate =>
             {
-                _logger.ExpirationCheckError("UpdateExpired", $"Failed to expire DPA '{expired.Id}'.");
-                continue;
-            }
+                aggregate.MarkExpired(nowUtc);
+                var saveResult = await _dpaRepository.SaveAsync(aggregate, cancellationToken)
+                    .ConfigureAwait(false);
+                return saveResult.IsRight;
+            },
+            Left: _ => false);
+    }
 
-            _logger.DPAExpiredDetected(expired.ProcessorId.ToString(), expired.Id.ToString(), expired.ExpiresAtUtc!.Value);
+    private async Task ProcessApproachingAsync(
+        DPAReadModel approaching,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var processorName = await ResolveProcessorNameAsync(approaching.ProcessorId, cancellationToken)
+            .ConfigureAwait(false);
 
-            var notification = new DPAExpiredNotification(
-                expired.ProcessorId.ToString(),
-                expired.Id.ToString(),
-                processorName,
-                expired.ExpiresAtUtc!.Value,
-                nowUtc);
+        var daysUntilExpiration = (int)(approaching.ExpiresAtUtc!.Value - nowUtc).TotalDays;
 
-            await _encina.Publish(notification, cancellationToken).ConfigureAwait(false);
-        }
+        _logger.DPAExpiringDetected(approaching.ProcessorId.ToString(), approaching.Id.ToString(), daysUntilExpiration);
 
-        // Step 3: Process approaching agreements — publish warning notifications
-        foreach (var approaching in approachingAgreements)
-        {
-            var processorName = await ResolveProcessorNameAsync(approaching.ProcessorId, cancellationToken)
-                .ConfigureAwait(false);
+        var notification = new DPAExpiringNotification(
+            approaching.ProcessorId.ToString(),
+            approaching.Id.ToString(),
+            processorName,
+            approaching.ExpiresAtUtc!.Value,
+            daysUntilExpiration,
+            nowUtc);
 
-            var daysUntilExpiration = (int)(approaching.ExpiresAtUtc!.Value - nowUtc).TotalDays;
-
-            _logger.DPAExpiringDetected(approaching.ProcessorId.ToString(), approaching.Id.ToString(), daysUntilExpiration);
-
-            var notification = new DPAExpiringNotification(
-                approaching.ProcessorId.ToString(),
-                approaching.Id.ToString(),
-                processorName,
-                approaching.ExpiresAtUtc!.Value,
-                daysUntilExpiration,
-                nowUtc);
-
-            await _encina.Publish(notification, cancellationToken).ConfigureAwait(false);
-        }
-
-        _logger.ExpirationCheckCompleted(expiredAgreements.Count, approachingAgreements.Count);
-
-        ProcessorAgreementDiagnostics.RecordCompleted(activity);
-        RecordExpirationMetrics(startedAt);
-
-        return Right<EncinaError, Unit>(unit);
+        await _encina.Publish(notification, cancellationToken).ConfigureAwait(false);
     }
 
     private static void RecordExpirationMetrics(long startedAt)

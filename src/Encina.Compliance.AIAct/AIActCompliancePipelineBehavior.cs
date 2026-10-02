@@ -100,21 +100,7 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         }
 
         // Step 2: Check for AI Act attributes (cached)
-        var attrInfo = AttributeCache.GetOrAdd(requestType, static type =>
-        {
-            var highRisk = type.GetCustomAttribute<HighRiskAIAttribute>();
-            var oversight = type.GetCustomAttribute<RequireHumanOversightAttribute>();
-            var transparency = type.GetCustomAttribute<AITransparencyAttribute>();
-
-            if (highRisk is null && oversight is null && transparency is null)
-            {
-                return null;
-            }
-
-            var systemId = highRisk?.SystemId ?? oversight?.SystemId;
-
-            return new AIActAttributeInfo(highRisk, oversight, transparency, systemId);
-        });
+        var attrInfo = AttributeCache.GetOrAdd(requestType, static type => ResolveAttributeInfo(type));
 
         // No AI Act attributes — skip entirely (zero overhead for non-AI requests)
         if (attrInfo is null)
@@ -140,14 +126,12 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
             .ValidateAsync(request, attrInfo.SystemId, cancellationToken)
             .ConfigureAwait(false);
 
+        var check = new CheckContext(activity, startTimestamp, requestType, requestTypeName);
+
         // Handle validator errors
         if (validationResult.IsLeft)
         {
-            var innerError = (EncinaError)validationResult;
-            var validatorError = AIActErrors.ValidatorError(requestType, innerError);
-            _logger.ValidatorError(requestTypeName, innerError.GetCode().IfNone("encina.unknown"));
-            RecordFailed(activity, startTimestamp, requestTypeName, AIActErrors.ValidatorErrorCode);
-            return Left<EncinaError, TResponse>(validatorError);
+            return HandleValidatorError((EncinaError)validationResult, check);
         }
 
         var compliance = (AIActComplianceResult)validationResult;
@@ -157,51 +141,101 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         // Step 5: Prohibited practices are ALWAYS blocked (Art. 5 — no exceptions)
         if (compliance.IsProhibited)
         {
-            var error = AIActErrors.ProhibitedUse(requestType, compliance.SystemId, compliance.Violations);
-            var violationsSummary = string.Join("; ", compliance.Violations);
-            _logger.ProhibitedUseBlocked(requestTypeName, compliance.SystemId, violationsSummary);
-            AIActDiagnostics.ProhibitedUseBlocked.Add(1, new TagList
-            {
-                { AIActDiagnostics.TagRequestType, requestTypeName },
-                { AIActDiagnostics.TagSystemId, compliance.SystemId }
-            });
-            RecordFailed(activity, startTimestamp, requestTypeName, AIActErrors.ProhibitedUseCode);
-            return Left<EncinaError, TResponse>(error);
+            return BlockProhibited(compliance, check);
         }
 
         // Step 6: Check for violations in Block vs Warn mode
-        if (compliance.Violations.Count > 0)
+        if (TryBlockOnViolations(compliance, check, out var blocked))
         {
-            var violationsSummary = string.Join("; ", compliance.Violations);
-
-            if (_options.EnforcementMode == AIActEnforcementMode.Block)
-            {
-                var error = AIActErrors.ComplianceValidationFailed(
-                    requestType, compliance.SystemId, compliance.RiskLevel, compliance.Violations);
-                _logger.ViolationsBlocked(requestTypeName, compliance.SystemId, violationsSummary);
-                RecordFailed(activity, startTimestamp, requestTypeName, AIActErrors.ComplianceValidationFailedCode);
-                return Left<EncinaError, TResponse>(error);
-            }
-
-            // Warn mode — log but proceed
-            _logger.ViolationsWarned(requestTypeName, compliance.SystemId, violationsSummary);
+            return blocked;
         }
 
-        // Step 7: Human oversight check (Art. 14)
+        // Steps 7 and 8: Human oversight (Art. 14) and transparency (Art. 13, Art. 50) obligations
+        LogObligations(compliance, requestTypeName);
+
+        // Step 9: Record success and proceed
+        RecordPassed(activity, startTimestamp, requestTypeName, compliance.RiskLevel.ToString());
+        return await nextStep().ConfigureAwait(false);
+    }
+
+    private static AIActAttributeInfo? ResolveAttributeInfo(Type type)
+    {
+        var highRisk = type.GetCustomAttribute<HighRiskAIAttribute>();
+        var oversight = type.GetCustomAttribute<RequireHumanOversightAttribute>();
+        var transparency = type.GetCustomAttribute<AITransparencyAttribute>();
+
+        if (highRisk is null && oversight is null && transparency is null)
+        {
+            return null;
+        }
+
+        var systemId = highRisk?.SystemId ?? oversight?.SystemId;
+
+        return new AIActAttributeInfo(highRisk, oversight, transparency, systemId);
+    }
+
+    private Either<EncinaError, TResponse> HandleValidatorError(EncinaError innerError, CheckContext check)
+    {
+        var validatorError = AIActErrors.ValidatorError(check.RequestType, innerError);
+        _logger.ValidatorError(check.RequestTypeName, innerError.GetCode().IfNone("encina.unknown"));
+        RecordFailed(check.Activity, check.StartTimestamp, check.RequestTypeName, AIActErrors.ValidatorErrorCode);
+        return Left<EncinaError, TResponse>(validatorError);
+    }
+
+    private Either<EncinaError, TResponse> BlockProhibited(AIActComplianceResult compliance, CheckContext check)
+    {
+        var error = AIActErrors.ProhibitedUse(check.RequestType, compliance.SystemId, compliance.Violations);
+        var violationsSummary = string.Join("; ", compliance.Violations);
+        _logger.ProhibitedUseBlocked(check.RequestTypeName, compliance.SystemId, violationsSummary);
+        AIActDiagnostics.ProhibitedUseBlocked.Add(1, new TagList
+        {
+            { AIActDiagnostics.TagRequestType, check.RequestTypeName },
+            { AIActDiagnostics.TagSystemId, compliance.SystemId }
+        });
+        RecordFailed(check.Activity, check.StartTimestamp, check.RequestTypeName, AIActErrors.ProhibitedUseCode);
+        return Left<EncinaError, TResponse>(error);
+    }
+
+    private bool TryBlockOnViolations(
+        AIActComplianceResult compliance,
+        CheckContext check,
+        out Either<EncinaError, TResponse> blocked)
+    {
+        blocked = default;
+
+        if (compliance.Violations.Count == 0)
+        {
+            return false;
+        }
+
+        var violationsSummary = string.Join("; ", compliance.Violations);
+
+        if (_options.EnforcementMode == AIActEnforcementMode.Block)
+        {
+            var error = AIActErrors.ComplianceValidationFailed(
+                check.RequestType, compliance.SystemId, compliance.RiskLevel, compliance.Violations);
+            _logger.ViolationsBlocked(check.RequestTypeName, compliance.SystemId, violationsSummary);
+            RecordFailed(check.Activity, check.StartTimestamp, check.RequestTypeName, AIActErrors.ComplianceValidationFailedCode);
+            blocked = Left<EncinaError, TResponse>(error);
+            return true;
+        }
+
+        // Warn mode — log but proceed
+        _logger.ViolationsWarned(check.RequestTypeName, compliance.SystemId, violationsSummary);
+        return false;
+    }
+
+    private void LogObligations(AIActComplianceResult compliance, string requestTypeName)
+    {
         if (compliance.RequiresHumanOversight)
         {
             _logger.HumanOversightRequired(requestTypeName, compliance.SystemId);
         }
 
-        // Step 8: Transparency check (Art. 13, Art. 50)
         if (compliance.RequiresTransparency)
         {
             _logger.TransparencyObligation(requestTypeName, compliance.SystemId);
         }
-
-        // Step 9: Record success and proceed
-        RecordPassed(activity, startTimestamp, requestTypeName, compliance.RiskLevel.ToString());
-        return await nextStep().ConfigureAwait(false);
     }
 
     private void RecordPassed(Activity? activity, long startTimestamp, string requestTypeName, string riskLevel)
@@ -234,6 +268,12 @@ public sealed class AIActCompliancePipelineBehavior<TRequest, TResponse> : IPipe
         AIActDiagnostics.RecordFailed(activity, failureReason);
         _logger.ComplianceCheckFailed(requestTypeName, "", failureReason);
     }
+
+    private readonly record struct CheckContext(
+        Activity? Activity,
+        long StartTimestamp,
+        Type RequestType,
+        string RequestTypeName);
 
     /// <summary>
     /// Cached AI Act attribute information for a request type.

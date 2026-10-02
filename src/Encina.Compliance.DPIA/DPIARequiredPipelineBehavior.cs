@@ -151,6 +151,8 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
         // Step 4: Look up existing DPIA assessment by request type's full name via IDPIAService
         var fullTypeName = requestType.FullName ?? requestTypeName;
 
+        var check = new CheckContext(activity, startedAt, requestTypeName, fullTypeName, attribute, nextStep);
+
         try
         {
             var assessmentResult = await _service
@@ -158,91 +160,111 @@ public sealed class DPIARequiredPipelineBehavior<TRequest, TResponse> : IPipelin
                 .ConfigureAwait(false);
 
             return await assessmentResult.Match(
-                Right: assessment =>
-                {
-                    var nowUtc = _timeProvider.GetUtcNow();
-
-                    // Step 5: Validate assessment is approved
-                    if (assessment.Status != DPIAAssessmentStatus.Approved)
-                    {
-                        var statusName = assessment.Status.ToString();
-                        var error = assessment.Status == DPIAAssessmentStatus.Rejected
-                            ? DPIAErrors.AssessmentRejected(assessment.Id, fullTypeName)
-                            : DPIAErrors.AssessmentRequired(fullTypeName);
-
-                        return HandleFailure(
-                            activity, startedAt, requestTypeName,
-                            error,
-                            $"assessment_not_approved_{statusName}",
-                            () => _logger.DPIAPipelineNotApproved(requestTypeName, assessment.Id, statusName),
-                            nextStep);
-                    }
-
-                    // Step 6: Validate assessment is not expired (if review is required)
-                    if (attribute.ReviewRequired && assessment.NextReviewAtUtc is not null && assessment.NextReviewAtUtc <= nowUtc)
-                    {
-                        return HandleFailure(
-                            activity, startedAt, requestTypeName,
-                            DPIAErrors.AssessmentExpired(assessment.Id, fullTypeName, assessment.NextReviewAtUtc.Value),
-                            "assessment_expired",
-                            () => _logger.DPIAPipelineExpired(requestTypeName, assessment.Id, assessment.NextReviewAtUtc),
-                            nextStep);
-                    }
-
-                    // Step 7: Assessment is valid — record success and proceed
-                    RecordPassed(activity, startedAt, requestTypeName);
-                    _logger.DPIAPipelinePassed(requestTypeName, assessment.Id);
-                    return nextStep();
-                },
-                Left: error =>
-                {
-                    // Assessment not found — treat as "no assessment exists"
-                    var isNotFound = error.GetCode().Match(
-                        Some: code => code == DPIAErrors.AssessmentNotFoundCode,
-                        None: () => false);
-
-                    if (isNotFound)
-                    {
-                        return HandleFailure(
-                            activity, startedAt, requestTypeName,
-                            DPIAErrors.AssessmentRequired(fullTypeName),
-                            "assessment_required",
-                            () => _logger.DPIAPipelineNoAssessment(requestTypeName),
-                            nextStep);
-                    }
-
-                    // Store/infrastructure error
-                    RecordFailed(activity, startedAt, requestTypeName, "store_error");
-
-                    if (_options.EnforcementMode == DPIAEnforcementMode.Block)
-                    {
-                        _logger.DPIAPipelineBlocked(requestTypeName, error.GetCode().IfNone("encina.unknown"));
-                        return ValueTask.FromResult<Either<EncinaError, TResponse>>(Left<EncinaError, TResponse>(error));
-                    }
-
-                    _logger.DPIAPipelineWarned(requestTypeName, error.GetCode().IfNone("encina.unknown"));
-                    return nextStep();
-                }).ConfigureAwait(false);
+                Right: assessment => EvaluateAssessment(assessment, check),
+                Left: error => HandleLookupError(error, check)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _logger.DPIAPipelineError(requestTypeName, ex.ForLogging());
-            RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
-
-            if (_options.EnforcementMode == DPIAEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(
-                    DPIAErrors.StoreError("PipelineCheck", ex.Message, ex));
-            }
-
-            // Warn mode — exception doesn't block the response
-            return await nextStep().ConfigureAwait(false);
+            return await HandleUnhandledException(ex, check).ConfigureAwait(false);
         }
     }
 
     // ================================================================
     // Private helpers
     // ================================================================
+
+    private readonly record struct CheckContext(
+        Activity? Activity,
+        long StartedAt,
+        string RequestTypeName,
+        string FullTypeName,
+        RequiresDPIAAttribute Attribute,
+        RequestHandlerCallback<TResponse> NextStep);
+
+    private ValueTask<Either<EncinaError, TResponse>> EvaluateAssessment(DPIAReadModel assessment, CheckContext check)
+    {
+        var nowUtc = _timeProvider.GetUtcNow();
+
+        // Step 5: Validate assessment is approved
+        if (assessment.Status != DPIAAssessmentStatus.Approved)
+        {
+            var statusName = assessment.Status.ToString();
+            var error = assessment.Status == DPIAAssessmentStatus.Rejected
+                ? DPIAErrors.AssessmentRejected(assessment.Id, check.FullTypeName)
+                : DPIAErrors.AssessmentRequired(check.FullTypeName);
+
+            return HandleFailure(
+                check.Activity, check.StartedAt, check.RequestTypeName,
+                error,
+                $"assessment_not_approved_{statusName}",
+                () => _logger.DPIAPipelineNotApproved(check.RequestTypeName, assessment.Id, statusName),
+                check.NextStep);
+        }
+
+        // Step 6: Validate assessment is not expired (if review is required)
+        if (IsExpired(check.Attribute, assessment, nowUtc))
+        {
+            return HandleFailure(
+                check.Activity, check.StartedAt, check.RequestTypeName,
+                DPIAErrors.AssessmentExpired(assessment.Id, check.FullTypeName, assessment.NextReviewAtUtc!.Value),
+                "assessment_expired",
+                () => _logger.DPIAPipelineExpired(check.RequestTypeName, assessment.Id, assessment.NextReviewAtUtc),
+                check.NextStep);
+        }
+
+        // Step 7: Assessment is valid — record success and proceed
+        RecordPassed(check.Activity, check.StartedAt, check.RequestTypeName);
+        _logger.DPIAPipelinePassed(check.RequestTypeName, assessment.Id);
+        return check.NextStep();
+    }
+
+    private static bool IsExpired(RequiresDPIAAttribute attribute, DPIAReadModel assessment, DateTimeOffset nowUtc)
+        => attribute.ReviewRequired && assessment.NextReviewAtUtc is not null && assessment.NextReviewAtUtc <= nowUtc;
+
+    private ValueTask<Either<EncinaError, TResponse>> HandleLookupError(EncinaError error, CheckContext check)
+    {
+        // Assessment not found — treat as "no assessment exists"
+        var isNotFound = error.GetCode().Match(
+            Some: code => code == DPIAErrors.AssessmentNotFoundCode,
+            None: () => false);
+
+        if (isNotFound)
+        {
+            return HandleFailure(
+                check.Activity, check.StartedAt, check.RequestTypeName,
+                DPIAErrors.AssessmentRequired(check.FullTypeName),
+                "assessment_required",
+                () => _logger.DPIAPipelineNoAssessment(check.RequestTypeName),
+                check.NextStep);
+        }
+
+        // Store/infrastructure error
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "store_error");
+
+        if (_options.EnforcementMode == DPIAEnforcementMode.Block)
+        {
+            _logger.DPIAPipelineBlocked(check.RequestTypeName, error.GetCode().IfNone("encina.unknown"));
+            return ValueTask.FromResult<Either<EncinaError, TResponse>>(Left<EncinaError, TResponse>(error));
+        }
+
+        _logger.DPIAPipelineWarned(check.RequestTypeName, error.GetCode().IfNone("encina.unknown"));
+        return check.NextStep();
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleUnhandledException(Exception ex, CheckContext check)
+    {
+        _logger.DPIAPipelineError(check.RequestTypeName, ex.ForLogging());
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "unhandled_exception");
+
+        if (_options.EnforcementMode == DPIAEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(
+                DPIAErrors.StoreError("PipelineCheck", ex.Message, ex));
+        }
+
+        // Warn mode — exception doesn't block the response
+        return await check.NextStep().ConfigureAwait(false);
+    }
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleFailure(
         Activity? activity,

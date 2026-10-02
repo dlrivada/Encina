@@ -163,45 +163,67 @@ public sealed class AnonymizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
         try
         {
-            var fieldsTransformed = 0;
-
-            foreach (var field in attrInfo.Fields)
-            {
-                var transformResult = await ApplyFieldTransformationAsync(
-                    response!, field, responseTypeName, activity, cancellationToken).ConfigureAwait(false);
-
-                if (transformResult.IsLeft)
-                {
-                    // Block mode — return error immediately
-                    AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
-                        new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "blocked"));
-                    return Left<EncinaError, TResponse>((EncinaError)transformResult);
-                }
-
-                // transformResult.Right is true if field was transformed, false if skipped (warn mode failure)
-                if ((bool)transformResult)
-                {
-                    fieldsTransformed++;
-                }
-            }
-
-            _logger.AnonymizationPipelineCompleted(requestTypeName, responseTypeName, fieldsTransformed);
-            AnonymizationDiagnostics.RecordCompleted(activity, fieldsTransformed);
-            AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
-                new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "completed"));
-
-            return Right<EncinaError, TResponse>(response!);
+            return await TransformFieldsAsync(
+                response, attrInfo, requestTypeName, responseTypeName, activity, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _logger.AnonymizationPipelineError(requestTypeName, responseTypeName, ex.ForLogging());
-            AnonymizationDiagnostics.RecordFailed(activity, ex.Message);
-            AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
-                new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "error"));
-
-            return Left<EncinaError, TResponse>(
-                AnonymizationErrors.AnonymizationFailed("(pipeline)", ex.Message, ex));
+            return HandleTransformationException(ex, requestTypeName, responseTypeName, activity);
         }
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> TransformFieldsAsync(
+        TResponse response,
+        AnonymizationAttributeInfo attrInfo,
+        string requestTypeName,
+        string responseTypeName,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        var fieldsTransformed = 0;
+
+        foreach (var field in attrInfo.Fields)
+        {
+            var transformResult = await ApplyFieldTransformationAsync(
+                response!, field, responseTypeName, activity, cancellationToken).ConfigureAwait(false);
+
+            if (transformResult.IsLeft)
+            {
+                // Block mode — return error immediately
+                AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
+                    new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "blocked"));
+                return Left<EncinaError, TResponse>((EncinaError)transformResult);
+            }
+
+            // transformResult.Right is true if field was transformed, false if skipped (warn mode failure)
+            if ((bool)transformResult)
+            {
+                fieldsTransformed++;
+            }
+        }
+
+        _logger.AnonymizationPipelineCompleted(requestTypeName, responseTypeName, fieldsTransformed);
+        AnonymizationDiagnostics.RecordCompleted(activity, fieldsTransformed);
+        AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
+            new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "completed"));
+
+        return Right<EncinaError, TResponse>(response!);
+    }
+
+    private Either<EncinaError, TResponse> HandleTransformationException(
+        Exception ex,
+        string requestTypeName,
+        string responseTypeName,
+        Activity? activity)
+    {
+        _logger.AnonymizationPipelineError(requestTypeName, responseTypeName, ex.ForLogging());
+        AnonymizationDiagnostics.RecordFailed(activity, ex.Message);
+        AnonymizationDiagnostics.PipelineExecutionsTotal.Add(1,
+            new KeyValuePair<string, object?>(AnonymizationDiagnostics.TagOutcome, "error"));
+
+        return Left<EncinaError, TResponse>(
+            AnonymizationErrors.AnonymizationFailed("(pipeline)", ex.Message, ex));
     }
 
     // ================================================================

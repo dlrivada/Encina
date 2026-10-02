@@ -108,19 +108,7 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
         if (result.IsLeft)
             return result;
 
-        var outcome = result.Match<object?>(Right: r => r, Left: _ => null);
-        var serializedContent = JsonSerializer.Serialize(
-            new { request, outcome },
-            SerializerOptions);
-
-        var record = new AuditRecord
-        {
-            RecordId = Guid.NewGuid(),
-            RecordType = attr.RecordType ?? typeof(TRequest).Name,
-            SerializedContent = serializedContent,
-            OccurredAtUtc = _timeProvider.GetUtcNow(),
-            CorrelationId = context.CorrelationId
-        };
+        var record = BuildRecord(request, context, attr, result);
 
         var attestResult = await _provider
             .AttestAsync(record, cancellationToken)
@@ -130,15 +118,46 @@ public sealed class AttestationPipelineBehavior<TRequest, TResponse> : IPipeline
         {
             var error = (EncinaError)attestResult;
 
-            if (attr.FailureMode == AttestationFailureMode.Enforce)
-            {
-                AttestationLogMessages.AttestationEnforced(_logger, typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown"));
+            if (ShouldBlock(attr, error))
                 return Left<EncinaError, TResponse>(error);
-            }
-
-            AttestationLogMessages.AttestationLogOnly(_logger, typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown"));
         }
 
         return result;
+    }
+
+    private AuditRecord BuildRecord(
+        TRequest request,
+        IRequestContext context,
+        AttestDecisionAttribute attr,
+        Either<EncinaError, TResponse> result)
+    {
+        var outcome = result.Match<object?>(Right: r => r, Left: _ => null);
+        var serializedContent = JsonSerializer.Serialize(
+            new { request, outcome },
+            SerializerOptions);
+
+        return new AuditRecord
+        {
+            RecordId = Guid.NewGuid(),
+            RecordType = attr.RecordType ?? typeof(TRequest).Name,
+            SerializedContent = serializedContent,
+            OccurredAtUtc = _timeProvider.GetUtcNow(),
+            CorrelationId = context.CorrelationId
+        };
+    }
+
+    /// <summary>Logs the attestation failure and returns whether it blocks the pipeline.</summary>
+    private bool ShouldBlock(AttestDecisionAttribute attr, EncinaError error)
+    {
+        var code = error.GetCode().IfNone("encina.unknown");
+
+        if (attr.FailureMode == AttestationFailureMode.Enforce)
+        {
+            AttestationLogMessages.AttestationEnforced(_logger, typeof(TRequest).Name, code);
+            return true;
+        }
+
+        AttestationLogMessages.AttestationLogOnly(_logger, typeof(TRequest).Name, code);
+        return false;
     }
 }
