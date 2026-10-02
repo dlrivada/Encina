@@ -121,21 +121,21 @@ public sealed class AddressMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "addr-salt"
+            HashKey = "addr-key"
         };
 
-        var resultNoSalt = _sut.Apply("123 Main St, Springfield, IL", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("123 Main St, Springfield, IL", optionsWithSalt);
+        var resultNoKey = _sut.Apply("123 Main St, Springfield, IL", optionsNoKey);
+        var resultWithKey = _sut.Apply("123 Main St, Springfield, IL", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]

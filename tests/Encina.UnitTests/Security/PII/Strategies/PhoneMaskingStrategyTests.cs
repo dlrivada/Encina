@@ -139,20 +139,20 @@ public sealed class PhoneMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "phone-salt"
+            HashKey = "phone-key"
         };
 
-        var resultNoSalt = _sut.Apply("555-123-4567", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("555-123-4567", optionsWithSalt);
+        var resultNoKey = _sut.Apply("555-123-4567", optionsNoKey);
+        var resultWithKey = _sut.Apply("555-123-4567", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 }

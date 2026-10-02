@@ -135,7 +135,7 @@ The pipeline automatically masks response properties:
 [PII(PIIType.Email)]
 public string Email { get; set; }
 
-// With explicit mode
+// With explicit mode (Mode = MaskingMode.Hash needs a HashKey, see "Hash mode and its key")
 [PII(PIIType.CreditCard, Mode = MaskingMode.Full)]
 public string CardNumber { get; set; }
 
@@ -171,6 +171,8 @@ public string InternalId { get; set; }
 public string CorrelationToken { get; set; }
 ```
 
+A Hash attribute (`[MaskInLogs(MaskingMode.Hash)]` or `[PII(..., Mode = MaskingMode.Hash)]`) needs a usable `PIIOptions.HashKey`. Without one (missing or blank, and no `AllowUnkeyedHash`) the value becomes `[REDACTED]`; a key set must be at least 32 UTF-8 bytes to pass validation; a blank key still redacts when `AllowUnkeyedHash` is `true`. See [Hash mode and its key](#hash-mode-and-its-key).
+
 ---
 
 ## Masking Strategies
@@ -197,9 +199,34 @@ public string CorrelationToken { get; set; }
 |------|-------------|-----------------|
 | **Partial** | Show selected characters | `u***@example.com` |
 | **Full** | Replace all characters | `***@example.com` |
-| **Hash** | SHA-256 deterministic hash | `a1b2c3d4e5f6...` |
+| **Hash** | Deterministic keyed hash: HMAC-SHA256, lowercase hex (64 characters), key from `PIIOptions.HashKey` | `a1b2c3d4e5f6...` |
 | **Tokenize** | Passthrough for external systems | `user@example.com` (unchanged) |
 | **Redact** | Fixed replacement text | `[REDACTED]` |
+
+### Hash mode and its key
+
+`MaskingMode.Hash` computes HMAC-SHA256 over the UTF-8 value, keyed by `PIIOptions.HashKey` (a UTF-8 string). The same value and key always give the same hash, so you can correlate records. Changing the key changes every hash, so hashes made under different keys do not correlate.
+
+Hash mode fails closed:
+
+- `DefaultMode = MaskingMode.Hash` without a key throws `OptionsValidationException` from `AddEncinaPII` and again at startup (`ValidateOnStart`). An empty or whitespace key is invalid.
+- The check inside `AddEncinaPII` sees only the `configure` delegate of that call, so set `HashKey` (and `AllowUnkeyedHash`) in the same delegate. Options bound or configured elsewhere are validated by `ValidateOnStart` instead.
+- Masking in Hash mode (selected by an attribute, or by `DefaultMode` when validation was skipped) while no key and no opt-out exist replaces the value with `[REDACTED]`; this covers a property masked through a strategy (no `Pattern` or `Replacement` on its attribute). An error is logged once per `PIIType`, not on every call (EventId 8020).
+- A blank (empty or whitespace) key that skipped validation is treated like a missing key: values are redacted, never hashed with it. This holds even when `AllowUnkeyedHash` is `true`: the opt-out covers a missing key (`null`), not a blank one.
+- `PIIOptionsValidator` requires a key to be at least `PIIOptions.MinimumHashKeyBytes` (32) UTF-8 bytes, the HMAC-SHA256 output length. A shorter key fails validation at `AddEncinaPII` and at startup (`ValidateOnStart`), whatever the default mode. The length counts UTF-8 bytes, not characters, so a 32-character string with accented or non-Latin characters can be longer than 32 bytes, and 16 such characters can already be enough. The masker itself does not re-check the length: a short key that skipped validation still hashes, so keep validation on.
+- Use a random key, for example 32 random bytes encoded as base64 (44 characters), generated once and kept in a secret store.
+- The explicit opt-out `PIIOptions.AllowUnkeyedHash = true` keeps a plain, unkeyed SHA-256. One warning is logged per service provider (host), when the options are validated with the opt-out set and no key, whatever the default mode (EventId 8019).
+
+An unkeyed SHA-256 of a low-entropy value (SSN, phone number, date of birth) can be reversed with a dictionary attack. Load the key from a secret store, never from source code. `HashKey` is excluded from JSON serialization and from `ToString()`. `MaskingOptions.HashKey` carries the key to custom `IMaskingStrategy` implementations.
+
+```csharp
+services.AddEncinaPII(options =>
+{
+    options.DefaultMode = MaskingMode.Hash;
+    // At least 32 UTF-8 bytes, for example 32 random bytes as base64, read from a secret store
+    options.HashKey = configuration["Pii:HashKey"];
+});
+```
 
 ---
 
@@ -210,6 +237,8 @@ public string CorrelationToken { get; set; }
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DefaultMode` | `MaskingMode` | `Partial` | Default masking mode for all strategies |
+| `HashKey` | `string?` | `null` | Secret key for `MaskingMode.Hash` (HMAC-SHA256); at least `MinimumHashKeyBytes` (32) UTF-8 bytes when set; required when `DefaultMode` is `Hash` unless `AllowUnkeyedHash` is set; never serialized or printed |
+| `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs one warning per service provider when the options are validated without a key |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
 | `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
@@ -418,7 +447,7 @@ Assert.Contains("@example.com", result);
 
 - Property metadata is cached per type via `ConcurrentDictionary` — first access incurs reflection cost, subsequent calls are O(1) lookup
 - JSON serialization creates a deep copy — for hot paths with large objects, consider disabling response masking and using `Mask(string, PIIType)` directly
-- Hash mode uses SHA-256 — slightly slower than Partial/Full but deterministic
+- Hash mode computes HMAC-SHA256 — slightly slower than Partial/Full but deterministic for a given key
 
 ### Masking Not Applied in Logs
 

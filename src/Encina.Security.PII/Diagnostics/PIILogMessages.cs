@@ -76,4 +76,16 @@ internal static partial class PIILogMessages
         Message = "PII pipeline masking failed for response type {ResponseType}")]
     internal static partial void PipelineMaskingFailed(
         ILogger logger, Exception exception, string responseType);
+
+    [LoggerMessage(
+        EventId = 8019,
+        Level = LogLevel.Warning,
+        Message = "PII Hash mode is allowed without a key (AllowUnkeyedHash): hashes are unkeyed SHA-256 and low-entropy values such as SSNs or phone numbers can be reversed by a dictionary attack")]
+    internal static partial void UnkeyedHashAllowed(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 8020,
+        Level = LogLevel.Error,
+        Message = "PII Hash mode requested for PIIType={PIIType} but there is no usable HashKey (missing or blank) and AllowUnkeyedHash does not apply; the value was redacted instead")]
+    internal static partial void HashWithoutKeyRedacted(ILogger logger, string piiType);
 }

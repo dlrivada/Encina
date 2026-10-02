@@ -4,6 +4,7 @@ using Encina.Security.PII.Health;
 using Encina.Security.PII.Strategies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Security.PII;
 
@@ -87,6 +88,14 @@ public static class ServiceCollectionExtensions
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    /// <exception cref="OptionsValidationException">
+    /// Thrown when the configured <see cref="PIIOptions"/> are invalid, for example
+    /// <see cref="MaskingMode.Hash"/> as the default mode without a <see cref="PIIOptions.HashKey"/>
+    /// and without <see cref="PIIOptions.AllowUnkeyedHash"/>. This registration-time check sees only the
+    /// <paramref name="configure"/> delegate of this call: set <see cref="PIIOptions.HashKey"/> there, or
+    /// bind it from another source and leave <see cref="PIIOptions.DefaultMode"/> to the same source, which
+    /// <c>ValidateOnStart</c> then validates.
+    /// </exception>
     public static IServiceCollection AddEncinaPII(
         this IServiceCollection services,
         Action<PIIOptions>? configure = null)
@@ -118,10 +127,15 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new PIIOptions();
         configure?.Invoke(optionsInstance);
 
-        foreach (var (_, strategyType) in optionsInstance.CustomStrategies)
-        {
-            services.TryAddSingleton(strategyType);
-        }
+        // Fail closed at registration for non-host compositions, and again on start through
+        // ValidateOnStart for options bound from other sources (configuration, later Configure calls).
+        ThrowIfInvalid(optionsInstance);
+
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<PIIOptions>, PIIOptionsValidator>());
+        services.AddOptions<PIIOptions>().ValidateOnStart();
+
+        RegisterCustomStrategies(services, optionsInstance);
 
         // Register IPIIMasker (TryAdd allows override with custom implementation)
         services.TryAddSingleton<IPIIMasker, PIIMasker>();
@@ -152,5 +166,23 @@ public static class ServiceCollectionExtensions
         // is required — activities and counters are static and self-contained.
 
         return services;
+    }
+
+    private static void RegisterCustomStrategies(IServiceCollection services, PIIOptions options)
+    {
+        foreach (var (_, strategyType) in options.CustomStrategies)
+        {
+            services.TryAddSingleton(strategyType);
+        }
+    }
+
+    private static void ThrowIfInvalid(PIIOptions options)
+    {
+        var validation = new PIIOptionsValidator().Validate(Options.DefaultName, options);
+        if (validation.Failed)
+        {
+            throw new OptionsValidationException(
+                Options.DefaultName, typeof(PIIOptions), validation.Failures ?? []);
+        }
     }
 }

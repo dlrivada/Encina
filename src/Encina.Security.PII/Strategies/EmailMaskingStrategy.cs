@@ -34,7 +34,7 @@ internal sealed class EmailMaskingStrategy : IMaskingStrategy
         {
             MaskingMode.Full => new string(options.MaskCharacter, 3) + domain,
             MaskingMode.Redact => options.RedactedPlaceholder ?? "[REDACTED]",
-            MaskingMode.Hash => HashHelper.ComputeHash(value, options.HashSalt),
+            MaskingMode.Hash => HashHelper.ComputeHash(value, options.HashKey),
             MaskingMode.Tokenize => value, // Tokenization requires external vault, pass-through
             _ => MaskLocalPart(localPart, domain, options) // Partial
         };

@@ -128,21 +128,21 @@ public sealed class CreditCardMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "cc-salt"
+            HashKey = "cc-key"
         };
 
-        var resultNoSalt = _sut.Apply("4532123456789012", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("4532123456789012", optionsWithSalt);
+        var resultNoKey = _sut.Apply("4532123456789012", optionsNoKey);
+        var resultWithKey = _sut.Apply("4532123456789012", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]

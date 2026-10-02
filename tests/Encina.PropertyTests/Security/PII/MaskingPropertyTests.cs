@@ -32,6 +32,34 @@ public sealed class MaskingPropertyTests
 
     #endregion
 
+    #region Hash Mode Invariants
+
+    [Property(MaxTest = 100)]
+    public bool Hash_SameValueAndKey_IsDeterministic64CharHex(NonEmptyString value, NonEmptyString key)
+    {
+        var first = HashHelper.ComputeHash(value.Get, key.Get);
+        var second = HashHelper.ComputeHash(value.Get, key.Get);
+
+        return first == second && first.Length == 64 && first.All(char.IsAsciiHexDigitLower);
+    }
+
+    [Property(MaxTest = 100)]
+    public bool Hash_DifferentKeys_ProduceDifferentHashes(NonEmptyString value, NonEmptyString keyA, NonEmptyString keyB)
+    {
+        if (keyA.Get == keyB.Get)
+        {
+            return true;
+        }
+
+        return HashHelper.ComputeHash(value.Get, keyA.Get) != HashHelper.ComputeHash(value.Get, keyB.Get);
+    }
+
+    [Property(MaxTest = 100)]
+    public bool Hash_KeyedDiffersFromUnkeyed(NonEmptyString value, NonEmptyString key) =>
+        HashHelper.ComputeHash(value.Get, key.Get) != HashHelper.ComputeHash(value.Get, null);
+
+    #endregion
+
     #region Email Masking Invariants
 
     [Property(MaxTest = 100)]

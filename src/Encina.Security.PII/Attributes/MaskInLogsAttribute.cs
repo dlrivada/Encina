@@ -50,7 +50,9 @@ public sealed class MaskInLogsAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// Default is <see cref="MaskingMode.Partial"/>. Override to use a different
-    /// mode for log output.
+    /// mode for log output. <see cref="MaskingMode.Hash"/> needs a usable <see cref="PIIOptions.HashKey"/>
+    /// (or the explicit <see cref="PIIOptions.AllowUnkeyedHash"/> opt-out); without one the value
+    /// becomes <c>[REDACTED]</c>.
     /// </remarks>
     public MaskingMode Mode { get; set; } = MaskingMode.Partial;
 }

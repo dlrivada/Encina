@@ -87,21 +87,21 @@ public sealed class SSNMaskingStrategyTests
     }
 
     [Fact]
-    public void Apply_HashMode_WithSalt_ProducesDifferentHash()
+    public void Apply_HashMode_WithKey_ProducesDifferentHash()
     {
-        var optionsNoSalt = WithMode(MaskingMode.Hash);
-        var optionsWithSalt = new MaskingOptions
+        var optionsNoKey = WithMode(MaskingMode.Hash);
+        var optionsWithKey = new MaskingOptions
         {
             Mode = MaskingMode.Hash,
             MaskCharacter = '*',
             PreserveLength = true,
-            HashSalt = "ssn-salt"
+            HashKey = "ssn-key"
         };
 
-        var resultNoSalt = _sut.Apply("123-45-6789", optionsNoSalt);
-        var resultWithSalt = _sut.Apply("123-45-6789", optionsWithSalt);
+        var resultNoKey = _sut.Apply("123-45-6789", optionsNoKey);
+        var resultWithKey = _sut.Apply("123-45-6789", optionsWithKey);
 
-        resultNoSalt.ShouldNotBe(resultWithSalt);
+        resultNoKey.ShouldNotBe(resultWithKey);
     }
 
     [Fact]
