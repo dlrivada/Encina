@@ -1,15 +1,17 @@
-# tools/ai/audit/_remediation-checks.ps1 (#1388)
+# tools/ai/audit/_remediation-checks.ps1 (#1388, revised by #1572)
 #
-# Pure, deterministic checks the remediation stage (audit-draft-remediation.ps1) applies to the local model's
-# classification and draft output, so a hallucinated duplicate claim, a fenced draft or leftover template
-# placeholder text never reaches artifacts/knowledge/remediation/*.md. Audit #16 hit all three: a duplicate
-# claim with no shared evidence (3 of its 4 duplicate claims were wrong), a draft wrapped in an outer
-# ```markdown fence, and a draft that kept the test_implementation.md placeholder text verbatim.
+# The deterministic helpers of the SPEC-003 remediation stage. audit-draft-remediation.ps1 -Prepare uses the
+# finding-side ones (anchors, duplicate evidence, location grouping) to build the remediation-drafter agent's
+# manifest; audit-draft-remediation.ps1 -Finalize uses the draft-side ones (outer-fence strip, placeholder and
+# template-header checks, Related Issues sanitizer, Type tick, bug Environment fill, Reported-by line) on every
+# draft the agent wrote, so a fenced draft, a leftover template placeholder or an unverified issue reference
+# never survives the stage. Audit #16 hit all three with the local model that drafted before #1572.
 #
-# No `gh` call and no local-model call happens anywhere in this file -- every function takes plain strings
-# (already-fetched issue title/body text, already-drafted markdown, the templates directory) and returns a
-# plain PowerShell value, which is what lets Test-Hooks.ps1 exercise all four functions without either
-# dependency. audit-draft-remediation.ps1 does the I/O (gh issue view, the local model calls, re-asking).
+# No model call happens anywhere in this file. Every function except Invoke-GhWithRetry takes plain strings
+# (already-fetched issue title/body text, already-drafted markdown, a template's text) and returns a plain
+# PowerShell value, which lets Test-Hooks.ps1 exercise them directly. Invoke-GhWithRetry (#1548) is the one
+# place `gh` runs, so every gh call of the stage shares one retry policy; Test-Hooks.ps1 stubs `gh` with a
+# PowerShell function to test it offline.
 
 # The path prefixes and extensions a finding's file citations use (mirrors Get-SearchTerms' own extension list
 # in audit-draft-remediation.ps1). A citation always starts with one of these five top-level folders, so this
@@ -372,11 +374,11 @@ function Test-DuplicateEvidence {
     return $false
 }
 
-# #1400 decision 1, widened by #1393 decision 3: used only to word the rejection note audit-draft-remediation.ps1
-# appends to a drafted finding when Test-DuplicateEvidence rejects a model-named duplicate -- "partially related"
-# (the candidate's location text covers at least one of the finding's own file anchors OR one of its specific
-# symbol anchors, but not enough for a duplicate) versus the existing, weaker "possibly related" (no anchor
-# matched at all). A candidate that matches only part of a multi-anchor finding is therefore "partially
+# #1400 decision 1, widened by #1393 decision 3 and #1572: decides which search candidates
+# audit-draft-remediation.ps1 -Prepare lists as "partially related" for a finding that is not a duplicate (the
+# candidate's location text covers at least one of the finding's own file anchors OR one of its specific
+# symbol anchors, but not enough for a duplicate) versus "possibly related" (a search hit with no anchor
+# matched at all, listed for awareness only). A candidate that matches only part of a multi-anchor finding is therefore "partially
 # related", never a duplicate: audit #16's docs-2 names `IChoreographyEventBus`, `IChoreographyStateStore` and
 # the missing registration surface, and #592 covers only `IChoreographyStateStore`. Uses the same location
 # text and generic-token exclusions as Test-DuplicateEvidence, so a mention in a candidate's Description or a
@@ -401,8 +403,8 @@ function Test-PartialDuplicateEvidence {
     return $false
 }
 
-# #1424 decision 2: makes duplicate-vs-new deterministic for a given finding and a given set of open candidates,
-# independent of what the local model happens to answer. Audit #16 verification pass 4 found finding 16-code-4
+# #1424 decision 2: makes duplicate-vs-new deterministic for a given finding and a given set of open candidates
+# (since #1572 no model takes part in that decision at all; the history below explains why it is evidence-only). Audit #16 verification pass 4 found finding 16-code-4
 # (the real SagaStoreADO OpenConnectionAsync no-op) classified as "duplicate of #1170" in one run and drafted as
 # new in the very next run, with #1170 unchanged in between, because the previous logic only ran
 # Test-DuplicateEvidence on the ONE candidate the model happened to name that run -- when the model's own reply
@@ -412,9 +414,8 @@ function Test-PartialDuplicateEvidence {
 # model named), using each candidate's own real title+body text. When one or more candidates pass, the finding
 # is a duplicate of the LOWEST-numbered passing candidate -- a fixed, order-independent tie-break -- so the same
 # finding against the same open issues always classifies the same way, whatever order `gh issue list` happened
-# to return them in and whatever the model answered. Returns that candidate's number as a plain numeric string,
-# or $null when no candidate passes at all. The model's own classification is left to decide only the drafted
-# template kind (bug/test/debt/docs) for a finding this function returns $null for.
+# to return them in. Returns that candidate's number as a plain numeric string, or $null when no candidate
+# passes at all.
 function Find-DuplicateAmongCandidates {
     param([string]$FindingText, [object[]]$Candidates)
 
@@ -537,31 +538,28 @@ function Find-TemplatePlaceholders {
 # still sanitized correctly, because they are just prose the global scan below also covers).
 #
 # Scans every line of the whole draft, skipping a fenced code block (Code Sample, Stack Trace -- a stack trace
-# or C# sample is never prose the model writes freely) and the header HTML comment block Build-DraftBrief asks
-# the model to reproduce verbatim (title/labels/milestone), for a '#n' reference. A reference survives only
-# when its number is:
-#   - the audited issue itself ($IssueNumber) -- every draft's brief always injects "#$IssueNumber (This
-#     issue)" as a standing convention, never left to the model's own judgement to keep or drop;
+# or C# sample is never free prose) and the header HTML comment block (title/labels/milestone/kind), for a
+# '#n' reference. A reference survives only when its number is:
+#   - the audited issue itself ($IssueNumber) -- every draft cites "#$IssueNumber (This issue)" as a standing
+#     convention;
 #   - named in the finding's own text ($FindingText); or
-#   - named in one of the script's own duplicate/partially-related/possibly-related note lines for this
-#     finding ($ScriptNoteLines, e.g. Test-PartialDuplicateEvidence's "- #m - partially related" line -- these
-#     are already anchor-checked before they ever reach this function, so they are trusted evidence, unlike a
-#     bare search candidate).
+#   - named in one of the script's own "partially related" note lines for this finding ($ScriptNoteLines,
+#     Test-PartialDuplicateEvidence's "- #m - partially related" lines from the -Prepare manifest -- these are
+#     already anchor-checked before they ever reach this function, so they are trusted evidence, unlike a bare
+#     search candidate).
 # A disallowed reference is removed with Remove-InlineIssueReference, which strips only the '#n' token itself
 # (and a bare enclosing "(...)"/"(see ...)" wrapper when the reference is the wrapper's only content), leaving
 # the rest of the line -- a Related Issues bullet or a sentence of prose alike -- readable, rather than
-# dropping the whole line as the section-scoped version used to for a labelled Related Issues bullet.
-# $IsBugReportDraft is kept for call-site compatibility (audit-draft-remediation.ps1 still passes it) but no
-# longer changes scope: the global scan already covers a bug_report.md draft's own Additional Context section,
-# labelled or not. Returns the sanitized draft text and the list of removed numbers, so the caller can log them
-# ("removed unverified related issue #n") against this finding's own line in stages/remediation.md.
+# dropping the whole line as the section-scoped version used to for a labelled Related Issues bullet. The
+# global scan also covers a bug_report.md draft's own Additional Context section, labelled or not. Returns the
+# sanitized draft text and the list of removed numbers, so the caller can report them ("removed unverified
+# related issue #n").
 function Limit-RelatedIssues {
     param(
         [string]$DraftText,
         [string]$IssueNumber,
         [string]$FindingText,
-        [string[]]$ScriptNoteLines,
-        [bool]$IsBugReportDraft
+        [string[]]$ScriptNoteLines
     )
 
     $text = if ($null -eq $DraftText) { '' } else { $DraftText }
@@ -713,8 +711,9 @@ function Remove-InlineIssueReference {
 # #1492 decision 1: the template's own '## Type' checkbox (technical_debt.md is the only routed template that
 # has one -- bug_report.md has none, test_implementation.md has 'Test Category' instead, a different section
 # with different values) is decided deterministically from the finding's ORIGINATING STAGE and, for a
-# code-stage finding, the classifier's own kind -- never left to the model, which re-rolled a different box on
-# every regeneration (audit #17 passes 3 and 4: a duplicate-test-classes finding ticked "Documentation gap"
+# code-stage finding, the kind the draft was routed to (the remediation-drafter's own 'kind:' header line since
+# #1572) -- never left to the drafter's tick, which with the local model re-rolled a different box on every
+# regeneration (audit #17 passes 3 and 4: a duplicate-test-classes finding ticked "Documentation gap"
 # once, and a stale .vscode/tasks.json label ticked "Incorrect implementation" while its siblings ticked
 # "Documentation gap"):
 #   - a docs-stage finding always ticks "Documentation gap" (it IS a documentation gap by definition of the
@@ -722,9 +721,9 @@ function Remove-InlineIssueReference {
 #   - a tests-stage finding ticks "Missing tests", unless its own text talks about duplicating, consolidating
 #     or refactoring existing tests (the audit #17 pass-3 case), in which case it ticks "Refactoring needed"
 #     instead -- a duplicate-test-classes finding is a refactor of existing tests, not a gap in coverage;
-#   - a code-stage finding uses the classifier's own kind: "bug" never reaches this function in practice
+#   - a code-stage finding uses the draft's routed kind: "bug" never reaches this function in practice
 #     (bug_report.md has no '## Type' section, so a bug-kind finding is never routed to technical_debt.md);
-#     "docs" (a code-stage finding the model itself classified as documentation drift, e.g. a stale label or
+#     "docs" (a code-stage finding the drafter routed as documentation drift, e.g. a stale label or
 #     comment) ticks "Documentation gap"; "debt" ticks "Code quality (warnings, analyzers)" (the template's own
 #     exact label -- Set-DebtType matches by equality, so a shorter string ticks nothing), unless the finding's
 #     own text is about a stale piece of text -- a label, comment or string literal that no longer matches the
@@ -739,9 +738,9 @@ function Get-DeterministicDebtType {
         if ($text -match '(?i)\b(duplicate\w*|consolidat\w*|refactor\w*)\b') { return 'Refactoring needed' }
         return 'Missing tests'
     }
-    # Code stage: the classifier's own kind decides. 'bug' and 'test' never reach here -- their routed
-    # templates (bug_report.md, test_implementation.md) have no '## Type' section, so audit-draft-remediation.ps1
-    # never calls Set-DebtType for them at all.
+    # Code stage: the routed kind decides. 'bug' and 'test' never reach here -- their routed templates
+    # (bug_report.md, test_implementation.md) have no '## Type' section, so audit-draft-remediation.ps1
+    # -Finalize never calls Set-DebtType for them at all.
     if ($Kind -eq 'docs') { return 'Documentation gap' }
     if ($text -match '(?i)\bstale\s+(text|label|comment|string)\b') { return 'Documentation gap' }
     # The real technical_debt.md checkbox text is "Code quality (warnings, analyzers)", not a bare "Code
@@ -753,11 +752,11 @@ function Get-DeterministicDebtType {
 }
 
 # #1492 decision 1: overwrites the whole '## Type' section's checkboxes with exactly one ticked box -- the
-# label Get-DeterministicDebtType returned -- clearing whatever the model itself ticked first (or nothing, if
+# label Get-DeterministicDebtType returned -- clearing whatever the drafter itself ticked first (or nothing, if
 # it ticked none). Only technical_debt.md has a '## Type' section among the three routed templates, so this is
-# only ever meaningful for a technical_debt.md-routed draft; audit-draft-remediation.ps1's own Repair-Draft call
-# site only invokes it for that template. Matches a checkbox line tolerant of bold markers around the label (a
-# model sometimes emphasises its own tick); returns $DraftText unchanged when it has no '## Type' header at
+# only ever meaningful for a technical_debt.md-routed draft; audit-draft-remediation.ps1 -Finalize only invokes
+# it for that template. Matches a checkbox line tolerant of bold markers around the label (a drafter
+# sometimes emphasises its own tick); returns $DraftText unchanged when it has no '## Type' header at
 # all, or when $Type is blank (defends a malformed draft/call rather than throwing, like Set-BugEnvironment
 # does for '## Environment').
 function Set-DebtType {
@@ -788,18 +787,16 @@ function Set-DebtType {
     return ($lines -join "`n")
 }
 
-# #1409: bug_report.md's own '## Environment' section asks for facts (Encina version, .NET version, OS) the
-# local model has no way to know for a finding from a static-analysis stage -- it copies the template's own
-# bracketed placeholders verbatim, Find-TemplatePlaceholders flags them, and even the one re-ask above never
-# supplies real facts (the model still has no way to know them), so the draft is kept with 'PLACEHOLDERS LEFT'
-# forever (audit #16's 16-code-5 draft, reproduced in the issue this fixes). These three facts ARE deterministic
-# for a code-review finding (never observed at runtime), so audit-draft-remediation.ps1's Repair-Draft calls
-# Set-BugEnvironment to overwrite the whole '## Environment' section body AFTER the model replies (and after the
-# fence strip) but BEFORE Find-TemplatePlaceholders ever inspects the draft, for every bug_report.md-routed
-# draft -- the model's own guess at these three facts (right or wrong) is never load-bearing. 'Package(s)
-# Affected' is the one field the model can sometimes get right (it saw the finding's own file citation), so it
-# is kept when it is not itself one of the template's own bracketed placeholder shapes; otherwise it is derived
-# from the finding's own first 'src/<Package>/' path, otherwise 'Not determined'.
+# #1409: bug_report.md's own '## Environment' section asks for facts (Encina version, .NET version, OS) a
+# drafter cannot observe for a finding from a static-analysis stage -- the local model copied the template's
+# own bracketed placeholders verbatim, so the draft kept 'PLACEHOLDERS LEFT' forever (audit #16's 16-code-5
+# draft). These three facts ARE deterministic for a code-review finding (never observed at runtime), so
+# audit-draft-remediation.ps1 -Finalize calls Set-BugEnvironment to overwrite the whole '## Environment' section
+# body after the fence strip but BEFORE Find-TemplatePlaceholders inspects the draft, for every
+# bug_report.md-routed draft -- the drafter's own wording of these facts is never load-bearing. 'Package(s)
+# Affected' is the one field the drafter knows (remediation-drafter lists only the packages the finding names),
+# so it is kept when it is not itself one of the template's own bracketed placeholder shapes; otherwise it is
+# derived from the finding's own first 'src/<Package>/' path, otherwise 'Not determined'.
 
 # Reads '<VersionPrefix>'/'<VersionSuffix>' from Directory.Build.props at $RepoRoot -- the same file AGENTS.md
 # §1 and every csproj in this repository derive their NuGet version from. Returns 'Not determined' when the
@@ -894,15 +891,14 @@ function Set-BugEnvironment {
     return ($newLines -join "`n")
 }
 
-# #1400 (adversarial review finding 1), widened by #1428: inserts one note line (audit-draft-remediation.ps1's
-# "partially related"/"possibly related" line for a rejected duplicate-of claim) into a draft's own Related
-# Issues section, recognising the SAME three conventions Limit-RelatedIssues does. Before this function existed,
-# audit-draft-remediation.ps1 looked only for the '## Related Issues' H2 and, for a bug-kind draft
-# (bug_report.md has no such header -- only the '- **Related Issues**:' bold-bullet convention, or #1428's plain
-# 'Related Issues:' line), fell back to appending the note at the very end of the file, detached from the
-# section it names and from what Limit-RelatedIssues actually scans -- a structurally malformed draft. Returns
-# the updated text and whether a section was found at all; when none of the three conventions is found, the
-# text is returned unchanged so the caller can fall back and log a lesson, exactly as before.
+# #1400 (adversarial review finding 1), widened by #1428: inserts one note line (a "partially related" line
+# from the -Prepare manifest that the drafter left out; audit-draft-remediation.ps1 -Finalize adds it back
+# deterministically) into a draft's own Related Issues section, recognising the SAME three conventions
+# Limit-RelatedIssues does: the '## Related Issues' H2, the '- **Related Issues**:' bold-bullet convention
+# (bug_report.md has no such header) and #1428's plain 'Related Issues:' line, so the note lands inside the
+# section it names and inside what Limit-RelatedIssues scans. Returns the updated text and whether a section
+# was found at all; when none of the three conventions is found, the text is returned unchanged so the caller
+# can report it.
 function Add-RelatedIssuesLine {
     param([string]$DraftText, [string]$Line)
 
@@ -1018,17 +1014,17 @@ function Get-GroupPrimary {
 # template's own '## Description' header (every routed template -- bug_report.md, technical_debt.md,
 # test_implementation.md -- has one), so a merged finding's draft names every stage and finding id in its
 # group deterministically -- the same pattern Set-BugEnvironment/Set-DebtType use to overwrite a section after
-# the model replies, rather than trusting the model to remember a brief's own guidance note.
-# audit-draft-remediation.ps1 only calls this when a group has more than one member. Returns the updated text
-# and whether the header was found (never missing for a real draft, but defended rather than thrown, like the
-# other Set-*/Add-* helpers in this file).
+# the drafter writes, rather than trusting the drafter to copy the manifest's reportedByLine.
+# audit-draft-remediation.ps1 -Finalize only calls this when a group has more than one member. Returns the
+# updated text and whether the header was found (never missing for a real draft, but defended rather than
+# thrown, like the other Set-*/Add-* helpers in this file).
 #
-# Adversarial review of #1491: Build-DraftBrief's own $groupNote ALSO asks the model to write a "Reported by:
-# ..." line at the start of the Description section, so a model that follows that instruction leaves one there
-# already. Inserting unconditionally would then duplicate it. This skips past any blank line(s) right after the
-# header and, only when the first non-blank line there already starts with "Reported by:" (case-insensitive),
-# replaces it (and the blank lines before it) with the deterministic line instead of trusting the model's own
-# wording -- never both. When no such line is there, behavior is unchanged: insert after one blank line.
+# Adversarial review of #1491: the drafter is ALSO told to write the "Reported by: ..." line at the start of
+# the Description section, so a draft usually has one there already. Inserting unconditionally would then
+# duplicate it. This skips past any blank line(s) right after the header and, only when the first non-blank
+# line there already starts with "Reported by:" (case-insensitive), replaces it (and the blank lines before
+# it) with the deterministic line instead of trusting the drafter's own wording -- never both. When no such
+# line is there: insert after one blank line.
 function Add-ReportedByLine {
     param([string]$DraftText, [string]$Line)
 
@@ -1050,4 +1046,156 @@ function Add-ReportedByLine {
         }
     }
     return [pscustomobject]@{ Text = $text; Found = $false }
+}
+
+# Up to 4 search terms from a finding's text, for the `gh issue list --search` duplicate query of
+# audit-draft-remediation.ps1 -Prepare: backticked identifiers or file:line citations first (the most specific
+# terms a finding carries), then un-backticked path-like tokens with a known extension (a finding may cite
+# 'src/A.cs:12' in plain prose, not backticks). Both kinds are reduced to a file basename; the un-backticked
+# kind additionally drops the extension (a search for 'A.cs' rarely matches an issue title the way 'A'
+# sometimes does).
+function Get-SearchTerms {
+    param([string]$Text)
+
+    $terms = [System.Collections.Generic.List[string]]::new()
+    $source = if ($null -eq $Text) { '' } else { $Text }
+
+    foreach ($m in [regex]::Matches($source, '`([^`]+)`')) {
+        $clean = ($m.Groups[1].Value -split '[:\s]')[0]
+        if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+        $base = Split-Path -Leaf $clean
+        if ($base -and ($terms -notcontains $base)) { $terms.Add($base) }
+        if ($terms.Count -ge 4) { return , $terms }
+    }
+
+    foreach ($m in [regex]::Matches($source, '[\w./\\-]+\.(cs|ps1|md|json|yml|yaml|csproj|txt)(:\d+(-\d+)?)?')) {
+        $stripped = ($m.Value -split ':')[0]
+        $baseNoExt = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $stripped))
+        if ([string]::IsNullOrWhiteSpace($baseNoExt)) { continue }
+        if ($terms -notcontains $baseNoExt) { $terms.Add($baseNoExt) }
+        if ($terms.Count -ge 4) { break }
+    }
+
+    return , $terms
+}
+
+# The slug of a draft's file name ('<n>-<stage>-<id>-<slug>.md'): the first 8 alphanumeric words of the
+# finding's text, lower-cased, at most 60 characters; 'finding' when the text has none. Deterministic, so
+# -Prepare names the same draft file for the same finding on every run.
+function New-Slug {
+    param([string]$Text)
+
+    $clean = if ($null -eq $Text) { '' } else { $Text -replace '[`*_#]', ' ' }
+    $words = @([regex]::Matches($clean, '[A-Za-z0-9]+') | Select-Object -First 8 -ExpandProperty Value)
+    $slug = ($words -join '-').ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($slug)) { $slug = 'finding' }
+    if ($slug.Length -gt 60) { $slug = $slug.Substring(0, 60).TrimEnd('-') }
+    return $slug
+}
+
+# #1572: the header comment block every remediation draft starts with (open-remediation.ps1 reads title,
+# labels and milestone from it; audit-draft-remediation.ps1 -Finalize also reads 'kind', the template the
+# remediation-drafter routed the finding to):
+#   <!--
+#   title: [DEBT] ...
+#   labels: technical-debt
+#   milestone:
+#   kind: debt
+#   -->
+# Returns @{ Found; Title; Labels; Milestone; Kind } from the FIRST HTML comment of the draft; Found is $false
+# (every other field $null) when the draft has no comment block at all. A field absent from the block is $null;
+# a field present but empty (an empty milestone) is ''.
+function Get-DraftHeader {
+    param([string]$DraftText)
+
+    $text = if ($null -eq $DraftText) { '' } else { $DraftText }
+    $comment = [regex]::Match($text, '(?s)<!--(?<body>.*?)-->')
+    $result = [ordered]@{ Found = $comment.Success; Title = $null; Labels = $null; Milestone = $null; Kind = $null }
+    if (-not $comment.Success) { return [pscustomobject]$result }
+    $fields = [ordered]@{ title = 'Title'; labels = 'Labels'; milestone = 'Milestone'; kind = 'Kind' }
+    foreach ($field in $fields.Keys) {
+        $m = [regex]::Match($comment.Groups['body'].Value, "(?im)^[ \t]*$field[ \t]*:[ \t]*(?<value>[^\r\n]*?)[ \t]*\r?$")
+        if ($m.Success) { $result[$fields[$field]] = $m.Groups['value'].Value }
+    }
+    return [pscustomobject]$result
+}
+
+# #1572: the '## ' headers of the routed template that are missing from the draft, or present but out of the
+# template's order. A draft must keep every template header verbatim and in order (AGENTS.md §11); extra
+# headers between them (bug_report.md's optional '## Root Cause') are allowed. Headers inside a fenced code
+# block are ignored on both sides. Returns the offending template headers (an empty list means the draft
+# keeps them all, in order).
+function Find-MissingTemplateHeaders {
+    param([string]$TemplateText, [string]$DraftText)
+
+    function Get-H2Lines([string]$Markdown) {
+        $result = [System.Collections.Generic.List[string]]::new()
+        $inFence = $false
+        foreach ($line in (($Markdown -replace '(?s)^---.*?---\r?\n', '') -split "`r?`n")) {
+            if ($line -match '^\s*(```|~~~)') { $inFence = -not $inFence; continue }
+            if (-not $inFence -and $line -match '^##\s+\S') { $result.Add($line.TrimEnd()) }
+        }
+        return , $result
+    }
+
+    $templateHeaders = Get-H2Lines $(if ($null -eq $TemplateText) { '' } else { $TemplateText })
+    $draftHeaders = Get-H2Lines $(if ($null -eq $DraftText) { '' } else { $DraftText })
+    $missing = [System.Collections.Generic.List[string]]::new()
+    $cursor = 0
+    foreach ($header in $templateHeaders) {
+        $found = -1
+        for ($i = $cursor; $i -lt $draftHeaders.Count; $i++) {
+            if ($draftHeaders[$i] -ceq $header) { $found = $i; break }
+        }
+        if ($found -lt 0) { $missing.Add($header); continue }
+        $cursor = $found + 1
+    }
+    return , $missing
+}
+
+# #1548: whether a failed `gh` call's output describes a transient failure worth retrying. A rate limit is
+# transient even when GitHub reports it as HTTP 403 (its secondary rate limit does); any other HTTP 4xx
+# (401, 403, 404, 422, ...) and "Could not resolve to an Issue" are permanent; a TLS handshake timeout, a
+# network timeout, a connection reset or refused, an unexpected EOF and an HTTP 5xx are transient. Anything
+# not recognised is treated as permanent (fail fast, never loop on an unknown error).
+function Test-GhTransientFailure {
+    param([string]$Output)
+
+    $text = if ($null -eq $Output) { '' } else { $Output }
+    if ($text -match '(?i)rate limit|HTTP 429\b|abuse detection') { return $true }
+    if ($text -match '(?i)HTTP 4\d\d\b|Could not resolve to an? ') { return $false }
+    if ($text -match '(?i)HTTP 5\d\d\b|\b50[0-9] (Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\b') { return $true }
+    if ($text -match '(?i)TLS handshake timeout|handshake failure|i/o timeout|timed? ?out|connection reset|connection refused|unexpected EOF|\bEOF\b|no such host|temporary failure') { return $true }
+    return $false
+}
+
+# #1548: every `gh` call of the remediation stage goes through this helper. It runs `gh @Arguments`; on a
+# non-zero exit whose output Test-GhTransientFailure classifies as transient, it waits $DelaysSeconds[k] and
+# retries, up to $DelaysSeconds.Count retries (default 3 retries after 5, 15 and 45 seconds); a permanent
+# failure is returned at once, never retried. Returns @{ Success; Stdout; Output; ExitCode; Attempts }: Stdout
+# holds only the standard-output lines (what a caller parses as JSON), Output the standard output and standard
+# error together (what a caller reports). $Sleep is the wait itself, a parameter only so Test-Hooks.ps1 can
+# record the delays without waiting for them.
+function Invoke-GhWithRetry {
+    param(
+        [Parameter(Mandatory)][string[]]$Arguments,
+        [int[]]$DelaysSeconds = @(5, 15, 45),
+        [scriptblock]$Sleep = { param([int]$Seconds) Start-Sleep -Seconds $Seconds }
+    )
+
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        $global:LASTEXITCODE = 0
+        $raw = @(& gh @Arguments 2>&1)
+        $code = $LASTEXITCODE
+        $stdout = @($raw | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+        $all = @($raw | ForEach-Object { [string]$_ })
+        $result = [pscustomobject]@{ Success = ($code -eq 0); Stdout = ($stdout -join "`n"); Output = ($all -join "`n"); ExitCode = $code; Attempts = $attempt }
+        if ($result.Success) { return $result }
+        $retryIndex = $attempt - 1
+        if ($retryIndex -ge $DelaysSeconds.Count -or -not (Test-GhTransientFailure $result.Output)) { return $result }
+        [Console]::Error.WriteLine("gh $($Arguments[0]) $($Arguments[1]): transient failure (attempt $attempt, exit $code); retrying in $($DelaysSeconds[$retryIndex]) s.")
+        & $Sleep $DelaysSeconds[$retryIndex]
+    }
 }

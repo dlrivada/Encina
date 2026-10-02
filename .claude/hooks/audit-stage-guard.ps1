@@ -4,7 +4,8 @@
 # old free-form coordinator path is closed.
 #
 # Applies when the spawned subagent_type is one of the audit-stage agents (issue-archivist, issue-auditor,
-# test-auditor, audit-verifier), or docs-reviewer when its prompt names an audit worktree (wia-<n>): a
+# test-auditor, remediation-drafter (#1572), audit-verifier), or docs-reviewer when its prompt names an audit
+# worktree (wia-<n>): a
 # docs-reviewer spawned by docs-writer for an ordinary documentation self-review, with no audit worktree
 # named, is not an audit stage and is left alone.
 #
@@ -42,11 +43,11 @@ try {
     $prompt = [string]$payload.tool_input.prompt
 
     if ($subagent -in 'issue-worker', 'general-purpose' -and $prompt -match 'SPEC-003 audit') {
-        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, audit-verifier) instead.")
+        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, remediation-drafter, audit-verifier) instead.")
         exit 2
     }
 
-    $stageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'audit-verifier'
+    $stageAgents = 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier'
     # Requiring both 'wia-<n>' AND the word 'audit' keeps an ordinary docs-writer self-review — whose prompt
     # might legitimately mention a 'wia-<n>' worktree name for unrelated reasons, e.g. this very pipeline's
     # own documentation — from being misread as an audit-stage spawn and denied for having no open audit.
@@ -176,7 +177,7 @@ try {
     }
     $expectedAgent = [string]$nextStage.agent
     if ($subagent -ne $expectedAgent) {
-        $instead = if ($expectedAgent -match '^issue-|^audit-|^docs-reviewer$') { "spawn $expectedAgent" } else { "run tools/ai/audit/audit-draft-remediation.ps1 (the '$($nextStage.stage)' stage runs a script, not an agent spawn)" }
+        $instead = if ($expectedAgent -eq 'remediation-drafter') { "run tools/ai/audit/audit-draft-remediation.ps1 -Prepare, then spawn remediation-drafter" } else { "spawn $expectedAgent" }
         [Console]::Error.WriteLine("Blocked: the next stage due for #$n is '$($nextStage.stage)' ($instead), not a $subagent spawn (#1345; tools/ai/audit/audit-stage.ps1 -Next). Stages run in the fixed order of pipeline.json.")
         exit 2
     }

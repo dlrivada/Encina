@@ -1,58 +1,57 @@
-# tools/ai/audit/audit-draft-remediation.ps1 (#1345, revised by #1375)
+# tools/ai/audit/audit-draft-remediation.ps1 -Prepare | -Finalize (#1345, #1375; rewritten by #1572)
 #
-# The remediation stage: splits the code, tests and docs stage artifacts' '## Findings' sections into
-# individual findings (Split-Findings in _audit-lib.ps1, one per numbered "N. **Severity** -- ..." paragraph),
-# and for each surviving finding:
-#   (a) asks the free local model (tools/ai/local-ai-ask.cs) to classify it -- kind (bug/test/debt/docs) and
-#       whether it duplicates one of a short list of open-issue candidates found with `gh issue list --search`;
-#   (b) when it is not a duplicate, routes it to the matching issue template
-#       (.github/ISSUE_TEMPLATE/{bug_report,test_implementation,technical_debt}.md) and asks the local model to
-#       draft the issue file, embedding that template's real headers and checkboxes verbatim, into
-#       artifacts/knowledge/remediation/<n>-<stage>-<id>-<slug>.md.
-# Writes stages/remediation.md listing, per finding, its draft file, a "duplicate of #m" line, or the reason it
-# was skipped, plus a real "## Lessons for the pipeline" section. Requires stages/docs.md -- the docs stage
-# must have already run, even when it found nothing to review.
+# The deterministic half of the SPEC-003 remediation stage. The drafting itself belongs to the
+# remediation-drafter agent (.claude/agents/remediation-drafter.md, maintainer decision of 2026-10-02, #1572):
+# the local model that drafted here before produced drafts that contradicted their own findings (wrong
+# packages, invented figures, meta-text), and audit #18 failed verification on them. No mode of this script
+# calls a model. The stage runs in three steps (.claude/skills/issue-audit/SKILL.md):
 #
-# -DryRun performs every step except the two local-model calls: it writes the per-finding input file and the
-# per-finding brief (the exact text that would go to the model, template embedded) under
-# artifacts/knowledge/remediation/_dryrun-<n>/, and prints the routing it would apply, using a deterministic
-# fallback kind (Blocker in the code stage -> bug; tests stage -> test; docs stage -> docs; otherwise -> debt)
-# instead of the model's classification. No duplicate is ever assumed in -DryRun (that decision needs the
-# model), so every finding gets a routed brief. Pair it with -NoGh to also skip the `gh issue list` duplicate
-# search -- what Test-Hooks.ps1 exercises: the real model and `gh` are never called in tests.
+#   1. -Prepare (this script): splits the code, tests and docs stage artifacts' '## Findings' sections into
+#      findings (Split-Findings, _audit-lib.ps1), groups same-location findings (#1491), searches open issues
+#      for duplicates with deterministic evidence (#1424, Find-DuplicateAmongCandidates), applies -DuplicateOf
+#      overrides (#1534), and writes, in the MAIN checkout's artifacts/knowledge/remediation/:
+#        _input-<n>-<stage>-<id>.md   one per finding, the finding's own text;
+#        _manifest-<n>.json           one per audit: per finding its group, duplicate or merge decision, the
+#                                     partially/possibly related candidates, the routed template (or the kinds
+#                                     the drafter may choose from), the draft file to write, the Reported-by
+#                                     line and the exact stages/remediation.md line.
+#      A full -Prepare first removes this audit's previous drafts, inputs and manifest (and its _dryrun-<n>
+#      sandbox), so a re-run never mixes outputs of two runs; every gh call happens BEFORE that cleanup, so a
+#      failed search leaves the previous outputs untouched (#1548).
+#   2. The orchestrator spawns remediation-drafter, which writes each draft and stages/remediation.md from the
+#      manifest.
+#   3. -Finalize (this script): applies the deterministic sanitizers to every draft the manifest names
+#      (Remove-OuterFence, Set-BugEnvironment, Set-DebtType, the missing "partially related" lines,
+#      Limit-RelatedIssues, Add-ReportedByLine), then checks each draft's header block, template headers and
+#      placeholders, and that stages/remediation.md carries the manifest's line for every finding. It prints
+#      every problem and exits 1 when any remains; the orchestrator re-spawns the drafter with that output.
 #
-# -Only "<stage> <n>" (repeatable, e.g. -Only "code 3" -Only "tests 1") (#1492 decision 3): regenerates ONLY the
-# named finding(s) -- an audit-verifier FAIL against one or two drafts must not re-roll every other draft's own
-# already-correct model choices (severity, kind, template placeholders, Related Issues), which is exactly why a
-# FAIL loop failed to converge (audit #17). Every other finding's own draft, input, brief and dry-run preview
-# file on disk is left completely untouched (never deleted, never rewritten), and stages/remediation.md keeps
-# every other finding's own line verbatim, taken from the file's own previous content -- only the regenerated
-# finding(s)' lines and Lessons entries are replaced. Requires stages/remediation.md to already exist (a full
-# regeneration must have run at least once) and every OTHER finding currently parsed from the stage artifacts
-# to already have a line there; otherwise this errors rather than guessing what an unprocessed finding's line
-# should say.
+# -Only "<stage> <n>" (repeatable, -Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
+# the named finding's location group. Every other finding keeps its draft, its input and its stages/remediation.md
+# line untouched: the manifest carries that line verbatim with "regenerate": false. Requires an existing
+# stages/remediation.md with a line for every other finding.
 #
-# -DuplicateOf "<stage> <n>=<issue>" (repeatable, e.g. -DuplicateOf "docs 12=1177") (#1534): records the named
-# finding as a duplicate of the given OPEN issue by explicit, logged override -- confirmed by audit-verifier or
-# the orchestrator, never guessed by this script or the local model. Some real duplicates can never pass the
-# deterministic evidence check (Test-DuplicateEvidence, _remediation-checks.ps1): #1177 reports the exact
-# drift finding 12 flags, but only as one item of a numbered list inside its own Description section, which
-# #1393 deliberately excludes from evidence (a Description commonly just MENTIONS a file/symbol without being
-# ABOUT it). Without an override, such a finding drafts a new issue every run and audit-verifier's own dedup
-# pass then FAILs the audit against the real duplicate -- a loop with no way to converge except dropping a
-# valid finding. No local-model call and, other than the OPEN-state check below, no `gh` call is required for
-# an override to take effect. The overridden finding's own line in stages/remediation.md reads exactly like an
-# automatically detected duplicate's line, plus " (manual override)"; when the overridden finding is the
-# PRIMARY of a #1491 same-location group, every member of that group gets this same duplicate line, never a
-# "merged into ..." line. Every override is also logged under the '## Lessons for the pipeline' section (see
-# the loop below), so audit-verifier and the pipeline's own lessons history see it. Combines with -Only (the
-# typical pairing is "-Only 'docs 12' -DuplicateOf 'docs 12=1177'" -- regenerate and record just that one
-# finding) and with a full run; an override's own finding group is always regenerated and recorded this run,
-# even if its key was not separately repeated under -Only. A key that does not match a finding parsed from the
-# stage artifacts, or a malformed entry, is an error -- fail fast, before any file is touched. Skipped under
-# -NoGh: the OPEN-state verification below never runs, matching every other `gh` call in this script.
+# -DuplicateOf "<stage> <n>=<issue>" (repeatable, -Prepare only; #1534): records the named finding's whole
+# group as a duplicate of the given OPEN issue by explicit, logged override (" (manual override)" on its line,
+# a lesson in the manifest). A malformed entry or an unknown key fails before any file is touched; the issue
+# must be OPEN (checked with gh unless -NoGh). An override's group is always prepared, even without -Only.
+#
+# -DryRun (#1540): both modes work only inside artifacts/knowledge/remediation/_dryrun-<n>/, a self-contained
+# sandbox: -Prepare -DryRun writes the inputs, the manifest and the draft paths there (the stage file preview
+# is _dryrun-<n>/remediation.md), and -Finalize -DryRun reads that sandbox manifest and refuses any path outside
+# the sandbox. A dry run never deletes, writes or overwrites a live draft, input, manifest or
+# stages/remediation.md.
+#
+# -NoGh skips every gh call (the label check, the -DuplicateOf OPEN check and the duplicate search): no
+# duplicate is ever found under it. Meant for offline runs and Test-Hooks.ps1.
+#
+# Every gh call goes through Invoke-GhWithRetry (_remediation-checks.ps1, #1548): transient failures (TLS
+# handshake timeout, connection reset, HTTP 5xx, rate limit) are retried 3 times after 5, 15 and 45 seconds;
+# a 4xx is not retried.
 
 param(
+    [switch]$Prepare,
+    [switch]$Finalize,
     [switch]$DryRun,
     [switch]$NoGh,
     [string[]]$Only,
@@ -63,314 +62,246 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
 . (Join-Path $PSScriptRoot '_remediation-checks.ps1')
 
-# #1492 decision 3: parse -Only into a set of "stage|id" keys up front (independent of the findings parsed
-# below, so a malformed -Only value is reported before any other work happens).
+function Stop-Remediation([string]$Message) {
+    [Console]::Error.WriteLine("audit-draft-remediation: $Message")
+    exit 1
+}
+
+if ($Prepare -eq $Finalize) { Stop-Remediation 'pass exactly one of -Prepare or -Finalize.' }
+if ($Finalize -and (($Only -and $Only.Count -gt 0) -or ($DuplicateOf -and $DuplicateOf.Count -gt 0))) {
+    Stop-Remediation '-Only and -DuplicateOf apply to -Prepare only.'
+}
+
+# Fail-fast argument parsing, before any file or gh call (#1492 decision 3, #1534).
 $onlyKeys = $null
 if ($Only -and $Only.Count -gt 0) {
     $onlyKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($spec in $Only) {
         $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
-        if ($specParts.Count -ne 2) {
-            Write-Error "audit-draft-remediation: -Only value '$spec' must be '<stage> <n>' (e.g. 'code 3')."
-            exit 1
-        }
+        if ($specParts.Count -ne 2) { Stop-Remediation "-Only value '$spec' must be '<stage> <n>' (e.g. 'code 3')." }
         [void]$onlyKeys.Add("$($specParts[0])|$($specParts[1])")
     }
 }
-
-# #1534: parse -DuplicateOf into "stage|id" -> issue-number entries, up front, independent of the findings
-# parsed below -- a malformed entry is reported before any other work happens, the same fail-fast contract
-# -Only's own parsing above already gives.
 $duplicateOfEntries = $null
 if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
     $duplicateOfEntries = [ordered]@{}
     foreach ($spec in $DuplicateOf) {
         $dupMatch = [regex]::Match($spec, '^(?<stage>\S+)\s+(?<id>\d+)=(?<issue>\d+)$')
-        if (-not $dupMatch.Success) {
-            Write-Error "audit-draft-remediation: -DuplicateOf value '$spec' must be '<stage> <n>=<issue>' (e.g. 'docs 12=1177')."
-            exit 1
-        }
-        $dupStage = $dupMatch.Groups['stage'].Value
-        $dupId = $dupMatch.Groups['id'].Value
+        if (-not $dupMatch.Success) { Stop-Remediation "-DuplicateOf value '$spec' must be '<stage> <n>=<issue>' (e.g. 'docs 12=1177')." }
+        $dupKey = "$($dupMatch.Groups['stage'].Value)|$($dupMatch.Groups['id'].Value)"
         $dupIssue = $dupMatch.Groups['issue'].Value
-        $dupKey = "$dupStage|$dupId"
         if ($duplicateOfEntries.Contains($dupKey) -and $duplicateOfEntries[$dupKey] -ne $dupIssue) {
-            Write-Error "audit-draft-remediation: -DuplicateOf has conflicting entries for '$dupStage $dupId' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
-            exit 1
+            Stop-Remediation "-DuplicateOf has conflicting entries for '$($dupKey -replace '\|', ' ')' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
         }
         $duplicateOfEntries[$dupKey] = $dupIssue
     }
 }
 
-# #1534 decision 3: verify every distinct -DuplicateOf target is a real, OPEN issue -- this script never
-# records a finding as a duplicate of an issue that is closed or does not exist, whatever the caller typed.
-# Skipped under -NoGh, matching every other `gh` call in this script.
-if ($duplicateOfEntries -and -not $NoGh) {
-    foreach ($dupIssueNumber in @($duplicateOfEntries.Values | Select-Object -Unique)) {
-        $dupViewOut = & gh issue view $dupIssueNumber --repo dlrivada/Encina --json state 2>&1
-        if ($LASTEXITCODE -ne 0) { Write-Error "audit-draft-remediation: 'gh issue view $dupIssueNumber' failed for -DuplicateOf (exit $LASTEXITCODE): $dupViewOut"; exit 1 }
-        $dupParsed = $null
-        try { $dupParsed = $dupViewOut | ConvertFrom-Json } catch { $dupParsed = $null }
-        if (-not $dupParsed -or $dupParsed.state -ne 'OPEN') {
-            $dupState = if ($dupParsed) { $dupParsed.state } else { 'unknown' }
-            Write-Error "audit-draft-remediation: -DuplicateOf names #$dupIssueNumber, but it is not an OPEN issue (state: $dupState)."
-            exit 1
-        }
-    }
-}
-
 $mainRoot = Get-MainRoot $PSScriptRoot
 $audit = Get-CurrentAudit $mainRoot
-if ($null -eq $audit) { Write-Error 'audit-draft-remediation: no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.'; exit 1 }
+if ($null -eq $audit) { Stop-Remediation 'no open audit (artifacts/knowledge/current-audit.json not found). Run audit-next.ps1 first.' }
 
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
 $pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
 
-function StageFile([string]$Name) {
+function Get-StageFile([string]$Name) {
     $def = $pipeline.stages | Where-Object { $_.stage -eq $Name }
-    if ($null -eq $def) { throw "audit-draft-remediation: pipeline.json has no '$Name' stage." }
+    if ($null -eq $def) { Stop-Remediation "pipeline.json has no '$Name' stage." }
     return Join-Path $stagesDir $def.artifact
 }
 
-$docsFile = StageFile 'docs'
-if (-not (Test-Path -LiteralPath $docsFile)) {
-    Write-Error "audit-draft-remediation: stages\$(Split-Path -Leaf $docsFile) is missing; run the docs stage before remediation."
-    exit 1
+$remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
+$sandboxDir = Join-Path $remediationDir "_dryrun-$n"
+$outDir = if ($DryRun) { $sandboxDir } else { $remediationDir }
+$stageOut = if ($DryRun) { Join-Path $sandboxDir 'remediation.md' } else { Get-StageFile 'remediation' }
+$manifestPath = Join-Path $outDir "_manifest-$n.json"
+$lessonsHeading = '## Lessons for the pipeline'
+
+function Get-GhResult([string[]]$Arguments, [string]$What) {
+    $r = Invoke-GhWithRetry -Arguments $Arguments
+    if (-not $r.Success) { Stop-Remediation "'gh $($Arguments -join ' ')' failed for $What after $($r.Attempts) attempt(s) (exit $($r.ExitCode)): $($r.Output)" }
+    return $r.Stdout
 }
 
-# Routing table (#1375 decision 3): finding kind -> template file, title prefix, labels, milestone. The
-# milestone title's em dash is built from its code point so this file's own bytes stay ASCII-only while still
-# matching the real GitHub milestone title exactly (mirrors open-remediation.ps1's own convention).
-$templatesDir = Join-Path $wt '.github\ISSUE_TEMPLATE'
-$hardeningMilestone = "v0.14.0 $([char]0x2014) Hardening"
-$routing = @{
-    bug  = [pscustomobject]@{ Template = 'bug_report.md'; Prefix = '[BUG]'; Labels = @('bug'); Milestone = $hardeningMilestone }
-    test = [pscustomobject]@{ Template = 'test_implementation.md'; Prefix = '[TEST]'; Labels = @('area-testing'); Milestone = '' }
-    debt = [pscustomobject]@{ Template = 'technical_debt.md'; Prefix = '[DEBT]'; Labels = @('technical-debt'); Milestone = '' }
-    docs = [pscustomobject]@{ Template = 'technical_debt.md'; Prefix = '[DEBT]'; Labels = @('technical-debt', 'area-documentation'); Milestone = '' }
-}
+# ------------------------------------------------------------------------------------------------------------
+# -Finalize
+# ------------------------------------------------------------------------------------------------------------
+if ($Finalize) {
+    if (-not (Test-Path -LiteralPath $manifestPath)) { Stop-Remediation "no manifest at $manifestPath; run -Prepare$(if ($DryRun) { ' -DryRun' }) first." }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $notes = [System.Collections.Generic.List[string]]::new()
 
-# -NoGh is meant for -DryRun / offline testing: it skips this check along with the per-finding duplicate
-# search below, so a real (non-dry) run should always be started WITHOUT -NoGh, or a docs draft could carry
-# a 'area-documentation' label this repository does not actually have.
-if (-not $NoGh -and -not $DryRun) {
-    $existingLabels = @(& gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name' 2>$null)
-    if ($LASTEXITCODE -ne 0) { Write-Error "audit-draft-remediation: 'gh label list' failed (exit $LASTEXITCODE)."; exit 1 }
-    if ($existingLabels -notcontains 'area-documentation') { $routing.docs.Labels = @('technical-debt') }
-}
-
-function Get-TemplateBody([string]$TemplateFile) {
-    $path = Join-Path $templatesDir $TemplateFile
-    if (-not (Test-Path -LiteralPath $path)) { throw "audit-draft-remediation: issue template '$TemplateFile' not found at '$path'." }
-    $raw = Get-Content -LiteralPath $path -Raw
-    return ($raw -replace '(?s)^---.*?---\r?\n', '').Trim()
-}
-
-# A '## Findings' header literally present in the file -- distinct from Get-StageSection's return value,
-# which is '' both when the file/header is missing AND when the header is present with a genuinely empty body,
-# so it cannot tell "no header at all" (a malformed stage artifact) from "header present, body empty" on its
-# own (#1375 CodeRabbit review). Only an explicit "- none" body means zero findings; a missing header is
-# always an error.
-function Test-FindingsHeaderPresent([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) { return $false }
-    $text = Get-Content -LiteralPath $Path -Raw
-    return [regex]::IsMatch($text, '(?m)^##\s*Findings\s*$')
-}
-
-# A model-named 'duplicate-of #m' is only honored when m is one of the candidates actually offered to the
-# model (from the gh search); a fabricated or hallucinated issue number must never suppress a real finding's
-# draft. $DuplicateOf and every entry of $CandidateNumbers are plain numeric strings (no '#').
-function Test-ValidDuplicate([string]$DuplicateOf, [string[]]$CandidateNumbers) {
-    if ([string]::IsNullOrWhiteSpace($DuplicateOf)) { return $false }
-    return $CandidateNumbers -contains $DuplicateOf
-}
-
-# #1388 decision 2: `gh issue view <n> --json title,body`, cached per issue number for the whole run -- the
-# classifier's candidate excerpts and the duplicate-evidence check below both need a candidate's real body
-# text, and a candidate the model later names as a duplicate is one this cache already fetched while building
-# the classify prompt, so it is never fetched twice.
-function Get-CachedIssueTitleBody([string]$Number, [hashtable]$Cache, [string]$Label) {
-    if ($Cache.Contains($Number)) { return $Cache[$Number] }
-    $viewOut = & gh issue view $Number --repo dlrivada/Encina --json title,body 2>&1
-    if ($LASTEXITCODE -ne 0) { Write-Error "audit-draft-remediation: 'gh issue view $Number' failed for $Label (exit $LASTEXITCODE): $viewOut"; exit 1 }
-    $parsed = $null
-    try { $parsed = $viewOut | ConvertFrom-Json } catch { $parsed = $null }
-    $Cache[$Number] = $parsed
-    return $parsed
-}
-
-function Get-DryRunKind([string]$Stage, [string]$Severity) {
-    if ($Stage -eq 'tests') { return 'test' }
-    if ($Stage -eq 'docs') { return 'docs' }
-    if ($Stage -eq 'code' -and $Severity -eq 'Blocker') { return 'bug' }
-    return 'debt'
-}
-
-# Up to 4 search terms from a finding's text, for the `gh issue list --search` duplicate query: backticked
-# identifiers or file:line citations first (the most specific terms a finding carries), then un-backticked
-# path-like tokens with a known extension (a finding may cite 'src/A.cs:12' in plain prose, not backticks).
-# Both kinds are reduced to a file basename; the un-backticked kind additionally drops the extension (a search
-# for 'A.cs' rarely matches an issue title the way 'A' sometimes does).
-function Get-SearchTerms([string]$Text) {
-    $terms = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($m in [regex]::Matches($Text, '`([^`]+)`')) {
-        $clean = ($m.Groups[1].Value -split '[:\s]')[0]
-        if ([string]::IsNullOrWhiteSpace($clean)) { continue }
-        $base = Split-Path -Leaf $clean
-        if ($base -and ($terms -notcontains $base)) { $terms.Add($base) }
-        if ($terms.Count -ge 4) { return $terms }
+    # #1540: a dry-run Finalize touches nothing outside its own sandbox, whatever the manifest says.
+    function Test-InScope([string]$Path) {
+        if (-not $DryRun -or [string]::IsNullOrEmpty($Path)) { return $true }
+        return [IO.Path]::GetFullPath($Path).StartsWith(([IO.Path]::GetFullPath($sandboxDir).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)
     }
 
-    foreach ($m in [regex]::Matches($Text, '[\w./\\-]+\.(cs|ps1|md|json|yml|yaml|csproj|txt)(:\d+(-\d+)?)?')) {
-        $stripped = ($m.Value -split ':')[0]
-        $baseNoExt = [IO.Path]::GetFileNameWithoutExtension((Split-Path -Leaf $stripped))
-        if ([string]::IsNullOrWhiteSpace($baseNoExt)) { continue }
-        if ($terms -notcontains $baseNoExt) { $terms.Add($baseNoExt) }
-        if ($terms.Count -ge 4) { break }
-    }
+    $findingsByKey = @{}
+    foreach ($f in @($manifest.findings)) { $findingsByKey[[string]$f.key] = $f }
 
-    return $terms
-}
+    foreach ($f in @($manifest.findings)) {
+        $label = [string]$f.label
+        if (-not $f.regenerate) {
+            if ($f.draftFile -and -not (Test-Path -LiteralPath $f.draftFile)) { $problems.Add("$label`: its existing draft $(Split-Path -Leaf $f.draftFile) is missing (an -Only run keeps it untouched, but it must exist).") }
+            continue
+        }
+        if (-not $f.draftFile) {
+            $stale = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.stage)-$($f.id)-*.md" -File -ErrorAction SilentlyContinue)
+            foreach ($s in $stale) { $problems.Add("$label`: $(Split-Path -Leaf $s.FullName) exists, but the manifest records this finding as '$($f.remediationLine)'; no draft may exist for it.") }
+            continue
+        }
+        $draftPath = [string]$f.draftFile
+        $draftName = Split-Path -Leaf $draftPath
+        if (-not (Test-InScope $draftPath)) { $problems.Add("$label`: $draftPath is outside the dry-run sandbox $sandboxDir; not touched."); continue }
+        if (-not (Test-Path -LiteralPath $draftPath)) { $problems.Add("$label`: missing draft $draftName (remediation-drafter must write it)."); continue }
 
-function New-Slug([string]$Text) {
-    $clean = $Text -replace '[`*_#]', ' '
-    $words = @([regex]::Matches($clean, '[A-Za-z0-9]+') | Select-Object -First 8 -ExpandProperty Value)
-    $slug = ($words -join '-').ToLowerInvariant()
-    if ([string]::IsNullOrWhiteSpace($slug)) { $slug = 'finding' }
-    if ($slug.Length -gt 60) { $slug = $slug.Substring(0, 60) }
-    return $slug
-}
+        $memberTexts = [System.Collections.Generic.List[string]]::new()
+        foreach ($memberKey in @($f.groupMembers)) {
+            $member = $findingsByKey[[string]$memberKey]
+            if ($null -eq $member -or -not $member.inputFile -or -not (Test-Path -LiteralPath $member.inputFile)) { $problems.Add("$label`: the input file of group member '$memberKey' is missing; re-run -Prepare."); continue }
+            $memberTexts.Add((Get-Content -LiteralPath $member.inputFile -Raw))
+        }
+        $primaryText = if ($memberTexts.Count -gt 0) { $memberTexts[0] } else { '' }
+        $allTexts = $memberTexts -join "`n"
 
-function Build-DraftBrief([string]$IssueNumber, [pscustomobject]$Finding, [string]$Kind, [pscustomobject]$Route, [string]$CandidateLines, [object[]]$OtherMembers = @()) {
-    $templateBody = Get-TemplateBody $Route.Template
-    $labelsLine = $Route.Labels -join ', '
-    # #1491 decision 2: when this finding's group has other members (another stage flagged the same location),
-    # tell the model so, even though audit-draft-remediation.ps1's own Add-ReportedByLine call fixes up the
-    # '## Description' section deterministically afterward regardless of what the model writes here -- it
-    # replaces the model's own "Reported by: ..." attempt (if the model wrote one, as asked below) rather than
-    # duplicating it, the same belt-and-suspenders pattern $envNote/$priorityNote below use for a section the
-    # script also repairs.
-    $groupNote = if ($OtherMembers.Count -gt 0) {
-        $otherLabels = ($OtherMembers | ForEach-Object { "$($_.Stage) $($_.Id)" }) -join ', '
-        "`n- This finding was ALSO reported by: $otherLabels (another audit stage flagged the same location). Add a line 'Reported by: $($Finding.Stage) $($Finding.Id), $otherLabels.' at the very start of the Description section."
-    }
-    else { '' }
-    $docsNote = if ($Kind -eq 'docs') { "`n- This is a documentation gap: tick only the 'Documentation gap' box in the Type section (leave the other Type boxes unticked)." } else { '' }
-    # bug_report.md and test_implementation.md have no Priority/Effort Estimate sections -- only
-    # technical_debt.md does; only that template gets this guidance line, so the brief never asks the model to
-    # fill a section the chosen template does not have.
-    $priorityNote = if ($Route.Template -eq 'technical_debt.md') {
-        $priority = switch ($Finding.Severity) { 'Blocker' { 'High' } 'Major' { 'Medium' } default { 'Low' } }
-        "`n- Priority: tick $priority (from the finding's severity: Blocker -> High, Major -> Medium, Minor/Unknown -> Low).`n- Effort Estimate: use your own judgement (Small/Medium/Large) from the finding's scope."
-    }
-    else { '' }
-    # #1409: the model has no way to know the real Encina/.NET version or OS for a static-analysis finding, so
-    # it otherwise copies bug_report.md's own bracketed placeholders through unchanged. The script overwrites
-    # this whole section deterministically after the model replies (Set-BugEnvironment, called from
-    # Repair-Draft below) regardless of what the model writes here, but this note still asks the model to match
-    # those same facts, so its own prose elsewhere in the draft (e.g. Additional Context) stays consistent with
-    # the section the script will actually keep.
-    $envNote = if ($Route.Template -eq 'bug_report.md') {
-        $version = Get-EncinaVersion $wt
-        $inferredPackage = Get-PackageFromFindingText $Finding.Text
-        $packageHint = if ($inferredPackage) { $inferredPackage } else { "the package the finding's file path names" }
-        "`n- Environment: this section will be overwritten deterministically after you reply, so match it rather than guessing -- Encina Version `"$version`", .NET Version `".NET 10`", OS `"Not applicable (found by static review of the code, not at runtime)`", Package(s) Affected `"$packageHint`"."
-    }
-    else { '' }
-    return @"
-Draft ONE remediation issue file for a finding from the SPEC-003 audit of closed GitHub issue #$IssueNumber of
-the Encina .NET library ($($Finding.Stage) stage, finding $($Finding.Id), severity $($Finding.Severity)). Use
-ONLY the input finding text; never invent facts. Output EXACTLY the header comment block below followed by the
-template body below it, keeping every '## ' header of the template body verbatim and in the same order, and
-ticking a checkbox only from the options the template body itself lists:
+        $raw = Get-Content -LiteralPath $draftPath -Raw
+        $text = Remove-OuterFence $raw
+        if ($text -ne $raw) { $notes.Add("$label`: stripped an outer code fence from $draftName.") }
 
-<!--
-title: $($Route.Prefix) <specific title drawn from the finding>
-labels: $labelsLine
-milestone: $($Route.Milestone)
--->
+        $header = Get-DraftHeader $text
+        $kind = $null
+        $allowedKinds = @($f.kindOptions | ForEach-Object { [string]$_ })
+        if (-not $header.Found) { $problems.Add("$label`: $draftName has no header comment block (<!-- title/labels/milestone/kind -->).") }
+        elseif ([string]::IsNullOrWhiteSpace($header.Kind)) { $problems.Add("$label`: $draftName's header has no 'kind:' line (one of: $($allowedKinds -join ', ')).") }
+        elseif ($allowedKinds -notcontains $header.Kind.Trim().ToLowerInvariant()) { $problems.Add("$label`: $draftName's header says 'kind: $($header.Kind)', but the manifest allows only: $($allowedKinds -join ', ').") }
+        else { $kind = $header.Kind.Trim().ToLowerInvariant() }
 
-$templateBody
+        $route = if ($kind) { $manifest.routes.$kind } else { $null }
+        if ($route) {
+            $expectedLabels = (@($route.labels) -join ', ')
+            if ([string]::IsNullOrWhiteSpace($header.Title) -or -not $header.Title.StartsWith("$($route.prefix) ") -or $header.Title.Trim().Length -le $route.prefix.Length) { $problems.Add("$label`: $draftName's title must start with '$($route.prefix) ' followed by a specific title (found: '$($header.Title)').") }
+            if ($header.Labels -ne $expectedLabels) { $problems.Add("$label`: $draftName's labels must be '$expectedLabels' (found: '$($header.Labels)').") }
+            if ($header.Milestone -ne [string]$route.milestone) { $problems.Add("$label`: $draftName's milestone must be '$($route.milestone)' (found: '$($header.Milestone)').") }
 
-Guidance:
-- Put the finding's file:line evidence in the Location (or Steps to Reproduce) section.
-- Related Issues: include #$IssueNumber and any of these candidate open issues that are related but are NOT
-  the same problem (a same-problem duplicate must never reach this step): $CandidateLines$priorityNote$docsNote$envNote$groupNote
-"@
-}
+            if ($route.template -like '*bug_report.md') { $text = Set-BugEnvironment $text $wt $primaryText }
+            elseif ($route.template -like '*technical_debt.md') { $text = Set-DebtType $text (Get-DeterministicDebtType ([string]$f.stage) $kind $primaryText) }
+        }
 
-# #1388 decisions 3/4 (#1400 decision 2: placeholders are now derived from the ONE routed template, not every
-# template in the directory): strips one outer code fence and reports remaining template placeholders for a
-# draft already written to $Path, rewriting the file in place when the fence was stripped. Returns the
-# (possibly empty) list of offending placeholder lines still in the draft after the fence strip. $LessonsList
-# is the script's own $lessons list, passed explicitly rather than captured, since this function is called once
-# per finding across the whole loop below. $RouteTemplateFile is the routed template's own file name
-# (e.g. 'technical_debt.md'), read fresh here so Find-TemplatePlaceholders always sees the same template the
-# finding was drafted against.
-function Repair-Draft([string]$Path, [string]$Label, [string]$RouteTemplateFile, [System.Collections.Generic.List[string]]$LessonsList, [string]$FindingText, [string]$RepoRoot, [string]$DebtType) {
-    $raw = Get-Content -LiteralPath $Path -Raw
-    $defenced = Remove-OuterFence $raw
-    if ($defenced -ne $raw) {
-        $LessonsList.Add("$Label`: draft $(Split-Path -Leaf $Path) was wrapped in an outer code fence; stripped it before writing.")
-    }
-    # #1409: for a bug_report.md-routed draft, the '## Environment' section is overwritten deterministically
-    # here, BEFORE Find-TemplatePlaceholders runs below, so the model's own guess at facts it cannot know (the
-    # Encina/.NET version, the OS) is never what decides whether the draft is clean.
-    # #1492 decision 1: for a technical_debt.md-routed draft, the '## Type' checkbox is overwritten the same
-    # way, with the deterministic label the caller already computed (Get-DeterministicDebtType), so the model's
-    # own tick is never what decides which box stays checked.
-    $repaired = if ($RouteTemplateFile -eq 'bug_report.md') { Set-BugEnvironment $defenced $RepoRoot $FindingText }
-    elseif ($RouteTemplateFile -eq 'technical_debt.md' -and $DebtType) { Set-DebtType $defenced $DebtType }
-    else { $defenced }
-    if ($repaired -ne $raw) {
-        Set-Content -LiteralPath $Path -Encoding utf8 -NoNewline -Value $repaired
-    }
-    $templateText = Get-Content -LiteralPath (Join-Path $templatesDir $RouteTemplateFile) -Raw
-    return (Find-TemplatePlaceholders $templateText $repaired)
-}
+        $partialLines = @($f.partiallyRelated | Where-Object { $_ } | ForEach-Object { [string]$_ })
+        foreach ($partial in $partialLines) {
+            $partialNumber = [regex]::Match($partial, '#(\d+)').Groups[1].Value
+            if ($text -match "#$partialNumber(?!\d)") { continue }
+            $inserted = Add-RelatedIssuesLine $text $partial
+            if ($inserted.Found) { $text = $inserted.Text; $notes.Add("$label`: added the manifest's partially related line for #$partialNumber to $draftName.") }
+            else { $problems.Add("$label`: $draftName has no Related Issues section to carry the manifest's line '$partial'.") }
+        }
 
-$stageNames = 'code', 'tests', 'docs'
-$allFindings = [System.Collections.Generic.List[pscustomobject]]::new()
-foreach ($stageName in $stageNames) {
-    $stageFile = StageFile $stageName
-    if (-not (Test-FindingsHeaderPresent $stageFile)) {
-        Write-Error "audit-draft-remediation: stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)."
-        exit 1
-    }
-    $section = Get-StageSection $stageFile 'Findings'
-    try {
-        foreach ($f in (Split-Findings $stageName $section)) { $allFindings.Add($f) }
-    }
-    catch {
-        Write-Error "audit-draft-remediation: $($_.Exception.Message)"
-        exit 1
-    }
-}
+        $sanitized = Limit-RelatedIssues $text $n $allTexts $partialLines
+        $text = $sanitized.Text
+        foreach ($removedNumber in @($sanitized.Removed)) { $notes.Add("$label`: removed unverified issue reference #$removedNumber from $draftName (not in the finding, not #$n, not a manifest partially related candidate).") }
 
-# #1534: a -DuplicateOf key that names a finding not parsed from the stages is an error -- the same guard
-# -Only's own validation below gives its keys.
-if ($duplicateOfEntries) {
-    $allFindingKeysForDup = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($f in $allFindings) { [void]$allFindingKeysForDup.Add("$($f.Stage)|$($f.Id)") }
-    foreach ($dupKey in $duplicateOfEntries.Keys) {
-        if (-not $allFindingKeysForDup.Contains($dupKey)) {
-            $dupKeyParts = $dupKey -split '\|', 2
-            Write-Error "audit-draft-remediation: -DuplicateOf '$($dupKeyParts[0]) $($dupKeyParts[1])' does not match a finding currently parsed from the code, tests or docs stage artifacts."
-            exit 1
+        if ($f.reportedByLine) {
+            $withReportedBy = Add-ReportedByLine $text ([string]$f.reportedByLine)
+            if ($withReportedBy.Found) { $text = $withReportedBy.Text }
+            else { $problems.Add("$label`: $draftName has no '## Description' header for the line '$($f.reportedByLine)'.") }
+        }
+
+        if ($text -ne $raw) { Set-Content -LiteralPath $draftPath -Encoding utf8 -NoNewline -Value $text }
+
+        if ($route) {
+            $templateText = Get-Content -LiteralPath $route.template -Raw
+            foreach ($placeholder in (Find-TemplatePlaceholders $templateText $text)) { $problems.Add("$label`: $draftName still has template placeholder text: $placeholder") }
+            foreach ($missingHeader in (Find-MissingTemplateHeaders $templateText $text)) { $problems.Add("$label`: $draftName is missing the template header '$missingHeader' (or has it out of order).") }
         }
     }
+
+    if (-not (Test-InScope $stageOut)) { $problems.Add("$stageOut is outside the dry-run sandbox; not checked.") }
+    elseif (-not (Test-Path -LiteralPath $stageOut)) { $problems.Add("$(Split-Path -Leaf $stageOut) is missing; remediation-drafter must write it at $stageOut.") }
+    else {
+        $stageLines = @(Get-Content -LiteralPath $stageOut)
+        $firstLine = @($stageLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+        if ($firstLine.Count -eq 0 -or $firstLine[0] -ne [string]$manifest.stageHeader) { $problems.Add("$(Split-Path -Leaf $stageOut) must start with the line '$($manifest.stageHeader)'.") }
+        foreach ($f in @($manifest.findings)) {
+            if ($stageLines -notcontains [string]$f.remediationLine) { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the manifest's line for $($f.label): '$($f.remediationLine)'.") }
+        }
+        if (@($manifest.findings).Count -eq 0 -and $stageLines -notcontains [string]$manifest.emptyLine) { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the line '$($manifest.emptyLine)'.") }
+        if ($stageLines -notcontains $lessonsHeading) { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the '$lessonsHeading' section.") }
+    }
+
+    foreach ($note in $notes) { "note: $note" }
+    if ($problems.Count -gt 0) {
+        foreach ($problem in $problems) { "problem: $problem" }
+        "audit-draft-remediation: -Finalize found $($problems.Count) problem(s) for #$n; re-spawn remediation-drafter with this output, then run -Finalize again."
+        exit 1
+    }
+    "audit-draft-remediation: -Finalize clean for #$n ($(@($manifest.findings | Where-Object { $_.regenerate -and $_.draftFile }).Count) draft(s) checked); commit the stage with audit-commit-stage.ps1 -Stage remediation."
+    exit 0
 }
 
-# #1491: group the audit's own findings by their leading location anchor BEFORE any -Only validation or
-# drafting -- two stages that flag the same defect (same file, overlapping/equal line range) draft ONE issue,
-# never two (audit #17 verification pass 2: docs finding 7 and code finding 4 both cited
-# `src/Encina.DomainModeling/AggregateBase.cs:20`). Computed from the FULL finding set, never only a later
-# -Only subset, so an -Only run always picks the same group and the same primary a full run would.
-# $groupIndexByKey maps every finding's own "stage|id" key to its group's index in $groups; each group's own
-# Primary (the finding whose text drafts the group's issue) is computed once, here.
+# ------------------------------------------------------------------------------------------------------------
+# -Prepare
+# ------------------------------------------------------------------------------------------------------------
+$docsFile = Get-StageFile 'docs'
+if (-not (Test-Path -LiteralPath $docsFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $docsFile) is missing; run the docs stage before remediation." }
+
+# Routing table (#1375 decision 3): kind -> template, title prefix, labels, milestone. The milestone's em dash is
+# built from its code point so this file stays ASCII-only while matching the real GitHub milestone title.
+$templatesDir = Join-Path $wt '.github\ISSUE_TEMPLATE'
+$hardeningMilestone = "v0.14.0 $([char]0x2014) Hardening"
+$routes = [ordered]@{
+    bug  = [ordered]@{ template = (Join-Path $templatesDir 'bug_report.md'); prefix = '[BUG]'; labels = @('bug'); milestone = $hardeningMilestone }
+    test = [ordered]@{ template = (Join-Path $templatesDir 'test_implementation.md'); prefix = '[TEST]'; labels = @('area-testing'); milestone = '' }
+    debt = [ordered]@{ template = (Join-Path $templatesDir 'technical_debt.md'); prefix = '[DEBT]'; labels = @('technical-debt'); milestone = '' }
+    docs = [ordered]@{ template = (Join-Path $templatesDir 'technical_debt.md'); prefix = '[DEBT]'; labels = @('technical-debt', 'area-documentation'); milestone = '' }
+}
+foreach ($kindName in $routes.Keys) {
+    if (-not (Test-Path -LiteralPath $routes[$kindName].template)) { Stop-Remediation "issue template '$($routes[$kindName].template)' not found." }
+}
+if (-not $NoGh) {
+    $existingLabels = @((Get-GhResult @('label', 'list', '--repo', 'dlrivada/Encina', '--limit', '400', '--json', 'name', '--jq', '.[].name') 'the label check') -split "`r?`n")
+    if ($existingLabels -notcontains 'area-documentation') { $routes.docs.labels = @('technical-debt') }
+}
+
+# A '## Findings' header literally present in the file: only an explicit "- none" body means zero findings; a
+# missing header is always an error (#1375 CodeRabbit review).
+function Test-FindingsHeaderPresent([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    return [regex]::IsMatch((Get-Content -LiteralPath $Path -Raw), '(?m)^##\s*Findings\s*$')
+}
+
+$allFindings = [System.Collections.Generic.List[pscustomobject]]::new()
+foreach ($stageName in 'code', 'tests', 'docs') {
+    $stageFile = Get-StageFile $stageName
+    if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
+    try { foreach ($f in (Split-Findings $stageName (Get-StageSection $stageFile 'Findings'))) { $allFindings.Add($f) } }
+    catch { Stop-Remediation $_.Exception.Message }
+}
+$allFindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)") }
+
+$requestedKeys = @()
+if ($duplicateOfEntries) { $requestedKeys += @($duplicateOfEntries.Keys | ForEach-Object { [pscustomobject]@{ Option = '-DuplicateOf'; Key = $_ } }) }
+if ($onlyKeys) { $requestedKeys += @($onlyKeys | ForEach-Object { [pscustomobject]@{ Option = '-Only'; Key = $_ } }) }
+foreach ($requested in $requestedKeys) {
+    if (-not $allFindingKeys.Contains($requested.Key)) { Stop-Remediation "$($requested.Option) '$($requested.Key -replace '\|', ' ')' does not match a finding currently parsed from the code, tests or docs stage artifacts." }
+}
+
+# #1534 decision 3: every -DuplicateOf target must be a real, OPEN issue.
+if ($duplicateOfEntries -and -not $NoGh) {
+    foreach ($dupIssueNumber in @($duplicateOfEntries.Values | Select-Object -Unique)) {
+        $stateJson = Get-GhResult @('issue', 'view', $dupIssueNumber, '--repo', 'dlrivada/Encina', '--json', 'state') "-DuplicateOf #$dupIssueNumber"
+        $state = $null
+        try { $state = ($stateJson | ConvertFrom-Json).state } catch { $state = $null }
+        if ($state -ne 'OPEN') { Stop-Remediation "-DuplicateOf names #$dupIssueNumber, but it is not an OPEN issue (state: $(if ($state) { $state } else { 'unknown' }))." }
+    }
+}
+
+# #1491: groups by leading location anchor, computed from the FULL finding set so an -Only run picks the same
+# group and primary a full run would.
 $groups = Group-FindingsByLocation $allFindings
 $groupIndexByKey = @{}
 for ($gi = 0; $gi -lt $groups.Count; $gi++) {
@@ -378,577 +309,273 @@ for ($gi = 0; $gi -lt $groups.Count; $gi++) {
     foreach ($m in $groups[$gi].Members) { $groupIndexByKey["$($m.Stage)|$($m.Id)"] = $gi }
 }
 
-# #1534 decision 4: resolves every -DuplicateOf key to its GROUP index -- when the overridden finding is the
-# primary of a #1491 same-location group, or any other member of one, the WHOLE group is recorded as that
-# duplicate. Two -DuplicateOf entries that resolve to the same group must name the same issue; anything else is
-# an ambiguous override this script refuses to guess at.
+# #1534 decision 4: an override names a GROUP; two overrides on one group must agree.
 $groupDuplicateIssue = @{}
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) {
         $dupGroupIdx = $groupIndexByKey[$dupKey]
-        $dupIssueNumber = $duplicateOfEntries[$dupKey]
-        if ($groupDuplicateIssue.ContainsKey($dupGroupIdx) -and $groupDuplicateIssue[$dupGroupIdx] -ne $dupIssueNumber) {
-            $dupKeyParts = $dupKey -split '\|', 2
-            Write-Error "audit-draft-remediation: -DuplicateOf '$($dupKeyParts[0]) $($dupKeyParts[1])' names #$dupIssueNumber, but another finding in the same location group already names #$($groupDuplicateIssue[$dupGroupIdx])."
-            exit 1
+        if ($groupDuplicateIssue.ContainsKey($dupGroupIdx) -and $groupDuplicateIssue[$dupGroupIdx] -ne $duplicateOfEntries[$dupKey]) {
+            Stop-Remediation "-DuplicateOf '$($dupKey -replace '\|', ' ')' names #$($duplicateOfEntries[$dupKey]), but another finding in the same location group already names #$($groupDuplicateIssue[$dupGroupIdx])."
         }
-        $groupDuplicateIssue[$dupGroupIdx] = $dupIssueNumber
+        $groupDuplicateIssue[$dupGroupIdx] = $duplicateOfEntries[$dupKey]
     }
 }
 
-$remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
-New-Item -ItemType Directory -Force $remediationDir | Out-Null
-
-# #1492 decision 3: -Only validation and existing-file parse, done before any cleanup so a bad -Only value or a
-# missing/incomplete stages/remediation.md is reported before anything on disk is touched.
+# #1492 decision 3: -Only keeps every other finding's existing line and lessons, read from the stage file this
+# run's drafter will rewrite (the sandbox preview under -DryRun).
 $existingFindingLines = @{}
-$existingLessonLines = [System.Collections.Generic.List[string]]::new()
+$keptLessons = [System.Collections.Generic.List[string]]::new()
+$existingLessons = [System.Collections.Generic.List[string]]::new()
 if ($onlyKeys) {
-    $allFindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)") }
-    foreach ($key in $onlyKeys) {
-        if (-not $allFindingKeys.Contains($key)) {
-            $keyParts = $key -split '\|', 2
-            Write-Error "audit-draft-remediation: -Only '$($keyParts[0]) $($keyParts[1])' does not match a finding currently parsed from the code, tests or docs stage artifacts."
-            exit 1
-        }
-    }
-
-    $remediationFile = StageFile 'remediation'
-    if (-not (Test-Path -LiteralPath $remediationFile)) {
-        Write-Error "audit-draft-remediation: -Only requires an existing stages\$(Split-Path -Leaf $remediationFile) to update; run a full regeneration (no -Only) first."
-        exit 1
-    }
-    $inLessonsSection = $false
-    foreach ($rawLine in (Get-Content -LiteralPath $remediationFile)) {
-        if ($rawLine -eq '## Lessons for the pipeline') { $inLessonsSection = $true; continue }
-        if ($inLessonsSection) {
-            if ($rawLine -eq '- none') { continue }
-            $existingLessonLines.Add(($rawLine -replace '^-\s*', ''))
+    if (-not (Test-Path -LiteralPath $stageOut)) { Stop-Remediation "-Only requires an existing $stageOut to update; run a full -Prepare (no -Only) and the drafter first." }
+    $inLessons = $false
+    foreach ($rawLine in (Get-Content -LiteralPath $stageOut)) {
+        if ($rawLine -eq $lessonsHeading) { $inLessons = $true; continue }
+        if ($inLessons) {
+            if ($rawLine -match '^-\s+(?<text>.+)$' -and $Matches['text'] -ne 'none') { $existingLessons.Add($Matches['text']) }
             continue
         }
         $lineMatch = [regex]::Match($rawLine, '^-\s+(?<stage>\S+)\s+(?<id>\S+)\s+\(')
-        if ($lineMatch.Success) {
-            $existingFindingLines["$($lineMatch.Groups['stage'].Value)|$($lineMatch.Groups['id'].Value)"] = $rawLine
-        }
-    }
-    foreach ($f in $allFindings) {
-        $key = "$($f.Stage)|$($f.Id)"
-        if (-not $onlyKeys.Contains($key) -and -not $existingFindingLines.ContainsKey($key)) {
-            Write-Error "audit-draft-remediation: -Only cannot find an existing line for '$($f.Stage) $($f.Id)' in stages\$(Split-Path -Leaf $remediationFile); run a full regeneration (no -Only) first."
-            exit 1
-        }
+        if ($lineMatch.Success) { $existingFindingLines["$($lineMatch.Groups['stage'].Value)|$($lineMatch.Groups['id'].Value)"] = $rawLine }
     }
 }
 
-# #1491 decision 4: -Only resolves each requested key to its GROUP's primary finding -- naming a merged
-# (non-primary) finding regenerates the one draft its group actually produces, rather than trying (and failing)
-# to draft the merged finding on its own. $touchedGroupIndexes is the distinct, first-appearance-ordered set of
-# group indexes any requested key belongs to; a full run (no -Only) touches every group. $touchedMemberKeys is
-# every finding (primary and merged alike) inside a touched group -- this run recomputes ALL of their lines,
-# never only the primaries'. $touchedPrimaryKeys is what -Only's own cleanup below must target: the group's
-# PRIMARY finding's previous outputs, which is what actually gets regenerated, even when the user named a
-# merged sibling instead.
-$touchedGroupIndexes = if ($onlyKeys) {
-    $seenGroupIdx = [System.Collections.Generic.HashSet[int]]::new()
-    $orderedGroupIdx = [System.Collections.Generic.List[int]]::new()
+# Touched groups: every group for a full run; for -Only, the groups of the named findings plus every
+# -DuplicateOf override's group (an override always takes effect on its own, #1534).
+$touchedGroupIndexes = [System.Collections.Generic.List[int]]::new()
+if ($onlyKeys) {
+    $seenGroups = [System.Collections.Generic.HashSet[int]]::new()
     foreach ($f in $allFindings) {
         $key = "$($f.Stage)|$($f.Id)"
-        if ($onlyKeys.Contains($key)) {
-            $gi = $groupIndexByKey[$key]
-            if ($seenGroupIdx.Add($gi)) { $orderedGroupIdx.Add($gi) }
-        }
+        if ($onlyKeys.Contains($key) -and $seenGroups.Add($groupIndexByKey[$key])) { $touchedGroupIndexes.Add($groupIndexByKey[$key]) }
     }
-    # #1534: a -DuplicateOf override always regenerates and records its own group this run, even when its key
-    # was not separately repeated under -Only -- the override must take effect on its own, not only in the
-    # typical "-Only 'docs 12' -DuplicateOf 'docs 12=1177'" pairing where the two keys already match.
-    foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) {
-        if ($seenGroupIdx.Add($dupGroupIdx)) { $orderedGroupIdx.Add($dupGroupIdx) }
-    }
-    $orderedGroupIdx
+    foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) { if ($seenGroups.Add($dupGroupIdx)) { $touchedGroupIndexes.Add($dupGroupIdx) } }
 }
-elseif ($groups.Count -eq 0) { @() }
-else { @(0..($groups.Count - 1)) }
+else { for ($gi = 0; $gi -lt $groups.Count; $gi++) { $touchedGroupIndexes.Add($gi) } }
 
-$findingsToProcess = @($touchedGroupIndexes | ForEach-Object { $groups[$_].Primary })
 $touchedMemberKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($gi in $touchedGroupIndexes) { foreach ($m in $groups[$gi].Members) { [void]$touchedMemberKeys.Add("$($m.Stage)|$($m.Id)") } }
-$touchedPrimaryKeys = @($touchedGroupIndexes | ForEach-Object { $p = $groups[$_].Primary; "$($p.Stage)|$($p.Id)" })
-
 if ($onlyKeys) {
-    # -Only regenerates ONLY the named finding(s)' GROUP -- remove just its primary's own previous outputs,
-    # never another group's draft/input/brief/dry-run-preview file, so every other draft on disk stays
-    # byte-identical.
-    foreach ($key in $touchedPrimaryKeys) {
-        $keyParts = $key -split '\|', 2
-        $keyStage = $keyParts[0]; $keyId = $keyParts[1]
-        # #1492 (adversarial review): every pattern below has a literal separator immediately after $keyId, so
-        # a numeric-id prefix collision within the same stage (-Only "code 1" vs. an existing "code 10") can
-        # never match another finding's file -- "_brief-...-$keyId*.md" (no separator before the wildcard) used
-        # to be the one exception, matching "_brief-<n>-code-10.md" too and deleting an untouched finding's
-        # brief without ever regenerating it; it is now two exact patterns (the base brief and its "-reask"
-        # variant), like the input/classify patterns already were.
-        $narrowPatterns = "$n-$keyStage-$keyId-*.md", "_input-$n-$keyStage-$keyId.md", "_classify-brief-$n-$keyStage-$keyId.md", "_classify-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId.md", "_brief-$n-$keyStage-$keyId-reask.md"
-        foreach ($pattern in $narrowPatterns) {
-            foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
-                Remove-Item -LiteralPath $staleFile.FullName -Force
-                "audit-draft-remediation: removed previous output $($staleFile.Name)"
+    foreach ($f in $allFindings) {
+        $key = "$($f.Stage)|$($f.Id)"
+        if (-not $touchedMemberKeys.Contains($key) -and -not $existingFindingLines.ContainsKey($key)) {
+            Stop-Remediation "-Only cannot find an existing line for '$($f.Stage) $($f.Id)' in $(Split-Path -Leaf $stageOut); run a full -Prepare (no -Only) and the drafter first."
+        }
+    }
+    foreach ($oldLesson in $existingLessons) {
+        $belongs = $false
+        foreach ($touchedKey in $touchedMemberKeys) {
+            $keyParts = $touchedKey -split '\|', 2
+            if ($oldLesson -match ('^' + [regex]::Escape($keyParts[0]) + '\s+' + [regex]::Escape($keyParts[1]) + '\b')) { $belongs = $true; break }
+        }
+        if (-not $belongs) { $keptLessons.Add($oldLesson) }
+    }
+}
+
+function Get-FindingLabel($Finding) { "$($Finding.Stage) $($Finding.Id) ($($Finding.Severity))" }
+function Get-InputPath($Finding) { Join-Path $outDir "_input-$n-$($Finding.Stage)-$($Finding.Id).md" }
+
+# Every gh call (the duplicate search) runs here, before anything on disk is touched (#1548): a failure stops
+# the run with the previous outputs intact.
+$lessons = [System.Collections.Generic.List[string]]::new()
+foreach ($f in $allFindings) {
+    if ($touchedMemberKeys.Contains("$($f.Stage)|$($f.Id)") -and $f.Severity -eq 'Unknown') {
+        $lessons.Add("$($f.Stage) $($f.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
+    }
+}
+if ($duplicateOfEntries) {
+    foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
+}
+
+$entriesByKey = @{}
+$ghIssueCache = @{}
+foreach ($gi in $touchedGroupIndexes) {
+    $group = $groups[$gi]
+    $primary = $group.Primary
+    $primaryKey = "$($primary.Stage)|$($primary.Id)"
+    $primaryLabel = Get-FindingLabel $primary
+    $memberKeys = @($group.Members | ForEach-Object { "$($_.Stage) $($_.Id)" })
+
+    $duplicateOfIssue = $null
+    $duplicateSource = $null
+    $partiallyRelated = [System.Collections.Generic.List[string]]::new()
+    $possiblyRelated = [System.Collections.Generic.List[string]]::new()
+    if ($groupDuplicateIssue.ContainsKey($gi)) {
+        $duplicateOfIssue = $groupDuplicateIssue[$gi]
+        $duplicateSource = 'manual override'
+    }
+    elseif (-not $NoGh) {
+        # One search per term (GitHub ANDs a space-separated query), merged by number, capped at 10.
+        $candidatesByNumber = [ordered]@{}
+        foreach ($term in (Get-SearchTerms $primary.Text)) {
+            $listJson = Get-GhResult @('issue', 'list', '--repo', 'dlrivada/Encina', '--state', 'open', '--search', $term, '--json', 'number,title', '--limit', '8') "$primaryLabel (term '$term')"
+            $parsed = @()
+            try { $parsed = @($listJson | ConvertFrom-Json) } catch { $parsed = @() }
+            foreach ($c in $parsed) { if (-not $candidatesByNumber.Contains([string]$c.number)) { $candidatesByNumber[[string]$c.number] = $c } }
+        }
+        $evidenceCandidates = foreach ($c in @($candidatesByNumber.Values | Select-Object -First 10)) {
+            $number = [string]$c.number
+            if (-not $ghIssueCache.ContainsKey($number)) {
+                $viewJson = Get-GhResult @('issue', 'view', $number, '--repo', 'dlrivada/Encina', '--json', 'title,body') "$primaryLabel (candidate #$number)"
+                $ghIssueCache[$number] = try { $viewJson | ConvertFrom-Json } catch { $null }
+            }
+            $cached = $ghIssueCache[$number]
+            [pscustomobject]@{ Number = $number; Title = [string]$c.title; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
+        }
+        $evidenceCandidates = @($evidenceCandidates)
+        $duplicateOfIssue = Find-DuplicateAmongCandidates $primary.Text $evidenceCandidates
+        if ($duplicateOfIssue) { $duplicateSource = 'evidence' }
+        else {
+            foreach ($c in $evidenceCandidates) {
+                if ([string]$c.Number -eq $n) { continue }
+                if (Test-PartialDuplicateEvidence $primary.Text $c.TitleAndBody) { $partiallyRelated.Add("- #$($c.Number) - partially related (it covers only part of this finding)") }
+                else { $possiblyRelated.Add("#$($c.Number): $($c.Title)") }
             }
         }
     }
-    $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
-    if ($DryRun) {
-        New-Item -ItemType Directory -Force $dryRunDir | Out-Null
-        foreach ($key in $touchedPrimaryKeys) {
-            $keyParts = $key -split '\|', 2
-            foreach ($staleFile in (Get-ChildItem -LiteralPath $dryRunDir -Filter "$($keyParts[0])-$($keyParts[1])-*.md" -File -ErrorAction SilentlyContinue)) {
-                Remove-Item -LiteralPath $staleFile.FullName -Force
-            }
-        }
+
+    $kind = $null
+    $kindOptions = @()
+    $draftFile = $null
+    $primaryLine = $null
+    if ($duplicateOfIssue) {
+        $primaryLine = if ($duplicateSource -eq 'manual override') { "- $primaryLabel`: duplicate of #$duplicateOfIssue (manual override)" } else { "- $primaryLabel`: duplicate of #$duplicateOfIssue" }
     }
     else {
-        $dryRunDir = $null
+        # Deterministic where the stage decides it; a code-stage finding is a bug, debt or documentation drift
+        # only the drafter can tell apart after reading the code.
+        switch ($primary.Stage) {
+            'tests' { $kind = 'test'; $kindOptions = @('test') }
+            'docs' { $kind = 'docs'; $kindOptions = @('docs') }
+            default { $kind = 'drafter-decides'; $kindOptions = @('bug', 'debt', 'docs') }
+        }
+        $draftFile = Join-Path $outDir "$n-$($primary.Stage)-$($primary.Id)-$(New-Slug $primary.Text).md"
+        $primaryLine = "- $primaryLabel`: draft $(Split-Path -Leaf $draftFile)"
+    }
+
+    foreach ($member in $group.Members) {
+        $memberKey = "$($member.Stage)|$($member.Id)"
+        $isPrimary = $memberKey -eq $primaryKey
+        $memberLabel = Get-FindingLabel $member
+        $line = if ($isPrimary) { $primaryLine }
+        elseif ($duplicateSource -eq 'manual override') { "- $memberLabel`: duplicate of #$duplicateOfIssue (manual override)" }
+        else { "- $memberLabel`: merged into $($primary.Stage) $($primary.Id) (same location)" }
+        $fixedRoute = if ($isPrimary -and $kind -and $kind -ne 'drafter-decides') { $routes[$kind] } else { $null }
+        $entriesByKey[$memberKey] = [ordered]@{
+            key              = "$($member.Stage) $($member.Id)"
+            stage            = $member.Stage
+            id               = $member.Id
+            severity         = $member.Severity
+            label            = $memberLabel
+            regenerate       = $true
+            inputFile        = (Get-InputPath $member)
+            groupPrimary     = "$($primary.Stage) $($primary.Id)"
+            groupMembers     = $memberKeys
+            mergedInto       = if ($isPrimary -or $duplicateSource -eq 'manual override') { $null } else { "$($primary.Stage) $($primary.Id)" }
+            duplicateOf      = $duplicateOfIssue
+            duplicateSource  = $duplicateSource
+            partiallyRelated = if ($isPrimary) { @($partiallyRelated) } else { @() }
+            possiblyRelated  = if ($isPrimary) { @($possiblyRelated) } else { @() }
+            kind             = if ($isPrimary) { $kind } else { $null }
+            kindOptions      = if ($isPrimary) { $kindOptions } else { @() }
+            template         = if ($fixedRoute) { $fixedRoute.template } else { $null }
+            prefix           = if ($fixedRoute) { $fixedRoute.prefix } else { $null }
+            labels           = if ($fixedRoute) { @($fixedRoute.labels) } else { $null }
+            milestone        = if ($fixedRoute) { $fixedRoute.milestone } else { $null }
+            draftFile        = if ($isPrimary) { $draftFile } else { $null }
+            reportedByLine   = if ($isPrimary -and $draftFile -and $group.Members.Count -gt 1) { 'Reported by: ' + ($memberKeys -join ', ') + '.' } else { $null }
+            remediationLine  = $line
+        }
+        "$memberLabel -> $($line -replace '^-\s+[^:]+:\s*', '')$(if ($isPrimary -and $kind) { " (kind: $kind)" })"
+    }
+}
+
+# Untouched findings of an -Only run: their existing line, draft and input, verbatim (#1492 decision 3).
+$findingEntries = foreach ($f in $allFindings) {
+    $key = "$($f.Stage)|$($f.Id)"
+    if ($entriesByKey.ContainsKey($key)) { $entriesByKey[$key]; continue }
+    $group = $groups[$groupIndexByKey[$key]]
+    $existingDraft = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $existingInput = Get-InputPath $f
+    [ordered]@{
+        key              = "$($f.Stage) $($f.Id)"
+        stage            = $f.Stage
+        id               = $f.Id
+        severity         = $f.Severity
+        label            = Get-FindingLabel $f
+        regenerate       = $false
+        inputFile        = if (Test-Path -LiteralPath $existingInput) { $existingInput } else { $null }
+        groupPrimary     = "$($group.Primary.Stage) $($group.Primary.Id)"
+        groupMembers     = @($group.Members | ForEach-Object { "$($_.Stage) $($_.Id)" })
+        mergedInto       = $null
+        duplicateOf      = $null
+        duplicateSource  = $null
+        partiallyRelated = @()
+        possiblyRelated  = @()
+        kind             = $null
+        kindOptions      = @()
+        template         = $null
+        prefix           = $null
+        labels           = $null
+        milestone        = $null
+        draftFile        = if ($existingDraft.Count -gt 0) { $existingDraft[0].FullName } else { $null }
+        reportedByLine   = $null
+        remediationLine  = $existingFindingLines[$key]
+    }
+}
+
+$manifest = [ordered]@{
+    issue          = [int]$n
+    worktree       = $wt
+    dryRun         = [bool]$DryRun
+    only           = if ($Only) { @($Only) } else { $null }
+    outputDir      = $outDir
+    stageFile      = $stageOut
+    stageHeader    = "Remediation for #$n`:"
+    emptyLine      = "No findings from the code, tests or docs stages for #$n; no remediation drafts were written."
+    lessonsHeading = $lessonsHeading
+    lessons        = @($lessons)
+    keptLessons    = @($keptLessons)
+    routes         = $routes
+    findings       = @($findingEntries)
+}
+
+# Cleanup, then write: only now that every gh call has succeeded. A dry run touches nothing but its sandbox.
+New-Item -ItemType Directory -Force $outDir | Out-Null
+if ($onlyKeys) {
+    foreach ($gi in $touchedGroupIndexes) {
+        foreach ($member in $groups[$gi].Members) {
+            # A literal separator right after the id, so "code 1" never matches "code 10"'s files (#1492).
+            foreach ($pattern in "$n-$($member.Stage)-$($member.Id)-*.md", "_input-$n-$($member.Stage)-$($member.Id).md") {
+                foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+                    Remove-Item -LiteralPath $staleFile.FullName -Force
+                    "audit-draft-remediation: removed previous output $($staleFile.Name)"
+                }
+            }
+        }
     }
 }
 else {
-    # Remove only THIS audit's previous outputs before drafting -- a re-run (e.g. after a Verdict: FAIL) must not
-    # accumulate stale drafts/intermediates from an earlier run of the same audit, and must never touch another
-    # audit's files (every pattern below is anchored on "$n-", never a bare wildcard).
-    $cleanupPatterns = "$n-*.md", "_input-$n-*.md", "_classify-brief-$n-*.md", "_classify-$n-*.md", "_brief-$n-*.md"
-    foreach ($pattern in $cleanupPatterns) {
-        foreach ($staleFile in (Get-ChildItem -LiteralPath $remediationDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+    foreach ($pattern in "$n-*.md", "_input-$n-*.md", "_manifest-$n.json") {
+        foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             Remove-Item -LiteralPath $staleFile.FullName -Force
             "audit-draft-remediation: removed previous output $($staleFile.Name)"
         }
     }
-    $dryRunDir = Join-Path $remediationDir "_dryrun-$n"
-    if (Test-Path -LiteralPath $dryRunDir) {
-        Remove-Item -LiteralPath $dryRunDir -Recurse -Force
+    if ($DryRun) {
+        if (Test-Path -LiteralPath $stageOut) { Remove-Item -LiteralPath $stageOut -Force; "audit-draft-remediation: removed previous output _dryrun-$n\remediation.md" }
+    }
+    elseif (Test-Path -LiteralPath $sandboxDir) {
+        Remove-Item -LiteralPath $sandboxDir -Recurse -Force
         "audit-draft-remediation: removed previous output _dryrun-$n\"
     }
-
-    if ($DryRun) {
-        New-Item -ItemType Directory -Force $dryRunDir | Out-Null
-    }
-    else {
-        $dryRunDir = $null
-    }
 }
 
-$computedLinesByKey = @{}
-$lessons = [System.Collections.Generic.List[string]]::new()
-$placeholderFailures = [System.Collections.Generic.List[string]]::new()
-$ghIssueCache = @{}
-
-# #1491 decision 3: writes $LinesByKey[$PrimaryKey] = $PrimaryLine for the group's primary finding (the one
-# this run actually classified and drafted) and, for every OTHER member of its group, a
-# "merged into <primary stage> <primary id> (same location)" line -- so stages/remediation.md still lists
-# EVERY finding this run touched, never only the primaries, with the merged ones pointing at the draft that
-# covers them instead of getting a second draft of their own.
-function Set-GroupLines {
-    param([hashtable]$LinesByKey, [string]$PrimaryKey, [string]$PrimaryLine, [object[]]$OtherMembers, [string]$PrimaryStage, [string]$PrimaryId)
-
-    $LinesByKey[$PrimaryKey] = $PrimaryLine
-    foreach ($other in $OtherMembers) {
-        $otherLabel = "$($other.Stage) $($other.Id) ($($other.Severity))"
-        $LinesByKey["$($other.Stage)|$($other.Id)"] = "- $otherLabel`: merged into $PrimaryStage $PrimaryId (same location)"
-    }
-}
-
-# A finding Split-Findings could not parse into the expected numbered layout (Severity 'Unknown', the whole
-# section as its Text) is never allowed to pass through silently: the stage's own findings format drifted from
-# what this parser recognizes, which is exactly the "one issue eats every finding" failure #1375 was filed to
-# fix if it goes unnoticed. Flag it as a pipeline lesson so the orchestrator sees it and can decide whether the
-# stage needs re-running with a corrected format, even though it still gets classified and drafted like any
-# other finding below (never dropped).
-# #1492 decision 3, widened by #1491: scoped to $touchedFindings (every finding -- primary or merged -- of a
-# group this run touched, not just $findingsToProcess's own primaries), so an -Only run never re-adds this
-# lesson for a finding it did not touch this time -- $existingLessonLines below already carries that finding's
-# own earlier copy of it forward untouched.
-$touchedFindings = @($allFindings | Where-Object { $touchedMemberKeys.Contains("$($_.Stage)|$($_.Id)") })
-foreach ($unknownFinding in ($touchedFindings | Where-Object { $_.Severity -eq 'Unknown' })) {
-    $lessons.Add("$($unknownFinding.Stage) $($unknownFinding.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
-}
-
-# #1534 decision 5: every -DuplicateOf override is logged under '## Lessons for the pipeline', named by the
-# exact key the caller passed (never the group's primary), so audit-verifier and the pipeline's own lessons
-# history see it even though no draft, classify or dedup step ran for it this time.
-if ($duplicateOfEntries) {
-    foreach ($dupKey in $duplicateOfEntries.Keys) {
-        $dupKeyParts = $dupKey -split '\|', 2
-        $lessons.Add("$($dupKeyParts[0]) $($dupKeyParts[1]): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override")
-    }
-}
-
-foreach ($finding in $findingsToProcess) {
-    $label = "$($finding.Stage) $($finding.Id) ($($finding.Severity))"
-    $findingKey = "$($finding.Stage)|$($finding.Id)"
-    # #1491 decision 2: the finding's own group and its OTHER members (never including itself) -- empty for a
-    # singleton group (a finding no other stage reported at the same location).
-    $group = $groups[$groupIndexByKey[$findingKey]]
-    $otherMembers = @($group.Members | Where-Object { -not ($_.Stage -eq $finding.Stage -and $_.Id -eq $finding.Id) })
-
-    # #1534 decision 3/4: a manually overridden group is recorded as a duplicate -- reusing the exact line
-    # format an automatically detected duplicate gets, plus " (manual override)" -- for EVERY member of the
-    # group, never only the primary; no local-model call, no draft, happens for it.
-    $overrideGroupIdx = $groupIndexByKey[$findingKey]
-    if ($groupDuplicateIssue.ContainsKey($overrideGroupIdx)) {
-        $overrideIssueNumber = $groupDuplicateIssue[$overrideGroupIdx]
-        foreach ($overrideMember in $group.Members) {
-            $overrideMemberLabel = "$($overrideMember.Stage) $($overrideMember.Id) ($($overrideMember.Severity))"
-            $computedLinesByKey["$($overrideMember.Stage)|$($overrideMember.Id)"] = "- $overrideMemberLabel`: duplicate of #$overrideIssueNumber (manual override)"
-        }
-        "$label -> duplicate of #$overrideIssueNumber (manual override)"
-        continue
-    }
-
-    $inputFile = if ($DryRun) { Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-input.md" } else { Join-Path $remediationDir "_input-$n-$($finding.Stage)-$($finding.Id).md" }
-    Set-Content -LiteralPath $inputFile -Encoding utf8 -Value $finding.Text
-
-    # One 'gh issue list --search' call per term (never terms joined with spaces -- GitHub's search treats a
-    # space-separated query as AND, which misses candidates that match only one term), merged by issue number
-    # so the same issue found by two terms is not listed twice, capped at 10 candidates.
-    $candidatesByNumber = [ordered]@{}
-    if (-not $NoGh) {
-        foreach ($term in (Get-SearchTerms $finding.Text)) {
-            if ([string]::IsNullOrWhiteSpace($term)) { continue }
-            $ghOut = & gh issue list --repo dlrivada/Encina --state open --search $term --json number,title --limit 8 2>&1
-            $ghExit = $LASTEXITCODE
-            if ($ghExit -ne 0) { Write-Error "audit-draft-remediation: 'gh issue list' failed for $label (term '$term', exit $ghExit): $ghOut"; exit 1 }
-            $parsed = @()
-            try { $parsed = @($ghOut | ConvertFrom-Json) } catch { $parsed = @() }
-            foreach ($c in $parsed) {
-                $key = [string]$c.number
-                if (-not $candidatesByNumber.Contains($key)) { $candidatesByNumber[$key] = $c }
-            }
-        }
-    }
-    $candidates = @($candidatesByNumber.Values | Select-Object -First 10)
-    $candidateNumbers = @($candidates | ForEach-Object { [string]$_.number })
-    $candidateLines = if ($candidates.Count -gt 0) { (($candidates | ForEach-Object { "#$($_.number): $($_.title)" }) -join '; ') } else { '(none found)' }
-    $possiblyRelatedNote = $null
-
-    # #1388 decision 2: the classifier also gets each candidate's own first 400 characters of body, not just
-    # its title -- a title alone is often too generic to tell two same-area bugs apart (the failure mode audit
-    # #16 hit). Fetched and cached per issue number ($ghIssueCache, declared once above the loop), so the
-    # duplicate-evidence check below reuses the same fetch instead of asking `gh` again.
-    if (-not $NoGh) {
-        foreach ($c in $candidates) {
-            [void](Get-CachedIssueTitleBody ([string]$c.number) $ghIssueCache $label)
-        }
-    }
-    $candidateLinesForClassify = if ($candidates.Count -gt 0) {
-        (($candidates | ForEach-Object {
-            $cached = $ghIssueCache[[string]$_.number]
-            $bodyExcerpt = if ($cached -and $cached.body) { ($cached.body.Substring(0, [Math]::Min(400, $cached.body.Length)) -replace '\s+', ' ').Trim() } else { '' }
-            "#$($_.number): $($_.title) -- $bodyExcerpt"
-        }) -join "`n")
-    }
-    else { '(none found)' }
-
-    if ($DryRun) {
-        $kind = Get-DryRunKind $finding.Stage $finding.Severity
-        $route = $routing[$kind]
-        $briefFile = Join-Path $dryRunDir "$($finding.Stage)-$($finding.Id)-brief.md"
-        Set-Content -LiteralPath $briefFile -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: would route to $kind ($($route.Template))" $otherMembers $finding.Stage $finding.Id
-        "DRYRUN $label -> $kind ($($route.Template))"
-        continue
-    }
-
-    # Step (a): classify (kind) and deduplicate (duplicate-of) in one short local-model call.
-    $classifyBrief = Join-Path $remediationDir "_classify-brief-$n-$($finding.Stage)-$($finding.Id).md"
-    Set-Content -LiteralPath $classifyBrief -Encoding utf8 -Value @"
-Classify ONE finding from the SPEC-003 audit of closed GitHub issue #$n of the Encina .NET library. Reply with
-EXACTLY one line and nothing else:
-
-kind: bug|test|debt|docs; duplicate-of: #m|none; keywords: k1, k2, k3
-
-- kind: "bug" for a code defect, "test" for missing tests or a coverage gap, "debt" for messy, duplicated,
-  incomplete or slow code that is not itself a defect, "docs" for documentation drift.
-- duplicate-of: the number of one of the candidate open issues below ONLY if it covers the exact same
-  problem as this finding; otherwise "none".
-- keywords: up to 3 short keywords for the finding.
-
-Candidate open issues (from `gh issue list --search`, title -- first 400 characters of body):
-$candidateLinesForClassify
-"@
-    $classifyOut = Join-Path $remediationDir "_classify-$n-$($finding.Stage)-$($finding.Id).md"
-    Push-Location $mainRoot
-    try {
-        $classifyOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-classify-$n-$($finding.Stage)-$($finding.Id)" --brief $classifyBrief --input $inputFile --out $classifyOut 2>&1
-        $classifyExit = $LASTEXITCODE
-    }
-    finally {
-        Pop-Location
-    }
-    if ($classifyExit -ne 0 -or -not (Test-Path -LiteralPath $classifyOut)) {
-        Write-Error "audit-draft-remediation: local model classification failed for $label (exit $classifyExit, output present: $(Test-Path -LiteralPath $classifyOut)): $classifyOutput"
-        exit 1
-    }
-    $classifyText = (Get-Content -LiteralPath $classifyOut -Raw).Trim()
-    # Anchored per-line, not '.*?' across the whole reply: a hedging, multi-sentence reply from the model
-    # ("I think kind: bug ... but actually duplicate-of: #999 ... though kind: debt is more fitting") would
-    # otherwise let a lazy '.*?' pair the FIRST 'kind:' mention with the FIRST 'duplicate-of:' mention instead
-    # of the model's real, final answer -- silently mis-routing or silently dropping the finding as a false
-    # duplicate. Only a line that starts with the exact "kind: ...; duplicate-of: ..." shape counts; when more
-    # than one line qualifies, the LAST one is taken as the model's final answer and the ambiguity is a lesson.
-    $classifyLinePattern = '^\s*kind:\s*(?<kind>bug|test|debt|docs)\s*;\s*duplicate-of:\s*(?<dup>#\d+|none)\b'
-    $classifyMatches = @(($classifyText -split "`r?`n") | ForEach-Object { [regex]::Match($_, $classifyLinePattern, 'IgnoreCase') } | Where-Object { $_.Success })
-    $duplicateOf = $null
-    if ($classifyMatches.Count -eq 0) {
-        $lessons.Add("$label`: local model classification did not match the expected 'kind: ...; duplicate-of: ...' line format ('$classifyText'); defaulted to debt, no duplicate assumed.")
-        $kind = 'debt'
-    }
-    else {
-        if ($classifyMatches.Count -gt 1) {
-            $lessons.Add("$label`: local model classification returned $($classifyMatches.Count) lines matching the expected format instead of one; used the last one.")
-        }
-        $classifyMatch = $classifyMatches[-1]
-        $kind = $classifyMatch.Groups['kind'].Value.ToLowerInvariant()
-        if ($classifyMatch.Groups['dup'].Value -ne 'none') { $duplicateOf = $classifyMatch.Groups['dup'].Value.TrimStart('#') }
-    }
-
-    if ($duplicateOf -and -not (Test-ValidDuplicate $duplicateOf $candidateNumbers)) {
-        $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, which is not one of the candidates passed to it; drafting normally.")
-        $duplicateOf = $null
-    }
-
-    # #1424 decision 2: duplicate-vs-new is decided deterministically against EVERY candidate the duplicate
-    # search returned, not only the one the model happened to name -- audit #16 verification pass 4 found the
-    # previous, model-named-only check unstable across re-runs for the very same finding and the very same open
-    # candidates (16-code-4 vs #1170). When one or more candidates pass Test-DuplicateEvidence, the finding is a
-    # duplicate of the lowest-numbered passing one, whatever the model answered; the model's own classification
-    # then only decides the drafted template kind below. Skipped under -NoGh, where no candidate body was ever
-    # fetched and no duplicate is ever accepted regardless (unchanged from before #1388).
-    $evidenceDuplicate = $null
-    if (-not $NoGh -and $candidateNumbers.Count -gt 0) {
-        $evidenceCandidates = foreach ($num in $candidateNumbers) {
-            $cached = Get-CachedIssueTitleBody $num $ghIssueCache $label
-            [pscustomobject]@{ Number = $num; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
-        }
-        $evidenceDuplicate = Find-DuplicateAmongCandidates $finding.Text $evidenceCandidates
-    }
-
-    if ($evidenceDuplicate) {
-        if ($duplicateOf -and $duplicateOf -ne $evidenceDuplicate) {
-            $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the deterministic evidence check accepted #$evidenceDuplicate instead (the lowest-numbered candidate with full anchor evidence); used #$evidenceDuplicate.")
-        }
-        elseif (-not $duplicateOf) {
-            $lessons.Add("$label`: local model did not name a duplicate, but the deterministic evidence check found #$evidenceDuplicate as a full-evidence duplicate; used it anyway.")
-        }
-        $duplicateOf = $evidenceDuplicate
-    }
-    elseif ($duplicateOf -and -not $NoGh) {
-        # #1388 decision 1 (unchanged): the model-named candidate -- like every other candidate offered for
-        # this finding -- failed the deterministic evidence check above (a cited file AND a cited symbol
-        # actually appearing in the candidate's title/body); draft as new, with a note instead of a silent drop.
-        $cachedCandidate = Get-CachedIssueTitleBody $duplicateOf $ghIssueCache $label
-        $candidateText = if ($cachedCandidate) { "$($cachedCandidate.title)`n$($cachedCandidate.body)" } else { '' }
-        $lessons.Add("$label`: local model named duplicate-of #$duplicateOf, but the evidence check found no matching file anchor and symbol anchor in #$duplicateOf's title/body; drafting as new instead.")
-        # #1400 decision 1: a candidate that covers at least one of the finding's own file anchors (just
-        # not every one -- Test-DuplicateEvidence's stricter bar) is worded as "partially related" rather than
-        # the weaker "possibly related", which is reserved for a candidate with no file-anchor overlap at all.
-        $possiblyRelatedNote = if (Test-PartialDuplicateEvidence $finding.Text $candidateText) {
-            "- #$duplicateOf - partially related (it covers only part of this finding)"
-        }
-        else {
-            "- #$duplicateOf - possibly related (the local model proposed it as a duplicate; the evidence check rejected it)"
-        }
-        $duplicateOf = $null
-    }
-
-    if ($duplicateOf) {
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: duplicate of #$duplicateOf" $otherMembers $finding.Stage $finding.Id
-        "$label -> duplicate of #$duplicateOf"
-        continue
-    }
-
-    # Step (b): draft, routed to the matching template.
-    $route = $routing[$kind]
-    # #1492 decision 1: computed once per finding, before either Repair-Draft call below, so a re-ask (which
-    # re-writes the whole draft from a fresh model reply) still gets the same deterministic Type tick applied
-    # to it the second time.
-    $debtType = if ($route.Template -eq 'technical_debt.md') { Get-DeterministicDebtType $finding.Stage $kind $finding.Text } else { $null }
-    $slug = New-Slug $finding.Text
-    $outFile = Join-Path $remediationDir "$n-$($finding.Stage)-$($finding.Id)-$slug.md"
-    $draftBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id).md"
-    Set-Content -LiteralPath $draftBrief -Encoding utf8 -Value (Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
-    Push-Location $mainRoot
-    try {
-        $draftOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$n-$($finding.Stage)-$($finding.Id)" --brief $draftBrief --input $inputFile --out $outFile 2>&1
-        $draftExit = $LASTEXITCODE
-    }
-    finally {
-        Pop-Location
-    }
-    if ($draftExit -ne 0 -or -not (Test-Path -LiteralPath $outFile)) {
-        Write-Error "audit-draft-remediation: local model drafting failed for $label (exit $draftExit, output present: $(Test-Path -LiteralPath $outFile)): $draftOutput"
-        exit 1
-    }
-
-    # #1388 decisions 3/4: strip an outer code fence and re-ask ONCE, naming the offending lines, when the
-    # template's own placeholder text survived into the draft. A draft that still has placeholders after the
-    # re-ask is kept (for inspection) rather than deleted, marked in stages/remediation.md, and named in this
-    # script's own non-zero exit at the very end -- the orchestrator sees it before audit-verifier does.
-    $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
-    if ($placeholders.Count -gt 0) {
-        $offendingLines = ($placeholders | ForEach-Object { "- $_" }) -join "`n"
-        $reaskBrief = Join-Path $remediationDir "_brief-$n-$($finding.Stage)-$($finding.Id)-reask.md"
-        Set-Content -LiteralPath $reaskBrief -Encoding utf8 -Value @"
-$(Build-DraftBrief $n $finding $kind $route $candidateLines $otherMembers)
-
-Your previous reply still contained the template's own placeholder text, unchanged, on these lines:
-$offendingLines
-
-Replace every one of them with real content drawn from the finding; never leave a bracketed example, '#___',
-an 'Example.Package' row or a literal 'Test N: Description' row untouched.
-"@
-        Push-Location $mainRoot
-        try {
-            $reaskOutput = & dotnet run (Join-Path $mainRoot 'tools\ai\local-ai-ask.cs') -- --task "remediation-$n-$($finding.Stage)-$($finding.Id)-reask" --brief $reaskBrief --input $inputFile --out $outFile 2>&1
-            $reaskExit = $LASTEXITCODE
-        }
-        finally {
-            Pop-Location
-        }
-        if ($reaskExit -ne 0 -or -not (Test-Path -LiteralPath $outFile)) {
-            Write-Error "audit-draft-remediation: local model re-ask drafting failed for $label (exit $reaskExit, output present: $(Test-Path -LiteralPath $outFile)): $reaskOutput"
-            exit 1
-        }
-        $placeholders = Repair-Draft $outFile $label $route.Template $lessons $finding.Text $wt $debtType
-    }
-
-    # #1388 decision 1: a duplicate the evidence check rejected is drafted as new, but the candidate it
-    # rejected is still worth a human glance -- append it to the draft's own Related Issues section.
-    # #1400 (adversarial review finding 1): Add-RelatedIssuesLine understands both conventions
-    # Limit-RelatedIssues does (the '## Related Issues' H2, and bug_report.md's own bold-bullet convention),
-    # so the note lands inside the section it names -- and inside what Limit-RelatedIssues itself scans below
-    # -- for every routed template, not only technical_debt.md/test_implementation.md.
-    if ($possiblyRelatedNote) {
-        $finalText = Get-Content -LiteralPath $outFile -Raw
-        $inserted = Add-RelatedIssuesLine $finalText $possiblyRelatedNote
-        if (-not $inserted.Found) {
-            $lessons.Add("$label`: could not find a Related Issues section in $(Split-Path -Leaf $outFile) to append the rejected duplicate note; appended it at the end of the file instead.")
-        }
-        $updatedText = if ($inserted.Found) { $inserted.Text } else { $finalText.TrimEnd() + "`n$possiblyRelatedNote`n" }
-        Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $updatedText
-    }
-
-    # #1400 decision 3, narrowed by #1424 decision 1 and widened by #1428 decision 2: sanitize the finished
-    # draft's own Related Issues section -- never let the model's free text stand unverified, and never keep a
-    # number just because it was offered as a search candidate (being a candidate is not evidence of a real
-    # relation). $possiblyRelatedNote (just written above, if present) is itself a legitimate, already
-    # anchor-checked reference, so its own line is passed as a script note the sanitizer must keep. For a draft
-    # routed to bug_report.md, the sanitizer also scans the whole '## Additional Context' section (that
-    # template's only place to put "related issues", per its own text), not only a labelled subsection inside
-    # it -- audit #16's real 16-code-5 draft puts a plain 'Related Issues:' line there with no structural
-    # marker of its own (#1428's own reproduction).
-    $sanitizeScriptNotes = if ($possiblyRelatedNote) { @($possiblyRelatedNote) } else { @() }
-    $isBugReportDraft = $route.Template -eq 'bug_report.md'
-    $sanitized = Limit-RelatedIssues (Get-Content -LiteralPath $outFile -Raw) $n $finding.Text $sanitizeScriptNotes $isBugReportDraft
-    if ($sanitized.Removed.Count -gt 0) {
-        Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $sanitized.Text
-        foreach ($removedNumber in $sanitized.Removed) {
-            $lessons.Add("$label`: removed unverified related issue #$removedNumber from $(Split-Path -Leaf $outFile)'s Related Issues section (not in the finding, the candidates offered, or the script's own notes).")
-        }
-    }
-
-    # #1491 decision 2: a merged group's draft names every stage and finding id it covers, deterministically --
-    # never left to the model to remember from the brief's own guidance note ($groupNote in Build-DraftBrief),
-    # the same pattern Set-BugEnvironment/Set-DebtType use for a section the script also overwrites for real.
-    if ($otherMembers.Count -gt 0) {
-        $reportedByLine = 'Reported by: ' + (($group.Members | ForEach-Object { "$($_.Stage) $($_.Id)" }) -join ', ') + '.'
-        $withReportedBy = Add-ReportedByLine (Get-Content -LiteralPath $outFile -Raw) $reportedByLine
-        if ($withReportedBy.Found) {
-            Set-Content -LiteralPath $outFile -Encoding utf8 -NoNewline -Value $withReportedBy.Text
-        }
-        else {
-            $lessons.Add("$label`: could not find a '## Description' header in $(Split-Path -Leaf $outFile) to insert the group's Reported by line.")
-        }
-    }
-
-    if ($placeholders.Count -gt 0) {
-        $placeholderFailures.Add((Split-Path -Leaf $outFile))
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) (PLACEHOLDERS LEFT after one re-ask)" $otherMembers $finding.Stage $finding.Id
-        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- PLACEHOLDERS LEFT after one re-ask"
-    }
-    elseif ($sanitized.Removed.Count -gt 0) {
-        $removedList = ($sanitized.Removed | ForEach-Object { "#$_" }) -join ', '
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile) (removed unverified related issue $removedList)" $otherMembers $finding.Stage $finding.Id
-        "$label -> $kind draft $(Split-Path -Leaf $outFile) -- removed unverified related issue $removedList"
-    }
-    else {
-        Set-GroupLines $computedLinesByKey $findingKey "- $label`: draft $(Split-Path -Leaf $outFile)" $otherMembers $finding.Stage $finding.Id
-        "$label -> $kind draft $(Split-Path -Leaf $outFile)"
-    }
-}
-
-# #1491/#1492 decision 3: $computedLinesByKey above only ever covers $touchedMemberKeys (every finding -- a
-# processed group's primary AND its merged siblings -- whose line this run computed, keyed by "stage|id", never
-# positional); build the final, ordered $lines from EVERY finding in $allFindings, taking this run's own
-# computed line first and falling back to the previous stages/remediation.md's own line
-# ($existingFindingLines, parsed before the cleanup above, populated only under -Only) for a finding this run
-# never touched -- so a finding untouched by an -Only run keeps its own line byte-for-byte, and stages/
-# remediation.md still lists EVERY finding either way (decision 3's own "the verifier must still see every
-# finding accounted for").
-$lines = [System.Collections.Generic.List[string]]::new()
 foreach ($f in $allFindings) {
-    $lineKey = "$($f.Stage)|$($f.Id)"
-    if ($computedLinesByKey.ContainsKey($lineKey)) { $lines.Add($computedLinesByKey[$lineKey]) }
-    elseif ($existingFindingLines.ContainsKey($lineKey)) { $lines.Add($existingFindingLines[$lineKey]) }
-    else {
-        # Never reached in practice: a full run (no -Only) touches every group, and an -Only run already
-        # validated above that every OTHER finding has an existing line to fall back to.
-        throw "audit-draft-remediation: internal error -- no computed or existing line for '$lineKey'."
-    }
+    if ($touchedMemberKeys.Contains("$($f.Stage)|$($f.Id)")) { Set-Content -LiteralPath (Get-InputPath $f) -Encoding utf8 -Value $f.Text }
 }
-if ($lines.Count -eq 0) {
-    $lines.Add("No findings from the code, tests or docs stages for #$n; no remediation drafts were written.")
-}
+Set-Content -LiteralPath $manifestPath -Encoding utf8 -Value ($manifest | ConvertTo-Json -Depth 8)
 
-if ($onlyKeys) {
-    # #1491 widens the "belongs to regenerated" test from $onlyKeys (the raw keys the user typed) to
-    # $touchedMemberKeys (every finding of every group this run touched, primary and merged alike) -- a merged
-    # sibling's own OLD lesson (e.g. an earlier "Unknown severity" note) must also be dropped and, if still
-    # applicable, re-added fresh above, not kept twice.
-    $keptOldLessons = [System.Collections.Generic.List[string]]::new()
-    foreach ($oldLesson in $existingLessonLines) {
-        $belongsToRegenerated = $false
-        foreach ($touchedKey in $touchedMemberKeys) {
-            $keyParts = $touchedKey -split '\|', 2
-            if ($oldLesson -match ('^' + [regex]::Escape($keyParts[0]) + '\s+' + [regex]::Escape($keyParts[1]) + '\b')) {
-                $belongsToRegenerated = $true
-                break
-            }
-        }
-        if (-not $belongsToRegenerated) { $keptOldLessons.Add($oldLesson) }
-    }
-    $lessons.InsertRange(0, $keptOldLessons)
-}
-
-$out = [System.Collections.Generic.List[string]]::new()
-$out.Add("Remediation for #$n`:")
-$out.AddRange($lines)
-$out.Add('')
-$out.Add('## Lessons for the pipeline')
-if ($lessons.Count -eq 0) { $out.Add('- none') } else { foreach ($lesson in $lessons) { $out.Add("- $lesson") } }
-
-# -DryRun writes stages/remediation.md too (with "would route to" lines instead of real drafts): it is not a
-# model call, so it is fully previewable, and a later non-dry run always regenerates it from the same stage
-# inputs, so the preview is never mistaken for a finished stage without being overwritten for real.
-Set-Content -LiteralPath (StageFile 'remediation') -Encoding utf8 -Value ($out -join "`n")
-if ($DryRun) {
-    "audit-draft-remediation: -DryRun complete for #$n ($($findingsToProcess.Count) finding(s) routed under artifacts\knowledge\remediation\_dryrun-$n\; stages\remediation.md previewed, no model calls made)"
-}
-else {
-    "audit-draft-remediation: wrote stages\remediation.md for #$n ($($findingsToProcess.Count) finding(s))"
-}
-
-# #1388 decision 4: a draft that still has unfilled template placeholders after one re-ask is kept (for
-# inspection) and its finding's line in stages/remediation.md is already marked, but the run itself must not
-# report success -- the orchestrator needs to see this before audit-verifier does.
-if ($placeholderFailures.Count -gt 0) {
-    "audit-draft-remediation: $($placeholderFailures.Count) draft(s) still have unfilled template placeholders after one re-ask: $($placeholderFailures -join ', ')"
-    exit 1
-}
+$draftCount = @($manifest.findings | Where-Object { $_.regenerate -and $_.draftFile }).Count
+"audit-draft-remediation: -Prepare wrote $manifestPath for #$n ($($allFindings.Count) finding(s), $draftCount draft(s) to write$(if ($DryRun) { ', dry run' })). Next: spawn remediation-drafter (naming #$n and wia-$n), then run -Finalize$(if ($DryRun) { ' -DryRun' })."
+exit 0

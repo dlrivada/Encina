@@ -580,7 +580,7 @@ $hookExtensions = ([regex]::Match($hookSource, "\`$SourceExtensions = '(?<e>[^']
 
 # #1345: a tools/ai/audit/pipeline.json fixture under $wt so the stage-ownership (fabrication-gap) check has
 # a pipeline to resolve stage -> agent from, matching the one tools/ai/audit/pipeline.json actually ships.
-$ownershipPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model (script tools/ai/audit/audit-draft-remediation.ps1)","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+$ownershipPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
 $ownershipAuthorsPath = Join-Path $wt 'artifacts\knowledge\stages\.authors.json'
 New-Item -ItemType Directory -Force (Join-Path $wt 'tools\ai\audit') | Out-Null
 Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') $ownershipPipelineJson
@@ -665,8 +665,13 @@ $ownershipCases = @(
     @($null, 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap: mechanical-fixer (no dedicated ownership hook) writing code.md is denied by the global wiring', 'mechanical-fixer'),
     @('docs-reviewer', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 0, 'docs-reviewer: its own stage artifact (audit mode)'),
     @('issue-archivist', 'Write', "$wt\artifacts\knowledge\stages\docs.md", $wt, 2, 'fabrication gap: issue-archivist writing the docs stage is denied'),
-    @($null, 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'the remediation stage artifact is written only by its own script, never via the Write/Edit tool, even by the orchestrator'),
-    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'fabrication gap: an agent may not fabricate the script-owned remediation stage via Write'),
+    # #1572: the remediation stage artifact belongs to remediation-drafter, like any other stage's artifact.
+    @($null, 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'fabrication gap (#1572): the orchestrator writing remediation.md is denied'),
+    @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 2, 'fabrication gap (#1572): issue-auditor writing remediation.md is denied'),
+    @('remediation-drafter', 'Write', "$wt\artifacts\knowledge\stages\remediation.md", $wt, 0, 'remediation-drafter: its own stage artifact (#1572)'),
+    @('remediation-drafter', 'Write', "$wt\artifacts\knowledge\stages\code.md", $wt, 2, 'fabrication gap (#1572): remediation-drafter writing code.md is denied'),
+    @('remediation-drafter', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'remediation-drafter: a source file is denied (#1572)'),
+    @('remediation-drafter', 'Write', "$wt\artifacts\knowledge\issues\1572.md", $wt, 2, 'remediation-drafter: the knowledge record belongs to issue-archivist (#1572)'),
     @($null, 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 0, 'lessons.md is not a pipeline stage: the orchestrator writes it'),
     @('issue-auditor', 'Write', "$wt\artifacts\knowledge\stages\lessons.md", $wt, 2, 'lessons.md is denied to a stage agent'),
     # #1345 review blocker: the stage-ownership match must not evade case-insensitively (the filesystem this
@@ -1006,13 +1011,43 @@ try {
     }
     Invoke-HookCase $ownership 'not json' 0 'malformed payload' 'issue-worker'
 
+    # #1572: the open audit's remediation drafts (the MAIN checkout's artifacts/knowledge/remediation/<n>-*.md,
+    # <n> from artifacts/knowledge/current-audit.json) belong to remediation-drafter alone; the script's own
+    # _input/_manifest files and another audit's drafts are not drafter territory.
+    $draftAuditPath = Join-Path $main 'artifacts\knowledge\current-audit.json'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $draftAuditPath) | Out-Null
+    @{ issue = 777; worktree = (Join-Path $main '.claude\worktrees\wia-777'); branch = 'audit/777'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content -LiteralPath $draftAuditPath
+    $openDraft = Join-Path $main 'artifacts\knowledge\remediation\777-code-1-stale-comment.md'
+    $otherAuditDraft = Join-Path $main 'artifacts\knowledge\remediation\778-code-1-stale-comment.md'
+    # agent (-Agent), tool, path, expected, label[, payload agent_type]
+    $draftOwnershipCases = @(
+        @('remediation-drafter', 'Write', $openDraft, 0, 'remediation-drafter: writes an open-audit draft in the main checkout (#1572)'),
+        @('remediation-drafter', 'Edit', $openDraft, 0, 'remediation-drafter: edits an open-audit draft in the main checkout (#1572)'),
+        @($null, 'Write', $openDraft, 2, 'the orchestrator writing an open-audit draft is denied (#1572)'),
+        @('issue-auditor', 'Write', $openDraft, 2, 'issue-auditor writing an open-audit draft is denied (#1572)'),
+        @('audit-verifier', 'Edit', $openDraft, 2, 'audit-verifier editing an open-audit draft is denied (#1572)'),
+        @($null, 'Write', $openDraft, 2, 'mechanical-fixer (global wiring) writing an open-audit draft is denied (#1572)', 'mechanical-fixer'),
+        @('remediation-drafter', 'Write', $otherAuditDraft, 2, 'remediation-drafter: a draft of an audit that is not open is denied (#1572)'),
+        @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_input-777-code-1.md'), 2, 'remediation-drafter: the script-owned input file is denied (#1572)'),
+        @('remediation-drafter', 'Write', (Join-Path $main 'artifacts\knowledge\remediation\_manifest-777.json'), 2, 'remediation-drafter: the script-owned manifest is denied (#1572)'),
+        @($null, 'Write', $otherAuditDraft, 0, 'the orchestrator: a draft of an audit that is not open is not covered (#1572)')
+    )
+    foreach ($case in $draftOwnershipCases) {
+        $hookAgent, $tool, $path, $expected, $label, $agentType = $case
+        $payload = @{ tool_name = $tool; cwd = $main; tool_input = @{ file_path = $path } }
+        if ($agentType) { $payload.agent_type = $agentType; $payload.agent_id = 'a1' }
+        Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+    Invoke-HookCase $ownership (@{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "Set-Content -LiteralPath '$openDraft' -Value 'rewritten'" } } | ConvertTo-Json -Compress) 2 'shell vector (#1572): the orchestrator rewriting an open-audit draft with Set-Content is denied' $null
+    Remove-Item -LiteralPath $draftAuditPath -Force
+
     # #1345: every allowed stage-artifact write above recorded its author in the sidecar, and the sidecar
     # names the CORRECT agent for each stage (not just "something" — a stale/wrong entry would defeat the
     # audit-commit-stage.ps1 check that reads it).
     $script:total++
     if (Test-Path -LiteralPath $ownershipAuthorsPath) {
         $recordedAuthors = Get-Content -LiteralPath $ownershipAuthorsPath -Raw | ConvertFrom-Json
-        $expectedAuthors = @{ archivist = 'issue-archivist'; code = 'issue-auditor'; tests = 'test-auditor'; verification = 'audit-verifier'; docs = 'docs-reviewer' }
+        $expectedAuthors = @{ archivist = 'issue-archivist'; code = 'issue-auditor'; tests = 'test-auditor'; verification = 'audit-verifier'; docs = 'docs-reviewer'; remediation = 'remediation-drafter' }
         $mismatches = @($expectedAuthors.Keys | Where-Object { [string]$recordedAuthors.$_.agent -ne $expectedAuthors[$_] })
         if ($mismatches.Count -eq 0) { 'PASS enforce-path-ownership.ps1: .authors.json records the correct agent for every stage' }
         else { $script:failed++; "FAIL enforce-path-ownership.ps1: .authors.json mismatches for $($mismatches -join ', ')" }
@@ -1200,12 +1235,12 @@ try {
         $auditN = 42
         $auditWt = Join-Path $auditMain ".claude\worktrees\wia-$auditN"
         $auditCurrentPath = Join-Path $auditMain 'artifacts\knowledge\current-audit.json'
-        $defaultPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        $defaultPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
         # Reordered: 'code' runs before 'archivist' — proves the guard reads pipeline.json, not a hard-coded order.
-        $reorderedPipelineJson = '{"stages":[{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        $reorderedPipelineJson = '{"stages":[{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
         # #1345 review: the verifier artifact name must be resolved from pipeline.json (the stage whose agent
         # is audit-verifier), not hard-coded as 'verification.md' — proven by renaming it here.
-        $renamedVerifierPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"local-model","model":"qwen","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verdict.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        $renamedVerifierPipelineJson = '{"stages":[{"stage":"archivist","agent":"issue-archivist","model":"sonnet","artifact":"archivist.md"},{"stage":"code","agent":"issue-auditor","model":"sonnet","artifact":"code.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verdict.md"}],"minModel":"sonnet","forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
 
         function Invoke-AuditGit { & git -C $auditWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
 
@@ -1262,6 +1297,7 @@ try {
 
         Write-AuditStage 'code' 'code.md' -Commit
         Write-AuditStage 'tests' 'tests.md' -Commit
+        Invoke-AuditCase 'remediation-drafter' "Audit #$auditN in worktree wia-$auditN, remediation stage." $null 2 'audit-stage-guard: remediation-drafter before the docs stage is committed is out of order (#1572)'
         Invoke-AuditCase 'docs-reviewer' "Audit #$auditN in worktree wia-$auditN, docs stage." $null 0 'audit-stage-guard: docs-reviewer at its own stage'
 
         Set-AuditOpen $false
@@ -1273,6 +1309,11 @@ try {
 
         Write-AuditStage 'docs' 'docs.md' -Commit
         Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify." $null 2 'audit-stage-guard: remediation stage still pending, agent spawn is out of order'
+        # #1572: the remediation stage is an agent spawn now, with the same naming and model rules as every stage.
+        Invoke-AuditCase 'remediation-drafter' "Audit #$auditN in worktree wia-$auditN, remediation stage: draft from the manifest." $null 0 'audit-stage-guard: remediation-drafter at its own stage (#1572)'
+        Invoke-AuditCase 'remediation-drafter' "Audit #$auditN, remediation stage, no worktree named." $null 2 'audit-stage-guard: remediation-drafter prompt missing wia-<n> (#1572)'
+        Invoke-AuditCase 'remediation-drafter' "Remediation stage in worktree wia-$auditN, no issue named." $null 2 'audit-stage-guard: remediation-drafter prompt missing #<n> (#1572)'
+        Invoke-AuditCase 'remediation-drafter' "Audit #$auditN in worktree wia-$auditN, remediation stage." 'haiku' 2 'audit-stage-guard: remediation-drafter on haiku is blocked (#1572)'
 
         Write-AuditStage 'remediation' 'remediation.md' -Commit
         Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: PASS`n## Lessons for the pipeline`n- none`n"
@@ -1314,6 +1355,7 @@ try {
 
         Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, redo the code stage." $null 0 'audit-stage-guard: earlier stage re-run allowed after a Verdict: FAIL'
+        Invoke-AuditCase 'remediation-drafter' "Audit #$auditN in worktree wia-$auditN, redo the remediation drafts after the FAIL." $null 0 'audit-stage-guard: remediation-drafter re-run allowed after a Verdict: FAIL (#1572)'
 
         Initialize-AuditWorktree $renamedVerifierPipelineJson
         Set-AuditOpen $true
@@ -1822,123 +1864,359 @@ Test.
         $firstLineUnknownSplit.Count -eq 2 -and $firstLineUnknownSplit[0].Severity -eq 'Unknown' -and $firstLineUnknownSplit[0].Text -match 'first\.' -and $firstLineUnknownSplit[1].Severity -eq 'Major'
     }
 
-    # CodeRabbit review of PR #1378 (thread 7): Test-ValidDuplicate is extracted from audit-draft-remediation.ps1
-    # so it can be unit-tested directly -- the classification/dedup path itself needs the local model and is
-    # unreachable from -DryRun, so this is the "unit-style case around the validation helper" alternative.
+    # #1572: no model takes part in the remediation script any more -- neither mode calls the local model.
     $draftScriptText = Get-Content (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -Raw
-    $validDuplicateFuncMatch = [regex]::Match($draftScriptText, '(?ms)^function Test-ValidDuplicate.*?^\}')
-    Test-RemediationCase 'audit-draft-remediation.ps1 still defines Test-ValidDuplicate (extraction target found)' { $validDuplicateFuncMatch.Success }
-    if ($validDuplicateFuncMatch.Success) {
-        Invoke-Expression $validDuplicateFuncMatch.Value
-        Test-RemediationCase 'Test-ValidDuplicate: a duplicate-of number that IS one of the candidates is valid' { Test-ValidDuplicate '42' @('1', '42', '99') }
-        Test-RemediationCase 'Test-ValidDuplicate: a duplicate-of number that is NOT one of the candidates is rejected' { -not (Test-ValidDuplicate '7' @('1', '42', '99')) }
-        Test-RemediationCase 'Test-ValidDuplicate: no candidates at all rejects any duplicate-of' { -not (Test-ValidDuplicate '1' @()) }
+    Test-RemediationCase '#1572 audit-draft-remediation.ps1 makes no model call (no local-ai-ask, no dotnet run)' {
+        $draftScriptText -notmatch 'local-ai-ask' -and $draftScriptText -notmatch '(?m)^[^#\r\n]*\bdotnet\s+run\b'
+    }
+    # #1548: every gh call of the script goes through Invoke-GhWithRetry; no statement invokes gh directly.
+    Test-RemediationCase '#1548 audit-draft-remediation.ps1 never invokes gh directly (every call goes through Invoke-GhWithRetry)' {
+        $draftScriptText -notmatch '(?m)^[^#\r\n]*&\s*gh\b' -and $draftScriptText -notmatch '(?m)^\s*(\$\w+\s*=\s*)?gh\s' -and $draftScriptText -match 'Invoke-GhWithRetry'
+    }
+
+    # #1572: shared fixture helpers for the remediation-stage blocks below. Each fixture is a self-contained
+    # git repository under $work (the temp root, never the real checkout): its own '.git' makes Get-MainRoot
+    # resolve to the fixture itself, and its own current-audit.json names the fixture as the audit worktree,
+    # so the scripts copied into it never read or write D:\...\Encina's live audit state.
+    function New-RemediationFixture([string]$Name, [int]$IssueNumber, [string]$Code = '- none', [string]$Tests = '- none', [string]$Docs = '- none') {
+        $root = Join-Path $work $Name
+        if (-not ([IO.Path]::GetFullPath($root)).StartsWith([IO.Path]::GetFullPath($work), [StringComparison]::OrdinalIgnoreCase)) { throw "fixture root $root is outside the temp work root" }
+        if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+        foreach ($d in 'tools\ai\audit', 'artifacts\knowledge\stages', '.github\ISSUE_TEMPLATE') { New-Item -ItemType Directory -Force (Join-Path $root $d) | Out-Null }
+        foreach ($s in 'pipeline.json', '_audit-lib.ps1', '_remediation-checks.ps1', 'audit-draft-remediation.ps1') { Copy-Item (Join-Path $repo "tools\ai\audit\$s") (Join-Path $root "tools\ai\audit\$s") }
+        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') { Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $root ".github\ISSUE_TEMPLATE\$t") }
+        & git -C $root -c user.name=hooks -c user.email=hooks@example.invalid init -q -b main 2>&1 | Out-Null
+        & git -C $root -c user.name=hooks -c user.email=hooks@example.invalid commit -q --allow-empty -m base 2>&1 | Out-Null
+        Set-Content (Join-Path $root 'artifacts\knowledge\stages\code.md') "## Findings`n$Code`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $root 'artifacts\knowledge\stages\tests.md') "## Findings`n$Tests`n## Lessons for the pipeline`n- none`n"
+        Set-Content (Join-Path $root 'artifacts\knowledge\stages\docs.md') "## Findings`n$Docs`n## Lessons for the pipeline`n- none`n"
+        @{ issue = $IssueNumber; worktree = $root; branch = "audit/$IssueNumber"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $root 'artifacts\knowledge\current-audit.json')
+        return $root
+    }
+    # Runs the fixture's own copy of the script. With -GhStub, `gh` is the PowerShell function the stub file
+    # defines (global scope of the child pwsh), so the script's Invoke-GhWithRetry calls it instead of gh.exe.
+    function Invoke-Remediation([string]$Root, [string[]]$Arguments, [string]$GhStub) {
+        $scriptPath = Join-Path $Root 'tools\ai\audit\audit-draft-remediation.ps1'
+        if ($GhStub) {
+            $quoted = ($Arguments | ForEach-Object { if ($_ -match '^-\w+$') { $_ } else { "'" + $_.Replace("'", "''") + "'" } }) -join ' '
+            $output = & pwsh -NoProfile -Command "& { . '$GhStub'; & '$scriptPath' $quoted; exit `$LASTEXITCODE }" 2>&1
+        }
+        else { $output = & pwsh -NoProfile -File $scriptPath @Arguments 2>&1 }
+        [pscustomobject]@{ Code = $LASTEXITCODE; Output = (Get-FlatOutput $output) }
+    }
+    function Get-RemediationManifest([string]$Root, [int]$IssueNumber, [switch]$DryRun) {
+        $dir = Join-Path $Root 'artifacts\knowledge\remediation'
+        if ($DryRun) { $dir = Join-Path $dir "_dryrun-$IssueNumber" }
+        $path = Join-Path $dir "_manifest-$IssueNumber.json"
+        if (-not (Test-Path -LiteralPath $path)) { return $null }
+        return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    }
+    function Get-ManifestFinding($Manifest, [string]$Key) { @($Manifest.findings | Where-Object { $_.key -eq $Key })[0] }
+    # What remediation-drafter writes for a draft: the header block, then every '## ' header and checkbox line of
+    # the routed template with one line of real content under each header -- no template prose survives, so
+    # Find-TemplatePlaceholders finds nothing unless a case adds a placeholder on purpose.
+    function New-CleanDraft([string]$TemplatePath, [string]$Title, [string]$Labels, [string]$Milestone, [string]$Kind, [string[]]$ExtraLines = @()) {
+        $body = (Get-Content -LiteralPath $TemplatePath -Raw) -replace '(?s)^---.*?---\r?\n', ''
+        $out = [System.Collections.Generic.List[string]]::new()
+        foreach ($l in @('<!--', "title: $Title", "labels: $Labels", "milestone: $Milestone", "kind: $Kind", '-->', '')) { $out.Add($l) }
+        foreach ($line in ($body -split "`r?`n")) {
+            if ($line -match '^##\s') { $out.Add($line); $out.Add(''); $out.Add("Real content for $($line.TrimStart('#').Trim()) of this fixture finding."); continue }
+            if ($line -match '^\s*-\s*\[[ xX]\]') { $out.Add($line) }
+        }
+        foreach ($extra in $ExtraLines) { $out.Add($extra) }
+        return ($out -join "`n")
+    }
+    # What remediation-drafter writes for stages/remediation.md: the manifest's own header, lines and lessons.
+    function Write-StageFromManifest($Manifest, [string[]]$SkipKeys = @()) {
+        $out = [System.Collections.Generic.List[string]]::new()
+        $out.Add([string]$Manifest.stageHeader)
+        foreach ($f in @($Manifest.findings)) { if ($SkipKeys -notcontains $f.key) { $out.Add([string]$f.remediationLine) } }
+        if (@($Manifest.findings).Count -eq 0) { $out.Add([string]$Manifest.emptyLine) }
+        $out.Add('')
+        $out.Add('## Lessons for the pipeline')
+        $out.Add('- none')
+        Set-Content -LiteralPath $Manifest.stageFile -Encoding utf8 -Value ($out -join "`n")
     }
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
         # A self-contained repo (its own '.git', so Get-MainRoot resolves to itself -- the same trick $auditWt
         # and $commitWt use above) carrying its own copies of the real scripts, so $PSScriptRoot resolves
         # inside the fixture, not the real checkout.
-        $remWt = Join-Path $work 'RemediationWt'
-        if (Test-Path $remWt) { Remove-Item -Recurse -Force $remWt }
-        New-Item -ItemType Directory -Force (Join-Path $remWt 'tools\ai\audit') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt 'artifacts\knowledge\stages') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt '.github\ISSUE_TEMPLATE') | Out-Null
-        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt 'tools\ai\audit\pipeline.json')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt 'tools\ai\audit\_audit-lib.ps1')
-        # #1388: audit-draft-remediation.ps1 now also dot-sources _remediation-checks.ps1 (Get-FindingAnchors,
-        # Test-DuplicateEvidence, Remove-OuterFence, Find-TemplatePlaceholders; #1424 added
-        # Find-DuplicateAmongCandidates), so this fixture needs its own copy too, exactly like _audit-lib.ps1
-        # above.
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt 'tools\ai\audit\_remediation-checks.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1')
-        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
-            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt ".github\ISSUE_TEMPLATE\$t")
-        }
-        function Invoke-RemGit { & git -C $remWt -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit init -q -b main
-        Invoke-RemGit commit -q --allow-empty -m base
-
-        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\tests.md') "## Findings`n$testsFindingsText`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt 'artifacts\knowledge\stages\docs.md') "## Findings`n$docsFindingsText`n## Lessons for the pipeline`n- none`n"
         $remN = 4242
-        @{ issue = $remN; worktree = $remWt; branch = "audit/$remN"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt 'artifacts\knowledge\current-audit.json')
+        $remWt = New-RemediationFixture 'RemediationWt' $remN $codeFindingsText $testsFindingsText $docsFindingsText
+        $remDir = Join-Path $remWt 'artifacts\knowledge\remediation'
+        $remStageFile = Join-Path $remWt 'artifacts\knowledge\stages\remediation.md'
 
-        $remOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $remExit = $LASTEXITCODE
-        Test-RemediationCase '-DryRun -NoGh exits 0 and never calls the model or gh' { $remExit -eq 0 }
+        # Mode validation: exactly one of -Prepare/-Finalize; -Only/-DuplicateOf belong to -Prepare.
+        $noMode = Invoke-Remediation $remWt @('-NoGh')
+        Test-RemediationCase '#1572 neither -Prepare nor -Finalize is an error' { $noMode.Code -ne 0 -and $noMode.Output -match 'exactly one of -Prepare or -Finalize' }
+        $bothModes = Invoke-Remediation $remWt @('-Prepare', '-Finalize', '-NoGh')
+        Test-RemediationCase '#1572 both -Prepare and -Finalize is an error' { $bothModes.Code -ne 0 -and $bothModes.Output -match 'exactly one of -Prepare or -Finalize' }
+        $finalizeOnly = Invoke-Remediation $remWt @('-Finalize', '-Only', 'code 1')
+        Test-RemediationCase '#1572 -Finalize with -Only is an error' { $finalizeOnly.Code -ne 0 -and $finalizeOnly.Output -match 'apply to -Prepare only' }
 
-        $dryDir = Join-Path $remWt "artifacts\knowledge\remediation\_dryrun-$remN"
-        $inputFiles = @(Get-ChildItem $dryDir -Filter '*-input.md' -ErrorAction SilentlyContinue)
-        $briefFiles = @(Get-ChildItem $dryDir -Filter '*-brief.md' -ErrorAction SilentlyContinue)
-        # (b) 7 findings (3 + 2 + 2) -> 7 input files and 7 briefs.
-        Test-RemediationCase '-DryRun -NoGh writes 7 per-finding input files' { $inputFiles.Count -eq 7 }
-        Test-RemediationCase '-DryRun -NoGh writes 7 per-finding briefs' { $briefFiles.Count -eq 7 }
+        # A stale draft and input of this audit, and another audit's draft, from an earlier run.
+        New-Item -ItemType Directory -Force $remDir | Out-Null
+        Set-Content -LiteralPath (Join-Path $remDir "$remN-code-9-old-draft.md") -Value 'stale'
+        Set-Content -LiteralPath (Join-Path $remDir "_input-$remN-code-9.md") -Value 'stale'
+        Set-Content -LiteralPath (Join-Path $remDir '9999-code-1-other-audit.md') -Value 'another audit'
 
-        # Deterministic fallback routing (decision 5): tests stage -> test; docs stage -> docs; a code Blocker
-        # -> bug; everything else -> debt. Each brief's first '## ' header must match its routed template's.
-        $expectedFirstHeader = @{
-            'code-1-brief.md'  = '## Description'          # bug_report.md
-            'code-2-brief.md'  = '## Type'                  # technical_debt.md (Major, not a Blocker)
-            'code-3-brief.md'  = '## Type'                  # technical_debt.md (Minor)
-            'tests-1-brief.md' = '## Test Category'          # test_implementation.md
-            'tests-2-brief.md' = '## Test Category'
-            'docs-1-brief.md'  = '## Type'                  # technical_debt.md (docs kind)
-            'docs-2-brief.md'  = '## Type'
+        $prepare = Invoke-Remediation $remWt @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1572 -Prepare -NoGh exits 0' { $prepare.Code -eq 0 }
+        $remManifest = Get-RemediationManifest $remWt $remN
+        Test-RemediationCase '#1572 -Prepare writes _manifest-<n>.json with all 7 findings (3 + 2 + 2)' { $null -ne $remManifest -and @($remManifest.findings).Count -eq 7 }
+        Test-RemediationCase '#1572 -Prepare writes one _input file per finding with the finding text' {
+            $inputs = @(Get-ChildItem $remDir -Filter "_input-$remN-*.md")
+            $inputs.Count -eq 7 -and (Get-Content -LiteralPath (Join-Path $remDir "_input-$remN-code-1.md") -Raw) -match 'first\.'
         }
-        foreach ($fileName in $expectedFirstHeader.Keys) {
-            $path = Join-Path $dryDir $fileName
-            $firstHeader = if (Test-Path -LiteralPath $path) { @(Get-Content -LiteralPath $path | Where-Object { $_ -match '^##\s' })[0] } else { $null }
-            Test-RemediationCase "-DryRun brief '$fileName' routes to the template whose first header is '$($expectedFirstHeader[$fileName])'" { $firstHeader -eq $expectedFirstHeader[$fileName] }
+        Test-RemediationCase '#1572 a full -Prepare removes this audit''s previous draft and input, and logs it' {
+            -not (Test-Path -LiteralPath (Join-Path $remDir "$remN-code-9-old-draft.md")) -and -not (Test-Path -LiteralPath (Join-Path $remDir "_input-$remN-code-9.md")) -and $prepare.Output -match "removed previous output $remN-code-9-old-draft\.md"
+        }
+        Test-RemediationCase '#1572 a full -Prepare never touches another audit''s draft' { Test-Path -LiteralPath (Join-Path $remDir '9999-code-1-other-audit.md') }
+        Test-RemediationCase '#1572 -Prepare writes no draft and no stages/remediation.md (both are remediation-drafter''s)' {
+            @(Get-ChildItem $remDir -Filter "$remN-*.md").Count -eq 0 -and -not (Test-Path -LiteralPath $remStageFile)
+        }
+        $code1 = Get-ManifestFinding $remManifest 'code 1'
+        $tests1 = Get-ManifestFinding $remManifest 'tests 1'
+        $docs1 = Get-ManifestFinding $remManifest 'docs 1'
+        Test-RemediationCase '#1572 manifest: a code finding is "drafter-decides" among bug, debt and docs, with no fixed template' {
+            $code1.kind -eq 'drafter-decides' -and (@($code1.kindOptions) -join ',') -eq 'bug,debt,docs' -and $null -eq $code1.template
+        }
+        Test-RemediationCase '#1572 manifest: a tests finding is routed to test_implementation.md with [TEST] and area-testing' {
+            $tests1.kind -eq 'test' -and $tests1.template -like '*test_implementation.md' -and $tests1.prefix -eq '[TEST]' -and (@($tests1.labels) -join ',') -eq 'area-testing'
+        }
+        Test-RemediationCase '#1572 manifest: a docs finding is routed to technical_debt.md with [DEBT], technical-debt + area-documentation and an empty milestone' {
+            $docs1.kind -eq 'docs' -and $docs1.template -like '*technical_debt.md' -and $docs1.prefix -eq '[DEBT]' -and (@($docs1.labels) -join ',') -eq 'technical-debt,area-documentation' -and $docs1.milestone -eq ''
+        }
+        Test-RemediationCase '#1572 manifest: the bug route carries the real Hardening milestone with its em dash' { $remManifest.routes.bug.milestone -eq "v0.14.0 $([char]0x2014) Hardening" -and $remManifest.routes.bug.prefix -eq '[BUG]' }
+        Test-RemediationCase '#1572 manifest: each finding names its draft file and its exact stages/remediation.md line' {
+            $leaf = Split-Path -Leaf $code1.draftFile
+            $leaf -match "^$remN-code-1-[a-z0-9-]+\.md$" -and (Split-Path -Parent $code1.draftFile) -eq $remDir -and $code1.remediationLine -eq "- code 1 (Blocker): draft $leaf"
+        }
+        Test-RemediationCase '#1572 manifest: the stage file, its header and the empty-findings line' {
+            $remManifest.stageFile -eq $remStageFile -and $remManifest.stageHeader -eq "Remediation for #$remN`:" -and $remManifest.emptyLine -match 'No findings'
         }
 
-        # (c) stages/remediation.md lists one line per finding (7), plus a real Lessons section -- -DryRun
-        # previews it too (see the script's own comment: not a model call, always regenerated for real later).
-        $remStageLines = @(Get-Content (Join-Path $remWt 'artifacts\knowledge\stages\remediation.md') | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' })
-        Test-RemediationCase 'stages/remediation.md lists 7 finding lines' { $remStageLines.Count -eq 7 }
-
-        # A regression in the em-dash/label construction would still pass every check above (they only look at
-        # the first '## ' header); check the actual header-comment content of one bug-routed and one
-        # docs-routed brief so the milestone and label lines are verified, not just the routed template.
-        $bugBriefText = Get-Content -LiteralPath (Join-Path $dryDir 'code-1-brief.md') -Raw
-        Test-RemediationCase "bug-routed brief 'code-1-brief.md' carries the real Hardening milestone with its em dash" { $bugBriefText -match [regex]::Escape("milestone: v0.14.0 $([char]0x2014) Hardening") }
-        Test-RemediationCase "bug-routed brief 'code-1-brief.md' carries the 'bug' label and [BUG] prefix" { $bugBriefText -match 'labels:\s*bug\b' -and $bugBriefText -match 'title:\s*\[BUG\]' }
-        $docsBriefText = Get-Content -LiteralPath (Join-Path $dryDir 'docs-1-brief.md') -Raw
-        Test-RemediationCase "docs-routed brief 'docs-1-brief.md' carries the area-documentation label, [DEBT] prefix and an empty milestone" { $docsBriefText -match 'labels:\s*technical-debt,\s*area-documentation' -and $docsBriefText -match 'title:\s*\[DEBT\]' -and $docsBriefText -match '(?m)^milestone:\s*$' }
-
-        # CodeRabbit review of PR #1378 (thread 5): re-running the stage for the same audit must remove its own
-        # previous outputs (here, the _dryrun-<n> preview from the run above) before writing fresh ones, and
-        # print what it removed, rather than accumulating stale files across re-runs.
-        $remOutput2 = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $remExit2 = $LASTEXITCODE
-        Test-RemediationCase 're-running -DryRun -NoGh exits 0 and prints that it removed the previous _dryrun output' { $remExit2 -eq 0 -and (Get-FlatOutput $remOutput2) -match "removed previous output _dryrun-$remN" }
-        $inputFilesAfterRerun = @(Get-ChildItem $dryDir -Filter '*-input.md' -ErrorAction SilentlyContinue)
-        Test-RemediationCase 're-running -DryRun -NoGh does not accumulate stale files (still 7 input files, not 14)' { $inputFilesAfterRerun.Count -eq 7 }
-
-        # CodeRabbit review of PR #1378 (thread 4): a stage artifact whose '## Findings' header is missing
-        # entirely is an error, distinct from a header present with an explicit '- none' body -- restore the
-        # file afterwards so it does not affect any later case that reuses $remWt.
+        # CodeRabbit review of PR #1378 (thread 4): a stage artifact missing its '## Findings' header is an error.
         $testsStageFile = Join-Path $remWt 'artifacts\knowledge\stages\tests.md'
         $testsStageBackup = Get-Content -LiteralPath $testsStageFile -Raw
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "No '## Findings' header here, just prose.`n## Lessons for the pipeline`n- none`n"
-        $missingHeaderOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $missingHeaderExit = $LASTEXITCODE
-        Test-RemediationCase "a stage artifact missing the '## Findings' header is an error (exit non-zero, names the file)" { $missingHeaderExit -ne 0 -and (Get-FlatOutput $missingHeaderOutput) -match [regex]::Escape('tests.md') -and (Get-FlatOutput $missingHeaderOutput) -match "## Findings' header" }
-        Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
-
-        # CodeRabbit review of PR #1378 (thread 1, end to end): a duplicate finding id within one stage
-        # artifact surfaces as Write-Error + a non-zero exit, not a silently overwritten finding.
+        $missingHeader = Invoke-Remediation $remWt @('-Prepare', '-NoGh')
+        Test-RemediationCase "a stage artifact missing the '## Findings' header is an error (exit non-zero, names the file)" { $missingHeader.Code -ne 0 -and $missingHeader.Output -match [regex]::Escape('tests.md') -and $missingHeader.Output -match "## Findings' header" }
+        # CodeRabbit review of PR #1378 (thread 1, end to end): a duplicate finding id within one stage is an error.
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value "## Findings`n1. **Major** -- ``tests/X.cs:1`` first.`n1. **Minor** -- ``tests/Y.cs:2`` duplicate id.`n## Lessons for the pipeline`n- none`n"
-        $dupIdOutput = & pwsh -NoProfile -File (Join-Path $remWt 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $dupIdExit = $LASTEXITCODE
-        Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupIdExit -ne 0 -and (Get-FlatOutput $dupIdOutput) -match "stage 'tests'" -and (Get-FlatOutput $dupIdOutput) -match "'1'" }
+        $dupId = Invoke-Remediation $remWt @('-Prepare', '-NoGh')
+        Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupId.Code -ne 0 -and $dupId.Output -match "stage 'tests'" -and $dupId.Output -match "'1'" }
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
+        Test-RemediationCase '#1548 a failed -Prepare (here a malformed stage) leaves the previous manifest in place' { $null -ne (Get-RemediationManifest $remWt $remN) }
+
+        # ---- #1572 -Finalize: sanitizers, header/template/placeholder checks, missing drafts and lines ----
+        $finN = 5151
+        $finWt = New-RemediationFixture 'RemediationFinalizeWt' $finN `
+            "1. **Major** -- ``src/Encina.Foo/A.cs:20`` returns ``Right`` after a failed write." `
+            "1. **Minor** -- ``tests/Encina.UnitTests/Foo/ATests.cs:5`` no unit test covers the failed write." `
+            "1. **Minor** -- ``src/Encina.Foo/A.cs:20`` the XML doc comment says the write is atomic."
+        $finPrepare = Invoke-Remediation $finWt @('-Prepare', '-NoGh')
+        $finManifest = Get-RemediationManifest $finWt $finN
+        $finCode1 = Get-ManifestFinding $finManifest 'code 1'
+        $finTests1 = Get-ManifestFinding $finManifest 'tests 1'
+        $finDocs1 = Get-ManifestFinding $finManifest 'docs 1'
+        Test-RemediationCase '#1572 Finalize fixture: -Prepare groups code 1 and docs 1 (same location) into one draft with a Reported-by line' {
+            $finPrepare.Code -eq 0 -and $finCode1.reportedByLine -eq 'Reported by: code 1, docs 1.' -and $null -eq $finDocs1.draftFile -and $finDocs1.mergedInto -eq 'code 1'
+        }
+        $finTemplates = Join-Path $finWt '.github\ISSUE_TEMPLATE'
+        $hardening = "v0.14.0 $([char]0x2014) Hardening"
+        # code 1 as a bug: wrapped in an outer fence, an unverified #9999 in its prose, no Reported-by line.
+        $bugDraft = New-CleanDraft (Join-Path $finTemplates 'bug_report.md') '[BUG] A.Write returns Right after a failed write' 'bug' $hardening 'bug' @('', 'The same mistake appears in #9999, which is unrelated.')
+        Set-Content -LiteralPath $finCode1.draftFile -Encoding utf8 -NoNewline -Value ("``````markdown`n" + $bugDraft + "`n``````")
+        # tests 1 with a template placeholder left in it.
+        Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $finTemplates 'test_implementation.md') '[TEST] Unit test for the failed write of A' 'area-testing' '' 'test' @('- **Package(s)**: [e.g., Encina.EntityFrameworkCore, Encina.Dapper.SqlServer]'))
+        Write-StageFromManifest $finManifest
+        $finalizeDirty = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize exits 1 and names a draft that still has template placeholder text' { $finalizeDirty.Code -eq 1 -and $finalizeDirty.Output -match 'placeholder' -and $finalizeDirty.Output -match [regex]::Escape((Split-Path -Leaf $finTests1.draftFile)) }
+        $finBugText = Get-Content -LiteralPath $finCode1.draftFile -Raw
+        Test-RemediationCase '#1572 -Finalize strips the outer code fence (Remove-OuterFence)' { $finBugText -notmatch '```markdown' -and $finBugText.TrimStart().StartsWith('<!--') }
+        Test-RemediationCase '#1572 -Finalize fills the bug Environment section (Set-BugEnvironment)' { $finBugText -match '- \*\*\.NET Version\*\*: \.NET 10' -and $finBugText -match 'found by static review' }
+        Test-RemediationCase '#1572 -Finalize removes an unverified issue reference (Limit-RelatedIssues) and reports it' { $finBugText -notmatch '#9999' -and $finalizeDirty.Output -match 'removed unverified issue reference #9999' }
+        Test-RemediationCase '#1572 -Finalize inserts the group''s Reported-by line after ## Description (Add-ReportedByLine)' { $finBugText -match '## Description\s+Reported by: code 1, docs 1\.' }
+
+        # Fix the placeholder: now clean, exit 0.
+        Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $finTemplates 'test_implementation.md') '[TEST] Unit test for the failed write of A' 'area-testing' '' 'test')
+        $finalizeClean = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize exits 0 once every draft and the stage file are clean' { $finalizeClean.Code -eq 0 -and $finalizeClean.Output -match '-Finalize clean' }
+        Test-RemediationCase '#1572 -Finalize is idempotent (a second clean run leaves the drafts byte-identical)' {
+            $before = Get-Content -LiteralPath $finCode1.draftFile -Raw
+            $again = Invoke-Remediation $finWt @('-Finalize')
+            $again.Code -eq 0 -and (Get-Content -LiteralPath $finCode1.draftFile -Raw) -eq $before
+        }
+        # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.
+        $debtDraft = New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] A.Write reports success after a failed write' 'technical-debt' '' 'debt'
+        Set-Content -LiteralPath $finCode1.draftFile -Encoding utf8 -NoNewline -Value ($debtDraft -replace '- \[ \] Documentation gap', '- [x] Documentation gap')
+        $finalizeDebt = Invoke-Remediation $finWt @('-Finalize')
+        $finDebtText = Get-Content -LiteralPath $finCode1.draftFile -Raw
+        Test-RemediationCase '#1572 -Finalize ticks the deterministic debt Type box and clears the drafter''s own tick (Set-DebtType)' {
+            $finalizeDebt.Code -eq 0 -and $finDebtText -match '- \[x\] Code quality \(warnings, analyzers\)' -and $finDebtText -match '- \[ \] Documentation gap'
+        }
+        # Header checks: a kind the manifest does not allow, and a wrong prefix.
+        Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] Wrong kind for a tests finding' 'technical-debt' '' 'debt')
+        $finalizeKind = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize rejects a kind the manifest does not allow (a tests finding drafted as debt)' { $finalizeKind.Code -eq 1 -and $finalizeKind.Output -match "kind: debt" -and $finalizeKind.Output -match 'allows only: test' }
+        Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $finTemplates 'test_implementation.md') '[DEBT] Wrong prefix' 'area-testing' '' 'test')
+        $finalizePrefix = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize rejects a title without the routed prefix' { $finalizePrefix.Code -eq 1 -and $finalizePrefix.Output -match "must start with '\[TEST\] '" }
+        # A template header missing from the draft.
+        $noHeaderDraft = (New-CleanDraft (Join-Path $finTemplates 'test_implementation.md') '[TEST] Missing a header' 'area-testing' '' 'test') -replace '(?m)^## Test Category\r?$', ''
+        Set-Content -LiteralPath $finTests1.draftFile -Encoding utf8 -NoNewline -Value $noHeaderDraft
+        $finalizeHeader = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a template header missing from the draft' { $finalizeHeader.Code -eq 1 -and $finalizeHeader.Output -match "missing the template header '## Test Category'" }
+        # A missing draft and a missing stage line.
+        Remove-Item -LiteralPath $finTests1.draftFile -Force
+        Write-StageFromManifest $finManifest @('docs 1')
+        $finalizeMissing = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a missing draft' { $finalizeMissing.Code -eq 1 -and $finalizeMissing.Output -match 'missing draft' }
+        Test-RemediationCase '#1572 -Finalize reports a finding without its stages/remediation.md line' { $finalizeMissing.Output -match [regex]::Escape("lacks the manifest's line for docs 1 (Minor)") }
+        # A stale draft for a merged finding.
+        Set-Content -LiteralPath (Join-Path $finWt "artifacts\knowledge\remediation\$finN-docs-1-stale.md") -Value 'stale'
+        $finalizeStale = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a draft that exists for a merged finding' { $finalizeStale.Code -eq 1 -and $finalizeStale.Output -match "$finN-docs-1-stale\.md exists" }
+        # No manifest at all.
+        $noManifestWt = New-RemediationFixture 'RemediationNoManifestWt' 5152
+        $finalizeNoManifest = Invoke-Remediation $noManifestWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize without a manifest exits 1' { $finalizeNoManifest.Code -eq 1 -and $finalizeNoManifest.Output -match 'no manifest' }
+
+        # ---- #1540: a dry run never deletes or overwrites the live drafts, inputs, manifest or stage file ----
+        $dryN = 1540
+        $dryWt = New-RemediationFixture 'RemediationDryRunWt' $dryN "1. **Major** -- ``src/A.cs:1`` first.`n2. **Minor** -- ``src/B.cs:2`` second."
+        [void](Invoke-Remediation $dryWt @('-Prepare', '-NoGh'))
+        $dryLiveManifest = Get-RemediationManifest $dryWt $dryN
+        foreach ($f in @($dryLiveManifest.findings)) { Set-Content -LiteralPath $f.draftFile -Encoding utf8 -Value "live draft of $($f.key)" }
+        Write-StageFromManifest $dryLiveManifest
+        $dryLiveFiles = @(Get-ChildItem (Join-Path $dryWt 'artifacts\knowledge\remediation') -File) + @(Get-Item -LiteralPath $dryLiveManifest.stageFile)
+        $dryHashesBefore = @{}
+        foreach ($file in $dryLiveFiles) { $dryHashesBefore[$file.FullName] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash }
+        $dryPrepare = Invoke-Remediation $dryWt @('-Prepare', '-DryRun', '-NoGh')
+        $dryFinalize = Invoke-Remediation $dryWt @('-Finalize', '-DryRun')
+        $dryOnly = Invoke-Remediation $dryWt @('-Prepare', '-DryRun', '-NoGh', '-Only', 'code 1')
+        Test-RemediationCase '#1540 -Prepare -DryRun exits 0' { $dryPrepare.Code -eq 0 }
+        Test-RemediationCase '#1540 every live draft, input, manifest and stages/remediation.md is byte-identical after -Prepare -DryRun, -Finalize -DryRun and -Prepare -DryRun -Only' {
+            $changed = @($dryHashesBefore.Keys | Where-Object { -not (Test-Path -LiteralPath $_) -or (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash -ne $dryHashesBefore[$_] })
+            $changed.Count -eq 0 -and $dryHashesBefore.Count -eq 6
+        }
+        $dryManifest = Get-RemediationManifest $dryWt $dryN -DryRun
+        $drySandbox = Join-Path $dryWt "artifacts\knowledge\remediation\_dryrun-$dryN"
+        Test-RemediationCase '#1540 the dry-run manifest, inputs, draft paths and stage-file preview all live in _dryrun-<n>' {
+            $null -ne $dryManifest -and $dryManifest.dryRun -and $dryManifest.stageFile -eq (Join-Path $drySandbox 'remediation.md') -and
+            @($dryManifest.findings | Where-Object { -not $_.draftFile.StartsWith($drySandbox) -or -not $_.inputFile.StartsWith($drySandbox) }).Count -eq 0 -and
+            @(Get-ChildItem $drySandbox -Filter "_input-$dryN-*.md").Count -eq 2
+        }
+        Test-RemediationCase '#1540 -Finalize -DryRun reads the sandbox manifest (its drafts are missing there: exit 1, never the live drafts)' { $dryFinalize.Code -eq 1 -and $dryFinalize.Output -match 'missing draft' }
+        Test-RemediationCase '#1540 -Prepare -DryRun -Only needs the sandbox stage file, not the live one' { $dryOnly.Code -ne 0 -and $dryOnly.Output -match [regex]::Escape("_dryrun-$dryN") }
+        # A live full -Prepare removes the whole sandbox (it is disposable).
+        $liveAgain = Invoke-Remediation $dryWt @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1540 a live full -Prepare removes the _dryrun-<n> sandbox' { $liveAgain.Code -eq 0 -and -not (Test-Path -LiteralPath $drySandbox) }
     }
     else {
         'SKIP audit-draft-remediation.ps1: git is not on PATH'
     }
-    # ---- end #1375 block ----
+    # ---- end #1375/#1572/#1540 block ----
+
+    # ---- #1548: Invoke-GhWithRetry -- transient gh failures are retried (5/15/45 s), 4xx failures are not ----
+    . (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1')
+    function Test-GhRetryCase([string]$Label, [scriptblock]$Check) {
+        $script:total++
+        try { if (& $Check) { "PASS gh-retry: $Label" } else { $script:failed++; "FAIL gh-retry: $Label" } }
+        catch { $script:failed++; "FAIL gh-retry: $Label ($($_.Exception.Message))" }
+    }
+    Test-GhRetryCase 'a TLS handshake timeout is transient' { Test-GhTransientFailure 'Get "https://api.github.com/graphql": net/http: TLS handshake timeout' }
+    Test-GhRetryCase 'a connection reset is transient' { Test-GhTransientFailure 'read tcp 10.0.0.1:1234->140.82.112.6:443: wsarecv: An existing connection was forcibly closed (connection reset)' }
+    Test-GhRetryCase 'an HTTP 502 is transient' { Test-GhTransientFailure 'HTTP 502: Bad Gateway (https://api.github.com/graphql)' }
+    Test-GhRetryCase 'a secondary rate limit is transient, even reported as HTTP 403' { Test-GhTransientFailure 'HTTP 403: You have exceeded a secondary rate limit.' }
+    Test-GhRetryCase 'an HTTP 404 is permanent' { -not (Test-GhTransientFailure 'HTTP 404: Not Found (https://api.github.com/repos/x/y/issues/1)') }
+    Test-GhRetryCase 'an HTTP 401 is permanent' { -not (Test-GhTransientFailure 'HTTP 401: Bad credentials') }
+    Test-GhRetryCase '"Could not resolve to an Issue" is permanent' { -not (Test-GhTransientFailure 'GraphQL: Could not resolve to an Issue with the number of 99999. (repository.issue)') }
+    Test-GhRetryCase 'an unrecognised failure is permanent (fail fast)' { -not (Test-GhTransientFailure 'unknown flag: --frobnicate') }
+
+    # A `gh` stub function shadows gh.exe for Invoke-GhWithRetry's own `& gh` (command lookup finds functions
+    # first); $script:ghStubReplies is the queue of (exit, output) replies it plays back, one per call.
+    function gh {
+        $script:ghStubCalls++
+        $reply = $script:ghStubReplies[[Math]::Min($script:ghStubCalls, $script:ghStubReplies.Count) - 1]
+        $global:LASTEXITCODE = $reply[0]
+        $reply[1]
+    }
+    $script:ghSleeps = [System.Collections.Generic.List[int]]::new()
+    $recordSleep = { param([int]$Seconds) $script:ghSleeps.Add($Seconds) }
+
+    $script:ghStubCalls = 0; $script:ghSleeps.Clear()
+    $script:ghStubReplies = @(@(1, 'net/http: TLS handshake timeout'), @(1, 'HTTP 503: Service Unavailable'), @(0, '{"state":"OPEN"}'))
+    $retryOk = Invoke-GhWithRetry -Arguments @('issue', 'view', '1') -Sleep $recordSleep
+    Test-GhRetryCase 'two transient failures then success: succeeds on attempt 3 after waiting 5 s and 15 s' { $retryOk.Success -and $retryOk.Attempts -eq 3 -and $retryOk.Stdout -eq '{"state":"OPEN"}' -and (@($script:ghSleeps) -join ',') -eq '5,15' }
+
+    $script:ghStubCalls = 0; $script:ghSleeps.Clear()
+    $script:ghStubReplies = @(, @(1, 'HTTP 404: Not Found'))
+    $retryPermanent = Invoke-GhWithRetry -Arguments @('issue', 'view', '99999') -Sleep $recordSleep
+    Test-GhRetryCase 'a 4xx failure is not retried: one attempt, no wait' { -not $retryPermanent.Success -and $retryPermanent.Attempts -eq 1 -and $script:ghStubCalls -eq 1 -and $script:ghSleeps.Count -eq 0 -and $retryPermanent.Output -match '404' }
+
+    $script:ghStubCalls = 0; $script:ghSleeps.Clear()
+    $script:ghStubReplies = @(, @(1, 'net/http: TLS handshake timeout'))
+    $retryExhausted = Invoke-GhWithRetry -Arguments @('issue', 'list') -Sleep $recordSleep
+    Test-GhRetryCase 'a transient failure that never clears: 4 attempts (3 retries) after waiting 5, 15 and 45 s, then fails' { -not $retryExhausted.Success -and $retryExhausted.Attempts -eq 4 -and (@($script:ghSleeps) -join ',') -eq '5,15,45' }
+    Remove-Item Function:\gh
+
+    # End to end: -Prepare with a stubbed gh (a function defined in the child pwsh's global scope, see
+    # Invoke-Remediation): a full-evidence duplicate, a partially related candidate, the missing-label route
+    # fix, and a -DuplicateOf target that is not OPEN.
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $ghStubPath = Join-Path $work 'gh-stub.ps1'
+        Set-Content -LiteralPath $ghStubPath -Encoding utf8 -Value @'
+# Test-Hooks.ps1 stub for gh (#1548, #1572): replays the rules of $env:ENCINA_GH_STUB_RULES (first match wins).
+function global:gh {
+    $joined = $args -join ' '
+    $rules = Get-Content -LiteralPath $env:ENCINA_GH_STUB_RULES -Raw | ConvertFrom-Json
+    foreach ($rule in $rules) {
+        if ($joined -like $rule.match) { $global:LASTEXITCODE = [int]$rule.exit; return [string]$rule.output }
+    }
+    $global:LASTEXITCODE = 1
+    return "HTTP 404: no stub rule for: $joined"
+}
+'@
+        $ghRulesPath = Join-Path $work 'gh-stub-rules.json'
+        $candidate1170 = @{ title = '[BUG] Store.OpenConnectionAsync is a no-op'; body = "## Location`n`n- **File(s)**: ``src/Encina.Foo/Store.cs```n`n## Current Behavior`n`n``OpenConnectionAsync`` never opens the connection." } | ConvertTo-Json -Compress
+        $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`nSomething else entirely." } | ConvertTo-Json -Compress
+        $candidate1200 = @{ title = '[DEBT] Unrelated'; body = "## Location`n`n- **File(s)**: ``src/Encina.Other/Z.cs```n" } | ConvertTo-Json -Compress
+        @(
+            @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+            @{ match = 'issue list*'; exit = 0; output = '[{"number":1170,"title":"[BUG] Store.OpenConnectionAsync is a no-op"},{"number":1200,"title":"[DEBT] Unrelated"},{"number":1300,"title":"[DEBT] Bar cleanup"}]' },
+            @{ match = 'issue view 1170 *title,body*'; exit = 0; output = $candidate1170 },
+            @{ match = 'issue view 1200 *title,body*'; exit = 0; output = $candidate1200 },
+            @{ match = 'issue view 1300 *title,body*'; exit = 0; output = $candidate1300 },
+            @{ match = 'issue view 1177 *state*'; exit = 0; output = '{"state":"CLOSED"}' }
+        ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghRulesPath -Encoding utf8
+        $env:ENCINA_GH_STUB_RULES = $ghRulesPath
+
+        $ghN = 1548
+        $ghWt = New-RemediationFixture 'RemediationGhStubWt' $ghN `
+            "1. **Major** -- ``src/Encina.Foo/Store.cs:10``: ``OpenConnectionAsync`` never opens the connection." `
+            '- none' `
+            "1. **Minor** -- ``src/Encina.Bar/B.cs:5``: ``DoThing`` is documented with the wrong return type."
+        $ghPrepare = Invoke-Remediation $ghWt @('-Prepare') $ghStubPath
+        $ghManifest = Get-RemediationManifest $ghWt $ghN
+        $ghCode1 = Get-ManifestFinding $ghManifest 'code 1'
+        $ghDocs1 = Get-ManifestFinding $ghManifest 'docs 1'
+        Test-RemediationCase '#1572 -Prepare with gh (stubbed) exits 0' { $ghPrepare.Code -eq 0 }
+        Test-RemediationCase '#1572 -Prepare records a full-evidence duplicate (#1170) with its line and no draft' {
+            $ghCode1.duplicateOf -eq '1170' -and $ghCode1.duplicateSource -eq 'evidence' -and $null -eq $ghCode1.draftFile -and $ghCode1.remediationLine -eq '- code 1 (Major): duplicate of #1170'
+        }
+        Test-RemediationCase '#1572 -Prepare lists a candidate covering only the file as partially related, and the rest as possibly related' {
+            (@($ghDocs1.partiallyRelated) -join '|') -eq '- #1300 - partially related (it covers only part of this finding)' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1170: ' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1200: '
+        }
+        Test-RemediationCase '#1572 -Prepare drops area-documentation from the docs route when the repository has no such label' { (@($ghDocs1.labels) -join ',') -eq 'technical-debt' -and (@($ghManifest.routes.docs.labels) -join ',') -eq 'technical-debt' }
+        $ghClosed = Invoke-Remediation $ghWt @('-Prepare', '-DuplicateOf', 'docs 1=1177') $ghStubPath
+        Test-RemediationCase '#1534 -DuplicateOf naming an issue that is not OPEN is an error (stubbed gh)' { $ghClosed.Code -ne 0 -and $ghClosed.Output -match 'not an OPEN issue \(state: CLOSED\)' }
+        Test-RemediationCase '#1548 a -Prepare that fails on gh leaves the previous manifest untouched' { $null -ne (Get-RemediationManifest $ghWt $ghN) -and (Get-ManifestFinding (Get-RemediationManifest $ghWt $ghN) 'code 1').duplicateOf -eq '1170' }
+        Remove-Item Env:\ENCINA_GH_STUB_RULES -ErrorAction SilentlyContinue
+    }
+    # ---- end #1548 block ----
 
     # ---- #1388: tools/ai/audit/_remediation-checks.ps1 (duplicate evidence, outer-fence stripping, template
     # placeholder detection) -- the three defect classes audit #16's remediation stage produced (a duplicate
@@ -2380,7 +2658,7 @@ some real code sample text
 
     # (d) a non-bug draft (no '## Environment' header at all -- the technical_debt.md/test_implementation.md
     # shape) is returned completely untouched. Set-BugEnvironment is only ever called for bug_report.md-routed
-    # drafts from audit-draft-remediation.ps1's Repair-Draft, but this verifies the function itself is inert on
+    # drafts by audit-draft-remediation.ps1 -Finalize, but this verifies the function itself is inert on
     # a draft it was never meant to touch.
     $debtDraft = @'
 ## Type
@@ -2524,7 +2802,7 @@ More prose after the list must survive untouched.
 
     # (d) the same bare reference IS sanitized when the draft is routed to bug_report.md ($IsBugReportDraft =
     # $true) -- decision 2's whole-Additional-Context scan, with no "Related Issues" label needed at all.
-    $bareBugResult = Limit-RelatedIssues $bareAdditionalContextDraft '16' '' @() $true
+    $bareBugResult = Limit-RelatedIssues $bareAdditionalContextDraft '16' '' @()
     Test-RemediationChecksCase '#1428 Limit-RelatedIssues: a bare "#n" under Additional Context is removed for a bug_report.md-routed draft' {
         (@($bareBugResult.Removed)) -contains '699'
     }
@@ -2538,7 +2816,7 @@ More prose after the list must survive untouched.
     # 'Additional Context', names #16 (allowed), #699, #696 and #181 (all real but unrelated). Both decision 1
     # (the plain-line form) and decision 2 (the bug-routed whole-section scan) agree on the same outcome here.
     $code5AdditionalContext = Get-Content -LiteralPath (Join-Path $repo '.claude\hooks\tests\fixtures\1428\16-code-5-additional-context.md') -Raw
-    $code5AcResult = Limit-RelatedIssues $code5AdditionalContext '16' $findingCode5 @() $true
+    $code5AcResult = Limit-RelatedIssues $code5AdditionalContext '16' $findingCode5 @()
     Test-RemediationChecksCase '#1428 Limit-RelatedIssues: removes #699, #696 and #181 from the real 16-code-5 Additional Context text' {
         (@($code5AcResult.Removed) | Sort-Object) -join ',' -eq '181,696,699'
     }
@@ -2671,225 +2949,58 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        # (d) -Only end to end: a self-contained fixture repo (own '.git', mirroring the #1375 $remWt pattern
-        # above but kept separate so this block never depends on $remWt's own later mutations) with 2 code
-        # findings. -DryRun -NoGh never calls the model or `gh`, matching decision 4's own requirement.
-        $remWt1492 = Join-Path $work 'RemediationOnlyWt'
-        if (Test-Path $remWt1492) { Remove-Item -Recurse -Force $remWt1492 }
-        New-Item -ItemType Directory -Force (Join-Path $remWt1492 'tools\ai\audit') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1492 'artifacts\knowledge\stages') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1492 '.github\ISSUE_TEMPLATE') | Out-Null
-        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1492 'tools\ai\audit\pipeline.json')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1492 'tools\ai\audit\_audit-lib.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1492 'tools\ai\audit\_remediation-checks.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1')
-        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
-            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1492 ".github\ISSUE_TEMPLATE\$t")
-        }
-        function Invoke-RemGit1492 { & git -C $remWt1492 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit1492 init -q -b main
-        Invoke-RemGit1492 commit -q --allow-empty -m base
+        # (d) -Only end to end (#1492 decision 3, kept by #1572): findings numbered "1." and "10." so "-Only
+        # 'code 1'" runs directly against a double-digit sibling -- every cleanup pattern has a literal separator
+        # right after the id, so "code 1" can never match "code 10"'s files.
+        $remN1492 = 4345
+        $remWt1492 = New-RemediationFixture 'RemediationOnlyWt' $remN1492 "1. **Major** -- ``src/X.cs:10`` first finding.`n10. **Minor** -- ``src/Y.cs:20`` tenth finding."
+        $baseline1492 = Invoke-Remediation $remWt1492 @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1492 -Only fixture: the baseline (no -Only) -Prepare exits 0 with findings code 1 and code 10' { $baseline1492.Code -eq 0 }
 
-        $codeFindingsText1492 = "1. **Major** -- ``src/X.cs:10`` first finding.`n2. **Minor** -- ``src/Y.cs:20`` second finding."
-        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText1492`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        $remN1492 = 4343
-        @{ issue = $remN1492; worktree = $remWt1492; branch = "audit/$remN1492"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492 'artifacts\knowledge\current-audit.json')
-
-        $baselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $baselineExit = $LASTEXITCODE
-        Test-RemediationCase '#1492 -Only fixture: the baseline (no -Only) full run exits 0' { $baselineExit -eq 0 }
-
-        $dryDir1492 = Join-Path $remWt1492 "artifacts\knowledge\remediation\_dryrun-$remN1492"
-        $untouchedFile1492 = Join-Path $dryDir1492 'code-2-brief.md'
-        Test-RemediationCase '#1492 -Only fixture: the baseline run wrote both findings'' brief files' {
-            (Test-Path -LiteralPath (Join-Path $dryDir1492 'code-1-brief.md')) -and (Test-Path -LiteralPath $untouchedFile1492)
-        }
-
-        # Backdate the finding-2 brief file's mtime and capture its bytes, so "-Only 'code 1'" leaving it
-        # untouched can be proven by more than "the deterministic content happens to match again."
+        # What remediation-drafter would leave behind: both drafts and the stage file.
+        $manifest1492 = Get-RemediationManifest $remWt1492 $remN1492
+        foreach ($f in @($manifest1492.findings)) { Set-Content -LiteralPath $f.draftFile -Encoding utf8 -Value "draft of $($f.key)" }
+        Write-StageFromManifest $manifest1492
+        $code10Draft = (Get-ManifestFinding $manifest1492 'code 10').draftFile
+        $code10Input = (Get-ManifestFinding $manifest1492 'code 10').inputFile
+        $code1Draft = (Get-ManifestFinding $manifest1492 'code 1').draftFile
         $backdated1492 = [DateTime]::new(2020, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
-        (Get-Item -LiteralPath $untouchedFile1492).LastWriteTimeUtc = $backdated1492
-        $untouchedContentBefore1492 = Get-Content -LiteralPath $untouchedFile1492 -Raw
-        $untouchedInputFile1492 = Join-Path $dryDir1492 'code-2-input.md'
-        (Get-Item -LiteralPath $untouchedInputFile1492).LastWriteTimeUtc = $backdated1492
-
-        $onlyOutput1492 = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
-        $onlyExit1492 = $LASTEXITCODE
-        Test-RemediationCase '#1492 -Only "code 1" exits 0 and never calls the model or gh' { $onlyExit1492 -eq 0 }
-
-        $untouchedAfter1492 = Get-Item -LiteralPath $untouchedFile1492
-        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run brief file with an unchanged mtime (never rewritten)' {
-            $untouchedAfter1492.LastWriteTimeUtc -eq $backdated1492
-        }
-        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run brief file byte-identical' {
-            (Get-Content -LiteralPath $untouchedFile1492 -Raw) -eq $untouchedContentBefore1492
-        }
-        Test-RemediationCase '#1492 -Only "code 1" leaves finding code-2''s own dry-run input file with an unchanged mtime (never rewritten)' {
-            (Get-Item -LiteralPath $untouchedInputFile1492).LastWriteTimeUtc -eq $backdated1492
-        }
-        Test-RemediationCase '#1492 -Only "code 1" never logs removing finding code-2''s own output' {
-            (Get-FlatOutput $onlyOutput1492) -notmatch [regex]::Escape('code-2-brief.md') -and (Get-FlatOutput $onlyOutput1492) -notmatch [regex]::Escape('code-2-input.md')
+        $code10Before = @{}
+        foreach ($path in $code10Draft, $code10Input) {
+            (Get-Item -LiteralPath $path).LastWriteTimeUtc = $backdated1492
+            $code10Before[$path] = Get-Content -LiteralPath $path -Raw
         }
 
-        $remStageLines1492 = @(Get-Content (Join-Path $remWt1492 'artifacts\knowledge\stages\remediation.md') | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' })
-        Test-RemediationCase '#1492 -Only "code 1": stages\remediation.md still lists both findings'' lines after the -Only run' {
-            $remStageLines1492.Count -eq 2
+        $only1492 = Invoke-Remediation $remWt1492 @('-Prepare', '-NoGh', '-Only', 'code 1')
+        Test-RemediationCase '#1492 -Only "code 1" exits 0' { $only1492.Code -eq 0 }
+        foreach ($path in $code10Draft, $code10Input) {
+            $leaf = Split-Path -Leaf $path
+            Test-RemediationCase "#1492 -Only 'code 1' leaves code 10's $leaf present, byte-identical and with an unchanged mtime (double-digit prefix collision)" {
+                (Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492 -and (Get-Content -LiteralPath $path -Raw) -eq $code10Before[$path]
+            }
         }
+        Test-RemediationCase '#1492 -Only "code 1" never logs removing code 10''s files' { $only1492.Output -notmatch 'code-10' }
+        Test-RemediationCase '#1492 -Only "code 1" removes code 1''s own previous draft (remediation-drafter rewrites it)' { -not (Test-Path -LiteralPath $code1Draft) }
+        $onlyManifest1492 = Get-RemediationManifest $remWt1492 $remN1492
+        $onlyCode10 = Get-ManifestFinding $onlyManifest1492 'code 10'
+        $onlyCode1 = Get-ManifestFinding $onlyManifest1492 'code 1'
+        Test-RemediationCase '#1492 -Only "code 1": the manifest keeps code 10 untouched (regenerate false, its existing line and draft)' {
+            -not $onlyCode10.regenerate -and $onlyCode10.remediationLine -eq "- code 10 (Minor): draft $(Split-Path -Leaf $code10Draft)" -and $onlyCode10.draftFile -eq $code10Draft
+        }
+        Test-RemediationCase '#1492 -Only "code 1": the manifest marks code 1 for regeneration with its draft path' { $onlyCode1.regenerate -and $onlyCode1.draftFile -eq $code1Draft }
+        # -Finalize after an -Only run: the drafter rewrote code 1 only; an untouched draft is checked for presence alone.
+        Set-Content -LiteralPath $code1Draft -Encoding utf8 -NoNewline -Value (New-CleanDraft (Join-Path $remWt1492 '.github\ISSUE_TEMPLATE\technical_debt.md') '[DEBT] First finding of X' 'technical-debt' '' 'debt')
+        Write-StageFromManifest $onlyManifest1492
+        $onlyFinalize1492 = Invoke-Remediation $remWt1492 @('-Finalize')
+        Test-RemediationCase '#1492 -Finalize after -Only checks the regenerated draft and leaves code 10''s draft byte-identical' { $onlyFinalize1492.Code -eq 0 -and (Get-Content -LiteralPath $code10Draft -Raw) -eq $code10Before[$code10Draft] }
 
         # -Only with a stage/id that does not match any currently-parsed finding is an error, not a silent no-op.
-        $badOnlyOutput1492 = & pwsh -NoProfile -File (Join-Path $remWt1492 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 99' 2>&1
-        $badOnlyExit1492 = $LASTEXITCODE
-        Test-RemediationCase "#1492 -Only 'code 99' (no matching finding) is an error, not a silent no-op" {
-            $badOnlyExit1492 -ne 0 -and (Get-FlatOutput $badOnlyOutput1492) -match "does not match a finding"
-        }
-
-        # -Only against an audit that has never had a full regeneration (no stages\remediation.md yet) is also
-        # an error, never a guess at what the other findings' lines should say.
-        $remWt1492NoBaseline = Join-Path $work 'RemediationOnlyWtNoBaseline'
-        if (Test-Path $remWt1492NoBaseline) { Remove-Item -Recurse -Force $remWt1492NoBaseline }
-        New-Item -ItemType Directory -Force $remWt1492NoBaseline | Out-Null
-        Copy-Item -Recurse (Join-Path $remWt1492 'tools') (Join-Path $remWt1492NoBaseline 'tools')
-        Copy-Item -Recurse (Join-Path $remWt1492 '.github') (Join-Path $remWt1492NoBaseline '.github')
-        New-Item -ItemType Directory -Force (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages') | Out-Null
-        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\code.md') "## Findings`n$codeFindingsText1492`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        $remN1492NoBaseline = 4344
-        @{ issue = $remN1492NoBaseline; worktree = $remWt1492NoBaseline; branch = "audit/$remN1492NoBaseline"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492NoBaseline 'artifacts\knowledge\current-audit.json')
-        function Invoke-RemGit1492NoBaseline { & git -C $remWt1492NoBaseline -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit1492NoBaseline init -q -b main
-        Invoke-RemGit1492NoBaseline commit -q --allow-empty -m base
-        $noBaselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492NoBaseline 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
-        $noBaselineExit = $LASTEXITCODE
-        Test-RemediationCase '#1492 -Only without a prior full regeneration is an error, not a guess' {
-            $noBaselineExit -ne 0 -and (Get-FlatOutput $noBaselineOutput) -match 'requires an existing'
-        }
-
-        # (e) #1492 adversarial-review regression: -Only "code 1" must never touch a DOUBLE-DIGIT sibling
-        # finding's own leftover output. Split-Findings takes a finding's Id straight from the markdown's own
-        # leading digits (not from its position in the list), so the fixture above -- findings "1" and "2" --
-        # could never have exposed a numeric-PREFIX collision even in the unfixed code: "code 1" never collided
-        # with "code 2". This fixture numbers its two findings "1." and "10." instead, so "-Only 'code 1'" runs
-        # directly against a "code 10" sibling and can prove the fix at audit-draft-remediation.ps1:339 (every
-        # narrow pattern has a literal separator immediately after $keyId, so a bare "$keyId*.md" wildcard can
-        # no longer swallow "${keyId}0...").
-        $remWt1492c = Join-Path $work 'RemediationOnlyWtCollision'
-        if (Test-Path $remWt1492c) { Remove-Item -Recurse -Force $remWt1492c }
-        New-Item -ItemType Directory -Force $remWt1492c | Out-Null
-        Copy-Item -Recurse (Join-Path $remWt1492 'tools') (Join-Path $remWt1492c 'tools')
-        Copy-Item -Recurse (Join-Path $remWt1492 '.github') (Join-Path $remWt1492c '.github')
-        New-Item -ItemType Directory -Force (Join-Path $remWt1492c 'artifacts\knowledge\stages') | Out-Null
-        $collisionFindingsText1492 = "1. **Major** -- ``src/X.cs:10`` first finding.`n10. **Minor** -- ``src/Y.cs:20`` tenth finding."
-        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\code.md') "## Findings`n$collisionFindingsText1492`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\docs.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        $remN1492c = 4345
-        @{ issue = $remN1492c; worktree = $remWt1492c; branch = "audit/$remN1492c"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1492c 'artifacts\knowledge\current-audit.json')
-        function Invoke-RemGit1492c { & git -C $remWt1492c -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit1492c init -q -b main
-        Invoke-RemGit1492c commit -q --allow-empty -m base
-
-        $collisionBaselineOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $collisionBaselineExit = $LASTEXITCODE
-        Test-RemediationCase '#1492 double-digit fixture: the baseline (no -Only) full run exits 0 with findings code 1 and code 10' { $collisionBaselineExit -eq 0 }
-
-        # -DryRun's own preview files for code-10 (written by the baseline run above), backdated the same way
-        # as the single-digit case, so "-Only 'code 1'" leaving them untouched is proven by more than
-        # "the deterministic content happens to match again."
-        $backdated1492c = [DateTime]::new(2020, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
-        $collisionDryDir = Join-Path $remWt1492c "artifacts\knowledge\remediation\_dryrun-$remN1492c"
-        $code10DryFiles = @{
-            'dryrun-brief' = Join-Path $collisionDryDir 'code-10-brief.md'
-            'dryrun-input' = Join-Path $collisionDryDir 'code-10-input.md'
-        }
-        $code10DryContentBefore = @{}
-        foreach ($key in $code10DryFiles.Keys) {
-            (Get-Item -LiteralPath $code10DryFiles[$key]).LastWriteTimeUtc = $backdated1492c
-            $code10DryContentBefore[$key] = Get-Content -LiteralPath $code10DryFiles[$key] -Raw
-        }
-
-        # Simulate a previous REAL (non -DryRun) run's leftover output for finding "code 10" -- exactly the
-        # files "-Only 'code 1'"'s cleanup step (audit-draft-remediation.ps1:339-346) walks regardless of
-        # -DryRun, and exactly the files the pre-fix single "_brief-...-$keyId*.md" pattern could delete by
-        # accident (matching "_brief-<n>-code-10.md" and its "-reask" variant too).
-        $collisionRemDir = Join-Path $remWt1492c 'artifacts\knowledge\remediation'
-        $code10Leftovers = @{
-            'input'          = "_input-$remN1492c-code-10.md"
-            'classify-brief' = "_classify-brief-$remN1492c-code-10.md"
-            'classify'       = "_classify-$remN1492c-code-10.md"
-            'brief'          = "_brief-$remN1492c-code-10.md"
-            'brief-reask'    = "_brief-$remN1492c-code-10-reask.md"
-            'draft'          = "$remN1492c-code-10-tenth-finding.md"
-        }
-        $code10Paths = @{}
-        $code10ContentBefore = @{}
-        foreach ($key in $code10Leftovers.Keys) {
-            $path = Join-Path $collisionRemDir $code10Leftovers[$key]
-            Set-Content -LiteralPath $path -Encoding utf8 -Value "leftover content for code-10 $key"
-            (Get-Item -LiteralPath $path).LastWriteTimeUtc = $backdated1492c
-            $code10Paths[$key] = $path
-            $code10ContentBefore[$key] = Get-Content -LiteralPath $path -Raw
-        }
-
-        $collisionOnlyOutput = & pwsh -NoProfile -File (Join-Path $remWt1492c 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' 2>&1
-        $collisionOnlyExit = $LASTEXITCODE
-        Test-RemediationCase '#1492 -Only "code 1" against a code-10 sibling exits 0' { $collisionOnlyExit -eq 0 }
-
-        # The child pwsh process above (its own OS process, separate from this test) does the actual file
-        # removal; on Windows, a just-created/just-renamed file's visibility to a SIBLING process's directory
-        # enumeration can lag the write by a few milliseconds (filesystem cache/AV scan settle time). A file
-        # that is genuinely gone stays gone through every retry, so this loop cannot mask a real regression --
-        # it only protects against a false failure from reading the directory microseconds too early.
-        function Wait-FileState1492c([string]$Path) {
-            for ($attempt = 0; $attempt -lt 10; $attempt++) {
-                if (Test-Path -LiteralPath $Path) { return $true }
-                Start-Sleep -Milliseconds 50
-            }
-            return $false
-        }
-
-        # Also assert the run's own log never claims to have removed one of code-10's files -- the same
-        # style the pre-existing single-digit case above uses (line ~2422), extended here with the never-
-        # deleted output-text check the double-digit case was missing.
-        Test-RemediationCase '#1492 -Only "code 1" never logs removing any of code-10''s own leftover output' {
-            $flatCollisionOutput = Get-FlatOutput $collisionOnlyOutput
-            $flatCollisionOutput -notmatch [regex]::Escape('code-10-brief.md') -and $flatCollisionOutput -notmatch [regex]::Escape('code-10-input.md') -and
-            (($code10Leftovers.Values | ForEach-Object { $flatCollisionOutput -notmatch [regex]::Escape($_) }) -notcontains $false)
-        }
-
-        foreach ($key in $code10DryFiles.Keys) {
-            $path = $code10DryFiles[$key]
-            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file with an unchanged mtime (double-digit prefix collision)" {
-                (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
-            }
-            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key dry-run preview file byte-identical" {
-                (Get-Content -LiteralPath $path -Raw) -eq $code10DryContentBefore[$key]
-            }
-        }
-
-        foreach ($key in $code10Leftovers.Keys) {
-            $path = $code10Paths[$key]
-            $survived = Wait-FileState1492c $path
-            Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file present after the run (double-digit prefix collision)" {
-                $survived
-            }
-            if ($survived) {
-                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file with an unchanged mtime" {
-                    (Get-Item -LiteralPath $path).LastWriteTimeUtc -eq $backdated1492c
-                }
-                Test-RemediationCase "#1492 -Only 'code 1' leaves code-10's own $key file byte-identical" {
-                    (Get-Content -LiteralPath $path -Raw) -eq $code10ContentBefore[$key]
-                }
-            }
-        }
-
-        $collisionStageLines = Get-Content (Join-Path $remWt1492c 'artifacts\knowledge\stages\remediation.md')
-        $code10Line = @($collisionStageLines | Where-Object { $_ -match '^-\s+code\s+10\s+\(' })
-        Test-RemediationCase '#1492 -Only "code 1": stages\remediation.md keeps code 10''s own line after the run' {
-            $code10Line.Count -eq 1
-        }
+        $badOnly1492 = Invoke-Remediation $remWt1492 @('-Prepare', '-NoGh', '-Only', 'code 99')
+        Test-RemediationCase "#1492 -Only 'code 99' (no matching finding) is an error, not a silent no-op" { $badOnly1492.Code -ne 0 -and $badOnly1492.Output -match 'does not match a finding' }
+        # -Only against an audit with no stages\remediation.md yet is an error, never a guess at the other lines.
+        $noBaselineWt = New-RemediationFixture 'RemediationOnlyWtNoBaseline' 4344 "1. **Major** -- ``src/X.cs:10`` first finding."
+        $noBaseline = Invoke-Remediation $noBaselineWt @('-Prepare', '-NoGh', '-Only', 'code 1')
+        Test-RemediationCase '#1492 -Only without a prior full -Prepare and drafter run is an error, not a guess' { $noBaseline.Code -ne 0 -and $noBaseline.Output -match 'requires an existing' }
     }
     else {
         'SKIP #1492 -Only fixture: git is not on PATH'
@@ -3000,82 +3111,44 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        # A self-contained fixture repo (own '.git', the same pattern the #1375/#1492 fixtures above use) with
         # 4 findings across the 3 stages: code-1 and docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is
         # Major and must be the drafted primary); docs-2 cites a DIFFERENT line of the SAME file (`src/A.cs:99`,
         # its own group); tests-1 cites no file at all (never grouped with anything).
-        $remWt1491 = Join-Path $work 'RemediationGroupingWt'
-        if (Test-Path $remWt1491) { Remove-Item -Recurse -Force $remWt1491 }
-        New-Item -ItemType Directory -Force (Join-Path $remWt1491 'tools\ai\audit') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1491 'artifacts\knowledge\stages') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1491 '.github\ISSUE_TEMPLATE') | Out-Null
-        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1491 'tools\ai\audit\pipeline.json')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1491 'tools\ai\audit\_audit-lib.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1491 'tools\ai\audit\_remediation-checks.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1')
-        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
-            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1491 ".github\ISSUE_TEMPLATE\$t")
-        }
-        function Invoke-RemGit1491 { & git -C $remWt1491 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit1491 init -q -b main
-        Invoke-RemGit1491 commit -q --allow-empty -m base
-
-        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\code.md') "## Findings`n1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage).`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\tests.md') "## Findings`n1. **Minor** -- A general observation with no file citation at all.`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\docs.md') "## Findings`n1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n2. **Major** -- ``src/A.cs:99`` an unrelated defect, same file, different line.`n## Lessons for the pipeline`n- none`n"
         $remN1491 = 4646
-        @{ issue = $remN1491; worktree = $remWt1491; branch = "audit/$remN1491"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1491 'artifacts\knowledge\current-audit.json')
+        $remWt1491 = New-RemediationFixture 'RemediationGroupingWt' $remN1491 `
+            "1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage)." `
+            '1. **Minor** -- A general observation with no file citation at all.' `
+            "1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n2. **Major** -- ``src/A.cs:99`` an unrelated defect, same file, different line."
+        $grouping = Invoke-Remediation $remWt1491 @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1491 grouping fixture: -Prepare exits 0' { $grouping.Code -eq 0 }
+        $manifest1491 = Get-RemediationManifest $remWt1491 $remN1491
+        $g1491Code1 = Get-ManifestFinding $manifest1491 'code 1'
+        $g1491Docs1 = Get-ManifestFinding $manifest1491 'docs 1'
+        $g1491Docs2 = Get-ManifestFinding $manifest1491 'docs 2'
+        $g1491Tests1 = Get-ManifestFinding $manifest1491 'tests 1'
+        Test-RemediationCase '#1491 grouping fixture: the same-location primary (code 1, Major) gets the group''s draft and Reported-by line' {
+            $g1491Code1.draftFile -and $g1491Code1.groupPrimary -eq 'code 1' -and (@($g1491Code1.groupMembers) -join ',') -eq 'code 1,docs 1' -and $g1491Code1.reportedByLine -eq 'Reported by: code 1, docs 1.'
+        }
+        Test-RemediationCase '#1491 grouping fixture: the merged sibling (docs 1) gets no draft and a "merged into code 1" line' {
+            $null -eq $g1491Docs1.draftFile -and $g1491Docs1.mergedInto -eq 'code 1' -and $g1491Docs1.remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)'
+        }
+        Test-RemediationCase '#1491 grouping fixture: a different line of the same file (docs 2) and the no-anchor finding (tests 1) each draft their own' {
+            $g1491Docs2.draftFile -and $null -eq $g1491Docs2.mergedInto -and $g1491Tests1.draftFile -and $null -eq $g1491Tests1.mergedInto -and $null -eq $g1491Docs2.reportedByLine
+        }
+        Test-RemediationCase '#1491 grouping fixture: exactly 3 drafts for 4 findings (one group merged)' { @($manifest1491.findings | Where-Object { $_.draftFile }).Count -eq 3 }
 
-        $groupingOutput = & pwsh -NoProfile -File (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $groupingExit = $LASTEXITCODE
-        Test-RemediationCase '#1491 grouping fixture: the full run exits 0' { $groupingExit -eq 0 }
-
-        $groupingDryDir = Join-Path $remWt1491 "artifacts\knowledge\remediation\_dryrun-$remN1491"
-        # Two stages reporting the same file:line (code 1, docs 1) produce ONE draft: only code-1 (the
-        # higher-severity member) gets its own dry-run preview files; docs-1 gets none.
-        Test-RemediationCase '#1491 grouping fixture: the same-location primary (code 1, Major) got its own dry-run brief' {
-            Test-Path -LiteralPath (Join-Path $groupingDryDir 'code-1-brief.md')
+        # -Only on the MERGED (non-primary) finding docs-1 prepares the group's one draft (code-1's own), never
+        # a draft of docs-1 on its own (decision 4).
+        Write-StageFromManifest $manifest1491
+        $onlyMerged = Invoke-Remediation $remWt1491 @('-Prepare', '-NoGh', '-Only', 'docs 1')
+        $onlyMergedManifest = Get-RemediationManifest $remWt1491 $remN1491
+        Test-RemediationCase '#1491 -Only "docs 1" (a merged, non-primary finding) exits 0' { $onlyMerged.Code -eq 0 }
+        Test-RemediationCase '#1491 -Only "docs 1" regenerates the whole group: code 1 (with its draft) and docs 1 (merged)' {
+            $c1 = Get-ManifestFinding $onlyMergedManifest 'code 1'; $d1 = Get-ManifestFinding $onlyMergedManifest 'docs 1'
+            $c1.regenerate -and $c1.draftFile -and $d1.regenerate -and $null -eq $d1.draftFile -and $d1.remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)'
         }
-        Test-RemediationCase '#1491 grouping fixture: the merged sibling (docs 1, Minor, same location) never got its own dry-run brief' {
-            -not (Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-1-brief.md'))
-        }
-        # Different lines of the same file (docs 2 vs. code 1/docs 1) are different groups: docs-2 drafts its own.
-        Test-RemediationCase '#1491 grouping fixture: a different line of the same file (docs 2) got its own dry-run brief' {
-            Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-2-brief.md')
-        }
-        # A finding with no anchor (tests 1) is never merged with anything and always drafts its own.
-        Test-RemediationCase '#1491 grouping fixture: the no-anchor finding (tests 1) got its own dry-run brief' {
-            Test-Path -LiteralPath (Join-Path $groupingDryDir 'tests-1-brief.md')
-        }
-        $groupingBriefs = @(Get-ChildItem $groupingDryDir -Filter '*-brief.md' -ErrorAction SilentlyContinue)
-        Test-RemediationCase '#1491 grouping fixture: exactly 3 drafts total for 4 findings (one group merged)' { $groupingBriefs.Count -eq 3 }
-
-        $groupingStageLines = Get-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\remediation.md')
-        Test-RemediationCase '#1491 grouping fixture: stages/remediation.md still lists all 4 findings' {
-            @($groupingStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 4
-        }
-        Test-RemediationCase '#1491 grouping fixture: docs 1''s own line says it merged into code 1 (same location)' {
-            @($groupingStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+merged into code 1 \(same location\)$' }).Count -eq 1
-        }
-        Test-RemediationCase '#1491 grouping fixture: docs 2 and tests 1 are NOT reported as merged (each drafted its own)' {
-            (@($groupingStageLines | Where-Object { $_ -match '^-\s+docs\s+2\s+\(' }) -notmatch 'merged into') -and
-            (@($groupingStageLines | Where-Object { $_ -match '^-\s+tests\s+1\s+\(' }) -notmatch 'merged into')
-        }
-
-        # -Only on the MERGED (non-primary) finding docs-1 regenerates the group's one draft (code-1's own),
-        # never tries to draft docs-1 on its own (decision 4).
-        $onlyMergedOutput = & pwsh -NoProfile -File (Join-Path $remWt1491 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 1' 2>&1
-        $onlyMergedExit = $LASTEXITCODE
-        Test-RemediationCase '#1491 -Only "docs 1" (a merged, non-primary finding) exits 0' { $onlyMergedExit -eq 0 }
-        Test-RemediationCase '#1491 -Only "docs 1" regenerates the group''s own primary brief (code-1), not a "docs-1-brief.md" of its own' {
-            (Test-Path -LiteralPath (Join-Path $groupingDryDir 'code-1-brief.md')) -and (-not (Test-Path -LiteralPath (Join-Path $groupingDryDir 'docs-1-brief.md')))
-        }
-        $onlyMergedStageLines = Get-Content (Join-Path $remWt1491 'artifacts\knowledge\stages\remediation.md')
-        Test-RemediationCase '#1491 -Only "docs 1": stages/remediation.md still lists all 4 findings after the -Only run' {
-            @($onlyMergedStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 4
-        }
-        Test-RemediationCase '#1491 -Only "docs 1": docs 1''s own line still says merged into code 1' {
-            @($onlyMergedStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+merged into code 1 \(same location\)$' }).Count -eq 1
+        Test-RemediationCase '#1491 -Only "docs 1" leaves docs 2 and tests 1 untouched (regenerate false)' {
+            -not (Get-ManifestFinding $onlyMergedManifest 'docs 2').regenerate -and -not (Get-ManifestFinding $onlyMergedManifest 'tests 1').regenerate
         }
     }
     else {
@@ -3092,126 +3165,71 @@ Two SagaStoreADO test classes duplicate the same setup.
     # above; the -DuplicateOf OPEN-state check itself is skipped entirely under -NoGh (the script's own #1534
     # comment block), so this suite never needs a real GitHub issue.
 
-    # (a) Format validation: a malformed entry is a fail-fast error, no file touched.
-    Test-RemediationCase '#1534 -DuplicateOf: a malformed entry (no "=<issue>") is an error, not a silent no-op' {
-        $badFormatOutput = & pwsh -NoProfile -File (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 12' 2>&1
-        $badFormatExit = $LASTEXITCODE
-        $badFormatExit -ne 0 -and (Get-FlatOutput $badFormatOutput) -match "must be '<stage> <n>=<issue>'"
-    }
-    Test-RemediationCase '#1534 -DuplicateOf: a non-numeric issue number is an error' {
-        $badIssueOutput = & pwsh -NoProfile -File (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 12=abc' 2>&1
-        $badIssueExit = $LASTEXITCODE
-        $badIssueExit -ne 0 -and (Get-FlatOutput $badIssueOutput) -match "must be '<stage> <n>=<issue>'"
-    }
-
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        # A self-contained fixture repo (own '.git', the #1491/#1492 pattern) with 3 findings: code-1 and
-        # docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is Major and is the group's own primary) --
-        # proves decision 4 (overriding the primary records the WHOLE group as the duplicate); docs-12 is a
-        # standalone finding with no shared location -- mirrors the real audit #18 case and the acceptance
-        # command's own "docs 12" key.
-        $remWt1534 = Join-Path $work 'RemediationDuplicateOfWt'
-        if (Test-Path $remWt1534) { Remove-Item -Recurse -Force $remWt1534 }
-        New-Item -ItemType Directory -Force (Join-Path $remWt1534 'tools\ai\audit') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1534 'artifacts\knowledge\stages') | Out-Null
-        New-Item -ItemType Directory -Force (Join-Path $remWt1534 '.github\ISSUE_TEMPLATE') | Out-Null
-        Copy-Item (Join-Path $repo 'tools\ai\audit\pipeline.json') (Join-Path $remWt1534 'tools\ai\audit\pipeline.json')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_audit-lib.ps1') (Join-Path $remWt1534 'tools\ai\audit\_audit-lib.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\_remediation-checks.ps1') (Join-Path $remWt1534 'tools\ai\audit\_remediation-checks.ps1')
-        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-draft-remediation.ps1') (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1')
-        foreach ($t in 'bug_report.md', 'test_implementation.md', 'technical_debt.md') {
-            Copy-Item (Join-Path $repo ".github\ISSUE_TEMPLATE\$t") (Join-Path $remWt1534 ".github\ISSUE_TEMPLATE\$t")
-        }
-        function Invoke-RemGit1534 { & git -C $remWt1534 -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
-        Invoke-RemGit1534 init -q -b main
-        Invoke-RemGit1534 commit -q --allow-empty -m base
-
-        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\code.md') "## Findings`n1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage).`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\tests.md') "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
-        Set-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\docs.md') "## Findings`n1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n12. **Blocker** -- ``docs/messaging/index.md:45`` references the removed package ``Encina.Dapper.Oracle``.`n## Lessons for the pipeline`n- none`n"
+        # 3 findings: code-1 and docs-1 cite the SAME file:line (`src/A.cs:20`, code-1 is Major and is the group's
+        # own primary) -- proves decision 4 (overriding the primary records the WHOLE group as the duplicate);
+        # docs-12 is a standalone finding -- mirrors the real audit #18 case and the acceptance command's own
+        # "docs 12" key. -NoGh skips the OPEN-state check (the stubbed-gh block above covers it).
         $remN1534 = 1818
-        @{ issue = $remN1534; worktree = $remWt1534; branch = "audit/$remN1534"; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content (Join-Path $remWt1534 'artifacts\knowledge\current-audit.json')
+        $remWt1534 = New-RemediationFixture 'RemediationDuplicateOfWt' $remN1534 `
+            "1. **Major** -- ``src/A.cs:20`` stale doc comment (code stage)." `
+            '- none' `
+            "1. **Minor** -- ``src/A.cs:20`` the same stale doc comment noted from the docs side.`n12. **Blocker** -- ``docs/messaging/index.md:45`` references the removed package ``Encina.Dapper.Oracle``."
 
-        # Baseline (no -DuplicateOf): a full run, so a later -Only + -DuplicateOf run has a stages/remediation.md
-        # to fall back to for the findings it does not touch.
-        $baselineOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh 2>&1
-        $baselineExit1534 = $LASTEXITCODE
-        Test-RemediationCase '#1534 fixture: the baseline (no -DuplicateOf) full run exits 0' { $baselineExit1534 -eq 0 }
+        # (a) Format validation: a malformed entry is a fail-fast error, before any file is touched.
+        $badFormat1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-DuplicateOf', 'docs 12')
+        Test-RemediationCase '#1534 -DuplicateOf: a malformed entry (no "=<issue>") is an error, not a silent no-op' { $badFormat1534.Code -ne 0 -and $badFormat1534.Output -match "must be '<stage> <n>=<issue>'" }
+        $badIssue1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-DuplicateOf', 'docs 12=abc')
+        Test-RemediationCase '#1534 -DuplicateOf: a non-numeric issue number is an error' { $badIssue1534.Code -ne 0 -and $badIssue1534.Output -match "must be '<stage> <n>=<issue>'" }
+        Test-RemediationCase '#1534 -DuplicateOf: a malformed entry touches no file (no manifest written)' { $null -eq (Get-RemediationManifest $remWt1534 $remN1534) }
 
-        $dryDir1534 = Join-Path $remWt1534 "artifacts\knowledge\remediation\_dryrun-$remN1534"
-        Test-RemediationCase '#1534 fixture: the baseline run wrote a dry-run brief for docs 12' {
-            Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md')
-        }
+        # Baseline (no -DuplicateOf), then what the drafter leaves behind, so -Only has lines to fall back to.
+        $baseline1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh')
+        $manifest1534 = Get-RemediationManifest $remWt1534 $remN1534
+        Test-RemediationCase '#1534 fixture: the baseline -Prepare exits 0 and gives docs 12 a draft' { $baseline1534.Code -eq 0 -and (Get-ManifestFinding $manifest1534 'docs 12').draftFile }
+        Write-StageFromManifest $manifest1534
 
-        # (c) unknown key: a -DuplicateOf entry naming a finding not parsed from the stages is an error.
-        $unknownKeyOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -DuplicateOf 'docs 99=1177' 2>&1
-        $unknownKeyExit1534 = $LASTEXITCODE
-        Test-RemediationCase "#1534 -DuplicateOf 'docs 99=1177' (no matching finding) is an error, not a silent no-op" {
-            $unknownKeyExit1534 -ne 0 -and (Get-FlatOutput $unknownKeyOutput1534) -match 'does not match a finding'
-        }
+        # (c) unknown key.
+        $unknownKey1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-DuplicateOf', 'docs 99=1177')
+        Test-RemediationCase "#1534 -DuplicateOf 'docs 99=1177' (no matching finding) is an error, not a silent no-op" { $unknownKey1534.Code -ne 0 -and $unknownKey1534.Output -match 'does not match a finding' }
 
-        # (b) the acceptance command's own typical pairing: -Only 'docs 12' -DuplicateOf 'docs 12=1177'. Expect
-        # no draft, the duplicate line (with " (manual override)"), and no dry-run brief written for docs 12.
-        if (Test-Path -LiteralPath $dryDir1534) { Remove-Item -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md') -Force -ErrorAction SilentlyContinue }
-        $onlyDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 12' -DuplicateOf 'docs 12=1177' 2>&1
-        $onlyDupExit1534 = $LASTEXITCODE
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177' exits 0" { $onlyDupExit1534 -eq 0 }
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177' writes no dry-run brief for docs 12 (no draft)" {
-            -not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-12-brief.md'))
+        # (b) the typical pairing: -Only 'docs 12' -DuplicateOf 'docs 12=1177'.
+        $onlyDup1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-Only', 'docs 12', '-DuplicateOf', 'docs 12=1177')
+        $onlyDupManifest = Get-RemediationManifest $remWt1534 $remN1534
+        $onlyDupDocs12 = Get-ManifestFinding $onlyDupManifest 'docs 12'
+        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177' exits 0" { $onlyDup1534.Code -eq 0 }
+        Test-RemediationCase "#1534 -DuplicateOf 'docs 12=1177': no draft, and its line reads like an automatic duplicate plus (manual override)" {
+            $null -eq $onlyDupDocs12.draftFile -and $onlyDupDocs12.duplicateOf -eq '1177' -and $onlyDupDocs12.duplicateSource -eq 'manual override' -and $onlyDupDocs12.remediationLine -eq '- docs 12 (Blocker): duplicate of #1177 (manual override)'
         }
-        $onlyDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': docs 12''s own line reads like an automatic duplicate, plus (manual override)" {
-            @($onlyDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
+        Test-RemediationCase "#1534 -DuplicateOf 'docs 12=1177': the override is logged as a lesson in the manifest" { (@($onlyDupManifest.lessons) -join '|') -match [regex]::Escape('docs 12: recorded as duplicate of #1177 by manual override') }
+        Test-RemediationCase "#1534 -DuplicateOf 'docs 12=1177': code 1 and docs 1 (untouched) keep their own lines" {
+            -not (Get-ManifestFinding $onlyDupManifest 'code 1').regenerate -and (Get-ManifestFinding $onlyDupManifest 'code 1').remediationLine -eq (Get-ManifestFinding $manifest1534 'code 1').remediationLine -and
+            (Get-ManifestFinding $onlyDupManifest 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)'
         }
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': stages\remediation.md still lists all 3 findings" {
-            @($onlyDupStageLines | Where-Object { $_ -match '^-\s+\w+\s+\d+\s+\(' }).Count -eq 3
-        }
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': logs the override under Lessons for the pipeline" {
-            (Get-FlatOutput (Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md'))) -match [regex]::Escape('docs 12: recorded as duplicate of #1177 by manual override')
-        }
-        Test-RemediationCase "#1534 -Only 'docs 12' -DuplicateOf 'docs 12=1177': code 1 and docs 1 (untouched) keep their own lines" {
-            (@($onlyDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(' })).Count -eq 1 -and
-            (@($onlyDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(' })).Count -eq 1
-        }
+        Write-StageFromManifest $onlyDupManifest
 
-        # (d) overriding the PRIMARY of a #1491 same-location group records the WHOLE group as the duplicate --
-        # every member's own line, never a "merged into ..." line for the non-primary sibling. Scoped with
-        # -Only 'code 1' (the group's own primary key) so docs 12's own line from run (b), still untouched
-        # here, is proven to survive via stages/remediation.md's own existing-line fallback.
-        $groupDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'code 1' -DuplicateOf 'code 1=999' 2>&1
-        $groupDupExit1534 = $LASTEXITCODE
-        Test-RemediationCase "#1534 -Only 'code 1' -DuplicateOf 'code 1=999' (group primary) exits 0" { $groupDupExit1534 -eq 0 }
-        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999' writes no dry-run brief for code 1 or its merged sibling docs 1" {
-            (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'code-1-brief.md'))) -and (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-1-brief.md')))
+        # (d) overriding the PRIMARY of a #1491 same-location group records the WHOLE group as the duplicate.
+        $groupDup1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-Only', 'code 1', '-DuplicateOf', 'code 1=999')
+        $groupDupManifest = Get-RemediationManifest $remWt1534 $remN1534
+        Test-RemediationCase "#1534 -Only 'code 1' -DuplicateOf 'code 1=999' (group primary) exits 0" { $groupDup1534.Code -eq 0 }
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': code 1 and its merged sibling docs 1 are both duplicates of #999 (manual override), neither drafts" {
+            $c = Get-ManifestFinding $groupDupManifest 'code 1'; $d = Get-ManifestFinding $groupDupManifest 'docs 1'
+            $c.remediationLine -eq '- code 1 (Major): duplicate of #999 (manual override)' -and $d.remediationLine -eq '- docs 1 (Minor): duplicate of #999 (manual override)' -and $null -eq $c.draftFile -and $null -eq $d.draftFile
         }
-        $groupDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
-        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': the primary's own line (code 1) says duplicate of #999 (manual override)" {
-            @($groupDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(Major\):\s+duplicate of #999 \(manual override\)$' }).Count -eq 1
-        }
-        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': the merged sibling's own line (docs 1) ALSO says duplicate of #999 (manual override), never 'merged into ...'" {
-            @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+duplicate of #999 \(manual override\)$' }).Count -eq 1
-        }
-        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': docs 12 (untouched by this run) still drafts, keeping its own earlier duplicate-override line" {
-            @($groupDupStageLines | Where-Object { $_ -match '^-\s+docs\s+12\s+\(Blocker\):\s+duplicate of #1177 \(manual override\)$' }).Count -eq 1
-        }
+        Test-RemediationCase "#1534 -DuplicateOf 'code 1=999': docs 12 (untouched by this run) keeps its earlier override line" { (Get-ManifestFinding $groupDupManifest 'docs 12').remediationLine -eq '- docs 12 (Blocker): duplicate of #1177 (manual override)' }
 
-        # (e) #1535: overriding a NON-primary member of the SAME #1491 group (docs 1, merged into code 1 above)
-        # records the WHOLE group as the duplicate too -- not only the primary. Scoped with -Only 'docs 1' (the
-        # non-primary member's own key) and a different target issue (#998) so its own stage line is
-        # distinguishable from run (d)'s #999.
-        $nonPrimaryDupOutput1534 = & pwsh -NoProfile -File (Join-Path $remWt1534 'tools\ai\audit\audit-draft-remediation.ps1') -DryRun -NoGh -Only 'docs 1' -DuplicateOf 'docs 1=998' 2>&1
-        $nonPrimaryDupExit1534 = $LASTEXITCODE
-        Test-RemediationCase "#1535 -Only 'docs 1' -DuplicateOf 'docs 1=998' (group NON-primary member) exits 0" { $nonPrimaryDupExit1534 -eq 0 }
-        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998' writes no dry-run brief for docs 1 or its group primary code 1" {
-            (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'docs-1-brief.md'))) -and (-not (Test-Path -LiteralPath (Join-Path $dryDir1534 'code-1-brief.md')))
+        # (e) #1535: overriding a NON-primary member of the SAME group records the WHOLE group too.
+        Write-StageFromManifest $groupDupManifest
+        $nonPrimaryDup1534 = Invoke-Remediation $remWt1534 @('-Prepare', '-NoGh', '-Only', 'docs 1', '-DuplicateOf', 'docs 1=998')
+        $nonPrimaryManifest = Get-RemediationManifest $remWt1534 $remN1534
+        Test-RemediationCase "#1535 -Only 'docs 1' -DuplicateOf 'docs 1=998' (group NON-primary member) exits 0" { $nonPrimaryDup1534.Code -eq 0 }
+        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': docs 1 and its group primary code 1 are both duplicates of #998 (manual override)" {
+            (Get-ManifestFinding $nonPrimaryManifest 'docs 1').remediationLine -eq '- docs 1 (Minor): duplicate of #998 (manual override)' -and (Get-ManifestFinding $nonPrimaryManifest 'code 1').remediationLine -eq '- code 1 (Major): duplicate of #998 (manual override)'
         }
-        $nonPrimaryDupStageLines = Get-Content (Join-Path $remWt1534 'artifacts\knowledge\stages\remediation.md')
-        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the non-primary member's own line (docs 1) says duplicate of #998 (manual override)" {
-            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+docs\s+1\s+\(Minor\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
-        }
-        Test-RemediationCase "#1535 -DuplicateOf 'docs 1=998': the group PRIMARY's own line (code 1) ALSO says duplicate of #998 (manual override), same as naming the primary directly" {
-            @($nonPrimaryDupStageLines | Where-Object { $_ -match '^-\s+code\s+1\s+\(Major\):\s+duplicate of #998 \(manual override\)$' }).Count -eq 1
-        }
+        # A -Finalize on duplicates only (docs 12 and the code 1 group): nothing to draft, only the stage file.
+        Write-StageFromManifest $nonPrimaryManifest
+        $dupFinalize = Invoke-Remediation $remWt1534 @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize with only duplicate findings needs no draft and passes on the stage file alone' { $dupFinalize.Code -eq 0 }
     }
     else {
         'SKIP #1534 fixture: git is not on PATH'
