@@ -274,7 +274,14 @@ try {
             $pipelinePath = Join-Path $location.Root 'tools\ai\audit\pipeline.json'
             $pipeline = $null
             if (Test-Path -LiteralPath $pipelinePath) {
-                try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json } catch { $pipeline = $null }
+                # #1572 review: an unreadable pipeline.json must not fall through to the default allow -- nobody
+                # may write a stage artifact whose owner cannot be decided (fail closed, AGENTS.md §3).
+                try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json -ErrorAction Stop }
+                catch { $pipeline = $null }
+                if ($null -eq $pipeline -or $null -eq $pipeline.stages) {
+                    [Console]::Error.WriteLine("Blocked: '$relative' is under artifacts/knowledge/stages/, but $pipelinePath cannot be read or parsed, so the stage's owner cannot be decided; repair pipeline.json first (#1572, fail closed).")
+                    return $false
+                }
             }
             $stageDef = if ($null -ne $pipeline) { @($pipeline.stages) | Where-Object { $_.artifact -ieq $stageArtifactMatch.Groups['file'].Value } | Select-Object -First 1 } else { $null }
             if ($null -ne $stageDef) {

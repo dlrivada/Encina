@@ -138,8 +138,12 @@ committed:
    It applies the sanitizers below to every regenerated draft, then checks each draft's header block
    (title prefix, labels, milestone, `kind:`), the template headers in order, leftover placeholders, missing
    drafts, stale drafts for duplicate or merged findings, and that `stages/remediation.md` carries the manifest's
-   line for every finding. It prints every problem and exits 1 when any remains: re-spawn `remediation-drafter`
-   with that output, then run `-Finalize` again.
+   line for every finding, that no `<n>-*.md` outside the manifest's drafts exists (an orphan or a second draft
+   would become an extra issue), and that the current code/tests/docs findings still match the manifest (a
+   stage re-committed after Prepare makes it stale: run `-Prepare` again). It prints every problem and exits 1
+   when any remains: re-spawn `remediation-drafter` (naming `#<n>` and `wia-<n>`) and paste Finalize's whole
+   output into its prompt — the drafter keeps every draft that output does not name and rewrites only the ones it
+   names — then run `-Finalize` again.
 4. Commit: `pwsh -NoProfile -File tools/ai/audit/audit-commit-stage.ps1 -Stage remediation` (it refuses unless
    `.authors.json` records `remediation-drafter` as the last writer of `stages/remediation.md` and `-Finalize`,
    which it runs again, is clean; the manifest's lessons must also appear in the stage file's Lessons section).
@@ -147,9 +151,18 @@ committed:
 **An audit opened before #1572** (audit #18 is one) carries its own copy of `tools/ai/audit/pipeline.json`
 in `wia-<n>`, whose remediation entry still names the local-model script; `audit-stage-guard.ps1`,
 `enforce-path-ownership.ps1` and `audit-commit-stage.ps1` all read that copy, so `remediation-drafter` could
-not write or commit the stage. Before its remediation stage, change that worktree copy's remediation entry to
+not write or commit the stage (and `-Prepare` refuses to run). Only after the #1572 PR is merged and the main
+checkout is pulled (the scripts and hooks run from there), change that worktree copy's remediation entry to
 `"agent": "remediation-drafter", "model": "sonnet"` with the Edit tool (the orchestrator may edit it; no commit
-is needed, since `audit-commit-stage.ps1` stages only `artifacts/knowledge`).
+is needed, since `audit-commit-stage.ps1` stages only `artifacts/knowledge`). Then validate before continuing:
+
+```powershell
+(Get-Content -Raw .claude/worktrees/wia-<n>/tools/ai/audit/pipeline.json | ConvertFrom-Json).stages | Where-Object stage -eq 'remediation'
+pwsh -NoProfile -File tools/ai/audit/audit-stage.ps1 -Next
+```
+
+The first must print `remediation-drafter`/`sonnet` (a parse error means the edit broke the JSON: the hooks then
+deny every stage write and spawn until it is fixed); the second must print the three remediation steps.
 
 `-DryRun` (either mode) works only inside the sandbox `artifacts/knowledge/remediation/_dryrun-<n>/`: Prepare
 writes its inputs, manifest and draft paths there (the stage-file preview is `_dryrun-<n>/remediation.md`),
@@ -288,7 +301,7 @@ blocked). For each lesson, replace `TODO` with one of:
 - `role:<agent> <one-line note>` when the lesson belongs in that agent's own memory rather than a one-off
   fix — `audit-done.ps1` appends it, with today's date and this issue number, to
   `.claude/agents/lessons/<agent>.md` when the audit closes. Use the exact agent name (`issue-archivist`,
-  `issue-auditor`, `test-auditor`, `audit-verifier`, `docs-reviewer`).
+  `issue-auditor`, `test-auditor`, `docs-reviewer`, `remediation-drafter`, `audit-verifier`).
 
 Commit `stages/lessons.md` on the audit branch with:
 

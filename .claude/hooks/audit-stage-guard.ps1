@@ -29,11 +29,14 @@
 #
 # pipeline.json is read from the OPEN AUDIT'S OWN worktree (not this hook's checkout), so a fixture or a
 # later reorder of the file changes the stage this hook expects without redeploying the hook.
-# Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call.
+# Exit code 2 blocks the call and shows stderr to Claude. A failure of the hook itself allows an unrelated call
+# (or a malformed payload), but DENIES an audit-stage spawn, and so does a missing or unparseable pipeline.json
+# in the open audit's worktree (#1572 review: fail closed, AGENTS.md §3).
 
 param()
 
 $ErrorActionPreference = 'Stop'
+$auditStageSpawn = $false
 
 try {
     $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
@@ -53,6 +56,9 @@ try {
     # own documentation — from being misread as an audit-stage spawn and denied for having no open audit.
     $isDocsStage = $subagent -eq 'docs-reviewer' -and $prompt -match 'wia-\d+' -and $prompt -match '(?i)\baudit\b'
     if ($subagent -notin $stageAgents -and -not $isDocsStage) { exit 0 }
+    # From here on this is an audit-stage spawn: any failure of the checks below denies it (fail closed, #1572
+    # review), instead of the fail-open default that still applies to unrelated spawns and malformed payloads.
+    $auditStageSpawn = $true
 
     $projectDir = [string]$env:CLAUDE_PROJECT_DIR
     if ([string]::IsNullOrWhiteSpace($projectDir)) { exit 0 }
@@ -83,8 +89,14 @@ try {
     }
 
     $pipelinePath = Join-Path $wt 'tools\ai\audit\pipeline.json'
-    if (-not (Test-Path -LiteralPath $pipelinePath)) { exit 0 }
-    $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json
+    $pipeline = $null
+    if (Test-Path -LiteralPath $pipelinePath) {
+        try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { $pipeline = $null }
+    }
+    if ($null -eq $pipeline -or $null -eq $pipeline.stages) {
+        [Console]::Error.WriteLine("Blocked: the open audit's $pipelinePath is missing or cannot be parsed, so the stage due for #$n cannot be decided; repair it first (#1572, fail closed).")
+        exit 2
+    }
 
     $model = [string]$payload.tool_input.model
     if ($model -and $pipeline.forbiddenModels -and $model -in @($pipeline.forbiddenModels)) {
@@ -184,5 +196,9 @@ try {
     exit 0
 }
 catch {
+    if ($auditStageSpawn) {
+        [Console]::Error.WriteLine("Blocked: audit-stage-guard.ps1 could not check this audit-stage spawn ($($_.Exception.Message)); an unchecked stage spawn is denied (#1572, fail closed).")
+        exit 2
+    }
     exit 0
 }

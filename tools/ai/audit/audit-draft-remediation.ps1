@@ -46,8 +46,14 @@
 # duplicate is ever found under it. Meant for offline runs and Test-Hooks.ps1.
 #
 # Every gh call goes through Invoke-GhWithRetry (_remediation-checks.ps1, #1548): transient failures (TLS
-# handshake timeout, connection reset, HTTP 5xx, rate limit) are retried 3 times after 5, 15 and 45 seconds;
-# a 4xx is not retried.
+# handshake timeout, "error connecting to" and other dial errors, connection reset, HTTP 5xx, and a rate limit
+# reported as HTTP 403 or 429) are retried 3 times after 5, 15 and 45 seconds; any other 4xx is not retried. A
+# malformed JSON reply fails the stage rather than reading as "no candidates".
+#
+# -Finalize also fails on a stale manifest (the current code/tests/docs findings no longer match the manifest's,
+# e.g. after a FAIL-loop re-commit of a stage) and on any '<n>-*.md' in the output folder that is not a manifest
+# draft (an orphan or a second draft of one group). Both modes refuse an audit worktree whose pipeline.json does
+# not assign the remediation stage to remediation-drafter.
 
 param(
     [switch]$Prepare,
@@ -104,12 +110,41 @@ if ($null -eq $audit) { Stop-Remediation 'no open audit (artifacts/knowledge/cur
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipelineDir = Join-Path $wt 'tools\ai\audit'
+try { $pipeline = Get-Pipeline $pipelineDir } catch { Stop-Remediation "cannot read $pipelineDir\pipeline.json: $($_.Exception.Message)" }
 
 function Get-StageFile([string]$Name) {
     $def = $pipeline.stages | Where-Object { $_.stage -eq $Name }
     if ($null -eq $def) { Stop-Remediation "pipeline.json has no '$Name' stage." }
     return Join-Path $stagesDir $def.artifact
+}
+
+# #1572 review: an audit worktree keeps its own pipeline.json; one opened before #1572 still assigns the
+# remediation stage to the local-model script, and the hooks would then deny remediation-drafter's writes and
+# commit. Fail fast with the fix instead of letting the stage dead-end later.
+$remediationStageDef = @($pipeline.stages) | Where-Object { $_.stage -eq 'remediation' } | Select-Object -First 1
+if ($null -eq $remediationStageDef -or [string]$remediationStageDef.agent -ne 'remediation-drafter') {
+    Stop-Remediation "$pipelineDir\pipeline.json assigns the remediation stage to '$($remediationStageDef.agent)', not 'remediation-drafter'. Update that worktree copy's remediation entry to `"agent`": `"remediation-drafter`", `"model`": `"sonnet`" (issue-audit skill, step 2) and run this again."
+}
+
+# A '## Findings' header literally present in the file: only an explicit "- none" body means zero findings; a
+# missing header is always an error (#1375 CodeRabbit review).
+function Test-FindingsHeaderPresent([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    return [regex]::IsMatch((Get-Content -LiteralPath $Path -Raw), '(?m)^##\s*Findings\s*$')
+}
+
+# Every finding of the code, tests and docs stage artifacts as they are NOW (Split-Findings, _audit-lib.ps1):
+# -Prepare drafts from them, -Finalize compares them with the manifest to catch a stale manifest.
+function Get-AllFindings {
+    $found = [System.Collections.Generic.List[pscustomobject]]::new()
+    foreach ($stageName in 'code', 'tests', 'docs') {
+        $stageFile = Get-StageFile $stageName
+        if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
+        try { foreach ($f in (Split-Findings $stageName (Get-StageSection $stageFile 'Findings'))) { $found.Add($f) } }
+        catch { Stop-Remediation $_.Exception.Message }
+    }
+    return , $found
 }
 
 $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
@@ -142,6 +177,28 @@ if ($Finalize) {
 
     $findingsByKey = @{}
     foreach ($f in @($manifest.findings)) { $findingsByKey[[string]$f.key] = $f }
+
+    # A stage re-committed after -Prepare (a FAIL-loop re-run of code/tests/docs) makes the manifest stale: the
+    # drafts would no longer match the findings the verifier checks. Compare the current findings with the
+    # manifest's, by key and severity, and name every difference.
+    $currentFindings = Get-AllFindings
+    $currentByKey = @{}
+    foreach ($cf in $currentFindings) { $currentByKey["$($cf.Stage) $($cf.Id)"] = $cf }
+    foreach ($key in $currentByKey.Keys) {
+        if (-not $findingsByKey.ContainsKey($key)) { $problems.Add("stale manifest: finding '$key' is in the stage artifacts but not in the manifest; run -Prepare again.") }
+        elseif ([string]$findingsByKey[$key].severity -ne [string]$currentByKey[$key].Severity) { $problems.Add("stale manifest: finding '$key' is $($currentByKey[$key].Severity) in the stage artifacts but $($findingsByKey[$key].severity) in the manifest; run -Prepare again.") }
+    }
+    foreach ($key in $findingsByKey.Keys) {
+        if (-not $currentByKey.ContainsKey($key)) { $problems.Add("stale manifest: finding '$key' is in the manifest but no longer in the stage artifacts; run -Prepare again.") }
+    }
+
+    # Exactly one draft per drafted group: any '<n>-*.md' in the output folder that is not a manifest draftFile
+    # (an orphan, or a second draft of one group) would be opened as an extra issue by open-remediation.ps1.
+    $expectedDrafts = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($f in @($manifest.findings)) { if ($f.draftFile) { [void]$expectedDrafts.Add([IO.Path]::GetFullPath([string]$f.draftFile)) } }
+    foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)) {
+        if (-not $expectedDrafts.Contains($onDisk.FullName)) { $problems.Add("$($onDisk.Name) is not a draft the manifest names (an orphan or a second draft of one group); open-remediation.ps1 would open it as an extra issue. Remove it or re-run -Prepare.") }
+    }
 
     foreach ($f in @($manifest.findings)) {
         $label = [string]$f.label
@@ -274,20 +331,7 @@ if (-not $NoGh) {
     if ($existingLabels -notcontains 'area-documentation') { $routes.docs.labels = @('technical-debt') }
 }
 
-# A '## Findings' header literally present in the file: only an explicit "- none" body means zero findings; a
-# missing header is always an error (#1375 CodeRabbit review).
-function Test-FindingsHeaderPresent([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path)) { return $false }
-    return [regex]::IsMatch((Get-Content -LiteralPath $Path -Raw), '(?m)^##\s*Findings\s*$')
-}
-
-$allFindings = [System.Collections.Generic.List[pscustomobject]]::new()
-foreach ($stageName in 'code', 'tests', 'docs') {
-    $stageFile = Get-StageFile $stageName
-    if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
-    try { foreach ($f in (Split-Findings $stageName (Get-StageSection $stageFile 'Findings'))) { $allFindings.Add($f) } }
-    catch { Stop-Remediation $_.Exception.Message }
-}
+$allFindings = Get-AllFindings
 $allFindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)") }
 
@@ -417,15 +461,17 @@ foreach ($gi in $touchedGroupIndexes) {
         $candidatesByNumber = [ordered]@{}
         foreach ($term in (Get-SearchTerms $primary.Text)) {
             $listJson = Get-GhResult @('issue', 'list', '--repo', 'dlrivada/Encina', '--state', 'open', '--search', $term, '--json', 'number,title', '--limit', '8') "$primaryLabel (term '$term')"
+            # A malformed reply fails the stage: treating it as "no candidates" would hide a real duplicate (#1572 review).
             $parsed = @()
-            try { $parsed = @($listJson | ConvertFrom-Json) } catch { $parsed = @() }
+            try { $parsed = @($listJson | ConvertFrom-Json) } catch { Stop-Remediation "'gh issue list --search $term' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
             foreach ($c in $parsed) { if (-not $candidatesByNumber.Contains([string]$c.number)) { $candidatesByNumber[[string]$c.number] = $c } }
         }
         $evidenceCandidates = foreach ($c in @($candidatesByNumber.Values | Select-Object -First 10)) {
             $number = [string]$c.number
             if (-not $ghIssueCache.ContainsKey($number)) {
                 $viewJson = Get-GhResult @('issue', 'view', $number, '--repo', 'dlrivada/Encina', '--json', 'title,body') "$primaryLabel (candidate #$number)"
-                $ghIssueCache[$number] = try { $viewJson | ConvertFrom-Json } catch { $null }
+                try { $ghIssueCache[$number] = $viewJson | ConvertFrom-Json }
+                catch { Stop-Remediation "'gh issue view $number' for $primaryLabel returned malformed JSON: $($_.Exception.Message)" }
             }
             $cached = $ghIssueCache[$number]
             [pscustomobject]@{ Number = $number; Title = [string]$c.title; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
@@ -564,7 +610,8 @@ if ($onlyKeys) {
     }
 }
 else {
-    foreach ($pattern in "$n-*.md", "_input-$n-*.md", "_manifest-$n.json") {
+    # The _brief-/_classify-/_classify-brief- files are the pre-#1572 local-model intermediates of this audit.
+    foreach ($pattern in "$n-*.md", "_input-$n-*.md", "_manifest-$n.json", "_brief-$n-*.md", "_classify-$n-*.md", "_classify-brief-$n-*.md") {
         foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             Remove-Item -LiteralPath $staleFile.FullName -Force
             "audit-draft-remediation: removed previous output $($staleFile.Name)"

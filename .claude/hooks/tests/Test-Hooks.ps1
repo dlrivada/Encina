@@ -1044,6 +1044,11 @@ try {
         Invoke-HookCase $ownership ($payload | ConvertTo-Json -Compress) $expected $label $hookAgent
     }
     Invoke-HookCase $ownership (@{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "Set-Content -LiteralPath '$openDraft' -Value 'rewritten'" } } | ConvertTo-Json -Compress) 2 'shell vector (#1572): the orchestrator rewriting an open-audit draft with Set-Content is denied' $null
+    # #1572 review: an unreadable pipeline.json never falls through to the default allow for a stage artifact.
+    Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') '{ not json'
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'an unparseable pipeline.json denies even the assigned stage agent a stage-artifact write (#1572, fail closed)' 'issue-auditor'
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'an unparseable pipeline.json denies the orchestrator a stage-artifact write (#1572, fail closed)' $null
+    Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') $ownershipPipelineJson
     # Fail closed: an unreadable current-audit.json leaves no caller able to write any draft.
     Set-Content -LiteralPath $draftAuditPath -Value '{ not json'
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main; tool_input = @{ file_path = $openDraft } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies even the orchestrator a draft write (#1572, fail closed)' $null
@@ -1380,6 +1385,14 @@ try {
         Set-AuditOpen $true
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (reordered pipeline)." $null 0 'audit-stage-guard: reordered pipeline.json makes code the first stage'
         Invoke-AuditCase 'issue-archivist' "Audit #$auditN in worktree wia-$auditN, archivist stage (reordered pipeline)." $null 2 'audit-stage-guard: reordered pipeline.json makes archivist out of order'
+
+        # #1572 review: fail closed when the open audit's pipeline.json is unparseable or missing.
+        Set-Content (Join-Path $auditWt 'tools\ai\audit\pipeline.json') '{ not json'
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (broken pipeline.json)." $null 2 'audit-stage-guard: an unparseable pipeline.json denies the stage spawn (#1572, fail closed)'
+        Remove-Item -Force (Join-Path $auditWt 'tools\ai\audit\pipeline.json')
+        Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (no pipeline.json)." $null 2 'audit-stage-guard: a missing pipeline.json denies the stage spawn (#1572, fail closed)'
+        Invoke-AuditCase 'general-purpose' 'Unrelated research, no audit context.' $null 0 'audit-stage-guard: an unrelated spawn is unaffected by a broken audit pipeline.json'
+        Initialize-AuditWorktree $defaultPipelineJson
 
         Invoke-HookCase $auditGuard 'not json' 0 'audit-stage-guard: malformed payload'
 
@@ -2073,6 +2086,24 @@ Test.
             $again = Invoke-Remediation $finWt @('-Finalize')
             $again.Code -eq 0 -and (Get-Content -LiteralPath $finCode1.draftFile -Raw) -eq $before
         }
+        # An orphan or second draft of one group would become an extra issue in open-remediation.ps1.
+        $orphanDraft = Join-Path $finWt "artifacts\knowledge\remediation\$finN-code-1-second-draft.md"
+        Set-Content -LiteralPath $orphanDraft -Value 'a second draft of the code 1 group'
+        $finalizeOrphan = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a <n>-*.md that is not a manifest draft (orphan or second draft of one group)' { $finalizeOrphan.Code -eq 1 -and $finalizeOrphan.Output -match "$finN-code-1-second-draft\.md is not a draft the manifest names" }
+        Remove-Item -LiteralPath $orphanDraft -Force
+        # A stage re-committed after -Prepare (a FAIL-loop re-run) makes the manifest stale.
+        $finTestsStage = Join-Path $finWt 'artifacts\knowledge\stages\tests.md'
+        $finTestsBackup = Get-Content -LiteralPath $finTestsStage -Raw
+        Set-Content -LiteralPath $finTestsStage -Value "## Findings`n1. **Major** -- ``tests/Encina.UnitTests/Foo/ATests.cs:5`` no unit test covers the failed write.`n2. **Minor** -- ``tests/Encina.UnitTests/Foo/BTests.cs:9`` a new finding.`n## Lessons for the pipeline`n- none`n"
+        $finalizeStale = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a stale manifest: a finding added after -Prepare, and a changed severity' {
+            $finalizeStale.Code -eq 1 -and $finalizeStale.Output -match "stale manifest: finding 'tests 2' is in the stage artifacts but not in the manifest" -and $finalizeStale.Output -match "stale manifest: finding 'tests 1' is Major in the stage artifacts but Minor in the manifest"
+        }
+        Set-Content -LiteralPath $finTestsStage -Value "## Findings`n- none`n## Lessons for the pipeline`n- none`n"
+        $finalizeRemoved = Invoke-Remediation $finWt @('-Finalize')
+        Test-RemediationCase '#1572 -Finalize reports a stale manifest: a finding removed after -Prepare' { $finalizeRemoved.Code -eq 1 -and $finalizeRemoved.Output -match "stale manifest: finding 'tests 1' is in the manifest but no longer in the stage artifacts" }
+        Set-Content -LiteralPath $finTestsStage -Value $finTestsBackup -NoNewline
         # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.
         $debtDraft = New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] A.Write reports success after a failed write' 'technical-debt' '' 'debt'
         Set-Content -LiteralPath $finCode1.draftFile -Encoding utf8 -NoNewline -Value ($debtDraft -replace '- \[ \] Documentation gap', '- [x] Documentation gap')
@@ -2138,6 +2169,45 @@ Test.
         # A live full -Prepare removes the whole sandbox (it is disposable).
         $liveAgain = Invoke-Remediation $dryWt @('-Prepare', '-NoGh')
         Test-RemediationCase '#1540 a live full -Prepare removes the _dryrun-<n> sandbox' { $liveAgain.Code -eq 0 -and -not (Test-Path -LiteralPath $drySandbox) }
+
+        # ---- #1572 review round: legacy intermediates, a pre-#1572 pipeline.json, audit-stage.ps1 -Next ----
+        $legacyN = 1599
+        $legacyWt = New-RemediationFixture 'RemediationLegacyWt' $legacyN "1. **Major** -- ``src/A.cs:1`` first."
+        $legacyDir = Join-Path $legacyWt 'artifacts\knowledge\remediation'
+        New-Item -ItemType Directory -Force $legacyDir | Out-Null
+        $legacyFiles = "_brief-$legacyN-code-1.md", "_brief-$legacyN-code-1-reask.md", "_classify-$legacyN-code-1.md", "_classify-brief-$legacyN-code-1.md"
+        foreach ($lf in $legacyFiles) { Set-Content -LiteralPath (Join-Path $legacyDir $lf) -Value 'legacy local-model intermediate' }
+        Set-Content -LiteralPath (Join-Path $legacyDir '_brief-1600-code-1.md') -Value 'another audit'
+        $legacyPrepare = Invoke-Remediation $legacyWt @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1572 a full -Prepare removes this audit''s legacy _brief-/_classify-/_classify-brief- files, never another audit''s' {
+            $legacyPrepare.Code -eq 0 -and @($legacyFiles | Where-Object { Test-Path -LiteralPath (Join-Path $legacyDir $_) }).Count -eq 0 -and (Test-Path -LiteralPath (Join-Path $legacyDir '_brief-1600-code-1.md'))
+        }
+
+        # An audit worktree whose own pipeline.json predates #1572 is refused with the fix, before any file is touched.
+        $oldPipelineWt = New-RemediationFixture 'RemediationOldPipelineWt' 1601 "1. **Major** -- ``src/A.cs:1`` first."
+        $oldPipelinePath = Join-Path $oldPipelineWt 'tools\ai\audit\pipeline.json'
+        Set-Content -LiteralPath $oldPipelinePath -Value ((Get-Content -LiteralPath $oldPipelinePath -Raw) -replace '"agent":\s*"remediation-drafter",\s*"model":\s*"sonnet"', '"agent": "local-model (script tools/ai/audit/audit-draft-remediation.ps1)", "model": "qwen"')
+        $oldPipelinePrepare = Invoke-Remediation $oldPipelineWt @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1572 -Prepare refuses a worktree pipeline.json that does not assign remediation to remediation-drafter, naming the fix' {
+            $oldPipelinePrepare.Code -ne 0 -and $oldPipelinePrepare.Output -match "not 'remediation-drafter'" -and $null -eq (Get-RemediationManifest $oldPipelineWt 1601)
+        }
+        Set-Content -LiteralPath $oldPipelinePath -Value '{ not json'
+        $brokenPipelinePrepare = Invoke-Remediation $oldPipelineWt @('-Prepare', '-NoGh')
+        Test-RemediationCase '#1572 -Prepare refuses an unparseable worktree pipeline.json' { $brokenPipelinePrepare.Code -ne 0 -and $brokenPipelinePrepare.Output -match 'cannot read' }
+
+        # audit-stage.ps1 -Next names the three remediation steps when the remediation stage is due.
+        $nextN = 1602
+        $nextWt = New-RemediationFixture 'RemediationNextWt' $nextN
+        Copy-Item (Join-Path $repo 'tools\ai\audit\audit-stage.ps1') (Join-Path $nextWt 'tools\ai\audit\audit-stage.ps1')
+        Set-Content (Join-Path $nextWt 'artifacts\knowledge\stages\archivist.md') "x`n## Lessons for the pipeline`n- none`n"
+        foreach ($stagePair in @(@('archivist', 'archivist.md'), @('code', 'code.md'), @('tests', 'tests.md'), @('docs', 'docs.md'))) {
+            & git -C $nextWt add -f "artifacts/knowledge/stages/$($stagePair[1])" 2>&1 | Out-Null
+            & git -C $nextWt commit -q -m "audit #$nextN`: $($stagePair[0]) stage" -m "Stage: $($stagePair[0])" 2>&1 | Out-Null
+        }
+        $nextOutput = Get-FlatOutput (& pwsh -NoProfile -File (Join-Path $nextWt 'tools\ai\audit\audit-stage.ps1') -Next 2>&1)
+        Test-RemediationCase '#1572 audit-stage.ps1 -Next prints the Prepare -> spawn remediation-drafter (naming #<n> and wia-<n>) -> Finalize sequence' {
+            $nextOutput -match 'Next stage: remediation' -and $nextOutput -match 'audit-draft-remediation\.ps1 -Prepare' -and $nextOutput -match "spawn remediation-drafter in the foreground, naming #$nextN, wia-$nextN" -and $nextOutput -match 'audit-draft-remediation\.ps1 -Finalize'
+        }
     }
     else {
         'SKIP audit-draft-remediation.ps1: git is not on PATH'
@@ -2153,6 +2223,8 @@ Test.
     }
     Test-GhRetryCase 'a TLS handshake timeout is transient' { Test-GhTransientFailure 'Get "https://api.github.com/graphql": net/http: TLS handshake timeout' }
     Test-GhRetryCase 'a connection reset is transient' { Test-GhTransientFailure 'read tcp 10.0.0.1:1234->140.82.112.6:443: wsarecv: An existing connection was forcibly closed (connection reset)' }
+    Test-GhRetryCase 'a dial error ("error connecting to api.github.com") is transient' { Test-GhTransientFailure 'error connecting to api.github.com' }
+    Test-GhRetryCase 'an HTTP 429 is transient' { Test-GhTransientFailure 'HTTP 429: Too Many Requests' }
     Test-GhRetryCase 'an HTTP 502 is transient' { Test-GhTransientFailure 'HTTP 502: Bad Gateway (https://api.github.com/graphql)' }
     Test-GhRetryCase 'a secondary rate limit is transient, even reported as HTTP 403' { Test-GhTransientFailure 'HTTP 403: You have exceeded a secondary rate limit.' }
     Test-GhRetryCase 'an HTTP 404 is permanent' { -not (Test-GhTransientFailure 'HTTP 404: Not Found (https://api.github.com/repos/x/y/issues/1)') }
@@ -2238,6 +2310,17 @@ function global:gh {
         $ghClosed = Invoke-Remediation $ghWt @('-Prepare', '-DuplicateOf', 'docs 1=1177') $ghStubPath
         Test-RemediationCase '#1534 -DuplicateOf naming an issue that is not OPEN is an error (stubbed gh)' { $ghClosed.Code -ne 0 -and $ghClosed.Output -match 'not an OPEN issue \(state: CLOSED\)' }
         Test-RemediationCase '#1548 a -Prepare that fails on gh leaves the previous manifest untouched' { $null -ne (Get-RemediationManifest $ghWt $ghN) -and (Get-ManifestFinding (Get-RemediationManifest $ghWt $ghN) 'code 1').duplicateOf -eq '1170' }
+        # A malformed JSON reply fails the stage instead of reading as "no candidates" (which would hide a duplicate).
+        $ghBadRulesPath = Join-Path $work 'gh-stub-rules-malformed.json'
+        @(
+            @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
+            @{ match = 'issue list*'; exit = 0; output = '<html>502 proxy page</html>' }
+        ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ghBadRulesPath -Encoding utf8
+        $env:ENCINA_GH_STUB_RULES = $ghBadRulesPath
+        $ghMalformed = Invoke-Remediation $ghWt @('-Prepare') $ghStubPath
+        Test-RemediationCase '#1572 -Prepare stops on a malformed gh JSON reply and leaves the previous manifest untouched' {
+            $ghMalformed.Code -ne 0 -and $ghMalformed.Output -match 'malformed JSON' -and (Get-ManifestFinding (Get-RemediationManifest $ghWt $ghN) 'code 1').duplicateOf -eq '1170'
+        }
         Remove-Item Env:\ENCINA_GH_STUB_RULES -ErrorAction SilentlyContinue
     }
     # ---- end #1548 block ----
@@ -3467,6 +3550,13 @@ Two SagaStoreADO test classes duplicate the same setup.
             if ($m.Groups['a'].Success -and $m.Groups['a'].Value -ne $file.BaseName) { $problems.Add("-Agent $($m.Groups['a'].Value) in $($file.Name)") }
         }
         if ($file.BaseName -in 'issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'site-steward', 'pr-reviewer' -and -not ($front -match 'block-worker-publish\.ps1')) { $problems.Add('block-worker-publish is not wired') }
+        # #1589: remediation-drafter only reads, greps, writes and edits; a shell tool would let it run the audit scripts.
+        if ($file.BaseName -eq 'remediation-drafter') {
+            $drafterTools = @(([string]$keys.tools) -split ',' | ForEach-Object { $_.Trim() })
+            if ($drafterTools -contains 'PowerShell' -or $drafterTools -contains 'Bash') { $problems.Add('remediation-drafter must have no shell tool (#1589)') }
+            if ((Compare-Object $drafterTools @('Read', 'Write', 'Edit', 'Grep', 'Glob')).Count -ne 0) { $problems.Add("remediation-drafter tools are '$($keys.tools)', expected Read, Write, Edit, Grep, Glob (#1589)") }
+            if ([int]$keys.maxTurns -lt 200) { $problems.Add("remediation-drafter maxTurns $($keys.maxTurns) is below 200") }
+        }
         Test-Wiring "frontmatter of $($file.Name)" $problems
     }
     $settingsProblems = [System.Collections.Generic.List[string]]::new()

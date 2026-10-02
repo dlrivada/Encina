@@ -1156,7 +1156,8 @@ function Find-MissingTemplateHeaders {
 # #1548: whether a failed `gh` call's output describes a transient failure worth retrying. A rate limit is
 # transient even when GitHub reports it as HTTP 403 (its secondary rate limit does); any other HTTP 4xx
 # (401, 403, 404, 422, ...) and "Could not resolve to an Issue" are permanent; a TLS handshake timeout, a
-# network timeout, a connection reset or refused, an unexpected EOF and an HTTP 5xx are transient. Anything
+# network timeout, a dial error ("error connecting to api.github.com", "dial tcp ..."), a connection reset or
+# refused, an unexpected EOF and an HTTP 5xx are transient. Anything
 # not recognised is treated as permanent (fail fast, never loop on an unknown error).
 function Test-GhTransientFailure {
     param([string]$Output)
@@ -1165,7 +1166,7 @@ function Test-GhTransientFailure {
     if ($text -match '(?i)rate limit|HTTP 429\b|abuse detection') { return $true }
     if ($text -match '(?i)HTTP 4\d\d\b|Could not resolve to an? ') { return $false }
     if ($text -match '(?i)HTTP 5\d\d\b|\b50[0-9] (Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\b') { return $true }
-    if ($text -match '(?i)TLS handshake timeout|handshake failure|i/o timeout|timed? ?out|connection reset|connection refused|unexpected EOF|\bEOF\b|no such host|temporary failure') { return $true }
+    if ($text -match '(?i)TLS handshake timeout|handshake failure|i/o timeout|timed? ?out|connection reset|connection refused|error connecting to|\bdial tcp\b|network is unreachable|unexpected EOF|\bEOF\b|no such host|temporary failure') { return $true }
     return $false
 }
 
