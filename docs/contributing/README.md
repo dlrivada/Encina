@@ -95,7 +95,7 @@ The `tests/` directory contains consolidated test projects for different test ty
 
 ### 2.4 `docs/`
 
-The `docs/` directory holds architecture ADRs in `architecture/`, specifications in `specifications/`, engineering plans in `engineering/` and `plans/`, user guides in `guides/`, feature documentation in `features/`, coverage data in `coverage/`, mutation data in `mutations/`, release notes in `releases/`, and testing methodology in `testing/` (source: repository listing). The `docs/` folder also contains `benchmarks/`, `load-tests/`, `messaging/`, `security/`, `sharding/`, `spikes/`, and `reports/` (source: repository listing).
+The `docs/` directory holds architecture ADRs in `architecture/`, specifications in `specifications/`, engineering plans in `engineering/` and `plans/`, user guides in `guides/`, feature documentation in `features/`, coverage data in `coverage/`, mutation data in `mutations/`, release notes in `releases/` (the maintainer's steps for cutting a release are in [How to cut a release by hand](../releases/RELEASE-PROCESS.md)), and testing methodology in `testing/` (source: repository listing). The `docs/` folder also contains `benchmarks/`, `load-tests/`, `messaging/`, `security/`, `sharding/`, `spikes/`, and `reports/` (source: repository listing).
 
 ### 2.5 `.github/`
 
