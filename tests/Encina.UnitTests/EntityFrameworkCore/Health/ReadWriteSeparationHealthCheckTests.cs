@@ -147,6 +147,25 @@ public sealed class ReadWriteSeparationHealthCheckTests
         result.Exception.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_WhenPrimaryIsNotReachable_ReturnsUnhealthy()
+    {
+        // Arrange - the selector is registered but no DbContext can be resolved
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<IReadWriteConnectionSelector>());
+        var options = new ReadWriteSeparationOptions { WriteConnectionString = "Server=primary;" };
+
+        var sut = new ReadWriteSeparationHealthCheck(services.BuildServiceProvider(), options);
+
+        // Act
+        var result = await sut.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("Primary database is not reachable");
+        result.Data["primary"].ShouldBe("unreachable");
+    }
+
     #endregion
 
     #region Healthy States

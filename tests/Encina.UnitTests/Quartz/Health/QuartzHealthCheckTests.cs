@@ -94,6 +94,25 @@ public sealed class QuartzHealthCheckTests
     }
 
     [Fact]
+    public async Task CheckHealthAsync_WhenOperational_ReturnsHealthyWithMetadata()
+    {
+        // Arrange
+        var metadata = new SchedulerMetaData(
+            "TestScheduler", "instance-1", typeof(IScheduler), false, true, false, false,
+            DateTimeOffset.UnixEpoch, 7, typeof(object), false, false, typeof(object), 1, "1.0");
+        _scheduler.GetMetaData(Arg.Any<CancellationToken>()).Returns(metadata);
+        var healthCheck = new QuartzHealthCheck(_serviceProvider, null);
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync();
+
+        // Assert
+        result.Status.ShouldBe(HealthStatus.Healthy);
+        result.Data["jobs_executed"].ShouldBe(7);
+        result.Data.ShouldContainKey("running_since");
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_WhenShutdown_ReturnsUnhealthy()
     {
         // Arrange
