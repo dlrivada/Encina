@@ -76,22 +76,7 @@ internal sealed class CdcDispatcher : ICdcDispatcher
     {
         ArgumentNullException.ThrowIfNull(changeEvent);
 
-        if (!_tableToEntityMap.TryGetValue(changeEvent.TableName, out var entityType))
-        {
-            CdcLog.NoHandlerForTable(_logger, changeEvent.TableName, changeEvent.Operation);
-            return Right(unit);
-        }
-
-        if (!_entityToHandlerMap.TryGetValue(entityType, out var handlerType))
-        {
-            CdcLog.NoHandlerForTable(_logger, changeEvent.TableName, changeEvent.Operation);
-            return Right(unit);
-        }
-
-        var handlerInterfaceType = typeof(IChangeEventHandler<>).MakeGenericType(entityType);
-        var handler = _serviceProvider.GetService(handlerInterfaceType);
-
-        if (handler is null)
+        if (!TryResolveHandler(changeEvent, out var entityType, out var handlerType, out var handler))
         {
             CdcLog.NoHandlerForTable(_logger, changeEvent.TableName, changeEvent.Operation);
             return Right(unit);
@@ -103,18 +88,7 @@ internal sealed class CdcDispatcher : ICdcDispatcher
 
         try
         {
-            var result = changeEvent.Operation switch
-            {
-                ChangeOperation.Insert or ChangeOperation.Snapshot => await DispatchInsertAsync(
-                    handler, entityType, changeEvent, context).ConfigureAwait(false),
-                ChangeOperation.Update => await DispatchUpdateAsync(
-                    handler, entityType, changeEvent, context).ConfigureAwait(false),
-                ChangeOperation.Delete => await DispatchDeleteAsync(
-                    handler, entityType, changeEvent, context).ConfigureAwait(false),
-                _ => Left(CdcErrors.HandlerFailed(
-                    changeEvent.TableName,
-                    new InvalidOperationException($"Unknown change operation: {changeEvent.Operation}")))
-            };
+            var result = await RouteAsync(handler, entityType, changeEvent, context).ConfigureAwait(false);
 
             if (result.IsRight)
             {
@@ -130,6 +104,53 @@ internal sealed class CdcDispatcher : ICdcDispatcher
         {
             CdcLog.HandlerFailed(_logger, ex.ForLogging(), handlerType.Name, changeEvent.Operation, changeEvent.TableName);
             return Left(CdcErrors.HandlerFailed(changeEvent.TableName, ex));
+        }
+    }
+
+    /// <summary>Finds the entity type, registered handler type and resolved handler instance for the event's table.</summary>
+    private bool TryResolveHandler(
+        ChangeEvent changeEvent,
+        out Type entityType,
+        out Type handlerType,
+        out object handler)
+    {
+        handlerType = null!;
+        handler = null!;
+
+        if (!_tableToEntityMap.TryGetValue(changeEvent.TableName, out entityType!)
+            || !_entityToHandlerMap.TryGetValue(entityType, out handlerType!))
+        {
+            return false;
+        }
+
+        var resolved = _serviceProvider.GetService(typeof(IChangeEventHandler<>).MakeGenericType(entityType));
+        if (resolved is null)
+        {
+            return false;
+        }
+
+        handler = resolved;
+        return true;
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> RouteAsync(
+        object handler,
+        Type entityType,
+        ChangeEvent changeEvent,
+        ChangeContext context)
+    {
+        switch (changeEvent.Operation)
+        {
+            case ChangeOperation.Insert or ChangeOperation.Snapshot:
+                return await DispatchInsertAsync(handler, entityType, changeEvent, context).ConfigureAwait(false);
+            case ChangeOperation.Update:
+                return await DispatchUpdateAsync(handler, entityType, changeEvent, context).ConfigureAwait(false);
+            case ChangeOperation.Delete:
+                return await DispatchDeleteAsync(handler, entityType, changeEvent, context).ConfigureAwait(false);
+            default:
+                return Left(CdcErrors.HandlerFailed(
+                    changeEvent.TableName,
+                    new InvalidOperationException($"Unknown change operation: {changeEvent.Operation}")));
         }
     }
 
