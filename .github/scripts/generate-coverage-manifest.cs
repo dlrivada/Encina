@@ -140,8 +140,9 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
             {
                 existing = JsonNode.Parse(File.ReadAllText(outputFile), null,
                     new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) as JsonObject;
+                _ = existing?["files"]; // duplicate keys surface lazily as ArgumentException
             }
-            catch (JsonException) { existing = null; }
+            catch (Exception ex) when (ex is JsonException or ArgumentException) { existing = null; }
 
             if (existing is null)
             {
@@ -156,6 +157,7 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
         JsonObject newFiles;
         var added = new List<string>();
         var removed = new List<string>();
+        var changed = new List<string>();
 
         if (append)
         {
@@ -179,6 +181,11 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
                 if (existingFiles?[f.Path] is JsonObject old)
                 {
                     var entry = (JsonObject)old.DeepClone();
+                    // Owned keys are recomputed: report entries whose hand-edited values the rules replace.
+                    if (old["defaultTests"]?.ToJsonString() != TestsArray(f.Tests).ToJsonString()
+                        || old["defaultRule"]?.ToString() != f.Rule
+                        || old["reason"]?.ToString() != f.Reason)
+                        changed.Add(f.Path);
                     // Replacing a value keeps the key's position, so unknown keys stay where they were.
                     entry["defaultTests"] = TestsArray(f.Tests);
                     entry["defaultRule"] = f.Rule;
@@ -231,6 +238,9 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
         if (existing is null) log.WriteLine($"  {pkg}: new manifest, {added.Count} file(s)");
         else if (added.Count > 0) log.WriteLine($"  {pkg}: added {added.Count}: {string.Join(", ", added)}");
         if (removed.Count > 0) log.WriteLine($"  {pkg}: removed {removed.Count}: {string.Join(", ", removed)}");
+        if (changed.Count > 0)
+            log.WriteLine($"  {pkg}: recomputed {changed.Count} entr{(changed.Count == 1 ? "y" : "ies")} whose defaultTests/defaultRule/reason differed from the rules (move a deliberate classification into \"override\"): "
+                + string.Join(", ", changed.Take(10)) + (changed.Count > 10 ? $", +{changed.Count - 10} more" : ""));
     }
 
     log.WriteLine($"\n{(append ? "Append-only" : "Generated")}: {created} new + {updated} updated manifests in {outDir}/");
@@ -390,6 +400,9 @@ int RunSelfTest()
         Check(full["files"]!.AsObject().ContainsKey("B.cs"), "full: new file added");
         Check(!full["files"]!.AsObject().ContainsKey("Gone.cs"), "full: deleted file removed");
         Check(full["totalFiles"]?.GetValue<int>() == 2 && full["generated"]?.GetValue<string>() == "T1", "full: totalFiles and generated set");
+
+        Check(quiet.ToString().Contains("recomputed 1 entry") && quiet.ToString().Contains("removed 1: Gone.cs"),
+            "full: reports recomputed and removed entries");
 
         // 2. Full mode on its own output is byte-identical (same clock).
         var bytes1 = File.ReadAllText(manifestPath);
