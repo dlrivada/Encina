@@ -147,7 +147,7 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool append, Func<st
             if (existing is null)
             {
                 // Overwriting would lose whatever the file holds: skip it and fail the run.
-                Console.Error.WriteLine($"ERROR: {outputFile} exists but is not a valid JSON object; skipped.");
+                Console.Error.WriteLine($"ERROR: {outputFile} exists but is invalid JSON, not a JSON object, or has a duplicate key; skipped.");
                 failed++;
                 continue;
             }
