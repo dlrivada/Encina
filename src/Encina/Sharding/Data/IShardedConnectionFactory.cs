@@ -24,7 +24,7 @@ namespace Encina.Sharding.Data;
 /// var result = await connectionFactory.GetConnectionAsync("shard-0", cancellationToken);
 /// result.Match(
 ///     Right: connection => { /* use connection */ },
-///     Left: error => logger.LogError("Shard unavailable: {Error}", error.Message));
+///     Left: error => logger.LogError("Shard unavailable: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Route an entity to its shard automatically
 /// var connResult = await connectionFactory.GetConnectionForEntityAsync(order, cancellationToken);

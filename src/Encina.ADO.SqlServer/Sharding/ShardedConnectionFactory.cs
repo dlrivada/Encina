@@ -27,7 +27,7 @@ namespace Encina.ADO.SqlServer.Sharding;
 /// var result = await factory.GetConnectionAsync("shard-0", ct);
 /// result.Match(
 ///     Right: conn => { /* use SqlConnection */ },
-///     Left: error => logger.LogError("Failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public sealed class ShardedConnectionFactory :

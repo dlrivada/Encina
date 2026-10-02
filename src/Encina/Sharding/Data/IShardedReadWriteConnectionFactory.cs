@@ -132,7 +132,7 @@ public interface IShardedReadWriteConnectionFactory
 /// var readResult = await factory.GetReadConnectionAsync("shard-0", ct);
 /// readResult.Match(
 ///     Right: conn => { /* conn is SqlConnection */ },
-///     Left: error => logger.LogError("Failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public interface IShardedReadWriteConnectionFactory<TConnection>

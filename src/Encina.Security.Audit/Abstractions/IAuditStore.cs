@@ -22,7 +22,7 @@ namespace Encina.Security.Audit;
 /// var result = await auditStore.RecordAsync(entry, cancellationToken);
 /// result.Match(
 ///     Right: _ => logger.LogDebug("Audit entry recorded"),
-///     Left: error => logger.LogWarning("Failed to record audit: {Message}", error.Message)
+///     Left: error => logger.LogWarning("Failed to record audit: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
 /// );
 ///
 /// // Querying audit entries
@@ -161,7 +161,7 @@ public interface IAuditStore
     ///
     /// result.Match(
     ///     Right: count => logger.LogInformation("Purged {Count} audit entries", count),
-    ///     Left: error => logger.LogError("Failed to purge audit entries: {Message}", error.Message)
+    ///     Left: error => logger.LogError("Failed to purge audit entries: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
     /// );
     /// </code>
     /// </example>

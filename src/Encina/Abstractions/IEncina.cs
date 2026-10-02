@@ -118,7 +118,7 @@ public interface IEncina
     /// await foreach (var result in Encina.Stream(new StreamProductsQuery(), cancellationToken))
     /// {
     ///     result.Match(
-    ///         Left: error => _logger.LogError("Failed to fetch product: {Error}", error.Message),
+    ///         Left: error => _logger.LogError("Failed to fetch product: {ErrorCode}", error.GetCode().IfNone("encina.unknown")),
     ///         Right: product => Console.WriteLine($"Product: {product.Name}"));
     /// }
     /// </code>

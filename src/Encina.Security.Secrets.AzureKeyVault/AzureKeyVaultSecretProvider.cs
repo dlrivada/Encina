@@ -44,7 +44,7 @@ namespace Encina.Security.Secrets.AzureKeyVault;
 ///         var result = await secretReader.GetSecretAsync("api-key", ct);
 ///         return result.Match(
 ///             Right: value =&gt; value,
-///             Left: error =&gt; { logger.LogError("Failed: {Error}", error.Message); return ""; });
+///             Left: error =&gt; { logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")); return ""; });
 ///     }
 /// }
 /// </code>

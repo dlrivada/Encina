@@ -28,7 +28,7 @@ namespace Encina.EntityFrameworkCore.Sharding;
 /// var result = factory.CreateContextForShard("shard-0");
 /// result.Match(
 ///     Right: context =&gt; { /* use context */ },
-///     Left: error =&gt; logger.LogError("Failed: {Error}", error.Message));
+///     Left: error =&gt; logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public sealed class ShardedDbContextFactory<TContext> : IShardedDbContextFactory<TContext>

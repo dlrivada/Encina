@@ -30,7 +30,7 @@ namespace Encina.AwsLambda;
 ///             eventBridgeEvent,
 ///             async detail =&gt; await _encina.Publish(new OrderCreatedNotification(detail)));
 ///
-///         result.IfLeft(error =&gt; context.Logger.LogError($"Failed: {error.Message}"));
+///         result.IfLeft(error =&gt; context.Logger.LogError($"Failed: {error.GetCode().IfNone("encina.unknown")}"));
 ///     }
 /// }
 /// </code>
