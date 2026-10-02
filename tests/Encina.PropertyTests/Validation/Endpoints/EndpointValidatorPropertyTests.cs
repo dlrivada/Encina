@@ -43,6 +43,83 @@ public sealed class EndpointValidatorPropertyTests
     }
 
     /// <summary>
+    /// Property: the IPv4 address carried by IPv4-translated, 6to4 and Teredo IPv6 addresses
+    /// classifies the same as the IPv4 address itself.
+    /// </summary>
+    [Property(MaxTest = 500)]
+    public Property Property_TunnelledIPv4Forms_ClassifyLikeTheirIPv4()
+    {
+        return Prop.ForAll(
+            Arb.From(GenIPv4()),
+            Arb.From(Gen.ArrayOf(Gen.Choose(0, 255), 8)),
+            (address, noise) =>
+            {
+                var v4 = address.GetAddressBytes();
+                var expected = EndpointValidator.ClassifyAddress(address);
+
+                var translated = new byte[16];
+                translated[8] = 0xFF;
+                translated[9] = 0xFF;
+                v4.CopyTo(translated, 12);
+
+                var sixToFour = new byte[16];
+                sixToFour[0] = 0x20;
+                sixToFour[1] = 0x02;
+                v4.CopyTo(sixToFour, 2);
+                for (var i = 0; i < 8; i++)
+                {
+                    sixToFour[i + 6] = (byte)noise[i];
+                }
+
+                var teredo = new byte[16];
+                teredo[0] = 0x20;
+                teredo[1] = 0x01;
+                for (var i = 0; i < 8; i++)
+                {
+                    teredo[i + 4] = (byte)noise[i];
+                }
+
+                for (var i = 0; i < 4; i++)
+                {
+                    teredo[i + 12] = (byte)~v4[i];
+                }
+
+                return EndpointValidator.ClassifyAddress(new IPAddress(translated)) == expected
+                    && EndpointValidator.ClassifyAddress(new IPAddress(sixToFour)) == expected
+                    && EndpointValidator.ClassifyAddress(new IPAddress(teredo)) == expected;
+            });
+    }
+
+    /// <summary>
+    /// Property: every address in 100.64.0.0/10 (carrier-grade NAT) and fec0::/10 (site-local) is
+    /// private, so it is accepted by default and rejected only by RejectPrivateNetworks without the
+    /// local opt-out.
+    /// </summary>
+    [Property(MaxTest = 300)]
+    public Property Property_CgnatAndSiteLocal_ArePrivate()
+    {
+        var cgnat = Gen.Choose(64, 127).SelectMany(second =>
+            Gen.Choose(0, 255).SelectMany(c =>
+                Gen.Choose(0, 255).Select(d => new IPAddress(new[] { (byte)100, (byte)second, (byte)c, (byte)d }))));
+        var rejecting = new EndpointPolicy { AllowedSchemes = ["https"], RejectPrivateNetworks = true };
+        var rejectingWithOptOut = new EndpointPolicy { AllowedSchemes = ["https"], RejectPrivateNetworks = true, AllowLocalEndpoints = true };
+
+        return Prop.ForAll(
+            Arb.From(cgnat),
+            Arb.From(GenIPv6WithFirstBytes(0xFE, 0xC0, 0xFF)),
+            (carrierNat, siteLocal) =>
+            {
+                var uri = new Uri($"https://{carrierNat}/");
+
+                return EndpointValidator.ClassifyAddress(carrierNat) == EndpointHostKind.Private
+                    && EndpointValidator.ClassifyAddress(siteLocal) == EndpointHostKind.Private
+                    && EndpointValidator.ValidateUri(uri, "Endpoint", Strict) is null
+                    && EndpointValidator.ValidateUri(uri, "Endpoint", rejecting) is not null
+                    && EndpointValidator.ValidateUri(uri, "Endpoint", rejectingWithOptOut) is null;
+            });
+    }
+
+    /// <summary>
     /// Property: every address in 127.0.0.0/8 is loopback, rejected by the strict policy and
     /// accepted once local endpoints are allowed.
     /// </summary>

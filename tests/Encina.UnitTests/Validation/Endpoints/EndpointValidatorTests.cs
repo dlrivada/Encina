@@ -23,9 +23,13 @@ public sealed class EndpointValidatorTests
     [InlineData("2001:4860:4860::8888")]
     [InlineData("[2001:db8::1]")]
     [InlineData("ff80::1")] // multicast: must not be mistaken for fe80::/10
-    [InlineData("100.100.100.201")]
+    [InlineData("100.128.0.1")]
+    [InlineData("100.63.255.255")]
     [InlineData("172.32.0.1")]
     [InlineData("::ffff:8.8.8.8")]
+    [InlineData("2002:808:808::1")] // 6to4 of 8.8.8.8
+    [InlineData("2001:0:4136:e378:8000:63bf:f7f7:f7f7")] // Teredo client 8.8.8.8
+    [InlineData("2001:4860:4860::8844")]
     public void ClassifyHost_PublicHosts_ArePublic(string host)
     {
         EndpointValidator.ClassifyHost(host).ShouldBe(EndpointHostKind.Public);
@@ -52,6 +56,9 @@ public sealed class EndpointValidatorTests
     [InlineData("::ffff:127.0.0.1")]
     [InlineData("::127.0.0.1")]
     [InlineData("64:ff9b::127.0.0.1")]
+    [InlineData("::ffff:0:127.0.0.1")] // IPv4-translated
+    [InlineData("2002:7f00:1::")] // 6to4 of 127.0.0.1
+    [InlineData("2001:0:4136:e378:8000:63bf:80ff:fffe")] // Teredo client 127.0.0.1
     [InlineData("ⓛⓞⓒⓐⓛⓗⓞⓢⓣ")] // circled letters map to "localhost"
     [InlineData("１２７.０.０.１")] // full-width digits map to 127.0.0.1
     public void ClassifyHost_LoopbackForms_AreLoopback(string host)
@@ -78,6 +85,10 @@ public sealed class EndpointValidatorTests
     [InlineData("fd00:ec2::254")]
     [InlineData("100.100.100.200")]
     [InlineData("168.63.129.16")]
+    [InlineData("192.0.0.192")]
+    [InlineData("2002:a9fe:a9fe::")] // 6to4 of 169.254.169.254
+    [InlineData("2001:0:4136:e378:8000:63bf:5601:5601")] // Teredo client 169.254.169.254
+    [InlineData("::ffff:0:169.254.169.254")]
     [InlineData("metadata")]
     [InlineData("metadata.google.internal")]
     [InlineData("METADATA.GOOGLE.INTERNAL.")]
@@ -96,6 +107,7 @@ public sealed class EndpointValidatorTests
     [InlineData("::")]
     [InlineData("[::]")]
     [InlineData("::ffff:0.0.0.0")]
+    [InlineData("2002::1")] // 6to4 of 0.0.0.0
     public void ClassifyHost_Unspecified_IsUnspecified(string host)
     {
         EndpointValidator.ClassifyHost(host).ShouldBe(EndpointHostKind.Unspecified);
@@ -109,6 +121,12 @@ public sealed class EndpointValidatorTests
     [InlineData("fc00::1")]
     [InlineData("fd12:3456::1")]
     [InlineData("::ffff:10.1.2.3")]
+    [InlineData("100.64.0.1")] // carrier-grade NAT
+    [InlineData("100.100.100.201")]
+    [InlineData("100.127.255.255")]
+    [InlineData("fec0::1")] // deprecated site-local
+    [InlineData("feff::1")]
+    [InlineData("2002:a00:1::")] // 6to4 of 10.0.0.1
     public void ClassifyHost_PrivateRanges_ArePrivate(string host)
     {
         EndpointValidator.ClassifyHost(host).ShouldBe(EndpointHostKind.Private);
@@ -270,6 +288,28 @@ public sealed class EndpointValidatorTests
         error.ShouldNotBeNull();
         error.ShouldContain("private");
         error.ShouldContain("AllowInsecureHttp");
+    }
+
+    [Fact]
+    public void ValidateUri_PrivateHostWithRejectPrivateNetworksAndLocalOptOut_ReturnsNull()
+    {
+        var policy = new EndpointPolicy
+        {
+            AllowedSchemes = ["https"],
+            RejectPrivateNetworks = true,
+            AllowLocalEndpoints = true,
+        };
+
+        EndpointValidator.ValidateUri(new Uri("https://192.168.1.10"), "Endpoint", policy).ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("https://[2002:7f00:1::]/")]
+    [InlineData("https://[2001:0:4136:e378:8000:63bf:80ff:fffe]/")]
+    [InlineData("https://[::ffff:0:127.0.0.1]/")]
+    public void ValidateUri_TunnelledLoopback_IsRejectedWithoutOptOut(string url)
+    {
+        EndpointValidator.ValidateUri(new Uri(url), "VaultUri", StrictHttps)!.ShouldContain("loopback");
     }
 
     [Fact]

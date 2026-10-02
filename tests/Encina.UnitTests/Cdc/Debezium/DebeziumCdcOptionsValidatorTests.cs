@@ -66,6 +66,20 @@ public sealed class DebeziumCdcOptionsValidatorTests
         _sut.Validate(null, new DebeziumCdcOptions { ListenPath = path }).FailureMessage!.ShouldContain("ListenPath");
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Validate_ChannelCapacityBelowOne_Fails(int capacity)
+    {
+        _sut.Validate(null, new DebeziumCdcOptions { ChannelCapacity = capacity }).FailureMessage!.ShouldContain("ChannelCapacity");
+    }
+
+    [Fact]
+    public void Validate_ChannelCapacityOne_Succeeds()
+    {
+        _sut.Validate(null, new DebeziumCdcOptions { ChannelCapacity = 1 }).Succeeded.ShouldBeTrue();
+    }
+
     [Fact]
     public void Validate_NullOptions_Throws()
     {

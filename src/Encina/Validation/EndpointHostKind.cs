@@ -15,7 +15,7 @@ public enum EndpointHostKind
     /// <summary>The host is a DNS name or a publicly routable IP address.</summary>
     Public = 0,
 
-    /// <summary>The host is an RFC 1918 IPv4 address (10/8, 172.16/12, 192.168/16) or an IPv6 unique local address (fc00::/7).</summary>
+    /// <summary>The host is an RFC 1918 IPv4 address (10/8, 172.16/12, 192.168/16), a carrier-grade NAT address (100.64.0.0/10), an IPv6 unique local address (fc00::/7) or a deprecated IPv6 site-local address (fec0::/10).</summary>
     Private = 1,
 
     /// <summary>The host is a loopback address (127.0.0.0/8, ::1) or a loopback name such as <c>localhost</c> or <c>localhost.localdomain</c>.</summary>

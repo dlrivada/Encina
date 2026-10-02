@@ -7,7 +7,8 @@ namespace Encina.Validation;
 /// <para>
 /// Link-local, cloud metadata and unspecified hosts are always rejected; there is no opt-out.
 /// Loopback hosts are rejected unless <see cref="AllowLocalEndpoints"/> is set. Private network
-/// hosts (RFC 1918, fc00::/7) are allowed unless <see cref="RejectPrivateNetworks"/> is set.
+/// hosts (RFC 1918, 100.64.0.0/10, fc00::/7, fec0::/10) are allowed unless
+/// <see cref="RejectPrivateNetworks"/> is set and <see cref="AllowLocalEndpoints"/> is not.
 /// </para>
 /// </remarks>
 /// <example>
@@ -31,8 +32,9 @@ public sealed class EndpointPolicy
     public bool AllowLocalEndpoints { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether private network hosts (RFC 1918, fc00::/7) are rejected.
-    /// Defaults to <c>false</c>.
+    /// Gets a value indicating whether private network hosts (RFC 1918, 100.64.0.0/10, fc00::/7,
+    /// fec0::/10) are rejected. Defaults to <c>false</c>. <see cref="AllowLocalEndpoints"/> lifts
+    /// this restriction too, so the opt-out named in the error message always works.
     /// </summary>
     public bool RejectPrivateNetworks { get; init; }
 

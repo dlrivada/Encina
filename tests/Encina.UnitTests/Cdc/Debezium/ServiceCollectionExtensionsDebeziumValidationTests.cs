@@ -25,6 +25,16 @@ public sealed class ServiceCollectionExtensionsDebeziumValidationTests
     }
 
     [Fact]
+    public void AddEncinaCdcDebezium_ZeroChannelCapacity_ThrowsAtRegistration()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<OptionsValidationException>(() =>
+            services.AddEncinaCdcDebezium(o => o.ChannelCapacity = 0))
+            .Message.ShouldContain("ChannelCapacity");
+    }
+
+    [Fact]
     public void AddEncinaCdcDebezium_RegistersOptionsValidator()
     {
         var services = new ServiceCollection();

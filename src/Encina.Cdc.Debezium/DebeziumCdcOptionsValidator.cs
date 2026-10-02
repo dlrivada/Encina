@@ -5,8 +5,9 @@ namespace Encina.Cdc.Debezium;
 /// <summary>
 /// Validates the listener prefix of <see cref="DebeziumCdcOptions"/>: <see cref="DebeziumCdcOptions.ListenUrl"/>
 /// must be <c>http://</c> or <c>https://</c> followed by a host (or the <c>+</c>/<c>*</c> wildcards) and
-/// nothing else, <see cref="DebeziumCdcOptions.ListenPort"/> must be a valid TCP port and
-/// <see cref="DebeziumCdcOptions.ListenPath"/> must start with <c>/</c>.
+/// nothing else, <see cref="DebeziumCdcOptions.ListenPort"/> must be a valid TCP port,
+/// <see cref="DebeziumCdcOptions.ListenPath"/> must start with <c>/</c> and
+/// <see cref="DebeziumCdcOptions.ChannelCapacity"/> must be at least 1.
 /// </summary>
 /// <remarks>
 /// The listener binds an inbound prefix, so only its format is checked; loopback and wildcard hosts
@@ -23,7 +24,8 @@ internal sealed class DebeziumCdcOptionsValidator : IValidateOptions<DebeziumCdc
 
         var error = ListenUrlError(options.ListenUrl)
             ?? ListenPortError(options.ListenPort)
-            ?? ListenPathError(options.ListenPath);
+            ?? ListenPathError(options.ListenPath)
+            ?? ChannelCapacityError(options.ChannelCapacity);
 
         return error is null ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(error);
     }
@@ -35,6 +37,10 @@ internal sealed class DebeziumCdcOptionsValidator : IValidateOptions<DebeziumCdc
 
     private static string? ListenPortError(int listenPort) =>
         listenPort is >= 1 and <= 65535 ? null : "DebeziumCdcOptions.ListenPort must be between 1 and 65535.";
+
+    // The bounded channel is created lazily from these options, so its capacity is checked here.
+    private static string? ChannelCapacityError(int channelCapacity) =>
+        channelCapacity >= 1 ? null : "DebeziumCdcOptions.ChannelCapacity must be at least 1.";
 
     private static string? ListenPathError(string? listenPath) =>
         listenPath is { Length: > 0 } && listenPath[0] == '/' ? null : "DebeziumCdcOptions.ListenPath must start with '/'.";

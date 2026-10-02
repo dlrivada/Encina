@@ -20,13 +20,15 @@ namespace Encina.Validation;
 /// </para>
 /// <para>
 /// Hosts are normalised before classification: surrounding brackets and trailing dots are removed,
-/// international names are converted to their ASCII (IDNA) form, and IPv4-mapped, IPv4-compatible
-/// and NAT64 (64:ff9b::/96) IPv6 addresses are classified by their embedded IPv4 address. Decimal,
-/// hexadecimal and octal IPv4 forms are parsed the way the operating system resolver parses them.
+/// international names are converted to their ASCII (IDNA) form, and IPv6 addresses that carry an
+/// IPv4 address (IPv4-mapped, IPv4-compatible, IPv4-translated ::ffff:0:0/96, NAT64 64:ff9b::/96,
+/// 6to4 2002::/16 and Teredo 2001:0::/32) are classified by that IPv4 address. Decimal, hexadecimal
+/// and octal IPv4 forms are parsed the way the operating system resolver parses them.
 /// </para>
 /// <para>
-/// The checks only see the literal host. A DNS name that resolves to an internal address
-/// (DNS rebinding) cannot be detected at configuration time.
+/// One limit remains: the checks only see the literal host. A DNS name that resolves, now or later,
+/// to an internal address (DNS rebinding) cannot be detected at configuration time; restrict
+/// egress at the network layer for that case.
 /// </para>
 /// </remarks>
 /// <example>
@@ -207,8 +209,8 @@ public static class EndpointValidator
         EndpointHostKind.CloudMetadata => $"{propertyName} must not target a cloud instance metadata endpoint.",
         EndpointHostKind.Loopback when !policy.AllowLocalEndpoints =>
             $"{propertyName} must not target localhost or a loopback address. Set {policy.LocalEndpointsOptOutName} = true to allow local endpoints (development/testing only).",
-        EndpointHostKind.Private when policy.RejectPrivateNetworks =>
-            $"{propertyName} must not target a private network address (RFC 1918, fc00::/7). Set {policy.LocalEndpointsOptOutName} = true to allow private network addresses (development/testing only).",
+        EndpointHostKind.Private when policy.RejectPrivateNetworks && !policy.AllowLocalEndpoints =>
+            $"{propertyName} must not target a private network address (RFC 1918, 100.64.0.0/10, fc00::/7, fec0::/10). Set {policy.LocalEndpointsOptOutName} = true to allow private network addresses (development/testing only).",
         _ => null,
     };
 
@@ -258,7 +260,8 @@ public static class EndpointValidator
     // crap-exempt: single-question switch — classifies one IPv4 address into its range.
     private static EndpointHostKind ClassifyIPv4(uint value) => value switch
     {
-        0xA9FEA9FE or 0x646464C8 or 0xA83F8110 => EndpointHostKind.CloudMetadata, // 169.254.169.254, 100.100.100.200, 168.63.129.16
+        // 169.254.169.254 (AWS, Azure, GCP), 100.100.100.200 (Alibaba), 168.63.129.16 (Azure WireServer), 192.0.0.192 (Oracle)
+        0xA9FEA9FE or 0x646464C8 or 0xA83F8110 or 0xC00000C0 => EndpointHostKind.CloudMetadata,
         _ when value >> 24 == 0 => EndpointHostKind.Unspecified,     // 0.0.0.0/8
         _ when value >> 24 == 127 => EndpointHostKind.Loopback,      // 127.0.0.0/8
         _ when value >> 16 == 0xA9FE => EndpointHostKind.LinkLocal,  // 169.254.0.0/16
@@ -269,7 +272,8 @@ public static class EndpointValidator
     private static bool IsPrivateIPv4(uint value) =>
         value >> 24 == 10          // 10.0.0.0/8
         || value >> 20 == 0xAC1    // 172.16.0.0/12
-        || value >> 16 == 0xC0A8;  // 192.168.0.0/16
+        || value >> 16 == 0xC0A8   // 192.168.0.0/16
+        || value >> 22 == 0x191;   // 100.64.0.0/10 carrier-grade NAT
 
     private static EndpointHostKind ClassifyIPv6(IPAddress address)
     {
@@ -282,7 +286,7 @@ public static class EndpointValidator
         }
 
         // The IPv4-compatible prefix also covers "::", whose embedded 0.0.0.0 is unspecified.
-        return TryGetEmbeddedIPv4(bytes, out var embedded)
+        return GetEmbeddedIPv4(bytes) is { } embedded
             ? ClassifyIPv4(embedded)
             : ClassifyIPv6Prefix(bare, bytes);
     }
@@ -299,20 +303,43 @@ public static class EndpointValidator
             return EndpointHostKind.CloudMetadata;
         }
 
-        return (bytes[0] & 0xFE) == 0xFC ? EndpointHostKind.Private : EndpointHostKind.Public; // fc00::/7
+        return IsPrivateIPv6(bytes) ? EndpointHostKind.Private : EndpointHostKind.Public;
     }
 
-    // IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible (::a.b.c.d) and NAT64 (64:ff9b::a.b.c.d).
-    private static bool TryGetEmbeddedIPv4(byte[] bytes, out uint value)
+    private static bool IsPrivateIPv6(byte[] bytes) =>
+        (bytes[0] & 0xFE) == 0xFC                              // fc00::/7 unique local
+        || (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0xC0);    // fec0::/10 deprecated site-local
+
+    // The IPv4 address an IPv6 address carries: IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible
+    // (::a.b.c.d), IPv4-translated (::ffff:0:a.b.c.d), NAT64 (64:ff9b::a.b.c.d), 6to4
+    // (2002:AABB:CCDD::) and Teredo (2001:0::/32, client address in the last 32 bits, inverted).
+    private static uint? GetEmbeddedIPv4(byte[] bytes)
     {
-        var prefix = bytes.AsSpan(0, 12);
-        var embeds = prefix.SequenceEqual(MappedPrefix)
-            || prefix.SequenceEqual(CompatiblePrefix)
-            || prefix.SequenceEqual(Nat64Prefix);
+        if (HasEmbeddingPrefix(bytes.AsSpan(0, 12)))
+        {
+            return BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(12, 4));
+        }
 
-        value = embeds ? BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(12, 4)) : 0;
-        return embeds;
+        if (bytes[0] == 0x20 && bytes[1] == 0x02)
+        {
+            return BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(2, 4));
+        }
+
+        return IsTeredo(bytes) ? ~BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(12, 4)) : null;
     }
+
+    private static bool HasEmbeddingPrefix(ReadOnlySpan<byte> prefix) =>
+        prefix.SequenceEqual(MappedPrefix)
+        || prefix.SequenceEqual(CompatiblePrefix)
+        || prefix.SequenceEqual(TranslatedPrefix)
+        || prefix.SequenceEqual(Nat64Prefix);
+
+    private static bool IsTeredo(byte[] bytes) =>
+        bytes.AsSpan(0, 4).SequenceEqual(TeredoPrefix);
+
+    private static ReadOnlySpan<byte> TranslatedPrefix => [0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0];
+
+    private static ReadOnlySpan<byte> TeredoPrefix => [0x20, 0x01, 0, 0];
 
     private static ReadOnlySpan<byte> MappedPrefix => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF];
 
