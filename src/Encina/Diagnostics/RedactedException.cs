@@ -59,7 +59,11 @@ public sealed class RedactedException : Exception
     /// Creates the redacted copy of an exception, recursively for its inner exceptions.
     /// </summary>
     /// <param name="exception">The exception to redact.</param>
-    /// <returns>A <see cref="RedactedException"/> with the type, stack trace and redacted inners.</returns>
+    /// <returns>
+    /// A <see cref="RedactedException"/> with the type, stack trace and redacted inners. It never
+    /// throws for a non-null exception: when reading the stack trace or the inner exceptions fails,
+    /// the result carries only the type full name.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="exception"/> is <c>null</c>.</exception>
     public static RedactedException From(Exception exception)
     {
@@ -70,10 +74,21 @@ public sealed class RedactedException : Exception
             return alreadyRedacted;
         }
 
-        var inners = GetInnerExceptions(exception).Select(From).ToArray<Exception>();
         var type = exception.GetType();
+        var typeName = type.FullName ?? type.Name;
 
-        return new RedactedException(type.FullName ?? type.Name, exception.StackTrace, inners);
+        try
+        {
+            var inners = GetInnerExceptions(exception).Select(From).ToArray<Exception>();
+
+            return new RedactedException(typeName, exception.StackTrace, inners);
+        }
+#pragma warning disable CA1031 // Redaction runs on failure paths and must never throw: any failure falls back to the bare type name.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return new RedactedException(typeName, null, []);
+        }
     }
 
     /// <inheritdoc />

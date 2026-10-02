@@ -115,6 +115,77 @@ public sealed class RedactedExceptionTests
     }
 
     [Fact]
+    public void ForLogging_NestedAggregateException_RedactsEveryLevel()
+    {
+        var nested = new AggregateException(
+            $"nested {Sentinel}",
+            new InvalidOperationException($"a {Sentinel}"),
+            new FormatException($"b {Sentinel}"));
+        var original = new AggregateException($"outer {Sentinel}", nested, new TimeoutException($"c {Sentinel}"));
+
+        var redacted = original.ForLogging().ShouldBeOfType<RedactedException>();
+
+        redacted.InnerExceptions.Count.ShouldBe(2);
+        var nestedRedacted = redacted.InnerExceptions[0].ShouldBeOfType<RedactedException>();
+        nestedRedacted.Message.ShouldBe(typeof(AggregateException).FullName);
+        nestedRedacted.InnerExceptions.Count.ShouldBe(2);
+        redacted.InnerExceptions[1].Message.ShouldBe(typeof(TimeoutException).FullName);
+        redacted.ToString().ShouldNotContain(Sentinel);
+        redacted.ToString().ShouldContain(typeof(FormatException).FullName!);
+    }
+
+    [Fact]
+    public void ForLogging_HundredDeepInnerChain_IsRedactedWithoutOverflow()
+    {
+        Exception original = new InvalidOperationException(Sentinel);
+        for (var i = 0; i < 100; i++)
+        {
+            original = new ArgumentException($"level {i} {Sentinel}", original);
+        }
+
+        var redacted = original.ForLogging();
+
+        var depth = 0;
+        for (var current = redacted; current is not null; current = current.InnerException)
+        {
+            depth++;
+            current.Message.ShouldNotContain(Sentinel);
+        }
+
+        depth.ShouldBe(101);
+        redacted.ToString().ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public void ForLogging_StackTraceGetterThrows_FallsBackToTheTypeName()
+    {
+        var original = new ThrowingStackTraceException(Sentinel);
+
+        var redacted = original.ForLogging().ShouldBeOfType<RedactedException>();
+
+        redacted.Message.ShouldBe(typeof(ThrowingStackTraceException).FullName);
+        redacted.StackTrace.ShouldBeNull();
+        redacted.InnerExceptions.ShouldBeEmpty();
+        redacted.ToString().ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public void ForLogging_InnerStackTraceGetterThrows_FallsBackToTheTypeName()
+    {
+        var original = new InvalidOperationException(Sentinel, new ThrowingStackTraceException(Sentinel));
+
+        var redacted = original.ForLogging().ShouldBeOfType<RedactedException>();
+
+        redacted.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        redacted.ToString().ShouldNotContain(Sentinel);
+    }
+
+    private sealed class ThrowingStackTraceException(string message) : Exception(message)
+    {
+        public override string? StackTrace => throw new InvalidOperationException("stack trace unavailable");
+    }
+
+    [Fact]
     public void ForLogging_AlreadyRedacted_ReturnsTheSameInstance()
     {
         var redacted = new InvalidOperationException(Sentinel).ForLogging();
