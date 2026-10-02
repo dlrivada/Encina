@@ -168,11 +168,31 @@ $next = ($lines | Select-String -Pattern '^## \[' | Where-Object { $_.LineNumber
 $end = if ($next) { $next - 2 } else { $lines.Count - 1 }
 $body = ($lines[$start..$end] -join "`n").Trim()
 $body = ($body -replace '(\r?\n)*---\s*$', '').Trim()
+$body.Length
+```
+
+The last line prints the body's length in characters. GitHub limits a release body to about 125,000 characters (the REST API for releases rejects a longer one). If the number is below that, write the full section and create the release:
+
+```powershell
 Set-Content artifacts/release/v0.14.0-notes.md $body
 gh release create v0.14.0 --repo dlrivada/Encina --verify-tag --prerelease --title "v0.14.0 — Hardening" --notes-file artifacts/release/v0.14.0-notes.md
 ```
 
-`$lines` is zero-based while `LineNumber` is one-based, so `$lines[$start]` is the first line after the heading. The file contains the section's body without its `## [0.14.0]` heading, trimmed of blank lines and of a trailing `---` separator. The snippet assumes the section was produced by `changelog-fragments.cs --release` (a blank line before the next `## [` heading); open the file and check it before creating the release. Release titles use an em dash, like the existing releases (`v0.12.0 — Database & Repository`).
+If it is above the limit, use a short body that links to the tagged CHANGELOG section and to the release notes page. The anchor is the heading in lower case with the brackets and dots removed and spaces turned into hyphens (`## [0.14.0] - 2026-10-01 - Hardening` becomes `#0140---2026-10-01---hardening`):
+
+```powershell
+$short = @'
+Full changelog: [CHANGELOG.md](https://github.com/dlrivada/Encina/blob/v0.14.0/CHANGELOG.md#0140---2026-10-01---hardening)
+
+Release notes: [docs/releases/v0.14.0/README.md](https://github.com/dlrivada/Encina/blob/v0.14.0/docs/releases/v0.14.0/README.md)
+'@
+Set-Content artifacts/release/v0.14.0-notes.md $short
+gh release create v0.14.0 --repo dlrivada/Encina --verify-tag --prerelease --title "v0.14.0 — Hardening" --notes-file artifacts/release/v0.14.0-notes.md
+```
+
+The v0.13.0 section is about 186,000 characters, so a release for it needs the short body.
+
+`$lines` is zero-based while `LineNumber` is one-based, so `$lines[$start]` is the first line after the heading. The file contains the section's body without its `## [0.14.0]` heading, trimmed of blank lines and of a trailing `---` separator. The snippet assumes the section was produced by `changelog-fragments.cs --release` (a blank line before the next `## [` heading); check the extracted text before creating the release. Release titles use an em dash, like the existing releases (`v0.12.0 — Database & Repository`).
 
 How to check it worked:
 
@@ -180,7 +200,7 @@ How to check it worked:
 gh release view v0.14.0 --repo dlrivada/Encina --json tagName,isPrerelease,name
 ```
 
-The output shows `tagName` `v0.14.0` and `isPrerelease` `true`. Open the release page once and confirm the notes read as the CHANGELOG section.
+The output shows `tagName` `v0.14.0` and `isPrerelease` `true`. Open the release page once and confirm the notes read as the CHANGELOG section, or that both links of the short body open.
 
 ## Step 5: bump to the next development version
 
