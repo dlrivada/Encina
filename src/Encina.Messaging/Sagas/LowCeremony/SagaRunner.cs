@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -16,6 +17,8 @@ namespace Encina.Messaging.Sagas.LowCeremony;
 /// </remarks>
 public sealed class SagaRunner : ISagaRunner
 {
+    private const string UnexpectedStepExceptionMessage = "Saga step threw an unexpected exception.";
+
     private readonly SagaOrchestrator _orchestrator;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<SagaRunner> _logger;
@@ -87,92 +90,153 @@ public sealed class SagaRunner : ISagaRunner
 
         Log.SagaStarted(_logger, sagaId, definition.SagaType, definition.StepCount);
 
-        var currentData = initialData;
-        var stepsExecuted = 0;
+        var progress = new RunProgress<TData>(initialData);
 
         try
         {
-            // Execute each step
-            for (var i = 0; i < definition.Steps.Count; i++)
-            {
-                var step = definition.Steps[i];
-                Log.StepExecuting(_logger, sagaId, i + 1, step.Name);
-
-                var stepResult = await step.Execute(currentData, requestContext, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (stepResult.IsLeft)
-                {
-                    // Step failed - start compensation
-                    var error = stepResult.Match(
-                        Right: _ => EncinaErrors.Create(SagaErrorCodes.StepFailed, "Unexpected"),
-                        Left: e => e);
-
-                    // Only the error code: EncinaError.Message can carry personal data (#1259 review),
-                    // and StartCompensationAsync persists this string in the saga state store.
-                    var errorCode = error.GetCode().IfNone("encina.unknown");
-                    Log.StepFailed(_logger, sagaId, i + 1, step.Name, errorCode);
-
-                    // Run compensation for completed steps
-                    await CompensateAsync(definition, currentData, i - 1, requestContext, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    // Mark saga as compensated
-                    await _orchestrator.StartCompensationAsync(sagaId, errorCode, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    return error;
-                }
-
-                // Update data and advance
-                currentData = stepResult.Match(
-                    Right: data => data,
-                    Left: _ => currentData);
-
-                stepsExecuted++;
-
-                // Advance orchestrator state
-                await _orchestrator.AdvanceAsync<TData>(
-                    sagaId,
-                    _ => currentData,
-                    cancellationToken).ConfigureAwait(false);
-
-                Log.StepCompleted(_logger, sagaId, i + 1, step.Name);
-            }
-
-            // All steps completed - mark saga as completed
-            await _orchestrator.CompleteAsync(sagaId, cancellationToken).ConfigureAwait(false);
-
-            Log.SagaCompleted(_logger, sagaId, stepsExecuted);
-
-            return new SagaResult<TData>(sagaId, currentData, stepsExecuted);
+            return await ExecuteStepsAsync(definition, progress, sagaId, requestContext, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            Log.SagaCancelled(_logger, sagaId);
-
-            // Run compensation for completed steps
-            await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, cancellationToken)
+            return await HandleCancelledAsync(definition, progress, sagaId, requestContext, cancellationToken)
                 .ConfigureAwait(false);
-
-            await _orchestrator.FailAsync(sagaId, "Operation was cancelled", CancellationToken.None)
-                .ConfigureAwait(false);
-
-            return EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
         }
         catch (Exception ex)
         {
-            Log.SagaException(_logger, sagaId, ex.Message, ex);
-
-            // Run compensation for completed steps
-            await CompensateAsync(definition, currentData, stepsExecuted - 1, requestContext, CancellationToken.None)
+            return await HandleExceptionAsync(definition, progress, sagaId, requestContext, ex)
                 .ConfigureAwait(false);
-
-            await _orchestrator.FailAsync(sagaId, ex.Message, CancellationToken.None)
-                .ConfigureAwait(false);
-
-            return EncinaErrors.Create(SagaErrorCodes.HandlerFailed, ex.Message);
         }
+    }
+
+    private async ValueTask<Either<EncinaError, SagaResult<TData>>> ExecuteStepsAsync<TData>(
+        BuiltSagaDefinition<TData> definition,
+        RunProgress<TData> progress,
+        Guid sagaId,
+        IRequestContext requestContext,
+        CancellationToken cancellationToken)
+        where TData : class, new()
+    {
+        // Execute each step
+        for (var i = 0; i < definition.Steps.Count; i++)
+        {
+            var step = definition.Steps[i];
+            Log.StepExecuting(_logger, sagaId, i + 1, step.Name);
+
+            var stepResult = await step.Execute(progress.Data, requestContext, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (stepResult.IsLeft)
+            {
+                return await HandleStepFailedAsync(
+                    definition, progress.Data, sagaId, i, stepResult, requestContext, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            // Update data and advance
+            progress.Data = stepResult.Match(
+                Right: data => data,
+                Left: _ => progress.Data);
+
+            progress.StepsExecuted++;
+
+            // Advance orchestrator state
+            await _orchestrator.AdvanceAsync<TData>(
+                sagaId,
+                _ => progress.Data,
+                cancellationToken).ConfigureAwait(false);
+
+            Log.StepCompleted(_logger, sagaId, i + 1, step.Name);
+        }
+
+        // All steps completed - mark saga as completed
+        await _orchestrator.CompleteAsync(sagaId, cancellationToken).ConfigureAwait(false);
+
+        Log.SagaCompleted(_logger, sagaId, progress.StepsExecuted);
+
+        return new SagaResult<TData>(sagaId, progress.Data, progress.StepsExecuted);
+    }
+
+    private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleStepFailedAsync<TData>(
+        BuiltSagaDefinition<TData> definition,
+        TData data,
+        Guid sagaId,
+        int stepIndex,
+        Either<EncinaError, TData> stepResult,
+        IRequestContext requestContext,
+        CancellationToken cancellationToken)
+        where TData : class, new()
+    {
+        // Step failed - start compensation
+        var error = stepResult.Match(
+            Right: _ => EncinaErrors.Create(SagaErrorCodes.StepFailed, "Unexpected"),
+            Left: e => e);
+
+        // Only the error code: EncinaError.Message can carry personal data (#1259 review),
+        // and StartCompensationAsync persists this string in the saga state store.
+        var errorCode = error.GetCode().IfNone("encina.unknown");
+        Log.StepFailed(_logger, sagaId, stepIndex + 1, definition.Steps[stepIndex].Name, errorCode);
+
+        // Run compensation for completed steps
+        await CompensateAsync(definition, data, stepIndex - 1, requestContext, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Mark saga as compensated
+        await _orchestrator.StartCompensationAsync(sagaId, errorCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return error;
+    }
+
+    private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleCancelledAsync<TData>(
+        BuiltSagaDefinition<TData> definition,
+        RunProgress<TData> progress,
+        Guid sagaId,
+        IRequestContext requestContext,
+        CancellationToken cancellationToken)
+        where TData : class, new()
+    {
+        Log.SagaCancelled(_logger, sagaId);
+
+        // Run compensation for completed steps
+        await CompensateAsync(definition, progress.Data, progress.StepsExecuted - 1, requestContext, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Persist only the error code (#1469): FailAsync stores this string in the saga state.
+        await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerCancelled, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        return EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
+    }
+
+    private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleExceptionAsync<TData>(
+        BuiltSagaDefinition<TData> definition,
+        RunProgress<TData> progress,
+        Guid sagaId,
+        IRequestContext requestContext,
+        Exception ex)
+        where TData : class, new()
+    {
+        // The logger gets the redacted exception (type and stack trace, never the message); the
+        // message is never part of the log text, the persisted state or the returned error (#1469).
+        Log.SagaException(_logger, sagaId, ex.GetType().Name, ex.ForLogging());
+
+        // Run compensation for completed steps
+        await CompensateAsync(definition, progress.Data, progress.StepsExecuted - 1, requestContext, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        await _orchestrator.FailAsync(sagaId, SagaErrorCodes.HandlerFailed, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        return EncinaErrors.Create(SagaErrorCodes.HandlerFailed, UnexpectedStepExceptionMessage, ex);
+    }
+
+    /// <summary>Mutable progress of one run, read by the failure handlers to compensate the executed steps.</summary>
+    private sealed class RunProgress<TData>(TData data)
+    {
+        public TData Data { get; set; } = data;
+
+        public int StepsExecuted { get; set; }
     }
 
     private async Task CompensateAsync<TData>(
@@ -203,7 +267,7 @@ public sealed class SagaRunner : ISagaRunner
             catch (Exception ex)
             {
                 // Log but continue with other compensations
-                Log.CompensationFailed(_logger, i + 1, step.Name, ex.Message, ex);
+                Log.CompensationFailed(_logger, i + 1, step.Name, ex.GetType().Name, ex.ForLogging());
             }
         }
     }
@@ -236,8 +300,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2891,
         Level = LogLevel.Warning,
-        Message = "Saga {SagaId} step {StepNumber} failed: {StepName} - {ErrorMessage}")]
-    public static partial void StepFailed(ILogger logger, Guid sagaId, int stepNumber, string stepName, string errorMessage);
+        Message = "Saga {SagaId} step {StepNumber} failed: {StepName} - {ErrorCode}")]
+    public static partial void StepFailed(ILogger logger, Guid sagaId, int stepNumber, string stepName, string errorCode);
 
     [LoggerMessage(
         EventId = 2892,
@@ -254,8 +318,8 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2894,
         Level = LogLevel.Error,
-        Message = "Saga {SagaId} failed with exception: {ErrorMessage}")]
-    public static partial void SagaException(ILogger logger, Guid sagaId, string errorMessage, Exception exception);
+        Message = "Saga {SagaId} failed with exception of type {ExceptionType}")]
+    public static partial void SagaException(ILogger logger, Guid sagaId, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2895,
@@ -278,6 +342,6 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2898,
         Level = LogLevel.Error,
-        Message = "Compensation failed for step {StepNumber} ({StepName}): {ErrorMessage}")]
-    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string errorMessage, Exception exception);
+        Message = "Compensation failed for step {StepNumber} ({StepName}) with exception of type {ExceptionType}")]
+    public static partial void CompensationFailed(ILogger logger, int stepNumber, string stepName, string exceptionType, Exception exception);
 }
