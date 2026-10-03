@@ -14,6 +14,11 @@ try
 
     Console.WriteLine($"Executing Stryker mutation analysis (build configuration: {configuration})...");
 
+    // No --log-to-file by default: file logging is always trace level, and
+    // under the MTP runner it also writes a JSON-RPC log per test server that
+    // grows by about 40 MB for every run of the ~22,000 Encina.UnitTests
+    // tests, so a 150-mutant shard would write gigabytes. Pass it through
+    // (`-- --log-to-file`) for a short diagnostic run.
     var outputPath = Path.Combine(repositoryRoot, "artifacts", "mutation");
     var strykerArguments = new List<string>
     {
@@ -25,8 +30,7 @@ try
         "--output",
         outputPath,
         "--verbosity",
-        "info",
-        "--log-to-file"
+        "info"
     };
 
     if (passThrough.Count > 0)
@@ -35,7 +39,16 @@ try
         strykerArguments.AddRange(passThrough);
     }
 
-    var strykerExitCode = Run("dotnet", strykerArguments);
+    // Stryker runs in project mode from the Encina.UnitTests directory: the
+    // config names only the project under test (Encina.csproj) and the
+    // Microsoft Testing Platform runner, which ignores both `test-projects`
+    // and `test-case-filter`. Run from the repository root (solution mode),
+    // the MTP runner starts every test project of the solution, including
+    // IntegrationTests and benchmark executables, and the initial test run
+    // fails (#1087, #1441).
+    var testProjectDirectory = Path.Combine(repositoryRoot, "tests", "Encina.UnitTests");
+    Console.WriteLine($"Stryker working directory: {testProjectDirectory}");
+    var strykerExitCode = Run("dotnet", strykerArguments, testProjectDirectory);
 
     // Exit code 2 = break threshold hit (score below configured minimum).
     // The mutation report was still generated — let downstream steps consume it.
@@ -108,11 +121,12 @@ static void RunOrThrow(string fileName, IReadOnlyList<string> arguments)
     }
 }
 
-static int Run(string fileName, IReadOnlyList<string> arguments)
+static int Run(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null)
 {
     var startInfo = new ProcessStartInfo
     {
         FileName = fileName,
+        WorkingDirectory = workingDirectory ?? Environment.CurrentDirectory,
         RedirectStandardOutput = false,
         RedirectStandardError = false,
         UseShellExecute = false
