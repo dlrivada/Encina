@@ -251,7 +251,7 @@ The resolution pipeline works as follows:
 2. Each `Get*AttributesAsync()` method returns `IReadOnlyDictionary<string, object>`.
 3. The `AttributeContextBuilder.Build()` method converts dictionaries into `AttributeBag` instances.
 4. Data types are automatically inferred from CLR types (string, int, bool, DateTime, etc.).
-5. The assembled `PolicyEvaluationContext` is passed to the `IPolicyDecisionPoint.EvaluateAsync()`.
+5. The assembled `PolicyEvaluationContext` is passed to `IPolicyDecisionPoint.EvaluatePolicyAsync()` for each policy named by `[RequirePolicy]`.
 
 ## PolicyEvaluationContext
 

@@ -185,7 +185,7 @@ The `ABACHealthCheck` verifies that the ABAC engine has policies loaded and can 
 |-----------|--------|---------|
 | At least one PolicySet loaded | `Healthy` | ABAC engine has loaded policy sets |
 | No PolicySets, but standalone Policies loaded | `Healthy` | ABAC engine has loaded standalone policies |
-| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. The ABAC engine will return NotApplicable for all requests |
+| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. Every policy named by `[RequirePolicy]` will be missing, so those requests are denied with `abac.policy_not_found` |
 | Exception querying PAP | `Unhealthy` | Failed to query the Policy Administration Point |
 
 ### Enabling the Health Check
@@ -338,5 +338,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9055; the persistence and administration classes use 9056-9071) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078; see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

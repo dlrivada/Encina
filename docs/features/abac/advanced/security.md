@@ -251,7 +251,7 @@ The `ObligationExecutor` checks three failure conditions:
 
 1. **Missing handler**: No registered `IObligationHandler` returns `true` from `CanHandle(obligationId)`.
 2. **Handler failure**: A handler returns `Either.Left(EncinaError)` from `HandleAsync`.
-3. **Handler exception**: A handler throws. The exception does not escape the pipeline; it becomes an `abac.obligation_handler_exception` error with a fixed message and the exception type in the error details. The exception is logged through `ForLogging()` (EventId 9078), so its message text never reaches the logs. Cancellation of the request token still propagates as `OperationCanceledException`.
+3. **Handler exception**: A handler throws. The exception does not escape the pipeline; it becomes an `abac.obligation_handler_exception` error (fixed message, exception type in the error details) that the executor treats like a handler failure, so the request fails with `abac.obligation_failed`. The exception is logged through `ForLogging()` (EventId 9078), so its message text never reaches the logs. Cancellation of the request token still propagates as `OperationCanceledException`.
 
 Each condition on a mandatory obligation produces an immediate Deny, even when the PDP returned Permit:
 

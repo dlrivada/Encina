@@ -161,7 +161,7 @@ public sealed class AuditObligationHandler(IAuditService audit) : IObligationHan
 services.AddSingleton<IObligationHandler, AuditObligationHandler>();
 ```
 
-Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missing, access is automatically denied. A handler that throws does not escape the pipeline: the exception becomes `abac.obligation_handler_exception` (fixed message, exception type in the error details), so a mandatory obligation denies and advice is skipped. The exception message is never logged. Cancellation of the request token still propagates.
+Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missing, access is automatically denied. A handler that throws does not escape the pipeline: the exception becomes `abac.obligation_handler_exception` (fixed message, exception type in the error details) inside the executor, so a mandatory obligation denies with `abac.obligation_failed` and advice is skipped. The exception message is never logged. Cancellation of the request token still propagates.
 
 ## Configuration
 

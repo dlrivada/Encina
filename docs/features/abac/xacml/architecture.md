@@ -95,7 +95,7 @@ graph TB
     PEP -->|"1. Collect attributes"| PIP
     PIP --> CH
     CH -->|"PolicyEvaluationContext"| PEP
-    PEP -->|"2. EvaluateAsync()"| PDP
+    PEP -->|"2. EvaluatePolicyAsync() per required policy"| PDP
     PDP -->|"Retrieve policies"| PAP
     PDP --> TE
     PDP --> CE
@@ -546,7 +546,7 @@ sequenceDiagram
 ### Key Flow Details
 
 - **Obligation failures cause denial**: per XACML 3.0 section 7.18, if any mandatory obligation handler fails or is missing, the PEP must deny access even if the PDP returned Permit.
-- **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error; a mandatory obligation then denies, advice is skipped.
+- **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error inside the executor; a mandatory obligation then denies with `abac.obligation_failed`, advice is skipped.
 - **Advice is best-effort**: advice handler failures are logged but do not affect the decision.
 - **NotApplicable denies**: a required policy that returns NotApplicable denies the request, and a policy name that is not in the store denies with `abac.policy_not_found`. A request type with no `[RequirePolicy]` and no `[RequireCondition]` is not evaluated at all.
 - **Indeterminate handling**: evaluation errors produce `Indeterminate`, which is treated according to the enforcement mode.

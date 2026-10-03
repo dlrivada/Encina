@@ -154,7 +154,7 @@ user.isAdmin == true || user.department == "security"
 | `abac.function_error` | Function evaluation threw exception |
 | `abac.variable_not_found` | VariableReference to undefined VariableDefinition |
 | `abac.condition_not_met` | A `[RequireCondition]` expression evaluated to `false` |
-| `abac.obligation_handler_exception` | An obligation or advice handler threw an exception |
+| `abac.obligation_handler_exception` | An obligation or advice handler threw (handled inside the executor; the request fails with `abac.obligation_failed`) |
 
 ## Metrics
 
@@ -201,7 +201,7 @@ user.isAdmin == true || user.department == "security"
 | State | Condition |
 |-------|-----------|
 | `Healthy` | At least one Policy or PolicySet loaded |
-| `Degraded` | PAP is empty (all requests get NotApplicable) |
+| `Degraded` | PAP is empty (every `[RequirePolicy]` is missing, so those requests are denied) |
 | `Unhealthy` | PAP query threw an exception |
 
 ## Log Event ID Ranges

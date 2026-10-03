@@ -38,7 +38,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
 | `abac.variable_not_found` | `VariableNotFoundCode` | `VariableNotFound` | `string variableId` | A `VariableReference` references an undefined `VariableDefinition` within the policy. |
 | `abac.condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
-| `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. |
+| `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `abac.obligation_failed`, and advice is skipped. |
 
 ## Error Metadata
 
@@ -258,4 +258,4 @@ Error: A policy required by the request was not found in the policy store. Acces
 Error: An obligation or advice handler threw an exception.
 ```
 
-**Resolution:** Read `obligationId` and `exceptionType` in the error details and fix the handler. A mandatory obligation whose handler throws denies the request; advice whose handler throws is skipped. The exception message is never logged (EventId 9078 records the exception through `ForLogging()`).
+**Resolution:** Read `obligationId` and `exceptionType` in the error details and fix the handler. A mandatory obligation whose handler throws denies the request, and the caller receives `abac.obligation_failed`; advice whose handler throws is skipped. The exception message is never logged (EventId 9078 records the exception through `ForLogging()`).

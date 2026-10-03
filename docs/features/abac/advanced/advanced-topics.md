@@ -632,14 +632,17 @@ controlled decisions:
 [Fact]
 public async Task Handler_WhenPolicyPermits_ShouldReturnData()
 {
+    // The PEP evaluates each [RequirePolicy] through EvaluatePolicyAsync
+    Either<EncinaError, PolicyDecision> decision = new PolicyDecision
+    {
+        Effect = Effect.Permit,
+        Obligations = [],
+        Advice = []
+    };
     var mockPdp = new Mock<IPolicyDecisionPoint>();
-    mockPdp.Setup(p => p.EvaluateAsync(It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
-           .ReturnsAsync(new PolicyDecision
-           {
-               Effect = Effect.Permit,
-               Obligations = [],
-               Advice = []
-           });
+    mockPdp.Setup(p => p.EvaluatePolicyAsync(
+               It.IsAny<string>(), It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
+           .ReturnsAsync(decision);
 
     // Inject mockPdp.Object into the pipeline behavior or handler under test
 }
@@ -647,14 +650,16 @@ public async Task Handler_WhenPolicyPermits_ShouldReturnData()
 [Fact]
 public async Task Handler_WhenPolicyDenies_ShouldRejectRequest()
 {
+    Either<EncinaError, PolicyDecision> decision = new PolicyDecision
+    {
+        Effect = Effect.Deny,
+        Obligations = [],
+        Advice = []
+    };
     var mockPdp = new Mock<IPolicyDecisionPoint>();
-    mockPdp.Setup(p => p.EvaluateAsync(It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
-           .ReturnsAsync(new PolicyDecision
-           {
-               Effect = Effect.Deny,
-               Obligations = [],
-               Advice = []
-           });
+    mockPdp.Setup(p => p.EvaluatePolicyAsync(
+               It.IsAny<string>(), It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
+           .ReturnsAsync(decision);
 
     // Assert that the pipeline returns an authorization error
 }
