@@ -392,14 +392,21 @@ jobs:
         #   one test host alive for every mutant.
         # - DOTNET_GCHeapHardLimit (hexadecimal bytes) caps the managed heap
         #   of every .NET process of the step at 4 GiB, so a test host that
-        #   runs out throws OutOfMemoryException and the shard fails
-        #   visibly instead of the kernel stalling the VM. Measured locally
-        #   on 2026-10-03 (Encina.UnitTests, 22,233 tests, 4 threads like
-        #   the runner's 4 vCPU): 2 GiB fails with OutOfMemoryException,
-        #   3 GiB passes about 30 % slower, 4 GiB passes at full speed. A
-        #   full rebuild of Encina.UnitTests also passes under the cap
-        #   (MSBuild peak 1.3 GiB), so the cap does not need to be scoped to
-        #   the test host.
+        #   runs out throws OutOfMemoryException instead of growing until
+        #   the kernel stalls the VM. Measured locally on 2026-10-03 with
+        #   one fresh process (Encina.UnitTests, 22,233 tests, 4 threads
+        #   like the runner's 4 vCPU): 2 GiB fails with
+        #   OutOfMemoryException, 3 GiB passes about 30 % slower, 4 GiB
+        #   passes at full speed. A full rebuild of Encina.UnitTests also
+        #   passes under the cap (MSBuild peak 1.3 GiB), so the cap does not
+        #   need to be scoped to the test host.
+        #   HYPOTHESIS, checked by the phase-2 calibration runs: Stryker
+        #   reuses one test host for every mutant and its heap growth across
+        #   runs is not measured. An OutOfMemoryException inside a mutant run
+        #   fails some test, which Stryker may count as a kill. The step
+        #   "Fail a shard whose run ran out of memory" catches what reaches
+        #   Stryker's console; the calibration compares the Killed count of
+        #   a shard with a local concurrency-1 run of the same scope.
         # - The shell raises its own OOM score before starting Stryker and
         #   runs it under nice, so under memory or CPU pressure the kernel
         #   sacrifices Stryker or a test host, never the runner agent, and
@@ -410,13 +417,18 @@ jobs:
           MATRIX_SCOPE: ${{ matrix.scope }}
           SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
           SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
-          GH_TOKEN: ${{ github.token }}
+          # Not GH_TOKEN: the token (checks: write) is moved into a shell
+          # variable and unset below, so Stryker, its builds and the test
+          # hosts running mutated code never see it; only the gh calls get it.
+          TELEMETRY_TOKEN: ${{ github.token }}
           DOTNET_GCHeapHardLimit: "0x100000000"
         run: |
           # pipefail: Stryker's output goes through tee below, and without it
           # the step would report tee's exit code and a failing Stryker run
           # would look green.
           set -o pipefail
+          TOKEN="$TELEMETRY_TOKEN"
+          unset TELEMETRY_TOKEN
           LOGS=artifacts/mutation/logs
           mkdir -p "$LOGS"
           CONSOLE_LOG="$LOGS/stryker-console.log"
@@ -438,9 +450,9 @@ jobs:
           # to a check run, "mutation telemetry (shard N)", on this commit:
           # the last update before a loss stays on GitHub. The step "Complete
           # mutation telemetry" closes it, and the aggregate job closes the
-          # ones a lost runner left open. Every gh call tolerates failure, so
-          # telemetry never fails the shard.
-          CHECK_ID=$(gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+          # ones a lost runner left open. Every gh call tolerates failure and
+          # gives up after 30 s, so telemetry never fails or stalls the shard.
+          CHECK_ID=$(GH_TOKEN="$TOKEN" timeout 30 gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
             -f name="mutation telemetry (shard $MATRIX_IDX)" \
             -f head_sha="$GITHUB_SHA" \
             -f status=in_progress \
@@ -454,12 +466,14 @@ jobs:
           fi
 
           # The GITHUB_TOKEN allows 1,000 REST requests per hour per
-          # repository, shared by every shard of the run. The check run is
-          # updated every PUBLISH_EVERY minutes so the whole matrix stays
-          # near 600 requests per hour: every minute up to 10 shards, every
-          # two minutes up to 20, and so on. Readings are still taken every
-          # minute.
-          PUBLISH_EVERY=$(( (${SHARD_COUNT:-1} + 9) / 10 ))
+          # repository, shared by every shard of the run, and GitHub's
+          # secondary limit for content-creating requests is lower (500 per
+          # hour, documented). The check run is updated every PUBLISH_EVERY
+          # minutes so the whole matrix stays at or below about 360 updates
+          # per hour: every minute up to 6 shards, every two minutes up to
+          # 12, every four minutes for 20, and so on. Readings are still
+          # taken every minute.
+          PUBLISH_EVERY=$(( (${SHARD_COUNT:-1} + 5) / 6 ))
           if [ "$PUBLISH_EVERY" -lt 1 ]; then
             PUBLISH_EVERY=1
           fi
@@ -479,7 +493,7 @@ jobs:
               df -h / /mnt
               echo "top processes by RSS (KB):"
               ps -eo pid,ni,rss,pcpu,etimes,comm --sort=-rss | head -n 8
-              echo "dotnet processes: $(pgrep -c dotnet)"
+              echo "dotnet processes: $(pgrep -c dotnet), processes whose command line names Encina.UnitTests (test hosts, builds): $(pgrep -c -f Encina.UnitTests)"
               echo "kernel OOM lines:"
               sudo -n dmesg -T 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' | tail -n 3
               echo "stryker console (last 400 bytes):"
@@ -490,7 +504,7 @@ jobs:
             read -r l1 l5 l15 _ < /proc/loadavg
             mem=$(free -m | awk '/^Mem:/ {printf "mem_used=%sMB mem_avail=%sMB", $3, $7} /^Swap:/ {printf " swap_used=%sMB", $3}')
             top=$(ps -eo rss,comm --sort=-rss | awk 'NR == 2 {printf "top=%s:%dMB", $2, $1 / 1024}')
-            echo "$now load=$l1/$l5/$l15 $mem dotnet=$(pgrep -c dotnet) $top" >> "$HISTORY"
+            echo "$now load=$l1/$l5/$l15 $mem dotnet=$(pgrep -c dotnet) encina_unittests=$(pgrep -c -f Encina.UnitTests) $top" >> "$HISTORY"
           }
 
           # Push the last 60 compact lines (summary) and the latest full
@@ -511,7 +525,7 @@ jobs:
               cat "$LOGS/runner-resources-latest.log"
               echo '```'
             } > "$LOGS/check-text.md"
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
+            GH_TOKEN="$TOKEN" timeout 30 gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
               -f "output[title]=Shard $MATRIX_IDX: $(tail -n 1 "$HISTORY" | cut -c 1-180)" \
               -F "output[summary]=@$LOGS/check-summary.md" \
               -F "output[text]=@$LOGS/check-text.md" > /dev/null 2>&1
@@ -551,7 +565,9 @@ jobs:
           # kernel kills them before the runner agent. Raising one's own
           # score needs no root, and children inherit it. The monitor above
           # keeps the default score.
-          echo 1000 > /proc/self/oom_score_adj
+          # A failed write only loses this protection; it does not fail the
+          # shard.
+          echo 1000 > /proc/self/oom_score_adj || echo "::warning::Could not raise oom_score_adj; the runner agent is not protected from the OOM killer."
           echo "oom_score_adj: $(cat /proc/self/oom_score_adj)"
 
           run_stryker() {
@@ -665,8 +681,29 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The 4 GiB heap cap of "Run mutation tests" turns a runaway test host
+      # into an OutOfMemoryException, and a test that fails with it inside a
+      # mutant run may be counted as a kill. When Stryker's console shows
+      # one, the shard fails and its report is not uploaded, so its files
+      # keep their previous dashboard data instead of a skewed score. Only
+      # what reaches the console is seen; the phase-2 calibration compares
+      # Killed counts with a local run to check the rest (#1441).
+      - name: Fail a shard whose run ran out of memory
+        id: oom-guard
+        if: always() && steps.stryker.outcome != 'skipped'
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+        run: |
+          CONSOLE_LOG=artifacts/mutation/logs/stryker-console.log
+          if [ -f "$CONSOLE_LOG" ] && grep -q 'OutOfMemoryException' "$CONSOLE_LOG"; then
+            echo "oom=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Out of memory::Shard $MATRIX_IDX: Stryker's console reports an OutOfMemoryException; the report is not uploaded because kills may be inflated (#1441)."
+            grep -n -m 5 'OutOfMemoryException' "$CONSOLE_LOG"
+            exit 1
+          fi
+
       - name: Upload shard mutation report
-        if: always() && steps.stryker-report.outputs.reports-dir != ''
+        if: always() && steps.stryker-report.outputs.reports-dir != '' && steps.oom-guard.outputs.oom != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: mutation-report-shard-${{ matrix.idx }}
@@ -705,7 +742,7 @@ jobs:
             cat "$LOGS/runner-resources-latest.log" 2>/dev/null || true
             echo '```'
           } > "$RUNNER_TEMP/check-text.md"
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
+          timeout 30 gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
             -f status=completed \
             -f conclusion=neutral \
             -f "output[title]=Shard $MATRIX_IDX: Stryker step $STRYKER_OUTCOME" \
@@ -764,11 +801,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          OPEN=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?status=in_progress&per_page=100" \
+          OPEN=$(timeout 60 gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?status=in_progress&per_page=100" \
             --jq ".check_runs[] | select((.external_id // \"\") | startswith(\"$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-\")) | .id" 2>/dev/null) || OPEN=""
           for id in $OPEN; do
             echo "Telemetry check run $id is still in progress (lost runner or cancelled job); completing it."
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" \
+            timeout 30 gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" \
               -f status=completed -f conclusion=neutral > /dev/null \
               || echo "::warning::Could not complete the telemetry check run $id."
           done
