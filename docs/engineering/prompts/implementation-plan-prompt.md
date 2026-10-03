@@ -110,7 +110,7 @@ INSTRUCTIONS:
       - Testing
       - Documentation & Finalization
       CROSS-CUTTING INTEGRATION PHASE (always present for non-trivial features):
-      - Integrate with all transversal functions marked ✅ in section g)
+      - Integrate with all transversal functions marked ✅ in section f)
       - Common integrations: TenantId/ModuleId propagation, distributed locks for background processors, caching for query paths, audit events for state changes, resilience for external calls, validation at system boundaries
       OBSERVABILITY PHASE (always present for non-trivial features):
       - ActivitySource named after the package
