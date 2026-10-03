@@ -6,6 +6,7 @@ using System.Reflection;
 using Encina.Compliance.ProcessorAgreements.Abstractions;
 using Encina.Compliance.ProcessorAgreements.Diagnostics;
 using Encina.Compliance.ProcessorAgreements.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -110,6 +111,18 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
+        return await DispatchAsync(context, nextStep, cancellationToken).ConfigureAwait(false);
+    }
+
+    // ================================================================
+    // Private helpers
+    // ================================================================
+
+    private ValueTask<Either<EncinaError, TResponse>> DispatchAsync(
+        IRequestContext context,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         var requestType = typeof(TRequest);
         var requestTypeName = requestType.Name;
 
@@ -117,7 +130,7 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Disabled)
         {
             _logger.ProcessorPipelineDisabled(requestTypeName);
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         // Step 2: Check for [RequiresProcessor] attribute (cached)
@@ -132,7 +145,7 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
             {
                 { ProcessorAgreementDiagnostics.TagRequestType, requestTypeName }
             });
-            return await nextStep().ConfigureAwait(false);
+            return nextStep();
         }
 
         var processorIdStr = attribute.ProcessorId;
@@ -141,13 +154,42 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         if (!Guid.TryParse(processorIdStr, out var processorId))
         {
             _logger.ProcessorPipelineNoAttribute(requestTypeName);
-            return Left<EncinaError, TResponse>(
-                ProcessorAgreementErrors.ValidationFailed(processorIdStr, $"ProcessorId '{processorIdStr}' is not a valid GUID."));
+            return ValueTask.FromResult(Left<EncinaError, TResponse>(
+                ProcessorAgreementErrors.ValidationFailed(processorIdStr, $"ProcessorId '{processorIdStr}' is not a valid GUID.")));
         }
 
+        return RunTracedCheckAsync(context, requestTypeName, processorIdStr, processorId, nextStep, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> RunTracedCheckAsync(
+        IRequestContext context,
+        string requestTypeName,
+        string processorIdStr,
+        Guid processorId,
+        RequestHandlerCallback<TResponse> nextStep,
+        CancellationToken cancellationToken)
+    {
         // Step 3: Start tracing and logging
         var startedAt = Stopwatch.GetTimestamp();
         using var activity = ProcessorAgreementDiagnostics.StartPipelineCheck(requestTypeName);
+        TagActivity(activity, context, processorIdStr);
+
+        _logger.ProcessorPipelineStarted(requestTypeName, processorIdStr, _options.EnforcementMode.ToString());
+
+        var check = new CheckContext(activity, startedAt, requestTypeName, processorIdStr, processorId, nextStep);
+
+        try
+        {
+            return await RunCheckAsync(check, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnhandledException(ex, check).ConfigureAwait(false);
+        }
+    }
+
+    private void TagActivity(Activity? activity, IRequestContext context, string processorIdStr)
+    {
         activity?.SetTag(ProcessorAgreementDiagnostics.TagProcessorId, processorIdStr);
         activity?.SetTag(ProcessorAgreementDiagnostics.TagEnforcementMode, _options.EnforcementMode.ToString());
 
@@ -156,86 +198,104 @@ public sealed class ProcessorValidationPipelineBehavior<TRequest, TResponse> : I
         {
             activity?.SetTag("encina.tenant_id", context.TenantId);
         }
-
-        _logger.ProcessorPipelineStarted(requestTypeName, processorIdStr, _options.EnforcementMode.ToString());
-
-        try
-        {
-            // Step 4: Fast path — lightweight boolean check via HasValidDPAAsync
-            var hasValidResult = await _dpaService
-                .HasValidDPAAsync(processorId, cancellationToken)
-                .ConfigureAwait(false);
-
-            // Handle service infrastructure errors
-            if (hasValidResult.IsLeft)
-            {
-                var serviceError = (EncinaError)hasValidResult;
-                RecordFailed(activity, startedAt, requestTypeName, "validator_error");
-
-                if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
-                {
-                    _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, serviceError.Message);
-                    return Left<EncinaError, TResponse>(serviceError);
-                }
-
-                _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, serviceError.Message);
-                return await nextStep().ConfigureAwait(false);
-            }
-
-            var hasValidDPA = (bool)hasValidResult;
-
-            // Step 5: Fast pass-through — DPA is valid
-            if (hasValidDPA)
-            {
-                RecordPassed(activity, startedAt, requestTypeName);
-                _logger.ProcessorPipelinePassed(requestTypeName, processorIdStr);
-                return await nextStep().ConfigureAwait(false);
-            }
-
-            // Step 6: DPA is NOT valid — behavior depends on enforcement mode
-            _logger.ProcessorPipelineNoValidDPA(requestTypeName, processorIdStr);
-
-            if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
-            {
-                // Detailed validation to build a rich error with DPAValidationResult details
-                var detailedResult = await _dpaService
-                    .ValidateDPAAsync(processorId, cancellationToken)
-                    .ConfigureAwait(false);
-
-                var error = BuildBlockError(processorIdStr, detailedResult);
-                var failureReason = BuildFailureReason(detailedResult);
-
-                RecordFailed(activity, startedAt, requestTypeName, failureReason);
-                _logger.ProcessorPipelineBlocked(requestTypeName, processorIdStr, failureReason);
-
-                return Left<EncinaError, TResponse>(error);
-            }
-
-            // Warn mode — log and proceed
-            ProcessorAgreementDiagnostics.RecordWarned(activity, "no_valid_dpa");
-            RecordMetrics(startedAt, requestTypeName, isPass: false, failureReason: "no_valid_dpa");
-            _logger.ProcessorPipelineWarned(requestTypeName, processorIdStr, "no_valid_dpa");
-            return await nextStep().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.ProcessorPipelineError(requestTypeName, processorIdStr, ex);
-            RecordFailed(activity, startedAt, requestTypeName, "unhandled_exception");
-
-            if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
-            {
-                return Left<EncinaError, TResponse>(
-                    ProcessorAgreementErrors.StoreError("PipelineCheck", ex.Message, ex));
-            }
-
-            // Warn mode — exception doesn't block the response
-            return await nextStep().ConfigureAwait(false);
-        }
     }
 
-    // ================================================================
-    // Private helpers
-    // ================================================================
+    private readonly record struct CheckContext(
+        Activity? Activity,
+        long StartedAt,
+        string RequestTypeName,
+        string ProcessorIdStr,
+        Guid ProcessorId,
+        RequestHandlerCallback<TResponse> NextStep);
+
+    private async ValueTask<Either<EncinaError, TResponse>> RunCheckAsync(
+        CheckContext check,
+        CancellationToken cancellationToken)
+    {
+        // Step 4: Fast path — lightweight boolean check via HasValidDPAAsync
+        var hasValidResult = await _dpaService
+            .HasValidDPAAsync(check.ProcessorId, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Handle service infrastructure errors
+        if (hasValidResult.IsLeft)
+        {
+            return await HandleValidatorError((EncinaError)hasValidResult, check).ConfigureAwait(false);
+        }
+
+        var hasValidDPA = (bool)hasValidResult;
+
+        // Step 5: Fast pass-through — DPA is valid
+        if (hasValidDPA)
+        {
+            RecordPassed(check.Activity, check.StartedAt, check.RequestTypeName);
+            _logger.ProcessorPipelinePassed(check.RequestTypeName, check.ProcessorIdStr);
+            return await check.NextStep().ConfigureAwait(false);
+        }
+
+        // Step 6: DPA is NOT valid — behavior depends on enforcement mode
+        return await HandleNoValidDPA(check, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleValidatorError(
+        EncinaError serviceError,
+        CheckContext check)
+    {
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "validator_error");
+
+        if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
+        {
+            _logger.ProcessorPipelineBlocked(check.RequestTypeName, check.ProcessorIdStr, serviceError.GetCode().IfNone("encina.unknown"));
+            return Left<EncinaError, TResponse>(serviceError);
+        }
+
+        _logger.ProcessorPipelineWarned(check.RequestTypeName, check.ProcessorIdStr, serviceError.GetCode().IfNone("encina.unknown"));
+        return await check.NextStep().ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleNoValidDPA(
+        CheckContext check,
+        CancellationToken cancellationToken)
+    {
+        _logger.ProcessorPipelineNoValidDPA(check.RequestTypeName, check.ProcessorIdStr);
+
+        if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
+        {
+            // Detailed validation to build a rich error with DPAValidationResult details
+            var detailedResult = await _dpaService
+                .ValidateDPAAsync(check.ProcessorId, cancellationToken)
+                .ConfigureAwait(false);
+
+            var error = BuildBlockError(check.ProcessorIdStr, detailedResult);
+            var failureReason = BuildFailureReason(detailedResult);
+
+            RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, failureReason);
+            _logger.ProcessorPipelineBlocked(check.RequestTypeName, check.ProcessorIdStr, failureReason);
+
+            return Left<EncinaError, TResponse>(error);
+        }
+
+        // Warn mode — log and proceed
+        ProcessorAgreementDiagnostics.RecordWarned(check.Activity, "no_valid_dpa");
+        RecordMetrics(check.StartedAt, check.RequestTypeName, isPass: false, failureReason: "no_valid_dpa");
+        _logger.ProcessorPipelineWarned(check.RequestTypeName, check.ProcessorIdStr, "no_valid_dpa");
+        return await check.NextStep().ConfigureAwait(false);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> HandleUnhandledException(Exception ex, CheckContext check)
+    {
+        _logger.ProcessorPipelineError(check.RequestTypeName, check.ProcessorIdStr, ex.ForLogging());
+        RecordFailed(check.Activity, check.StartedAt, check.RequestTypeName, "unhandled_exception");
+
+        if (_options.EnforcementMode == ProcessorAgreementEnforcementMode.Block)
+        {
+            return Left<EncinaError, TResponse>(
+                ProcessorAgreementErrors.StoreError("PipelineCheck", ex.Message, ex));
+        }
+
+        // Warn mode — exception doesn't block the response
+        return await check.NextStep().ConfigureAwait(false);
+    }
 
     private static EncinaError BuildBlockError(
         string processorId,

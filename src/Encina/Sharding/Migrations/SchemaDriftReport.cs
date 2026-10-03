@@ -25,7 +25,7 @@ namespace Encina.Sharding.Migrations;
 ///         else
 ///             logger.LogInformation("No schema drift detected at {Time}", r.DetectedAtUtc);
 ///     },
-///     Left: error => logger.LogError("Drift detection failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Drift detection failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 /// <param name="Diffs">Per-shard schema differences relative to the baseline.</param>

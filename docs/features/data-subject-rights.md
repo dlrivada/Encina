@@ -708,7 +708,7 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Failed: {Code}", error.GetCode().IfNone("encina.unknown"));
+        logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
         // error.Details contains structured metadata such as dsrRequestId, rightType and
         // requirement — never the data subject's own identifier (see DSRErrors)
     }

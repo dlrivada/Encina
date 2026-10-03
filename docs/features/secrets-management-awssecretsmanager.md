@@ -149,8 +149,8 @@ var result = await secretReader.GetSecretAsync("db-password", cancellationToken)
 
 result.Match(
     Right: value => logger.LogInformation("Secret value retrieved"),
-    Left: error => logger.LogError("Failed: [{Code}] {Message}",
-        error.GetCode().IfNone("unknown"), error.Message));
+    Left: error => logger.LogError("Failed: {ErrorCode}",
+        error.GetCode().IfNone("encina.unknown")));
 ```
 
 ---

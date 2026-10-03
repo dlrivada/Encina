@@ -149,21 +149,24 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
     }
 
     [Fact]
-    public void TryBuildLocation_UnresolvableSubjectIdProperty_ReturnsFalse()
+    public void LocateFieldsInEvent_GuidSubjectId_MatchesItsInvariantStringForm()
     {
-        // CryptoShreddedPropertyCache.GetFields excludes a field whose SubjectIdProperty does
-        // not resolve, so TryBuildLocation's own null-property guard is unreachable through the
-        // cache — exercised directly here instead, by handing it a field descriptor built from
-        // the cache's own valid field but retargeted to a nonexistent SubjectIdProperty name.
-        var evt = new PiiEvent { UserId = "subject-1", Email = "test@example.com" };
-        var validField = CryptoShreddedPropertyCache.GetFields(typeof(PiiEvent)).Single();
-        var fieldWithBadSubjectIdProperty = new CryptoShreddedFieldInfo(
-            validField.Property, validField.Attribute, validField.Setter, "DoesNotExist");
+        var patient = Guid.Parse("7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b");
+        var evt = new GuidPiiEvent { PatientId = patient, Email = "test@example.com" };
 
-        var found = MartenEventPersonalDataLocator.TryBuildLocation(
-            evt, typeof(PiiEvent), fieldWithBadSubjectIdProperty, "subject-1", out _);
+        var locations = MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b").ToList();
 
-        found.ShouldBeFalse();
+        locations.Count.ShouldBe(1);
+        locations[0].EntityId.ShouldBe("7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b");
+        MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "another-subject").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void LocateFieldsInEvent_EmptyGuidSubjectId_MatchesNoSubject()
+    {
+        var evt = new GuidPiiEvent { PatientId = Guid.Empty, Email = "test@example.com" };
+
+        MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, Guid.Empty.ToString("D")).ShouldBeEmpty();
     }
 
     [Fact]
@@ -184,6 +187,15 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
 
         [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class GuidPiiEvent
+    {
+        public Guid PatientId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
         public string Email { get; set; } = string.Empty;
     }
 

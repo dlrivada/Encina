@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -116,7 +117,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         }
         catch (Exception ex)
         {
-            ScatterGatherLog.ExecutionException(_logger, operationId, ex.Message, ex);
+            ScatterGatherLog.ExecutionException(_logger, operationId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(ScatterGatherErrorCodes.HandlerFailed, ex.Message));
         }
@@ -418,7 +419,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         {
             stopwatch.Stop();
             var error = EncinaErrors.Create(ScatterGatherErrorCodes.ScatterFailed, ex.Message);
-            ScatterGatherLog.ScatterFailed(_logger, operationId, handler.Name, ex.Message);
+            ScatterGatherLog.ScatterFailed(_logger, operationId, handler.Name, ex.GetType().Name);
 
             return ScatterExecutionResult.Failure<TResponse>(
                 handler.Name,
@@ -461,7 +462,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         catch (Exception ex)
         {
             var error = EncinaErrors.Create(ScatterGatherErrorCodes.GatherFailed, ex.Message);
-            ScatterGatherLog.GatherFailed(_logger, operationId, ex.Message);
+            ScatterGatherLog.GatherFailed(_logger, operationId, ex.GetType().Name);
             return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
         }
     }

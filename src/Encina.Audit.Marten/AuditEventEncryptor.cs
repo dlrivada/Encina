@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Events;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using LanguageExt;
@@ -131,7 +132,7 @@ public sealed class AuditEventEncryptor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex,
+                    _logger.LogError(ex.ForLogging(),
                         "Failed to encrypt audit entry {EntryId} for period {Period}",
                         entry.Id,
                         period);
@@ -200,7 +201,7 @@ public sealed class AuditEventEncryptor
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex,
+                    _logger.LogError(ex.ForLogging(),
                         "Failed to encrypt read audit entry {EntryId} for period {Period}",
                         entry.Id,
                         period);

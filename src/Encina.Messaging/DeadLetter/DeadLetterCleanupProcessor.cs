@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -82,7 +83,7 @@ public sealed class DeadLetterCleanupProcessor : BackgroundService
             }
             catch (Exception ex)
             {
-                DeadLetterLog.CleanupError(_logger, ex);
+                DeadLetterLog.CleanupError(_logger, ex.ForLogging());
             }
         }
     }

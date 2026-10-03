@@ -239,7 +239,7 @@ result.Match(
     Left: error =>
     {
         // Complete failure - no shards succeeded
-        logger.LogError("Aggregation failed: {Error}", error.Message);
+        logger.LogError("Aggregation failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
     });
 ```
 

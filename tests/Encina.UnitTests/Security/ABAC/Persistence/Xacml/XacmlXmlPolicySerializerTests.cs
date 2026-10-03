@@ -899,6 +899,44 @@ public sealed class XacmlXmlPolicySerializerTests
     }
 
     [Fact]
+    public void DeserializePolicySet_MissingRequiredAttribute_ReturnsLeft()
+    {
+        // Arrange — correct root element but no PolicySetId attribute
+        var xml = """
+            <PolicySet xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+                       Version="1.0"
+                       PolicyCombiningAlgId="urn:oasis:names:tc:xacml:3.0:policy-combining-algorithm:deny-overrides">
+                <Target />
+            </PolicySet>
+            """;
+
+        // Act
+        var result = _sut.DeserializePolicySet(xml);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void DeserializePolicy_MissingRequiredAttribute_ReturnsLeft()
+    {
+        // Arrange — correct root element but no PolicyId attribute
+        var xml = """
+            <Policy xmlns="urn:oasis:names:tc:xacml:3.0:core:schema:wd-17"
+                    Version="1.0"
+                    RuleCombiningAlgId="urn:oasis:names:tc:xacml:3.0:rule-combining-algorithm:deny-overrides">
+                <Target />
+            </Policy>
+            """;
+
+        // Act
+        var result = _sut.DeserializePolicy(xml);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public void DeserializePolicySet_WrongRootElement_ReturnsLeft()
     {
         // Arrange — Valid XML but wrong root element

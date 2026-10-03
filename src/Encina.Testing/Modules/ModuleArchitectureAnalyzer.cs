@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.Loader;
+using Encina.Diagnostics;
 using Encina.Modules;
 using Microsoft.Extensions.Logging;
 using Shouldly;
@@ -45,15 +46,15 @@ public sealed class ModuleArchitectureAnalyzer
             new EventId(250, nameof(ModuleArchitectureAnalyzer) + ".FailedToLoadTypes"),
             "ModuleArchitectureAnalyzer: failed to load types for {SourceType} in assembly {Assembly} - LoaderExceptions");
 
-    private static readonly Action<ILogger, string, string, string, string, string, Exception?> _loaderExceptionLog =
-        LoggerMessage.Define<string, string, string, string, string>(LogLevel.Error,
+    private static readonly Action<ILogger, string, string, string, Exception?> _loaderExceptionLog =
+        LoggerMessage.Define<string, string, string>(LogLevel.Error,
             new EventId(251, nameof(ModuleArchitectureAnalyzer) + ".LoaderException"),
-            "Loader exception in {Assembly} for type {SourceType}: {ExceptionType}: {Message}\n{StackTrace}");
+            "Loader exception in {Assembly} for type {SourceType}: {ExceptionType}");
 
-    private static readonly Action<ILogger, string, string, string, string, string, Exception?> _analysisErrorLog =
-        LoggerMessage.Define<string, string, string, string, string>(LogLevel.Error,
+    private static readonly Action<ILogger, string, string, string, Exception?> _analysisErrorLog =
+        LoggerMessage.Define<string, string, string>(LogLevel.Error,
             new EventId(252, nameof(ModuleArchitectureAnalyzer) + ".AnalysisError"),
-            "ModuleArchitectureAnalyzer: error analyzing type {SourceType} in assembly {Assembly}: {ExceptionType}: {Message}\n{StackTrace}");
+            "ModuleArchitectureAnalyzer: error analyzing type {SourceType} in assembly {Assembly}: {ExceptionType}");
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModuleArchitectureAnalyzer"/> class.
@@ -240,19 +241,19 @@ public sealed class ModuleArchitectureAnalyzer
         }
         catch (Exception ex)
         {
-            LogAnalysisException(sourceType, source.Assembly, ex);
+            LogAnalysisException(sourceType, source.Assembly, ex.ForLogging());
             return false;
         }
     }
 
-    private void LogReflectionTypeLoadException(ReflectionType sourceType, ReflectionAssembly assembly, System.Reflection.ReflectionTypeLoadException rtle)
+    internal void LogReflectionTypeLoadException(ReflectionType sourceType, ReflectionAssembly assembly, System.Reflection.ReflectionTypeLoadException rtle)
     {
         var asmName = assembly.GetName().Name ?? "<unknown assembly>";
         var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";
 
         if (_logger is not null)
         {
-            _failedToLoadTypes(_logger, typeName, asmName, rtle);
+            _failedToLoadTypes(_logger, typeName, asmName, rtle.ForLogging());
             LogLoaderExceptions(asmName, typeName, rtle.LoaderExceptions);
         }
         else
@@ -270,9 +271,7 @@ public sealed class ModuleArchitectureAnalyzer
                 asmName,
                 typeName,
                 le!.GetType().Name,
-                le.Message ?? string.Empty,
-                le.StackTrace ?? string.Empty,
-                le);
+                le.ForLogging());
         }
     }
 
@@ -280,11 +279,11 @@ public sealed class ModuleArchitectureAnalyzer
     {
         foreach (var le in loaderExceptions.Where(e => e is not null))
         {
-            Console.Error.WriteLine($" - {le!.GetType().Name}: {le.Message}\n{le.StackTrace}");
+            Console.Error.WriteLine($" - {le!.GetType().Name}\n{le.StackTrace}");
         }
     }
 
-    private void LogAnalysisException(ReflectionType sourceType, ReflectionAssembly assembly, Exception ex)
+    internal void LogAnalysisException(ReflectionType sourceType, ReflectionAssembly assembly, Exception ex)
     {
         var asmName = assembly.GetName().Name ?? "<unknown assembly>";
         var typeName = sourceType.FullName ?? sourceType.Name ?? "<unknown type>";
@@ -295,13 +294,11 @@ public sealed class ModuleArchitectureAnalyzer
                 typeName,
                 asmName,
                 ex.GetType().Name,
-                ex.Message ?? string.Empty,
-                ex.StackTrace ?? string.Empty,
-                ex);
+                ex.ForLogging());
         }
         else
         {
-            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {typeName} in assembly {asmName}: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            Console.Error.WriteLine($"ModuleArchitectureAnalyzer: error analyzing type {typeName} in assembly {asmName}: {ex.GetType().Name}\n{ex.StackTrace}");
         }
     }
 

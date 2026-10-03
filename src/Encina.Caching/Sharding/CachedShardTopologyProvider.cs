@@ -1,4 +1,5 @@
 using Encina.Caching.Sharding.Configuration;
+using Encina.Diagnostics;
 using Encina.Sharding;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -105,7 +106,7 @@ public sealed class CachedShardTopologyProvider : IShardTopologyProvider, IDispo
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to refresh shard topology");
+            _logger.LogWarning(ex.ForLogging(), "Failed to refresh shard topology");
         }
     }
 
@@ -140,7 +141,7 @@ public sealed class CachedShardTopologyProvider : IShardTopologyProvider, IDispo
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Push-triggered topology refresh failed");
+                _logger.LogWarning(ex.ForLogging(), "Push-triggered topology refresh failed");
             }
         });
     }

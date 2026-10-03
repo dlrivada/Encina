@@ -1,4 +1,5 @@
 using Encina.Caching.Sharding.Configuration;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -74,7 +75,7 @@ public sealed class TopologyRefreshHostedService : IHostedService, IDisposable
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _timer = new PeriodicTimer(_options.TopologyRefreshInterval);
-        _executingTask = ExecuteAsync(_cts.Token);
+        _executingTask = ExecuteAsync(_timer, _cts.Token);
     }
 
     /// <inheritdoc />
@@ -109,39 +110,57 @@ public sealed class TopologyRefreshHostedService : IHostedService, IDisposable
         _cts?.Dispose();
     }
 
-    private async Task ExecuteAsync(CancellationToken stoppingToken)
+    private async Task ExecuteAsync(PeriodicTimer timer, CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested
+            && await WaitForNextTickAsync(timer, stoppingToken).ConfigureAwait(false)
+            && await RunRefreshCycleAsync(stoppingToken).ConfigureAwait(false))
         {
-            try
+        }
+    }
+
+    /// <summary>
+    /// Waits for the next timer tick.
+    /// </summary>
+    /// <returns><c>true</c> when a tick arrived; <c>false</c> when the timer stopped or the service is stopping.</returns>
+    private static async Task<bool> WaitForNextTickAsync(PeriodicTimer timer, CancellationToken stoppingToken)
+    {
+        try
+        {
+            return await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Runs one refresh cycle; a failure is logged and the cycle is considered finished.
+    /// </summary>
+    /// <returns><c>false</c> when the service is stopping; otherwise <c>true</c>.</returns>
+    private async Task<bool> RunRefreshCycleAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await _topologyProvider.RefreshAsync(stoppingToken).ConfigureAwait(false);
+
+            if (_directoryStore is not null && _options.EnableDirectoryCaching)
             {
-                if (_timer is null || !await _timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
-                {
-                    break;
-                }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
+                await _directoryStore.RefreshL1FromInnerAsync(stoppingToken).ConfigureAwait(false);
             }
 
-            try
-            {
-                await _topologyProvider.RefreshAsync(stoppingToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex.ForLogging(), "Error during topology/directory refresh cycle");
 
-                if (_directoryStore is not null && _options.EnableDirectoryCaching)
-                {
-                    await _directoryStore.RefreshL1FromInnerAsync(stoppingToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error during topology/directory refresh cycle");
-            }
+            return true;
         }
     }
 }

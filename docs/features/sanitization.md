@@ -433,7 +433,7 @@ result.Match(
     {
         var code = error.GetCode().IfNone(string.Empty);
         var details = error.GetDetails();
-        logger.LogWarning("Sanitization failed: {Code} - {Message}", code, error.Message);
+        logger.LogWarning("Sanitization failed: {Code}", code);
     },
     Right: _ => { /* Success — command properties are sanitized in-place */ }
 );

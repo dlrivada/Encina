@@ -27,7 +27,7 @@ namespace Encina.Sharding.TimeBased;
 /// var result = await router.RouteByTimestampAsync(DateTime.UtcNow);
 /// result.Match(
 ///     Right: shardId => logger.LogInformation("Routed to {ShardId}", shardId),
-///     Left: error => logger.LogError("Routing failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Routing failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Query all shards in a date range
 /// var shards = await router.GetShardsInRangeAsync(

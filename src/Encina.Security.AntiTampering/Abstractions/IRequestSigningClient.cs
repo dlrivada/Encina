@@ -34,7 +34,7 @@ namespace Encina.Security.AntiTampering.Abstractions;
 /// var result = await signingClient.SignRequestAsync(request, "api-key-v1", cancellationToken);
 /// result.Match(
 ///     Right: signedRequest => httpClient.SendAsync(signedRequest),
-///     Left: error => logger.LogError("Signing failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Signing failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public interface IRequestSigningClient

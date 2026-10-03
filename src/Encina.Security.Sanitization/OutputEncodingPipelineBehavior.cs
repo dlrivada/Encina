@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Encina.Diagnostics;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
 using Encina.Security.Sanitization.Diagnostics;
@@ -103,32 +104,38 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             : null;
 
         return response.Match(
-            Right: responseValue =>
-            {
-                var propertyCount = hasAutoEncode
-                    ? EncodingPropertyCache.GetStringProperties(responseType).Length
-                    : attributeProperties.Length;
-
-                SanitizationLogMessages.OutputEncodingStarted(_logger, responseTypeName, propertyCount);
-
-                var encodingResult = EncodeResponse(responseValue, responseType, responseTypeName);
-
-                if (encodingResult.IsLeft)
-                {
-                    var errorMessage = encodingResult.Match(
-                        Right: _ => string.Empty,
-                        Left: e => e.Message);
-
-                    RecordFailure(activity, startedAt, responseTypeName, errorMessage);
-                    return encodingResult.Match<Either<EncinaError, TResponse>>(
-                        Right: _ => default!,
-                        Left: e => e);
-                }
-
-                RecordSuccess(activity, startedAt, responseTypeName, propertyCount);
-                return (Either<EncinaError, TResponse>)responseValue;
-            },
+            Right: responseValue => EncodeAndRecord(
+                responseValue, responseType, responseTypeName, attributeProperties.Length, hasAutoEncode, activity, startedAt),
             Left: e => (Either<EncinaError, TResponse>)e);
+    }
+
+    private Either<EncinaError, TResponse> EncodeAndRecord(
+        TResponse responseValue,
+        Type responseType,
+        string responseTypeName,
+        int attributePropertyCount,
+        bool hasAutoEncode,
+        Activity? activity,
+        long startedAt)
+    {
+        var propertyCount = hasAutoEncode
+            ? EncodingPropertyCache.GetStringProperties(responseType).Length
+            : attributePropertyCount;
+
+        SanitizationLogMessages.OutputEncodingStarted(_logger, responseTypeName, propertyCount);
+
+        var encodingResult = EncodeResponse(responseValue, responseType, responseTypeName);
+
+        if (encodingResult.IsLeft)
+        {
+            RecordFailure(activity, startedAt, responseTypeName, encodingResult);
+            return encodingResult.Match<Either<EncinaError, TResponse>>(
+                Right: _ => default!,
+                Left: e => e);
+        }
+
+        RecordSuccess(activity, startedAt, responseTypeName, propertyCount);
+        return responseValue;
     }
 
     /// <summary>
@@ -145,9 +152,34 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
         // Attribute-based encoding
         var properties = EncodingPropertyCache.GetProperties(responseType);
 
+        var attributed = EncodeAttributedProperties(response, properties, responseTypeName);
+        if (attributed.IsLeft)
+        {
+            return attributed;
+        }
+
+        // Auto-encode mode: encode all remaining string properties as HTML
+        if (_options.EncodeAllOutputs)
+        {
+            var auto = AutoEncodeStringProperties(response, responseType, properties, responseTypeName);
+            if (auto.IsLeft)
+            {
+                return auto;
+            }
+        }
+
+        return LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    /// <summary>
+    /// Encodes every property decorated with an encoding attribute; stops at the first failure.
+    /// </summary>
+    private Either<EncinaError, Unit> EncodeAttributedProperties(
+        TResponse response, EncodablePropertyInfo[] properties, string responseTypeName)
+    {
         foreach (var prop in properties)
         {
-            var value = prop.Getter(response) as string;
+            var value = prop.Getter(response!) as string;
             if (value is null)
             {
                 continue;
@@ -156,51 +188,59 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             try
             {
                 var encoded = EncodeProperty(value, prop.Attribute);
-                prop.Setter(response, encoded);
+                prop.Setter(response!, encoded);
             }
             catch (Exception ex)
             {
                 SanitizationLogMessages.OutputEncodingPropertyFailed(
-                    _logger, prop.Property.Name, responseTypeName, ex.Message);
+                    _logger, prop.Property.Name, responseTypeName, ex.ForLogging());
 
                 return SanitizationErrors.PropertyError(prop.Property.Name, ex);
             }
         }
 
-        // Auto-encode mode: encode all remaining string properties as HTML
-        if (_options.EncodeAllOutputs)
+        return LanguageExt.Prelude.Right<EncinaError, Unit>(Unit.Default);
+    }
+
+    /// <summary>
+    /// HTML-encodes the string properties that carry no explicit encoding attribute.
+    /// </summary>
+    private Either<EncinaError, Unit> AutoEncodeStringProperties(
+        TResponse response,
+        Type responseType,
+        EncodablePropertyInfo[] attributedProperties,
+        string responseTypeName)
+    {
+        var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
+            attributedProperties.Select(p => p.Property.Name),
+            StringComparer.Ordinal);
+
+        var stringProperties = EncodingPropertyCache.GetStringProperties(responseType);
+
+        foreach (var prop in stringProperties)
         {
-            var attributePropertyNames = new System.Collections.Generic.HashSet<string>(
-                properties.Select(p => p.Property.Name),
-                StringComparer.Ordinal);
-
-            var stringProperties = EncodingPropertyCache.GetStringProperties(responseType);
-
-            foreach (var prop in stringProperties)
+            if (attributePropertyNames.Contains(prop.Name))
             {
-                if (attributePropertyNames.Contains(prop.Name))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var value = prop.GetValue(response) as string;
-                if (value is null)
-                {
-                    continue;
-                }
+            var value = prop.GetValue(response) as string;
+            if (value is null)
+            {
+                continue;
+            }
 
-                try
-                {
-                    var encoded = _encoder.EncodeForHtml(value);
-                    prop.SetValue(response, encoded);
-                }
-                catch (Exception ex)
-                {
-                    SanitizationLogMessages.OutputEncodingPropertyFailed(
-                        _logger, prop.Name, responseTypeName, ex.Message);
+            try
+            {
+                var encoded = _encoder.EncodeForHtml(value);
+                prop.SetValue(response, encoded);
+            }
+            catch (Exception ex)
+            {
+                SanitizationLogMessages.OutputEncodingPropertyFailed(
+                    _logger, prop.Name, responseTypeName, ex.ForLogging());
 
-                    return SanitizationErrors.PropertyError(prop.Name, ex);
-                }
+                return SanitizationErrors.PropertyError(prop.Name, ex);
             }
         }
 
@@ -254,8 +294,12 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string responseTypeName, string errorMessage)
+    private void RecordFailure<T>(Activity? activity, long startedAt, string responseTypeName, Either<EncinaError, T> failed)
     {
+        var (errorMessage, errorCode) = failed.Match(
+            Right: _ => (string.Empty, string.Empty),
+            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+
         if (_options.EnableTracing)
         {
             SanitizationDiagnostics.RecordFailure(activity, "encode", errorMessage);
@@ -276,7 +320,7 @@ internal sealed class OutputEncodingPipelineBehavior<TRequest, TResponse> : IPip
             SanitizationDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
         }
 
-        _logger.LogWarning("Output encoding pipeline failed for {ResponseType}: {ErrorMessage}",
-            responseTypeName, errorMessage);
+        _logger.LogWarning("Output encoding pipeline failed for {ResponseType}: {ErrorCode}",
+            responseTypeName, errorCode);
     }
 }

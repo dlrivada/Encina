@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Errors;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -134,7 +135,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
     /// Retrieves the last saved position from the position store for resume logic.
     /// Returns <c>null</c> if no saved position exists or if retrieval fails.
     /// </summary>
-    private async Task<DebeziumCdcPosition?> GetResumePositionAsync(CancellationToken cancellationToken)
+    internal async Task<DebeziumCdcPosition?> GetResumePositionAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -158,7 +159,7 @@ internal sealed class DebeziumCdcConnector : ICdcConnector
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Log but don't fail — start from beginning if position retrieval fails
-            DebeziumCdcLog.PositionRetrievalFailed(_logger, ex, ConnectorId);
+            DebeziumCdcLog.PositionRetrievalFailed(_logger, ex.ForLogging(), ConnectorId);
         }
 
         CdcLog.NoSavedPosition(_logger, ConnectorId);

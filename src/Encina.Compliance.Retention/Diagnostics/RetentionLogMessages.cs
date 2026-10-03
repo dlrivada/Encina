@@ -312,13 +312,6 @@ internal static partial class RetentionLogMessages
         Message = "Entity under legal hold, skipping deletion. EntityId={EntityId}")]
     internal static partial void RetentionDeletionSkippedLegalHold(this ILogger logger, string entityId);
 
-    /// <summary>Legal hold apply started.</summary>
-    [LoggerMessage(
-        EventId = 8549,
-        Level = LogLevel.Information,
-        Message = "Applying legal hold. HoldId={HoldId}, EntityId={EntityId}, Reason={Reason}")]
-    internal static partial void LegalHoldApplying(this ILogger logger, string holdId, string entityId, string reason);
-
     // ========================================================================
     // Retention policy log messages (8550-8559)
     // ========================================================================
@@ -364,13 +357,6 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Debug,
         Message = "Retention record status recalculated after hold release. RecordId={RecordId}, NewStatus={NewStatus}")]
     internal static partial void RetentionRecordStatusRecalculated(this ILogger logger, string recordId, string newStatus);
-
-    /// <summary>Failed to recalculate record statuses for entity.</summary>
-    [LoggerMessage(
-        EventId = 8556,
-        Level = LogLevel.Warning,
-        Message = "Failed to recalculate record statuses. EntityId={EntityId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionRecordRecalculationFailed(this ILogger logger, string entityId, string errorMessage);
 
     /// <summary>Erasure of one data category of an entity failed during enforcement; the record is retried next cycle.</summary>
     [LoggerMessage(
@@ -431,20 +417,6 @@ internal static partial class RetentionLogMessages
         Level = LogLevel.Warning,
         Message = "Exception while checking for expiring data. Continuing with enforcement")]
     internal static partial void RetentionExpiringDataCheckFailed(this ILogger logger, Exception exception);
-
-    /// <summary>Failed to retrieve expired records during enforcement.</summary>
-    [LoggerMessage(
-        EventId = 8566,
-        Level = LogLevel.Error,
-        Message = "Failed to retrieve expired records. ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionExpiredRecordsRetrievalFailed(this ILogger logger, string errorMessage);
-
-    /// <summary>Failed to check expiring data.</summary>
-    [LoggerMessage(
-        EventId = 8567,
-        Level = LogLevel.Warning,
-        Message = "Failed to check for expiring data. ErrorMessage={ErrorMessage}")]
-    internal static partial void RetentionExpiringDataCheckError(this ILogger logger, string errorMessage);
 
     /// <summary>Legal hold release started.</summary>
     [LoggerMessage(

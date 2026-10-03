@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -328,7 +329,7 @@ public sealed class DomainEventDispatcherInterceptor : SaveChangesInterceptor
         {
             Log.DomainEventPublishException(
                 _logger,
-                ex,
+                ex.ForLogging(),
                 domainEvent.GetType().Name,
                 domainEvent.EventId);
 

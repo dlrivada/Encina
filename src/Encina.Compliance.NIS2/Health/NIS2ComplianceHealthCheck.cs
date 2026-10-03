@@ -1,4 +1,5 @@
 using Encina.Compliance.NIS2.Abstractions;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -120,7 +121,7 @@ public sealed class NIS2ComplianceHealthCheck : IHealthCheck
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "NIS2 compliance health check encountered an exception.");
+            _logger.LogError(ex.ForLogging(), "NIS2 compliance health check encountered an exception.");
 
             return HealthCheckResult.Unhealthy(
                 $"NIS2 compliance health check exception: {ex.GetType().Name}",

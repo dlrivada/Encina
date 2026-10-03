@@ -317,7 +317,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
         result.Match(
             Right: _ => _logger.LogInformation("Success"),
-            Left: err => _logger.LogError("Failed: {Error}", err.Message)
+            Left: err => _logger.LogError("Failed: {ErrorCode}", err.GetCode().IfNone("encina.unknown"))
         );
 
         return result;
@@ -345,6 +345,8 @@ public class CreateUserHandler : IRequestHandler<CreateUserCommand, User>
     }
 }
 ```
+
+Log the error code, not `error.Message`: messages can carry personal data. Pass exceptions to loggers as `ex.ForLogging()` (namespace `Encina.Diagnostics`), which keeps the type and stack trace and drops the message.
 
 ### Chain Execution Order
 

@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Middleware;
 using Microsoft.Extensions.Logging;
@@ -78,7 +79,7 @@ public sealed class EncinaFunctionMiddleware : IFunctionsWorkerMiddleware
         }
         catch (Exception ex)
         {
-            Log.FunctionExecutionFailed(_logger, context.FunctionDefinition.Name, context.InvocationId, ex);
+            Log.FunctionExecutionFailed(_logger, context.FunctionDefinition.Name, context.InvocationId, ex.ForLogging());
             throw;
         }
     }

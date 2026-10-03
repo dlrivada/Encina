@@ -13,9 +13,31 @@ namespace Encina.PropertyTests.Web.Quartz;
 public sealed class QuartzRequestJobPropertyTests
 {
     [Fact]
-    public async Task Property_SuccessfulExecution_AlwaysSetsContextResult()
+    public async Task Property_SuccessfulExecution_ByDefault_NeverSetsContextResult()
     {
-        // Property: When Encina returns Right, context.Result ALWAYS set
+        // Property: with default options, context.Result is NEVER set (#1258)
+
+        foreach (var data in new[] { "data1", "data2", "data3" })
+        {
+            var Encina = Substitute.For<IEncina>();
+            var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
+            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
+            var request = new TestRequest(data);
+            var context = CreateJobExecutionContext(request);
+
+            Encina.Send(request, Arg.Any<CancellationToken>())
+                .Returns(Right<EncinaError, string>("patient-" + data));
+
+            await job.Execute(context);
+
+            context.Result.ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task Property_SuccessfulExecution_WithOptIn_AlwaysSetsContextResult()
+    {
+        // Property: with ExposeResponseInJobContext, when Encina returns Right, context.Result ALWAYS set
 
         var testCases = new[]
         {
@@ -29,7 +51,7 @@ public sealed class QuartzRequestJobPropertyTests
             // Arrange
             var Encina = Substitute.For<IEncina>();
             var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-            var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
+            var job = CreateExposingJob(Encina, logger);
             var context = CreateJobExecutionContext(request);
 
             Encina.Send(request, Arg.Any<CancellationToken>())
@@ -84,7 +106,7 @@ public sealed class QuartzRequestJobPropertyTests
         var expectedResult = "consistent-result";
         var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
+        var job = CreateExposingJob(Encina, logger);
 
         Encina.Send(request, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, string>(expectedResult));
@@ -111,7 +133,7 @@ public sealed class QuartzRequestJobPropertyTests
 
         var Encina = Substitute.For<IEncina>();
         var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
-        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger);
+        var job = CreateExposingJob(Encina, logger);
 
         Encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, string>("success"));
@@ -161,6 +183,11 @@ public sealed class QuartzRequestJobPropertyTests
             await Encina.Received(1).Send(request, Arg.Any<CancellationToken>());
         }
     }
+
+    private static QuartzRequestJob<TestRequest, string> CreateExposingJob(
+        IEncina encina,
+        ILogger<QuartzRequestJob<TestRequest, string>> logger) =>
+        new(encina, logger, errorClassifier: null, new EncinaQuartzOptions { ExposeResponseInJobContext = true });
 
     // Helper method
     private static IJobExecutionContext CreateJobExecutionContext<TRequest>(TRequest request)

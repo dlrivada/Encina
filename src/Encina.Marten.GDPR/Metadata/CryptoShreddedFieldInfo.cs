@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using Encina.Compliance.DataSubjectRights;
+
 namespace Encina.Marten.GDPR;
 
 /// <summary>
@@ -25,17 +27,17 @@ internal sealed class CryptoShreddedFieldInfo
     /// <param name="property">The reflected property information.</param>
     /// <param name="attribute">The crypto-shredded attribute applied to the property.</param>
     /// <param name="setter">The compiled setter delegate for high-performance property updates.</param>
-    /// <param name="subjectIdProperty">The name of the sibling property identifying the data subject.</param>
+    /// <param name="subjectIdProperty">The sibling property identifying the data subject.</param>
     internal CryptoShreddedFieldInfo(
         PropertyInfo property,
         CryptoShreddedAttribute attribute,
         Action<object, object?> setter,
-        string subjectIdProperty)
+        PropertyInfo subjectIdProperty)
     {
         Property = property;
         Attribute = attribute;
         Setter = setter;
-        SubjectIdProperty = subjectIdProperty;
+        SubjectIdPropertyInfo = subjectIdProperty;
     }
 
     /// <summary>
@@ -65,7 +67,27 @@ internal sealed class CryptoShreddedFieldInfo
     /// The value of this property at serialization time determines which per-subject
     /// encryption key is used.
     /// </remarks>
-    internal string SubjectIdProperty { get; }
+    internal string SubjectIdProperty => SubjectIdPropertyInfo.Name;
+
+    /// <summary>
+    /// The reflected sibling property that identifies the data subject.
+    /// </summary>
+    internal PropertyInfo SubjectIdPropertyInfo { get; }
+
+    /// <summary>
+    /// Reads the subject id from the target instance and converts it to its invariant string form,
+    /// with the same conversion the other compliance packages use (#1149).
+    /// </summary>
+    /// <param name="instance">The object instance that owns the subject-id property.</param>
+    /// <returns>
+    /// The invariant string form of the subject id, or <c>null</c> when the subject is missing
+    /// (<c>null</c>, <see cref="Guid.Empty"/> or an empty string).
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// The subject-id property has a type that is not a supported subject identifier.
+    /// </exception>
+    internal string? ResolveSubjectId(object instance) =>
+        SubjectIdConversion.ToInvariantString(SubjectIdPropertyInfo.GetValue(instance), SubjectIdPropertyInfo);
 
     /// <summary>
     /// Gets the property value from the target instance using the cached <see cref="PropertyInfo"/>.

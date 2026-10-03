@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.Quartz;
 using Encina.UnitTests.Quartz.Fakers;
 using LanguageExt;
@@ -52,8 +53,81 @@ public class QuartzRequestJobTests
             Arg.Is<TestRequest>(r => r.Data == "test-data"),
             Arg.Any<CancellationToken>());
 
-        _context.Received().Result = expectedResponse;
+        _context.Result.ShouldBeNull();
     }
+
+    [Fact]
+    public async Task Execute_WithSuccessfulRequest_ByDefault_NeverSetsContextResult()
+    {
+        // Arrange: a sentinel response that stands for personal data (#1258).
+        var request = _requestFaker.WithData("test-data").Generate();
+        var sentinel = new TestResponse("patient-123 sentinel");
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(sentinel));
+
+        // Act
+        await _job.Execute(_context);
+
+        // Assert
+        _context.DidNotReceive().Result = Arg.Any<object?>();
+        _context.Result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Execute_WithExposeResponseOptionDisabled_NeverSetsContextResult()
+    {
+        // Arrange
+        var job = CreateJob(exposeResponse: false);
+        var request = _requestFaker.Generate();
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(_responseFaker.WithSuccess().Generate()));
+
+        // Act
+        await job.Execute(_context);
+
+        // Assert
+        _context.DidNotReceive().Result = Arg.Any<object?>();
+    }
+
+    [Fact]
+    public async Task Execute_WithExposeResponseOptionEnabled_SetsContextResult()
+    {
+        // Arrange
+        var job = CreateJob(exposeResponse: true);
+        var request = _requestFaker.Generate();
+        var expectedResponse = _responseFaker.WithSuccess().Generate();
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, TestResponse>(expectedResponse));
+
+        // Act
+        await job.Execute(_context);
+
+        // Assert
+        _context.Received(1).Result = expectedResponse;
+    }
+
+    [Fact]
+    public async Task Execute_WithExposeResponseOptionEnabled_FailureStillThrowsAndSetsNoResult()
+    {
+        // Arrange
+        var job = CreateJob(exposeResponse: true);
+        var request = _requestFaker.Generate();
+        var error = EncinaErrors.Create("test.error", "Test error message");
+        _context.JobDetail.JobDataMap[QuartzConstants.RequestKey] = request;
+        _encina.Send(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, TestResponse>(error));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<JobExecutionException>(() => job.Execute(_context));
+        exception.Data[EncinaJobFailureData.ErrorCodeKey].ShouldBe("test.error");
+        _context.DidNotReceive().Result = Arg.Any<object?>();
+    }
+
+    private QuartzRequestJob<TestRequest, TestResponse> CreateJob(bool exposeResponse) =>
+        new(_encina, _logger, errorClassifier: null, new EncinaQuartzOptions { ExposeResponseInJobContext = exposeResponse });
 
     [Fact]
     public async Task Execute_WithFailedRequest_ThrowsJobExecutionException()
@@ -197,7 +271,9 @@ public class QuartzRequestJobTests
             .FirstOrDefault(r => r.Message.Contains("Unhandled exception"));
         logEntry.ShouldNotBeNull();
         logEntry!.Level.ShouldBe(LogLevel.Error);
-        logEntry.Exception.ShouldBe(exception);
+        logEntry.Exception.ShouldBeOfType<RedactedException>();
+        logEntry.Exception!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        logEntry.Exception.ToString().ShouldNotContain("Test exception");
     }
 
     [Fact]

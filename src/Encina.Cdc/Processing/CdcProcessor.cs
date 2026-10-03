@@ -1,5 +1,6 @@
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.DeadLetter;
+using Encina.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -88,23 +89,12 @@ internal sealed class CdcProcessor : BackgroundService
 
                 if (consecutiveErrors <= _options.MaxRetries)
                 {
-                    var delay = CalculateRetryDelay(consecutiveErrors);
-
-                    using var scope = _serviceProvider.CreateScope();
-                    var connector = scope.ServiceProvider.GetService<ICdcConnector>();
-                    var connectorId = connector?.ConnectorId ?? "unknown";
-
-                    CdcLog.RetryingAfterError(_logger, ex, connectorId, consecutiveErrors, _options.MaxRetries, delay);
-                    await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+                    await RetryAfterErrorAsync(ex, consecutiveErrors, stoppingToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var connector = scope.ServiceProvider.GetService<ICdcConnector>();
-                    var connectorId = connector?.ConnectorId ?? "unknown";
-
                     await PersistToDeadLetterAsync(
-                        lastFailedEvent, ex, connectorId, stoppingToken).ConfigureAwait(false);
+                        lastFailedEvent, ex, ResolveConnectorId(), stoppingToken).ConfigureAwait(false);
 
                     consecutiveErrors = 0;
                     lastFailedEvent = null;
@@ -116,6 +106,21 @@ internal sealed class CdcProcessor : BackgroundService
         }
 
         CdcLog.ProcessorStopped(_logger);
+    }
+
+    private async Task RetryAfterErrorAsync(Exception exception, int consecutiveErrors, CancellationToken stoppingToken)
+    {
+        var delay = CalculateRetryDelay(consecutiveErrors);
+
+        CdcLog.RetryingAfterError(_logger, exception.ForLogging(), ResolveConnectorId(), consecutiveErrors, _options.MaxRetries, delay);
+        await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+    }
+
+    private string ResolveConnectorId()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var connector = scope.ServiceProvider.GetService<ICdcConnector>();
+        return connector?.ConnectorId ?? "unknown";
     }
 
     private async Task<ChangeEvent?> ProcessChangesAsync(CancellationToken cancellationToken)
@@ -197,14 +202,14 @@ internal sealed class CdcProcessor : BackgroundService
     {
         if (_deadLetterStore is null)
         {
-            CdcLog.RetriesExhaustedNoDeadLetter(_logger, exception, connectorId);
+            CdcLog.RetriesExhaustedNoDeadLetter(_logger, exception.ForLogging(), connectorId);
             return;
         }
 
         var entry = new CdcDeadLetterEntry(
             Id: Guid.NewGuid(),
             OriginalEvent: failedEvent ?? CreatePlaceholderEvent(),
-            ErrorMessage: exception.Message,
+            ErrorMessage: exception.GetType().Name,
             StackTrace: exception.StackTrace ?? string.Empty,
             RetryCount: _options.MaxRetries,
             FailedAtUtc: DateTime.UtcNow,
@@ -216,7 +221,7 @@ internal sealed class CdcProcessor : BackgroundService
         result.Match(
             Right: _ => CdcLog.EventDeadLettered(
                 _logger, entry.OriginalEvent.TableName, connectorId, _options.MaxRetries, entry.Id),
-            Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception, connectorId));
+            Left: _ => CdcLog.DeadLetterStoreFailed(_logger, exception.ForLogging(), connectorId));
     }
 
     private static ChangeEvent CreatePlaceholderEvent()

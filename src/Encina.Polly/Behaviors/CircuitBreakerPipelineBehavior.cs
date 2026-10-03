@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -53,13 +54,13 @@ public sealed partial class CircuitBreakerPipelineBehavior<TRequest, TResponse> 
         }
         catch (BrokenCircuitException ex)
         {
-            LogCircuitBreakerOpen(_logger, typeof(TRequest).Name, ex);
+            LogCircuitBreakerOpen(_logger, typeof(TRequest).Name, ex.ForLogging());
             return EncinaError.New(
                 $"Circuit breaker is open for {typeof(TRequest).Name}. Service temporarily unavailable.");
         }
         catch (Exception ex)
         {
-            LogCircuitBreakerExecutionFailed(_logger, typeof(TRequest).Name, ex);
+            LogCircuitBreakerExecutionFailed(_logger, typeof(TRequest).Name, ex.ForLogging());
             return EncinaError.New(ex);
         }
     }

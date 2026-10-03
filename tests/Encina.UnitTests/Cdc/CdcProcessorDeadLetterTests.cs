@@ -262,7 +262,9 @@ public sealed class CdcProcessorDeadLetterTests
         entry.ConnectorId.ShouldBe("test-connector");
         entry.Status.ShouldBe(CdcDeadLetterStatus.Pending);
         entry.RetryCount.ShouldBe(2, "RetryCount should match MaxRetries");
-        entry.ErrorMessage.ShouldNotBeNullOrEmpty();
+        // The exception type is recorded, never the exception message (#1557).
+        entry.ErrorMessage.ShouldBe(nameof(InvalidOperationException));
+        entry.ErrorMessage.ShouldNotContain("Stream failed");
     }
 
     #endregion

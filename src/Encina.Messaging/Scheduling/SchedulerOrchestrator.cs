@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -306,69 +307,49 @@ public sealed class SchedulerOrchestrator
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            try
+            if (await TryProcessMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
             {
-                var requestType = Type.GetType(message.RequestType);
-                if (requestType == null)
-                {
-                    Log.UnknownRequestType(_logger, message.Id, message.RequestType);
-                    await MarkAsFailedAsync(message, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                var request = _messageSerializer.Deserialize(message.Content, requestType);
-                if (request == null)
-                {
-                    Log.DeserializationFailed(_logger, message.Id, message.RequestType);
-                    await MarkAsFailedAsync(message, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                var dispatchResult = await executeCallback(message, requestType, request, cancellationToken).ConfigureAwait(false);
-                if (dispatchResult.IsLeft)
-                {
-                    var error = dispatchResult.LeftToArray()[0];
-                    var errorCode = error.GetCode().IfNone("unknown");
-                    // EncinaError.Message can carry personal data (e.g. a data-subject id), so only
-                    // the error code is logged and stored (#1259 review).
-                    Log.DispatchFailed(_logger, message.Id, errorCode);
-                    await MarkAsFailedAsync(message, errorCode, cancellationToken).ConfigureAwait(false);
-                    continue;
-                }
-
-                if (message.IsRecurring)
-                {
-                    await HandleRecurringMessageAsync(message, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
-                    if (markResult.IsLeft)
-                    {
-                        Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].GetCode().IfNone("unknown"));
-                    }
-                }
-
                 processedCount++;
-                Log.MessageExecuted(_logger, message.Id);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-#pragma warning disable CA1031 // Do not catch general exception types — intentional safety net for handler bugs
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                // Safety net for true bugs (handler crashes, AVE, etc.).
-                // Real failures use the Either path above.
-                Log.ExecutionFailed(_logger, ex, message.Id);
-                // The exception message may carry personal data; store only the exception type.
-                await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
             }
         }
 
         return processedCount;
+    }
+
+    /// <summary>
+    /// Dispatches one due message inside the exception safety net.
+    /// </summary>
+    /// <returns><see langword="true"/> when the message was dispatched successfully.</returns>
+    private async Task<bool> TryProcessMessageAsync(
+        IScheduledMessage message,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!await DispatchMessageAsync(message, executeCallback, cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+
+            Log.MessageExecuted(_logger, message.Id);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // Do not catch general exception types — intentional safety net for handler bugs
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            // Safety net for true bugs (handler crashes, AVE, etc.).
+            // Real failures use the Either path above.
+            Log.ExecutionFailed(_logger, ex.ForLogging(), message.Id);
+            // The exception message may carry personal data; store only the exception type.
+            await MarkAsFailedAsync(message, ex.GetType().FullName ?? ex.GetType().Name, cancellationToken).ConfigureAwait(false);
+            return false;
+        }
     }
 
     /// <summary>
@@ -384,6 +365,63 @@ public sealed class SchedulerOrchestrator
             cancellationToken).ConfigureAwait(false);
 
         return messagesResult.Map(messages => messages.Count());
+    }
+
+    /// <summary>
+    /// Deserializes and dispatches one due message and records a successful outcome in the store.
+    /// Every controlled failure is routed through <see cref="MarkAsFailedAsync"/>.
+    /// </summary>
+    /// <returns><see langword="true"/> when the callback returned <c>Right</c>; otherwise <see langword="false"/>.</returns>
+    private async Task<bool> DispatchMessageAsync(
+        IScheduledMessage message,
+        Func<IScheduledMessage, Type, object, CancellationToken, ValueTask<Either<EncinaError, Unit>>> executeCallback,
+        CancellationToken cancellationToken)
+    {
+        var requestType = Type.GetType(message.RequestType);
+        if (requestType == null)
+        {
+            Log.UnknownRequestType(_logger, message.Id, message.RequestType);
+            await MarkAsFailedAsync(message, $"Unknown request type: {message.RequestType}", cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        var request = _messageSerializer.Deserialize(message.Content, requestType);
+        if (request == null)
+        {
+            Log.DeserializationFailed(_logger, message.Id, message.RequestType);
+            await MarkAsFailedAsync(message, "Failed to deserialize request", cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        var dispatchResult = await executeCallback(message, requestType, request, cancellationToken).ConfigureAwait(false);
+        if (dispatchResult.IsLeft)
+        {
+            var error = dispatchResult.LeftToArray()[0];
+            var errorCode = error.GetCode().IfNone("unknown");
+            // EncinaError.Message can carry personal data (e.g. a data-subject id), so only
+            // the error code is logged and stored (#1259 review).
+            Log.DispatchFailed(_logger, message.Id, errorCode);
+            await MarkAsFailedAsync(message, errorCode, cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        await CompleteDispatchedMessageAsync(message, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private async Task CompleteDispatchedMessageAsync(IScheduledMessage message, CancellationToken cancellationToken)
+    {
+        if (message.IsRecurring)
+        {
+            await HandleRecurringMessageAsync(message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var markResult = await _store.MarkAsProcessedAsync(message.Id, cancellationToken).ConfigureAwait(false);
+        if (markResult.IsLeft)
+        {
+            Log.StoreMarkAsFailedError(_logger, message.Id, markResult.LeftToArray()[0].GetCode().IfNone("unknown"));
+        }
     }
 
     private async Task HandleRecurringMessageAsync(IScheduledMessage message, CancellationToken cancellationToken)

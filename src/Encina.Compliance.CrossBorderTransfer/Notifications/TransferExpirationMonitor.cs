@@ -1,5 +1,6 @@
 using Encina.Compliance.CrossBorderTransfer.Abstractions;
 using Encina.Compliance.CrossBorderTransfer.Diagnostics;
+using Encina.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -117,7 +118,7 @@ internal sealed class TransferExpirationMonitor : BackgroundService
         catch (Exception ex)
         {
             // Graceful error handling: log + continue, never crash the host
-            _logger.ExpirationMonitorCycleError(ex);
+            _logger.ExpirationMonitorCycleError(ex.ForLogging());
         }
     }
 
@@ -163,7 +164,7 @@ internal sealed class TransferExpirationMonitor : BackgroundService
             },
             Left: error =>
             {
-                _logger.TransferStoreError($"GetExpiringTransfers: {error.Message}");
+                _logger.TransferStoreError($"GetExpiringTransfers: {error.GetCode().IfNone("encina.unknown")}");
             });
 
         // Query for expired transfers
@@ -190,7 +191,7 @@ internal sealed class TransferExpirationMonitor : BackgroundService
             },
             Left: error =>
             {
-                _logger.TransferStoreError($"GetExpiredTransfers: {error.Message}");
+                _logger.TransferStoreError($"GetExpiredTransfers: {error.GetCode().IfNone("encina.unknown")}");
             });
 
         return (expiringCount, expiredCount);

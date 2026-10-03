@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using Encina.Messaging.Outbox;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -151,7 +152,10 @@ public sealed class OutboxBatchProcessorTests
             typeof(InvalidOperationException).FullName!,
             Now.UtcDateTime.AddSeconds(5),
             Arg.Any<CancellationToken>());
-        _logger.Entries.Single(e => e.EventId == 2832).Exception.ShouldBeSameAs(exception);
+        var logged = _logger.Entries.Single(e => e.EventId == 2832).Exception;
+        logged.ShouldBeOfType<RedactedException>();
+        logged!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        logged.ToString().ShouldNotContain(exception.Message);
     }
 
     [Fact]

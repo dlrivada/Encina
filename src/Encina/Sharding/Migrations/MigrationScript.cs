@@ -25,7 +25,7 @@ namespace Encina.Sharding.Migrations;
 /// var result = await coordinator.ApplyToAllShardsAsync(script, options, ct);
 /// result.Match(
 ///     Right: r => logger.LogInformation("Migration applied to {Count} shards", r.PerShardStatus.Count),
-///     Left: error => logger.LogError("Migration failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Migration failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 /// <param name="Id">

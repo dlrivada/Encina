@@ -6,6 +6,7 @@ using Encina.Compliance.DataSubjectRights.Aggregates;
 using Encina.Compliance.DataSubjectRights.Diagnostics;
 using Encina.Compliance.DataSubjectRights.Projections;
 using Encina.Compliance.GDPR;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 
@@ -131,7 +132,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("SubmitRequest", ex.GetType().Name, ex);
+            _logger.DSRServiceError("SubmitRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("SubmitRequest", ex);
         }
     }
@@ -172,7 +173,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("VerifyIdentity", ex.GetType().Name, ex);
+            _logger.DSRServiceError("VerifyIdentity", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("VerifyIdentity", ex);
         }
     }
@@ -213,7 +214,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("StartProcessing", ex.GetType().Name, ex);
+            _logger.DSRServiceError("StartProcessing", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("StartProcessing", ex);
         }
     }
@@ -255,7 +256,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("CompleteRequest", ex.GetType().Name, ex);
+            _logger.DSRServiceError("CompleteRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("CompleteRequest", ex);
         }
     }
@@ -297,7 +298,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("DenyRequest", ex.GetType().Name, ex);
+            _logger.DSRServiceError("DenyRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("DenyRequest", ex);
         }
     }
@@ -338,7 +339,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("ExtendDeadline", ex.GetType().Name, ex);
+            _logger.DSRServiceError("ExtendDeadline", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("ExtendDeadline", ex);
         }
     }
@@ -379,7 +380,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("ExpireRequest", ex.GetType().Name, ex);
+            _logger.DSRServiceError("ExpireRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("ExpireRequest", ex);
         }
     }
@@ -580,7 +581,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("HandleRestriction", ex.GetType().Name, ex);
+            _logger.DSRServiceError("HandleRestriction", ex.GetType().Name, ex.ForLogging());
             RecordFailure(activity, stopwatch, rightType, ex.GetType().Name);
             return DSRErrors.ServiceError("HandleRestriction", ex);
         }
@@ -677,7 +678,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetRequest", ex.GetType().Name, ex);
+            _logger.DSRServiceError("GetRequest", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("GetRequest", ex);
         }
     }
@@ -698,7 +699,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetRequestsBySubject", ex.GetType().Name, ex);
+            _logger.DSRServiceError("GetRequestsBySubject", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("GetRequestsBySubject", ex);
         }
     }
@@ -721,7 +722,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetPendingRequests", ex.GetType().Name, ex);
+            _logger.DSRServiceError("GetPendingRequests", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("GetPendingRequests", ex);
         }
     }
@@ -754,7 +755,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("GetOverdueRequests", ex.GetType().Name, ex);
+            _logger.DSRServiceError("GetOverdueRequests", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("GetOverdueRequests", ex);
         }
     }
@@ -800,7 +801,7 @@ internal sealed class DefaultDSRService : IDSRService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.DSRServiceError("HasActiveRestriction", ex.GetType().Name, ex);
+            _logger.DSRServiceError("HasActiveRestriction", ex.GetType().Name, ex.ForLogging());
             return DSRErrors.ServiceError("HasActiveRestriction", ex);
         }
     }

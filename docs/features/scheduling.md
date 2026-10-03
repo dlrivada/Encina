@@ -29,7 +29,7 @@ var result = await orchestrator.ScheduleAsync(
 
 result.Match(
     Right: messageId => logger.LogInformation("Scheduled: {Id}", messageId),
-    Left: error => logger.LogError("Scheduling failed: {Code}", error.Message));
+    Left: error => logger.LogError("Scheduling failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 
 // Delayed execution (relative delay)
 var cancelResult = await orchestrator.ScheduleAsync(

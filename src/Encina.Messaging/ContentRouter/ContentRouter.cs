@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
+using Encina.Diagnostics;
 using LanguageExt;
 
 using Microsoft.Extensions.Logging;
@@ -73,27 +74,8 @@ public sealed class ContentRouter : IContentRouter
 
             if (matchingRoutes.Count == 0)
             {
-                // Use default route if available
-                if (definition.DefaultRoute is not null)
-                {
-                    ContentRouterLog.UsingDefaultRoute(_logger, routingId);
-                    return await ExecuteDefaultRouteAsync(
-                        definition.DefaultRoute, message, routingId, stopwatch, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
-                // No matches and no default
-                if (_options.ThrowOnNoMatch)
-                {
-                    ContentRouterLog.NoMatchingRoute(_logger, routingId, typeof(TMessage).Name);
-                    return EncinaErrors.Create(
-                        ContentRouterErrorCodes.NoMatchingRoute,
-                        $"No matching route found for message of type '{typeof(TMessage).Name}'");
-                }
-
-                stopwatch.Stop();
-                ContentRouterLog.RoutingCompletedNoMatch(_logger, routingId, stopwatch.Elapsed);
-                return ContentRouterResult.Empty<TResult>();
+                return await RouteWithoutMatchAsync(definition, message, routingId, stopwatch, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             // Execute matching routes
@@ -103,34 +85,7 @@ public sealed class ContentRouter : IContentRouter
                 : await ExecuteSingleRouteAsync(matchingRoutes[0], message, routingId, cancellationToken)
                     .ConfigureAwait(false);
 
-            // Check for errors in results
-            var errorResult = results.FirstOrDefault(r => r.HasError);
-            if (errorResult is not null)
-            {
-                stopwatch.Stop();
-                // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                ContentRouterLog.RouteExecutionFailed(_logger, routingId, errorResult.RouteName, errorResult.Error.GetCode().IfNone("encina.unknown"));
-                return errorResult.Error;
-            }
-
-            stopwatch.Stop();
-
-            var successResults = results
-                .Where(r => !r.HasError)
-                .Select(r => new RouteExecutionResult<TResult>(
-                    r.RouteName,
-                    r.Result,
-                    r.Duration,
-                    r.ExecutedAtUtc))
-                .ToList();
-
-            ContentRouterLog.RoutingCompleted(_logger, routingId, successResults.Count, stopwatch.Elapsed);
-
-            return new ContentRouterResult<TResult>(
-                successResults,
-                matchingRoutes.Count,
-                stopwatch.Elapsed,
-                usedDefaultRoute: false);
+            return BuildRoutingResult(results, matchingRoutes.Count, routingId, stopwatch);
         }
         catch (OperationCanceledException)
         {
@@ -139,7 +94,7 @@ public sealed class ContentRouter : IContentRouter
         }
         catch (Exception ex)
         {
-            ContentRouterLog.RoutingException(_logger, routingId, ex.Message, ex);
+            ContentRouterLog.RoutingException(_logger, routingId, ex.GetType().Name, ex.ForLogging());
             return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
         }
     }
@@ -152,6 +107,73 @@ public sealed class ContentRouter : IContentRouter
         where TMessage : class
     {
         return RouteAsync<TMessage, Unit>(definition, message, cancellationToken);
+    }
+
+    private async ValueTask<Either<EncinaError, ContentRouterResult<TResult>>> RouteWithoutMatchAsync<TMessage, TResult>(
+        BuiltContentRouterDefinition<TMessage, TResult> definition,
+        TMessage message,
+        Guid routingId,
+        Stopwatch stopwatch,
+        CancellationToken cancellationToken)
+        where TMessage : class
+    {
+        // Use default route if available
+        if (definition.DefaultRoute is not null)
+        {
+            ContentRouterLog.UsingDefaultRoute(_logger, routingId);
+            return await ExecuteDefaultRouteAsync(
+                definition.DefaultRoute, message, routingId, stopwatch, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        // No matches and no default
+        if (_options.ThrowOnNoMatch)
+        {
+            ContentRouterLog.NoMatchingRoute(_logger, routingId, typeof(TMessage).Name);
+            return EncinaErrors.Create(
+                ContentRouterErrorCodes.NoMatchingRoute,
+                $"No matching route found for message of type '{typeof(TMessage).Name}'");
+        }
+
+        stopwatch.Stop();
+        ContentRouterLog.RoutingCompletedNoMatch(_logger, routingId, stopwatch.Elapsed);
+        return ContentRouterResult.Empty<TResult>();
+    }
+
+    private Either<EncinaError, ContentRouterResult<TResult>> BuildRoutingResult<TResult>(
+        List<InternalRouteResult<TResult>> results,
+        int matchedRouteCount,
+        Guid routingId,
+        Stopwatch stopwatch)
+    {
+        // Check for errors in results
+        var errorResult = results.FirstOrDefault(r => r.HasError);
+        if (errorResult is not null)
+        {
+            stopwatch.Stop();
+            // Only the error code: EncinaError.Message can carry personal data (#1259 review).
+            ContentRouterLog.RouteExecutionFailed(_logger, routingId, errorResult.RouteName, errorResult.Error.GetCode().IfNone("encina.unknown"));
+            return errorResult.Error;
+        }
+
+        stopwatch.Stop();
+
+        var successResults = results
+            .Where(r => !r.HasError)
+            .Select(r => new RouteExecutionResult<TResult>(
+                r.RouteName,
+                r.Result,
+                r.Duration,
+                r.ExecutedAtUtc))
+            .ToList();
+
+        ContentRouterLog.RoutingCompleted(_logger, routingId, successResults.Count, stopwatch.Elapsed);
+
+        return new ContentRouterResult<TResult>(
+            successResults,
+            matchedRouteCount,
+            stopwatch.Elapsed,
+            usedDefaultRoute: false);
     }
 
     private List<RouteDefinition<TMessage, TResult>> FindMatchingRoutes<TMessage, TResult>(
@@ -180,7 +202,7 @@ public sealed class ContentRouter : IContentRouter
             }
             catch (Exception ex)
             {
-                ContentRouterLog.ConditionEvaluationFailed(_logger, routingId, route.Name, ex.Message, ex);
+                ContentRouterLog.ConditionEvaluationFailed(_logger, routingId, route.Name, ex.GetType().Name, ex.ForLogging());
                 // Skip this route on condition evaluation failure
             }
         }
@@ -233,7 +255,7 @@ public sealed class ContentRouter : IContentRouter
         {
             stepStopwatch.Stop();
             stopwatch.Stop();
-            ContentRouterLog.RouteExecutionFailed(_logger, routingId, defaultRoute.Name, ex.Message);
+            ContentRouterLog.RouteExecutionFailed(_logger, routingId, defaultRoute.Name, ex.GetType().Name);
             return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
         }
     }
@@ -346,7 +368,7 @@ public sealed class ContentRouter : IContentRouter
         catch (Exception ex)
         {
             stopwatch.Stop();
-            ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, ex.Message);
+            ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, ex.GetType().Name);
             var error = EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
             return InternalRouteResult<TResult>.Failure(route.Name, error, stopwatch.Elapsed, executedAt);
         }
@@ -412,8 +434,8 @@ internal static partial class ContentRouterLog
     [LoggerMessage(
         EventId = 2804,
         Level = LogLevel.Warning,
-        Message = "Content routing {RoutingId} route {RouteName} failed: {ErrorMessage}")]
-    public static partial void RouteExecutionFailed(ILogger logger, Guid routingId, string routeName, string errorMessage);
+        Message = "Content routing {RoutingId} route {RouteName} failed: {ErrorCode}")]
+    public static partial void RouteExecutionFailed(ILogger logger, Guid routingId, string routeName, string errorCode);
 
     [LoggerMessage(
         EventId = 2805,
@@ -448,12 +470,12 @@ internal static partial class ContentRouterLog
     [LoggerMessage(
         EventId = 2810,
         Level = LogLevel.Error,
-        Message = "Content routing {RoutingId} failed with exception: {ErrorMessage}")]
-    public static partial void RoutingException(ILogger logger, Guid routingId, string errorMessage, Exception exception);
+        Message = "Content routing {RoutingId} failed with exception: {ExceptionType}")]
+    public static partial void RoutingException(ILogger logger, Guid routingId, string exceptionType, Exception exception);
 
     [LoggerMessage(
         EventId = 2811,
         Level = LogLevel.Warning,
-        Message = "Content routing {RoutingId} condition evaluation failed for route {RouteName}: {ErrorMessage}")]
-    public static partial void ConditionEvaluationFailed(ILogger logger, Guid routingId, string routeName, string errorMessage, Exception exception);
+        Message = "Content routing {RoutingId} condition evaluation failed for route {RouteName}: {ExceptionType}")]
+    public static partial void ConditionEvaluationFailed(ILogger logger, Guid routingId, string routeName, string exceptionType, Exception exception);
 }

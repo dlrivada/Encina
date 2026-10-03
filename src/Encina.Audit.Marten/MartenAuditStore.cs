@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Encina.Audit.Marten.Crypto;
 using Encina.Audit.Marten.Projections;
+using Encina.Diagnostics;
 using Encina.Security.Audit;
 
 using LanguageExt;
@@ -139,7 +140,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to record audit entry {EntryId}", entry.Id);
+            _logger.LogError(ex.ForLogging(), "Failed to record audit entry {EntryId}", entry.Id);
             return Left(MartenAuditErrors.StoreUnavailable("RecordAsync", ex));
         }
     }
@@ -177,7 +178,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by entity {EntityType}/{EntityId}", entityType, entityId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by entity {EntityType}/{EntityId}", entityType, entityId);
             return Left(MartenAuditErrors.QueryFailed("ByEntity", ex));
         }
     }
@@ -201,18 +202,7 @@ public sealed class MartenAuditStore : IAuditStore
 
         try
         {
-            var query = _session.Query<AuditEntryReadModel>()
-                .Where(m => m.UserId == userId);
-
-            if (fromUtc.HasValue)
-            {
-                query = query.Where(m => m.TimestampUtc >= fromUtc.Value);
-            }
-
-            if (toUtc.HasValue)
-            {
-                query = query.Where(m => m.TimestampUtc <= toUtc.Value);
-            }
+            var query = ApplyUserFilter(_session.Query<AuditEntryReadModel>(), userId, fromUtc, toUtc);
 
             var readModels = await query
                 .OrderByDescending(m => m.TimestampUtc)
@@ -225,7 +215,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by user {UserId}", userId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by user {UserId}", userId);
             return Left(MartenAuditErrors.QueryFailed("ByUser", ex));
         }
     }
@@ -255,7 +245,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to query audit entries by correlation {CorrelationId}", correlationId);
+            _logger.LogError(ex.ForLogging(), "Failed to query audit entries by correlation {CorrelationId}", correlationId);
             return Left(MartenAuditErrors.QueryFailed("ByCorrelationId", ex));
         }
     }
@@ -283,69 +273,17 @@ public sealed class MartenAuditStore : IAuditStore
             var pageNumber = Math.Max(1, query.PageNumber);
             var pageSize = Math.Clamp(query.PageSize, 1, AuditQuery.MaxPageSize);
 
-            var q = _session.Query<AuditEntryReadModel>().AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                q = q.Where(m => m.UserId == query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                q = q.Where(m => m.TenantId == query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                q = q.Where(m => m.EntityType == query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                q = q.Where(m => m.EntityId == query.EntityId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Action))
-            {
-                q = q.Where(m => m.Action == query.Action);
-            }
-
-            if (query.Outcome.HasValue)
-            {
-                q = q.Where(m => m.Outcome == query.Outcome.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                q = q.Where(m => m.CorrelationId == query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                q = q.Where(m => m.TimestampUtc >= query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                q = q.Where(m => m.TimestampUtc <= query.ToUtc.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.IpAddress))
-            {
-                q = q.Where(m => m.IpAddress == query.IpAddress);
-            }
+            var q = ApplyQueryFilters(_session.Query<AuditEntryReadModel>(), query);
 
             // Duration filters: computed from structural timestamps (survive shredding)
             // Marten LINQ doesn't support computed TimeSpan subtraction, so we filter in-memory
             // after materialization for MinDuration/MaxDuration
-            var hasDurationFilter = query.MinDuration.HasValue || query.MaxDuration.HasValue;
-
             // Get total count before pagination (without duration filter for accurate count)
             // We apply duration filter post-materialization
             int totalCount;
             IReadOnlyList<AuditEntryReadModel> readModels;
 
-            if (hasDurationFilter)
+            if (HasDurationFilter(query))
             {
                 // Must materialize all then filter in-memory for duration
                 var allMatches = await q
@@ -353,24 +291,7 @@ public sealed class MartenAuditStore : IAuditStore
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
 
-                var filtered = allMatches.AsEnumerable();
-
-                if (query.MinDuration.HasValue)
-                {
-                    filtered = filtered.Where(m => (m.CompletedAtUtc - m.StartedAtUtc) >= query.MinDuration.Value);
-                }
-
-                if (query.MaxDuration.HasValue)
-                {
-                    filtered = filtered.Where(m => (m.CompletedAtUtc - m.StartedAtUtc) <= query.MaxDuration.Value);
-                }
-
-                var filteredList = filtered.ToList();
-                totalCount = filteredList.Count;
-                readModels = filteredList
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToList();
+                (totalCount, readModels) = FilterByDurationAndPage(allMatches, query, pageNumber, pageSize);
             }
             else
             {
@@ -391,7 +312,7 @@ public sealed class MartenAuditStore : IAuditStore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to execute flexible audit query");
+            _logger.LogError(ex.ForLogging(), "Failed to execute flexible audit query");
             return Left(MartenAuditErrors.QueryFailed("Flexible", ex));
         }
     }
@@ -440,17 +361,161 @@ public sealed class MartenAuditStore : IAuditStore
                 Left: error =>
                 {
                     _logger.LogError(
-                        "Crypto-shredding failed for entries older than {CutoffUtc}: {ErrorMessage}",
+                        "Crypto-shredding failed for entries older than {CutoffUtc}: {ErrorCode}",
                         olderThanUtc,
-                        error.Message);
+                        error.GetCode().IfNone("encina.unknown"));
                     return Left(error);
                 });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to crypto-shred audit entries older than {CutoffUtc}", olderThanUtc);
+            _logger.LogError(ex.ForLogging(), "Failed to crypto-shred audit entries older than {CutoffUtc}", olderThanUtc);
             return Left(MartenAuditErrors.KeyDestructionFailed(olderThanUtc, ex));
         }
+    }
+
+    /// <summary>
+    /// Restricts a read-model query to one user and an optional timestamp range.
+    /// </summary>
+    internal static IQueryable<AuditEntryReadModel> ApplyUserFilter(
+        IQueryable<AuditEntryReadModel> source,
+        string userId,
+        DateTime? fromUtc,
+        DateTime? toUtc)
+    {
+        var query = source.Where(m => m.UserId == userId);
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(m => m.TimestampUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(m => m.TimestampUtc <= toUtc.Value);
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    /// Applies every server-side filter of an <see cref="AuditQuery"/> as Marten LINQ predicates.
+    /// </summary>
+    internal static IQueryable<AuditEntryReadModel> ApplyQueryFilters(
+        IQueryable<AuditEntryReadModel> source,
+        AuditQuery query)
+    {
+        var userTenantType = ApplyUserTenantAndTypeFilters(source, query);
+        return ApplyCorrelationRangeAndAddressFilters(ApplyEntityActionAndOutcomeFilters(userTenantType, query), query);
+    }
+
+    private static IQueryable<AuditEntryReadModel> ApplyUserTenantAndTypeFilters(
+        IQueryable<AuditEntryReadModel> q,
+        AuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            q = q.Where(m => m.UserId == query.UserId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            q = q.Where(m => m.TenantId == query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            q = q.Where(m => m.EntityType == query.EntityType);
+        }
+
+        return q;
+    }
+
+    private static IQueryable<AuditEntryReadModel> ApplyEntityActionAndOutcomeFilters(
+        IQueryable<AuditEntryReadModel> q,
+        AuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            q = q.Where(m => m.EntityId == query.EntityId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            q = q.Where(m => m.Action == query.Action);
+        }
+
+        if (query.Outcome.HasValue)
+        {
+            q = q.Where(m => m.Outcome == query.Outcome.Value);
+        }
+
+        return q;
+    }
+
+    private static IQueryable<AuditEntryReadModel> ApplyCorrelationRangeAndAddressFilters(
+        IQueryable<AuditEntryReadModel> q,
+        AuditQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            q = q.Where(m => m.CorrelationId == query.CorrelationId);
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            q = q.Where(m => m.TimestampUtc >= query.FromUtc.Value);
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            q = q.Where(m => m.TimestampUtc <= query.ToUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.IpAddress))
+        {
+            q = q.Where(m => m.IpAddress == query.IpAddress);
+        }
+
+        return q;
+    }
+
+    /// <summary>
+    /// Whether the query carries a duration bound, which Marten LINQ cannot translate and is
+    /// therefore applied in memory.
+    /// </summary>
+    internal static bool HasDurationFilter(AuditQuery query)
+        => query.MinDuration.HasValue || query.MaxDuration.HasValue;
+
+    /// <summary>
+    /// Applies the in-memory duration bounds and then the requested page, returning the
+    /// duration-filtered total and the page items.
+    /// </summary>
+    internal static (int TotalCount, IReadOnlyList<AuditEntryReadModel> Page) FilterByDurationAndPage(
+        IEnumerable<AuditEntryReadModel> allMatches,
+        AuditQuery query,
+        int pageNumber,
+        int pageSize)
+    {
+        var filtered = allMatches;
+
+        if (query.MinDuration.HasValue)
+        {
+            filtered = filtered.Where(m => (m.CompletedAtUtc - m.StartedAtUtc) >= query.MinDuration.Value);
+        }
+
+        if (query.MaxDuration.HasValue)
+        {
+            filtered = filtered.Where(m => (m.CompletedAtUtc - m.StartedAtUtc) <= query.MaxDuration.Value);
+        }
+
+        var filteredList = filtered.ToList();
+        var page = filteredList
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return (filteredList.Count, page);
     }
 
     /// <summary>

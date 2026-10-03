@@ -3,6 +3,7 @@ using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Aggregates;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -127,7 +128,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("PlaceHold", ex);
+            _logger.RetentionServiceError("PlaceHold", ex.ForLogging());
             return RetentionErrors.ServiceError("PlaceHold", ex);
         }
     }
@@ -194,7 +195,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("LiftHold", ex);
+            _logger.RetentionServiceError("LiftHold", ex.ForLogging());
             return RetentionErrors.ServiceError("LiftHold", ex);
         }
     }
@@ -233,7 +234,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetHold", ex);
+            _logger.RetentionServiceError("GetHold", ex.ForLogging());
             return RetentionErrors.ServiceError("GetHold", ex);
         }
     }
@@ -253,7 +254,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetActiveHoldsForEntity", ex);
+            _logger.RetentionServiceError("GetActiveHoldsForEntity", ex.ForLogging());
             return RetentionErrors.ServiceError("GetActiveHoldsForEntity", ex);
         }
     }
@@ -272,7 +273,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("GetAllActiveHolds", ex);
+            _logger.RetentionServiceError("GetAllActiveHolds", ex.ForLogging());
             return RetentionErrors.ServiceError("GetAllActiveHolds", ex);
         }
     }
@@ -296,7 +297,7 @@ internal sealed class DefaultLegalHoldService : ILegalHoldService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.RetentionServiceError("HasActiveHolds", ex);
+            _logger.RetentionServiceError("HasActiveHolds", ex.ForLogging());
             return RetentionErrors.ServiceError("HasActiveHolds", ex);
         }
     }

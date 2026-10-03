@@ -1,4 +1,6 @@
 using Encina.Caching;
+using Encina.Diagnostics;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -95,7 +97,7 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
         catch (Exception ex)
         {
             // Don't fail application startup — PubSub is a best-effort enhancement
-            Log.PubSubSubscriptionFailed(_logger, _options.InvalidationChannel, ex);
+            Log.PubSubSubscriptionFailed(_logger, _options.InvalidationChannel, ex.ForLogging());
         }
     }
 
@@ -113,7 +115,7 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                Log.PubSubSubscriptionStopError(_logger, _options.InvalidationChannel, ex);
+                Log.PubSubSubscriptionStopError(_logger, _options.InvalidationChannel, ex.ForLogging());
             }
         }
     }
@@ -155,7 +157,7 @@ internal sealed class SecretCachePubSubHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            Log.CacheEvictionError(_logger, message.SecretName, message.Operation, ex);
+            Log.CacheEvictionError(_logger, message.SecretName, message.Operation, ex.ForLogging());
         }
     }
 

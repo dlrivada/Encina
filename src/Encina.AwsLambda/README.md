@@ -100,7 +100,7 @@ public class EventHandler
                 new SendOrderConfirmation(detail.OrderId)));
 
         result.IfLeft(error =>
-            context.Logger.LogError($"Failed: {error.Message}"));
+            context.Logger.LogError($"Failed: {error.GetCode().IfNone("encina.unknown")}"));
     }
 }
 ```

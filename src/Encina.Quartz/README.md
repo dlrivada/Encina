@@ -282,7 +282,7 @@ public class JobExecutionListener : IJobListener
     public Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? exception, CancellationToken cancellationToken)
     {
         if (exception != null)
-            _logger.LogError(exception, "Job {JobKey} failed", context.JobDetail.Key);
+            _logger.LogError(exception.ForLogging(), "Job {JobKey} failed", context.JobDetail.Key);
         else
             _logger.LogInformation("Job {JobKey} completed", context.JobDetail.Key);
 
@@ -309,11 +309,23 @@ services.AddEncinaQuartz(quartz =>
 
 | Handler outcome | What the job throws |
 |-----------------|---------------------|
-| `Right` | nothing (a request's response is stored in `context.Result`) |
+| `Right` | nothing (`context.Result` stays unset unless `ExposeResponseInJobContext` is enabled, see below) |
 | Cancellation (any Encina `*.cancelled` code, e.g. `encina.request.cancelled` or `encina.handler.cancelled`) while `context.CancellationToken` is cancelled, e.g. scheduler shutdown | `OperationCanceledException` |
 | Any other failure | `JobExecutionException` with `RefireImmediately = false` |
 
-`context.Result` is exposed to Quartz listeners and is not persisted automatically by Quartz, including `AdoJobStore`. A custom listener or plugin may store it outside Encina's retention and erasure controls. Unlike `Encina.Hangfire`, there is currently no opt-out for the response on `QuartzRequestJob` (tracked in #1258).
+The failure path is the same whether or not the response is exposed: a `Left` always throws as in the table above.
+
+#### Job response in `context.Result` (opt-in)
+
+By default `QuartzRequestJob<TRequest, TResponse>` discards the handler's response after a successful run and leaves `IJobExecutionContext.Result` unset. Quartz job listeners, trigger listeners and plugins can read `context.Result` and store it outside Encina's retention and erasure controls, so the response is not exposed unless you ask for it. This mirrors `Encina.Hangfire`, where `ExecuteAsync` discards the response and `ExecuteAndReturnResultAsync` is the explicit opt-in (#1173).
+
+To place the response on `context.Result`, enable `EncinaQuartzOptions.ExposeResponseInJobContext` (default `false`):
+
+```csharp
+services.AddEncinaQuartz(configureOptions: options => options.ExposeResponseInJobContext = true);
+```
+
+Enable it only for responses known not to carry personal or sensitive data. To observe the outcome of requests whose response may carry personal data, read it through Encina's own stores (outbox, audit trail) instead.
 
 Quartz has no retry policy of its own, so a failed job is not refired; it runs again at its trigger's next fire time. Encina classifies every failure with `Encina.Messaging.Recoverability.IErrorClassifier` (the registered one, or `DefaultErrorClassifier`) and records the result on the exception so a listener can act on it:
 

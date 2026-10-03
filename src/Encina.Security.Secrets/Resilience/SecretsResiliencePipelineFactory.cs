@@ -40,11 +40,37 @@ internal static class SecretsResiliencePipelineFactory
 
         var builder = new ResiliencePipelineBuilder();
 
-        // Layer 1 (outermost): Total operation timeout
+        AddTimeoutLayer(builder, options, logger, metrics);
+
+        if (options.MaxRetryAttempts > 0)
+        {
+            AddRetryLayer(builder, options, logger, metrics);
+        }
+
+        AddCircuitBreakerLayer(builder, options, circuitBreakerState, logger, metrics);
+
+        return builder.Build();
+    }
+
+    private static PredicateBuilder<object> TransientFailures() =>
+        new PredicateBuilder()
+            .Handle<TransientSecretException>()
+            .Handle<HttpRequestException>()
+            .Handle<TimeoutException>()
+            .Handle<IOException>()
+            .Handle<System.Net.Sockets.SocketException>();
+
+    // Layer 1 (outermost): Total operation timeout
+    private static void AddTimeoutLayer(
+        ResiliencePipelineBuilder builder,
+        SecretsResilienceOptions options,
+        ILogger logger,
+        SecretsMetrics? metrics)
+    {
         builder.AddTimeout(new TimeoutStrategyOptions
         {
             Timeout = options.OperationTimeout,
-            OnTimeout = args =>
+            OnTimeout = _ =>
             {
                 Log.ResilienceTimeoutExceeded(logger, options.OperationTimeout.TotalSeconds);
                 metrics?.RecordTimeout(options.OperationTimeout.TotalSeconds);
@@ -54,89 +80,90 @@ internal static class SecretsResiliencePipelineFactory
                 return default;
             }
         });
+    }
 
-        // Layer 2: Retry with exponential backoff and jitter
-        if (options.MaxRetryAttempts > 0)
+    // Layer 2: Retry with exponential backoff and jitter
+    private static void AddRetryLayer(
+        ResiliencePipelineBuilder builder,
+        SecretsResilienceOptions options,
+        ILogger logger,
+        SecretsMetrics? metrics)
+    {
+        builder.AddRetry(new RetryStrategyOptions
         {
-            builder.AddRetry(new RetryStrategyOptions
+            MaxRetryAttempts = options.MaxRetryAttempts,
+            BackoffType = DelayBackoffType.Exponential,
+            UseJitter = true,
+            Delay = options.RetryBaseDelay,
+            MaxDelay = options.RetryMaxDelay,
+            ShouldHandle = TransientFailures(),
+            OnRetry = args =>
             {
-                MaxRetryAttempts = options.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
-                Delay = options.RetryBaseDelay,
-                MaxDelay = options.RetryMaxDelay,
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<TransientSecretException>()
-                    .Handle<HttpRequestException>()
-                    .Handle<TimeoutException>()
-                    .Handle<IOException>()
-                    .Handle<System.Net.Sockets.SocketException>(),
-                OnRetry = args =>
-                {
-                    var attemptNumber = args.AttemptNumber + 1;
-                    var reason = args.Outcome.Exception?.Message ?? "Transient error";
+                // The exception type only: the exception message can carry personal data.
+                var attemptNumber = args.AttemptNumber + 1;
+                var reason = args.Outcome.Exception?.GetType().Name ?? "Transient error";
 
-                    Log.ResilienceRetryAttempt(
-                        logger,
-                        attemptNumber,
-                        options.MaxRetryAttempts,
-                        args.RetryDelay.TotalMilliseconds,
-                        reason);
+                Log.ResilienceRetryAttempt(
+                    logger,
+                    attemptNumber,
+                    options.MaxRetryAttempts,
+                    args.RetryDelay.TotalMilliseconds,
+                    reason);
 
-                    metrics?.RecordRetry(attemptNumber, reason);
-                    SecretsActivitySource.RecordRetryEvent(
-                        System.Diagnostics.Activity.Current,
-                        attemptNumber,
-                        options.MaxRetryAttempts,
-                        args.RetryDelay.TotalMilliseconds,
-                        reason);
-                    return default;
-                }
-            });
-        }
+                metrics?.RecordRetry(attemptNumber, reason);
+                SecretsActivitySource.RecordRetryEvent(
+                    System.Diagnostics.Activity.Current,
+                    attemptNumber,
+                    options.MaxRetryAttempts,
+                    args.RetryDelay.TotalMilliseconds,
+                    reason);
+                return default;
+            }
+        });
+    }
 
-        // Layer 3 (innermost): Circuit breaker
+    // Layer 3 (innermost): Circuit breaker
+    private static void AddCircuitBreakerLayer(
+        ResiliencePipelineBuilder builder,
+        SecretsResilienceOptions options,
+        SecretsCircuitBreakerState circuitBreakerState,
+        ILogger logger,
+        SecretsMetrics? metrics)
+    {
         builder.AddCircuitBreaker(new CircuitBreakerStrategyOptions
         {
             FailureRatio = options.CircuitBreakerFailureRatio,
             SamplingDuration = options.CircuitBreakerSamplingDuration,
             MinimumThroughput = options.CircuitBreakerMinimumThroughput,
             BreakDuration = options.CircuitBreakerBreakDuration,
-            ShouldHandle = new PredicateBuilder()
-                .Handle<TransientSecretException>()
-                .Handle<HttpRequestException>()
-                .Handle<TimeoutException>()
-                .Handle<IOException>()
-                .Handle<System.Net.Sockets.SocketException>(),
-            OnOpened = args =>
+            ShouldHandle = TransientFailures(),
+            OnOpened = _ =>
             {
                 circuitBreakerState.SetOpened();
                 Log.ResilienceCircuitBreakerOpened(logger);
-                metrics?.RecordCircuitBreakerTransition("opened");
-                SecretsActivitySource.RecordCircuitBreakerEvent(
-                    System.Diagnostics.Activity.Current, "opened");
+                RecordTransition(metrics, "opened");
                 return default;
             },
-            OnClosed = args =>
+            OnClosed = _ =>
             {
                 circuitBreakerState.SetClosed();
                 Log.ResilienceCircuitBreakerClosed(logger);
-                metrics?.RecordCircuitBreakerTransition("closed");
-                SecretsActivitySource.RecordCircuitBreakerEvent(
-                    System.Diagnostics.Activity.Current, "closed");
+                RecordTransition(metrics, "closed");
                 return default;
             },
-            OnHalfOpened = args =>
+            OnHalfOpened = _ =>
             {
                 circuitBreakerState.SetHalfOpen();
                 Log.ResilienceCircuitBreakerHalfOpen(logger);
-                metrics?.RecordCircuitBreakerTransition("half_open");
-                SecretsActivitySource.RecordCircuitBreakerEvent(
-                    System.Diagnostics.Activity.Current, "half_open");
+                RecordTransition(metrics, "half_open");
                 return default;
             }
         });
+    }
 
-        return builder.Build();
+    private static void RecordTransition(SecretsMetrics? metrics, string state)
+    {
+        metrics?.RecordCircuitBreakerTransition(state);
+        SecretsActivitySource.RecordCircuitBreakerEvent(System.Diagnostics.Activity.Current, state);
     }
 }

@@ -89,9 +89,6 @@ internal static partial class Log
     [LoggerMessage(EventId = 5125, Level = LogLevel.Warning, Message = "ISecretReader is not registered. No secrets will be loaded into configuration")]
     public static partial void ConfigurationNoReader(ILogger logger);
 
-    [LoggerMessage(EventId = 5126, Level = LogLevel.Warning, Message = "Failed to load secret '{SecretName}' into configuration: {ErrorMessage}")]
-    public static partial void ConfigurationSecretLoadFailed(ILogger logger, string secretName, string errorMessage);
-
     [LoggerMessage(EventId = 5127, Level = LogLevel.Debug, Message = "Configuration reload triggered for secrets")]
     public static partial void ConfigurationReloadTriggered(ILogger logger);
 
@@ -122,6 +119,9 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 5135, Level = LogLevel.Warning, Message = "Failed to record audit entry for secret '{SecretName}'")]
     public static partial void AuditEntryFailed(ILogger logger, string secretName, Exception exception);
+
+    [LoggerMessage(EventId = 5126, Level = LogLevel.Warning, Message = "Audit store rejected the audit entry for secret '{SecretName}': {ErrorCode}")]
+    public static partial void AuditEntryStoreFailed(ILogger logger, string secretName, string errorCode);
 
     [LoggerMessage(EventId = 5136, Level = LogLevel.Debug, Message = "Access audited for secret '{SecretName}' by user '{UserId}'")]
     public static partial void AccessAudited(ILogger logger, string secretName, string userId);

@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using Encina.SignalR;
 using Microsoft.Extensions.Logging.Testing;
 using NSubstitute.ExceptionExtensions;
@@ -70,8 +71,9 @@ public sealed class SignalRBroadcastHandlerTests
         var errorLog = fakeLogger.Collector.GetSnapshot()
             .FirstOrDefault(log => log.Level == LogLevel.Error);
         errorLog.ShouldNotBeNull("Expected an Error-level log entry");
-        errorLog.Exception.ShouldBeOfType<InvalidOperationException>();
-        errorLog.Exception!.Message.ShouldContain("Broadcast failed");
+        errorLog.Exception.ShouldBeOfType<RedactedException>();
+        errorLog.Exception!.Message.ShouldBe(typeof(InvalidOperationException).FullName);
+        errorLog.Exception.ToString().ShouldNotContain("Broadcast failed");
     }
 
     [Fact]

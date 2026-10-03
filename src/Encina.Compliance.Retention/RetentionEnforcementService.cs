@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Encina.Compliance.Retention.Abstractions;
 using Encina.Compliance.Retention.Diagnostics;
 using Encina.Compliance.Retention.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -209,7 +210,7 @@ public sealed class RetentionEnforcementService : BackgroundService
         catch (Exception ex)
         {
             // Graceful error handling: log + continue, never crash the host
-            _logger.RetentionEnforcementCycleFailed(ex);
+            _logger.RetentionEnforcementCycleFailed(ex.ForLogging());
             RetentionDiagnostics.RecordFailed(activity, ex.GetType().Name);
             RetentionDiagnostics.EnforcementCyclesTotal.Add(1,
                 new KeyValuePair<string, object?>(RetentionDiagnostics.TagOutcome, "failed"));
@@ -334,7 +335,7 @@ public sealed class RetentionEnforcementService : BackgroundService
             // Only the cycle's own cancellation stops the cycle. Any other exception, including a
             // cancellation raised inside a dependency (e.g. an HTTP timeout during erasure), fails
             // this record only and the cycle moves on to the next one.
-            _logger.RetentionEnforcementCycleFailed(ex);
+            _logger.RetentionEnforcementCycleFailed(ex.ForLogging());
             return RecordOutcome.Failed;
         }
     }
@@ -752,26 +753,8 @@ public sealed class RetentionEnforcementService : BackgroundService
                 Right: r => r,
                 Left: _ => (IReadOnlyList<ReadModels.RetentionRecordReadModel>)[]);
 
-            var alertWindow = TimeSpan.FromDays(_options.AlertBeforeExpirationDays);
-            var now = _timeProvider.GetUtcNow();
-            var expiringCount = 0;
-
-            foreach (var record in activeRecords)
-            {
-                var daysUntilExpiration = (record.ExpiresAtUtc - now).TotalDays;
-                if (daysUntilExpiration is > 0 and <= double.MaxValue && daysUntilExpiration <= alertWindow.TotalDays)
-                {
-                    var notification = new DataExpiringNotification(
-                        record.EntityId,
-                        record.DataCategory,
-                        record.ExpiresAtUtc,
-                        (int)Math.Ceiling(daysUntilExpiration),
-                        now);
-
-                    await encina.Publish(notification, cancellationToken).ConfigureAwait(false);
-                    expiringCount++;
-                }
-            }
+            var expiringCount = await PublishExpiringNotificationsAsync(encina, activeRecords, cancellationToken)
+                .ConfigureAwait(false);
 
             if (expiringCount > 0)
             {
@@ -781,9 +764,47 @@ public sealed class RetentionEnforcementService : BackgroundService
         catch (Exception ex)
         {
             // Expiring data check failure should not prevent enforcement
-            _logger.RetentionExpiringDataCheckFailed(ex);
+            _logger.RetentionExpiringDataCheckFailed(ex.ForLogging());
         }
     }
+
+    /// <summary>
+    /// Publishes a <see cref="DataExpiringNotification"/> for every record whose expiration falls inside
+    /// the alert window and returns how many were published.
+    /// </summary>
+    private async Task<int> PublishExpiringNotificationsAsync(
+        IEncina encina,
+        IReadOnlyList<ReadModels.RetentionRecordReadModel> activeRecords,
+        CancellationToken cancellationToken)
+    {
+        var alertWindow = TimeSpan.FromDays(_options.AlertBeforeExpirationDays);
+        var now = _timeProvider.GetUtcNow();
+        var expiringCount = 0;
+
+        foreach (var record in activeRecords)
+        {
+            var daysUntilExpiration = (record.ExpiresAtUtc - now).TotalDays;
+            if (!IsInAlertWindow(daysUntilExpiration, alertWindow))
+            {
+                continue;
+            }
+
+            var notification = new DataExpiringNotification(
+                record.EntityId,
+                record.DataCategory,
+                record.ExpiresAtUtc,
+                (int)Math.Ceiling(daysUntilExpiration),
+                now);
+
+            await encina.Publish(notification, cancellationToken).ConfigureAwait(false);
+            expiringCount++;
+        }
+
+        return expiringCount;
+    }
+
+    private static bool IsInAlertWindow(double daysUntilExpiration, TimeSpan alertWindow)
+        => daysUntilExpiration is > 0 and <= double.MaxValue && daysUntilExpiration <= alertWindow.TotalDays;
 
     /// <summary>
     /// Result of processing one expired record in an enforcement cycle.

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Encina.Diagnostics;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -96,25 +97,7 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
 
             var payload = JsonSerializer.Serialize(notification, _options.JsonSerializerOptions);
 
-            // Determine target clients
-            IClientProxy clients;
-
-            if (!string.IsNullOrWhiteSpace(attribute.TargetUsers))
-            {
-                var userIds = ResolvePlaceholders(attribute.TargetUsers, notification)
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                clients = hubContext.Clients.Users(userIds);
-            }
-            else if (!string.IsNullOrWhiteSpace(attribute.TargetGroups))
-            {
-                var groupNames = ResolvePlaceholders(attribute.TargetGroups, notification)
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                clients = hubContext.Clients.Groups(groupNames);
-            }
-            else
-            {
-                clients = hubContext.Clients.All;
-            }
+            var clients = SelectClients(hubContext, attribute, notification);
 
             await clients.SendAsync(methodName, payload, cancellationToken);
 
@@ -122,9 +105,34 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
         }
         catch (Exception ex)
         {
-            Log.FailedToBroadcastNotification(_logger, ex, notificationType.Name);
+            Log.FailedToBroadcastNotification(_logger, ex.ForLogging(), notificationType.Name);
         }
     }
+
+    // Determine target clients: users win over groups; neither means everyone.
+    private IClientProxy SelectClients<TNotification>(
+        IHubContext<Hub> hubContext,
+        BroadcastToSignalRAttribute attribute,
+        TNotification notification)
+        where TNotification : notnull
+    {
+        if (!string.IsNullOrWhiteSpace(attribute.TargetUsers))
+        {
+            return hubContext.Clients.Users(ResolveTargets(attribute.TargetUsers, notification));
+        }
+
+        if (!string.IsNullOrWhiteSpace(attribute.TargetGroups))
+        {
+            return hubContext.Clients.Groups(ResolveTargets(attribute.TargetGroups, notification));
+        }
+
+        return hubContext.Clients.All;
+    }
+
+    private string[] ResolveTargets<TNotification>(string template, TNotification notification)
+        where TNotification : notnull
+        => ResolvePlaceholders(template, notification)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static BroadcastToSignalRAttribute? GetBroadcastAttribute(Type notificationType)
     {

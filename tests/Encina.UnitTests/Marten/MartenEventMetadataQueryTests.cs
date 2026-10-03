@@ -1,7 +1,10 @@
 using Encina.Marten;
+using Encina.UnitTests.Support;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 
 namespace Encina.UnitTests.Marten;
 
@@ -159,6 +162,27 @@ public sealed class MartenEventMetadataQueryTests
         error.GetCode().Match(
             code => code.ShouldBe(MartenErrorCodes.InvalidQuery),
             () => throw new ShouldAssertException("Expected error code but got none"));
+    }
+
+    [Fact]
+    public async Task GetEventByIdAsync_StoreFails_ReturnsQueryFailedAndLogsRedactedException()
+    {
+        // Arrange
+        const string sentinel = "SENTINEL-EVENT-STORE-91d";
+        var logger = new FakeLogger<MartenEventMetadataQuery>();
+        _mockStore.QuerySession().Throws(new InvalidOperationException(sentinel));
+        var query = new MartenEventMetadataQuery(_mockStore, logger);
+
+        // Act
+        var result = await query.GetEventByIdAsync(Guid.NewGuid());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        var error = result.LeftToSeq().Head;
+        error.GetCode().Match(
+            code => code.ShouldBe(MartenErrorCodes.QueryFailed),
+            () => throw new ShouldAssertException("Expected error code but got none"));
+        RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, sentinel);
     }
 
     [Fact]

@@ -90,7 +90,7 @@ result.Match(
         else
             logger.LogWarning("{Failed} shards failed", r.FailedCount);
     },
-    Left: error => logger.LogError("Coordination error: {Error}", error.Message));
+    Left: error => logger.LogError("Coordination error: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ```
 
 ---
@@ -240,7 +240,7 @@ result.IfRight(async r =>
         var rollback = await coordinator.RollbackAsync(r, ct);
         rollback.Match(
             Right: _ => logger.LogInformation("Rollback completed"),
-            Left: error => logger.LogError("Rollback failed: {Error}", error.Message));
+            Left: error => logger.LogError("Rollback failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
     }
 });
 ```

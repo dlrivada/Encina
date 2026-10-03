@@ -237,7 +237,7 @@ result.Match(
     {
         SecretsErrors.NotFoundCode => logger.LogWarning("Secret not found"),
         SecretsErrors.AccessDeniedCode => logger.LogError("Access denied to secret"),
-        _ => logger.LogError("Provider error: {Message}", error.Message)
+        _ => logger.LogError("Provider error: {ErrorCode}", error.GetCode().IfNone("encina.unknown"))
     });
 ```
 

@@ -106,7 +106,7 @@ internal sealed class DefaultProcessorService : IProcessorService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ProcessorRegistrationFailed(name, ex.Message);
+            _logger.ProcessorRegistrationFailed(name, ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("RegisterProcessor", ex.Message, ex);
         }
     }
@@ -147,12 +147,12 @@ internal sealed class DefaultProcessorService : IProcessorService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ProcessorUpdateFailed(processorId.ToString(), ex.Message);
+            _logger.ProcessorUpdateFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(processorId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ProcessorUpdateFailed(processorId.ToString(), ex.Message);
+            _logger.ProcessorUpdateFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("UpdateProcessor", ex.Message, ex);
         }
     }
@@ -190,12 +190,12 @@ internal sealed class DefaultProcessorService : IProcessorService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ProcessorRemovalFailed(processorId.ToString(), ex.Message);
+            _logger.ProcessorRemovalFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.ValidationFailed(processorId.ToString(), ex.Message);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ProcessorRemovalFailed(processorId.ToString(), ex.Message);
+            _logger.ProcessorRemovalFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("RemoveProcessor", ex.Message, ex);
         }
     }
@@ -233,7 +233,7 @@ internal sealed class DefaultProcessorService : IProcessorService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ProcessorRegistrationFailed(processorId.ToString(), ex.Message);
+            _logger.ProcessorRegistrationFailed(processorId.ToString(), ex.GetType().Name);
             return ProcessorAgreementErrors.StoreError("GetProcessor", ex.Message, ex);
         }
     }

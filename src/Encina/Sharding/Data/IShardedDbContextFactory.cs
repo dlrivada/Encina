@@ -30,7 +30,7 @@ namespace Encina.Sharding.Data;
 /// var result = shardedFactory.CreateContextForShard("shard-0");
 /// result.Match(
 ///     Right: context => { /* use context */ },
-///     Left: error => logger.LogError("Failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Route an entity to its shard and create context
 /// var ctxResult = shardedFactory.CreateContextForEntity(order);

@@ -110,22 +110,22 @@ internal static partial class PrivacyByDesignLogMessages
     [LoggerMessage(
         EventId = 8911,
         Level = LogLevel.Warning,
-        Message = "PbD data minimization analysis failed. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void PbDMinimizationAnalysisFailed(this ILogger logger, string requestType, string errorMessage);
+        Message = "PbD data minimization analysis failed. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void PbDMinimizationAnalysisFailed(this ILogger logger, string requestType, string errorCode);
 
     /// <summary>PbD purpose limitation validation failed for a request type (GDPR Art. 5(1)(b)).</summary>
     [LoggerMessage(
         EventId = 8912,
         Level = LogLevel.Warning,
-        Message = "PbD purpose limitation validation failed. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void PbDPurposeValidationFailed(this ILogger logger, string requestType, string errorMessage);
+        Message = "PbD purpose limitation validation failed. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void PbDPurposeValidationFailed(this ILogger logger, string requestType, string errorCode);
 
     /// <summary>PbD privacy defaults inspection failed for a request type (GDPR Art. 25(2)).</summary>
     [LoggerMessage(
         EventId = 8913,
         Level = LogLevel.Warning,
-        Message = "PbD privacy defaults inspection failed. RequestType={RequestType}, ErrorMessage={ErrorMessage}")]
-    internal static partial void PbDDefaultsInspectionFailed(this ILogger logger, string requestType, string errorMessage);
+        Message = "PbD privacy defaults inspection failed. RequestType={RequestType}, ErrorCode={ErrorCode}")]
+    internal static partial void PbDDefaultsInspectionFailed(this ILogger logger, string requestType, string errorCode);
 
     /// <summary>PbD validation threw an exception.</summary>
     [LoggerMessage(
@@ -195,8 +195,8 @@ internal static partial class PrivacyByDesignLogMessages
     [LoggerMessage(
         EventId = 8932,
         Level = LogLevel.Warning,
-        Message = "PbD purpose registration failed: '{PurposeName}' (ModuleId={ModuleId}): {ErrorMessage}")]
-    internal static partial void PbDPurposeRegistrationFailed(this ILogger logger, string purposeName, string moduleId, string errorMessage);
+        Message = "PbD purpose registration failed: '{PurposeName}' (ModuleId={ModuleId}): {ErrorCode}")]
+    internal static partial void PbDPurposeRegistrationFailed(this ILogger logger, string purposeName, string moduleId, string errorCode);
 
     /// <summary>Purpose registration completed.</summary>
     [LoggerMessage(

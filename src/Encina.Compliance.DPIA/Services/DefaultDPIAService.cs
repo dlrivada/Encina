@@ -4,6 +4,7 @@ using Encina.Compliance.DPIA.Aggregates;
 using Encina.Compliance.DPIA.Diagnostics;
 using Encina.Compliance.DPIA.Model;
 using Encina.Compliance.DPIA.ReadModels;
+using Encina.Diagnostics;
 using Encina.Marten;
 using Encina.Marten.Projections;
 using LanguageExt;
@@ -110,13 +111,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (ArgumentException ex)
         {
-            _logger.ServiceOperationError("CreateAssessment", ex);
+            _logger.ServiceOperationError("CreateAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("CreateAssessment", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("CreateAssessment", ex);
+            _logger.ServiceOperationError("CreateAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("CreateAssessment", ex.Message, ex);
         }
@@ -164,13 +165,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("EvaluateAssessment", ex);
+            _logger.ServiceOperationError("EvaluateAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("EvaluateAssessment", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("EvaluateAssessment", ex);
+            _logger.ServiceOperationError("EvaluateAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("EvaluateAssessment", ex.Message, ex);
         }
@@ -222,13 +223,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("RequestDPOConsultation", ex);
+            _logger.ServiceOperationError("RequestDPOConsultation", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RequestDPOConsultation", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("RequestDPOConsultation", ex);
+            _logger.ServiceOperationError("RequestDPOConsultation", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RequestDPOConsultation", ex.Message, ex);
         }
@@ -271,13 +272,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("RecordDPOResponse", ex);
+            _logger.ServiceOperationError("RecordDPOResponse", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RecordDPOResponse", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("RecordDPOResponse", ex);
+            _logger.ServiceOperationError("RecordDPOResponse", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RecordDPOResponse", ex.Message, ex);
         }
@@ -320,13 +321,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("ApproveAssessment", ex);
+            _logger.ServiceOperationError("ApproveAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("ApproveAssessment", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("ApproveAssessment", ex);
+            _logger.ServiceOperationError("ApproveAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("ApproveAssessment", ex.Message, ex);
         }
@@ -368,13 +369,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("RejectAssessment", ex);
+            _logger.ServiceOperationError("RejectAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RejectAssessment", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("RejectAssessment", ex);
+            _logger.ServiceOperationError("RejectAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RejectAssessment", ex.Message, ex);
         }
@@ -416,13 +417,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("RequestRevision", ex);
+            _logger.ServiceOperationError("RequestRevision", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RequestRevision", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("RequestRevision", ex);
+            _logger.ServiceOperationError("RequestRevision", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("RequestRevision", ex.Message, ex);
         }
@@ -462,13 +463,13 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ServiceOperationError("ExpireAssessment", ex);
+            _logger.ServiceOperationError("ExpireAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("ExpireAssessment", ex.Message, ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("ExpireAssessment", ex);
+            _logger.ServiceOperationError("ExpireAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("ExpireAssessment", ex.Message, ex);
         }
@@ -507,7 +508,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("GetAssessment", ex);
+            _logger.ServiceOperationError("GetAssessment", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("GetAssessment", ex.Message, ex);
         }
@@ -554,7 +555,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("GetAssessmentByRequestType", ex);
+            _logger.ServiceOperationError("GetAssessmentByRequestType", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("GetAssessmentByRequestType", ex.Message, ex);
         }
@@ -580,7 +581,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("GetExpiredAssessments", ex);
+            _logger.ServiceOperationError("GetExpiredAssessments", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("GetExpiredAssessments", ex.Message, ex);
         }
@@ -600,7 +601,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("GetAllAssessments", ex);
+            _logger.ServiceOperationError("GetAllAssessments", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("GetAllAssessments", ex.Message, ex);
         }
@@ -632,7 +633,7 @@ internal sealed class DefaultDPIAService : IDPIAService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.ServiceOperationError("GetAssessmentHistory", ex);
+            _logger.ServiceOperationError("GetAssessmentHistory", ex.ForLogging());
             DPIADiagnostics.ServiceOperationErrors.Add(1);
             return DPIAErrors.StoreError("GetAssessmentHistory", ex.Message, ex);
         }

@@ -2151,6 +2151,26 @@ Test.
         $finalizeRewritten = Invoke-Remediation $finWt @('-Finalize')
         Test-RemediationCase '#1572 -Finalize reports a stale manifest: same id and severity, rewritten text' { $finalizeRewritten.Code -eq 1 -and $finalizeRewritten.Output -match "stale manifest: finding 'tests 1' has different text" }
         Set-Content -LiteralPath $finTestsStage -Value $finTestsBackup -NoNewline
+        # #1592: a manifest written under an older "partially related" rule (no partialRuleVersion, or a lower
+        # one) is refused, so -Finalize never re-inserts a line the current rule rejects.
+        $finManifestPath = Join-Path $finWt "artifacts\knowledge\remediation\_manifest-$finN.json"
+        $finManifestBackup = Get-Content -LiteralPath $finManifestPath -Raw
+        Test-RemediationCase '#1592 -Prepare writes partialRuleVersion into the manifest' { [int](Get-RemediationManifest $finWt $finN).partialRuleVersion -eq 3 }
+        $finManifestOld = $finManifestBackup | ConvertFrom-Json
+        $finManifestOld.PSObject.Properties.Remove('partialRuleVersion')
+        Set-Content -LiteralPath $finManifestPath -Value ($finManifestOld | ConvertTo-Json -Depth 12) -Encoding utf8
+        $finDraftsBefore = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
+        $finalizeOldRule = Invoke-Remediation $finWt @('-Finalize')
+        $finDraftsAfter = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
+        Test-RemediationCase '#1592 -Finalize refuses a manifest written before the partially related rule had a version, touching no draft' {
+            $finalizeOldRule.Code -eq 1 -and $finalizeOldRule.Output -match 'stale manifest: it was written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
+        }
+        $prepareOnlyOldRule = Invoke-Remediation $finWt @('-Prepare', '-NoGh', '-Only', 'code 1')
+        $finDraftsAfter = (Get-ChildItem -LiteralPath (Split-Path -Parent $finManifestPath) -Filter "$finN-*.md" -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) -join '|'
+        Test-RemediationCase '#1592 -Prepare -Only refuses a previous manifest of another partially related rule version' {
+            $prepareOnlyOldRule.Code -eq 1 -and $prepareOnlyOldRule.Output -match 'written under partially related rule version 0' -and $finDraftsBefore -eq $finDraftsAfter
+        }
+        Set-Content -LiteralPath $finManifestPath -Value $finManifestBackup -NoNewline -Encoding utf8
         # A technical_debt.md draft gets its Type box ticked deterministically (Set-DebtType): code 1 re-routed as debt.
         $debtDraft = New-CleanDraft (Join-Path $finTemplates 'technical_debt.md') '[DEBT] A.Write reports success after a failed write' 'technical-debt' '' 'debt'
         Set-Content -LiteralPath $finCode1.draftFile -Encoding utf8 -NoNewline -Value ($debtDraft -replace '- \[ \] Documentation gap', '- [x] Documentation gap')
@@ -2325,7 +2345,7 @@ function global:gh {
 '@
         $ghRulesPath = Join-Path $work 'gh-stub-rules.json'
         $candidate1170 = @{ title = '[BUG] Store.OpenConnectionAsync is a no-op'; body = "## Location`n`n- **File(s)**: ``src/Encina.Foo/Store.cs```n`n## Current Behavior`n`n``OpenConnectionAsync`` never opens the connection." } | ConvertTo-Json -Compress
-        $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`nSomething else entirely." } | ConvertTo-Json -Compress
+        $candidate1300 = @{ title = '[DEBT] Bar cleanup'; body = "## Location`n`n- **File(s)**: ``src/Encina.Bar/B.cs```n`n## Current Behavior`n`n``DoThing`` returns the wrong type in this file only." } | ConvertTo-Json -Compress
         $candidate1200 = @{ title = '[DEBT] Unrelated'; body = "## Location`n`n- **File(s)**: ``src/Encina.Other/Z.cs```n" } | ConvertTo-Json -Compress
         @(
             @{ match = 'label list*'; exit = 0; output = "bug`narea-testing`ntechnical-debt" },
@@ -2341,7 +2361,7 @@ function global:gh {
         $ghWt = New-RemediationFixture 'RemediationGhStubWt' $ghN `
             "1. **Major** -- ``src/Encina.Foo/Store.cs:10``: ``OpenConnectionAsync`` never opens the connection." `
             '- none' `
-            "1. **Minor** -- ``src/Encina.Bar/B.cs:5``: ``DoThing`` is documented with the wrong return type."
+            "1. **Minor** -- ``src/Encina.Bar/B.cs:5``, ``src/Encina.Bar/C.cs:9``: ``DoThing`` is documented with the wrong return type."
         $ghPrepare = Invoke-Remediation $ghWt @('-Prepare') $ghStubPath
         $ghManifest = Get-RemediationManifest $ghWt $ghN
         $ghCode1 = Get-ManifestFinding $ghManifest 'code 1'
@@ -2350,7 +2370,9 @@ function global:gh {
         Test-RemediationCase '#1572 -Prepare records a full-evidence duplicate (#1170) with its line and no draft' {
             $ghCode1.duplicateOf -eq '1170' -and $ghCode1.duplicateSource -eq 'evidence' -and $null -eq $ghCode1.draftFile -and $ghCode1.remediationLine -eq '- code 1 (Major): duplicate of #1170'
         }
-        Test-RemediationCase '#1572 -Prepare lists a candidate covering only the file as partially related, and the rest as possibly related' {
+        # #1592: partially related = one of the finding's two files (B.cs, not C.cs) AND its symbol (DoThing) in the
+        # candidate's location text; a candidate with no such pair is only possibly related.
+        Test-RemediationCase '#1572 -Prepare lists a candidate covering one file and the symbol of the finding as partially related, and the rest as possibly related' {
             (@($ghDocs1.partiallyRelated) -join '|') -eq '- #1300 - partially related (it covers only part of this finding)' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1170: ' -and (@($ghDocs1.possiblyRelated) -join '|') -match '#1200: '
         }
         Test-RemediationCase '#1572 -Prepare drops area-documentation from the docs route when the repository has no such label' { (@($ghDocs1.labels) -join ',') -eq 'technical-debt' -and (@($ghManifest.routes.docs.labels) -join ',') -eq 'technical-debt' }
@@ -3397,6 +3419,193 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1534 block ----
 
+    # ---- #1632: audit-draft-remediation.ps1 -MergeInto -- merges one finding's group into another group's by
+    # explicit override, represented like a #1491 same-location merge. Fixture: code 1..4 on distinct files,
+    # docs 1 on code 1's file (a same-location group), docs 2 and tests 1 standalone. -NoGh, no model.
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $remN1632 = 1919
+        $remWt1632 = New-RemediationFixture 'RemediationMergeIntoWt' $remN1632 `
+            "1. **Major** -- ``src/A.cs:20`` first defect.`n2. **Major** -- ``src/B.cs:30`` second defect.`n3. **Minor** -- ``src/C.cs:40`` third defect.`n4. **Minor** -- ``src/D.cs:50`` fourth defect." `
+            "1. **Minor** -- ``tests/TestsOne.cs:5`` a test gap." `
+            "1. **Minor** -- ``src/A.cs:20`` the first defect seen from the docs side.`n2. **Major** -- ``docs/page-two.md:9`` a docs drift."
+        $remDir1632 = Join-Path $remWt1632 'artifacts\knowledge\remediation'
+        function Get-Tree1632 { (@(Get-ChildItem -LiteralPath $remDir1632 -Recurse -File -ErrorAction SilentlyContinue | Sort-Object FullName | ForEach-Object { "$($_.FullName)=$((Get-FileHash -LiteralPath $_.FullName).Hash)" })) -join '|' }
+
+        $base1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh')
+        $baseManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 fixture: the baseline -Prepare exits 0 with 7 findings' { $base1632.Code -eq 0 -and @($baseManifest1632.findings).Count -eq 7 }
+        Write-StageFromManifest $baseManifest1632
+        $before1632 = Get-Tree1632
+
+        # Each validation error stops before any file changes.
+        $cases1632 = @(
+            @{ Label = 'a bad format'; Args = @('-MergeInto', 'docs 2'); Match = "must be '<stage> <n>=<stage> <m>'" },
+            @{ Label = 'a bad format (no second stage)'; Args = @('-MergeInto', 'docs 2=3'); Match = "must be '<stage> <n>=<stage> <m>'" },
+            @{ Label = 'an unknown source key'; Args = @('-MergeInto', 'docs 99=code 2'); Match = 'does not match a finding' },
+            @{ Label = 'an unknown target key'; Args = @('-MergeInto', 'docs 2=code 99'); Match = 'does not match a finding' },
+            @{ Label = 'a self-merge'; Args = @('-MergeInto', 'code 2=code 2'); Match = 'into itself' },
+            @{ Label = 'two findings of one group'; Args = @('-MergeInto', 'docs 1=code 1'); Match = 'same location group' },
+            @{ Label = 'a cycle'; Args = @('-MergeInto', 'code 2=code 3,code 3=code 2'); Match = 'makes a cycle' },
+            @{ Label = 'a target that is itself merged'; Args = @('-MergeInto', 'code 2=code 3,code 3=code 4'); Match = 'itself merged' },
+            @{ Label = 'a source with two targets'; Args = @('-MergeInto', 'code 2=code 3,code 2=code 4'); Match = 'conflicting entries' },
+            @{ Label = 'a duplicate-override target'; Args = @('-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 3=999'); Match = 'records as a duplicate of' },
+            @{ Label = 'a duplicate-override source'; Args = @('-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 2=999'); Match = 'records as a duplicate of' },
+            @{ Label = 'two sources of one group with different targets'; Args = @('-MergeInto', 'code 1=code 2,docs 1=code 3'); Match = 'already merged into a different group' }
+        )
+        foreach ($case in $cases1632) {
+            $r = Invoke-Remediation $remWt1632 (@('-Prepare', '-NoGh') + $case.Args)
+            Test-RemediationCase "#1632 -MergeInto $($case.Label) stops with a message and changes no file" { $r.Code -ne 0 -and $r.Output -match [regex]::Escape($case.Match) -and (Get-Tree1632) -eq $before1632 }
+        }
+        $finalizeMerge1632 = Invoke-Remediation $remWt1632 @('-Finalize', '-MergeInto', 'docs 2=code 2')
+        Test-RemediationCase '#1632 -Finalize with -MergeInto is an error' { $finalizeMerge1632.Code -ne 0 -and $finalizeMerge1632.Output -match 'apply to -Prepare only' }
+
+        # A valid override: docs 2 (a standalone group) into code 2.
+        $merge1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 2')
+        $mergeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto exits 0 and keeps all 7 findings in the manifest' { $merge1632.Code -eq 0 -and @($mergeManifest1632.findings).Count -eq 7 }
+        $c2 = Get-ManifestFinding $mergeManifest1632 'code 2'; $d2 = Get-ManifestFinding $mergeManifest1632 'docs 2'
+        Test-RemediationCase '#1632 -MergeInto: code 2 is the one draft and names both members in Reported by' {
+            $c2.draftFile -and $c2.reportedByLine -eq 'Reported by: code 2, docs 2.' -and @($c2.groupMembers).Count -eq 2
+        }
+        Test-RemediationCase '#1632 -MergeInto: docs 2 has no draft, mergedInto code 2, mergeSource manual override and the manual-override line' {
+            $null -eq $d2.draftFile -and $d2.mergedInto -eq 'code 2' -and $d2.mergeSource -eq 'manual override' -and $d2.remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)'
+        }
+        Test-RemediationCase '#1632 -MergeInto: the override is logged as a lesson' { (@($mergeManifest1632.lessons) -join '|') -match [regex]::Escape('docs 2: merged into code 2 by manual override') }
+        Test-RemediationCase '#1632 -MergeInto: same-location merges keep their own line' { (Get-ManifestFinding $mergeManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)' }
+
+        # -Finalize on the merged manifest: one draft, Reported by inserted, clean.
+        foreach ($mf in @($mergeManifest1632.findings | Where-Object { $_.draftFile })) {
+            $kindName = if ($mf.kind -eq 'drafter-decides') { 'debt' } else { $mf.kind }
+            $route = $mergeManifest1632.routes.$kindName
+            $draft = New-CleanDraft $route.template "$($route.prefix) A specific title for $($mf.key)" (@($route.labels) -join ', ') ([string]$route.milestone) $kindName
+            Set-Content -LiteralPath $mf.draftFile -Encoding utf8 -NoNewline -Value $draft
+        }
+        Set-Content -LiteralPath (Join-Path $remDir1632 "$remN1632-docs-2-orphan.md") -Value 'orphan draft of a merged finding'
+        Write-StageFromManifest $mergeManifest1632
+        $fin1632 = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize on the merged manifest is clean and removes the merged finding''s orphan draft' {
+            $fin1632.Code -eq 0 -and $fin1632.Output -match 'removed 1919-docs-2-orphan.md' -and -not (Test-Path (Join-Path $remDir1632 "$remN1632-docs-2-orphan.md")) -and
+            (Get-Content -LiteralPath $c2.draftFile -Raw) -match 'Reported by: code 2, docs 2\.'
+        }
+
+        # Three-way merge into one target, a source that is a same-location group primary (code 1 + docs 1), and -Only.
+        $three1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 2,code 3=code 2,code 1=code 2')
+        $threeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $t2 = Get-ManifestFinding $threeManifest1632 'code 2'
+        Test-RemediationCase '#1632 -MergeInto three-way (one a whole same-location group): one draft with every member in Reported by' {
+            $three1632.Code -eq 0 -and $t2.reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            @($threeManifest1632.findings | Where-Object { $_.draftFile }).Count -eq 3 -and
+            (Get-ManifestFinding $threeManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 2 (manual override)' -and
+            (Get-ManifestFinding $threeManifest1632 'code 3').mergedInto -eq 'code 2'
+        }
+        Write-StageFromManifest $threeManifest1632
+        $only1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4', '-MergeInto', 'docs 2=code 2')
+        $onlyManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -Only plus -MergeInto: the override group is prepared though not named by -Only; code 4 is prepared; others keep their lines' {
+            $only1632.Code -eq 0 -and (Get-ManifestFinding $onlyManifest1632 'code 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'code 4').regenerate -and
+            -not (Get-ManifestFinding $onlyManifest1632 'tests 1').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)'
+        }
+
+        # Merges persist (round 2): the manifest now holds docs 2, code 3 and code 1 merged into code 2.
+        Write-StageFromManifest $onlyManifest1632
+        $kept1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 2')
+        $keptManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $k2 = Get-ManifestFinding $keptManifest1632 'code 2'
+        Test-RemediationCase '#1632 -Only on the target without -MergeInto keeps the merges: note printed, Reported by intact, sources still merged' {
+            $kept1632.Code -eq 0 -and $kept1632.Output -match 'keeping the manual merge' -and $k2.reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            (Get-ManifestFinding $keptManifest1632 'docs 2').remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)' -and $null -eq (Get-ManifestFinding $keptManifest1632 'docs 2').draftFile -and
+            @($keptManifest1632.mergeOverrides).Count -eq 3
+        }
+        Write-StageFromManifest $keptManifest1632
+        $keptSrc1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'docs 2')
+        $keptSrcManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -Only on a merged source without -MergeInto re-drafts the merged group once: no second draft' {
+            $keptSrc1632.Code -eq 0 -and $null -eq (Get-ManifestFinding $keptSrcManifest1632 'docs 2').draftFile -and (Get-ManifestFinding $keptSrcManifest1632 'code 2').regenerate -and
+            (Get-ManifestFinding $keptSrcManifest1632 'code 2').reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            @(Get-ChildItem -LiteralPath $remDir1632 -Filter "$remN1632-docs-2-*.md" -File -ErrorAction SilentlyContinue).Count -eq 0
+        }
+        $conflict1632 = Get-Tree1632
+        $conflictRun1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4', '-MergeInto', 'docs 2=code 3')
+        Test-RemediationCase '#1632 a -MergeInto that gives a kept source another target is an error and changes no file' {
+            $conflictRun1632.Code -ne 0 -and $conflictRun1632.Output -match 'conflicts with the manual merge' -and (Get-Tree1632) -eq $conflict1632
+        }
+
+        # -Finalize: clean drafts, then an -Only run that keeps code 2's draft, then a hand-broken Reported by.
+        Write-StageFromManifest $keptSrcManifest1632
+        $fullKept1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh')
+        $fullKeptManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 a full -Prepare without -MergeInto re-applies the kept merges' {
+            $fullKept1632.Code -eq 0 -and (Get-ManifestFinding $fullKeptManifest1632 'code 2').reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and @($fullKeptManifest1632.findings | Where-Object { $_.draftFile }).Count -eq 3
+        }
+        function Write-CleanDrafts1632($Manifest) {
+            foreach ($mf in @($Manifest.findings | Where-Object { $_.regenerate -and $_.draftFile })) {
+                $kindName = if ($mf.kind -eq 'drafter-decides') { 'debt' } else { $mf.kind }
+                $route = $Manifest.routes.$kindName
+                Set-Content -LiteralPath $mf.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft $route.template "$($route.prefix) A specific title for $($mf.key)" (@($route.labels) -join ', ') ([string]$route.milestone) $kindName)
+            }
+        }
+        Write-CleanDrafts1632 $fullKeptManifest1632
+        Write-StageFromManifest $fullKeptManifest1632
+        $fin1632b = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize on a manifest with kept merges is clean' { $fin1632b.Code -eq 0 }
+        $null = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4')
+        $keepDraftManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Write-CleanDrafts1632 $keepDraftManifest1632
+        Write-StageFromManifest $keepDraftManifest1632
+        $keepDraft1632 = (Get-ManifestFinding $keepDraftManifest1632 'code 2').draftFile
+        $brokenText1632 = (Get-Content -LiteralPath $keepDraft1632 -Raw) -replace '(?m)^Reported by:[^\r\n]*\r?\n?', ''
+        Set-Content -LiteralPath $keepDraft1632 -Encoding utf8 -NoNewline -Value $brokenText1632
+        $finBroken1632 = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize catches a hand-broken Reported by line of a kept draft' {
+            $finBroken1632.Code -eq 1 -and $finBroken1632.Output -match 'is recorded as merged into code 2' -and $finBroken1632.Output -match "no 'Reported by:' line naming it"
+        }
+
+        # A named target that is a non-primary member of its own same-location group (docs 1 in code 1's group) is not
+        # mislabelled: docs 1 keeps its same-location line, only code 2 is a manual merge. Start the merges over.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $nonPrimary1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=docs 1')
+        $nonPrimaryManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto with a non-primary target: docs 1 stays a same-location merge, code 2 is the manual one' {
+            $nonPrimary1632.Code -eq 0 -and (Get-ManifestFinding $nonPrimaryManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)' -and $null -eq (Get-ManifestFinding $nonPrimaryManifest1632 'docs 1').mergeSource -and
+            (Get-ManifestFinding $nonPrimaryManifest1632 'code 2').remediationLine -eq '- code 2 (Major): merged into code 1 (manual override)' -and (Get-ManifestFinding $nonPrimaryManifest1632 'code 1').reportedByLine -eq 'Reported by: code 1, docs 1, code 2.'
+        }
+
+        # -MergeInto plus -DuplicateOf on unrelated groups work together.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $coexist1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 4=999')
+        $coexistManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto and -DuplicateOf on unrelated groups in one run' {
+            $coexist1632.Code -eq 0 -and (Get-ManifestFinding $coexistManifest1632 'code 4').remediationLine -eq '- code 4 (Minor): duplicate of #999 (manual override)' -and
+            (Get-ManifestFinding $coexistManifest1632 'code 3').remediationLine -eq '- code 3 (Minor): merged into code 2 (manual override)' -and (Get-ManifestFinding $coexistManifest1632 'code 2').reportedByLine -eq 'Reported by: code 3, code 2.'
+        }
+
+        # A higher-severity source: docs 2 (Major) into code 3 (Minor) makes docs 2 the merged group's primary.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $sev1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 3')
+        $sevManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $sd2 = Get-ManifestFinding $sevManifest1632 'docs 2'; $sc3 = Get-ManifestFinding $sevManifest1632 'code 3'
+        Test-RemediationCase '#1632 -MergeInto: a higher-severity source becomes the merged group''s primary and the lesson says so' {
+            $sev1632.Code -eq 0 -and $sd2.draftFile -and $null -eq $sc3.draftFile -and $sc3.remediationLine -eq '- code 3 (Minor): merged into docs 2 (manual override)' -and $sc3.mergeSource -eq 'manual override' -and
+            $sd2.reportedByLine -eq 'Reported by: code 3, docs 2.' -and (@($sevManifest1632.lessons) -join '|') -match [regex]::Escape("docs 2: merged into code 3 by manual override (the merged group's primary is docs 2)")
+        }
+
+        # Audit #19's exact situation: the previous manifest predates mergeOverrides (no such field), and a full
+        # -Prepare -MergeInto runs on top of it. The old manifest is valid and means "no kept merges".
+        $oldShape1632 = $sevManifest1632 | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $oldShape1632.PSObject.Properties.Remove('mergeOverrides')
+        Set-Content -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Encoding utf8 -Value ($oldShape1632 | ConvertTo-Json -Depth 20)
+        $legacyMerge1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=code 3')
+        $legacyMergeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 a previous manifest without mergeOverrides followed by a full -Prepare -MergeInto works (audit #19)' {
+            $legacyMerge1632.Code -eq 0 -and $legacyMerge1632.Output -notmatch 'keeping the manual merge' -and @($legacyMergeManifest1632.mergeOverrides).Count -eq 1 -and
+            (Get-ManifestFinding $legacyMergeManifest1632 'code 3').remediationLine -eq '- code 3 (Minor): merged into code 2 (manual override)'
+        }
+    }
+    else {
+        'SKIP #1632 fixture: git is not on PATH'
+    }
+    # ---- end #1632 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
@@ -3431,8 +3640,15 @@ Two SagaStoreADO test classes duplicate the same setup.
     Test-RemediationChecksCase '#1393 16-docs-4 vs #1299 is NOT a duplicate (only a generic `src/` token and a bare README.md in prose matched)' {
         -not (Test-DuplicateEvidence $findingDocs4For1393 $candidate1299)
     }
-    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is partially related, NOT a duplicate (#592 covers IChoreographyStateStore only)' {
-        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592)
+    # #1592: #592 covers `IChoreographyStateStore` but cites none of the finding's files, so it matches by that
+    # symbol alone. That is enough only because IChoreographyStateStore is a type declared in src/ (route (b) of
+    # Test-PartialDuplicateEvidence); the declared-type set is injected as a small fake here.
+    $declaredTypesFake1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('IChoreographyStateStore', 'SagaRunner'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1393 16-docs-2 vs #592 is partially related (IChoreographyStateStore is declared in src/), NOT a duplicate' {
+        (-not (Test-DuplicateEvidence $findingDocs2For1393 $candidate592)) -and (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 16-docs-2 vs #592 without the type in the declared set is only possibly related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs2For1393 $candidate592 ([System.Collections.Generic.HashSet[string]]::new()))
     }
     Test-RemediationChecksCase '#1393 16-code-4 vs #1170 is still a duplicate (the one true duplicate)' {
         Test-DuplicateEvidence $findingCode4For1393 $candidate1170For1393
@@ -3517,6 +3733,189 @@ Two SagaStoreADO test classes duplicate the same setup.
         (Get-CandidateLocationText "Title`n## **Location**`n`n- File: ``src/Encina.Foo/Bar/Widget.cs```n").Contains('src/Encina.Foo/Bar/Widget.cs')
     }
     # ---- end #1393 block ----
+
+    # ---- #1592: "partially related" needs a file anchor AND a specific symbol anchor of the finding in the
+    # candidate's location text. Audit #18 verifier pass 5 found five false "partially related" lines; the five
+    # finding texts (stages/code.md finding 3, stages/docs.md findings 3, 7 and 9, trimmed to the parts that
+    # matter) and the candidate texts (`gh issue view <n> --json title,body`, trimmed to the sections that
+    # matter) are captured as literals, so no gh call is made. Diagnosis of what matched before the change:
+    #   code-3 vs #725   symbol only: the `Encina.MQTT`-style package tokens of #725's Affected Packages list
+    #   docs-3 vs #1584  file only: src/Encina.Kafka/EncinaKafkaOptions.cs in #1584's Location
+    #   docs-7 vs #1584  file (src/Encina.MQTT/EncinaMQTTOptions.cs) plus the generic setting name `Host`
+    #   docs-9 vs #1474 and #1323  symbol only: the framework type `IServiceCollection` in Actual Behavior
+    $findingCode3For1592 = @'
+`src/Encina.RabbitMQ`, `src/Encina.Kafka`, `src/Encina.NATS`, `src/Encina.AzureServiceBus` and `src/Encina.AmazonSQS` each contain only an options class, an `I{X}MessagePublisher` interface, its implementation, `Log.cs`, `ServiceCollectionExtensions.cs` and a health check (confirmed by full directory listing of all five packages) — none has a subscribe, consume or dead-letter-handling type anywhere in the package. Grepping all five for `SubscribeAsync|ConsumeAsync|Subscribe\(` and for `DeadLetter|DLQ|DeadLetterQueue` returns zero matches in every one. This contradicts AGENTS.md §5's Transports row, which lists "subscription management" and "error handling and DLQ" as things "every provider MUST support" for the same category this issue's own decision defines (`docs/messaging/transports.md`'s FAQ, condensed from the issue, is the source of that "every transport keeps its full native API" promise). Only `Encina.MQTT`, `Encina.Redis.PubSub` and `Encina.InMemory` (of the 8 messaging transports; `Encina.gRPC` and `Encina.GraphQL` are API bridges, and `Encina.GraphQL` declares `SubscribeAsync` at `GraphQLMediatorBridge.cs:124` as a bridge API, not as transport subscription management) actually implement `SubscribeAsync`/`Subscribe` — the other 5 are send-only. The doc also presents consume samples for four of these five: `docs/messaging/transports.md` shows `IMessageHandler<OrderCreated>` at :235 (RabbitMQ section).
+'@
+    $findingDocs3For1592 = @'
+`docs/messaging/transports.md:257-262` documents `options.ConsumerGroup = "my-service"` and `options.DefaultTopic = "events"` on Kafka options; `src/Encina.Kafka/EncinaKafkaOptions.cs` has `GroupId` and `DefaultCommandTopic`/`DefaultEventTopic` instead — neither documented name exists. Lines 270-273 (`consumer.ConsumeFromAsync(topic: "events", offset: 12345, ct)`) reference a consumer type/method that does not exist anywhere in `Encina.Kafka` (the package's only files are `EncinaKafkaOptions.cs`, `IKafkaMessagePublisher.cs`, `KafkaMessagePublisher.cs`, `Log.cs`, `ServiceCollectionExtensions.cs` — publisher only, no consumer).
+'@
+    $findingDocs7For1592 = @'
+`docs/messaging/transports.md:410` (`options.BrokerAddress = "localhost";`) does not match `src/Encina.MQTT/EncinaMQTTOptions.cs`, which exposes `Host` (also `Port`, `ClientId`, `TopicPrefix`, `Username`, `Password`, `QualityOfService`, `UseTls`, `CleanSession`, `KeepAliveSeconds`), never `BrokerAddress`.
+'@
+    $findingDocs9For1592 = @'
+`docs/messaging/transports.md:462-464` documents `services.AddEncinaGraphQL().AddQueryType<QueryRoot>().AddMutationType<MutationRoot>();`. `src/Encina.GraphQL/ServiceCollectionExtensions.cs:17` shows `AddEncinaGraphQL` returns `IServiceCollection`, which has no `AddQueryType`/`AddMutationType` members (those belong to HotChocolate's `IRequestExecutorBuilder`, obtained from `services.AddGraphQLServer()`, a call this page never shows). The sample as written does not compile.
+'@
+    $candidate725For1592 = @'
+[FEATURE] Add OpenTelemetry instrumentation to Message Transport providers
+## Summary
+
+Add OpenTelemetry instrumentation to all message transport providers (RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS, Redis PubSub, InMemory, gRPC, GraphQL).
+
+## Proposed Solution
+
+1. Add `ActivitySource` for transport operations: Publish, Consume, Acknowledge, Reject, Subscribe
+2. Add `Meter` with metrics: message throughput, publish/consume latency, error rate, queue depth
+
+## Affected Packages
+
+- All `Encina.RabbitMQ`, `Encina.Kafka`, `Encina.NATS`, `Encina.MQTT`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Redis.PubSub`, `Encina.InMemory`, `Encina.gRPC`, `Encina.GraphQL`
+- `Encina.OpenTelemetry` (messaging enrichers)
+
+## Acceptance Criteria
+
+- [ ] All transports emit traces for publish/consume
+'@
+    $candidate1584For1592 = @'
+[DEBT] Apply the #852 endpoint validation policy to the remaining broker, cache, SDK and CDC endpoint options
+## Description
+
+#852 added the public core helper `Encina.Validation.EndpointValidator` and applied it to a first set of options. Decisions 8 and 9 of #852 left the other endpoint options out of that front.
+
+## Location
+
+- **File(s)**:
+  - `src/Encina.Kafka/EncinaKafkaOptions.cs` — `BootstrapServers` (default `localhost:9092`, comma-separated `host:port` list)
+  - `src/Encina.MQTT/EncinaMQTTOptions.cs` — `Host` (default `localhost`)
+  - `src/Encina.RabbitMQ/EncinaRabbitMQOptions.cs` — `HostName` (default `localhost`)
+- **Package(s)**: Encina.Kafka, Encina.MQTT, Encina.RabbitMQ
+
+## Current Behavior
+
+None of these options has an `IValidateOptions<T>`, `ValidateOnStart` or eager validation in its `Add*` method.
+'@
+    $candidate1474For1592 = @'
+[BUG] Encina.Messaging README.md documents non-existent fluent builder extension methods
+## Description
+
+The "Fluent Builder (Alternative Syntax)" section in the `Encina.Messaging` README documents a fluent API chain (`AddTransactions()`, `AddOutbox()`, `AddInbox()`, `AddSagas()`, `AddScheduling()`) that does not exist in the codebase.
+
+## Actual Behavior
+
+The fluent builder chain described in the documentation is fictional. The parameterless overload of `AddEncinaEntityFrameworkCore<AppDbContext>()` (`ServiceCollectionExtensions.cs:429`) returns a plain `IServiceCollection`, which has no such fluent members to chain.
+
+## Environment
+
+- **Package(s) Affected**: Encina.Messaging
+'@
+    $candidate1323For1592 = @'
+[BUG] Encina.ADO.PostgreSQL README Quick Start calls AddEncinaADOPostgreSQL, a method that does not exist
+## Description
+
+`src/Encina.ADO.PostgreSQL/README.md` line 37 shows a Quick Start sample calling `AddEncinaADOPostgreSQL(...)`. The real registration entry points are the `AddEncinaADO(...)` overloads in `src/Encina.ADO.PostgreSQL/ServiceCollectionExtensions.cs:39,118,150`.
+
+## Actual Behavior
+
+`CS0117`-class error: `AddEncinaADOPostgreSQL` is not a member of `IServiceCollection` (extension method does not exist under that name).
+'@
+    Test-RemediationChecksCase '#1592 audit #18 code-3 vs #725 is NOT partially related (no shared file; only package-name tokens matched)' {
+        -not (Test-PartialDuplicateEvidence $findingCode3For1592 $candidate725For1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-3 vs #1584 is NOT partially related (shared options file, no shared symbol)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidate1584For1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-7 vs #1584 is NOT partially related (shared options file, only the generic setting name Host)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs7For1592 $candidate1584For1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1474 is NOT partially related (only the framework type IServiceCollection matched)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1474For1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 audit #18 docs-9 vs #1323 is NOT partially related (only the framework type IServiceCollection matched)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs9For1592 $candidate1323For1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 none of the five audit #18 pairs is a duplicate either (Find-DuplicateAmongCandidates)' {
+        $null -eq (Find-DuplicateAmongCandidates $findingCode3For1592 @([pscustomobject]@{ Number = '725'; TitleAndBody = $candidate725For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs3For1592 @([pscustomobject]@{ Number = '1584'; TitleAndBody = $candidate1584For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs7For1592 @([pscustomobject]@{ Number = '1584'; TitleAndBody = $candidate1584For1592 })) -and
+        $null -eq (Find-DuplicateAmongCandidates $findingDocs9For1592 @([pscustomobject]@{ Number = '1474'; TitleAndBody = $candidate1474For1592 }, [pscustomobject]@{ Number = '1323'; TitleAndBody = $candidate1323For1592 }))
+    }
+    Test-RemediationChecksCase '#1592 the generic setting name Host is not a symbol anchor, a specific property name still is' {
+        $anchors = Get-FindingAnchors $findingDocs7For1592
+        $symbols = @($anchors.SymbolAnchors)
+        ($symbols -notcontains 'Host') -and ($symbols -notcontains 'Port') -and ($symbols -contains 'ClientId') -and ($symbols -contains 'QualityOfService')
+    }
+
+    # The positive case: the candidate's own location text carries one of the finding's file anchors and a
+    # specific symbol anchor (`GroupId`), but not the finding's other file (docs/messaging/transports.md), so it
+    # is partially related and not a duplicate.
+    $candidateKafkaGroupId1592 = "[BUG] Kafka options expose GroupId without a default consumer group`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n`n## Current Behavior`n`n``GroupId`` is empty unless the application sets it.`n"
+    Test-RemediationChecksCase '#1592 file anchor + specific symbol anchor (GroupId) in the candidate''s location IS partially related, and not a duplicate' {
+        (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaGroupId1592) -and -not (Test-DuplicateEvidence $findingDocs3For1592 $candidateKafkaGroupId1592)
+    }
+    $candidateKafkaFileOnly1592 = "[DEBT] Kafka options cleanup`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n`n## Current Behavior`n`nThe class has no XML docs.`n"
+    Test-RemediationChecksCase '#1592 a candidate that only lists the finding''s file is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaFileOnly1592)
+    }
+    $candidateSymbolOnly1592 = "[BUG] GroupId is ignored by the consumer factory`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n`n## Current Behavior`n`n``GroupId`` is never read.`n"
+    Test-RemediationChecksCase '#1592 a candidate that only names the finding''s symbol is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateSymbolOnly1592)
+    }
+    Test-RemediationChecksCase '#1592 a finding with a file anchor but no symbol anchor is never partially related, even when the candidate lists the file' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Kafka/EncinaKafkaOptions.cs:12`: the class is undocumented.' $candidateKafkaFileOnly1592)
+    }
+    # Route (b): a symbol-only match on a type declared in src/ is partial; the same symbol absent from the
+    # declared set is not; a dotted name (package or project) and a member name never qualify.
+    $candidateSymbolOnlyDeclared1592 = "[BUG] GroupIdResolver ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n`n## Current Behavior`n`n``KafkaConsumerFactory`` never reads it.`n"
+    $findingDeclared1592 = '`src/Encina.Kafka/EncinaKafkaOptions.cs:12`: `KafkaConsumerFactory` ignores `GroupId` and `Encina.Kafka` is send-only.'
+    $declaredWithFactory1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('KafkaConsumerFactory'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a symbol-only match on a type declared in src/ IS partially related' {
+        Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592 $declaredWithFactory1592
+    }
+    Test-RemediationChecksCase '#1592 the same symbol-only match is NOT partially related when the type is not in the declared set' {
+        (-not (Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592 $declaredTypesFake1592)) -and
+        (-not (Test-PartialDuplicateEvidence $findingDeclared1592 $candidateSymbolOnlyDeclared1592))
+    }
+    $candidateMemberAndPackage1592 = "[BUG] Kafka packaging`n## Affected Packages`n`n- ``Encina.Kafka```n`n## Current Behavior`n`n``GroupId`` is empty.`n"
+    $declaredWithNames1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('KafkaConsumerFactory', 'Encina.Kafka', 'GroupId'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a package name (dotted) never satisfies the declared-type route' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina.Kafka` has no consumer.' $candidateMemberAndPackage1592 $declaredWithNames1592)
+    }
+    Test-RemediationChecksCase '#1592 Get-DeclaredEncinaTypes reads declarations (modifiers, record struct, enum) and skips comments and constraints' {
+        $srcFake1592 = Join-Path $work 'declared-types-1592\src'
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592 'Encina.Foo') | Out-Null
+        Set-Content -LiteralPath (Join-Path $srcFake1592 'Encina.Foo\A.cs') -Value "namespace Foo;`n/// the class Commented is not a declaration`npublic sealed partial class Widget<T> where T : class`n{`n}`ninternal interface IThing { }`npublic readonly record struct Ident(int V);`npublic enum Mode { A }`npublic record Rec(int V);`n"
+        $types1592 = Get-DeclaredEncinaTypes $srcFake1592
+        ($types1592.Contains('Widget')) -and ($types1592.Contains('IThing')) -and ($types1592.Contains('Ident')) -and ($types1592.Contains('Mode')) -and ($types1592.Contains('Rec')) -and (-not $types1592.Contains('Commented')) -and (-not $types1592.Contains('struct')) -and ((Get-DeclaredEncinaTypes (Join-Path $work 'no-such-src-1592')).Count -eq 0)
+    }
+    Test-RemediationChecksCase '#1592 Get-DeclaredEncinaTypes drops the core package class Encina, Log and project folder names' {
+        $srcFake1592b = Join-Path $work 'declared-types-1592b\src'
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592b 'Encina.Messaging') | Out-Null
+        Set-Content -LiteralPath (Join-Path $srcFake1592b 'Encina.Messaging\A.cs') -Value "public sealed partial class Encina { }`ninternal static class Log { }`npublic class Messaging { }`npublic class RealType { }`n"
+        New-Item -ItemType Directory -Force (Join-Path $srcFake1592b 'Messaging') | Out-Null
+        $types1592b = Get-DeclaredEncinaTypes $srcFake1592b
+        $types1592b.Contains('RealType') -and -not $types1592b.Contains('Encina') -and -not $types1592b.Contains('Log') -and -not $types1592b.Contains('Messaging')
+    }
+    $candidateTitleWordOnly1592 = "[BUG] Widget ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n"
+    $declaredWithWidget1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('Widget'), [System.StringComparer]::Ordinal)
+    Test-RemediationChecksCase '#1592 a single-word declared type named only as a plain word of the candidate title is NOT partially related' {
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Foo/X.cs:1`: `Widget` is wrong.' $candidateTitleWordOnly1592 $declaredWithWidget1592)
+    }
+    Test-RemediationChecksCase '#1592 a compound declared type named as a plain word of the candidate title IS partially related' {
+        Test-PartialDuplicateEvidence $findingDeclared1592 "[BUG] KafkaConsumerFactory ignores the setting`n## Location`n`n- **File(s)**: ``src/Encina.Other/Factory.cs```n" $declaredWithFactory1592
+    }
+    # Review of PR #1601: a dotted package name backticked by the candidate is file-only evidence, not a symbol.
+    $candidateKafkaPackage1592 = "[DEBT] Kafka options cleanup`n## Location`n`n- **File(s)**: ``src/Encina.Kafka/EncinaKafkaOptions.cs```n- **Package(s)**: ``Encina.Kafka```n"
+    Test-RemediationChecksCase '#1592 docs-3 vs a candidate that backticks the package name Encina.Kafka is NOT partially related (file + package name)' {
+        -not (Test-PartialDuplicateEvidence $findingDocs3For1592 $candidateKafkaPackage1592 $declaredTypesFake1592)
+    }
+    Test-RemediationChecksCase '#1592 a package name is no symbol evidence in the declared-type route either' {
+        $declaredWithPackage1592 = [System.Collections.Generic.HashSet[string]]::new([string[]]@('Encina', 'Encina.Kafka'), [System.StringComparer]::Ordinal)
+        $candidateCorePackage1592 = "[DEBT] Core cleanup`n## Location`n`n- **Package(s)**: ``Encina`` (core)`n"
+        -not (Test-PartialDuplicateEvidence '`src/Encina.Other/Z.cs:1`: `Encina` is mentioned.' $candidateCorePackage1592 $declaredWithPackage1592)
+    }
+    Test-RemediationChecksCase '#1592 the partial rule has version 3, which -Prepare writes into the manifest and -Finalize checks' {
+        $script:PartialRuleVersion -eq 3
+    }
+    # ---- end #1592 block ----
 
     # ================================================================================================
     # #1368/#1380: the Scripts write-API/reference heuristic (_write-targets.ps1: Test-ScriptHasWriteApi /

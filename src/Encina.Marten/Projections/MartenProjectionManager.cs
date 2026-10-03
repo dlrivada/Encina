@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Encina.Diagnostics;
 using JasperFx.Events;
 using LanguageExt;
 using Marten;
@@ -306,7 +307,7 @@ public sealed class MartenProjectionManager : IProjectionManager
 
     private Either<EncinaError, long> HandleRebuildException(string projectionName, Exception ex)
     {
-        ProjectionLog.ErrorRebuild(_logger, ex, projectionName);
+        ProjectionLog.ErrorRebuild(_logger, ex.ForLogging(), projectionName);
 
         UpdateStatus(projectionName, status =>
         {

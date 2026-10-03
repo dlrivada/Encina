@@ -2,6 +2,7 @@ using System.Text.Json;
 using Encina.Caching;
 using Encina.Cdc.Abstractions;
 using Encina.Cdc.Caching.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -116,7 +117,7 @@ internal sealed class QueryCacheInvalidationCdcHandler : IChangeEventHandler<Jso
         }
         catch (Exception ex)
         {
-            CdcCacheInvalidationLog.CacheInvalidationFailed(_logger, ex, tableName);
+            CdcCacheInvalidationLog.CacheInvalidationFailed(_logger, ex.ForLogging(), tableName);
             CacheInvalidationMetrics.RecordError(tableName, operation, "cache_failure");
             CacheInvalidationActivitySource.InvalidationFailed(activity, ex.Message);
             // Do not block CDC pipeline - log and continue
@@ -145,7 +146,7 @@ internal sealed class QueryCacheInvalidationCdcHandler : IChangeEventHandler<Jso
             }
             catch (Exception ex)
             {
-                CdcCacheInvalidationLog.PubSubBroadcastFailed(_logger, ex, pattern);
+                CdcCacheInvalidationLog.PubSubBroadcastFailed(_logger, ex.ForLogging(), pattern);
                 CacheInvalidationMetrics.RecordError(tableName, operation, "broadcast_failure");
                 CacheInvalidationActivitySource.CompleteBroadcast(
                     broadcastActivity, isSuccess: false, ex.Message);

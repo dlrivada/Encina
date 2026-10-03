@@ -1,5 +1,6 @@
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
+using Encina.Diagnostics;
 using Encina.Security.Encryption.Abstractions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -87,13 +88,13 @@ public sealed partial class AwsKmsKeyProvider : IKeyProvider
         }
         catch (InvalidKeyUsageException ex)
         {
-            Log.ProviderError(_logger, keyId, ex.Message, ex);
+            Log.ProviderError(_logger, keyId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, byte[]>(
                 MessageEncryptionErrors.ProviderUnavailable(ex.Message, ex));
         }
         catch (AmazonKeyManagementServiceException ex)
         {
-            Log.ProviderError(_logger, keyId, ex.Message, ex);
+            Log.ProviderError(_logger, keyId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, byte[]>(
                 MessageEncryptionErrors.ProviderUnavailable(ex.Message, ex));
         }
@@ -142,7 +143,7 @@ public sealed partial class AwsKmsKeyProvider : IKeyProvider
         }
         catch (AmazonKeyManagementServiceException ex)
         {
-            Log.RotationFailed(_logger, keyId, ex.Message, ex);
+            Log.RotationFailed(_logger, keyId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, string>(
                 MessageEncryptionErrors.ProviderUnavailable($"Key rotation failed: {ex.Message}", ex));
         }

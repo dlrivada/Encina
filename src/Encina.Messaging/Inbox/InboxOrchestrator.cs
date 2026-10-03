@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Encina.Diagnostics;
 using Encina.Messaging.Serialization;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -195,11 +196,11 @@ public sealed class InboxOrchestrator
         }
         catch (Exception ex)
         {
-            Log.ErrorProcessingMessage(_logger, ex, messageId, correlationId);
+            Log.ErrorProcessingMessage(_logger, ex.ForLogging(), messageId, correlationId);
 
             await _store.MarkAsFailedAsync(
                 messageId,
-                ex.Message,
+                ex.GetType().FullName ?? ex.GetType().Name, // type only: the message may carry personal data
                 _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(1), // Simple backoff, can be made configurable
                 cancellationToken).ConfigureAwait(false);
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure;
 using Azure.Security.KeyVault.Secrets;
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ namespace Encina.Security.Secrets.AzureKeyVault;
 ///         var result = await secretReader.GetSecretAsync("api-key", ct);
 ///         return result.Match(
 ///             Right: value =&gt; value,
-///             Left: error =&gt; { logger.LogError("Failed: {Error}", error.Message); return ""; });
+///             Left: error =&gt; { logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")); return ""; });
 ///     }
 /// }
 /// </code>
@@ -125,7 +126,7 @@ public sealed class AzureKeyVaultSecretProvider : ISecretReader, ISecretWriter, 
             }
             catch (JsonException ex)
             {
-                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex);
+                Log.DeserializationFailed(_logger, secretName, typeof(T).Name, ex.ForLogging());
                 return SecretsErrors.DeserializationFailed(secretName, typeof(T), ex);
             }
         }
@@ -189,7 +190,7 @@ public sealed class AzureKeyVaultSecretProvider : ISecretReader, ISecretWriter, 
         }
         catch (RequestFailedException ex)
         {
-            Log.RotationFailed(_logger, secretName, ex.Message, ex);
+            Log.RotationFailed(_logger, secretName, ex.GetType().Name, ex.ForLogging());
             return SecretsErrors.RotationFailed(secretName, ex.Message, ex);
         }
     }
@@ -226,13 +227,13 @@ public sealed class AzureKeyVaultSecretProvider : ISecretReader, ISecretWriter, 
 
     private EncinaError LogAndReturnAccessDenied(string secretName, RequestFailedException ex)
     {
-        Log.AccessDenied(_logger, secretName, ex.Message, ex);
+        Log.AccessDenied(_logger, secretName, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.AccessDenied(secretName, ex.Message);
     }
 
     private EncinaError LogAndReturnProviderUnavailable(RequestFailedException ex)
     {
-        Log.ProviderUnavailable(_logger, ex.Message, ex);
+        Log.ProviderUnavailable(_logger, ex.GetType().Name, ex.ForLogging());
         return SecretsErrors.ProviderUnavailable(ProviderName, ex);
     }
 }

@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -85,7 +86,7 @@ internal sealed partial class PolicyCachePubSubHostedService : IHostedService
         catch (Exception ex)
         {
             // Don't fail application startup — PubSub is a best-effort enhancement
-            LogSubscriptionError(_logger, _options.InvalidationChannel, ex);
+            LogSubscriptionError(_logger, _options.InvalidationChannel, ex.ForLogging());
         }
     }
 
@@ -103,7 +104,7 @@ internal sealed partial class PolicyCachePubSubHostedService : IHostedService
             }
             catch (Exception ex)
             {
-                LogSubscriptionStopError(_logger, _options.InvalidationChannel, ex);
+                LogSubscriptionStopError(_logger, _options.InvalidationChannel, ex.ForLogging());
             }
         }
     }
@@ -127,7 +128,7 @@ internal sealed partial class PolicyCachePubSubHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            LogCacheEvictionError(_logger, message.EntityType, message.EntityId ?? "*", ex);
+            LogCacheEvictionError(_logger, message.EntityType, message.EntityId ?? "*", ex.ForLogging());
         }
     }
 

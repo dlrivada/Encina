@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 
 using Encina.Compliance.BreachNotification.Model;
+using Encina.Diagnostics;
 
 using LanguageExt;
 
@@ -91,14 +92,14 @@ public sealed class DefaultBreachDetector : IBreachDetector
                     Left: error =>
                     {
                         _logger.LogWarning(
-                            "Rule '{RuleName}' evaluation failed for event '{EventId}': {ErrorMessage}",
-                            rule.Name, securityEvent.Id, error.Message);
+                            "Rule '{RuleName}' evaluation failed for event '{EventId}': {ErrorCode}",
+                            rule.Name, securityEvent.Id, error.GetCode().IfNone("encina.unknown"));
                     });
             }
             catch (Exception ex)
             {
                 _logger.LogError(
-                    ex,
+                    ex.ForLogging(),
                     "Rule '{RuleName}' threw an exception evaluating event '{EventId}'",
                     rule.Name, securityEvent.Id);
             }

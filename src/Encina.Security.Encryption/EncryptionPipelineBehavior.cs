@@ -89,94 +89,146 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        var requestType = typeof(TRequest);
-        var requestTypeName = requestType.Name;
+        var requestTypeName = typeof(TRequest).Name;
         var startedAt = Stopwatch.GetTimestamp();
 
         // Start tracing if enabled
-        using var activity = _options.EnableTracing
-            ? EncryptionDiagnostics.StartProcess(requestTypeName)
-            : null;
+        using var activity = StartActivity(requestTypeName);
 
-        // --- Pre-handler: Decrypt incoming data if [DecryptOnReceive] is present ---
-        if (RequiresDecryptOnReceive(requestType))
+        // --- Pre-handler: decrypt [DecryptOnReceive] data, then encrypt [Encrypt] properties ---
+        var preHandler = await RunPreHandlerAsync(request, context, activity, startedAt, cancellationToken)
+            .ConfigureAwait(false);
+        if (preHandler.IsLeft)
         {
-            _logger.LogDebug("Pre-handler decryption for {RequestType}", requestTypeName);
-
-            var decryptProperties = EncryptedPropertyCache.GetProperties(requestType);
-            var decryptResult = await _orchestrator.DecryptAsync(request, context, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (decryptResult.IsLeft)
-            {
-                RecordFailure(activity, startedAt, "decrypt", requestTypeName,
-                    decryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
-                return decryptResult.Match<Either<EncinaError, TResponse>>(
-                    Right: _ => default!,
-                    Left: e => e);
-            }
-
-            RecordOperationEvent(activity, "Decrypt", decryptProperties.Length);
-        }
-
-        // --- Pre-handler: Encrypt request properties with [Encrypt] before handler executes ---
-        var encryptedProperties = EncryptedPropertyCache.GetProperties(requestType);
-        var hasRequestEncryption = encryptedProperties.Length > 0;
-
-        if (hasRequestEncryption)
-        {
-            _logger.LogDebug("Pre-handler encryption for {RequestType} ({Count} properties)",
-                requestTypeName, encryptedProperties.Length);
-
-            var encryptResult = await _orchestrator.EncryptAsync(request, context, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (encryptResult.IsLeft)
-            {
-                RecordFailure(activity, startedAt, "encrypt", requestTypeName,
-                    encryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
-                return encryptResult.Match<Either<EncinaError, TResponse>>(
-                    Right: _ => default!,
-                    Left: e => e);
-            }
-
-            RecordOperationEvent(activity, "Encrypt", encryptedProperties.Length);
+            return preHandler.Match<Either<EncinaError, TResponse>>(Right: _ => default!, Left: e => e);
         }
 
         var response = await nextStep().ConfigureAwait(false);
 
         // --- Post-handler: Encrypt response if [EncryptedResponse] is present ---
-        if (response.IsRight && RequiresResponseEncryption())
-        {
-            var responseResult = await response.MatchAsync(
-                RightAsync: async responseValue =>
-                {
-                    _logger.LogDebug("Post-handler response encryption for {ResponseType}", typeof(TResponse).Name);
-
-                    var responseProperties = EncryptedPropertyCache.GetProperties(typeof(TResponse));
-                    var encryptResult = await _orchestrator.EncryptAsync(responseValue, context, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    if (encryptResult.IsRight)
-                    {
-                        RecordOperationEvent(activity, "EncryptResponse", responseProperties.Length);
-                    }
-                    else
-                    {
-                        RecordFailure(activity, startedAt, "encrypt_response", requestTypeName,
-                            encryptResult.Match(Right: _ => string.Empty, Left: e => e.Message));
-                    }
-
-                    return encryptResult;
-                },
-                Left: e => e).ConfigureAwait(false);
-
-            RecordSuccess(activity, startedAt, requestTypeName);
-            return responseResult;
-        }
+        response = await EncryptResponseWhenRequiredAsync(response, context, activity, startedAt, cancellationToken)
+            .ConfigureAwait(false);
 
         RecordSuccess(activity, startedAt, requestTypeName);
         return response;
+    }
+
+    private ValueTask<Either<EncinaError, TResponse>> EncryptResponseWhenRequiredAsync(
+        Either<EncinaError, TResponse> response,
+        IRequestContext context,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken) =>
+        response.IsRight && RequiresResponseEncryption()
+            ? EncryptResponseAsync(response, context, activity, startedAt, cancellationToken)
+            : ValueTask.FromResult(response);
+
+    private Activity? StartActivity(string requestTypeName) =>
+        _options.EnableTracing ? EncryptionDiagnostics.StartProcess(requestTypeName) : null;
+
+    private async ValueTask<Either<EncinaError, Unit>> RunPreHandlerAsync(
+        TRequest request,
+        IRequestContext context,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        var requestType = typeof(TRequest);
+
+        if (RequiresDecryptOnReceive(requestType))
+        {
+            var decrypted = await DecryptRequestAsync(request, context, activity, startedAt, cancellationToken)
+                .ConfigureAwait(false);
+            if (decrypted.IsLeft)
+            {
+                return decrypted;
+            }
+        }
+
+        if (EncryptedPropertyCache.GetProperties(requestType).Length > 0)
+        {
+            return await EncryptRequestAsync(request, context, activity, startedAt, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return Unit.Default;
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> DecryptRequestAsync(
+        TRequest request,
+        IRequestContext context,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        var requestTypeName = typeof(TRequest).Name;
+        _logger.LogDebug("Pre-handler decryption for {RequestType}", requestTypeName);
+
+        var properties = EncryptedPropertyCache.GetProperties(typeof(TRequest));
+        var result = await _orchestrator.DecryptAsync(request, context, cancellationToken).ConfigureAwait(false);
+
+        return AfterStep(result, activity, startedAt, "decrypt", "Decrypt", properties.Length);
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> EncryptRequestAsync(
+        TRequest request,
+        IRequestContext context,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken)
+    {
+        var requestTypeName = typeof(TRequest).Name;
+        var properties = EncryptedPropertyCache.GetProperties(typeof(TRequest));
+        _logger.LogDebug("Pre-handler encryption for {RequestType} ({Count} properties)",
+            requestTypeName, properties.Length);
+
+        var result = await _orchestrator.EncryptAsync(request, context, cancellationToken).ConfigureAwait(false);
+
+        return AfterStep(result, activity, startedAt, "encrypt", "Encrypt", properties.Length);
+    }
+
+    private async ValueTask<Either<EncinaError, TResponse>> EncryptResponseAsync(
+        Either<EncinaError, TResponse> response,
+        IRequestContext context,
+        Activity? activity,
+        long startedAt,
+        CancellationToken cancellationToken) =>
+        await response.MatchAsync(
+            RightAsync: async responseValue =>
+            {
+                _logger.LogDebug("Post-handler response encryption for {ResponseType}", typeof(TResponse).Name);
+
+                var properties = EncryptedPropertyCache.GetProperties(typeof(TResponse));
+                var encrypted = await _orchestrator.EncryptAsync(responseValue, context, cancellationToken)
+                    .ConfigureAwait(false);
+
+                AfterStep(encrypted, activity, startedAt, "encrypt_response", "EncryptResponse", properties.Length);
+                return encrypted;
+            },
+            Left: e => e).ConfigureAwait(false);
+
+    /// <summary>
+    /// Records the outcome of one orchestrator step (event on success, failure telemetry otherwise)
+    /// and maps the result to a unit result.
+    /// </summary>
+    private Either<EncinaError, Unit> AfterStep<T>(
+        Either<EncinaError, T> result,
+        Activity? activity,
+        long startedAt,
+        string failureOperation,
+        string eventOperation,
+        int propertyCount)
+    {
+        if (result.IsLeft)
+        {
+            RecordFailure(activity, startedAt, failureOperation, typeof(TRequest).Name, result);
+        }
+        else
+        {
+            RecordOperationEvent(activity, eventOperation, propertyCount);
+        }
+
+        return result.Map(_ => Unit.Default);
     }
 
     /// <summary>
@@ -206,30 +258,41 @@ public sealed class EncryptionPipelineBehavior<TRequest, TResponse> : IPipelineB
     /// <summary>
     /// Records a failed pipeline operation with tracing and metrics.
     /// </summary>
-    private void RecordFailure(Activity? activity, long startedAt, string operation, string requestTypeName, string errorMessage)
+    private void RecordFailure<T>(Activity? activity, long startedAt, string operation, string requestTypeName, Either<EncinaError, T> failed)
     {
+        var (errorMessage, errorCode) = failed.Match(
+            Right: _ => (string.Empty, string.Empty),
+            Left: e => (e.Message, e.GetCode().IfNone("encina.unknown")));
+
         if (_options.EnableTracing)
         {
             EncryptionDiagnostics.RecordFailure(activity, operation, errorMessage);
         }
 
-        if (_options.EnableMetrics)
-        {
-            var elapsed = Stopwatch.GetElapsedTime(startedAt);
-            var tags = new TagList
-            {
-                { EncryptionDiagnostics.TagRequestType, requestTypeName },
-                { EncryptionDiagnostics.TagOperation, operation },
-                { EncryptionDiagnostics.TagOutcome, "failure" }
-            };
+        RecordFailureMetrics(startedAt, operation, requestTypeName);
 
-            EncryptionDiagnostics.OperationsTotal.Add(1, tags);
-            EncryptionDiagnostics.FailuresTotal.Add(1, tags);
-            EncryptionDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
+        _logger.LogWarning("Encryption pipeline {Operation} failed for {RequestType}: {ErrorCode}",
+            operation, requestTypeName, errorCode);
+    }
+
+    private void RecordFailureMetrics(long startedAt, string operation, string requestTypeName)
+    {
+        if (!_options.EnableMetrics)
+        {
+            return;
         }
 
-        _logger.LogWarning("Encryption pipeline {Operation} failed for {RequestType}: {ErrorMessage}",
-            operation, requestTypeName, errorMessage);
+        var elapsed = Stopwatch.GetElapsedTime(startedAt);
+        var tags = new TagList
+        {
+            { EncryptionDiagnostics.TagRequestType, requestTypeName },
+            { EncryptionDiagnostics.TagOperation, operation },
+            { EncryptionDiagnostics.TagOutcome, "failure" }
+        };
+
+        EncryptionDiagnostics.OperationsTotal.Add(1, tags);
+        EncryptionDiagnostics.FailuresTotal.Add(1, tags);
+        EncryptionDiagnostics.OperationDuration.Record(elapsed.TotalMilliseconds, tags);
     }
 
     /// <summary>

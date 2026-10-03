@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
@@ -65,9 +66,7 @@ internal sealed class ReshardingPhaseExecutor
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options);
 
-        var history = new List<PhaseHistoryEntry>();
-        var currentProgress = context.Progress;
-        var currentCheckpoint = context.Checkpoint;
+        var run = new PhaseRun(state, context);
 
         // Determine where to start (for crash recovery, skip already-completed phases)
         var startIndex = GetStartIndex(state.LastCompletedPhase);
@@ -76,110 +75,176 @@ internal sealed class ReshardingPhaseExecutor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var phase = ExecutionPhases[i];
-
-            if (!phases.TryGetValue(phase, out var phaseImpl))
+            var failure = await ExecutePhaseAsync(run, ExecutionPhases[i], phases, context, options, cancellationToken);
+            if (failure is { } error)
             {
-                return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(
-                    EncinaErrors.Create(
-                        ReshardingErrorCodes.InvalidPhaseTransition,
-                        $"No implementation registered for phase '{phase}'."));
-            }
-
-            // Validate transition
-            var transitionResult = ValidateTransition(state.LastCompletedPhase, phase);
-            if (transitionResult.IsLeft)
-            {
-                return transitionResult.Map<IReadOnlyList<PhaseHistoryEntry>>(_ => history);
-            }
-
-            // Execute the phase
-            var phaseContext = new PhaseContext(
-                context.ReshardingId,
-                context.Plan,
-                context.Options,
-                currentProgress,
-                currentCheckpoint,
-                context.Services);
-
-            _logger.LogInformation(
-                "Phase starting. ReshardingId={ReshardingId}, Phase={Phase}",
-                state.Id, phase);
-
-            var phaseStart = _timeProvider.GetUtcNow().UtcDateTime;
-            var sw = Stopwatch.GetTimestamp();
-
-            var phaseResult = await phaseImpl.ExecuteAsync(phaseContext, cancellationToken);
-
-            if (phaseResult.IsLeft)
-            {
-                var error = phaseResult.Match(Right: _ => default!, Left: e => e);
-                _logger.LogError(
-                    "Phase failed. ReshardingId={ReshardingId}, Phase={Phase}, ErrorCode={ErrorCode}",
-                    state.Id, phase, error.GetCode().IfNone("unknown"));
-                return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(error);
-            }
-
-            var result = phaseResult.Match(Right: r => r, Left: _ => default!);
-            var phaseEnd = _timeProvider.GetUtcNow().UtcDateTime;
-            var elapsed = Stopwatch.GetElapsedTime(sw);
-
-            _logger.LogInformation(
-                "Phase completed. ReshardingId={ReshardingId}, Phase={Phase}, Status={Status}, Duration={DurationMs:F1}ms",
-                state.Id, phase, result.Status, elapsed.TotalMilliseconds);
-
-            // Handle aborted phases (e.g., cutover aborted by predicate)
-            if (result.Status == PhaseStatus.Aborted)
-            {
-                history.Add(new PhaseHistoryEntry(phase, phaseStart, phaseEnd));
-                return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(
-                    EncinaErrors.Create(
-                        ReshardingErrorCodes.CutoverAborted,
-                        $"Phase '{phase}' was aborted."));
-            }
-
-            // Update state
-            currentProgress = result.UpdatedProgress;
-            currentCheckpoint = result.UpdatedCheckpoint;
-            history.Add(new PhaseHistoryEntry(phase, phaseStart, phaseEnd));
-
-            // Persist state after each successful phase
-            var newState = new ReshardingState(
-                state.Id,
-                GetNextPhaseOrCompleted(phase),
-                state.Plan,
-                currentProgress,
-                phase,
-                state.StartedAtUtc,
-                currentCheckpoint);
-
-            var saveResult = await _stateStore.SaveStateAsync(newState, cancellationToken);
-            if (saveResult.IsLeft)
-            {
-                return saveResult.Map<IReadOnlyList<PhaseHistoryEntry>>(_ => history);
-            }
-
-            // Update state for next iteration
-            state = newState;
-
-            // Invoke phase-completed callback
-            if (options.OnPhaseCompleted is not null)
-            {
-                try
-                {
-                    await options.OnPhaseCompleted(phase, currentProgress);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex,
-                        "OnPhaseCompleted callback failed. ReshardingId={ReshardingId}, Phase={Phase}",
-                        state.Id, phase);
-                    // Callback failures are non-fatal — the phase already succeeded
-                }
+                return error;
             }
         }
 
-        return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Right(history);
+        return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Right(run.History);
+    }
+
+    /// <summary>
+    /// Runs one phase: resolves and validates it, executes it, records it and persists the state.
+    /// Returns <c>null</c> when the phase succeeded, otherwise the failure that ends the workflow.
+    /// </summary>
+    private async Task<Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>?> ExecutePhaseAsync(
+        PhaseRun run,
+        ReshardingPhase phase,
+        IReadOnlyDictionary<ReshardingPhase, IReshardingPhase> phases,
+        PhaseContext context,
+        ReshardingOptions options,
+        CancellationToken cancellationToken)
+    {
+        var resolution = ResolvePhase(run.State.LastCompletedPhase, phase, phases, out var phaseImpl);
+        if (resolution.IsLeft)
+        {
+            return Failure(resolution);
+        }
+
+        // Execute the phase
+        var phaseContext = new PhaseContext(
+            context.ReshardingId,
+            context.Plan,
+            context.Options,
+            run.Progress,
+            run.Checkpoint,
+            context.Services);
+
+        _logger.LogInformation(
+            "Phase starting. ReshardingId={ReshardingId}, Phase={Phase}",
+            run.State.Id, phase);
+
+        var phaseStart = _timeProvider.GetUtcNow().UtcDateTime;
+        var sw = Stopwatch.GetTimestamp();
+
+        var phaseResult = await phaseImpl.ExecuteAsync(phaseContext, cancellationToken);
+
+        if (phaseResult.IsLeft)
+        {
+            var error = LeftOf(phaseResult);
+            _logger.LogError(
+                "Phase failed. ReshardingId={ReshardingId}, Phase={Phase}, ErrorCode={ErrorCode}",
+                run.State.Id, phase, error.GetCode().IfNone("unknown"));
+            return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(error);
+        }
+
+        var result = RightOf(phaseResult);
+        var phaseEnd = _timeProvider.GetUtcNow().UtcDateTime;
+
+        _logger.LogInformation(
+            "Phase completed. ReshardingId={ReshardingId}, Phase={Phase}, Status={Status}, Duration={DurationMs:F1}ms",
+            run.State.Id, phase, result.Status, Stopwatch.GetElapsedTime(sw).TotalMilliseconds);
+
+        run.History.Add(new PhaseHistoryEntry(phase, phaseStart, phaseEnd));
+
+        // Handle aborted phases (e.g., cutover aborted by predicate)
+        if (result.Status == PhaseStatus.Aborted)
+        {
+            return Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(
+                EncinaErrors.Create(
+                    ReshardingErrorCodes.CutoverAborted,
+                    $"Phase '{phase}' was aborted."));
+        }
+
+        run.Progress = result.UpdatedProgress;
+        run.Checkpoint = result.UpdatedCheckpoint;
+
+        var saveResult = await PersistStateAsync(run, phase, cancellationToken);
+        if (saveResult.IsLeft)
+        {
+            return Failure(saveResult);
+        }
+
+        await InvokePhaseCompletedCallbackAsync(options, run, phase);
+        return null;
+    }
+
+    private static Either<EncinaError, Unit> ResolvePhase(
+        ReshardingPhase? lastCompleted,
+        ReshardingPhase phase,
+        IReadOnlyDictionary<ReshardingPhase, IReshardingPhase> phases,
+        out IReshardingPhase phaseImpl)
+    {
+        if (!phases.TryGetValue(phase, out phaseImpl!))
+        {
+            return Either<EncinaError, Unit>.Left(
+                EncinaErrors.Create(
+                    ReshardingErrorCodes.InvalidPhaseTransition,
+                    $"No implementation registered for phase '{phase}'."));
+        }
+
+        // Validate transition
+        return ValidateTransition(lastCompleted, phase);
+    }
+
+    private static EncinaError LeftOf<T>(Either<EncinaError, T> either) =>
+        either.Match(Right: _ => default!, Left: e => e);
+
+    private static T RightOf<T>(Either<EncinaError, T> either) =>
+        either.Match(Right: r => r, Left: _ => default!);
+
+    /// <summary>Persists the state after a successful phase and moves the run on to it.</summary>
+    private async Task<Either<EncinaError, Unit>> PersistStateAsync(
+        PhaseRun run,
+        ReshardingPhase phase,
+        CancellationToken cancellationToken)
+    {
+        var newState = new ReshardingState(
+            run.State.Id,
+            GetNextPhaseOrCompleted(phase),
+            run.State.Plan,
+            run.Progress,
+            phase,
+            run.State.StartedAtUtc,
+            run.Checkpoint);
+
+        var saveResult = await _stateStore.SaveStateAsync(newState, cancellationToken);
+        if (saveResult.IsRight)
+        {
+            // Update state for next iteration
+            run.State = newState;
+        }
+
+        return saveResult;
+    }
+
+    private async Task InvokePhaseCompletedCallbackAsync(ReshardingOptions options, PhaseRun run, ReshardingPhase phase)
+    {
+        if (options.OnPhaseCompleted is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await options.OnPhaseCompleted(phase, run.Progress);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex.ForLogging(),
+                "OnPhaseCompleted callback failed. ReshardingId={ReshardingId}, Phase={Phase}",
+                run.State.Id, phase);
+            // Callback failures are non-fatal — the phase already succeeded
+        }
+    }
+
+    private static Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>> Failure<T>(Either<EncinaError, T> failed) =>
+        failed.Match(
+            Right: _ => default!,
+            Left: e => Either<EncinaError, IReadOnlyList<PhaseHistoryEntry>>.Left(e));
+
+    /// <summary>The mutable state of one workflow run: the persisted state, progress, checkpoint and history so far.</summary>
+    private sealed class PhaseRun(ReshardingState state, PhaseContext context)
+    {
+        public ReshardingState State { get; set; } = state;
+
+        public ReshardingProgress Progress { get; set; } = context.Progress;
+
+        public ReshardingCheckpoint? Checkpoint { get; set; } = context.Checkpoint;
+
+        public List<PhaseHistoryEntry> History { get; } = [];
     }
 
     /// <summary>

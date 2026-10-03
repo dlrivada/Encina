@@ -140,8 +140,8 @@ public class EELWarmupService(
             var result = await compiler.CompileAsync(expression, cancellationToken);
             result.Match(
                 Left: error => logger.LogWarning(
-                    "Failed to precompile expression: {Expression}. Error: {Error}",
-                    expression, error.Message),
+                    "Failed to precompile expression: {Expression}. Error: {ErrorCode}",
+                    expression, error.GetCode().IfNone("encina.unknown")),
                 Right: _ => logger.LogDebug(
                     "Precompiled expression: {Expression}", expression));
         }

@@ -1,8 +1,13 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly
+
 using Encina;
 using Encina.Compliance.NIS2;
 using Encina.Compliance.NIS2.Abstractions;
 using Encina.Compliance.NIS2.Model;
+using Encina.Diagnostics;
+using Encina.Security.Audit;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -281,7 +286,8 @@ public class NIS2CompliancePipelineBehaviorTests
         result.IsLeft.ShouldBeTrue();
         var error = (EncinaError)result;
         error.GetCode().IfNone(string.Empty).ShouldBe(NIS2Errors.PipelineBlockedCode);
-        error.Message.ShouldContain("MFA service unavailable");
+        error.Message.ShouldContain(nameof(InvalidOperationException));
+        error.Message.ShouldNotContain("MFA service unavailable");
     }
 
     [Fact]
@@ -302,6 +308,186 @@ public class NIS2CompliancePipelineBehaviorTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region Audit Recording
+
+    private const int AuditFailedEventId = 9208;
+    private const int AuditExceptionEventId = 9209;
+
+    private NIS2CompliancePipelineBehavior<MFARequiredRequest, Unit> CreateAuditedBehavior(
+        NIS2EnforcementMode mode,
+        IAuditStore? store,
+        SignalingLogger logger)
+    {
+        _serviceProvider.GetService(typeof(IAuditStore)).Returns(store);
+        return new(
+            _mfaEnforcer,
+            _supplyChainValidator,
+            Options.Create(CreateOptions(mode)),
+            _serviceProvider,
+            logger);
+    }
+
+    private static IAuditStore CreateStore(
+        TaskCompletionSource<AuditEntry> recorded,
+        Either<EncinaError, Unit> outcome)
+    {
+        var store = Substitute.For<IAuditStore>();
+        store.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                recorded.TrySetResult(call.Arg<AuditEntry>());
+                return ValueTask.FromResult(outcome);
+            });
+        return store;
+    }
+
+    [Fact]
+    public async Task Handle_BlockedByMFA_WithAuditStore_RecordsFailureEntry()
+    {
+        // Arrange
+        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
+        var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
+        _mfaEnforcer
+            .RequireMFAAsync(Arg.Any<MFARequiredRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(NIS2Errors.MFARequired(nameof(MFARequiredRequest))));
+
+        // Act
+        var result = await behavior.Handle(
+            new MFARequiredRequest(), RequestContext.CreateForTest(), NextReturning(Unit.Default), CancellationToken.None);
+        var entry = await recorded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        entry.Action.ShouldBe("NIS2ComplianceCheck");
+        entry.EntityType.ShouldBe(nameof(MFARequiredRequest));
+        entry.Outcome.ShouldBe(AuditOutcome.Failure);
+        entry.ErrorMessage.ShouldNotBeNull();
+        entry.ErrorMessage.ShouldContain("Failed checks");
+        entry.Metadata["nis2.enforcement_mode"].ShouldBe("Block");
+        entry.Metadata["nis2.requires_mfa"].ShouldBe(true);
+    }
+
+    [Fact]
+    public async Task Handle_Passed_WithAuditStore_RecordsSuccessEntry()
+    {
+        // Arrange
+        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
+        var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
+
+        // Act
+        var result = await behavior.Handle(
+            new MFARequiredRequest(), RequestContext.CreateForTest(), NextReturning(Unit.Default), CancellationToken.None);
+        var entry = await recorded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        entry.Outcome.ShouldBe(AuditOutcome.Success);
+        entry.ErrorMessage.ShouldBeNull();
+        entry.Metadata["nis2.action_taken"].ShouldBe("Passed");
+    }
+
+    [Fact]
+    public async Task Handle_AuditStoreReturnsError_LogsErrorCodeAndStillPasses()
+    {
+        // Arrange
+        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = CreateStore(recorded, Left<EncinaError, Unit>(EncinaErrors.Create("test.audit_failed", "SENTINEL-AUDIT-MSG")));
+        var logger = new SignalingLogger(AuditFailedEventId);
+        var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, logger);
+
+        // Act
+        var result = await behavior.Handle(
+            new MFARequiredRequest(), RequestContext.CreateForTest(), NextReturning(Unit.Default), CancellationToken.None);
+        await logger.Signal.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        logger.Texts.ShouldAllBe(t => !t.Contains("SENTINEL-AUDIT-MSG", StringComparison.Ordinal));
+        logger.Texts.ShouldContain(t => t.Contains("test.audit_failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Handle_AuditStoreThrows_LogsRedactedExceptionAndStillPasses()
+    {
+        // Arrange
+        var store = Substitute.For<IAuditStore>();
+        store.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("SENTINEL-THROW-MSG"));
+        var logger = new SignalingLogger(AuditExceptionEventId);
+        var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, logger);
+
+        // Act
+        var result = await behavior.Handle(
+            new MFARequiredRequest(), RequestContext.CreateForTest(), NextReturning(Unit.Default), CancellationToken.None);
+        await logger.Signal.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        logger.Exceptions.ShouldAllBe(e => e is RedactedException);
+        logger.Texts.ShouldAllBe(t => !t.Contains("SENTINEL-THROW-MSG", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Handle_MFAThrows_BlockMode_WithAuditStore_RecordsBlockedEntry()
+    {
+        // Arrange
+        var recorded = new TaskCompletionSource<AuditEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = CreateStore(recorded, Right<EncinaError, Unit>(Unit.Default));
+        var behavior = CreateAuditedBehavior(NIS2EnforcementMode.Block, store, new SignalingLogger(0));
+        _mfaEnforcer
+            .RequireMFAAsync(Arg.Any<MFARequiredRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("MFA service unavailable"));
+
+        // Act
+        var result = await behavior.Handle(
+            new MFARequiredRequest(), RequestContext.CreateForTest(), NextReturning(Unit.Default), CancellationToken.None);
+        var entry = await recorded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        ((string)entry.Metadata["nis2.action_taken"]!).ShouldStartWith("Blocked: Compliance check exception");
+    }
+
+    /// <summary>Logger that records texts and exceptions and signals when a given EventId is logged.</summary>
+    private sealed class SignalingLogger(int signalEventId) : ILogger<NIS2CompliancePipelineBehavior<MFARequiredRequest, Unit>>
+    {
+        private readonly object _gate = new();
+        private readonly List<string> _texts = [];
+        private readonly List<Exception> _exceptions = [];
+
+        public TaskCompletionSource Signal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IReadOnlyList<string> Texts { get { lock (_gate) { return [.. _texts]; } } }
+
+        public IReadOnlyList<Exception> Exceptions { get { lock (_gate) { return [.. _exceptions]; } } }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_gate)
+            {
+                _texts.Add(formatter(state, exception));
+                if (exception is not null)
+                {
+                    _exceptions.Add(exception);
+                }
+            }
+
+            if (eventId.Id == signalEventId)
+            {
+                Signal.TrySetResult();
+            }
+        }
     }
 
     #endregion

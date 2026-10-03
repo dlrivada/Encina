@@ -1,4 +1,5 @@
 using System.Globalization;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -85,7 +86,7 @@ internal sealed class ShadowWritePipelineBehavior<TCommand, TResponse>(
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowWriteFailed(_logger, commandType, ex.GetType().Name, ex);
+            ShadowShardingLog.ShadowWriteFailed(_logger, commandType, ex.GetType().Name, ex.ForLogging());
         }
     }
 }

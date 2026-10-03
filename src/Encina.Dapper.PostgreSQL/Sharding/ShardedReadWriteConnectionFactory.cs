@@ -34,7 +34,7 @@ namespace Encina.Dapper.PostgreSQL.Sharding;
 /// var readResult = await factory.GetReadConnectionAsync("shard-0", ct);
 /// readResult.Match(
 ///     Right: conn => conn.QueryAsync&lt;Order&gt;("SELECT * FROM Orders"),
-///     Left: error => logger.LogError("Failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 ///
 /// // Explicit write — always uses the primary
 /// var writeResult = await factory.GetWriteConnectionAsync("shard-0", ct);

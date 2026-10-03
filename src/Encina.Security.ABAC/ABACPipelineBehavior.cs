@@ -1,5 +1,6 @@
 using System.Diagnostics;
 
+using Encina.Diagnostics;
 using Encina.Security.ABAC.Diagnostics;
 
 using LanguageExt;
@@ -160,7 +161,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         {
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
 
-            ABACLogMessages.EvaluationFailed(_logger, ex,
+            ABACLogMessages.EvaluationFailed(_logger, ex.ForLogging(),
                 requestTypeName,
                 elapsed.TotalMilliseconds);
 
@@ -228,7 +229,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             {
                 ABACLogMessages.PermitObligationsFailed(_logger,
                     requestTypeName,
-                    error.Message);
+                    error.GetCode().IfNone("encina.unknown"));
                 return true;
             },
             Right: _ => false);
@@ -288,7 +289,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             obligationResult.Match(
                 Left: error => ABACLogMessages.OnDenyObligationFailed(_logger,
                     requestTypeName,
-                    error.Message),
+                    error.GetCode().IfNone("encina.unknown")),
                 Right: _ => ABACLogMessages.OnDenyObligationsExecuted(_logger,
                     requestTypeName));
         }
@@ -420,7 +421,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         {
             ABACLogMessages.EnforcementWarnMode(_logger,
                 requestTypeName,
-                error.Message);
+                error.GetCode().IfNone("encina.unknown"));
 
             return await nextStep().ConfigureAwait(false);
         }

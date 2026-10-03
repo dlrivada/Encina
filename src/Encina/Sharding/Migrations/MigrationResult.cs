@@ -28,9 +28,9 @@ namespace Encina.Sharding.Migrations;
 ///         else
 ///             foreach (var (shardId, status) in r.PerShardStatus.Where(
 ///                 kvp => kvp.Value.Outcome == MigrationOutcome.Failed))
-///                 logger.LogError("Shard {ShardId} failed: {Error}", shardId, status.Error?.Message);
+///                 logger.LogError("Shard {ShardId} failed: {ErrorCode}", shardId, status.Error?.GetCode().IfNone("encina.unknown"));
 ///     },
-///     Left: error => logger.LogError("Migration coordination failed: {Error}", error.Message));
+///     Left: error => logger.LogError("Migration coordination failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 /// <param name="Id">Unique identifier for this migration execution.</param>

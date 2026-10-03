@@ -31,7 +31,7 @@ namespace Encina.MongoDB.Sharding;
 /// var result = factory.GetCollectionForShard&lt;Order&gt;("shard-0", "orders");
 /// result.Match(
 ///     Right: collection =&gt; { /* use collection */ },
-///     Left: error =&gt; logger.LogError("Failed: {Error}", error.Message));
+///     Left: error =&gt; logger.LogError("Failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown")));
 /// </code>
 /// </example>
 public interface IShardedMongoCollectionFactory

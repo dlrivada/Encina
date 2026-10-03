@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -69,7 +70,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishMessage(_logger, ex, typeof(TMessage).Name, effectiveSubject);
+            Log.FailedToPublishMessage(_logger, ex.ForLogging(), typeof(TMessage).Name, effectiveSubject);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -130,7 +131,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         }
         catch (Exception ex)
         {
-            Log.FailedToSendRequest(_logger, ex, typeof(TRequest).Name);
+            Log.FailedToSendRequest(_logger, ex.ForLogging(), typeof(TRequest).Name);
 
             return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -177,7 +178,7 @@ public sealed class NATSMessagePublisher : INATSMessagePublisher, IAsyncDisposab
         }
         catch (Exception ex)
         {
-            Log.FailedToPublishToJetStream(_logger, ex, typeof(TMessage).Name);
+            Log.FailedToPublishToJetStream(_logger, ex.ForLogging(), typeof(TMessage).Name);
 
             return Left<EncinaError, NATSPublishAck>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

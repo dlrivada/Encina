@@ -577,7 +577,7 @@ result.Match(
     },
     Left: error =>
     {
-        logger.LogError("Notification failed: {Code} - {Message}", error.Code, error.Message);
+        logger.LogError("Notification failed: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
     }
 );
 ```

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -68,7 +69,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         }
         catch (Exception ex)
         {
-            Log.FailedToExecuteQuery(_logger, ex, typeof(TQuery).Name);
+            Log.FailedToExecuteQuery(_logger, ex.ForLogging(), typeof(TQuery).Name);
 
             return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(
@@ -110,7 +111,7 @@ public sealed class GraphQLEncinaBridge : IGraphQLEncinaBridge
         }
         catch (Exception ex)
         {
-            Log.FailedToExecuteMutation(_logger, ex, typeof(TMutation).Name);
+            Log.FailedToExecuteMutation(_logger, ex.ForLogging(), typeof(TMutation).Name);
 
             return Left<EncinaError, TResult>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.FromException(

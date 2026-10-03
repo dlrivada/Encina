@@ -1,4 +1,5 @@
 using System.Reflection;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -97,7 +98,7 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
             }
             catch (Exception ex)
             {
-                LogInvalidationError(_logger, typeof(TRequest).Name, attr.KeyPattern, ex);
+                LogInvalidationError(_logger, typeof(TRequest).Name, attr.KeyPattern, ex.ForLogging());
 
                 if (_options.ThrowOnCacheErrors)
                 {
@@ -155,23 +156,33 @@ public sealed partial class CacheInvalidationPipelineBehavior<TRequest, TRespons
         // Cross-instance invalidation via pub/sub
         if (broadcast && _options.EnablePubSubInvalidation && _pubSubProvider is not null)
         {
-            try
-            {
-                await _pubSubProvider.PublishAsync(
-                    _options.InvalidationChannel,
-                    pattern,
-                    cancellationToken).ConfigureAwait(false);
+            await BroadcastInvalidationAsync(_pubSubProvider, pattern, correlationId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
 
-                LogInvalidationBroadcast(_logger, pattern, _options.InvalidationChannel, correlationId);
-            }
-            catch (Exception ex)
-            {
-                LogPubSubError(_logger, pattern, _options.InvalidationChannel, ex);
+    private async Task BroadcastInvalidationAsync(
+        IPubSubProvider pubSubProvider,
+        string pattern,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await pubSubProvider.PublishAsync(
+                _options.InvalidationChannel,
+                pattern,
+                cancellationToken).ConfigureAwait(false);
 
-                if (_options.ThrowOnCacheErrors)
-                {
-                    throw;
-                }
+            LogInvalidationBroadcast(_logger, pattern, _options.InvalidationChannel, correlationId);
+        }
+        catch (Exception ex)
+        {
+            LogPubSubError(_logger, pattern, _options.InvalidationChannel, ex.ForLogging());
+
+            if (_options.ThrowOnCacheErrors)
+            {
+                throw;
             }
         }
     }

@@ -138,8 +138,8 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | 9001 | `Debug` | `PDP decision for {RequestType}: {Effect} (policy: {PolicyId}, duration: {DurationMs:F2}ms)` | `requestType`, `effect`, `policyId`, `durationMs` |
 | 9002 | `Debug` | `ABAC: Permit for {RequestType}` | `requestType` |
 | 9003 | `Debug` | `ABAC enforcement: denied {RequestType}` | `requestType` |
-| 9004 | `Warning` | `ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorMessage}. Allowing request to proceed` | `requestType`, `errorMessage` |
-| 9005 | `Warning` | `Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorMessage}` | `requestType`, `errorMessage` |
+| 9004 | `Warning` | `ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed` | `requestType`, `errorCode` |
+| 9005 | `Warning` | `Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorCode}` | `requestType`, `errorCode` |
 | 9006 | `Debug` | `ABAC: NotApplicable for {RequestType} - allowing per DefaultNotApplicableEffect=Permit` | `requestType` |
 | 9007 | `Debug` | `ABAC: NotApplicable for {RequestType} - denying per DefaultNotApplicableEffect=Deny` | `requestType` |
 | 9008 | `Warning` | `ABAC: Indeterminate for {RequestType}: {Reason}` | `requestType`, `reason` |
@@ -150,10 +150,10 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
 | 9010 | `Error` | `No handler registered for mandatory obligation {ObligationId}. Access denied per XACML 7.18` | `obligationId` |
-| 9011 | `Error` | `Obligation handler for {ObligationId} failed: {ErrorMessage}. Access denied per XACML 7.18` | `obligationId`, `errorMessage` |
+| 9011 | `Error` | `Obligation handler for {ObligationId} failed: {ErrorCode}. Access denied per XACML 7.18` | `obligationId`, `errorCode` |
 | 9012 | `Debug` | `Obligation {ObligationId} executed successfully` | `obligationId` |
 | 9013 | `Debug` | `{Count} obligation(s) executed successfully` | `count` |
-| 9014 | `Warning` | `OnDeny obligation failed for {RequestType}: {ErrorMessage}` | `requestType`, `errorMessage` |
+| 9014 | `Warning` | `OnDeny obligation failed for {RequestType}: {ErrorCode}` | `requestType`, `errorCode` |
 | 9015 | `Debug` | `OnDeny obligations executed for {RequestType}` | `requestType` |
 
 ### Advice Messages (9020-9029)
@@ -161,7 +161,7 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
 | 9020 | `Debug` | `No handler registered for advice {AdviceId}. Skipping (advice is best-effort)` | `adviceId` |
-| 9021 | `Warning` | `Advice handler for {AdviceId} failed: {ErrorMessage}. Continuing (advice is best-effort)` | `adviceId`, `errorMessage` |
+| 9021 | `Warning` | `Advice handler for {AdviceId} failed: {ErrorCode}. Continuing (advice is best-effort)` | `adviceId`, `errorCode` |
 | 9022 | `Debug` | `Advice {AdviceId} executed successfully` | `adviceId` |
 
 ---

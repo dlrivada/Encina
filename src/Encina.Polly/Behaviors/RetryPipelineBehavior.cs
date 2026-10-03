@@ -1,3 +1,4 @@
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -51,7 +52,7 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
         }
         catch (Exception ex)
         {
-            LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex);
+            LogRetryExhausted(_logger, typeof(TRequest).Name, retryAttribute.MaxAttempts, ex.ForLogging());
             return EncinaError.New(ex);
         }
     }
@@ -67,37 +68,44 @@ public sealed partial class RetryPipelineBehavior<TRequest, TResponse> : IPipeli
                 MaxRetryAttempts = config.MaxAttempts - 1, // -1 because Polly counts retries, not total attempts
                 Delay = TimeSpan.FromMilliseconds(config.BaseDelayMs),
                 MaxDelay = TimeSpan.FromMilliseconds(config.MaxDelayMs),
-                BackoffType = config.BackoffType switch
-                {
-                    BackoffType.Constant => DelayBackoffType.Constant,
-                    BackoffType.Linear => DelayBackoffType.Linear,
-                    BackoffType.Exponential => DelayBackoffType.Exponential,
-                    _ => DelayBackoffType.Exponential
-                },
+                BackoffType = MapBackoffType(config.BackoffType),
                 ShouldHandle = new PredicateBuilder<Either<EncinaError, TResponse>>()
                     .HandleResult(ShouldRetry)
                     .Handle<Exception>(ex => ShouldRetryException(ex, config)),
-                OnRetry = args =>
-                {
-                    var attemptNumber = args.AttemptNumber + 1; // +1 because Polly is zero-indexed
-                    var delay = args.RetryDelay;
-
-                    if (args.Outcome.Exception is not null)
-                    {
-                        LogRetryAttemptException(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, args.Outcome.Exception);
-                    }
-                    else if (args.Outcome.Result is { } result && result.IsLeft)
-                    {
-                        result.IfLeft(error =>
-                        {
-                            LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, error.Message);
-                        });
-                    }
-
-                    return ValueTask.CompletedTask;
-                }
+                OnRetry = args => LogRetryAttempt(args, config, requestType)
             })
             .Build();
+    }
+
+    private static DelayBackoffType MapBackoffType(BackoffType backoffType) => backoffType switch
+    {
+        BackoffType.Constant => DelayBackoffType.Constant,
+        BackoffType.Linear => DelayBackoffType.Linear,
+        BackoffType.Exponential => DelayBackoffType.Exponential,
+        _ => DelayBackoffType.Exponential
+    };
+
+    private ValueTask LogRetryAttempt(
+        OnRetryArguments<Either<EncinaError, TResponse>> args,
+        RetryAttribute config,
+        string requestType)
+    {
+        var attemptNumber = args.AttemptNumber + 1; // +1 because Polly is zero-indexed
+        var delay = args.RetryDelay;
+
+        if (args.Outcome.Exception is not null)
+        {
+            LogRetryAttemptException(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, args.Outcome.Exception.ForLogging());
+        }
+        else if (args.Outcome.Result is { } result && result.IsLeft)
+        {
+            result.IfLeft(error =>
+            {
+                LogRetryAttemptError(_logger, attemptNumber, config.MaxAttempts, requestType, delay.TotalMilliseconds, error.GetCode().IfNone("encina.unknown"));
+            });
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     private static bool ShouldRetry(Either<EncinaError, TResponse> result)

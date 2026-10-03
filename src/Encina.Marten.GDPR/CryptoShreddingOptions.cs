@@ -48,7 +48,10 @@ public sealed class CryptoShreddingOptions
     /// </para>
     /// <list type="bullet">
     /// <item><description>Each property also has <c>[PersonalData]</c></description></item>
-    /// <item><description>The <c>SubjectIdProperty</c> references a valid property on the declaring type</description></item>
+    /// <item><description>The encrypted property is of type <c>string</c></description></item>
+    /// <item><description>The <c>SubjectIdProperty</c> references a valid public property on the declaring type</description></item>
+    /// <item><description>That subject-id property is readable (has a getter)</description></item>
+    /// <item><description>Its type is a supported subject-id type (<c>string</c>, <c>Guid</c>, integer types, <c>IFormattable</c> ids and wrappers with a public <c>Value</c>)</description></item>
     /// </list>
     /// </remarks>
     /// <value>Defaults to <c>true</c>.</value>

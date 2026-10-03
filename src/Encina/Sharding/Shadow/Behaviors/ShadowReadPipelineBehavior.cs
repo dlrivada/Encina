@@ -1,4 +1,5 @@
 using System.Globalization;
+using Encina.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -119,7 +120,7 @@ internal sealed class ShadowReadPipelineBehavior<TQuery, TResponse>(
         }
         catch (Exception ex)
         {
-            ShadowShardingLog.ShadowReadFailed(_logger, queryType, ex.GetType().Name, ex);
+            ShadowShardingLog.ShadowReadFailed(_logger, queryType, ex.GetType().Name, ex.ForLogging());
         }
     }
 
@@ -141,7 +142,7 @@ internal sealed class ShadowReadPipelineBehavior<TQuery, TResponse>(
         catch (Exception ex)
         {
             ShadowShardingLog.DiscrepancyHandlerFailed(
-                _logger, typeof(TQuery).Name, ex.GetType().Name, ex);
+                _logger, typeof(TQuery).Name, ex.GetType().Name, ex.ForLogging());
         }
     }
 

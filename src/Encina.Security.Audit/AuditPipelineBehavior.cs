@@ -1,6 +1,10 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+
+using Encina.Diagnostics;
+
 using LanguageExt;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -101,7 +105,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
                 Left: error =>
                 {
                     outcome = MapErrorToOutcome(error);
-                    errorMessage = error.Message;
+                    errorMessage = error.GetCode().IfNone("encina.unknown");
                     return LanguageExt.Unit.Default;
                 });
         }
@@ -118,7 +122,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
         catch (Exception ex)
         {
             outcome = AuditOutcome.Error;
-            errorMessage = ex.Message;
+            errorMessage = ex.GetType().Name;
 
             // Capture completion time and record exception
             var completedAtUtc = DateTimeOffset.UtcNow;
@@ -233,23 +237,23 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
 
             result.Match(
                 Right: _ => { }, // Success - nothing to do
-                Left: error => LogAuditRecordingFailed(_logger, typeof(TRequest).Name, error.Message));
+                Left: error => LogAuditRecordingFailed(_logger, typeof(TRequest).Name, error.GetCode().IfNone("encina.unknown")));
         }
         catch (Exception ex)
         {
             // Log warning but don't fail the request
-            LogAuditRecordingException(_logger, typeof(TRequest).Name, ex);
+            LogAuditRecordingException(_logger, typeof(TRequest).Name, ex.ForLogging());
         }
     }
 
     [LoggerMessage(
         EventId = 5000,
         Level = LogLevel.Warning,
-        Message = "Failed to record audit entry for {RequestType}: {ErrorMessage}")]
+        Message = "Failed to record audit entry for {RequestType}: {ErrorCode}")]
     private static partial void LogAuditRecordingFailed(
         ILogger logger,
         string requestType,
-        string errorMessage);
+        string errorCode);
 
     [LoggerMessage(
         EventId = 5001,

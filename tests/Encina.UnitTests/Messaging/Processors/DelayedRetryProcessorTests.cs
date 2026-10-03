@@ -389,6 +389,44 @@ public sealed class DelayedRetryProcessorTests
         permanentFailure.ShouldNotBeNull();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WhenProcessingThrows_StoresOnlyTheExceptionType()
+    {
+        // Arrange - the dispatch succeeds, then the store throws; the message must never be persisted.
+        var message = CreateRetriedCommandMessage(value: 5);
+        var store = Substitute.For<IDelayedRetryStore>();
+        store.GetPendingMessagesAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new[] { message }, System.Array.Empty<IDelayedRetryMessage>());
+        store.MarkAsProcessedAsync(message.Id, Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("patient 12345 not found"));
+        var failed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.MarkAsFailedAsync(message.Id, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => { failed.TrySetResult(call.ArgAt<string>(1)); return Task.CompletedTask; });
+
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, int>>(Right<EncinaError, int>(7)));
+
+        var processor = CreateProcessor(store, encina, new RecoverabilityOptions());
+        using var cts = new CancellationTokenSource();
+
+        // Act
+        await processor.StartAsync(cts.Token);
+        string stored;
+        try
+        {
+            stored = await failed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await processor.StopAsync(default);
+        }
+
+        // Assert
+        stored.ShouldBe(typeof(InvalidOperationException).FullName);
+        stored.ShouldNotContain("12345");
+    }
+
     private static DelayedRetryProcessor CreateProcessor(IDelayedRetryStore store, IEncina encina, RecoverabilityOptions options)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
