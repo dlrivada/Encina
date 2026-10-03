@@ -200,8 +200,8 @@ ticks "Documentation gap" too. This closes the exact instability audit #17 hit: 
 one detail used to re-roll every other draft's own Type tick as well (#1492).
 
 Regenerating just one or two findings' drafts (a verifier `FAIL` naming only those) does not have to touch
-every other draft: `-Prepare -Only "<stage> <n>"` (repeatable, e.g. `-Only "code 3" -Only "tests 1"`) prepares
-only the named finding(s)' groups; every other finding keeps its draft, input and `stages/remediation.md` line
+every other draft: `-Prepare -Only "<stage> <n>"` (one finding per run, e.g. `-Only "code 3"`; PowerShell rejects a repeated parameter and `pwsh -File` does not split a list, #1645) prepares
+only the named finding's group; every other finding keeps its draft, input and `stages/remediation.md` line
 byte-identical, and the manifest marks it `"regenerate": false` with its existing line, so the drafter rewrites
 only the named drafts (#1492 decision 3). It requires `stages/remediation.md` to already carry a line for every
 OTHER currently-parsed finding (i.e. a full Prepare and drafter run happened at least once); otherwise it errors
@@ -210,7 +210,7 @@ rather than guessing.
 Some real duplicates can never pass `Test-DuplicateEvidence`: a candidate that only MENTIONS the finding's file
 and symbol as one item of a numbered list inside its own Description is exactly what #1393 excludes from
 evidence (audit #18's docs finding 12 vs. #1177, which lists it as item 6 of a drift report). For that case,
-`-DuplicateOf "<stage> <n>=<issue>"` (repeatable, e.g. `-DuplicateOf "docs 12=1177"`) records the named finding
+`-DuplicateOf "<stage> <n>=<issue>"` (one value per run, e.g. `-DuplicateOf "docs 12=1177"`; several values are #1645) records the named finding
 as a duplicate of the given issue by explicit, logged override -- once `audit-verifier` or the orchestrator has
 confirmed it, never guessed by the script or the drafter. It format-validates each entry up front and (unless
 `-NoGh`) verifies the target is a real OPEN issue via `gh issue view`, before touching any file; a key that does
@@ -227,6 +227,25 @@ Audit #18's docs finding 12 case:
 
 ```powershell
 pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -Only 'docs 12' -DuplicateOf 'docs 12=1177'
+```
+
+When two findings of DIFFERENT location groups describe one defect, `-MergeInto "<stage> <n>=<stage> <m>"`
+(several overrides go in one comma-separated value, because PowerShell rejects a repeated parameter name; `-Prepare` only, #1632) merges the first finding's whole group into the second finding's group by
+explicit, logged override, represented exactly like a same-location merge (#1491): one draft whose
+`Reported by:` line names every member, the merged findings' lines read "merged into <stage> <m> (manual
+override)", the manifest records `mergedInto` plus `mergeSource`, and each override is a lesson. Every entry is
+validated before any file is touched: the format, both keys matching a parsed finding, source and target in
+different groups, no cycle, a target that is not itself merged, and neither side in a `-DuplicateOf` group. An
+override's group is always prepared, with or without `-Only`. Merges persist: the manifest lists them, and every
+later `-Prepare` (full or `-Only`) re-applies them with a printed note, so an `-Only` run on the target or on a
+merged source re-drafts the whole merged group and never un-merges it. A `-MergeInto` that gives a kept source
+another target is an error; to change a merge, delete `_manifest-<n>.json` and run a full `-Prepare`.
+`-Finalize` fails when a "merged into <x>" line names a finding that x's draft does not list in its `Reported
+by:` line. The merged group's primary is its highest-severity member, so a Blocker merged into a Minor drafts
+from the Blocker. Audit #19's case:
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare -MergeInto 'docs 6=code 2,docs 5=code 3,docs 4=code 4,docs 2=code 8,docs 9=code 8,tests 5=code 7'
 ```
 
 Duplicate-vs-new is deterministic: `tools/ai/audit/_remediation-checks.ps1`'s `Find-DuplicateAmongCandidates`

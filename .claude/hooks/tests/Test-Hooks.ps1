@@ -3419,6 +3419,193 @@ Two SagaStoreADO test classes duplicate the same setup.
     }
     # ---- end #1534 block ----
 
+    # ---- #1632: audit-draft-remediation.ps1 -MergeInto -- merges one finding's group into another group's by
+    # explicit override, represented like a #1491 same-location merge. Fixture: code 1..4 on distinct files,
+    # docs 1 on code 1's file (a same-location group), docs 2 and tests 1 standalone. -NoGh, no model.
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $remN1632 = 1919
+        $remWt1632 = New-RemediationFixture 'RemediationMergeIntoWt' $remN1632 `
+            "1. **Major** -- ``src/A.cs:20`` first defect.`n2. **Major** -- ``src/B.cs:30`` second defect.`n3. **Minor** -- ``src/C.cs:40`` third defect.`n4. **Minor** -- ``src/D.cs:50`` fourth defect." `
+            "1. **Minor** -- ``tests/TestsOne.cs:5`` a test gap." `
+            "1. **Minor** -- ``src/A.cs:20`` the first defect seen from the docs side.`n2. **Major** -- ``docs/page-two.md:9`` a docs drift."
+        $remDir1632 = Join-Path $remWt1632 'artifacts\knowledge\remediation'
+        function Get-Tree1632 { (@(Get-ChildItem -LiteralPath $remDir1632 -Recurse -File -ErrorAction SilentlyContinue | Sort-Object FullName | ForEach-Object { "$($_.FullName)=$((Get-FileHash -LiteralPath $_.FullName).Hash)" })) -join '|' }
+
+        $base1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh')
+        $baseManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 fixture: the baseline -Prepare exits 0 with 7 findings' { $base1632.Code -eq 0 -and @($baseManifest1632.findings).Count -eq 7 }
+        Write-StageFromManifest $baseManifest1632
+        $before1632 = Get-Tree1632
+
+        # Each validation error stops before any file changes.
+        $cases1632 = @(
+            @{ Label = 'a bad format'; Args = @('-MergeInto', 'docs 2'); Match = "must be '<stage> <n>=<stage> <m>'" },
+            @{ Label = 'a bad format (no second stage)'; Args = @('-MergeInto', 'docs 2=3'); Match = "must be '<stage> <n>=<stage> <m>'" },
+            @{ Label = 'an unknown source key'; Args = @('-MergeInto', 'docs 99=code 2'); Match = 'does not match a finding' },
+            @{ Label = 'an unknown target key'; Args = @('-MergeInto', 'docs 2=code 99'); Match = 'does not match a finding' },
+            @{ Label = 'a self-merge'; Args = @('-MergeInto', 'code 2=code 2'); Match = 'into itself' },
+            @{ Label = 'two findings of one group'; Args = @('-MergeInto', 'docs 1=code 1'); Match = 'same location group' },
+            @{ Label = 'a cycle'; Args = @('-MergeInto', 'code 2=code 3,code 3=code 2'); Match = 'makes a cycle' },
+            @{ Label = 'a target that is itself merged'; Args = @('-MergeInto', 'code 2=code 3,code 3=code 4'); Match = 'itself merged' },
+            @{ Label = 'a source with two targets'; Args = @('-MergeInto', 'code 2=code 3,code 2=code 4'); Match = 'conflicting entries' },
+            @{ Label = 'a duplicate-override target'; Args = @('-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 3=999'); Match = 'records as a duplicate of' },
+            @{ Label = 'a duplicate-override source'; Args = @('-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 2=999'); Match = 'records as a duplicate of' },
+            @{ Label = 'two sources of one group with different targets'; Args = @('-MergeInto', 'code 1=code 2,docs 1=code 3'); Match = 'already merged into a different group' }
+        )
+        foreach ($case in $cases1632) {
+            $r = Invoke-Remediation $remWt1632 (@('-Prepare', '-NoGh') + $case.Args)
+            Test-RemediationCase "#1632 -MergeInto $($case.Label) stops with a message and changes no file" { $r.Code -ne 0 -and $r.Output -match [regex]::Escape($case.Match) -and (Get-Tree1632) -eq $before1632 }
+        }
+        $finalizeMerge1632 = Invoke-Remediation $remWt1632 @('-Finalize', '-MergeInto', 'docs 2=code 2')
+        Test-RemediationCase '#1632 -Finalize with -MergeInto is an error' { $finalizeMerge1632.Code -ne 0 -and $finalizeMerge1632.Output -match 'apply to -Prepare only' }
+
+        # A valid override: docs 2 (a standalone group) into code 2.
+        $merge1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 2')
+        $mergeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto exits 0 and keeps all 7 findings in the manifest' { $merge1632.Code -eq 0 -and @($mergeManifest1632.findings).Count -eq 7 }
+        $c2 = Get-ManifestFinding $mergeManifest1632 'code 2'; $d2 = Get-ManifestFinding $mergeManifest1632 'docs 2'
+        Test-RemediationCase '#1632 -MergeInto: code 2 is the one draft and names both members in Reported by' {
+            $c2.draftFile -and $c2.reportedByLine -eq 'Reported by: code 2, docs 2.' -and @($c2.groupMembers).Count -eq 2
+        }
+        Test-RemediationCase '#1632 -MergeInto: docs 2 has no draft, mergedInto code 2, mergeSource manual override and the manual-override line' {
+            $null -eq $d2.draftFile -and $d2.mergedInto -eq 'code 2' -and $d2.mergeSource -eq 'manual override' -and $d2.remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)'
+        }
+        Test-RemediationCase '#1632 -MergeInto: the override is logged as a lesson' { (@($mergeManifest1632.lessons) -join '|') -match [regex]::Escape('docs 2: merged into code 2 by manual override') }
+        Test-RemediationCase '#1632 -MergeInto: same-location merges keep their own line' { (Get-ManifestFinding $mergeManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)' }
+
+        # -Finalize on the merged manifest: one draft, Reported by inserted, clean.
+        foreach ($mf in @($mergeManifest1632.findings | Where-Object { $_.draftFile })) {
+            $kindName = if ($mf.kind -eq 'drafter-decides') { 'debt' } else { $mf.kind }
+            $route = $mergeManifest1632.routes.$kindName
+            $draft = New-CleanDraft $route.template "$($route.prefix) A specific title for $($mf.key)" (@($route.labels) -join ', ') ([string]$route.milestone) $kindName
+            Set-Content -LiteralPath $mf.draftFile -Encoding utf8 -NoNewline -Value $draft
+        }
+        Set-Content -LiteralPath (Join-Path $remDir1632 "$remN1632-docs-2-orphan.md") -Value 'orphan draft of a merged finding'
+        Write-StageFromManifest $mergeManifest1632
+        $fin1632 = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize on the merged manifest is clean and removes the merged finding''s orphan draft' {
+            $fin1632.Code -eq 0 -and $fin1632.Output -match 'removed 1919-docs-2-orphan.md' -and -not (Test-Path (Join-Path $remDir1632 "$remN1632-docs-2-orphan.md")) -and
+            (Get-Content -LiteralPath $c2.draftFile -Raw) -match 'Reported by: code 2, docs 2\.'
+        }
+
+        # Three-way merge into one target, a source that is a same-location group primary (code 1 + docs 1), and -Only.
+        $three1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 2,code 3=code 2,code 1=code 2')
+        $threeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $t2 = Get-ManifestFinding $threeManifest1632 'code 2'
+        Test-RemediationCase '#1632 -MergeInto three-way (one a whole same-location group): one draft with every member in Reported by' {
+            $three1632.Code -eq 0 -and $t2.reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            @($threeManifest1632.findings | Where-Object { $_.draftFile }).Count -eq 3 -and
+            (Get-ManifestFinding $threeManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 2 (manual override)' -and
+            (Get-ManifestFinding $threeManifest1632 'code 3').mergedInto -eq 'code 2'
+        }
+        Write-StageFromManifest $threeManifest1632
+        $only1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4', '-MergeInto', 'docs 2=code 2')
+        $onlyManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -Only plus -MergeInto: the override group is prepared though not named by -Only; code 4 is prepared; others keep their lines' {
+            $only1632.Code -eq 0 -and (Get-ManifestFinding $onlyManifest1632 'code 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').regenerate -and (Get-ManifestFinding $onlyManifest1632 'code 4').regenerate -and
+            -not (Get-ManifestFinding $onlyManifest1632 'tests 1').regenerate -and (Get-ManifestFinding $onlyManifest1632 'docs 2').remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)'
+        }
+
+        # Merges persist (round 2): the manifest now holds docs 2, code 3 and code 1 merged into code 2.
+        Write-StageFromManifest $onlyManifest1632
+        $kept1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 2')
+        $keptManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $k2 = Get-ManifestFinding $keptManifest1632 'code 2'
+        Test-RemediationCase '#1632 -Only on the target without -MergeInto keeps the merges: note printed, Reported by intact, sources still merged' {
+            $kept1632.Code -eq 0 -and $kept1632.Output -match 'keeping the manual merge' -and $k2.reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            (Get-ManifestFinding $keptManifest1632 'docs 2').remediationLine -eq '- docs 2 (Major): merged into code 2 (manual override)' -and $null -eq (Get-ManifestFinding $keptManifest1632 'docs 2').draftFile -and
+            @($keptManifest1632.mergeOverrides).Count -eq 3
+        }
+        Write-StageFromManifest $keptManifest1632
+        $keptSrc1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'docs 2')
+        $keptSrcManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -Only on a merged source without -MergeInto re-drafts the merged group once: no second draft' {
+            $keptSrc1632.Code -eq 0 -and $null -eq (Get-ManifestFinding $keptSrcManifest1632 'docs 2').draftFile -and (Get-ManifestFinding $keptSrcManifest1632 'code 2').regenerate -and
+            (Get-ManifestFinding $keptSrcManifest1632 'code 2').reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and
+            @(Get-ChildItem -LiteralPath $remDir1632 -Filter "$remN1632-docs-2-*.md" -File -ErrorAction SilentlyContinue).Count -eq 0
+        }
+        $conflict1632 = Get-Tree1632
+        $conflictRun1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4', '-MergeInto', 'docs 2=code 3')
+        Test-RemediationCase '#1632 a -MergeInto that gives a kept source another target is an error and changes no file' {
+            $conflictRun1632.Code -ne 0 -and $conflictRun1632.Output -match 'conflicts with the manual merge' -and (Get-Tree1632) -eq $conflict1632
+        }
+
+        # -Finalize: clean drafts, then an -Only run that keeps code 2's draft, then a hand-broken Reported by.
+        Write-StageFromManifest $keptSrcManifest1632
+        $fullKept1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh')
+        $fullKeptManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 a full -Prepare without -MergeInto re-applies the kept merges' {
+            $fullKept1632.Code -eq 0 -and (Get-ManifestFinding $fullKeptManifest1632 'code 2').reportedByLine -eq 'Reported by: code 2, docs 2, code 3, code 1, docs 1.' -and @($fullKeptManifest1632.findings | Where-Object { $_.draftFile }).Count -eq 3
+        }
+        function Write-CleanDrafts1632($Manifest) {
+            foreach ($mf in @($Manifest.findings | Where-Object { $_.regenerate -and $_.draftFile })) {
+                $kindName = if ($mf.kind -eq 'drafter-decides') { 'debt' } else { $mf.kind }
+                $route = $Manifest.routes.$kindName
+                Set-Content -LiteralPath $mf.draftFile -Encoding utf8 -NoNewline -Value (New-CleanDraft $route.template "$($route.prefix) A specific title for $($mf.key)" (@($route.labels) -join ', ') ([string]$route.milestone) $kindName)
+            }
+        }
+        Write-CleanDrafts1632 $fullKeptManifest1632
+        Write-StageFromManifest $fullKeptManifest1632
+        $fin1632b = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize on a manifest with kept merges is clean' { $fin1632b.Code -eq 0 }
+        $null = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-Only', 'code 4')
+        $keepDraftManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Write-CleanDrafts1632 $keepDraftManifest1632
+        Write-StageFromManifest $keepDraftManifest1632
+        $keepDraft1632 = (Get-ManifestFinding $keepDraftManifest1632 'code 2').draftFile
+        $brokenText1632 = (Get-Content -LiteralPath $keepDraft1632 -Raw) -replace '(?m)^Reported by:[^\r\n]*\r?\n?', ''
+        Set-Content -LiteralPath $keepDraft1632 -Encoding utf8 -NoNewline -Value $brokenText1632
+        $finBroken1632 = Invoke-Remediation $remWt1632 @('-Finalize')
+        Test-RemediationCase '#1632 -Finalize catches a hand-broken Reported by line of a kept draft' {
+            $finBroken1632.Code -eq 1 -and $finBroken1632.Output -match 'is recorded as merged into code 2' -and $finBroken1632.Output -match "no 'Reported by:' line naming it"
+        }
+
+        # A named target that is a non-primary member of its own same-location group (docs 1 in code 1's group) is not
+        # mislabelled: docs 1 keeps its same-location line, only code 2 is a manual merge. Start the merges over.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $nonPrimary1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=docs 1')
+        $nonPrimaryManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto with a non-primary target: docs 1 stays a same-location merge, code 2 is the manual one' {
+            $nonPrimary1632.Code -eq 0 -and (Get-ManifestFinding $nonPrimaryManifest1632 'docs 1').remediationLine -eq '- docs 1 (Minor): merged into code 1 (same location)' -and $null -eq (Get-ManifestFinding $nonPrimaryManifest1632 'docs 1').mergeSource -and
+            (Get-ManifestFinding $nonPrimaryManifest1632 'code 2').remediationLine -eq '- code 2 (Major): merged into code 1 (manual override)' -and (Get-ManifestFinding $nonPrimaryManifest1632 'code 1').reportedByLine -eq 'Reported by: code 1, docs 1, code 2.'
+        }
+
+        # -MergeInto plus -DuplicateOf on unrelated groups work together.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $coexist1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=code 3', '-DuplicateOf', 'code 4=999')
+        $coexistManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 -MergeInto and -DuplicateOf on unrelated groups in one run' {
+            $coexist1632.Code -eq 0 -and (Get-ManifestFinding $coexistManifest1632 'code 4').remediationLine -eq '- code 4 (Minor): duplicate of #999 (manual override)' -and
+            (Get-ManifestFinding $coexistManifest1632 'code 3').remediationLine -eq '- code 3 (Minor): merged into code 2 (manual override)' -and (Get-ManifestFinding $coexistManifest1632 'code 2').reportedByLine -eq 'Reported by: code 3, code 2.'
+        }
+
+        # A higher-severity source: docs 2 (Major) into code 3 (Minor) makes docs 2 the merged group's primary.
+        Remove-Item -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Force
+        $sev1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'docs 2=code 3')
+        $sevManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        $sd2 = Get-ManifestFinding $sevManifest1632 'docs 2'; $sc3 = Get-ManifestFinding $sevManifest1632 'code 3'
+        Test-RemediationCase '#1632 -MergeInto: a higher-severity source becomes the merged group''s primary and the lesson says so' {
+            $sev1632.Code -eq 0 -and $sd2.draftFile -and $null -eq $sc3.draftFile -and $sc3.remediationLine -eq '- code 3 (Minor): merged into docs 2 (manual override)' -and $sc3.mergeSource -eq 'manual override' -and
+            $sd2.reportedByLine -eq 'Reported by: code 3, docs 2.' -and (@($sevManifest1632.lessons) -join '|') -match [regex]::Escape("docs 2: merged into code 3 by manual override (the merged group's primary is docs 2)")
+        }
+
+        # Audit #19's exact situation: the previous manifest predates mergeOverrides (no such field), and a full
+        # -Prepare -MergeInto runs on top of it. The old manifest is valid and means "no kept merges".
+        $oldShape1632 = $sevManifest1632 | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $oldShape1632.PSObject.Properties.Remove('mergeOverrides')
+        Set-Content -LiteralPath (Join-Path $remDir1632 "_manifest-$remN1632.json") -Encoding utf8 -Value ($oldShape1632 | ConvertTo-Json -Depth 20)
+        $legacyMerge1632 = Invoke-Remediation $remWt1632 @('-Prepare', '-NoGh', '-MergeInto', 'code 2=code 3')
+        $legacyMergeManifest1632 = Get-RemediationManifest $remWt1632 $remN1632
+        Test-RemediationCase '#1632 a previous manifest without mergeOverrides followed by a full -Prepare -MergeInto works (audit #19)' {
+            $legacyMerge1632.Code -eq 0 -and $legacyMerge1632.Output -notmatch 'keeping the manual merge' -and @($legacyMergeManifest1632.mergeOverrides).Count -eq 1 -and
+            (Get-ManifestFinding $legacyMergeManifest1632 'code 3').remediationLine -eq '- code 3 (Minor): merged into code 2 (manual override)'
+        }
+    }
+    else {
+        'SKIP #1632 fixture: git is not on PATH'
+    }
+    # ---- end #1632 block ----
+
     # ---- #1393: tools/ai/audit/_remediation-checks.ps1 -- a candidate counts as the same defect only when it is
     # ABOUT the finding's location and symbol (its title and location sections: Location, Current/Actual
     # Behavior, Code Sample, ...), not when it merely MENTIONS them in its Description, Root Cause, Proposed Fix,
