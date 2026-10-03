@@ -20,6 +20,38 @@ public sealed class ABACRegistrationTests
     private sealed record GuardedRequest : IRequest<string>;
 
     [Fact]
+    public void AddEncinaABAC_WithEveryStartupFeature_RegistersEachHostedServiceAndHealthCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Substitute.For<ISecurityContextAccessor>());
+        services.AddEncinaABAC(options =>
+        {
+            options.AddHealthCheck = true;
+            options.ValidateExpressionsAtStartup = true;
+            options.ExpressionScanAssemblies.Add(typeof(ABACRegistrationTests).Assembly);
+            options.SeedPolicies.Add(new Policy
+            {
+                Id = "seed",
+                Target = null,
+                Algorithm = CombiningAlgorithmId.DenyOverrides,
+                Rules = [],
+                Obligations = [],
+                Advice = [],
+                VariableDefinitions = []
+            });
+        });
+
+        var hosted = services.Where(d => d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService))
+            .Select(d => d.ImplementationType?.Name).ToList();
+
+        hosted.ShouldContain("ABACPolicySeedingHostedService");
+        hosted.ShouldContain("EELExpressionPrecompilationService");
+        services.ShouldContain(d => d.ServiceType == typeof(Microsoft.Extensions.Options.IConfigureOptions<
+            Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckServiceOptions>));
+    }
+
+    [Fact]
     public void AddEncinaABAC_BuildsValidatedProviderAndResolvesPipelineBehavior()
     {
         var services = new ServiceCollection();

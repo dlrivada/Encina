@@ -571,24 +571,24 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     private bool TryResolveActor(out PolicyActor actor)
     {
         var context = _requestContextAccessor?.RequestContext;
-        var correlationId = context?.CorrelationId ?? Guid.NewGuid().ToString();
-
-        if (PolicyChangeActorScope.IsSystemActorActive)
-        {
-            actor = new PolicyActor(SystemActorId, context?.TenantId, correlationId, IsSystem: true);
-            return true;
-        }
-
-        var userId = context?.UserId;
+        var isSystem = PolicyChangeActorScope.IsSystemActorActive;
+        var userId = isSystem ? SystemActorId : UserIdOf(context);
         if (string.IsNullOrWhiteSpace(userId))
         {
             actor = default;
             return false;
         }
 
-        actor = new PolicyActor(userId, context?.TenantId, correlationId, IsSystem: false);
+        actor = new PolicyActor(userId, TenantIdOf(context), CorrelationIdOf(context), isSystem);
         return true;
     }
+
+    private static string? UserIdOf(IRequestContext? context) => context?.UserId;
+
+    private static string? TenantIdOf(IRequestContext? context) => context?.TenantId;
+
+    private static string CorrelationIdOf(IRequestContext? context) =>
+        context?.CorrelationId ?? Guid.NewGuid().ToString();
 
     /// <summary>
     /// Applies a change after its audit record is written. The audit store is resolved in its own
