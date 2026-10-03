@@ -14,7 +14,7 @@ namespace Encina.UnitTests.Security.ABAC.Persistence;
 /// <summary>
 /// Regression tests for #1677: policy changes of <see cref="PersistentPolicyAdministrationPoint"/>
 /// are audited fail closed, refused without a principal, and wired with the <see cref="IAuditStore"/>
-/// resolved per write in its own scope (the policy-store lifetime is tracked by #1707).
+/// resolved per write in its own scope, together with the policy store (#1707).
 /// </summary>
 public sealed class PersistentPolicyAdministrationPointFailClosedTests
 {
@@ -93,6 +93,7 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
         IPolicyStore store, IAuditStore? auditStore, IRequestContextAccessor? accessor)
     {
         var services = new ServiceCollection();
+        services.AddScoped(_ => store);
         if (auditStore is not null)
         {
             services.AddScoped(_ => auditStore);
@@ -100,9 +101,8 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
 
         var provider = services.BuildServiceProvider();
         return new PersistentPolicyAdministrationPoint(
-            store,
-            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
             provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
             accessor);
     }
 
@@ -130,10 +130,9 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
         services.AddLogging();
         services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddSingleton(CreateAccessor("alice"));
-        // The guarantee proven here covers IAuditStore only (resolved per write in its own scope).
-        // The policy store is registered as a singleton because the singleton PAP still captures
-        // the scoped IPolicyStore of every database provider until #1707 fixes the policy-store lifetime.
-        services.AddSingleton(store);
+        // Both stores are scoped, like every database provider's: the singleton PAP resolves them
+        // per operation in its own scope.
+        services.AddScoped(_ => store);
         services.AddScoped<IAuditStore>(_ =>
         {
             created++;
