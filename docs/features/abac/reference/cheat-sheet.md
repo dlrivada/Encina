@@ -216,6 +216,6 @@ user.isAdmin == true || user.department == "security"
 | 9072-9078 | Required policies, conditions and obligation or advice handler exceptions |
 | 9091-9093 | Fail-closed denials: missing context, policy store retrieval failure, store evaluation exception (9079-9090 are reserved for #751) |
 | 9094 | Policy change audit write failed (error code) |
-| 9095 | Exception during a policy change audit write or while resolving the audit store |
+| 9095 | Exception during a policy change audit write |
 | 9096 | System actor scope opened for startup seeding |
 | 9097 | Policy changes applied without an audit store (Warning, once per PAP instance) |

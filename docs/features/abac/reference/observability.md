@@ -185,7 +185,7 @@ Emitted by `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPol
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
 | 9094 | `Error` | `Audit write failed for policy change {Action} on {EntityType} '{EntityId}': {ErrorCode}` | `action`, `entityType`, `entityId`, `errorCode` |
-| 9095 | `Error` | `Exception during the audit write (or while resolving the audit store) for policy change {Action} on {EntityType} '{EntityId}'` | `action`, `entityType`, `entityId`, `exception` |
+| 9095 | `Error` | `Exception during the audit write for policy change {Action} on {EntityType} '{EntityId}'` | `action`, `entityType`, `entityId`, `exception` |
 | 9096 | `Information` | `System actor scope opened for ABAC policy seeding; policy changes are recorded as made by the system actor` | none |
 | 9097 | `Warning` | `ABAC policy changes are being applied without an audit record: {Condition}` | `condition` (logged once per PAP instance) |
 
