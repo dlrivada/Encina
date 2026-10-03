@@ -263,7 +263,7 @@ public sealed class ABACPipelineBehaviorContractTests
     }
 
     [Fact]
-    public async Task Handle_WhenIndeterminate_InWarnMode_ShouldCallNextStep()
+    public async Task Handle_WhenIndeterminate_InWarnMode_ShouldStillDeny()
     {
         // Arrange
         var behavior = CreateBehavior<TestPolicyCommand, string>(
@@ -271,10 +271,11 @@ public sealed class ABACPipelineBehaviorContractTests
             new ABACOptions { EnforcementMode = ABACEnforcementMode.Warn });
 
         // Act
-        var (result, _) = await SendAsync(behavior);
+        var (result, nextCalled) = await SendAsync(behavior);
 
-        // Assert
-        result.IsRight.ShouldBeTrue("Indeterminate in Warn mode must allow the request");
+        // Assert: Warn relaxes only definite denials; an evaluation error denies in every mode.
+        result.IsLeft.ShouldBeTrue("Indeterminate is an evaluation error and must deny in Warn mode too");
+        nextCalled.ShouldBeFalse();
     }
 
     // -- Exception during evaluation --
