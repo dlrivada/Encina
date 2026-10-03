@@ -144,18 +144,22 @@ internal static class SubjectIdConversion
         ArgumentNullException.ThrowIfNull(type);
 
         var underlying = Nullable.GetUnderlyingType(type) ?? type;
-        if (underlying == typeof(string) || underlying == typeof(Guid) || IntegerTypes.Contains(underlying))
-        {
-            return true;
-        }
+        return IsPrimitiveSubjectType(underlying) || IsStronglyTypedId(underlying);
+    }
 
-        if (underlying.IsEnum || underlying.Assembly == typeof(object).Assembly)
+    private static bool IsPrimitiveSubjectType(Type type) =>
+        type == typeof(string) || type == typeof(Guid) || IntegerTypes.Contains(type);
+
+    private static bool IsStronglyTypedId(Type type)
+    {
+        // Enums and every other base-class-library type implement IFormattable but are not identifiers.
+        if (type.IsEnum || type.Assembly == typeof(object).Assembly)
         {
             return false;
         }
 
-        return ValuePropertyCache.GetOrAdd(underlying, ResolveValueProperty) is not null
-            || typeof(IFormattable).IsAssignableFrom(underlying);
+        return ValuePropertyCache.GetOrAdd(type, ResolveValueProperty) is not null
+            || typeof(IFormattable).IsAssignableFrom(type);
     }
 
     private static bool TryConvertPrimitive(object value, out string? result)

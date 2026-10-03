@@ -85,37 +85,13 @@ internal static class CryptoShreddedPropertyCache
         foreach (var property in properties)
         {
             var attribute = property.GetCustomAttribute<CryptoShreddedAttribute>();
-            if (attribute is null)
+            if (attribute is null || !IsEncryptableProperty(property))
             {
                 continue;
             }
 
-            // Validate: property must be readable
-            if (!property.CanRead)
-            {
-                continue;
-            }
-
-            // Validate: property must be a string (only strings can be encrypted for crypto-shredding)
-            if (property.PropertyType != typeof(string))
-            {
-                continue;
-            }
-
-            // Validate: [PersonalData] must co-exist
-            var personalDataAttr = property.GetCustomAttribute<PersonalDataAttribute>();
-            if (personalDataAttr is null)
-            {
-                continue;
-            }
-
-            // Validate: SubjectIdProperty must reference a valid, readable property (its type is
-            // checked at startup and converted by SubjectIdConversion at serialization time)
-            var subjectIdProperty = type.GetProperty(
-                attribute.SubjectIdProperty,
-                BindingFlags.Public | BindingFlags.Instance);
-
-            if (subjectIdProperty is null || !subjectIdProperty.CanRead)
+            var subjectIdProperty = FindReadableSubjectIdProperty(type, attribute);
+            if (subjectIdProperty is null)
             {
                 continue;
             }
@@ -136,6 +112,23 @@ internal static class CryptoShreddedPropertyCache
 
         return [.. cryptoShredded];
     }
+
+    // SubjectIdProperty must reference a valid, readable property (its type is checked at startup
+    // and converted by SubjectIdConversion at serialization time).
+    private static PropertyInfo? FindReadableSubjectIdProperty(Type type, CryptoShreddedAttribute attribute)
+    {
+        var subjectIdProperty = type.GetProperty(
+            attribute.SubjectIdProperty,
+            BindingFlags.Public | BindingFlags.Instance);
+
+        return subjectIdProperty is { CanRead: true } ? subjectIdProperty : null;
+    }
+
+    // The property must be readable, a string (only strings can be encrypted) and carry [PersonalData].
+    private static bool IsEncryptableProperty(PropertyInfo property) =>
+        property.CanRead
+        && property.PropertyType == typeof(string)
+        && property.GetCustomAttribute<PersonalDataAttribute>() is not null;
 
     /// <summary>
     /// Compiles a fast setter delegate from an expression tree for the specified property.
