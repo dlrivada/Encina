@@ -559,6 +559,12 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
+      # Closes #1670: prove the coverage-manifest generator (append-only default, --full, argument and
+      # checkout guards; #1542, #1702) still behaves before trusting the manifests it writes.
+      - name: Self-test generate-coverage-manifest.cs
+        shell: pwsh
+        run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --self-test
+
       - name: Check coverage citations for dangling DocRefs
         run: |
           dotnet run .github/scripts/cov-docs-render.cs -- \
