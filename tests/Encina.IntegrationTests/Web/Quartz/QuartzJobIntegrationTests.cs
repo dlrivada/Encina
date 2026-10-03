@@ -33,8 +33,30 @@ public sealed class QuartzJobIntegrationTests
         // Act
         await job.Execute(context);
 
+        // Assert: the response is not exposed by default
+        context.Result.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Integration_RequestJob_WithExposeResponseOptIn_ShouldSetContextResult()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddEncina();
+        services.AddTransient<IRequestHandler<TestRequest, string>, TestRequestHandler>();
+
+        var provider = services.BuildServiceProvider();
+        var Encina = provider.GetRequiredService<IEncina>();
+        var logger = Substitute.For<ILogger<QuartzRequestJob<TestRequest, string>>>();
+        var options = new EncinaQuartzOptions { ExposeResponseInJobContext = true };
+
+        var job = new QuartzRequestJob<TestRequest, string>(Encina, logger, options: options);
+        var context = CreateJobExecutionContext(new TestRequest("integration-test"));
+
+        // Act
+        await job.Execute(context);
+
         // Assert
-        context.Result.ShouldNotBeNull();
         context.Result.ShouldBe("Processed: integration-test");
     }
 
