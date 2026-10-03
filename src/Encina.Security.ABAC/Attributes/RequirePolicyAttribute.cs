@@ -12,9 +12,8 @@ namespace Encina.Security.ABAC;
 /// </para>
 /// <para>
 /// A required policy passes only when it returns <see cref="Effect.Permit"/>. Deny and
-/// NotApplicable do not pass (a policy that is required but does not apply cannot authorize, and
-/// <see cref="ABACOptions.DefaultNotApplicableEffect"/> does not apply to it); Indeterminate is
-/// handled as an Indeterminate decision. A name that is neither a policy set nor a policy in the
+/// NotApplicable do not pass (a policy that is required but does not apply cannot authorize);
+/// Indeterminate is handled as an Indeterminate decision. A name that is neither a policy set nor a policy in the
 /// store denies the request with <see cref="ABACErrors.PolicyNotFoundCode"/>. When a policy set
 /// and a policy share the name, the policy set is evaluated.
 /// </para>

@@ -208,17 +208,15 @@ public sealed class ABACPipelineBehaviorContractTests
         nextCalled.ShouldBeTrue();
     }
 
-    // -- A required policy that is NotApplicable denies, whatever DefaultNotApplicableEffect says --
+    // -- A required policy that is NotApplicable denies --
 
-    [Theory]
-    [InlineData(Effect.Deny)]
-    [InlineData(Effect.Permit)]
-    public async Task Handle_WhenNamedPolicyIsNotApplicable_ShouldDeny(Effect defaultNotApplicable)
+    [Fact]
+    public async Task Handle_WhenNamedPolicyIsNotApplicable_ShouldDeny()
     {
         // Arrange
         var behavior = CreateBehavior<TestPolicyCommand, string>(
             PdpReturning(MakeDecision(Effect.NotApplicable)),
-            new ABACOptions { EnforcementMode = ABACEnforcementMode.Block, DefaultNotApplicableEffect = defaultNotApplicable });
+            new ABACOptions { EnforcementMode = ABACEnforcementMode.Block });
 
         // Act
         var (result, nextCalled) = await SendAsync(behavior);

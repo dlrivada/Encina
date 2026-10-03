@@ -69,6 +69,9 @@ public sealed class ABACPipelineBehaviorTests
     [RequireCondition("user.department == \"HR\"")]
     private sealed record PolicyAndConditionRequest : IRequest<string>;
 
+    [RequireCondition("resource.owner == \"alice\"")]
+    private sealed record OwnedByAliceRequest(string Owner) : IRequest<string>;
+
     private sealed record UnprotectedRequest : IRequest<string>;
 
     #endregion
@@ -114,14 +117,16 @@ public sealed class ABACPipelineBehaviorTests
         IReadOnlyDictionary<string, object>? subject = null,
         ObligationExecutor? obligationExecutor = null,
         ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
-        Effect defaultNotApplicable = Effect.Deny)
+        Func<TRequest, IReadOnlyDictionary<string, object>>? resourceOf = null)
         where TRequest : IRequest<string>
     {
         var attributeProvider = Substitute.For<IAttributeProvider>();
         attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(subject ?? new Dictionary<string, object>());
         attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<string, object>());
+            .Returns(call => resourceOf is null
+                ? new Dictionary<string, object>()
+                : resourceOf(call.ArgAt<TRequest>(0)));
         attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
 
@@ -136,7 +141,7 @@ public sealed class ABACPipelineBehaviorTests
             accessor,
             obligationExecutor ?? Executor(),
             Compiler,
-            Options.Create(new ABACOptions { EnforcementMode = mode, DefaultNotApplicableEffect = defaultNotApplicable }),
+            Options.Create(new ABACOptions { EnforcementMode = mode }),
             logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
 
@@ -171,6 +176,29 @@ public sealed class ABACPipelineBehaviorTests
 
     private static AdviceExpression Advice(string id, FulfillOn on) =>
         new() { Id = id, AppliesTo = on, AttributeAssignments = [] };
+
+    #endregion
+
+    #region Resource attributes come from the request
+
+    [Theory]
+    [InlineData("alice", true)]
+    [InlineData("bob", false)]
+    public async Task Handle_ResourceCondition_IsDecidedByTheAttributesOfTheRequest(string owner, bool permitted)
+    {
+        var behavior = CreateBehavior<OwnedByAliceRequest>(
+            Pdp(),
+            resourceOf: request => new Dictionary<string, object> { ["owner"] = request.Owner });
+
+        var (result, nextCalled) = await SendAsync(behavior, new OwnedByAliceRequest(owner));
+
+        result.IsRight.ShouldBe(permitted);
+        nextCalled.ShouldBe(permitted);
+        if (!permitted)
+        {
+            Code(result).ShouldBe(ABACErrors.ConditionNotMetCode);
+        }
+    }
 
     #endregion
 
@@ -232,10 +260,9 @@ public sealed class ABACPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_NamedPolicyNotApplicable_DeniesEvenWhenDefaultNotApplicableIsPermit()
+    public async Task Handle_NamedPolicyNotApplicable_Denies()
     {
-        var behavior = CreateBehavior<PolicyARequest>(
-            Pdp(("policy-a", Effect.NotApplicable)), defaultNotApplicable: Effect.Permit);
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.NotApplicable)));
 
         var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
 

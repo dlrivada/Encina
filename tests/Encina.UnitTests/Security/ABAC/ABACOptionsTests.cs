@@ -21,15 +21,6 @@ public sealed class ABACOptionsTests
     }
 
     [Fact]
-    public void DefaultNotApplicableEffect_DefaultsToDeny()
-    {
-        var options = new ABACOptions();
-
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Deny,
-            "Closed-world assumption: unmatched requests denied by default");
-    }
-
-    [Fact]
     public void IncludeAdvice_DefaultsToTrue()
     {
         var options = new ABACOptions();
@@ -107,16 +98,6 @@ public sealed class ABACOptionsTests
         var options = new ABACOptions { EnforcementMode = mode };
 
         options.EnforcementMode.ShouldBe(mode);
-    }
-
-    [Theory]
-    [InlineData(Effect.Deny)]
-    [InlineData(Effect.Permit)]
-    public void DefaultNotApplicableEffect_CanBeSet(Effect effect)
-    {
-        var options = new ABACOptions { DefaultNotApplicableEffect = effect };
-
-        options.DefaultNotApplicableEffect.ShouldBe(effect);
     }
 
     #endregion

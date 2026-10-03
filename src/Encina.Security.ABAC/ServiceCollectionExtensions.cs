@@ -73,7 +73,6 @@ public static class ServiceCollectionExtensions
     /// services.AddEncinaABAC(options =>
     /// {
     ///     options.EnforcementMode = ABACEnforcementMode.Block;
-    ///     options.DefaultNotApplicableEffect = Effect.Deny;
     ///     options.IncludeAdvice = true;
     ///     options.FailOnMissingObligationHandler = true;
     ///     options.AddHealthCheck = true;

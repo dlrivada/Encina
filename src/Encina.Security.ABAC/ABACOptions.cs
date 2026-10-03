@@ -19,7 +19,6 @@ namespace Encina.Security.ABAC;
 /// services.AddEncinaABAC(options =>
 /// {
 ///     options.EnforcementMode = ABACEnforcementMode.Block;
-///     options.DefaultNotApplicableEffect = Effect.Deny;
 ///     options.IncludeAdvice = true;
 ///     options.FailOnMissingObligationHandler = true;
 ///     options.AddHealthCheck = true;
@@ -47,26 +46,6 @@ public sealed class ABACOptions
     /// Default is <see cref="ABACEnforcementMode.Block"/>.
     /// </remarks>
     public ABACEnforcementMode EnforcementMode { get; set; } = ABACEnforcementMode.Block;
-
-    /// <summary>
-    /// Gets or sets the effect to apply when no policy matches the request (NotApplicable).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// XACML 3.0 leaves the handling of NotApplicable to the PEP. Common choices:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description><see cref="Effect.Deny"/> — closed-world assumption; unmatched requests are denied (default).</description></item>
-    /// <item><description><see cref="Effect.Permit"/> — open-world assumption; unmatched requests are allowed.</description></item>
-    /// </list>
-    /// Default is <see cref="Effect.Deny"/> (secure by default).
-    /// <para>
-    /// <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> does not consult this value: a policy
-    /// named by <see cref="RequirePolicyAttribute"/> that is NotApplicable denies the request, and
-    /// <see cref="RequireConditionAttribute"/> conditions are true or false.
-    /// </para>
-    /// </remarks>
-    public Effect DefaultNotApplicableEffect { get; set; } = Effect.Deny;
 
     /// <summary>
     /// Gets or sets whether to include advice expressions in policy evaluation results.

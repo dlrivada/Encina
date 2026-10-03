@@ -79,7 +79,6 @@ public class ServiceCollectionExtensionsGuardTests
         services.AddEncinaABAC(options =>
         {
             options.EnforcementMode = ABACEnforcementMode.Warn;
-            options.DefaultNotApplicableEffect = Effect.Permit;
             options.IncludeAdvice = false;
         });
 
@@ -87,7 +86,6 @@ public class ServiceCollectionExtensionsGuardTests
         var options = sp.GetRequiredService<IOptions<ABACOptions>>().Value;
 
         options.EnforcementMode.ShouldBe(ABACEnforcementMode.Warn);
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Permit);
         options.IncludeAdvice.ShouldBeFalse();
     }
 

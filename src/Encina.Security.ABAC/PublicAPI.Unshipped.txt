@@ -13,8 +13,6 @@ Encina.Security.ABAC.ABACAttributeInfo.PolicyAttributes.init -> void
 Encina.Security.ABAC.ABACErrors
 Encina.Security.ABAC.ABACOptions
 Encina.Security.ABAC.ABACOptions.ABACOptions() -> void
-Encina.Security.ABAC.ABACOptions.DefaultNotApplicableEffect.get -> Encina.Security.ABAC.Effect
-Encina.Security.ABAC.ABACOptions.DefaultNotApplicableEffect.set -> void
 Encina.Security.ABAC.ABACOptions.EnforcementMode.get -> Encina.Security.ABAC.ABACEnforcementMode
 Encina.Security.ABAC.ABACOptions.EnforcementMode.set -> void
 Encina.Security.ABAC.ABACOptions.AddFunction(string! functionId, Encina.Security.ABAC.IXACMLFunction! function) -> Encina.Security.ABAC.ABACOptions!
@@ -33,7 +31,7 @@ Encina.Security.ABAC.ABACOptions.UsePersistentPAP.set -> void
 Encina.Security.ABAC.ABACOptions.UseXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACOptions.RegisterXacmlXmlSerializer() -> Encina.Security.ABAC.ABACOptions!
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>
-Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ISecurityContextAccessor! securityContextAccessor, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.ABACPipelineBehavior(Encina.Security.ABAC.IPolicyDecisionPoint! pdp, Encina.Security.ABAC.IAttributeProvider! attributeProvider, Encina.Security.ISecurityContextAccessor! securityContextAccessor, Encina.Security.ABAC.ObligationExecutor! obligationExecutor, Encina.Security.ABAC.EEL.EELCompiler! eelCompiler, Microsoft.Extensions.Options.IOptions<Encina.Security.ABAC.ABACOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>!>! logger) -> void
 Encina.Security.ABAC.ABACPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.AddPolicyAsync(Encina.Security.ABAC.Policy! policy, string? parentPolicySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
@@ -295,6 +293,7 @@ Encina.Security.ABAC.Evaluation.TargetEvaluator.EvaluateTarget(Encina.Security.A
 Encina.Security.ABAC.Evaluation.TargetEvaluator.TargetEvaluator(Encina.Security.ABAC.IFunctionRegistry! functionRegistry) -> void
 Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint
 Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint.EvaluateAsync(Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.PolicyDecision!>
+Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint.EvaluatePolicyAsync(string! policyId, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicyDecision!>>
 Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint.XACMLPolicyDecisionPoint(Encina.Security.ABAC.IPolicyAdministrationPoint! pap, Encina.Security.ABAC.Evaluation.TargetEvaluator! targetEvaluator, Encina.Security.ABAC.Evaluation.ConditionEvaluator! conditionEvaluator, Encina.Security.ABAC.CombiningAlgorithms.CombiningAlgorithmFactory! algorithmFactory, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Evaluation.XACMLPolicyDecisionPoint!>! logger) -> void
 Encina.Security.ABAC.FulfillOn
 Encina.Security.ABAC.FulfillOn.Deny = 1 -> Encina.Security.ABAC.FulfillOn
@@ -332,6 +331,7 @@ Encina.Security.ABAC.IPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Securit
 Encina.Security.ABAC.IPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.IPolicyDecisionPoint
 Encina.Security.ABAC.IPolicyDecisionPoint.EvaluateAsync(Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.PolicyDecision!>
+Encina.Security.ABAC.IPolicyDecisionPoint.EvaluatePolicyAsync(string! policyId, Encina.Security.ABAC.PolicyEvaluationContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Security.ABAC.PolicyDecision!>>
 Encina.Security.ABAC.IPolicyInformationPoint
 Encina.Security.ABAC.IPolicyInformationPoint.ResolveAttributeAsync(Encina.Security.ABAC.AttributeDesignator! designator, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Encina.Security.ABAC.AttributeBag!>
 Encina.Security.ABAC.IXACMLFunction
@@ -498,6 +498,7 @@ Encina.Security.ABAC.XACMLStatusCodes
 const Encina.Security.ABAC.ABACErrors.AccessDeniedCode = "abac.access_denied" -> string!
 const Encina.Security.ABAC.ABACErrors.AttributeResolutionFailedCode = "abac.attribute_resolution_failed" -> string!
 const Encina.Security.ABAC.ABACErrors.CombiningFailedCode = "abac.combining_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.ConditionNotMetCode = "abac.condition_not_met" -> string!
 const Encina.Security.ABAC.ABACErrors.DuplicatePolicyCode = "abac.duplicate_policy" -> string!
 const Encina.Security.ABAC.ABACErrors.DuplicatePolicySetCode = "abac.duplicate_policy_set" -> string!
 const Encina.Security.ABAC.ABACErrors.EvaluationFailedCode = "abac.evaluation_failed" -> string!
@@ -509,6 +510,7 @@ const Encina.Security.ABAC.ABACErrors.InvalidPolicyCode = "abac.invalid_policy" 
 const Encina.Security.ABAC.ABACErrors.InvalidPolicySetCode = "abac.invalid_policy_set" -> string!
 const Encina.Security.ABAC.ABACErrors.MissingContextCode = "abac.missing_context" -> string!
 const Encina.Security.ABAC.ABACErrors.ObligationFailedCode = "abac.obligation_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.ObligationHandlerExceptionCode = "abac.obligation_handler_exception" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode = "abac.policy_not_found" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode = "abac.policy_set_not_found" -> string!
 const Encina.Security.ABAC.ABACErrors.DeserializationFailedCode = "abac.deserialization_failed" -> string!
@@ -660,6 +662,7 @@ static Encina.Security.ABAC.ABACAttributeInfo.Resolve<TRequest>() -> Encina.Secu
 static Encina.Security.ABAC.ABACErrors.AccessDenied(System.Type! requestType, string? policyId = null) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.AttributeResolutionFailed(string! attributeId, Encina.Security.ABAC.AttributeCategory category) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.CombiningFailed(string! algorithmId, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.ConditionNotMet(System.Type! requestType, int conditionIndex) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DuplicatePolicy(string! policyId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DuplicatePolicySet(string! policySetId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.EvaluationFailed(System.Type! requestType, System.Exception! exception) -> Encina.EncinaError
@@ -671,8 +674,10 @@ static Encina.Security.ABAC.ABACErrors.InvalidPolicy(string! policyId, string! r
 static Encina.Security.ABAC.ABACErrors.InvalidPolicySet(string! policySetId, string! reason) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.MissingContext(System.Type! requestType) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.ObligationFailed(string! obligationId, string? reason = null) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.ObligationHandlerException(string! obligationId, System.Type! exceptionType) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicyNotFound(string! policyId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicySetNotFound(string! policySetId) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFound(System.Type! requestType, string! policyName) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.DeserializationFailed(string! targetType, string! reason) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.SerializationFailed(string! targetType, string! reason) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.VariableNotFound(string! variableId) -> Encina.EncinaError

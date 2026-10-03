@@ -54,7 +54,6 @@ namespace Encina.Security.ABAC;
 /// services.AddEncinaABAC(options =>
 /// {
 ///     options.EnforcementMode = ABACEnforcementMode.Block;
-///     options.DefaultNotApplicableEffect = Effect.Deny;
 /// });
 /// </code>
 /// </example>
@@ -144,7 +143,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         try
         {
             // ── 4. Collect attributes ───────────────────────────────
-            var attributes = await CollectAttributesAsync(cancellationToken)
+            var attributes = await CollectAttributesAsync(request, cancellationToken)
                 .ConfigureAwait(false);
 
             // ── 5. Evaluate the required policies and conditions ────
@@ -188,7 +187,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Decision Processing ─────────────────────────────────────────
 
     // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is
-    // NotApplicable is already a Deny verdict, so DefaultNotApplicableEffect does not apply.
+    // NotApplicable of a required policy is already a Deny verdict.
     private async ValueTask<Either<EncinaError, TResponse>> ProcessDecisionAsync(
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
@@ -347,6 +346,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Attribute Collection ────────────────────────────────────────
 
     private async ValueTask<ABACCollectedAttributes> CollectAttributesAsync(
+        TRequest request,
         CancellationToken cancellationToken)
     {
         var securityContext = _securityContextAccessor.SecurityContext;
@@ -357,7 +357,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             .ConfigureAwait(false);
 
         var resourceAttributes = await _attributeProvider
-            .GetResourceAttributesAsync<TRequest>(default!, cancellationToken)
+            .GetResourceAttributesAsync(request, cancellationToken)
             .ConfigureAwait(false);
 
         var environmentAttributes = await _attributeProvider

@@ -22,14 +22,6 @@ public class ABACOptionsGuardTests
     }
 
     [Fact]
-    public void Defaults_DefaultNotApplicableEffect_IsDeny()
-    {
-        var options = new ABACOptions();
-
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Deny);
-    }
-
-    [Fact]
     public void Defaults_IncludeAdvice_IsTrue()
     {
         var options = new ABACOptions();
@@ -128,14 +120,6 @@ public class ABACOptionsGuardTests
         var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Disabled };
 
         options.EnforcementMode.ShouldBe(ABACEnforcementMode.Disabled);
-    }
-
-    [Fact]
-    public void DefaultNotApplicableEffect_CanBeSetToPermit()
-    {
-        var options = new ABACOptions { DefaultNotApplicableEffect = Effect.Permit };
-
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Permit);
     }
 
     [Fact]
