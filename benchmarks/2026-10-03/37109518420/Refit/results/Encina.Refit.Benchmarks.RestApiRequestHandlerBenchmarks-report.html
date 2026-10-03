@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261003-091211</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.64GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean   </th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>10.52 &mu;s</td><td>1.163 &mu;s</td><td>0.064 &mu;s</td><td>0.000</td><td>0.00</td><td>1</td><td>0.4272</td><td>7.15 KB</td><td>0.75</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>24.97 &mu;s</td><td>4.348 &mu;s</td><td>0.238 &mu;s</td><td>0.001</td><td>0.00</td><td>2</td><td>0.9155</td><td>15.06 KB</td><td>1.59</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>21,265.59 &mu;s</td><td>3,050.196 &mu;s</td><td>167.192 &mu;s</td><td>1.000</td><td>0.01</td><td>3</td><td>-</td><td>9.47 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>27,037.48 &mu;s</td><td>2,518.012 &mu;s</td><td>138.021 &mu;s</td><td>1.271</td><td>0.01</td><td>4</td><td>-</td><td>93.35 KB</td><td>9.86</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>112,044.09 &mu;s</td><td>1,428.534 &mu;s</td><td>78.303 &mu;s</td><td>5.269</td><td>0.04</td><td>5</td><td>-</td><td>49.2 KB</td><td>5.20</td>
+</tr></tbody></table>
+</body>
+</html>
