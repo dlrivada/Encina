@@ -295,7 +295,7 @@ bool RunCheckMissingManifest(
         Console.WriteLine($"\nMISSING MANIFEST ENTRIES ({missingFiles.Count}): the file exists under src/<Package>/ but has no key in the package manifest, the package has no manifest at all, or the manifest names a src/ directory that does not exist");
         foreach (var missing in missingFiles.OrderBy(m => m, StringComparer.Ordinal))
             Console.WriteLine($"  - {missing}");
-        Console.WriteLine("\n  To fix a missing file entry or a missing manifest run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --append-only");
+        Console.WriteLine("\n  To fix a missing file entry or a missing manifest run: dotnet run --file .github/scripts/generate-coverage-manifest.cs (append-only by default; add --dry-run to preview)");
         Console.WriteLine("  Do not run the generator's full mode on an existing manifest until #1597 resolves the hand-edited entries.");
     }
 
@@ -326,7 +326,7 @@ if (Directory.Exists(srcDir))
         Console.WriteLine($"\n  ⚠ WARNING: {untrackedPackages.Count} package(s) in src/ have no coverage manifest:");
         foreach (var pkg in untrackedPackages)
             Console.WriteLine($"    - {pkg}");
-        Console.WriteLine("  Run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --append-only\n");
+        Console.WriteLine("  Run: dotnet run --file .github/scripts/generate-coverage-manifest.cs (append-only by default; add --dry-run to preview)\n");
     }
 }
 
