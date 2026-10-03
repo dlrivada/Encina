@@ -11,7 +11,7 @@
 //   Options: --src <dir>  --defaults <file>  --output <dir>  (relative paths resolve against the repository root)
 //   --append-only is accepted as an explicit spelling of the default. -h/--help prints the usage
 //   and exits 0. Any other argument, an option value that starts with "--", or --self-test combined
-//   with another option is an error (exit 2, usage printed).
+//   with another option, or --full together with --append-only, is an error (exit 2, usage printed).
 //
 // Repository root (#1702): the git top-level of this script's own directory; the script only ever
 // modifies the checkout it belongs to. When the current directory belongs to a different git
@@ -56,6 +56,7 @@ const string Usage = """
       --self-test      run the built-in assertions (cannot be combined with other options)
       -h, --help       print this text
       Paths given with --src, --defaults and --output must stay inside the repository root.
+      --full together with --append-only is an error.
     """;
 
 var (opts, parseError) = ParseArgs(args);
@@ -356,7 +357,6 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool full, bool dryR
             continue;
 
         JsonObject manifest;
-        bool stamp = !append || added.Count > 0 || existing is null;
         if (existing is null)
         {
             manifest = new JsonObject
@@ -371,7 +371,7 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool full, bool dryR
         {
             manifest = (JsonObject)existing.DeepClone();
             manifest["package"] = pkg;
-            if (stamp) manifest["generated"] = now();
+            manifest["generated"] = now(); // the earlier continue already skips unchanged manifests in append mode
             manifest["totalFiles"] = newFiles.Count;
             manifest["files"] = newFiles;
         }
@@ -663,6 +663,8 @@ int RunSelfTest()
         Check(ParseArgs(["--append-onyl"]).Options is null, "args: misspelled flag fails");
         Check(ParseArgs(["--src"]).Options is null, "args: option without value fails");
         Check(ParseArgs(["--full", "--append-only"]).Options is null, "args: --full with --append-only fails");
+        var (missTop, missWhy) = GitTopLevel(Path.Combine(root, "missing"));
+        Check(missTop is null && !string.IsNullOrWhiteSpace(missWhy), "git: a missing directory yields a null path and a non-empty reason");
         Check(ParseArgs([]).Options is { Full: false, DryRun: false }, "args: no flag means append-only, not dry run");
         Check(ParseArgs(["--append-only"]).Options is { Full: false }, "args: --append-only accepted");
         Check(ParseArgs(["--full", "--dry-run"]).Options is { Full: true, DryRun: true }, "args: --full and --dry-run parsed");
