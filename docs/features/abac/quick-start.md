@@ -47,7 +47,7 @@ ABAC evaluates a request only for an authenticated user, so it needs an `ISecuri
 - Register `Encina.Security` (`AddEncinaSecurity`) and set the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
 - Background jobs and scheduled messages set a context with a service identity: an authenticated `ClaimsIdentity` with a `sub` or `NameIdentifier` claim.
 - A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
-- Populating the context automatically, for example from `HttpContext.User`, is tracked by a follow-up issue.
+- Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
 
 ## 3. Define Your First Policy
 
