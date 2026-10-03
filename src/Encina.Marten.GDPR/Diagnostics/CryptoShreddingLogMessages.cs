@@ -7,8 +7,10 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses <c>LoggerMessage.Define</c> to avoid boxing and string formatting overhead
-/// in hot paths. All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
+/// The existing messages use <c>LoggerMessage.Define</c> (one literal <c>new EventId(n, ...)</c> each,
+/// scanned by the allocation test, #1125) to avoid boxing and string formatting overhead
+/// in hot paths; the newer messages use the <c>[LoggerMessage]</c> source generator.
+/// All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
 /// </para>
 /// <para>
 /// Event IDs are allocated in the 8450-8499 range reserved for Marten GDPR crypto-shredding

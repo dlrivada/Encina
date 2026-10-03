@@ -2,6 +2,8 @@ using System.Data;
 
 using Encina.Marten.GDPR;
 
+using JasperFx;
+
 using LanguageExt;
 
 using Marten;
@@ -93,6 +95,16 @@ public sealed class PostgreSqlSubjectKeyProviderTests
         var wrapped = new InvalidOperationException("outer", new InvalidOperationException("middle", UniqueViolation()));
 
         PostgreSqlSubjectKeyProvider.IsDuplicateKeyConflict(wrapped).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsDuplicateKeyConflict_MartenDocumentAlreadyExists_ReturnsTrue()
+    {
+        var withoutInner = new DocumentAlreadyExistsException(typeof(string), "id-1");
+        var withInner = new DocumentAlreadyExistsException(new InvalidOperationException("cause"), typeof(string), "id-1");
+
+        PostgreSqlSubjectKeyProvider.IsDuplicateKeyConflict(withoutInner).ShouldBeTrue();
+        PostgreSqlSubjectKeyProvider.IsDuplicateKeyConflict(withInner).ShouldBeTrue();
     }
 
     [Fact]

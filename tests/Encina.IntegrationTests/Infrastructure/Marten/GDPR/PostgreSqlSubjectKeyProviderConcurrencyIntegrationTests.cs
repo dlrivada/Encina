@@ -128,7 +128,16 @@ public sealed class PostgreSqlSubjectKeyProviderConcurrencyIntegrationTests : IA
             var erasing = eraser.DeleteSubjectKeysAsync(subjectId).AsTask();
             await Task.WhenAll(writing, erasing).WaitAsync(WaitTimeout);
 
-            // Assert: whatever the interleaving, the subject ends forgotten with no key document
+            // Assert: every writer got a key or the subject_forgotten error, never any other failure
+            foreach (var writerResult in await writing)
+            {
+                if (writerResult.IsLeft)
+                {
+                    ErrorCode(writerResult).ShouldBe(CryptoShreddingErrors.SubjectForgottenCode);
+                }
+            }
+
+            // Whatever the interleaving, the subject ends forgotten with no key document
             (await erasing).IsRight.ShouldBeTrue();
             (await StoredKeysAsync(subjectId)).ShouldBeEmpty();
             ((bool)await eraser.IsSubjectForgottenAsync(subjectId)).ShouldBeTrue();
