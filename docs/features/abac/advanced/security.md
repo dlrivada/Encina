@@ -96,7 +96,7 @@ The four-effect model (Permit, Deny, NotApplicable, Indeterminate) is a security
 | Permit | Explicitly allowed | Proceed with obligation execution |
 | Deny | Explicitly refused | Block access |
 | NotApplicable | No policy matched | Denies when the policy was required by `[RequirePolicy]` |
-| Indeterminate | Evaluation error | Denies in every enforcement mode, `Warn` included |
+| Indeterminate | Evaluation error | Denies in every enforcement mode, `Warn` included, when it decides the verdict |
 
 ### Combining Algorithm Security
 
@@ -293,7 +293,7 @@ There is no option that turns a `NotApplicable` required policy into a Permit. T
 
 Consider a system where a request type is decorated with `[RequirePolicy("new-feature")]` before the policy exists. The request is denied with `abac.policy_not_found` until the policy is created, instead of being allowed by default. The error message is fixed and does not repeat the policy name; the name is recorded in the error details only.
 
-To roll out policies against live traffic without blocking, use `ABACEnforcementMode.Warn`, which logs a definite denial and lets the request proceed; errors still deny (see section 8).
+To roll out policies against live traffic without blocking, use `ABACEnforcementMode.Warn`, which logs a definite denial and lets the request proceed; errors still deny when they decide the verdict (see section 8).
 
 ---
 
@@ -306,7 +306,7 @@ The `ABACEnforcementMode` enum enables gradual rollout of ABAC policies without 
 | Phase | Mode | Purpose |
 |-------|------|---------|
 | 1. Development | `Disabled` | No ABAC overhead, focus on business logic |
-| 2. Shadow mode | `Warn` | Evaluate all policies, log decisions, never block on a definite verdict (errors still deny) |
+| 2. Shadow mode | `Warn` | Evaluate all policies, log decisions, never block on a definite verdict (errors still deny when they decide the verdict) |
 | 3. Partial rollout | `Block` + feature flags | Enforce for specific request types |
 | 4. Full enforcement | `Block` | All requests are subject to ABAC |
 
@@ -317,7 +317,7 @@ In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a
 ```csharp
 // During shadow mode, monitor these log events (EventIds in reference/observability.md):
 // 9004: ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed
-// 9074: Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied (logged only in Warn mode)
+// 9074: Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied in Block mode and proceeds in Warn mode
 ```
 
 ### Disabled Mode
@@ -490,7 +490,7 @@ services.AddEncinaABAC(options =>
 
 ### Pitfall 5: Using Warn Mode in Production
 
-`ABACEnforcementMode.Warn` logs definite denials but allows those requests through (errors still deny). This is intended for shadow-mode testing only. A misconfiguration that leaves Warn mode active in production effectively disables authorization:
+`ABACEnforcementMode.Warn` logs definite denials but allows those requests through (errors still deny when they decide the verdict). This is intended for shadow-mode testing only. A misconfiguration that leaves Warn mode active in production effectively disables authorization:
 
 ```csharp
 // Validate enforcement mode at startup
