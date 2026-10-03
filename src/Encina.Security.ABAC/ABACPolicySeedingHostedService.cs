@@ -68,10 +68,12 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
         var seededSets = 0;
         foreach (var policySet in policySets)
         {
-            var result = await _pap.AddPolicySetAsync(policySet, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (IsAccepted(result, ABACErrors.DuplicatePolicySetCode, "policy set", policySet.Id))
+            if (await SeedAsync(
+                    () => _pap.AddPolicySetAsync(policySet, cancellationToken),
+                    ABACErrors.DuplicatePolicySetCode,
+                    "policy set",
+                    policySet.Id,
+                    cancellationToken))
             {
                 seededSets++;
                 _logger.LogDebug("Seeded policy set '{PolicySetId}'", policySet.Id);
@@ -82,10 +84,12 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
         var seededPolicies = 0;
         foreach (var policy in policies)
         {
-            var result = await _pap.AddPolicyAsync(policy, parentPolicySetId: null, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (IsAccepted(result, ABACErrors.DuplicatePolicyCode, "standalone policy", policy.Id))
+            if (await SeedAsync(
+                    () => _pap.AddPolicyAsync(policy, parentPolicySetId: null, cancellationToken),
+                    ABACErrors.DuplicatePolicyCode,
+                    "standalone policy",
+                    policy.Id,
+                    cancellationToken))
             {
                 seededPolicies++;
                 _logger.LogDebug("Seeded standalone policy '{PolicyId}'", policy.Id);
@@ -103,15 +107,38 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
     /// <summary>
     /// Returns <c>true</c> when the seed was applied, <c>false</c> when it already existed (logged
     /// and skipped), and throws for any other failure so the host never starts with a partial
-    /// policy set. The message carries the id and the error code, never the error message.
+    /// policy set. An exception thrown by the PAP is wrapped the same way. The message carries the
+    /// id and the error code or exception type, never the error message.
     /// </summary>
+    private async ValueTask<bool> SeedAsync(
+        Func<ValueTask<Either<EncinaError, Unit>>> add,
+        string duplicateCode,
+        string kind,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        Either<EncinaError, Unit> result;
+        try
+        {
+            result = await add().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                $"ABAC seeding failed for {kind} '{id}' with exception '{ex.GetType().Name}'; the application cannot start with a partial policy set.",
+                ex);
+        }
+
+        return IsAccepted(result, duplicateCode, kind, id);
+    }
+
     private bool IsAccepted(
         Either<EncinaError, Unit> result,
         string duplicateCode,
         string kind,
         string id)
     {
-        var errorCode = result.Match(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
+        var errorCode =result.Match(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
         if (errorCode is null)
         {
             return true;

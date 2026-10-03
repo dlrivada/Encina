@@ -140,6 +140,23 @@ public sealed class ABACPolicySeedingHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_WhenPapThrows_FailsStartupNamingIdAndExceptionType()
+    {
+        var policy = CreatePolicy("throws-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(policy);
+        _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new TimeoutException("secret detail"));
+
+        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+        ex.Message.ShouldContain("throws-p");
+        ex.Message.ShouldContain(nameof(TimeoutException));
+        ex.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
     public async Task StopAsync_ReturnsCompletedTask()
     {
         var options = Options.Create(new ABACOptions());
