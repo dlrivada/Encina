@@ -218,7 +218,7 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         var failingKeys = Substitute.For<ISubjectKeyProvider>();
         failingKeys.GetOrCreateSubjectKeyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new NpgsqlException("key store unreachable"));
-        var store = BuildCryptoShredderStore(failingKeys);
+        using var store = BuildCryptoShredderStore(failingKeys);
         await EnsureEventSchemaAsync(store);
         var streamId = Guid.NewGuid();
 
@@ -233,15 +233,13 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         // Assert: nothing reached the event store, encrypted or not
         await failingKeys.Received().GetOrCreateSubjectKeyAsync("user-down", Arg.Any<CancellationToken>());
         (await CountStoredEventsAsync(store, streamId)).ShouldBe(0);
-
-        store.Dispose();
     }
 
     [Fact]
     public async Task Append_MissingSubjectId_ThrowsAndStoresNoEvent()
     {
         // Arrange (#1646)
-        var store = BuildCryptoShredderStore();
+        using var store = BuildCryptoShredderStore();
         await EnsureEventSchemaAsync(store);
         var streamId = Guid.NewGuid();
 
@@ -255,8 +253,6 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
 
         // Assert
         (await CountStoredEventsAsync(store, streamId)).ShouldBe(0);
-
-        store.Dispose();
     }
 
     #region Helpers

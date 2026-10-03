@@ -164,6 +164,46 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_OpenGenericPositionalRecord_CompletesWithoutErrors()
+    {
+        // No setter can be compiled for a generic type definition; the scan decides from the declaration.
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(GenericPositionalEvent<>)));
+
+        await sut.StartAsync(CancellationToken.None);
+
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task StartAsync_OpenGenericGetterOnlyEncryptedProperty_ThrowsWithTheSetterMessage()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(GenericGetterOnly<>)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("1 validation error(s)");
+        ex.Message.ShouldContain($"Property '{nameof(GenericGetterOnly<int>.Email)}'");
+        ex.Message.ShouldContain("no setter or init accessor");
+    }
+
+    [Fact]
+    public async Task StartAsync_InterfaceDeclaringTheAttribute_ThrowsSayingItIsNotInherited()
+    {
+        // The attribute on an interface member is never inherited by the implementing property, so the
+        // serializer would not encrypt it: the scan rejects it with a message that names the real cause.
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(IEncryptedOnInterface)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain(typeof(IEncryptedOnInterface).FullName!);
+        ex.Message.ShouldContain("declared on an interface");
+        ex.Message.ShouldNotContain("no setter or init accessor");
+    }
+
+    [Fact]
     public async Task StartAsync_PositionalRecord_CompletesWithoutErrors()
     {
         var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
@@ -311,6 +351,31 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     public sealed record PositionalRecordEvent(
         string UserId,
         [property: PersonalData, CryptoShredded(SubjectIdProperty = nameof(PositionalRecordEvent.UserId))] string Email);
+
+    public sealed record GenericPositionalEvent<T>(
+        string UserId,
+        [property: PersonalData, CryptoShredded(SubjectIdProperty = nameof(GenericPositionalEvent<T>.UserId))] string Email,
+        T Payload);
+
+    public sealed class GenericGetterOnly<T>(string userId, string email, T payload)
+    {
+        public string UserId { get; } = userId;
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; } = email;
+
+        public T Payload { get; } = payload;
+    }
+
+    public interface IEncryptedOnInterface
+    {
+        string UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        string Email { get; set; }
+    }
 
     public sealed class GuidSubject
     {

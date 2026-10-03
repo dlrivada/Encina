@@ -96,12 +96,32 @@ internal static class CryptoShreddedPropertyCache
     /// <param name="property">The property to check.</param>
     /// <returns><c>true</c> if the property can be written; otherwise, <c>false</c>.</returns>
     /// <remarks>
+    /// <para>
     /// A property of a value type is never settable here: the serializer receives the event boxed, and a
     /// setter compiled for a struct writes to an unboxed copy, so the ciphertext would never reach the
     /// serialized instance and the plaintext would be stored (#1646).
+    /// </para>
+    /// <para>
+    /// A property declared on an interface is never settable either: the attribute is not inherited by the
+    /// implementing property, so the serializer never sees it on a concrete event.
+    /// </para>
+    /// <para>
+    /// No setter can be compiled for an open generic type definition, so the scan decides from the
+    /// declaration (a <c>set</c> or <c>init</c> accessor exists); the runtime cache only sees closed types and
+    /// compiles the setter.
+    /// </para>
     /// </remarks>
-    internal static bool CanSetProperty(Type ownerType, PropertyInfo property) =>
-        !ownerType.IsValueType && CompileSetter(ownerType, property) is not null;
+    internal static bool CanSetProperty(Type ownerType, PropertyInfo property)
+    {
+        if (ownerType.IsValueType || ownerType.IsInterface)
+        {
+            return false;
+        }
+
+        return ownerType.ContainsGenericParameters
+            ? property.SetMethod is not null
+            : CompileSetter(ownerType, property) is not null;
+    }
 
     private static TypeMetadata GetMetadata(Type eventType) =>
         Cache.GetOrAdd(eventType, static t => DiscoverProperties(t));
@@ -165,7 +185,11 @@ internal static class CryptoShreddedPropertyCache
             attribute.SubjectIdProperty,
             BindingFlags.Public | BindingFlags.Instance);
 
-        return subjectIdProperty is { CanRead: true } ? subjectIdProperty : null;
+        // An unsupported subject-id type is unencryptable too, so it fails through the same
+        // logged and counted path as the other misconfigurations (#1646).
+        return subjectIdProperty is { CanRead: true } && SubjectIdConversion.IsSupportedType(subjectIdProperty.PropertyType)
+            ? subjectIdProperty
+            : null;
     }
 
     // The property must be readable, a string (only strings can be encrypted) and carry [PersonalData].

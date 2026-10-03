@@ -170,13 +170,27 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
             return;
         }
 
-        var reason = type.IsValueType
-            ? "but is declared on a struct: the serializer receives the event boxed and cannot replace the value "
-                + "with the ciphertext. Declare the event as a class or a record class."
-            : "but has no setter or init accessor, so its value cannot be replaced with the ciphertext. "
-                + "Add a setter or an init accessor (positional record properties already have one).";
+        ReportError(
+            validationErrors,
+            $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] " + DescribeWritableProblem(type));
+    }
 
-        ReportError(validationErrors, $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] " + reason);
+    private static string DescribeWritableProblem(Type type)
+    {
+        if (type.IsValueType)
+        {
+            return "but is declared on a struct: the serializer receives the event boxed and cannot replace the value "
+                + "with the ciphertext. Declare the event as a class or a record class.";
+        }
+
+        if (type.IsInterface)
+        {
+            return "but is declared on an interface: the attribute is not inherited by the implementing property, "
+                + "so it would never encrypt. Put [CryptoShredded] on the property of the implementing class or record class.";
+        }
+
+        return "but has no setter or init accessor, so its value cannot be replaced with the ciphertext. "
+            + "Add a setter or an init accessor (positional record properties already have one).";
     }
 
     private void ValidateSubjectIdProperty(

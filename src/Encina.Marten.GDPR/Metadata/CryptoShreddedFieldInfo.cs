@@ -11,7 +11,7 @@ namespace Encina.Marten.GDPR;
 /// <remarks>
 /// <para>
 /// Instances are created once per property during discovery and cached in
-/// <see cref="Abstractions.ICryptoShreddedPropertyCache"/> to avoid repeated reflection.
+/// <see cref="CryptoShreddedPropertyCache"/> to avoid repeated reflection.
 /// </para>
 /// <para>
 /// The <see cref="Setter"/> delegate is compiled from an expression tree at discovery time,

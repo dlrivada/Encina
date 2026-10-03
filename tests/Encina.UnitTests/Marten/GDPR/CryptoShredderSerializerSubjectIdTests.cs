@@ -91,10 +91,12 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     {
         var evt = new DoubleSubjectEvent { PatientId = 1.5, Email = "a@example.com" };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
         ex.Message.ShouldContain(nameof(DoubleSubjectEvent));
-        ex.Message.ShouldContain(nameof(DoubleSubjectEvent.PatientId));
+        ex.Message.ShouldContain(nameof(DoubleSubjectEvent.Email));
+        ex.Message.ShouldContain("supported type");
         evt.Email.ShouldBe("a@example.com");
         _inner.DidNotReceiveWithAnyArgs().ToJson(default);
     }

@@ -355,10 +355,16 @@ public sealed class CryptoShredderSerializer : ISerializer
         }
 
         CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-        _logger.AttributeMisconfigured(unencryptable[0], eventType.FullName ?? eventType.Name);
+
+        // Every misconfigured property is named, so one failed append shows the whole list to fix.
+        var names = string.Join(", ", unencryptable);
+        _logger.AttributeMisconfigured(unencryptable[0], FullTypeName(eventType), names);
         throw new CryptoShreddingEncryptionException(
-            eventType, unencryptable[0], CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+            eventType, names, CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
     }
+
+    // The same form the exception uses, so a log line and the exception correlate.
+    private static string FullTypeName(Type type) => type.FullName ?? type.Name;
 
     /// <summary>
     /// Encrypts each PII field on the document in place. A <c>null</c> value stays <c>null</c>; any other
@@ -392,7 +398,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         // The data subject's own identifier is never logged (#1429, following #1314);
         // the configured property name is the identifying-but-safe correlation here.
         CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-        _logger.EncryptionSubjectIdMissing(field.Property.Name, eventType.Name, field.SubjectIdProperty);
+        _logger.EncryptionSubjectIdMissing(field.Property.Name, FullTypeName(eventType), field.SubjectIdProperty);
         return new CryptoShreddingEncryptionException(
             eventType, field.Property.Name, CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
     }
@@ -491,7 +497,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         string propertyName, Type eventType, string errorCode, Exception? exception)
     {
         CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-        _logger.EncryptionFailed(propertyName, eventType.Name, errorCode, exception?.ForLogging());
+        _logger.EncryptionFailed(propertyName, FullTypeName(eventType), errorCode, exception?.ForLogging());
         return new CryptoShreddingEncryptionException(
             eventType, propertyName, CryptoShreddingEncryptionFailureReason.KeyUnavailable, errorCode);
     }

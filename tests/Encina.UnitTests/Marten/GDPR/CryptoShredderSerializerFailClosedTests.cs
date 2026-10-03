@@ -83,6 +83,7 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
 
         var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
         ex.Message.ShouldContain(nameof(GuidSubjectEvent));
         ex.Message.ShouldContain(nameof(GuidSubjectEvent.Email));
         _inner.ReceivedCalls().ShouldBeEmpty();
@@ -303,6 +304,65 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     }
 
     [Fact]
+    public void ToJson_SeveralMisconfiguredProperties_ThrowsAndLogsEveryOneAtError()
+    {
+        var evt = new TwoBadPropertiesEvent { UserId = SubjectId, First = PlainEmail, Second = PlainEmail };
+
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
+
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+        ex.PropertyName.ShouldBe($"{nameof(TwoBadPropertiesEvent.First)}, {nameof(TwoBadPropertiesEvent.Second)}");
+        var log = _logger.Collector.GetSnapshot().Single(r => r.Id.Id == 8459);
+        log.Level.ShouldBe(LogLevel.Error);
+        log.Message.ShouldContain("the event is not stored");
+        log.Message.ShouldContain($"{nameof(TwoBadPropertiesEvent.First)}, {nameof(TwoBadPropertiesEvent.Second)}");
+        log.Message.ShouldContain(typeof(TwoBadPropertiesEvent).FullName!);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_UnsupportedSubjectIdType_ThrowsPropertyMisconfiguredLoggedAndCounted()
+    {
+        var evt = new DoubleSubjectEvent { PatientId = 1.5, Email = PlainEmail };
+
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
+
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+        ex.PropertyName.ShouldBe(nameof(DoubleSubjectEvent.Email));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Level == LogLevel.Error && r.Id.Id == 8459);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+        _keys.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_FailureLogs_UseTheFullTypeNameOfTheException()
+    {
+        var evt = new StringSubjectEvent { UserId = " ", Email = PlainEmail };
+
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
+
+        _logger.Collector.GetSnapshot().Single(r => r.Id.Id == 8466).Message.ShouldContain(ex.EventTypeName);
+    }
+
+    [Fact]
+    public void ToJson_ClosedGenericPositionalRecord_IsEncrypted()
+    {
+        // The startup scan decides open generics from the declaration; the closed type compiles its setter.
+        ArrangeKey();
+        string? stored = null;
+        _inner.ToJson(Arg.Any<GenericPositionalEvent<int>>()).Returns(ci =>
+        {
+            stored = ci.Arg<GenericPositionalEvent<int>>().Email;
+            return "{}";
+        });
+
+        _sut.ToJson(new GenericPositionalEvent<int>(SubjectId, PlainEmail, 7));
+
+        stored.ShouldNotBeNull();
+        stored.ShouldStartWith("{\"__enc\":true");
+    }
+
+    [Fact]
     public void FromJson_GetterOnlyCryptoShreddedProperty_DelegatesToInnerUnchanged()
     {
         // Decryption is unchanged: an unencryptable property has nothing to decrypt
@@ -414,6 +474,33 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
         [CryptoShredded(SubjectIdProperty = nameof(SecondId))]
         public string Second { get; set; } = string.Empty;
     }
+
+    public sealed class DoubleSubjectEvent
+    {
+        public double PatientId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class TwoBadPropertiesEvent
+    {
+        public string UserId { get; set; } = string.Empty;
+
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string First { get; set; } = string.Empty;
+
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Second { get; set; } = string.Empty;
+    }
+
+    public sealed record GenericPositionalEvent<T>(
+        string UserId,
+        [property: PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [property: CryptoShredded(SubjectIdProperty = nameof(GenericPositionalEvent<T>.UserId))]
+        string Email,
+        T Payload);
 
     public sealed class MissingPersonalDataEvent
     {

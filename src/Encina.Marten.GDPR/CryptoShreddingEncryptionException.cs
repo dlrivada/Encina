@@ -61,7 +61,11 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
     /// Initializes a new instance of the <see cref="CryptoShreddingEncryptionException"/> class.
     /// </summary>
     /// <param name="eventType">The event type that was being serialized.</param>
-    /// <param name="propertyName">The <c>[CryptoShredded]</c> property that could not be encrypted.</param>
+    /// <param name="propertyName">
+    /// The <c>[CryptoShredded]</c> property that could not be encrypted; for
+    /// <see cref="CryptoShreddingEncryptionFailureReason.PropertyMisconfigured"/> the comma-separated names of
+    /// every misconfigured property of the type.
+    /// </param>
     /// <param name="reason">Why the value could not be encrypted.</param>
     /// <param name="errorCode">
     /// The error code of the key-provider failure for <see cref="CryptoShreddingEncryptionFailureReason.KeyUnavailable"/>;
@@ -86,7 +90,9 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
     public string EventTypeName { get; }
 
     /// <summary>
-    /// Gets the name of the <c>[CryptoShredded]</c> property that could not be encrypted.
+    /// Gets the name of the <c>[CryptoShredded]</c> property that could not be encrypted, or the
+    /// comma-separated names of every misconfigured property for
+    /// <see cref="CryptoShreddingEncryptionFailureReason.PropertyMisconfigured"/>.
     /// </summary>
     public string PropertyName { get; }
 
@@ -119,7 +125,7 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
             _ =>
                 "the property is misconfigured for crypto-shredding: it must be a public string property of a class "
                 + "or record class with a setter or init accessor, carry [PersonalData], and reference a readable "
-                + "subject-id property",
+                + "subject-id property of a supported type",
         };
 
         return $"Cannot encrypt [CryptoShredded] property '{propertyName}' on event type "
