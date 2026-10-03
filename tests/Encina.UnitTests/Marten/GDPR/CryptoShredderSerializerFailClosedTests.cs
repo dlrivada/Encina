@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // NSubstitute ValueTask stubbing pattern
 using System.Buffers;
+using System.Data.Common;
 
 using Encina.Compliance.DataSubjectRights;
 using Encina.Marten.GDPR;
@@ -194,6 +195,7 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     [InlineData("WriteToCleanJson")]
     [InlineData("WriteToJsonWithTypes")]
     [InlineData("WriteToParameter")]
+    [InlineData("WriteToDbParameter")]
     public void EveryWritePath_KeyProviderReturnsLeft_ThrowsAndNeverReachesTheInnerSerializer(string entryPoint)
     {
         _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
@@ -253,6 +255,31 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
         ex.Message.ShouldContain(nameof(GetterOnlyEvent.Email));
         _inner.ReceivedCalls().ShouldBeEmpty();
         _keys.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_RecordStructEvent_ThrowsInsteadOfStoringPlaintext()
+    {
+        // A setter compiled for a struct writes to an unboxed copy, so the ciphertext would never
+        // reach the serialized instance (#1646 review).
+        ArrangeKey();
+
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.ToJson(new RecordStructEvent { UserId = SubjectId, Email = PlainEmail }));
+
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_StructEvent_ThrowsInsteadOfStoringPlaintext()
+    {
+        ArrangeKey();
+
+        Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.ToJson(new StructEvent { UserId = SubjectId, Email = PlainEmail }));
+
+        _inner.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
@@ -328,6 +355,9 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
             case "WriteToJsonWithTypes":
                 _sut.WriteToJsonWithTypes(new ArrayBufferWriter<byte>(), evt);
                 break;
+            case "WriteToDbParameter":
+                _sut.WriteToParameter((DbParameter)new NpgsqlParameter(), evt);
+                break;
             default:
                 _sut.WriteToParameter(new NpgsqlParameter(), evt);
                 break;
@@ -350,6 +380,24 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
         [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
         [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
         public string Email { get; set; } = string.Empty;
+    }
+
+    public record struct RecordStructEvent
+    {
+        public string UserId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; }
+    }
+
+    public struct StructEvent
+    {
+        public string UserId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; }
     }
 
     public sealed class TwoSubjectEvent

@@ -150,6 +150,20 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_StructEvent_ThrowsNamingPropertyAndType()
+    {
+        // #1646 review: a setter compiled for a struct never reaches the boxed event.
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(StructEncrypted)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("1 validation error(s)");
+        ex.Message.ShouldContain(typeof(StructEncrypted).FullName!);
+        ex.Message.ShouldContain("struct");
+    }
+
+    [Fact]
     public async Task StartAsync_PositionalRecord_CompletesWithoutErrors()
     {
         var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
@@ -283,6 +297,15 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
         [PersonalData]
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]
         public string Email { get; } = email;
+    }
+
+    public record struct StructEncrypted
+    {
+        public string UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; }
     }
 
     public sealed record PositionalRecordEvent(

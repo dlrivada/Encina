@@ -18,8 +18,9 @@ public enum CryptoShreddingEncryptionFailureReason
     KeyUnavailable = 1,
 
     /// <summary>
-    /// The property cannot hold its ciphertext: it has no setter or init accessor, is not a <c>string</c>,
-    /// lacks <c>[PersonalData]</c>, or references a subject-id property that does not exist or cannot be read.
+    /// The property cannot hold its ciphertext: it has no setter or init accessor, is declared on a struct
+    /// (the serializer cannot write to the boxed event), is not a <c>string</c>, lacks <c>[PersonalData]</c>,
+    /// or references a subject-id property that does not exist or cannot be read.
     /// </summary>
     PropertyMisconfigured = 2
 }
@@ -116,8 +117,9 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
             CryptoShreddingEncryptionFailureReason.KeyUnavailable =>
                 $"the subject's encryption key could not be obtained (error code '{errorCode ?? "unknown"}')",
             _ =>
-                "the property is misconfigured for crypto-shredding: it must be a public string property with a "
-                + "setter or init accessor, carry [PersonalData], and reference a readable subject-id property",
+                "the property is misconfigured for crypto-shredding: it must be a public string property of a class "
+                + "or record class with a setter or init accessor, carry [PersonalData], and reference a readable "
+                + "subject-id property",
         };
 
         return $"Cannot encrypt [CryptoShredded] property '{propertyName}' on event type "

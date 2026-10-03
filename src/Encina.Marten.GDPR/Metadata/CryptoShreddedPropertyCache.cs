@@ -95,8 +95,13 @@ internal static class CryptoShreddedPropertyCache
     /// <param name="ownerType">The type that declares the property.</param>
     /// <param name="property">The property to check.</param>
     /// <returns><c>true</c> if the property can be written; otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// A property of a value type is never settable here: the serializer receives the event boxed, and a
+    /// setter compiled for a struct writes to an unboxed copy, so the ciphertext would never reach the
+    /// serialized instance and the plaintext would be stored (#1646).
+    /// </remarks>
     internal static bool CanSetProperty(Type ownerType, PropertyInfo property) =>
-        CompileSetter(ownerType, property) is not null;
+        !ownerType.IsValueType && CompileSetter(ownerType, property) is not null;
 
     private static TypeMetadata GetMetadata(Type eventType) =>
         Cache.GetOrAdd(eventType, static t => DiscoverProperties(t));
@@ -146,8 +151,9 @@ internal static class CryptoShreddedPropertyCache
             return null;
         }
 
-        // A property without a usable setter (e.g. getter-only) cannot receive its ciphertext.
-        var setter = CompileSetter(type, property);
+        // A property without a usable setter (getter-only, or declared on a struct whose boxed copy
+        // the setter cannot reach) cannot receive its ciphertext.
+        var setter = type.IsValueType ? null : CompileSetter(type, property);
         return setter is null ? null : new CryptoShreddedFieldInfo(property, attribute, setter, subjectIdProperty);
     }
 

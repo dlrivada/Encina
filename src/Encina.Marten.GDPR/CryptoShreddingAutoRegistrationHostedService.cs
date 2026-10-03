@@ -157,18 +157,26 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
                 + $"but is of type '{FormatTypeName(property.PropertyType)}'. Only string properties can be encrypted.");
         }
 
-        // The serializer overwrites the value with its ciphertext; a getter-only property would be stored
-        // in plaintext, so serialization refuses it and the scan rejects it here (#1646).
-        if (!CryptoShreddedPropertyCache.CanSetProperty(type, property))
+        ValidateWritable(type, property, validationErrors);
+        ValidateSubjectIdProperty(type, property, cryptoAttr, validationErrors);
+    }
+
+    // The serializer overwrites the value with its ciphertext; a property it cannot write would be stored
+    // in plaintext, so serialization refuses it and the scan rejects it here (#1646).
+    private void ValidateWritable(Type type, PropertyInfo property, List<string> validationErrors)
+    {
+        if (CryptoShreddedPropertyCache.CanSetProperty(type, property))
         {
-            ReportError(
-                validationErrors,
-                $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] "
-                + "but has no setter or init accessor, so its value cannot be replaced with the ciphertext. "
-                + "Add a setter or an init accessor (positional record properties already have one).");
+            return;
         }
 
-        ValidateSubjectIdProperty(type, property, cryptoAttr, validationErrors);
+        var reason = type.IsValueType
+            ? "but is declared on a struct: the serializer receives the event boxed and cannot replace the value "
+                + "with the ciphertext. Declare the event as a class or a record class."
+            : "but has no setter or init accessor, so its value cannot be replaced with the ciphertext. "
+                + "Add a setter or an init accessor (positional record properties already have one).";
+
+        ReportError(validationErrors, $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] " + reason);
     }
 
     private void ValidateSubjectIdProperty(

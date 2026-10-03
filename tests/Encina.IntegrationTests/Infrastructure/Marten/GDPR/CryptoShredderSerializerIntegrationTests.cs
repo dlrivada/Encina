@@ -226,10 +226,12 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         await using (var session = store.LightweightSession())
         {
             session.Events.Append(streamId, new TestPiiEvent { UserId = "user-down", Email = "down@example.com", OrderId = "1" });
-            await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+            var ex = await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+            FindEncryptionFailure(ex).Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.KeyUnavailable);
         }
 
         // Assert: nothing reached the event store, encrypted or not
+        await failingKeys.Received().GetOrCreateSubjectKeyAsync("user-down", Arg.Any<CancellationToken>());
         (await CountStoredEventsAsync(store, streamId)).ShouldBe(0);
 
         store.Dispose();
@@ -247,7 +249,8 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         await using (var session = store.LightweightSession())
         {
             session.Events.Append(streamId, new TestGuidSubjectEvent { PatientId = Guid.Empty, Email = "nobody@example.com" });
-            await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+            var ex = await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+            FindEncryptionFailure(ex).Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
         }
 
         // Assert
@@ -257,6 +260,20 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
     }
 
     #region Helpers
+
+    /// <summary>Finds the serializer's exception, whether Marten surfaces it directly or wrapped.</summary>
+    private static CryptoShreddingEncryptionException FindEncryptionFailure(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is CryptoShreddingEncryptionException failure)
+            {
+                return failure;
+            }
+        }
+
+        throw new ShouldAssertException($"Expected a CryptoShreddingEncryptionException, got {ex.GetType().Name}.");
+    }
 
     /// <summary>Creates the event tables by appending a non-PII event to another stream.</summary>
     private static async Task EnsureEventSchemaAsync(DocumentStore store)
