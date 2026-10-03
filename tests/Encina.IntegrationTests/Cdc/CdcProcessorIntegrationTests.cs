@@ -87,7 +87,7 @@ public sealed class CdcProcessorIntegrationTests
         }
         finally
         {
-            await processor.StopAsync(CancellationToken.None);
+            await processor.StopAsync(CancellationToken.None).WaitAsync(HangGuard);
         }
     }
 

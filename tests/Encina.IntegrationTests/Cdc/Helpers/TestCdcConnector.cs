@@ -59,14 +59,6 @@ internal sealed class TestCdcConnector : ICdcConnector
     }
 
     /// <summary>
-    /// Gets the number of times <see cref="StreamChangesAsync"/> has started enumerating.
-    /// </summary>
-    public int StreamCallCount
-    {
-        get { lock (_streamCallLock) { return _streamCallCount; } }
-    }
-
-    /// <summary>
     /// Completes when <see cref="StreamChangesAsync"/> has started at least
     /// <paramref name="count"/> times. Because the processor consumes one stream call
     /// completely before polling again, stream call <c>N + 1</c> proves that call <c>N</c>
