@@ -771,15 +771,8 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             metadata["writeAheadEntryId"] = writeAheadId;
         }
 
-        if (beforeState is not null)
-        {
-            metadata["beforeState"] = SerializeState(beforeState);
-        }
-
-        if (change.After is not null)
-        {
-            metadata["afterState"] = SerializeState(change.After);
-        }
+        AddState(metadata, "beforeState", beforeState);
+        AddState(metadata, "afterState", change.After);
 
         foreach (var (key, value) in change.Extra ?? new Dictionary<string, object?>())
         {
@@ -787,6 +780,14 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
 
         return metadata;
+    }
+
+    private static void AddState(Dictionary<string, object?> metadata, string key, object? state)
+    {
+        if (state is not null)
+        {
+            metadata[key] = SerializeState(state);
+        }
     }
 
     private static string? SerializeState(object state)

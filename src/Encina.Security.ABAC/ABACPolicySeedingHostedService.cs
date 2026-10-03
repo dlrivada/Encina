@@ -65,37 +65,8 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
         LogSystemActorScopeOpened(_logger);
         using var systemActor = PolicyChangeActorScope.BeginSystemActor();
 
-        // ── Seed policy sets ───────────────────────────────────────
-        var seededSets = 0;
-        foreach (var policySet in policySets)
-        {
-            if (await SeedAsync(
-                    () => _pap.AddPolicySetAsync(policySet, cancellationToken),
-                    ABACErrors.DuplicatePolicySetCode,
-                    "policy set",
-                    policySet.Id,
-                    cancellationToken))
-            {
-                seededSets++;
-                _logger.LogDebug("Seeded policy set '{PolicySetId}'", policySet.Id);
-            }
-        }
-
-        // ── Seed standalone policies ───────────────────────────────
-        var seededPolicies = 0;
-        foreach (var policy in policies)
-        {
-            if (await SeedAsync(
-                    () => _pap.AddPolicyAsync(policy, parentPolicySetId: null, cancellationToken),
-                    ABACErrors.DuplicatePolicyCode,
-                    "standalone policy",
-                    policy.Id,
-                    cancellationToken))
-            {
-                seededPolicies++;
-                _logger.LogDebug("Seeded standalone policy '{PolicyId}'", policy.Id);
-            }
-        }
+        var seededSets = await SeedPolicySetsAsync(policySets, cancellationToken).ConfigureAwait(false);
+        var seededPolicies = await SeedPoliciesAsync(policies, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
             "ABAC policy seeding completed: {SeededSets}/{TotalSets} policy set(s), {SeededPolicies}/{TotalPolicies} standalone policy(ies)",
@@ -103,6 +74,46 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             policySets.Count,
             seededPolicies,
             policies.Count);
+    }
+
+    private async ValueTask<int> SeedPolicySetsAsync(IEnumerable<PolicySet> policySets, CancellationToken cancellationToken)
+    {
+        var seeded = 0;
+        foreach (var policySet in policySets)
+        {
+            if (await SeedAsync(
+                    () => _pap.AddPolicySetAsync(policySet, cancellationToken),
+                    ABACErrors.DuplicatePolicySetCode,
+                    "policy set",
+                    policySet.Id,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                seeded++;
+                _logger.LogDebug("Seeded policy set '{PolicySetId}'", policySet.Id);
+            }
+        }
+
+        return seeded;
+    }
+
+    private async ValueTask<int> SeedPoliciesAsync(IEnumerable<Policy> policies, CancellationToken cancellationToken)
+    {
+        var seeded = 0;
+        foreach (var policy in policies)
+        {
+            if (await SeedAsync(
+                    () => _pap.AddPolicyAsync(policy, parentPolicySetId: null, cancellationToken),
+                    ABACErrors.DuplicatePolicyCode,
+                    "standalone policy",
+                    policy.Id,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                seeded++;
+                _logger.LogDebug("Seeded standalone policy '{PolicyId}'", policy.Id);
+            }
+        }
+
+        return seeded;
     }
 
     /// <summary>
