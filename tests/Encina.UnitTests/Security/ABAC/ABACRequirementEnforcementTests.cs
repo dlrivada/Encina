@@ -1,12 +1,12 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
+using System.Diagnostics;
+
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
-
-using System.Diagnostics;
 
 using LanguageExt;
 
