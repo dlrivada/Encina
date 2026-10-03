@@ -26,6 +26,9 @@ public static class ServiceCollectionExtensions
         var options = new EncinaQuartzOptions();
         configureOptions?.Invoke(options);
 
+        // The request job resolves the options to honor ExposeResponseInJobContext.
+        services.AddSingleton(options);
+
         services.AddQuartz(quartzConfig =>
         {
             // Allow user customization

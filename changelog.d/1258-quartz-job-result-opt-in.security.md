@@ -1,0 +1,1 @@
+- Encina.Quartz: `QuartzRequestJob` no longer places the handler's response on `IJobExecutionContext.Result` by default, so a Quartz listener, plugin or job store can no longer persist the response through the job context; set `EncinaQuartzOptions.ExposeResponseInJobContext = true` to opt in for responses known not to carry personal data (#1258).
