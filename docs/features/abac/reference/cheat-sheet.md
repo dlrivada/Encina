@@ -28,7 +28,7 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 | `NotApplicable` from a required policy | Denies |
 | Policy not in the store | Denies with `abac.policy_not_found` |
 | `Indeterminate` or evaluation error | Denies (`abac.indeterminate` / `abac.evaluation_failed`), in every enforcement mode |
-| No security context, or empty `UserId` | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
+| No security context, an unauthenticated one (`IsAuthenticated` is `false`), or empty `UserId` | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
 | `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
 | `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies with `abac.indeterminate` |
@@ -151,7 +151,7 @@ user.isAdmin == true || user.department == "security"
 | `abac.duplicate_policy` | Policy with same ID already exists |
 | `abac.duplicate_policy_set` | PolicySet with same ID already exists |
 | `abac.combining_failed` | Combining algorithm produced Indeterminate |
-| `abac.missing_context` | Security context unavailable, or its `UserId` is empty |
+| `abac.missing_context` | Security context unavailable, not authenticated, or its `UserId` is empty |
 | `abac.obligation_failed` | Mandatory obligation handler failed (access denied per XACML 7.18) |
 | `abac.function_not_found` | Function not registered in registry |
 | `abac.function_error` | Function evaluation threw exception |

@@ -174,7 +174,7 @@ These messages carry error codes, source names and exception types only, never a
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
-| 9091 | `Warning` | `ABAC denied {RequestType}: no security context or authenticated user is available ({ErrorCode}). The request is denied in every enforcement mode` | `requestType`, `errorCode` |
+| 9091 | `Warning` | `ABAC denied {RequestType}: no authenticated security context with a user is available ({ErrorCode}). The request is denied in every enforcement mode` | `requestType`, `errorCode` |
 | 9092 | `Warning` | `Retrieval of the {Source} from the policy administration point failed: {ErrorCode}. The decision is Indeterminate` | `source` (`policy sets` or `standalone policies`), `errorCode` |
 | 9093 | `Error` | `Unexpected error while evaluating the policy store. The decision is Indeterminate` | `exception` (through `ForLogging()`: type and stack trace) |
 
@@ -349,5 +349,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078; see [Structured Logging](#structured-logging)) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078 and 9091-9093; 9079-9090 are reserved for the ABAC decision audit trail; see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

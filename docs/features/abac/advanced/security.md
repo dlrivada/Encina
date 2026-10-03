@@ -34,7 +34,7 @@ The three core security principles of Encina ABAC are:
 
 - **Default deny for required policies**: a required policy that does not apply, or does not exist, denies the request.
 - **Obligation enforcement**: unfulfilled obligations override Permit decisions.
-- **Fail-safe evaluation**: errors produce Indeterminate, `abac.evaluation_failed` or `abac.missing_context`, which deny in every enforcement mode, never silent Permits. A missing security context or an empty user id is never evaluated as an anonymous user.
+- **Fail-safe evaluation**: errors produce Indeterminate, `abac.evaluation_failed` or `abac.missing_context`, which deny in every enforcement mode, never silent Permits. A missing or unauthenticated security context, or an empty user id, is never evaluated as an anonymous user.
 
 ---
 
@@ -282,7 +282,7 @@ A request is evaluated only when its type carries `[RequirePolicy]` or `[Require
 | A required policy returns `Permit` | The requirement passes |
 | A required policy returns `Deny` or `NotApplicable` | Denies with `abac.access_denied`: an explicitly required policy that does not apply cannot authorize |
 | A required policy is not in the policy store, or exists only nested inside a policy set | Denies with `abac.policy_not_found` |
-| There is no security context, or its `UserId` is null, empty or whitespace | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
+| There is no security context, it is not authenticated (`IsAuthenticated` is `false`), or its `UserId` is null, empty or whitespace | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | A required policy returns `Indeterminate`, or the PDP fails (policy store failure, a `Left` with another code) | Denies with `abac.indeterminate`, in every enforcement mode |
 | The attribute provider or the PDP throws | Denies with `abac.evaluation_failed`, in every enforcement mode |
 | A `[RequireCondition]` expression is `false` | Denies with `abac.condition_not_met` |
@@ -315,7 +315,7 @@ The `ABACEnforcementMode` enum enables gradual rollout of ABAC policies without 
 
 ### Warn Mode Security Implications
 
-In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: a missing security context or user id (`abac.missing_context`, always, before any evaluation), Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
+In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: a missing or unauthenticated security context, or a missing user id (`abac.missing_context`, always, before any evaluation), Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
 
 ```csharp
 // During shadow mode, monitor these log events (EventIds in reference/observability.md):

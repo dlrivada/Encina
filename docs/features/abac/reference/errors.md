@@ -32,7 +32,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.duplicate_policy` | `DuplicatePolicyCode` | `DuplicatePolicy` | `string policyId` | A policy with the same ID already exists in the PAP. |
 | `abac.duplicate_policy_set` | `DuplicatePolicySetCode` | `DuplicatePolicySet` | `string policySetId` | A policy set with the same ID already exists in the PAP. |
 | `abac.combining_failed` | `CombiningFailedCode` | `CombiningFailed` | `string algorithmId, string? reason = null` | A combining algorithm produced an Indeterminate result. |
-| `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
+| `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, it is not authenticated (`IsAuthenticated` is `false`, even when it carries a user id claim), or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
 | `abac.obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
@@ -135,15 +135,20 @@ Error: Access denied for 'DeletePatientRecord' by policy 'medical-records-policy
 
 ### 2. Missing Context (abac.missing_context)
 
-**Scenario:** The ABAC pipeline behavior executes for a request with `[RequirePolicy]` or `[RequireCondition]`, but `ISecurityContextAccessor.SecurityContext` is null or its `UserId` is null, empty or whitespace.
+**Scenario:** The ABAC pipeline behavior executes for a request with `[RequirePolicy]` or `[RequireCondition]`, but `ISecurityContextAccessor.SecurityContext` is null, it is not authenticated (`SecurityContext.IsAuthenticated` is `false`), or its `UserId` is null, empty or whitespace.
 
 ```
-Error: Security context or authenticated user is not available for ABAC evaluation of 'CreateOrder'. Access denied.
+Error: Authenticated security context with a user is not available for ABAC evaluation of 'CreateOrder'. Access denied.
 ```
 
-The request is denied in every enforcement mode, `Warn` included, and no attribute is requested for an empty user id. The denial is logged with EventId 9091 (request type and error code only).
+The request is denied in every enforcement mode, `Warn` included, and no attribute is requested when there is no authenticated user. The denial is logged with EventId 9091 (request type and error code only).
 
-**Resolution:** Verify that authentication middleware runs before the ABAC pipeline and that `ISecurityContextAccessor` returns a context with a non-empty `UserId`.
+**Resolution:** ABAC needs an `ISecurityContextAccessor` whose `SecurityContext` is populated and authenticated.
+
+- The application registers `Encina.Security` (`AddEncinaSecurity`) and sets the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
+- Background jobs and scheduled messages set a context with a service identity: an authenticated `ClaimsIdentity` with a `sub` or `NameIdentifier` claim.
+- A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
+- Populating the context automatically, for example from `HttpContext.User`, is tracked by a follow-up issue.
 
 ### 3. Obligation Failed (abac.obligation_failed)
 

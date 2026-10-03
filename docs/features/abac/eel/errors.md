@@ -120,7 +120,7 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.duplicate_policy`           | A policy with the same ID already exists                   |
 | `abac.duplicate_policy_set`       | A policy set with the same ID already exists               |
 | `abac.combining_failed`           | Combining algorithm produced Indeterminate                 |
-| `abac.missing_context`            | ABAC security context or user id not available              |
+| `abac.missing_context`            | Authenticated ABAC security context with a user not available           |
 | `abac.obligation_failed`          | Mandatory obligation handler failed (access denied per XACML) |
 | `abac.function_not_found`         | Referenced function not in the function registry           |
 | `abac.function_error`             | Custom function threw an exception during evaluation       |

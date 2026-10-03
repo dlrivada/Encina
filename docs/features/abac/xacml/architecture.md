@@ -146,7 +146,7 @@ The `Handle` method follows XACML 3.0 section 7.18:
 
 1. **Check enforcement mode** -- if `Disabled`, skip entirely and call `nextStep()`.
 2. **Check for ABAC attributes** -- if the request type has no `[RequirePolicy]` or `[RequireCondition]`, skip.
-3. **Require a security context with a user** -- if `ISecurityContextAccessor.SecurityContext` is null, or its `UserId` is null, empty or whitespace, deny with `abac.missing_context` in every enforcement mode (`Block` and `Warn`). This runs before any attribute is requested, so an empty user id is never evaluated as an anonymous user.
+3. **Require a security context with a user** -- if `ISecurityContextAccessor.SecurityContext` is null, its `IsAuthenticated` is `false`, or its `UserId` is null, empty or whitespace, deny with `abac.missing_context` in every enforcement mode (`Block` and `Warn`). This runs before any attribute is requested, so an unauthenticated context or an empty user id is never evaluated as an anonymous user.
 4. **Collect attributes** -- call `IAttributeProvider` to resolve subject, resource, and environment attributes.
 5. **Build evaluation context** -- use `AttributeContextBuilder.Build()` to create a `PolicyEvaluationContext`.
 6. **Evaluate the requirements** -- call `IPolicyDecisionPoint.EvaluatePolicyAsync()` once for each `[RequirePolicy]` (the named top-level policy set or standalone policy is evaluated on its own, not the whole store), combine the policy results (`AllMustPass = true` policies must all permit; when any policy has `AllMustPass = false`, at least one of those must permit), and only if the policies pass evaluate each `[RequireCondition]` EEL expression in declaration order against the `user`, `resource`, `environment` and `action` variables. Everything combines with AND into one verdict.
@@ -486,7 +486,7 @@ sequenceDiagram
     participant Handler as Request Handler
 
     App->>PEP: Handle(request, context, nextStep)
-    Note over PEP: Check enforcement mode<br/>Check CachedAttributeInfo<br/>No security context or empty UserId: deny with abac.missing_context<br/>(every mode, before any attribute is requested)
+    Note over PEP: Check enforcement mode<br/>Check CachedAttributeInfo<br/>No authenticated security context or empty UserId: deny with abac.missing_context<br/>(every mode, before any attribute is requested)
 
     PEP->>AP: GetSubjectAttributesAsync(userId)
     AP-->>PEP: subject attributes
