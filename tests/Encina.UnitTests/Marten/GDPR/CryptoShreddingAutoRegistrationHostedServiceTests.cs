@@ -100,6 +100,41 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_NullableUnsupportedSubjectIdType_NamesTheUnderlyingType()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(NullableDateSubject)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("'DateTime?'");
+        ex.Message.ShouldNotContain("Nullable`1");
+    }
+
+    [Fact]
+    public async Task StartAsync_WriteOnlySubjectIdProperty_Throws()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(WriteOnlySubject)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("no public getter");
+    }
+
+    [Fact]
+    public async Task StartAsync_NonStringEncryptedProperty_Throws()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(NonStringEncrypted)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("Only string properties can be encrypted");
+        ex.Message.ShouldContain("'Int32'");
+    }
+
+    [Fact]
     public async Task StartAsync_SupportedSubjectIdTypes_CompletesWithoutErrors()
     {
         var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
@@ -179,6 +214,40 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
         [PersonalData]
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]
         public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class NullableDateSubject
+    {
+        public DateTime? UserId { get; set; }
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class WriteOnlySubject
+    {
+        private Guid _userId;
+
+        public Guid UserId
+        {
+            set => _userId = value;
+        }
+
+        public Guid StoredId => _userId;
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class NonStringEncrypted
+    {
+        public string UserId { get; set; } = string.Empty;
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public int Age { get; set; }
     }
 
     public sealed class GuidSubject

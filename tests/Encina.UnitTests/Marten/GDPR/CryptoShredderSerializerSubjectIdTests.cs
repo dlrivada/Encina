@@ -24,6 +24,7 @@ namespace Encina.UnitTests.Marten.GDPR;
 [Trait("Category", "Unit")]
 public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
 {
+    private const string PlainEmail = "a@example.com";
     private const string EncryptedPrefix = "{\"__enc\":true";
     private static readonly Guid SampleGuid = Guid.Parse("7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b");
     private const string SampleGuidText = "7f3a2c1e-4b5d-4e6f-8a9b-0c1d2e3f4a5b";
@@ -123,6 +124,70 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
         result.Email.ShouldBe("a@example.com");
     }
 
+    [Fact]
+    public void RoundTrip_GuidSubjectId_UsesInvariantKeyIdAndDecryptsBack() =>
+        AssertEnvelopeKeyAndRoundTrip(
+            new GuidSubjectEvent { PatientId = SampleGuid, Email = PlainEmail },
+            SampleGuidText,
+            e => e.Email,
+            stored => new GuidSubjectEvent { PatientId = SampleGuid, Email = stored });
+
+    [Fact]
+    public void RoundTrip_LongSubjectId_UsesInvariantKeyIdAndDecryptsBack() =>
+        AssertEnvelopeKeyAndRoundTrip(
+            new LongSubjectEvent { PatientId = 9_000_000_000L, Email = PlainEmail },
+            "9000000000",
+            e => e.Email,
+            stored => new LongSubjectEvent { PatientId = 9_000_000_000L, Email = stored });
+
+    [Fact]
+    public void RoundTrip_FormattableSubjectId_UsesInvariantKeyIdAndDecryptsBack() =>
+        AssertEnvelopeKeyAndRoundTrip(
+            new FormattableSubjectEvent { PatientId = new OpaqueId(77), Email = PlainEmail },
+            "opaque-77",
+            e => e.Email,
+            stored => new FormattableSubjectEvent { PatientId = new OpaqueId(77), Email = stored });
+
+    [Fact]
+    public void RoundTrip_ValueWrapperSubjectId_UsesInvariantKeyIdAndDecryptsBack() =>
+        AssertEnvelopeKeyAndRoundTrip(
+            new WrappedSubjectEvent { PatientId = new PatientId(SampleGuid), Email = PlainEmail },
+            SampleGuidText,
+            e => e.Email,
+            stored => new WrappedSubjectEvent { PatientId = new PatientId(SampleGuid), Email = stored });
+
+    private void AssertEnvelopeKeyAndRoundTrip<TEvent>(
+        TEvent evt,
+        string invariantSubjectId,
+        Func<TEvent, string> readEmail,
+        Func<string, TEvent> rebuild)
+        where TEvent : class
+    {
+        var keyMaterial = new byte[32];
+        Random.Shared.NextBytes(keyMaterial);
+        ArrangeKeys(invariantSubjectId, keyMaterial);
+        string? stored = null;
+        _inner.ToJson(Arg.Any<TEvent>()).Returns(ci =>
+        {
+            stored = readEmail(ci.Arg<TEvent>());
+            return "{}";
+        });
+
+        _sut.ToJson(evt);
+
+        var envelope = EncryptedFieldJsonConverter.TryParse(stored);
+        envelope.HasValue.ShouldBeTrue();
+        envelope!.Value.KeyId.ShouldBe($"subject:{invariantSubjectId}:v1");
+
+        _keys.GetSubjectKeyAsync(invariantSubjectId, Arg.Any<int?>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+        _inner.FromJson<TEvent>(Arg.Any<Stream>()).Returns(rebuild(stored!));
+
+        var result = _sut.FromJson<TEvent>(new MemoryStream());
+
+        readEmail(result).ShouldBe(PlainEmail);
+    }
+
     private StringHolder ArrangeKeys(string subjectId, byte[]? keyMaterial = null)
     {
         keyMaterial ??= new byte[32];
@@ -152,6 +217,31 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     }
 
     public sealed record PatientId(Guid Value);
+
+    /// <summary>A strongly-typed id that is <see cref="IFormattable"/> and has no <c>Value</c> property.</summary>
+    public readonly struct OpaqueId(int number) : IFormattable
+    {
+        public string ToString(string? format, IFormatProvider? formatProvider) =>
+            "opaque-" + number.ToString(formatProvider);
+    }
+
+    public sealed class LongSubjectEvent
+    {
+        public long PatientId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class FormattableSubjectEvent
+    {
+        public OpaqueId PatientId { get; set; }
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
+    }
 
     public sealed class GuidSubjectEvent
     {

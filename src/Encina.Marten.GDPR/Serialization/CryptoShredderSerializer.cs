@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Encina.Diagnostics;
@@ -528,7 +527,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     /// actually holds an encrypted envelope and a subject id can be resolved for it.
     /// </summary>
     private static bool TryGetEncryptedFieldSubject(
-        object target, Type eventType, CryptoShreddedFieldInfo field,
+        object target, CryptoShreddedFieldInfo field,
         out string currentValue, out string subjectId)
     {
         currentValue = string.Empty;
@@ -584,7 +583,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
+                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
@@ -623,7 +622,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
+                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
