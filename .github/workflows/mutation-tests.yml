@@ -527,17 +527,38 @@ jobs:
           echo "Merging $SUCCESSFUL / $SHARD_COUNT shard reports:"
           printf '  - %s\n' "${REPORTS[@]}"
 
-          # Combine every shard's `files` map into one. Each folder glob is
-          # disjoint (non-recursive *.cs patterns), so file-path collisions
-          # don't happen in practice; if they ever do, the last shard wins —
-          # benign because both shards would have mutated the same file.
-          # Metadata (thresholds, projectRoot, etc.) inherits from shard[0].
-          jq -s '(.[0]) + {files: (map(.files) | add)}' "${REPORTS[@]}" \
-            > artifacts/mutation/reports/mutation-report.json
+          # Combine every shard's `files` map into one. A shard lists every
+          # file of the project it mutated, including the files that belong to
+          # other shards' folders, with an empty `mutants` array (#1681). A
+          # plain `add` lets the last shard's empty entry overwrite the entry
+          # that has the mutants, so each shard's empty entries are dropped
+          # before combining. Metadata (thresholds, projectRoot, etc.) inherits
+          # from shard[0].
+          # A file with mutants in two shards means overlapping folder globs:
+          # fail with the file names instead of silently overwriting one.
+          DUPLICATES=$(jq -s -r '[.[] | .files | to_entries[]
+              | select((.value.mutants // []) | length > 0) | .key]
+            | group_by(.) | map(select(length > 1) | .[0]) | .[]' "${REPORTS[@]}")
+          if [ -n "$DUPLICATES" ]; then
+            echo "::error::Files with mutants in more than one shard report (overlapping folder globs):"
+            echo "$DUPLICATES"
+            exit 1
+          fi
+
+          jq -s '(.[0]) + {files: (map(.files | with_entries(select((.value.mutants // []) | length > 0))) | add // {})}' \
+            "${REPORTS[@]}" > artifacts/mutation/reports/mutation-report.json
+
+          # Guard: the merge must neither lose nor invent mutants.
+          EXPECTED=$(jq -s '[.[] | .files | to_entries[] | (.value.mutants // []) | length] | add // 0' "${REPORTS[@]}")
 
           MUTANTS=$(jq '[.files | to_entries[] | .value.mutants // [] | length] | add // 0' \
             artifacts/mutation/reports/mutation-report.json)
           FILES=$(jq '.files | length' artifacts/mutation/reports/mutation-report.json)
+
+          if [ "$MUTANTS" -ne "$EXPECTED" ]; then
+            echo "::error::Merged report has $MUTANTS mutants but the $SUCCESSFUL shard reports hold $EXPECTED."
+            exit 1
+          fi
 
           echo "successful=$SUCCESSFUL" >> "$GITHUB_OUTPUT"
           echo "mutants=$MUTANTS" >> "$GITHUB_OUTPUT"
