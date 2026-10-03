@@ -52,8 +52,15 @@ public interface IPolicyDecisionPoint
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>
     /// A <see cref="PolicyDecision"/> containing the computed effect (Permit, Deny,
-    /// NotApplicable, or Indeterminate), along with any obligations and advice.
+    /// NotApplicable, or Indeterminate), along with any obligations and advice. When the policy
+    /// sets or the standalone policies cannot be read, the decision is
+    /// <see cref="Effect.Indeterminate"/>: no decision is made on part of the policy store.
     /// </returns>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled by the caller. A cancellation that does
+    /// not come from the caller (for example a store timeout) is an
+    /// <see cref="Effect.Indeterminate"/> decision.
+    /// </exception>
     ValueTask<PolicyDecision> EvaluateAsync(
         PolicyEvaluationContext context,
         CancellationToken cancellationToken = default);
@@ -81,6 +88,9 @@ public interface IPolicyDecisionPoint
     /// <c>Left</c> with code <see cref="ABACErrors.PolicyNotFoundCode"/> when the store holds no
     /// top-level policy set and no standalone policy with that identifier.
     /// </returns>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled by the caller.
+    /// </exception>
     /// <remarks>
     /// Used by <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> to enforce
     /// <see cref="RequirePolicyAttribute"/>: the named policy decides on its own, so the

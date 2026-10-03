@@ -40,6 +40,15 @@ This registers the full XACML 3.0 evaluation engine, including:
 
 All registrations use `TryAdd`, so you can register custom implementations _before_ calling `AddEncinaABAC()` and they will take precedence.
 
+### Provide a security context
+
+ABAC evaluates a request only for an authenticated user, so it needs an `ISecurityContextAccessor` whose `SecurityContext` is populated and authenticated. Without one, the request is denied with `abac.missing_context` in every enforcement mode (see the [error reference](reference/errors.md)).
+
+- Register `Encina.Security` (`AddEncinaSecurity`) and set the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
+- Background jobs and scheduled messages set a context with a service identity: a `ClaimsIdentity` created with an authentication type (for example `new ClaimsIdentity(claims, "service")`), so `IsAuthenticated` is true, and with a `sub` or `NameIdentifier` claim.
+- A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
+- Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
+
 ## 3. Define Your First Policy
 
 Use `PolicyBuilder` to define a policy that permits access for the Engineering department:
@@ -206,7 +215,7 @@ services.AddEncinaABAC(options =>
 });
 ```
 
-Definite denials will proceed to the handler, but a warning is logged with the full evaluation result. Errors (an Indeterminate result, an exception from the attribute provider or the PDP, a mandatory OnPermit obligation that cannot be fulfilled) still deny in `Warn` mode when they decide the verdict; a definite denial found next to an error among the required policies is the verdict and proceeds.
+Definite denials will proceed to the handler, but a warning is logged with the full evaluation result. Errors (a missing or unauthenticated security context or an empty user id, an Indeterminate result, an exception from the attribute provider or the PDP, a mandatory OnPermit obligation that cannot be fulfilled) still deny in `Warn` mode when they decide the verdict; a definite denial found next to an error among the required policies is the verdict and proceeds.
 
 ## 8. Alternative: Use [RequireCondition] for Simple Cases
 

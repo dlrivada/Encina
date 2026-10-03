@@ -146,10 +146,11 @@ The `Handle` method follows XACML 3.0 section 7.18:
 
 1. **Check enforcement mode** -- if `Disabled`, skip entirely and call `nextStep()`.
 2. **Check for ABAC attributes** -- if the request type has no `[RequirePolicy]` or `[RequireCondition]`, skip.
-3. **Collect attributes** -- call `IAttributeProvider` to resolve subject, resource, and environment attributes.
-4. **Build evaluation context** -- use `AttributeContextBuilder.Build()` to create a `PolicyEvaluationContext`.
-5. **Evaluate the requirements** -- call `IPolicyDecisionPoint.EvaluatePolicyAsync()` once for each `[RequirePolicy]` (the named top-level policy set or standalone policy is evaluated on its own, not the whole store), combine the policy results (`AllMustPass = true` policies must all permit; when any policy has `AllMustPass = false`, at least one of those must permit), and only if the policies pass evaluate each `[RequireCondition]` EEL expression in declaration order against the `user`, `resource`, `environment` and `action` variables. Everything combines with AND into one verdict.
-6. **Process the verdict** -- handle the three possible outcomes (a required policy that is NotApplicable is already a Deny):
+3. **Require a security context with a user** -- if `ISecurityContextAccessor.SecurityContext` is null, its `IsAuthenticated` is `false`, or its `UserId` is null, empty or whitespace, deny with `abac.missing_context` in every enforcement mode (`Block` and `Warn`). This runs before any attribute is requested, so an unauthenticated context or an empty user id is never evaluated as an anonymous user.
+4. **Collect attributes** -- call `IAttributeProvider` to resolve subject, resource, and environment attributes.
+5. **Build evaluation context** -- use `AttributeContextBuilder.Build()` to create a `PolicyEvaluationContext`.
+6. **Evaluate the requirements** -- call `IPolicyDecisionPoint.EvaluatePolicyAsync()` once for each `[RequirePolicy]` (the named top-level policy set or standalone policy is evaluated on its own, not the whole store), combine the policy results (`AllMustPass = true` policies must all permit; when any policy has `AllMustPass = false`, at least one of those must permit), and only if the policies pass evaluate each `[RequireCondition]` EEL expression in declaration order against the `user`, `resource`, `environment` and `action` variables. Everything combines with AND into one verdict.
+7. **Process the verdict** -- handle the three possible outcomes (a required policy that is NotApplicable is already a Deny):
    - **Permit**: execute obligations (mandatory), execute advice (best-effort), call `nextStep()`.
    - **Deny**: execute OnDeny obligations, apply enforcement mode (Block or Warn). The error code is `abac.access_denied`, `abac.policy_not_found` (the named policy is not in the store) or `abac.condition_not_met` (a condition was `false`).
    - **Indeterminate**: a required policy or condition could not be evaluated; the request is denied with `abac.indeterminate` in every enforcement mode.
@@ -171,7 +172,7 @@ The `ABACEnforcementMode` enum controls how Deny decisions are handled:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny decisions reject the request with an `EncinaError` | Production |
-| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
+| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.missing_context`, always; `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
 | `Disabled` | ABAC evaluation is completely skipped | Development, feature-flagging |
 
 ---
@@ -206,12 +207,14 @@ public interface IPolicyDecisionPoint
 
 ### Evaluation Algorithm (XACML 3.0 sections 7.12-7.14)
 
+This is the whole-store algorithm of `EvaluateAsync`, used by direct `IPolicyDecisionPoint` callers; the PEP evaluates each `[RequirePolicy]` through `EvaluatePolicyAsync` instead.
+
 1. Retrieve all **policy sets** from the PAP.
 2. For each policy set, recursively evaluate:
    - **Target matching** via `TargetEvaluator` -- does this policy set apply to the request?
    - **Child evaluation** -- evaluate nested policies and policy sets.
    - **Combining** -- aggregate child results using the policy set's combining algorithm.
-3. Retrieve all **standalone policies** (not in any policy set).
+3. Retrieve all **standalone policies** (not in any policy set). If either retrieval (step 1 or this one) returns a `Left`, the decision is `Indeterminate` and nothing is evaluated on part of the store (see Error Handling).
 4. For each standalone policy, evaluate:
    - **Target matching** -- does this policy apply?
    - **Rule evaluation** -- evaluate each rule's target, then its condition via `ConditionEvaluator`.
@@ -232,7 +235,7 @@ The PDP returns exactly one of four effects, per XACML 3.0 section 7.1:
 
 ### Error Handling
 
-The PDP never throws exceptions. Evaluation failures produce `Effect.Indeterminate` with a `DecisionStatus` describing the problem. This ensures the PEP always receives a usable decision.
+The PDP does not throw for evaluation failures (a cancellation requested by the caller's token is rethrown). They produce `Effect.Indeterminate` with a `DecisionStatus`. When `EvaluateAsync` cannot read the policy sets or the standalone policies from the PAP, or hits an unexpected exception, the status code is `processing-error` and the status message is the fixed text `The policy store could not be read in full. No decision is made on part of the policies.` The failure is logged with EventId 9092 (source and error code) or 9093 (exception type and stack trace); see [observability](../reference/observability.md). `EvaluatePolicyAsync` makes every retrieval failure Indeterminate too.
 
 ---
 
@@ -483,7 +486,7 @@ sequenceDiagram
     participant Handler as Request Handler
 
     App->>PEP: Handle(request, context, nextStep)
-    Note over PEP: Check enforcement mode<br/>Check CachedAttributeInfo
+    Note over PEP: Check enforcement mode<br/>Check CachedAttributeInfo<br/>No authenticated security context or empty UserId: deny with abac.missing_context<br/>(every mode, before any attribute is requested)
 
     PEP->>AP: GetSubjectAttributesAsync(userId)
     AP-->>PEP: subject attributes

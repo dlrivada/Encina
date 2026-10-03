@@ -28,6 +28,7 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 | `NotApplicable` from a required policy | Denies |
 | Policy not in the store | Denies with `abac.policy_not_found` |
 | `Indeterminate` or evaluation error | Denies (`abac.indeterminate` / `abac.evaluation_failed`), in every enforcement mode |
+| No security context, an unauthenticated one (`IsAuthenticated` is `false`), or empty `UserId` | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
 | `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
 | `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies with `abac.indeterminate` |
@@ -131,7 +132,7 @@ user.isAdmin == true || user.department == "security"
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny stops request execution | Production |
-| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
+| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.missing_context`, `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
 | `Disabled` | ABAC skipped entirely | Development / feature flag |
 
 ## Error Codes
@@ -150,7 +151,7 @@ user.isAdmin == true || user.department == "security"
 | `abac.duplicate_policy` | Policy with same ID already exists |
 | `abac.duplicate_policy_set` | PolicySet with same ID already exists |
 | `abac.combining_failed` | Combining algorithm produced Indeterminate |
-| `abac.missing_context` | Security context unavailable |
+| `abac.missing_context` | Security context unavailable, not authenticated, or its `UserId` is empty |
 | `abac.obligation_failed` | Mandatory obligation handler failed (access denied per XACML 7.18) |
 | `abac.function_not_found` | Function not registered in registry |
 | `abac.function_error` | Function evaluation threw exception |
@@ -213,3 +214,4 @@ user.isAdmin == true || user.department == "security"
 | 9010-9019 | Obligations (execution, failure, missing handler) |
 | 9020-9029 | Advice (execution, failure, skipped) |
 | 9072-9078 | Required policies, conditions and obligation or advice handler exceptions |
+| 9091-9093 | Fail-closed denials: missing context, policy store retrieval failure, store evaluation exception (9079-9090 are reserved for #751) |

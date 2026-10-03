@@ -81,6 +81,7 @@ public sealed class ABACPipelineBehaviorContractTests
     {
         var secCtx = Substitute.For<ISecurityContext>();
         secCtx.UserId.Returns("test-user");
+        secCtx.IsAuthenticated.Returns(true);
 
         var accessor = Substitute.For<ISecurityContextAccessor>();
         accessor.SecurityContext.Returns(secCtx);

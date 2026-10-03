@@ -169,11 +169,12 @@ public class ABACErrorsGuardTests
     #region EvaluationFailed
 
     [Fact]
-    public void EvaluationFailed_ContainsExceptionInfo()
+    public void EvaluationFailed_RecordsTheExceptionTypeButNeverItsMessage()
     {
         var error = ABACErrors.EvaluationFailed(typeof(string), new InvalidOperationException("boom"));
-        error.Message.ShouldContain("boom");
+        error.Message.ShouldNotContain("boom");
         error.Message.ShouldContain("String");
+        error.GetDetails()["exceptionType"].ShouldBe(typeof(InvalidOperationException).FullName);
     }
 
     #endregion

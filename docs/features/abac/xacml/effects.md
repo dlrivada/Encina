@@ -239,7 +239,7 @@ The `ABACEnforcementMode` determines what the PEP does with the final decision:
 ```csharp
 public enum ABACEnforcementMode
 {
-    Block,    // Deny/Indeterminate blocks the request (production)
+    Block,    // Deny/Indeterminate/missing context blocks the request (production)
     Warn,     // Definite denials are logged but proceed; errors still deny (observation)
     Disabled  // ABAC evaluation is skipped entirely
 }
@@ -249,8 +249,10 @@ An Indeterminate final decision **denies the request** in every enforcement mode
 included, unless a definite denial decides the verdict (see below) (`abac.indeterminate`), because the PDP could not determine that access is allowed.
 `Warn` relaxes only definite verdicts: a Deny, a required policy that is NotApplicable, Deny
 or not found, and a condition that evaluates to `false`. Those are logged and the request
-proceeds. Exceptions from the attribute provider or the PDP (`abac.evaluation_failed`) and
-mandatory OnPermit obligations that cannot be fulfilled (`abac.obligation_failed`) also deny in `Warn`.
+proceeds. A missing or unauthenticated security context, or an empty user id (`abac.missing_context`), exceptions from the attribute provider or the PDP (`abac.evaluation_failed`) and
+mandatory OnPermit obligations that cannot be fulfilled (`abac.obligation_failed`) are not definite verdicts and also deny in `Warn`.
+
+When `IPolicyDecisionPoint.EvaluateAsync` evaluates the whole store and cannot read the policy sets or the standalone policies from the PAP, the decision is Indeterminate with status code `processing-error`; the PDP never decides on part of the store. See the [architecture](architecture.md) page.
 
 An error denies when it decides the verdict. When a definite denial and an error occur
 together among the required policies, the definite denial wins: an `AllMustPass` policy that

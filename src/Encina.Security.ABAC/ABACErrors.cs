@@ -227,12 +227,12 @@ public static class ABACErrors
     /// Creates an error when policy evaluation threw an exception.
     /// </summary>
     /// <param name="requestType">The request type whose evaluation failed.</param>
-    /// <param name="exception">The exception that occurred during evaluation.</param>
+    /// <param name="exception">The exception that occurred during evaluation; only its type is recorded, never its message.</param>
     /// <returns>An error indicating evaluation failure.</returns>
     public static EncinaError EvaluationFailed(Type requestType, Exception exception) =>
         EncinaErrors.Create(
             code: EvaluationFailedCode,
-            message: $"Policy evaluation failed for '{requestType.Name}': {exception.Message}",
+            message: $"Policy evaluation failed for '{requestType.Name}'. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,
@@ -360,14 +360,15 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when the security context is not available for ABAC evaluation.
+    /// Creates an error when the security context, or the user it should carry, is not available
+    /// for ABAC evaluation. The Policy Enforcement Point returns it in every enforcement mode.
     /// </summary>
     /// <param name="requestType">The request type that required ABAC evaluation.</param>
     /// <returns>An error indicating the security context is missing.</returns>
     public static EncinaError MissingContext(Type requestType) =>
         EncinaErrors.Create(
             code: MissingContextCode,
-            message: $"Security context is not available for ABAC evaluation of '{requestType.Name}'. Ensure ABAC middleware is configured.",
+            message: $"Authenticated security context with a user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,

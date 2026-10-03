@@ -4,6 +4,7 @@ using Encina.Security.ABAC.Evaluation;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Shouldly;
 using Target = Encina.Security.ABAC.Target;
 
@@ -703,9 +704,10 @@ public sealed class XACMLPolicyDecisionPointTests
     }
 
     [Fact]
-    public async Task EvaluateAsync_PapPoliciesError_ContinuesWithPolicySets()
+    public async Task EvaluateAsync_PapPoliciesError_ReturnsIndeterminateInsteadOfDecidingOnThePolicySets()
     {
-        // PAP fails on GetPoliciesAsync but succeeds on GetPolicySetsAsync
+        // PAP fails on GetPoliciesAsync but succeeds on GetPolicySetsAsync, whose only set
+        // permits: a Deny that lives only among the standalone policies must not be lost (#1676).
         var pap = new FailingPap(failPolicySets: false, failPolicies: true);
         pap.PolicySets.Add(new PolicySet
         {
@@ -737,9 +739,77 @@ public sealed class XACMLPolicyDecisionPointTests
 
         var decision = await pdp.EvaluateAsync(ctx);
 
-        // Should still evaluate policy sets even though standalone policies failed
-        decision.Effect.ShouldBe(Effect.Permit);
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Obligations.ShouldBeEmpty();
+        decision.Advice.ShouldBeEmpty();
+        decision.Status.ShouldNotBeNull();
+        decision.Status!.StatusCode.ShouldBe("processing-error");
     }
+
+    [Theory]
+    [InlineData(true, false, "policy sets")]
+    [InlineData(false, true, "standalone policies")]
+    public async Task EvaluateAsync_PapRetrievalError_LogsTheCodeOnlyAndKeepsTheErrorMessageOutOfTheDecision(
+        bool failPolicySets, bool failPolicies, string source)
+    {
+        var logger = new FakeLogger<XACMLPolicyDecisionPoint>();
+        var pap = new FailingPap(failPolicySets, failPolicies, code: "store.down", message: Sentinel);
+        var pdp = new XACMLPolicyDecisionPoint(
+            pap, new TargetEvaluator(_registry), new ConditionEvaluator(_registry), _algorithmFactory, logger);
+
+        var decision = await pdp.EvaluateAsync(MakeContext());
+
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status!.StatusMessage.ShouldNotBeNull();
+        decision.Status.StatusMessage!.ShouldNotContain(Sentinel);
+        var record = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 9092);
+        record.Message.ShouldContain("store.down");
+        record.Message.ShouldContain(source);
+        logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_PapThrows_IsIndeterminateAndNoExceptionMessageReachesTheDecisionOrTheLog()
+    {
+        var logger = new FakeLogger<XACMLPolicyDecisionPoint>();
+        var pap = new FailingPap(failPolicySets: false, failPolicies: false, throws: new InvalidOperationException(Sentinel));
+        var pdp = new XACMLPolicyDecisionPoint(
+            pap, new TargetEvaluator(_registry), new ConditionEvaluator(_registry), _algorithmFactory, logger);
+
+        var decision = await pdp.EvaluateAsync(MakeContext());
+
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+        decision.Status!.StatusMessage!.ShouldNotContain(Sentinel);
+        var record = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 9093);
+        record.Exception.ShouldNotBeNull();
+        record.Exception!.ToString().ShouldNotContain(Sentinel);
+        record.Message.ShouldNotContain(Sentinel);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_Cancelled_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var pap = new FailingPap(failPolicySets: false, failPolicies: false, throws: new OperationCanceledException(cts.Token));
+        var pdp = CreatePdp(pap);
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await pdp.EvaluateAsync(MakeContext(), cts.Token));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_StoreThrowsOperationCanceledWithoutCallerCancellation_IsIndeterminate()
+    {
+        // A store timeout surfaces as OperationCanceledException although the caller never cancelled.
+        var pap = new FailingPap(failPolicySets: false, failPolicies: false, throws: new OperationCanceledException());
+        var pdp = CreatePdp(pap);
+
+        var decision = await pdp.EvaluateAsync(MakeContext(), CancellationToken.None);
+
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+    }
+
+    private const string Sentinel = "SENTINEL-1676-secret-store-detail";
 
     #endregion
 
@@ -947,17 +1017,27 @@ public sealed class XACMLPolicyDecisionPointTests
     /// <summary>
     /// PAP that fails on certain operations for testing error handling.
     /// </summary>
-    private sealed class FailingPap(bool failPolicySets, bool failPolicies) : IPolicyAdministrationPoint
+    private sealed class FailingPap(
+        bool failPolicySets,
+        bool failPolicies,
+        string code = "pap.error",
+        string message = "PAP error",
+        Exception? throws = null) : IPolicyAdministrationPoint
     {
         public List<PolicySet> PolicySets { get; } = [];
 
         public ValueTask<Either<EncinaError, IReadOnlyList<PolicySet>>> GetPolicySetsAsync(
             CancellationToken cancellationToken = default)
         {
+            if (throws is not null)
+            {
+                throw throws;
+            }
+
             if (failPolicySets)
             {
                 return new(Either<EncinaError, IReadOnlyList<PolicySet>>.Left(
-                    EncinaError.New("PAP policy sets error")));
+                    EncinaErrors.Create(code, message)));
             }
 
             return new(Either<EncinaError, IReadOnlyList<PolicySet>>.Right(PolicySets));
@@ -969,7 +1049,7 @@ public sealed class XACMLPolicyDecisionPointTests
             if (failPolicies)
             {
                 return new(Either<EncinaError, IReadOnlyList<Policy>>.Left(
-                    EncinaError.New("PAP policies error")));
+                    EncinaErrors.Create(code, message)));
             }
 
             return new(Either<EncinaError, IReadOnlyList<Policy>>.Right(
