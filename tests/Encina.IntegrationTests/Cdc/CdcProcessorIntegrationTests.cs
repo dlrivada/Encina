@@ -62,22 +62,28 @@ public sealed class CdcProcessorIntegrationTests
         return new ProcessorFixture(sp, connector, handler, positionStore);
     }
 
-    private static async Task RunProcessorForDuration(
-        ServiceProvider sp,
-        TimeSpan duration)
+    /// <summary>
+    /// Hang guard only: a healthy run completes in milliseconds, so this never decides a result.
+    /// </summary>
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Runs the processor until the connector has started <paramref name="streamCalls"/> stream calls.
+    /// The processor drains one stream call completely (dispatches and position saves) before it polls
+    /// again, so the start of call <c>N + 1</c> proves call <c>N</c> is fully processed. The processor
+    /// is stopped only after that condition, never by a timer.
+    /// </summary>
+    private static async Task RunProcessorUntilStreamCallsAsync(
+        ProcessorFixture fixture,
+        int streamCalls = 2)
     {
-        var hostedServices = sp.GetServices<IHostedService>();
+        var hostedServices = fixture.ServiceProvider.GetServices<IHostedService>();
         var processor = hostedServices.First(s => s.GetType().Name == "CdcProcessor");
 
-        using var cts = new CancellationTokenSource(duration);
+        await processor.StartAsync(CancellationToken.None);
         try
         {
-            await processor.StartAsync(cts.Token);
-            await Task.Delay(duration, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected
+            await fixture.Connector.WaitForStreamCallsAsync(streamCalls).WaitAsync(HangGuard);
         }
         finally
         {
@@ -100,7 +106,7 @@ public sealed class CdcProcessorIntegrationTests
             .AddEvent(CdcTestFixtures.CreateInsertEvent(id: 3, positionValue: 3));
 
         // Act
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(500));
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
         // Assert
         fixture.Handler.Invocations.Count.ShouldBe(3);
@@ -117,7 +123,7 @@ public sealed class CdcProcessorIntegrationTests
             .AddEvent(CdcTestFixtures.CreateInsertEvent(id: 2, positionValue: 20));
 
         // Act
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(500));
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
         // Assert
         var positionResult = await fixture.PositionStore.GetPositionAsync("integration-test");
@@ -146,7 +152,7 @@ public sealed class CdcProcessorIntegrationTests
         fixture.Connector.AddEvent(CdcTestFixtures.CreateInsertEvent(id: 1, positionValue: 100));
 
         // Act
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(500));
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
         // Assert
         fixture.Handler.Invocations.ShouldHaveSingleItem();
@@ -171,7 +177,7 @@ public sealed class CdcProcessorIntegrationTests
             .AddEvent(CdcTestFixtures.CreateDeleteEvent(id: 1, positionValue: 3));
 
         // Act
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(500));
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
         // Assert
         fixture.Handler.Invocations.Count.ShouldBe(3);
@@ -192,7 +198,7 @@ public sealed class CdcProcessorIntegrationTests
         // No events added to connector
 
         // Act
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(300));
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
         // Assert
         fixture.Handler.Invocations.ShouldBeEmpty();
@@ -216,10 +222,10 @@ public sealed class CdcProcessorIntegrationTests
                 CdcTestFixtures.CreateInsertEvent(id: i, positionValue: i));
         }
 
-        // Act — Run briefly (one poll cycle)
-        await RunProcessorForDuration(fixture.ServiceProvider, TimeSpan.FromMilliseconds(200));
+        // Act — Run until the second poll starts, i.e. the first batch is complete
+        await RunProcessorUntilStreamCallsAsync(fixture);
 
-        // Assert — First batch should have exactly 3 events
+        // Assert — First batch should have exactly 3 events (the connector dropped the rest on the first call)
         fixture.Handler.Invocations.Count.ShouldBe(3);
     }
 
