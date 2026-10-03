@@ -346,7 +346,8 @@ public static class EventIdRanges
     /// <summary>
     /// Encina.Security.ABAC — attribute-based access control.
     /// Ids freed or left over, to reuse for the next ABAC message: 9056-9057 (freed by #1677) and 9098-9099.
-    /// 9079-9090 are reserved for #751 and 9091-9093 for #1676; the used ids are in the ABAC log-message files.
+    /// In use: 9000-9078, 9091-9093 (fail-closed denials) and 9094-9097 (policy administration point and seeding service).
+    /// 9079-9090 are reserved for #751; the used ids are in the ABAC log-message files.
     /// </summary>
     public static readonly (int Min, int Max) SecurityABAC = (9000, 9099);
 
