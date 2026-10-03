@@ -52,7 +52,9 @@ public interface IPolicyDecisionPoint
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>
     /// A <see cref="PolicyDecision"/> containing the computed effect (Permit, Deny,
-    /// NotApplicable, or Indeterminate), along with any obligations and advice.
+    /// NotApplicable, or Indeterminate), along with any obligations and advice. When the policy
+    /// sets or the standalone policies cannot be read, the decision is
+    /// <see cref="Effect.Indeterminate"/>: no decision is made on part of the policy store.
     /// </returns>
     ValueTask<PolicyDecision> EvaluateAsync(
         PolicyEvaluationContext context,

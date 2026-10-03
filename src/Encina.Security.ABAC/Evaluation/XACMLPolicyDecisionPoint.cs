@@ -19,7 +19,8 @@ namespace Encina.Security.ABAC.Evaluation;
 /// Implements the complete XACML 3.0 evaluation algorithm (§7.12-7.14):
 /// </para>
 /// <list type="number">
-/// <item><description>Retrieve all policy sets and standalone policies from the PAP</description></item>
+/// <item><description>Retrieve all policy sets and standalone policies from the PAP; if either list
+/// cannot be read, the decision is <see cref="Effect.Indeterminate"/> (never one made on part of the store)</description></item>
 /// <item><description>Recursively evaluate each policy set (target → child policies/sets → combine)</description></item>
 /// <item><description>Evaluate each policy (target → rules → combine → collect obligations/advice)</description></item>
 /// <item><description>Evaluate each rule (target → condition → effect)</description></item>
@@ -61,6 +62,13 @@ public sealed class XACMLPolicyDecisionPoint(
     private readonly ILogger<XACMLPolicyDecisionPoint> _logger = logger
         ?? throw new ArgumentNullException(nameof(logger));
 
+    private const string PolicySetsSource = "policy sets";
+    private const string StandalonePoliciesSource = "standalone policies";
+
+    // Fixed text: neither a store error message nor an exception message reaches the decision.
+    private const string StoreFailureStatusMessage =
+        "The policy store could not be read in full. No decision is made on part of the policies.";
+
     // Root combining algorithm for top-level results
     private readonly ICombiningAlgorithm _rootAlgorithm = algorithmFactory.GetAlgorithm(CombiningAlgorithmId.DenyOverrides);
 
@@ -72,113 +80,87 @@ public sealed class XACMLPolicyDecisionPoint(
         ArgumentNullException.ThrowIfNull(context);
 
         var stopwatch = Stopwatch.StartNew();
+        PolicyEvaluationResult? combinedResult;
 
         try
         {
-            var allResults = new List<PolicyEvaluationResult>();
-
-            // 1. Evaluate all policy sets
-            var policySetsResult = await _pap.GetPolicySetsAsync(cancellationToken).ConfigureAwait(false);
-            var policySetsEvaluated = policySetsResult.Match(
-                Left: error =>
-                {
-                    _logger.LogWarning("Failed to retrieve policy sets: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
-                    return false;
-                },
-                Right: policySets =>
-                {
-                    foreach (var policySet in policySets)
-                    {
-                        var result = EvaluatePolicySet(policySet, context);
-                        allResults.Add(result);
-                    }
-
-                    return true;
-                });
-
-            if (!policySetsEvaluated)
-            {
-                stopwatch.Stop();
-                return new PolicyDecision
-                {
-                    Effect = Effect.Indeterminate,
-                    Status = new DecisionStatus
-                    {
-                        StatusCode = "processing-error",
-                        StatusMessage = "Failed to retrieve policy sets from PAP."
-                    },
-                    Obligations = [],
-                    Advice = [],
-                    EvaluationDuration = stopwatch.Elapsed
-                };
-            }
-
-            // 2. Evaluate standalone policies (not in any policy set)
-            var policiesResult = await _pap.GetPoliciesAsync(null, cancellationToken).ConfigureAwait(false);
-            var policiesEvaluated = policiesResult.Match(
-                Left: error =>
-                {
-                    _logger.LogWarning("Failed to retrieve standalone policies: {ErrorCode}", error.GetCode().IfNone("encina.unknown"));
-                    return false;
-                },
-                Right: policies =>
-                {
-                    foreach (var policy in policies)
-                    {
-                        var result = EvaluatePolicy(policy, context);
-                        allResults.Add(result);
-                    }
-
-                    return true;
-                });
-
-            // Log if standalone policy retrieval failed (non-fatal — we continue with policy sets)
-            if (!policiesEvaluated)
-            {
-                _logger.LogDebug("Proceeding with policy set results only");
-            }
-
-            // 3. Combine all results at root level
-            PolicyEvaluationResult combinedResult;
-            if (allResults.Count == 0)
-            {
-                combinedResult = new PolicyEvaluationResult
-                {
-                    Effect = Effect.NotApplicable,
-                    PolicyId = string.Empty,
-                    Obligations = [],
-                    Advice = []
-                };
-            }
-            else
-            {
-                combinedResult = _rootAlgorithm.CombinePolicyResults(allResults);
-            }
-
-            stopwatch.Stop();
-
-            // 4. Build final decision with filtered obligations/advice
-            return BuildDecision(combinedResult, context, stopwatch.Elapsed);
+            combinedResult = await EvaluateWholeStoreAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            _logger.LogError(ex.ForLogging(), "Unexpected error during policy evaluation");
-
-            return new PolicyDecision
-            {
-                Effect = Effect.Indeterminate,
-                Status = new DecisionStatus
-                {
-                    StatusCode = "processing-error",
-                    StatusMessage = $"Unexpected error: {ex.Message}"
-                },
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = stopwatch.Elapsed
-            };
+            ABACLogMessages.StoreEvaluationFailed(_logger, ex.ForLogging());
+            combinedResult = null;
         }
+
+        stopwatch.Stop();
+
+        // A store that could not be read in full is Indeterminate: deciding on the policies that
+        // did load could miss a Deny among the ones that did not (#1676).
+        return combinedResult is null
+            ? StoreFailureDecision(stopwatch.Elapsed)
+            : BuildDecision(combinedResult, context, stopwatch.Elapsed);
     }
+
+    /// <summary>
+    /// Reads every top-level policy set and every standalone policy, evaluates them and combines
+    /// the results at the root with DenyOverrides. Returns <c>null</c> when either list could not
+    /// be read: the decision is then Indeterminate, never one made on part of the store.
+    /// </summary>
+    private async ValueTask<PolicyEvaluationResult?> EvaluateWholeStoreAsync(
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken)
+    {
+        var policySetsResult = await _pap.GetPolicySetsAsync(cancellationToken).ConfigureAwait(false);
+        var policySets = policySetsResult.MatchUnsafe(
+            Right: sets => sets,
+            Left: error => RetrievalFailed<PolicySet>(PolicySetsSource, error));
+
+        if (policySets is null)
+        {
+            return null;
+        }
+
+        var policiesResult = await _pap.GetPoliciesAsync(null, cancellationToken).ConfigureAwait(false);
+        var policies = policiesResult.MatchUnsafe(
+            Right: standalone => standalone,
+            Left: error => RetrievalFailed<Policy>(StandalonePoliciesSource, error));
+
+        if (policies is null)
+        {
+            return null;
+        }
+
+        var allResults = new List<PolicyEvaluationResult>(policySets.Count + policies.Count);
+        allResults.AddRange(policySets.Select(policySet => EvaluatePolicySet(policySet, context)));
+        allResults.AddRange(policies.Select(policy => EvaluatePolicy(policy, context)));
+
+        return allResults.Count == 0
+            ? NotApplicableResult(string.Empty)
+            : _rootAlgorithm.CombinePolicyResults(allResults);
+    }
+
+    private IReadOnlyList<T>? RetrievalFailed<T>(string source, EncinaError error)
+    {
+        ABACLogMessages.PolicyRetrievalFailed(_logger, source, error.GetCode().IfNone("encina.unknown"));
+        return null;
+    }
+
+    private static PolicyDecision StoreFailureDecision(TimeSpan evaluationDuration) => new()
+    {
+        Effect = Effect.Indeterminate,
+        Status = new DecisionStatus
+        {
+            StatusCode = "processing-error",
+            StatusMessage = StoreFailureStatusMessage
+        },
+        Obligations = [],
+        Advice = [],
+        EvaluationDuration = evaluationDuration
+    };
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, PolicyDecision>> EvaluatePolicyAsync(

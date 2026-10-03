@@ -25,6 +25,9 @@ namespace Encina.Security.ABAC;
 /// XACML 3.0 §7.18 — The PEP is responsible for:
 /// </para>
 /// <list type="number">
+/// <item><description>Requiring a security context with a user: without one the request is denied
+/// with <see cref="ABACErrors.MissingContextCode"/> in every enforcement mode, before any attribute
+/// is collected.</description></item>
 /// <item><description>Collecting attributes from <see cref="IAttributeProvider"/>.</description></item>
 /// <item><description>Sending the request to the PDP for evaluation.</description></item>
 /// <item><description>Executing obligations returned with the decision.</description></item>
@@ -142,11 +145,18 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         try
         {
-            // ── 4. Collect attributes ───────────────────────────────
-            var attributes = await CollectAttributesAsync(request, cancellationToken)
+            // ── 4. Require a security context with a user ───────────
+            var userId = ResolveUserId();
+            if (userId is null)
+            {
+                return HandleMissingContext(startTimestamp, activity);
+            }
+
+            // ── 5. Collect attributes ───────────────────────────────
+            var attributes = await CollectAttributesAsync(request, userId, cancellationToken)
                 .ConfigureAwait(false);
 
-            // ── 5. Evaluate the required policies and conditions ────
+            // ── 6. Evaluate the required policies and conditions ────
             var verdict = await _requirementEvaluator
                 .EvaluateAsync(CachedAttributeInfo, attributes, typeof(TRequest), cancellationToken)
                 .ConfigureAwait(false);
@@ -157,7 +167,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 verdict.Decision.PolicyId,
                 verdict.Decision.EvaluationDuration.TotalMilliseconds);
 
-            // ── 6. Process decision ─────────────────────────────────
+            // ── 7. Process decision ─────────────────────────────────
             return await ProcessDecisionAsync(
                 verdict, attributes.Context, nextStep, startTimestamp, activity, cancellationToken)
                 .ConfigureAwait(false);
@@ -175,7 +185,9 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 elapsed.TotalMilliseconds);
 
             ABACDiagnostics.EvaluationDuration.Record(elapsed.TotalMilliseconds);
-            ABACDiagnostics.RecordIndeterminate(activity, ex.Message);
+
+            // The exception type only: its message can carry data and never reaches a tag.
+            ABACDiagnostics.RecordIndeterminate(activity, ex.GetType().Name);
 
             ABACDiagnostics.EvaluationIndeterminate.Add(1,
                 new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
@@ -345,15 +357,41 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         return ABACErrors.Indeterminate(typeof(TRequest), reason);
     }
 
+    // ── Missing Security Context ────────────────────────────────────
+
+    // The user the subject attributes are collected for, or null when there is no security
+    // context or it carries no user (no HttpContext, a background job, a misconfiguration).
+    private string? ResolveUserId()
+    {
+        var userId = _securityContextAccessor.SecurityContext?.UserId;
+        return string.IsNullOrWhiteSpace(userId) ? null : userId;
+    }
+
+    // A missing security context is not a definite policy verdict, so it denies in every
+    // enforcement mode, before any attribute is collected: nothing is ever evaluated for an
+    // empty user (#1676; AGENTS.md "compliance and security gates fail closed").
+    private Either<EncinaError, TResponse> HandleMissingContext(long startTimestamp, Activity? activity)
+    {
+        var requestTypeName = typeof(TRequest).Name;
+
+        RecordCompletion(startTimestamp, activity, Effect.Deny, null, ABACErrors.MissingContextCode);
+
+        ABACDiagnostics.EvaluationDenied.Add(1,
+            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
+
+        ABACLogMessages.MissingSecurityContext(_logger, requestTypeName, ABACErrors.MissingContextCode);
+        ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
+
+        return ABACErrors.MissingContext(typeof(TRequest));
+    }
+
     // ── Attribute Collection ────────────────────────────────────────
 
     private async ValueTask<ABACCollectedAttributes> CollectAttributesAsync(
         TRequest request,
+        string userId,
         CancellationToken cancellationToken)
     {
-        var securityContext = _securityContextAccessor.SecurityContext;
-        var userId = securityContext?.UserId ?? string.Empty;
-
         var subjectAttributes = await _attributeProvider
             .GetSubjectAttributesAsync(userId, cancellationToken)
             .ConfigureAwait(false);

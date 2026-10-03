@@ -313,4 +313,30 @@ internal static partial class ABACLogMessages
         Message = "Handler for obligation or advice {ObligationId} threw an exception")]
     internal static partial void ObligationHandlerThrew(
         ILogger logger, Exception exception, string obligationId);
+
+    // ── Fail-Closed Messages (9091-9093) ─────────────────────────────
+    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 are reserved for the
+    // decision audit trail of #751). Codes and exception types only, never a user identifier,
+    // an error message or an exception message (#1676).
+
+    [LoggerMessage(
+        EventId = 9091,
+        Level = LogLevel.Warning,
+        Message = "ABAC denied {RequestType}: no security context or authenticated user is available ({ErrorCode}). The request is denied in every enforcement mode")]
+    internal static partial void MissingSecurityContext(
+        ILogger logger, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 9092,
+        Level = LogLevel.Warning,
+        Message = "Retrieval of the {Source} from the policy administration point failed: {ErrorCode}. The decision is Indeterminate")]
+    internal static partial void PolicyRetrievalFailed(
+        ILogger logger, string source, string errorCode);
+
+    [LoggerMessage(
+        EventId = 9093,
+        Level = LogLevel.Error,
+        Message = "Unexpected error while evaluating the policy store. The decision is Indeterminate")]
+    internal static partial void StoreEvaluationFailed(
+        ILogger logger, Exception exception);
 }
