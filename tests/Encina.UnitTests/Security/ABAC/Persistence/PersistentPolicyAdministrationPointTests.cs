@@ -24,7 +24,11 @@ public sealed class PersistentPolicyAdministrationPointTests
     {
         _store = Substitute.For<IPolicyStore>();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        _sut = new PersistentPolicyAdministrationPoint(_store, logger);
+        var requestContext = Substitute.For<IRequestContext>();
+        requestContext.UserId.Returns("test-user");
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(requestContext);
+        _sut = new PersistentPolicyAdministrationPoint(_store, logger, requestContextAccessor: accessor);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
