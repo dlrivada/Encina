@@ -15,7 +15,7 @@ namespace Encina.IntegrationTests.Web.Quartz;
 public sealed class QuartzJobIntegrationTests
 {
     [Fact]
-    public async Task Integration_RequestJob_ShouldExecuteSuccessfully()
+    public async Task Integration_RequestJob_ByDefault_ShouldNotSetContextResult()
     {
         // Arrange
         var services = new ServiceCollection();

@@ -21,7 +21,7 @@ public sealed class EncinaQuartzOptions
     /// </value>
     /// <remarks>
     /// <para>
-    /// <strong>Opt-in only.</strong> Quartz job listeners, triggers listeners and plugins can read
+    /// <strong>Opt-in only.</strong> Quartz job listeners, trigger listeners and plugins can read
     /// <c>IJobExecutionContext.Result</c> and store it outside Encina's retention, erasure and
     /// encryption controls. Enable this option only for responses known not to carry personal or
     /// sensitive data. For requests whose response may contain personal data, keep it disabled and
