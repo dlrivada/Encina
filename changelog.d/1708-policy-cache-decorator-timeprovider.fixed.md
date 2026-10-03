@@ -1,0 +1,1 @@
+- ABAC: `CachingPolicyStoreDecorator` stamps `PolicyCacheInvalidationMessage` from an injected `TimeProvider` (new optional constructor parameter, default `TimeProvider.System`) instead of `DateTime.UtcNow`. (#1708)
