@@ -220,7 +220,7 @@ The first entry is a write-ahead entry: it records an authorized change that is 
 
 ### Startup seeding
 
-`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown while applying a seed propagates from `StartAsync` unchanged. The application does not start with a partial seed.
+`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown by the PAP while applying a seed is wrapped in an `InvalidOperationException` whose message names the policy or set id and the exception type (never the exception message), with the original exception as `InnerException`. Cancellation of the `StartAsync` token still propagates as `OperationCanceledException`. The application does not start with a partial seed.
 
 ### Audit entry
 
