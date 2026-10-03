@@ -157,6 +157,25 @@ public sealed class ABACPolicySeedingHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_WhenStartTokenIsCancelled_PropagatesOperationCanceledException()
+    {
+        var policy = CreatePolicy("cancel-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(policy);
+        using var cts = new CancellationTokenSource();
+        _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            });
+
+        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => sut.StartAsync(cts.Token));
+    }
+
+    [Fact]
     public async Task StopAsync_ReturnsCompletedTask()
     {
         var options = Options.Create(new ABACOptions());
