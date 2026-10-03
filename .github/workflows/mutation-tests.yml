@@ -19,9 +19,6 @@ on:
     # Run weekly on Fridays at 3:00 AM UTC
     - cron: "0 3 * * 5"
 
-permissions:
-  contents: read
-
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
@@ -38,6 +35,8 @@ jobs:
   # matrix to a single shard so operators can target narrow scopes without
   # spawning the whole matrix.
   select-matrix:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -201,6 +200,8 @@ jobs:
   # (#1441), so a failing test there breaks every shard's initial test run
   # (break-on-initial-test-failure); this job shows which test fails.
   test-baseline:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: true
@@ -257,6 +258,8 @@ jobs:
   # downstream publish-mutations workflow (which requires success) still
   # runs as long as the aggregate job succeeds.
   run-mutation-tests:
+    permissions:
+      contents: read
     needs: select-matrix
     runs-on: ubuntu-latest
     # Per-shard budget from the matrix, not one fixed value: see the
@@ -505,6 +508,8 @@ jobs:
   # if: always() so aggregate still runs if some shards failed. A downstream
   # check guards against the 0-shards-succeeded case.
   aggregate:
+    permissions:
+      contents: read
     needs: [select-matrix, run-mutation-tests]
     if: always() && needs.select-matrix.result == 'success'
     runs-on: ubuntu-latest
