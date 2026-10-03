@@ -162,7 +162,8 @@ function Get-StageSection([string]$Path, [string]$Heading) {
 # next '## ' heading. Returns an array of @{ Stage; Id; Severity; Text } (Id is the finding's own number as a
 # string, unique within $Stage -- a repeated number within one stage is a malformed artifact, never silently
 # overwritten: see the duplicate-id check below). An explicit "- none" section (the convention the stage
-# agents use when nothing survives review) yields an empty array. A numbered paragraph whose bold token is not
+# agents use when nothing survives review) yields an empty array, also when prose follows it (ignored with a
+# note, #1694). A numbered paragraph whose bold token is not
 # one of Blocker/Major/Minor (a typo like **Critical**, or a marker this parser does not know) still starts a
 # NEW finding rather than being appended to the previous one or discarded when it is the first line, with
 # Severity 'Unknown'. A non-empty section with no recognizable numbered findings at all never yields zero
@@ -173,7 +174,16 @@ function Split-Findings([string]$Stage, [string]$FindingsText) {
     $seenIds = [System.Collections.Generic.HashSet[string]]::new()
     $text = if ($null -eq $FindingsText) { '' } else { $FindingsText.Trim() }
     if ([string]::IsNullOrWhiteSpace($text)) { return $results }
-    if ($text -match '(?i)^-\s*none\s*$') { return $results }
+    # A section whose FIRST non-empty line is "- none" (or bare "None"; any case, optional trailing period) has no findings;
+    # any text after it is prose the stage agent should have put under '## Informational (not findings)', and
+    # is ignored with a note (#1694) instead of turning into an Unknown finding.
+    $noneMatch = [regex]::Match($text, '(?i)^(?:-\s*)?none\s*\.?[ \t]*(?:\r?\n(?<rest>[\s\S]*))?$')
+    if ($noneMatch.Success) {
+        if (-not [string]::IsNullOrWhiteSpace($noneMatch.Groups['rest'].Value)) {
+            Write-Host "Split-Findings: trailing text after '- none' in $Stage ignored."
+        }
+        return $results
+    }
 
     function Complete-Finding($Current) {
         if ($null -eq $Current) { return }

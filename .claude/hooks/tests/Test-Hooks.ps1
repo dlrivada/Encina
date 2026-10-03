@@ -1890,6 +1890,19 @@ Test.
     # (d) "- none" (the stage agents' own convention for "nothing survives review") yields zero findings, but a
     # non-empty section the parser cannot recognize never yields zero silently: one 'Unknown' finding instead.
     Test-RemediationCase 'Split-Findings: "- none" yields zero findings' { @(Split-Findings 'code' '- none').Count -eq 0 }
+    # #1694: prose after a leading "- none" is ignored with a note; "- none." and "None" variants are honoured.
+    $noneProse = @(Split-Findings 'tests' "- none`n`nCoverage was measured for all flags and every target is met.")
+    Test-RemediationCase 'Split-Findings: "- none" plus trailing prose yields zero findings (#1694)' { $noneProse.Count -eq 0 }
+    $noneNote = (@(Split-Findings 'tests' "- none`n`nSome prose.") 6>&1 | Out-String)
+    Test-RemediationCase 'Split-Findings: trailing text after "- none" prints a note naming the stage (#1694)' { $noneNote -match "trailing text after '- none' in tests ignored" }
+    $noneAlone = (@(Split-Findings 'tests' '- none') 6>&1 | Out-String)
+    Test-RemediationCase 'Split-Findings: "- none" alone prints no note (#1694)' { $noneAlone.Trim().Length -eq 0 }
+    Test-RemediationCase 'Split-Findings: "- none." with a period yields zero findings (#1694)' { @(Split-Findings 'code' '- none.').Count -eq 0 }
+    Test-RemediationCase 'Split-Findings: "None" in any case, with or without the dash, yields zero findings (#1694)' { @(Split-Findings 'code' 'None').Count -eq 0 -and @(Split-Findings 'code' '- NONE.').Count -eq 0 }
+    $numberedSplit = @(Split-Findings 'code' "1. **Major** -- a.`n2. **Minor** -- b.")
+    Test-RemediationCase 'Split-Findings: a numbered finding list is unchanged (#1694)' { $numberedSplit.Count -eq 2 -and $numberedSplit[0].Severity -eq 'Major' -and $numberedSplit[1].Severity -eq 'Minor' }
+    $noneOfSplit = @(Split-Findings 'code' '- none of the above were verified.')
+    Test-RemediationCase 'Split-Findings: "- none of ..." is not the none marker and stays an Unknown finding (#1694)' { $noneOfSplit.Count -eq 1 -and $noneOfSplit[0].Severity -eq 'Unknown' }
     $unknownSplit = @(Split-Findings 'code' 'Some free-form paragraph with no numbered severity line at all.')
     Test-RemediationCase 'Split-Findings: an unrecognized non-empty section yields one Unknown finding, never silently zero' { $unknownSplit.Count -eq 1 -and $unknownSplit[0].Severity -eq 'Unknown' }
 
