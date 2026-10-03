@@ -113,7 +113,7 @@ NotApplicable is produced when:
 - A policy's `Target` does not match, so none of its rules are evaluated.
 - All rules within a matching policy individually return NotApplicable.
 
-The PEP decides what to do with NotApplicable via `ABACOptions.DefaultNotApplicableEffect`.
+For a policy named by `[RequirePolicy]`, the PEP treats NotApplicable as a denial (see [Default Not-Applicable Behavior](#default-not-applicable-behavior)).
 
 ## Indeterminate
 
@@ -195,28 +195,22 @@ and diagnostic information from every level of the evaluation hierarchy.
 
 ## Default Not-Applicable Behavior
 
-When no policy or rule applies to a request (the final combined effect is NotApplicable),
-the PEP must decide how to proceed. The `ABACOptions.DefaultNotApplicableEffect` property
-controls this behavior:
+The PEP evaluates a request only when its type declares `[RequirePolicy]` or
+`[RequireCondition]`. Each `[RequirePolicy("name")]` is evaluated on its own through
+`IPolicyDecisionPoint.EvaluatePolicyAsync`, and only `Permit` passes:
 
-```csharp
-services.AddEncinaABAC(options =>
-{
-    // Closed-world assumption (default): unmatched requests are denied
-    options.DefaultNotApplicableEffect = Effect.Deny;
+| Result of the required policy | PEP outcome |
+|-------------------------------|-------------|
+| `Permit` | The requirement passes |
+| `Deny` | Denied (`abac.access_denied`) |
+| `NotApplicable` | Denied (`abac.access_denied`): an explicitly required policy that does not apply cannot authorize |
+| Policy not in the store | Denied (`abac.policy_not_found`) |
+| `Indeterminate` or evaluation error | Denied (`abac.indeterminate`) |
 
-    // Open-world assumption: unmatched requests are allowed
-    options.DefaultNotApplicableEffect = Effect.Permit;
-});
-```
-
-| Setting | Behavior | Use Case |
-|---------|----------|----------|
-| `Effect.Deny` (default) | Unmatched requests are treated as denied | Security-critical systems, principle of least privilege |
-| `Effect.Permit` | Unmatched requests are treated as permitted | Open systems, gradual policy adoption |
-
-The default is `Effect.Deny` following the **secure-by-default** principle: if no policy
-explicitly permits an action, it is denied.
+There is no option that turns NotApplicable into Permit. How several `[RequirePolicy]`
+and `[RequireCondition]` attributes combine is described in the
+[ABAC README](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security.ABAC/README.md#how-the-attributes-decide-a-request)
+and the [cheat sheet](../reference/cheat-sheet.md).
 
 ## Indeterminate Handling
 

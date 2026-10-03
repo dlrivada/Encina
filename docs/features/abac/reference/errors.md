@@ -20,9 +20,9 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 
 | Error Code | Constant | Factory Method | Parameters | When It Occurs |
 |------------|----------|---------------|------------|----------------|
-| `abac.access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | Policy evaluation resulted in a Deny decision. |
-| `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | Policy evaluation could not produce a definitive Permit or Deny. |
-| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound` | `string policyId` | A referenced policy does not exist in the PAP. |
+| `abac.access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | A policy named by `[RequirePolicy]` returned Deny or NotApplicable (an explicitly required policy that does not apply cannot authorize). |
+| `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | A required policy or a `[RequireCondition]` expression could not produce a definitive result (evaluation error, expression that does not compile). |
+| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound`, `RequiredPolicyNotFound` | `string policyId`; `Type requestType, string policyName` | A referenced policy does not exist in the PAP. `RequiredPolicyNotFound` is the error the PEP returns when `[RequirePolicy("name")]` names a policy set or policy that is not in the store; its message is fixed and the name is only in the details. |
 | `abac.policy_set_not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
 | `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. |
 | `abac.attribute_resolution_failed` | `AttributeResolutionFailedCode` | `AttributeResolutionFailed` | `string attributeId, AttributeCategory category` | A required attribute (MustBePresent = true) could not be resolved. |
@@ -37,6 +37,8 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
 | `abac.variable_not_found` | `VariableNotFoundCode` | `VariableNotFound` | `string variableId` | A `VariableReference` references an undefined `VariableDefinition` within the policy. |
+| `abac.condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
+| `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. |
 
 ## Error Metadata
 
@@ -45,18 +47,19 @@ Every error includes structured metadata in the `Details` dictionary:
 | Key | Present In | Value |
 |-----|-----------|-------|
 | `stage` | All errors | Always `"abac"` |
-| `requestType` | `AccessDenied`, `Indeterminate`, `EvaluationFailed`, `MissingContext` | Fully qualified type name of the request |
-| `policyId` | `AccessDenied`, `PolicyNotFound`, `InvalidPolicy`, `DuplicatePolicy` | The policy identifier |
+| `requestType` | `AccessDenied`, `Indeterminate`, `RequiredPolicyNotFound`, `ConditionNotMet`, `EvaluationFailed`, `MissingContext` | Fully qualified type name of the request |
+| `policyId` | `AccessDenied`, `PolicyNotFound`, `RequiredPolicyNotFound`, `InvalidPolicy`, `DuplicatePolicy` | The policy identifier (for `RequiredPolicyNotFound`, the name from `[RequirePolicy]`) |
+| `conditionIndex` | `ConditionNotMet` | The zero-based position of the condition among the request's `[RequireCondition]` attributes |
 | `policySetId` | `PolicySetNotFound`, `InvalidPolicySet`, `DuplicatePolicySet` | The policy set identifier |
 | `reason` | `Indeterminate`, `InvalidPolicy`, `InvalidPolicySet`, `InvalidCondition`, `CombiningFailed`, `ObligationFailed` | Description of why the error occurred |
 | `attributeId` | `AttributeResolutionFailed` | The attribute identifier that could not be resolved |
 | `category` | `AttributeResolutionFailed` | The `AttributeCategory` (Subject, Resource, Action, or Environment) |
 | `expression` | `InvalidCondition` | The EEL expression that failed |
 | `algorithmId` | `CombiningFailed` | The combining algorithm identifier |
-| `obligationId` | `ObligationFailed` | The obligation identifier |
+| `obligationId` | `ObligationFailed`, `ObligationHandlerException` | The obligation or advice identifier |
 | `functionId` | `FunctionNotFound`, `FunctionError` | The function identifier |
 | `variableId` | `VariableNotFound` | The variable identifier |
-| `exceptionType` | `EvaluationFailed`, `FunctionError` | Fully qualified exception type name |
+| `exceptionType` | `EvaluationFailed`, `FunctionError`, `ObligationHandlerException` | Fully qualified exception type name |
 | `requirement` | `MissingContext` | Always `"abac_context"` |
 
 ## Error Handling Patterns
@@ -226,3 +229,33 @@ Error: Policy evaluation failed for 'TransferFunds': Object reference not set to
 ```
 
 **Resolution:** Check the `exceptionType` in the error metadata. Debug the custom function or attribute provider that threw the exception. The `EvaluationFailed` error wraps the original exception details.
+
+### 11. Condition Not Met (abac.condition_not_met)
+
+**Scenario:** A request type carries `[RequireCondition("user.clearanceLevel >= 3")]` and the expression is `false` for the current user.
+
+```text
+Error: A condition required by the request was not met. Access denied.
+```
+
+**Resolution:** Read `conditionIndex` in the error details to find which condition failed, then check the attributes your `IAttributeProvider` returns for `user`, `resource`, `environment` and `action`. A condition that cannot be compiled, or that reads an attribute that is missing, is not this error: it is `Indeterminate` (`abac.indeterminate`) and also denies.
+
+### 12. Required Policy Not Found (abac.policy_not_found)
+
+**Scenario:** A request type carries `[RequirePolicy("finance-access")]` but the policy store holds no policy set and no policy with that id.
+
+```text
+Error: A policy required by the request was not found in the policy store. Access denied.
+```
+
+**Resolution:** Read `policyId` in the error details, then seed or create the policy set or policy with that id. The PEP does not fall back to evaluating the rest of the store.
+
+### 13. Obligation Handler Exception (abac.obligation_handler_exception)
+
+**Scenario:** An `IObligationHandler` throws while handling an obligation or advice.
+
+```text
+Error: An obligation or advice handler threw an exception.
+```
+
+**Resolution:** Read `obligationId` and `exceptionType` in the error details and fix the handler. A mandatory obligation whose handler throws denies the request; advice whose handler throws is skipped. The exception message is never logged (EventId 9078 records the exception through `ForLogging()`).

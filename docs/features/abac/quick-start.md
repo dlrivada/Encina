@@ -215,7 +215,7 @@ For straightforward checks that do not need a full policy definition, use `[Requ
 ```csharp
 using Encina.Security.ABAC;
 
-[RequireCondition("subject.department == 'Engineering'")]
+[RequireCondition("user.department == 'Engineering'")]
 public sealed record GetCodeReviewsQuery(Guid ProjectId) : IQuery<List<CodeReviewDto>>;
 ```
 
@@ -229,7 +229,7 @@ More examples:
 public sealed record ProcessPayrollCommand(Guid PayrollId) : ICommand;
 
 // Clearance level check
-[RequireCondition("subject.clearanceLevel >= resource.classification")]
+[RequireCondition("user.clearanceLevel >= resource.classification")]
 public sealed record GetClassifiedDocumentQuery(Guid DocumentId) : IQuery<DocumentDto>;
 ```
 

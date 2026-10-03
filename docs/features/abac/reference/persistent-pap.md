@@ -259,7 +259,6 @@ services.AddEncinaCachingRedis(config =>
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.AddHealthCheck = true;
 
     // Enable persistent storage

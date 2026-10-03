@@ -146,7 +146,7 @@ services.AddEncinaABAC(options =>
 | User Department | Request | Result |
 |-----------------|---------|--------|
 | Finance | `GetFinancialReportQuery` | **Permit** |
-| Finance | `GetEmployeeRecordQuery` | **Deny** (NotApplicable, default deny) |
+| Finance | `GetEmployeeRecordQuery` | **Deny** (the required policy is NotApplicable, which denies) |
 | HR | `GetEmployeeRecordQuery` | **Permit** |
 | HR | `GetFinancialReportQuery` | **Deny** |
 | Engineering | Either query | **Deny** |
@@ -1079,7 +1079,6 @@ services.AddScoped<IAttributeProvider, OrganizationAttributeProvider>();
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.AddHealthCheck = true;
     options.SeedPolicySets.Add(OrganizationPolicies.BuildCombinedPolicies());
 });

@@ -542,7 +542,6 @@ services.AddEncinaSecurity(options =>
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.AddHealthCheck = true;
 });
 ```

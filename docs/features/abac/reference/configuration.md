@@ -57,7 +57,6 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `EnforcementMode` | `ABACEnforcementMode` | `Block` | Controls how Deny decisions are enforced. See [ABACEnforcementMode](#abacenforcementmode). |
-| `DefaultNotApplicableEffect` | `Effect` | `Deny` | Effect applied when no policy matches the request (NotApplicable). `Deny` = closed-world; `Permit` = open-world. |
 | `IncludeAdvice` | `bool` | `true` | When `true`, advice expressions from policies are included in evaluation results and executed on a best-effort basis. |
 | `FailOnMissingObligationHandler` | `bool` | `true` | When `true`, a missing obligation handler causes an immediate deny (per XACML 3.0 section 7.18). Set to `false` only during development. |
 | `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. |
@@ -139,7 +138,7 @@ services.AddEncinaABAC(options =>
 });
 ```
 
-The `EELExpressionPrecompilationService` scans the specified assemblies for `RequireConditionAttribute` decorations, compiles each EEL expression, and throws `InvalidOperationException` if any expression fails to compile. This catches invalid expressions at startup rather than at request time.
+The `EELExpressionPrecompilationService` scans the specified assemblies for `RequireConditionAttribute` decorations, compiles each EEL expression, and throws `InvalidOperationException` if any expression fails to compile. This catches invalid expressions at startup rather than at request time. Without startup validation, an expression is compiled the first time a request needs it; an expression that does not compile makes that condition `Indeterminate`, which denies the request. Expressions are evaluated on every request against the `user`, `resource`, `environment` and `action` variables.
 
 ## Complete Configuration Examples
 
@@ -149,7 +148,7 @@ The `EELExpressionPrecompilationService` scans the specified assemblies for `Req
 services.AddEncinaABAC();
 ```
 
-Uses `Block` enforcement, `Deny` for not-applicable, advice enabled, obligation handler failure enforced, no health check, no startup validation.
+Uses `Block` enforcement, advice enabled, obligation handler failure enforced, no health check, no startup validation.
 
 ### Typical Application
 
@@ -157,7 +156,6 @@ Uses `Block` enforcement, `Deny` for not-applicable, advice enabled, obligation 
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.AddHealthCheck = true;
 
     options.SeedPolicySets.Add(myOrganizationPolicies);
@@ -170,7 +168,6 @@ services.AddEncinaABAC(options =>
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.IncludeAdvice = true;
     options.FailOnMissingObligationHandler = true;
     options.AddHealthCheck = true;

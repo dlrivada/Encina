@@ -357,7 +357,7 @@ These methods auto-infer the XACML function ID from the operand data types:
 ### Composing Complex Conditions
 
 ```csharp
-// subject.department == "Finance" AND resource.amount > 10000
+// user.department == "Finance" AND resource.amount > 10000
 var condition = ConditionBuilder.And(
     ConditionBuilder.Equal(
         ConditionBuilder.Attribute(AttributeCategory.Subject, "department", XACMLDataTypes.String),
@@ -658,7 +658,6 @@ processes these lists during host initialization.
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.FailOnMissingObligationHandler = true;
 
     // Seed a full policy set hierarchy

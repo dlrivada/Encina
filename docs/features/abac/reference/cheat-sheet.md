@@ -16,11 +16,23 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 ## Request Decoration
 
 ```csharp
-[RequirePolicy("finance-access")]                               // Named policy
-[RequirePolicy("admin-override", AllMustPass = false)]          // OR logic
-[RequireCondition("subject.department == 'engineering'")]        // Inline EEL
-[RequireCondition("subject.clearanceLevel >= resource.classification")]
+[RequirePolicy("finance-access")]                               // Named policy, must permit (AND)
+[RequirePolicy("admin-override", AllMustPass = false)]          // At least one of these must permit (OR)
+[RequireCondition("user.department == 'engineering'")]          // Inline EEL
+[RequireCondition("user.clearanceLevel >= resource.classification")]
 ```
+
+| Rule | Behavior |
+|------|----------|
+| Named policy | The policy set or policy with that id is evaluated on its own; only `Permit` passes |
+| `NotApplicable` from a required policy | Denies |
+| Policy not in the store | Denies with `abac.policy_not_found` |
+| `Indeterminate` or evaluation error | Denies |
+| Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
+| `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
+| `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies |
+| Policies and conditions | Combined with AND |
+| No `[RequirePolicy]` and no `[RequireCondition]` | The request is not evaluated |
 
 ## Policy Builder (Minimal)
 
@@ -99,16 +111,17 @@ var policySet = new PolicySetBuilder("org-policies")
 
 ```csharp
 // Attribute access
-subject.department                     // Subject attribute
+user.department                        // Subject attribute
 resource.classification                // Resource attribute
 environment.isBusinessHours            // Environment attribute
+action.name                            // Action attribute (the request type name)
 
 // Comparisons
-subject.clearanceLevel >= resource.classification
-subject.department == "engineering"
+user.clearanceLevel >= resource.classification
+user.department == "engineering"
 
 // Boolean logic
-subject.isAdmin == true || subject.department == "security"
+user.isAdmin == true || user.department == "security"
 ```
 
 ## Enforcement Modes
@@ -140,6 +153,8 @@ subject.isAdmin == true || subject.department == "security"
 | `abac.function_not_found` | Function not registered in registry |
 | `abac.function_error` | Function evaluation threw exception |
 | `abac.variable_not_found` | VariableReference to undefined VariableDefinition |
+| `abac.condition_not_met` | A `[RequireCondition]` expression evaluated to `false` |
+| `abac.obligation_handler_exception` | An obligation or advice handler threw an exception |
 
 ## Metrics
 
@@ -148,7 +163,6 @@ subject.isAdmin == true || subject.department == "security"
 | `abac.evaluation.total` | Counter | Total evaluations |
 | `abac.evaluation.permitted` | Counter | Permit decisions |
 | `abac.evaluation.denied` | Counter | Deny decisions |
-| `abac.evaluation.not_applicable` | Counter | NotApplicable decisions |
 | `abac.evaluation.indeterminate` | Counter | Indeterminate decisions |
 | `abac.obligation.executed` | Counter | Obligations executed |
 | `abac.obligation.failed` | Counter | Obligations failed |
@@ -174,7 +188,6 @@ subject.isAdmin == true || subject.department == "security"
 | Property | Default | Description |
 |----------|---------|-------------|
 | `EnforcementMode` | `Block` | Block / Warn / Disabled |
-| `DefaultNotApplicableEffect` | `Deny` | Effect when no policy matches |
 | `IncludeAdvice` | `true` | Execute advice expressions |
 | `FailOnMissingObligationHandler` | `true` | Deny if no handler (XACML 7.18) |
 | `AddHealthCheck` | `false` | Register `encina-abac` health check |
@@ -195,6 +208,7 @@ subject.isAdmin == true || subject.department == "security"
 
 | Range | Category |
 |-------|----------|
-| 9000-9009 | Pipeline (evaluation start, decision, enforcement) |
+| 9000-9005, 9008-9009 | Pipeline (evaluation start, decision, enforcement) |
 | 9010-9019 | Obligations (execution, failure, missing handler) |
 | 9020-9029 | Advice (execution, failure, skipped) |
+| 9072-9078 | Required policies, conditions and obligation or advice handler exceptions |
