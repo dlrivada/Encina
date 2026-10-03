@@ -1,4 +1,5 @@
 using Encina.Security.ABAC.Administration;
+using LanguageExt;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -138,11 +139,12 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
         string kind,
         string id)
     {
-        var errorCode =result.Match(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
-        if (errorCode is null)
+        if (result.IsRight)
         {
             return true;
         }
+
+        var errorCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone("encina.unknown"));
 
         if (errorCode == duplicateCode)
         {
