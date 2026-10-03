@@ -215,7 +215,7 @@ services.AddEncinaABAC(options =>
 });
 ```
 
-Definite denials will proceed to the handler, but a warning is logged with the full evaluation result. Errors (a missing security context or empty user id, an Indeterminate result, an exception from the attribute provider or the PDP, a mandatory OnPermit obligation that cannot be fulfilled) still deny in `Warn` mode when they decide the verdict; a definite denial found next to an error among the required policies is the verdict and proceeds.
+Definite denials will proceed to the handler, but a warning is logged with the full evaluation result. Errors (a missing or unauthenticated security context or an empty user id, an Indeterminate result, an exception from the attribute provider or the PDP, a mandatory OnPermit obligation that cannot be fulfilled) still deny in `Warn` mode when they decide the verdict; a definite denial found next to an error among the required policies is the verdict and proceeds.
 
 ## 8. Alternative: Use [RequireCondition] for Simple Cases
 
