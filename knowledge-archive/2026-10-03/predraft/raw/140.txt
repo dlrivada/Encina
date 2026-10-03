@@ -1,0 +1,176 @@
+ISSUE #140: [FEATURE] Cache Stampede Prevention
+closed_at: 12/28/2025 20:59:30
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-distributed-lock, area-caching, area-performance, area-resilience, industry-best-practice, pattern-stampede-protection
+
+BODY:
+## Summary
+
+Add **cache stampede prevention** mechanisms to avoid thundering herd problems when cache entries expire and multiple requests try to regenerate the same value simultaneously.
+
+## Motivation
+
+- **Database protection**: Prevent spike of identical queries on cache miss
+- **Resource efficiency**: Only one request regenerates cached value
+- **System stability**: Avoid cascading failures from thundering herd
+- **Production requirement**: Essential for high-traffic caching scenarios
+
+## Proposed Solution
+
+### Stampede Prevention Strategy
+
+```csharp
+public enum StampedeStrategy
+{
+    None,               // No protection (default cache behavior)
+    Lock,               // Distributed lock during regeneration
+    ProbabilisticEarly, // Probabilistic early expiration
+    Stale               // Serve stale while regenerating
+}
+```
+
+### Cache Extensions
+
+```csharp
+public static class CacheStampedeExtensions
+{
+    public static async Task<T> GetOrCreateWithStampedeProtectionAsync<T>(
+        this IDistributedCache cache,
+        string key,
+        Func<CancellationToken, Task<T>> factory,
+        StampedeOptions options,
+        CancellationToken ct)
+    {
+        // Implementation based on strategy
+    }
+}
+
+public record StampedeOptions(
+    StampedeStrategy Strategy,
+    TimeSpan LockTimeout = default,
+    double EarlyExpirationProbability = 0.1,
+    TimeSpan StaleGracePeriod = default);
+```
+
+### Distributed Lock Integration
+
+```csharp
+public interface IStampedeLock
+{
+    Task<IAsyncDisposable?> TryAcquireAsync(string key, TimeSpan timeout, CancellationToken ct);
+}
+
+// Redis implementation
+public class RedisStampedeLock : IStampedeLock
+{
+    public async Task<IAsyncDisposable?> TryAcquireAsync(string key, TimeSpan timeout, CancellationToken ct)
+    {
+        var lockKey = $"lock:{key}";
+        var acquired = await _redis.StringSetAsync(
+            lockKey,
+            Environment.MachineName,
+            timeout,
+            When.NotExists);
+
+        return acquired ? new RedisLockHandle(_redis, lockKey) : null;
+    }
+}
+```
+
+### Configuration
+
+```csharp
+services.AddEncinaCaching(options =>
+{
+    options.StampedeStrategy = StampedeStrategy.Lock;
+    options.LockTimeout = TimeSpan.FromSeconds(10);
+    options.StaleGracePeriod = TimeSpan.FromMinutes(1);
+    options.EarlyExpirationProbability = 0.05; // 5%
+});
+```
+
+### Usage
+
+```csharp
+public class ProductService
+{
+    private readonly IDistributedCache _cache;
+
+    public async Task<Product> GetProductAsync(int id, CancellationToken ct)
+    {
+        return await _cache.GetOrCreateWithStampedeProtectionAsync(
+            $"product:{id}",
+            async token => await _repository.GetByIdAsync(id, token),
+            new StampedeOptions(StampedeStrategy.Lock, LockTimeout: TimeSpan.FromSeconds(5)),
+            ct);
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **No stampede protection**: Let all requests regenerate. Causes database overload, wasted resources.
+
+2. **Background refresh only**: Preemptively refresh before expiration. Doesn't handle unexpected cache misses (eviction, restart).
+
+3. **External cache layer**: Use Redis with built-in stampede protection. Not all deployments use Redis, need database-agnostic solution.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [x] Encina.Caching.*
+- [ ] Other
+
+## Additional Context
+
+### Strategy Comparison
+
+| Strategy | Pros | Cons |
+|----------|------|------|
+| Lock | Guaranteed single regeneration | Requires distributed lock |
+| ProbabilisticEarly | No coordination needed | Some stampedes still possible |
+| Stale | Always fast response | May serve outdated data |
+
+### Implementation Tasks
+
+- [ ] Create `StampedeStrategy` enum
+- [ ] Create `IStampedeLock` interface
+- [ ] Implement `RedisStampedeLock`
+- [ ] Implement lock-based stampede protection
+- [ ] Implement probabilistic early expiration
+- [ ] Implement stale-while-revalidate
+- [ ] Add configuration options
+- [ ] Add unit tests
+- [ ] Add integration tests
+- [ ] Update XML documentation
+
+### Acceptance Criteria
+
+- [ ] Create `StampedeStrategy` enum
+- [ ] Create `IStampedeLock` interface
+- [ ] Implement `RedisStampedeLock`
+- [ ] Implement lock-based stampede protection
+- [ ] Implement probabilistic early expiration
+- [ ] Implement stale-while-revalidate
+- [ ] Add configuration options
+- [ ] Add unit tests
+- [ ] Add integration tests
+- [ ] Update XML documentation
+
+### References
+
+- [XFetch Algorithm](https://cseweb.ucsd.edu/~avattani/papers/cache_stampede.pdf)
+- [Redis Distributed Locks](https://redis.io/topics/distlock)
+- [Cache Stampede Prevention Patterns](https://en.wikipedia.org/wiki/Cache_stampede)
+
+
+
+COMMENT by dlrivada:
+Closed as duplicate of #266 which provides a more comprehensive implementation including Single-Flight, Probabilistic Early Expiration (PER), and TTL Jitter patterns.
+
+

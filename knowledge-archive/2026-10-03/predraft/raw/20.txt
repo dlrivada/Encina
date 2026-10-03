@@ -1,0 +1,111 @@
+ISSUE #20: [REFACTOR] Consolidate duplicated code in Dapper/ADO providers
+closed_at: 12/24/2025 11:18:22
+labels: enhancement, technical-debt, area-database
+
+BODY:
+## Summary
+
+There is intentional code duplication across the Dapper and ADO providers that could be consolidated to improve maintainability. Currently excluded from SonarCloud CPD analysis.
+
+## Motivation
+
+- [x] Code duplication
+- [ ] Poor separation of concerns
+- [ ] Applying a design pattern (specify: ___)
+- [ ] Simplifying complex code
+- [ ] Improving testability
+- [ ] Performance optimization
+- [ ] Preparing for future feature work
+- [ ] Other: ___
+
+## Current Structure
+
+### High Priority Duplicated Files (can be consolidated)
+- **Log.cs**: High-performance logging methods - duplicated across providers
+- **TransactionPipelineBehavior.cs**: Almost identical implementations across providers
+- **ServiceCollectionExtensions.cs**: DI registration logic duplicated
+
+### Lower Priority (intentional duplication)
+- **SQL Scripts (*.sql)**: Dialect-specific DDL (TOP vs LIMIT, GETUTCDATE vs NOW, etc.)
+- **Store implementations**: SQL dialect differences requiring provider-specific code
+- **Entity classes**: Provider-specific ADO.NET mappings
+
+## Proposed Structure
+
+```
+Encina.Messaging (centralized)
+Ôö£ÔöÇÔöÇ MessagingLog (shared logging)
+Ôö£ÔöÇÔöÇ TransactionPipelineBehavior<,> (shared behavior)
+Ôö£ÔöÇÔöÇ MessagingServiceCollectionExtensions (DI helper)
+ÔööÔöÇÔöÇ Interfaces (already exists)
+
+Encina.Dapper.* / Encina.ADO.* (provider-specific)
+Ôö£ÔöÇÔöÇ Store implementations (SQL dialects)
+Ôö£ÔöÇÔöÇ Entity classes (if needed)
+ÔööÔöÇÔöÇ Scripts/*.sql (DDL)
+```
+
+## Affected Files
+
+- `src/Encina.Messaging/MessagingLog.cs` (NEW - shared logging)
+- `src/Encina.Messaging/TransactionPipelineBehavior.cs` (MOVE - shared behavior)
+- `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` (NEW - DI helper)
+- `src/Encina.Dapper.*/Log.cs` (REMOVE - duplicated)
+- `src/Encina.ADO.*/Log.cs` (REMOVE - duplicated)
+- `src/Encina.Dapper.*/TransactionPipelineBehavior.cs` (REMOVE - duplicated)
+- `src/Encina.ADO.*/TransactionPipelineBehavior.cs` (REMOVE - duplicated)
+
+## Packages Affected
+
+- [x] Encina.Messaging (centralized logic)
+- [x] Encina.Dapper.Sqlite
+- [x] Encina.Dapper.SqlServer
+- [x] Encina.Dapper.PostgreSQL
+- [x] Encina.Dapper.MySQL
+- [x] Encina.ADO.Sqlite
+- [x] Encina.ADO.SqlServer
+- [x] Encina.ADO.PostgreSQL
+- [x] Encina.ADO.MySQL
+
+## Behavioral Guarantee
+
+> Refactoring MUST NOT change external behavior. Describe how this is verified.
+
+- [x] Existing unit tests cover the refactored code
+- [ ] Existing integration tests validate behavior
+- [ ] New tests added to cover refactoring safety
+- [ ] Contract tests verify public API unchanged
+
+## Risk Assessment
+
+- **Regression Risk**: Low
+- **Affected Providers**: All 8 Dapper + ADO providers
+- **Breaking Changes**: None (refactoring must not break public API)
+
+## Implementation Tasks
+
+- [ ] Create `MessagingLog` in `Encina.Messaging` with all logging methods
+- [ ] Move `TransactionPipelineBehavior` to `Encina.Messaging`
+- [ ] Create `MessagingServiceCollectionExtensions` helper for DI registration
+- [ ] Update all 8 providers (4 Dapper + 4 ADO) to use shared classes
+- [ ] Update tests to use new namespaces
+- [ ] Remove CPD exclusions once consolidation is complete
+
+## Related Issues
+
+- #12 - Reduce code duplication in Dapper/ADO providers to meet SonarCloud Ôëñ3% threshold
+
+
+COMMENT by dlrivada:
+Completed in commits:
+- 760e27c: refactor: centralize messaging patterns with shared Log and TransactionPipelineBehavior
+- e1c68db: config: suppress S2077 SQL injection false positives in store files
+- 19f2402: fix: add regex timeout to prevent ReDoS attacks (S6444)
+
+Results:
+- Code duplication reduced from ~11% to 1.7%
+- Deleted 20 duplicated files (10 Log.cs + 10 TransactionPipelineBehavior.cs)
+- Created centralized MessagingLog.cs and TransactionPipelineBehavior.cs in Encina.Messaging
+- 57 files changed, 488 insertions(+), 1944 deletions(-)
+
+

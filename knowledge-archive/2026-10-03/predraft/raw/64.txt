@@ -1,0 +1,110 @@
+ISSUE #64: [FEATURE] Content-Based Router Pattern
+closed_at: 12/27/2025 11:59:51
+labels: enhancement, phase-2-functionality, priority-low, complexity-medium, area-messaging-patterns, area-eip
+
+BODY:
+## Summary
+
+Implement the Content-Based Router pattern for routing messages based on content inspection.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: Medium
+
+The Content-Based Router pattern (an Enterprise Integration Pattern) inspects message content and routes it to the appropriate handler based on configurable rules. This enables scenarios like routing high-value orders to specialized handlers, international orders to region-specific processing, or hazardous materials to compliance workflows, all without the sender needing to know about routing logic.
+
+## Proposed Solution
+
+- Content-based routing rules with predicate expressions
+- Multiple destination support
+- Default route handling for unmatched messages
+- Route caching for performance optimization
+
+```csharp
+services.AddEncinaContentRouter<Order>(config =>
+{
+    config.When(o => o.Total > 10000)
+          .RouteTo<HighValueOrderHandler>();
+
+    config.When(o => o.IsInternational)
+          .RouteTo<InternationalOrderHandler>();
+
+    config.When(o => o.Items.Any(i => i.IsHazardous))
+          .RouteTo<HazardousMaterialsHandler>();
+
+    config.Default<StandardOrderHandler>();
+});
+
+// Usage
+var result = await _encina.Route(order);
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Rule evaluation, routing, default handling | Core behavior |
+| Integration Tests | Maybe | End-to-end with real handlers | Full pipeline |
+| Property Tests | Maybe | Rule evaluation invariants | If complex |
+| Contract Tests | Yes | Router configuration contracts | Public API |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Maybe | Route caching performance | Hot path optimization |
+
+## Implementation Tasks
+
+- [ ] Design routing rule abstractions
+- [ ] Implement rule evaluation
+- [ ] Add multiple destination support
+- [ ] Create default route handling
+- [ ] Optimize with route caching
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Content-based routing works
+- [ ] Multiple routes evaluated
+- [ ] Default route used correctly
+- [ ] Performance is acceptable
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Enterprise Integration Patterns
+
+
+COMMENT by dlrivada:
+Implemented Content-Based Router Enterprise Integration Pattern.
+
+## Summary
+- Created  interface with  methods returning 
+- Implemented  fluent API for defining routing rules:
+  - `When(condition)` / `When(name, condition)` for conditional routes
+  - `RouteTo(handler)` with sync/async overloads
+  - `WithPriority(int)` for route ordering
+  - `WithMetadata(key, value)` for route metadata
+  - `Default(handler)` for fallback handling
+- Added `ContentRouterOptions` with `ThrowOnNoMatch`, `AllowMultipleMatches`, `EvaluateInParallel`
+- Integrated with DI via `MessagingConfiguration.UseContentRouter = true`
+- High-performance logging with `LoggerMessage` source generators
+
+## Test Coverage
+- 117 tests (unit, integration, property, contract, guard, load)
+- Benchmarks for routing performance
+
+## Documentation
+- Updated CHANGELOG.md, ROADMAP.md, docs/history/2025-12.md
+- Updated Encina.Messaging README with Content-Based Router section
+
+COMMIT a406152f (referenced): feat(contentrouter): add content-based router pattern (Fixes #64)
+

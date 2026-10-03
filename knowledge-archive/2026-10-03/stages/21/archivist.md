@@ -1,0 +1,9 @@
+## Scope
+No code was changed by #21 (no PR, no commit; the only referencing commit 2b50a1ec touched `.claude/CLAUDE.md`, `ROADMAP.md`, `docs/history/2025-12.md`). The code it asked for was delivered under #36 (commit 584a712b, 2025-12-26) and lives today in `src/Encina.Marten/Projections/` (IProjection.cs, IReadModel.cs, IReadModelRepository.cs, IProjectionManager.cs, InlineProjectionDispatcher.cs, InlineProjectionRelay.cs, MartenProjectionManager.cs, MartenReadModelRepository.cs, ProjectionContext*.cs, ProjectionOptions.cs, ProjectionRegistry.cs, ProjectionStatus.cs, ProjectionLog.cs, ProjectionErrorCodes.cs). Verified present; `IProjectionStore` does not exist (the delivered design uses IReadModelRepository). Scope for the code stage of #21 itself: empty; any audit of the feature belongs to #36's audit. The issue's "Other: Encina.EventStoreDB" package is not in the repo.
+## Destinations
+No decision was made, so no destination is needed. Commit 2b50a1ec is the docs restructure that listed #21, unrelated to feature code. ROADMAP.md lists projections/read models as done via #36 (present).
+## Successor and duplicate issues
+#36 "[FEATURE] Projections/Read Models - CQRS read side abstractions": state CLOSED (2025-12-26, completed, closing commit 584a712b). Verified with `gh issue view 36`. Same title, created 2 hours after #21; #21 never says "duplicate" or names #36, so the record uses rejected-unexplained, not outcome duplicate. #22 (Event Versioning) and #25 (Snapshotting), listed as related, are both CLOSED.
+## Lessons for the pipeline
+- An issue closed "created in error" can look unexplained; search for an identical title created close in time (here #36) before concluding nothing was ever built.
+- Write stage files only with the Write tool; it creates missing folders (PowerShell Set-Content/New-Item on these paths is blocked by the path-ownership hook).

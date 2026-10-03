@@ -1,0 +1,132 @@
+ISSUE #15: [REFACTOR] Apply Orchestrator pattern to Event Sourcing (2 packages)
+closed_at: 12/23/2025 17:32:24
+labels: enhancement, technical-debt, area-event-sourcing
+
+BODY:
+## Summary
+
+Apply the Orchestrator pattern to the Event Sourcing subsystem to centralize aggregate/event logic and reduce code duplication between EventStoreDB and Marten providers.
+
+## Motivation
+
+- [x] Code duplication
+- [ ] Poor separation of concerns
+- [x] Applying a design pattern (specify: Orchestrator pattern)
+- [ ] Simplifying complex code
+- [ ] Improving testability
+- [ ] Performance optimization
+- [x] Preparing for future feature work
+- [ ] Other: ___
+
+## Current Structure
+
+Each event sourcing provider has its own aggregate repository with duplicated domain logic:
+- `src/Encina.EventStoreDB/AggregateRepository.cs`
+- `src/Encina.Marten/AggregateRepository.cs`
+
+### Common duplicated logic:
+- Event loading and hydration
+- Aggregate state reconstruction
+- Event stream management patterns
+- Snapshot handling (when implemented)
+
+## Proposed Structure
+
+```
+Encina.EventSourcing (new abstractions package - or in Encina core)
+Ôö£ÔöÇÔöÇ IAggregateRepository<T> (interface) ÔåÉ NEW/EXTRACT
+Ôö£ÔöÇÔöÇ IEventStore (interface) ÔåÉ NEW: provider-agnostic event persistence
+Ôö£ÔöÇÔöÇ AggregateOrchestrator (domain logic) ÔåÉ NEW: centralized aggregate orchestration
+ÔööÔöÇÔöÇ Common aggregate base classes ÔåÉ EXTRACT from providers
+
+Encina.EventStoreDB / Encina.Marten
+Ôö£ÔöÇÔöÇ *EventStore (implements IEventStore) ÔåÉ NEW: just persistence
+Ôö£ÔöÇÔöÇ *AggregateRepository (simpler, uses orchestrator) ÔåÉ SIMPLIFY
+ÔööÔöÇÔöÇ ServiceCollectionExtensions ÔåÉ UPDATE
+```
+
+### Expected Improvement
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Duplicated lines | ~100-120 | ~40-50 | ~35% reduction |
+| Aggregate logic files | 2 | 1 | Single source of truth |
+| Provider switching | Hard | Easy | Change DI, keep domain |
+
+## Affected Files
+
+- `src/Encina.EventSourcing/AggregateOrchestrator.cs` (NEW)
+- `src/Encina.EventSourcing/IAggregateRepository.cs` (NEW/EXTRACT)
+- `src/Encina.EventSourcing/IEventStore.cs` (NEW)
+- `src/Encina.EventStoreDB/AggregateRepository.cs` (SIMPLIFY)
+- `src/Encina.Marten/AggregateRepository.cs` (SIMPLIFY)
+- `src/Encina.*/ServiceCollectionExtensions.cs` (UPDATE)
+
+## Packages Affected
+
+- [x] Encina.EventSourcing (new or existing)
+- [x] Encina.EventStoreDB
+- [x] Encina.Marten
+
+## Behavioral Guarantee
+
+> Refactoring MUST NOT change external behavior. Describe how this is verified.
+
+- [x] Existing unit tests cover the refactored code
+- [ ] Existing integration tests validate behavior
+- [ ] New tests added to cover refactoring safety
+- [ ] Contract tests verify public API unchanged
+
+## Risk Assessment
+
+- **Regression Risk**: Medium-High
+- **Affected Providers**: EventStoreDB and Marten (2 event sourcing providers)
+- **Breaking Changes**: None (refactoring must not break public API)
+
+### Considerations
+
+- Event Sourcing has more complex domain requirements than Messaging/Caching
+- May need `IEventFactory` for provider-specific event serialization
+- Projection support differs significantly between EventStoreDB and Marten
+- Consider if a new `Encina.EventSourcing` abstractions package is needed
+
+## Related Issues
+
+- Follows pattern from Encina.Messaging (InboxOrchestrator, OutboxOrchestrator, etc.)
+- Similar to how Encina.Caching has ICacheProvider abstraction
+- #13 - Apply Orchestrator pattern to Encina.Caching
+- #14 - Apply Orchestrator pattern to Encina.Validation
+
+COMMENT by dlrivada:
+## Closing - Superseded by Strategy Pattern Analysis
+
+After deeper analysis, we realized that Event Sourcing (EventStoreDB vs Marten) represents **fundamentally different strategies**, not just interchangeable providers.
+
+### Key Insight
+
+The simple Orchestrator + Provider pattern works for:
+- **Caching** - Same cache semantics, different backends
+- **Validation** - Same validation flow, different libraries
+
+But Event Sourcing, Sagas, and Messaging Transports need a richer pattern:
+
+```
+Strategy ÔåÆ Orchestrator ÔåÆ Provider
+```
+
+Because:
+- EventStoreDB uses catch-up subscriptions, server-side projections
+- Marten uses inline projections, async daemon, PostgreSQL-native features
+
+These aren't interchangeable implementations - they're **different architectural approaches**.
+
+### Replacement Issues
+
+This issue will be replaced by:
+1. **Event Sourcing Strategy Pattern** - EventStoreDB vs Marten as separate strategies
+2. **Sagas Strategy Pattern** - Choreography vs Orchestration strategies
+3. **Messaging Strategy Pattern** - RabbitMQ, Kafka, NATS as different strategies
+
+Each strategy gets its own Orchestrator with strategy-specific logic, while providers within a strategy remain interchangeable.
+
+

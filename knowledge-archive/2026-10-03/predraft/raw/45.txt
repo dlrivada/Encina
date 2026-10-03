@@ -1,0 +1,89 @@
+ISSUE #45: [FEATURE] ROP Assertion Extensions - ShouldBeSuccess/ShouldBeError
+closed_at: 12/24/2025 18:11:16
+labels: enhancement, phase-2-functionality, priority-critical, complexity-low, area-testing, testing-assertions, area-result-pattern
+
+BODY:
+## Summary
+
+Create fluent assertion extensions for Railway Oriented Programming results.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Critical
+- **Complexity**: Low
+
+Testing `Either<EncinaError, T>` results requires verbose `Match` calls and manual assertions. Fluent assertion extensions like `ShouldBeSuccess()` and `ShouldBeError()` make tests more readable and provide better failure messages.
+
+## Proposed Solution
+
+### Features
+
+- Success/Error assertions
+- Value extraction with assertions
+- Error code/message assertions
+- Chained assertions
+
+### Proposed API
+
+```csharp
+// Success assertions
+result.ShouldBeSuccess();
+result.ShouldBeSuccess(value => value.Should().Be(expected));
+result.ShouldHaveValue<OrderId>(id => id.Value.Should().NotBeEmpty());
+
+// Error assertions
+result.ShouldBeError();
+result.ShouldBeError(e => e.Code == "validation.failed");
+result.ShouldHaveErrorCode("encina.validation.failed");
+result.ShouldHaveErrorMessage("Validation failed");
+
+// Either extensions
+either.Match(
+    Right: value => value.Should().BeEquivalentTo(expected),
+    Left: error => Assert.Fail($"Expected success but got error: {error.Code}")
+);
+```
+
+### Implementation Tasks
+
+- [ ] Create `EitherAssertionExtensions` class
+- [ ] Implement `ShouldBeSuccess()` variants
+- [ ] Implement `ShouldBeError()` variants
+- [ ] Add value extraction helpers
+- [ ] Add error detail assertions
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Testing` (assertion extensions)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | 100% coverage (it's a test utility) |
+| Integration Tests | No | Pure logic, no external dependencies |
+| Contract Tests | Yes | Assertion API surface |
+| Property Tests | Maybe | Assertion correctness invariants |
+
+## Acceptance Criteria
+
+- [ ] Assertions are fluent and readable
+- [ ] Good error messages on failure
+- [ ] Works with FluentAssertions
+- [ ] 100% test coverage (it's a test utility)
+
+## Related Issues
+
+- Developer Tooling
+- Part of Encina.Testing package
+
+
+COMMIT 8ebf437b (closed): feat(testing): add ROP assertion extensions for Either<L,R>
+

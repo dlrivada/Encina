@@ -1,0 +1,124 @@
+ISSUE #52: [FEATURE] Snapshotting for large aggregates
+closed_at: 12/26/2025 20:20:35
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-event-sourcing
+
+BODY:
+## Summary
+
+Implement snapshotting support for large event-sourced aggregates to improve load performance.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+When event-sourced aggregates accumulate a large number of events, replaying all events from the beginning becomes increasingly expensive. Snapshotting captures the aggregate state at a point in time, allowing faster loading by replaying only events after the last snapshot.
+
+## Proposed Solution
+
+- Automatic snapshot creation at configurable intervals
+- Configurable snapshot frequency and retention
+- Snapshot + events replay (load from snapshot, then apply remaining events)
+- Snapshot storage strategies
+
+```csharp
+services.AddEncinaMarten(config =>
+{
+    config.UseSnapshotting<Order>(options =>
+    {
+        options.SnapshotEvery = 100; // Snapshot every 100 events
+        options.KeepSnapshots = 5;   // Keep last 5 snapshots
+    });
+});
+
+// Aggregate with snapshot support
+public class Order : AggregateBase<OrderId>, ISnapshotable<OrderSnapshot>
+{
+    public OrderSnapshot CreateSnapshot() => new(Id, Status, Items, Total);
+
+    public void RestoreFromSnapshot(OrderSnapshot snapshot)
+    {
+        Id = snapshot.Id;
+        Status = snapshot.Status;
+        Items = snapshot.Items;
+        Total = snapshot.Total;
+    }
+}
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Marten`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Snapshot creation, restoration, frequency logic | Core behavior |
+| Integration Tests | Yes | End-to-end with Marten/PostgreSQL | Real event store |
+| Property Tests | Maybe | Snapshot invariants (state consistency) | If complex |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Yes | Measure load performance with/without snapshots | Key motivation |
+
+## Implementation Tasks
+
+- [ ] Design snapshot abstractions
+- [ ] Implement `ISnapshotable<T>` interface
+- [ ] Create snapshot storage
+- [ ] Add automatic snapshot creation
+- [ ] Implement snapshot + events replay
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Snapshots created at configured intervals
+- [ ] Aggregate loads from snapshot + remaining events
+- [ ] Performance improvement measurable
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Isolated Features (Lower Priority)
+- Enhances Marten event sourcing
+
+
+COMMENT by dlrivada:
+Implemented snapshotting for large aggregates with:
+
+## Implementation
+- `ISnapshotable<TAggregate>` marker interface
+- `ISnapshot<TAggregate>` / `Snapshot<TAggregate>` for snapshot data
+- `SnapshotOptions` with global and per-aggregate configuration
+- `ISnapshotStore<TAggregate>` with `MartenSnapshotStore<TAggregate>` implementation
+- `SnapshotAwareAggregateRepository<TAggregate>` for optimized loading
+- `SnapshotEnvelope<TAggregate>` for Marten document storage
+- `SnapshotErrorCodes` for standardized error handling
+- High-performance logging with `LoggerMessage` source generators
+
+## Configuration
+```csharp
+services.AddEncinaMarten(options =>
+{
+    options.Snapshots.Enabled = true;
+    options.Snapshots.SnapshotEvery = 100;
+    options.Snapshots.KeepSnapshots = 3;
+    options.Snapshots.ConfigureAggregate<Order>(snapshotEvery: 50, keepSnapshots: 5);
+});
+services.AddSnapshotableAggregate<Order>();
+```
+
+## Test Coverage
+- 121 unit tests (property, contract, guard clause tests included)
+- 6 integration tests with Testcontainers/PostgreSQL
+
+## Documentation
+- Updated CHANGELOG.md, ROADMAP.md, docs/history/2025-12.md
+
+COMMIT c1e4a50c (referenced): feat(marten): add Snapshotting for large aggregates (Fixes #52)
+

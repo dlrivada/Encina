@@ -1,0 +1,104 @@
+ISSUE #161: [FEATURE] Test Data Generation with Bogus/AutoBogus
+closed_at: 12/31/2025 16:58:30
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, new-package, area-testing, industry-best-practice, testing-unit, testing-data-generation
+
+BODY:
+## Summary
+
+Add **test data generation utilities** to `Encina.Testing` using Bogus and AutoBogus libraries for realistic, reproducible test data generation.
+
+## Motivation
+
+- **Realistic data**: Names, emails, addresses instead of "test1", "test2"
+- **Reproducibility**: Seed-based generation for deterministic tests
+- **Automatic population**: AutoBogus fills properties automatically
+- **Reduced boilerplate**: Less manual test data setup code
+
+## Proposed Solution
+
+### New Package: `Encina.Testing.DataGeneration`
+
+```csharp
+// Base faker with Encina-specific conventions
+public class EncinaFaker<T> : AutoFaker<T>
+{
+    public EncinaFaker()
+    {
+        // Auto-configure common Encina types
+        RuleFor(x => x.CorrelationId, f => f.Random.Guid());
+        RuleFor(x => x.CreatedAtUtc, f => f.Date.Recent().ToUniversalTime());
+    }
+}
+
+// Pre-built fakers for messaging entities
+public class OutboxMessageFaker : EncinaFaker<OutboxMessage> { }
+public class InboxMessageFaker : EncinaFaker<InboxMessage> { }
+public class SagaStateFaker : EncinaFaker<SagaState> { }
+public class ScheduledMessageFaker : EncinaFaker<ScheduledMessage> { }
+
+// Request/Command/Query fakers with fluent customization
+public class RequestFaker<TRequest> : EncinaFaker<TRequest>
+    where TRequest : IRequest<TResponse> { }
+```
+
+### Usage Example
+
+```csharp
+var faker = new OutboxMessageFaker()
+    .UseSeed(12345) // Reproducible
+    .RuleFor(x => x.RequestType, "OrderCreated");
+
+var messages = faker.Generate(100);
+```
+
+## Alternatives Considered
+
+1. **AutoFixture only**: Using AutoFixture without Bogus. Less realistic data, harder to customize specific fields.
+
+2. **Manual builders only**: Continuing with manual test data builders. More boilerplate, less realistic data.
+
+3. **Static test data**: Using hardcoded test data files. Inflexible, hard to generate variations.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.DataGeneration`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for all faker classes
+- [ ] Property-based tests verifying data constraints
+- [ ] Integration tests with actual Encina handlers
+- [ ] Tests for seed reproducibility
+
+### Acceptance Criteria
+
+- [ ] `Encina.Testing.DataGeneration` package created
+- [ ] Fakers for all messaging entities (Outbox, Inbox, Saga, Scheduled)
+- [ ] Base `EncinaFaker<T>` with common conventions
+- [ ] Seed support for deterministic tests
+- [ ] Unit tests with ÔëÑ90% coverage
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [Bogus vs AutoFixture comparison](https://matthewregis.dev/posts/comparing-fake-data-generator-with-bogus-vs-autofixture)
+- [AutoBogus for automated generation](https://marathonus.com/about/blog/taking-your-code-on-an-adventure-easily-generate-sample-data-for-testing-using-bogus-and-autobogus/)
+- [Creating Repeatable Test Data with Bogus](https://pmichaels.net/creating-repeatable-test-data-with-bogus/)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 50462fa5 (closed): feat(testing): add domain model faker extensions to Encina.Testing.Bogus
+

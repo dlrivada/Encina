@@ -1,0 +1,72 @@
+ISSUE #28: [DEBT] Re-enable ContractTests and PropertyTests in SonarCloud workflow
+closed_at: 12/24/2025 11:52:34
+labels: technical-debt, area-testing, area-ci-cd
+
+BODY:
+## Type
+
+- [ ] Missing implementation
+- [ ] Code quality
+- [x] Test coverage gap
+- [ ] Performance issue
+- [ ] Documentation gap
+- [ ] Dependency update
+
+## Description
+
+ContractTests and PropertyTests are currently excluded from SonarCloud workflow due to failures. These tests provide important quality coverage and need to be re-enabled.
+
+## Location
+
+- `.github/workflows/sonarcloud.yml` (exclusion filter)
+- `tests/Encina.ContractTests/` (failing tests)
+- `tests/Encina.PropertyTests/` (failing tests)
+
+## Current Behavior
+
+The SonarCloud workflow excludes these test types:
+```
+--filter "FullyQualifiedName!~ContractTests&FullyQualifiedName!~PropertyTests"
+```
+
+ContractTests and PropertyTests are not executed in CI, reducing quality coverage.
+
+## Expected Behavior
+
+All ContractTests and PropertyTests pass and are included in the SonarCloud workflow without exclusions.
+
+## Root Cause
+
+Test failures in ContractTests and PropertyTests that were excluded rather than fixed.
+
+## Proposed Fix
+
+1. Review and fix failing ContractTests
+2. Review and fix failing PropertyTests
+3. Remove exclusions from `sonarcloud.yml`
+4. Verify all tests pass in CI
+
+## Priority
+
+- [ ] Low - nice to have
+- [ ] Medium - should fix soon
+- [x] High - blocking quality
+- [ ] Critical - blocking release
+
+## Effort Estimate
+
+- [ ] Small (< 2 hours)
+- [x] Medium (2-8 hours)
+- [ ] Large (1-3 days)
+- [ ] Extra Large (> 3 days)
+
+## Related Issues
+
+_No related issues identified._
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

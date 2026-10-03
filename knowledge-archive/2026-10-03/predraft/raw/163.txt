@@ -1,0 +1,148 @@
+ISSUE #163: [FEATURE] Database Reset with Respawn
+closed_at: 12/31/2025 23:37:06
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-database, area-testing, testing-integration
+
+BODY:
+## Summary
+
+Integrate **Respawn library** into `Encina.Testing` for intelligent database cleanup between integration tests, providing fast and reliable database reset.
+
+## Motivation
+
+- **Fast reset**: Respawn is 3x faster than truncate/FK disable approach
+- **Intelligent deletion**: Analyzes foreign key relationships for correct deletion order
+- **Schema preservation**: Only deletes data, doesn't recreate schema
+- **Multi-database support**: SQL Server, PostgreSQL, MySQL, Oracle
+
+## Proposed Solution
+
+### EncinaRespawner Factory
+
+```csharp
+public static class EncinaRespawner
+{
+    public static async Task<Respawner> CreateAsync(DbConnection connection)
+    {
+        return await Respawner.CreateAsync(connection, new RespawnerOptions
+        {
+            TablesToIgnore = new Table[]
+            {
+                "__EFMigrationsHistory",
+                "SchemaVersions"
+            },
+            SchemasToExclude = new[]
+            {
+                "sys",
+                "information_schema",
+                "pg_catalog"
+            }
+        });
+    }
+
+    public static async Task<Respawner> CreateForEncinaMessagingAsync(
+        DbConnection connection,
+        bool preserveOutbox = false,
+        bool preserveInbox = false)
+    {
+        var tablesToIgnore = new List<Table>();
+        if (preserveOutbox) tablesToIgnore.Add("OutboxMessages");
+        if (preserveInbox) tablesToIgnore.Add("InboxMessages");
+
+        return await Respawner.CreateAsync(connection, new RespawnerOptions
+        {
+            TablesToIgnore = tablesToIgnore.ToArray()
+        });
+    }
+}
+```
+
+### DatabaseIntegrationTestBase
+
+```csharp
+public abstract class DatabaseIntegrationTestBase : IAsyncLifetime
+{
+    protected Respawner Respawner { get; private set; }
+    protected abstract DbConnection Connection { get; }
+
+    public virtual async Task InitializeAsync()
+    {
+        Respawner = await EncinaRespawner.CreateAsync(Connection);
+    }
+
+    public virtual async Task DisposeAsync()
+    {
+        await Respawner.ResetAsync(Connection);
+    }
+}
+```
+
+### Usage Example
+
+```csharp
+public class OrderSagaIntegrationTests : DatabaseIntegrationTestBase
+{
+    private readonly SqlServerContainerFixture _container;
+    protected override DbConnection Connection => _container.Connection;
+
+    [Fact]
+    public async Task CompleteSaga_ShouldPersistAllSteps()
+    {
+        // Test runs with clean database
+        // Respawner resets after each test
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **Truncate with FK disable**: Disabling foreign keys and truncating. Slower, requires FK re-enable, can cause constraint issues.
+
+2. **Database recreate per test**: Dropping and recreating database. Very slow, especially with migrations.
+
+3. **Transaction rollback**: Wrapping tests in transactions. Doesn't work for all scenarios, can hide bugs.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.Testcontainers`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for Respawner configuration
+- [ ] Integration tests with real databases
+- [ ] Tests for table preservation options
+- [ ] Performance benchmarks vs truncate
+- [ ] Tests for concurrent test execution
+
+### Acceptance Criteria
+
+- [ ] `EncinaRespawner` static factory class created
+- [ ] Pre-configured options for Encina tables
+- [ ] `DatabaseIntegrationTestBase` abstract class
+- [ ] Support for SQL Server, PostgreSQL, MySQL
+- [ ] Unit tests with ÔëÑ90% coverage
+- [ ] Integration tests demonstrating reset between tests
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [Respawn GitHub](https://github.com/jbogard/Respawn)
+- [Faster .NET Integration Tests with Respawn](https://khalidabuhakmeh.com/faster-dotnet-database-integration-tests-with-respawn-and-xunit)
+- [Simple Integration Testing with Respawn & TestContainers](https://medium.com/@hiddenhenry/simple-integration-testing-in-net-with-respawn-testcontainers-39f5de21740c)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 35307ee8 (closed): feat(testing): add DatabaseIntegrationTestBase for Respawn integration
+

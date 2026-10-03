@@ -1,0 +1,105 @@
+ISSUE #57: [FEATURE] Modular Monolith - IModule interface and registry
+closed_at: 12/25/2025 08:49:02
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-modular-monolith, area-module-system
+
+BODY:
+## Summary
+
+Implement modular monolith support with module interfaces and runtime discovery.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Low
+
+Modular monoliths allow teams to develop and maintain independent modules within a single deployable unit. An `IModule` interface with a registry provides a standardized way to define module boundaries, register module-specific services, and manage module lifecycle (startup/shutdown hooks), enabling a clean path toward eventual microservice extraction.
+
+## Proposed Solution
+
+- `IModule` interface for module definition
+- `IModuleRegistry` for runtime discovery
+- Module lifecycle hooks (`OnStart`/`OnStop`)
+- Module-scoped service registration
+
+```csharp
+public interface IModule
+{
+    string Name { get; }
+    void ConfigureServices(IServiceCollection services);
+}
+
+public interface IModuleLifecycle : IModule
+{
+    Task OnStartAsync(CancellationToken ct);
+    Task OnStopAsync(CancellationToken ct);
+}
+
+// Module implementation
+public class OrderModule : IModuleLifecycle
+{
+    public string Name => "Orders";
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        // Module-specific handlers registered automatically
+    }
+
+    public Task OnStartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task OnStopAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+// Registration
+services.AddEncinaModules(config =>
+{
+    config.AddModule<OrderModule>();
+    config.AddModule<PaymentModule>();
+    config.AddModule<ShippingModule>();
+});
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina` (Core)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Module registration, lifecycle, discovery | Core behavior |
+| Integration Tests | Maybe | Full module startup/shutdown | End-to-end lifecycle |
+| Contract Tests | Yes | IModule / IModuleLifecycle contracts | Public API |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Define `IModule` interface
+- [ ] Create `IModuleRegistry`
+- [ ] Add lifecycle hooks
+- [ ] Implement module discovery
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Modules register correctly
+- [ ] Lifecycle hooks execute
+- [ ] Module discovery works
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Modular Monolith Support
+- Foundation for #58 (Module-scoped behaviors)
+
+
+COMMENT by dlrivada:
+Implemented in this session. Added:\n\n- `IModule` interface for defining application modules\n- `IModuleLifecycle` interface for modules with startup/shutdown hooks\n- `IModuleRegistry` for runtime module discovery and lookup\n- `ModuleConfiguration` for fluent module registration\n- `ModuleLifecycleHostedService` for automatic lifecycle management\n- `AddEncinaModules()` extension method for service registration\n- Automatic handler discovery from module assemblies\n- Module ordering: start in registration order, stop in reverse (LIFO)\n- 48 unit tests covering all module functionality\n\nFiles added:\n- `src/Encina/Modules/IModule.cs`\n- `src/Encina/Modules/IModuleLifecycle.cs`\n- `src/Encina/Modules/IModuleRegistry.cs`\n- `src/Encina/Modules/ModuleRegistry.cs`\n- `src/Encina/Modules/ModuleConfiguration.cs`\n- `src/Encina/Modules/ModuleServiceCollectionExtensions.cs`\n- `src/Encina/Modules/ModuleLifecycleHostedService.cs`
+
+COMMIT 39d5dce4 (referenced): feat(modules): add modular monolith support
+

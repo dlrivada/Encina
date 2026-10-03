@@ -1,0 +1,59 @@
+ISSUE #27: [FEATURE] Source Generators for zero-reflection dispatch
+closed_at: 12/24/2025 11:52:32
+labels: enhancement, area-performance, area-source-generators
+
+BODY:
+## Summary
+
+Implement source generators for compile-time handler registration and NativeAOT support.
+
+## Motivation
+
+Current implementation uses reflection for handler discovery. Source generators would:
+- Enable NativeAOT compilation
+- Improve startup time
+- Reduce memory allocation
+
+## Proposed Solution
+
+- `[EncinaHandler]` attribute for source generation
+- Switch-based dispatch (no dictionary lookup)
+- Compile-time handler registration
+- Full NativeAOT compatibility
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina` (core - handler dispatch)
+- `Encina.SourceGenerators` (new package for generators)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Generated code correctness |
+| Integration Tests | Yes | Full dispatch pipeline |
+| Contract Tests | Yes | Public API compatibility |
+| Benchmark Tests | Yes | Compare reflection vs source-gen performance |
+
+## Acceptance Criteria
+
+- [ ] `[EncinaHandler]` attribute enables source generation
+- [ ] Switch-based dispatch replaces dictionary lookup
+- [ ] Compile-time handler registration works
+- [ ] Full NativeAOT compatibility verified
+
+## Related Issues
+
+- Milestone: 1.2 - Developer Experience
+- Priority: Medium - significant performance improvement, enables new deployment scenarios
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

@@ -1,0 +1,106 @@
+ISSUE #34: [REFACTOR] Replace object? Details with ImmutableDictionary in EncinaError
+closed_at: 12/25/2025 09:39:47
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-result-pattern
+
+BODY:
+## Summary
+
+Replace the loosely-typed `object? Details` property in `EncinaError` with a type-safe `ImmutableDictionary<string, object?>` for better type safety across all error handling.
+
+## Motivation
+
+- [ ] Code consistency
+- [ ] Performance improvement
+- [x] Maintainability
+- [ ] Testability
+- [x] Reduce complexity
+
+The current `object? Details` property provides no type safety and makes it difficult to work with error details programmatically. An `ImmutableDictionary` provides structure while remaining flexible.
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+## Current Structure
+
+```csharp
+public record EncinaError(string Code, string Message, object? Details = null);
+```
+
+## Proposed Structure
+
+```csharp
+public record EncinaError(
+    string Code,
+    string Message,
+    ImmutableDictionary<string, object?>? Details = null);
+```
+
+With helper methods for creating errors with details.
+
+## Affected Files
+
+- `src/Encina/` - `EncinaError` record definition
+- All packages that create `EncinaError` instances
+- All test files that assert on error details
+
+## Packages Affected
+
+- `Encina` (Core) - primary change
+- All packages using `EncinaError` (cross-cutting)
+
+## Behavioral Guarantee
+
+This is a **BREAKING CHANGE** but acceptable in pre-1.0. Factory methods will be provided for backward-compatible error creation patterns.
+
+## Risk Assessment
+
+- **Risk**: Medium
+- **Reason**: Cross-cutting change affecting all packages. Requires updating all error creation sites. However, compiler will catch all incompatibilities since the type signature changes.
+
+## Related Issues
+
+- Cross-cutting feature (affects all packages using EncinaError)
+
+
+COMMENT by dlrivada:
+## Implemented
+
+### Breaking Changes
+
+**`EncinaErrors` factory methods:**
+- `Create()` and `FromException()` `details` parameter changed from `object?` to `IReadOnlyDictionary<string, object?>?`
+
+**`EncinaErrorExtensions`:**
+- `GetDetails()` now returns `IReadOnlyDictionary<string, object?>` instead of `Option<object>`
+- Returns empty dictionary instead of `None` when no details present
+
+### Internal Changes
+- `EncinaException` stores `Details` as `IReadOnlyDictionary<string, object?>` (normalized on construction)
+- Removed `NormalizeMetadata()` complexity - no longer supports arbitrary objects, only dictionaries
+- `GetMetadata()` is now an alias for `GetDetails()`
+
+### Migration
+```csharp
+// Before (object?)
+var error = EncinaErrors.Create("code", "message", details: new { Value = 42 });
+
+// After (IReadOnlyDictionary<string, object?>)
+var error = EncinaErrors.Create("code", "message", details: new Dictionary<string, object?> { ["Value"] = 42 });
+
+// Before (Option<object>)
+error.GetDetails().Match(Some: d => ..., None: () => ...);
+
+// After (IReadOnlyDictionary<string, object?>)
+var details = error.GetDetails();
+if (details.Any()) { ... }
+```
+
+### Benefits
+- Type-safe: compile-time errors for invalid detail types
+- Consistent: always returns a dictionary (empty if no details)
+- Simpler: no `Option<>` unwrapping needed
+- Unified: `GetDetails()` and `GetMetadata()` return the same type
+
+COMMIT 2e46745e (referenced): refactor(errors): change details type to IReadOnlyDictionary
+

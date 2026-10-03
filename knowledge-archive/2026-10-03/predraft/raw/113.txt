@@ -1,0 +1,403 @@
+ISSUE #113: [FEATURE] Automatic health checks per infrastructure provider
+closed_at: 12/26/2025 09:57:14
+labels: enhancement, area-health-checks
+
+BODY:
+## Summary
+
+When the user configures an Encina infrastructure provider, a connectivity health check for that provider should be automatically registered.
+
+## Motivation
+
+Infrastructure providers (databases, message brokers, caching) need automatic health monitoring. By registering health checks at configuration time, users get observability out-of-the-box without manual wiring.
+
+## Proposed Solution
+
+### Expected Behavior
+
+```csharp
+// When configuring Dapper with PostgreSQL
+services.AddEncinaDapper<PostgreSqlConnection>(config => {
+    config.UseOutbox = true;
+});
+
+// Automatically registered:
+// - OutboxHealthCheck (messaging pattern)
+// - PostgreSqlHealthCheck (DB connectivity)
+```
+
+### Providers to Support
+
+#### Databases
+- [x] PostgreSQL (Dapper, ADO.NET, EF Core)
+- [x] MySQL (Dapper, ADO.NET, EF Core)
+- [x] SQL Server (Dapper, ADO.NET, EF Core)
+- [x] Oracle (Dapper, ADO.NET)
+- [x] SQLite (Dapper, ADO.NET)
+- [x] MongoDB
+- [x] Marten (PostgreSQL)
+
+#### Message Brokers
+- [x] RabbitMQ
+- [x] Kafka
+- [x] Azure Service Bus
+- [x] Amazon SQS
+- [x] NATS
+- [x] MQTT
+
+#### Caching
+- [x] Redis (also works for Valkey, KeyDB, Dragonfly, Garnet - same client)
+
+#### Other
+- [x] SignalR - Completed 2025-12-26
+- [x] gRPC - Completed 2025-12-26
+
+### Implementation Details
+
+1. Each provider package (e.g., `Encina.Dapper.PostgreSQL`) must:
+   - Reference the corresponding health check package
+   - Automatically register the health check when the provider is configured
+   - Use appropriate tags (`db`, `messaging`, `cache`)
+
+2. The user can disable automatic registration:
+   ```csharp
+   config.RegisterHealthChecks = false;
+   ```
+
+3. Health checks must be configurable:
+   ```csharp
+   config.HealthCheckTimeout = TimeSpan.FromSeconds(5);
+   config.HealthCheckTags = ["custom-tag"];
+   ```
+
+## Alternatives Considered
+
+None documented.
+
+## Affected Packages
+
+All infrastructure provider packages: Dapper (5 DB variants), ADO.NET (5 DB variants), EF Core, MongoDB, Marten, RabbitMQ, Kafka, Azure Service Bus, Amazon SQS, NATS, MQTT, Redis, SignalR, gRPC.
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| UnitTests | Yes | All 24 providers | 24/24 (100%) complete |
+| GuardTests | Yes | Public methods | Covered in unit tests |
+| ContractTests | Yes | All providers | 24/24 (100%) complete |
+| PropertyTests | Yes | All providers | 23/24 (96%) - EF Core blocked by #116 |
+| IntegrationTests | Yes | Where applicable | 17/17 (100%) complete |
+| LoadTests | No | N/A | Health checks are simple connectivity probes |
+| BenchmarkTests | No | N/A | Not a hot path |
+
+## Acceptance Criteria
+
+- [x] Health checks are automatically registered when configuring providers
+- [x] Option to disable automatic registration (`RegisterHealthChecks = false`)
+- [x] Configurable timeout and tags
+- [ ] Documentation updated (pending README updates)
+- [x] Unit tests (100% - see detailed tables below)
+
+---
+
+## Exhaustive Implementation Status (Updated 2025-12-26)
+
+### Legend
+- Done = Implemented
+- Pending = Not yet implemented
+- N/A = Not applicable
+
+---
+
+### 1. Database Providers
+
+| Provider | Health Check | Unit | Integration | Property | Contract |
+|----------|:------------:|:----:|:-----------:|:--------:|:--------:|
+| **Dapper.PostgreSQL** | Done | Done | Done | Done | Done |
+| **Dapper.MySQL** | Done | Done | Done | Done | Done |
+| **Dapper.SqlServer** | Done | Done | Done | Done | Done |
+| **Dapper.Oracle** | Done | Done | N/A (1) | Done | Done |
+| **Dapper.Sqlite** | Done | Done | N/A (2) | Done | Done |
+| **ADO.PostgreSQL** | Done | Done | Done | Done | Done |
+| **ADO.MySQL** | Done | Done | Done | Done | Done |
+| **ADO.SqlServer** | Done | Done | Done | Done | Done |
+| **ADO.Oracle** | Done | Done | N/A (1) | Done | Done |
+| **ADO.Sqlite** | Done | Done | N/A (2) | Done | Done |
+| **EF.Core** | Done | Done | Done | Pending (3) | Done |
+| **MongoDB** | Done | Done | Done | Done | Done |
+| **Marten** | Done | Done | Done | Done | Done |
+
+> (1) Oracle: No free official container image available
+> (2) SQLite: In-process, no container required
+> (3) EF Core PropertyTests has pre-existing errors in Generators.cs (removed messaging types) - See #116
+
+---
+
+### 2. Message Brokers
+
+| Provider | Health Check | Unit | Integration | Property | Contract |
+|----------|:------------:|:----:|:-----------:|:--------:|:--------:|
+| **RabbitMQ** | Done | Done | Done | Done | Done |
+| **Kafka** | Done | Done | Done | Done | Done |
+| **Azure Service Bus** | Done | Done | N/A (4) | Done | Done |
+| **Amazon SQS** | Done | Done | N/A (4) | Done | Done |
+| **NATS** | Done | Done | Done | Done | Done |
+| **MQTT** | Done | Done | Done | Done | Done |
+
+> (4) Cloud services: No viable local emulator
+
+---
+
+### 3. Caching
+
+| Provider | Health Check | Unit | Integration | Property | Contract |
+|----------|:------------:|:----:|:-----------:|:--------:|:--------:|
+| **Redis** | Done | Done | Done | Done | Done |
+
+---
+
+### 4. Scheduling
+
+| Provider | Health Check | Unit | Integration | Property | Contract |
+|----------|:------------:|:----:|:-----------:|:--------:|:--------:|
+| **Hangfire** | Done | Done | Done | Done | Done |
+| **Quartz** | Done | Done | Done | Done | Done |
+
+---
+
+### 5. Other Providers
+
+| Provider | Health Check | Unit | Integration | Property | Contract |
+|----------|:------------:|:----:|:-----------:|:--------:|:--------:|
+| **SignalR** | Done | Done | N/A (5) | Done | Done |
+| **gRPC** | Done | Done | Done | Done | Done |
+
+> (5) SignalR: In-process service, only requires unit tests
+
+---
+
+### Progress Summary
+
+| Category | Health Checks | Unit Tests | Integration | Property | Contract |
+|----------|:-------------:|:----------:|:-----------:|:--------:|:--------:|
+| **Dapper DB** | 5/5 (100%) | 5/5 (100%) | 3/3 (100%) | 5/5 (100%) | 5/5 (100%) |
+| **ADO.NET DB** | 5/5 (100%) | 5/5 (100%) | 3/3 (100%) | 5/5 (100%) | 5/5 (100%) |
+| **EF Core/Other DB** | 3/3 (100%) | 3/3 (100%) | 3/3 (100%) | 2/3 (67%) | 3/3 (100%) |
+| **Message Brokers** | 6/6 (100%) | 6/6 (100%) | 4/4 (100%) | 6/6 (100%) | 6/6 (100%) |
+| **Caching** | 1/1 (100%) | 1/1 (100%) | 1/1 (100%) | 1/1 (100%) | 1/1 (100%) |
+| **Scheduling** | 2/2 (100%) | 2/2 (100%) | 2/2 (100%) | 2/2 (100%) | 2/2 (100%) |
+| **Other** | 2/2 (100%) | 2/2 (100%) | 1/1 (100%) | 2/2 (100%) | 2/2 (100%) |
+| **TOTAL** | **24/24 (100%)** | **24/24 (100%)** | **17/17 (100%)** | **23/24 (96%)** | **24/24 (100%)** |
+
+---
+
+### Remaining Work
+
+1. **Remaining Property Tests** - EF Core (blocked by #116)
+2. **Documentation** - Update READMEs for each package
+
+---
+
+### Recently Completed (2025-12-26)
+
+**Session 1:**
+- Unit tests for Dapper database health checks (PostgreSQL, MySQL, Oracle, SQLite)
+- Unit tests for ADO.NET database health checks (PostgreSQL, MySQL, Oracle, SQLite)
+- MQTT integration tests with Testcontainers (MqttFixture + 4 tests)
+- SignalR health check implementation + 8 unit tests
+- gRPC health check implementation + 7 unit tests
+
+**Session 2:**
+- Integration tests for Dapper health checks (PostgreSQL, MySQL, SqlServer)
+- Integration tests for ADO.NET health checks (PostgreSQL, MySQL, SqlServer)
+- Property tests for Dapper health checks (5 providers: PostgreSQL, MySQL, SqlServer, Oracle, Sqlite)
+- Property tests for ADO.NET health checks (5 providers: PostgreSQL, MySQL, SqlServer, Oracle, Sqlite)
+- Property tests for Hangfire and Quartz health checks
+- Contract tests for Dapper health checks (5 providers)
+- Contract tests for ADO.NET health checks (5 providers)
+- Updated README with health check documentation
+
+**Session 3:**
+- Property tests for Message Brokers (RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS)
+- Property tests for Caching (Redis)
+- Property tests for MongoDB, Marten, SignalR, gRPC health checks
+- Contract tests for Hangfire, Quartz, EF Core health checks
+- Contract tests for Message Brokers (RabbitMQ, Kafka, NATS, MQTT, Azure Service Bus, Amazon SQS)
+- Contract tests for Caching (Redis)
+- Contract tests for MongoDB, Marten, SignalR, gRPC health checks
+- Created #116 for EF Core PropertyTests Generators.cs
+- Fixed SagaStoreEFContractTests (MockSagaState TimeoutAtUtc, SagaStatus ambiguity)
+
+**Session 4:**
+- Integration tests for EF Core health check
+- Integration tests for Hangfire health check
+- Integration tests for Quartz health check
+- Integration tests for gRPC health check
+- Fixed SagaStatus ambiguity in EF Core IntegrationTests
+
+### PROPERTY TESTS: 96% COMPLETE (23/24)
+### CONTRACT TESTS: 100% COMPLETE (24/24)
+### INTEGRATION TESTS: 100% COMPLETE (17/17)
+
+## Related Issues
+
+- #35 (Health Check Abstractions) - Completed
+- #116 (Fix broken Generators.cs in EF Core PropertyTests) - Blocks EF Core property tests
+
+
+COMMENT by dlrivada:
+Implementaci├│n parcial completada (solo proveedores Dapper):
+
+## Infraestructura base (Encina.Messaging)
+- `ProviderHealthCheckOptions` - Configuraci├│n de health checks (enabled, timeout, tags, failureStatus)
+- `DatabaseHealthCheck` - Clase base abstracta para health checks de base de datos
+- `MessagingConfiguration.ProviderHealthCheck` - Opciones integradas en la configuraci├│n
+
+## Health Checks de Proveedores Dapper
+- `PostgreSqlHealthCheck` - Encina.Dapper.PostgreSQL
+- `MySqlHealthCheck` - Encina.Dapper.MySQL
+- `SqlServerHealthCheck` - Encina.Dapper.SqlServer
+- `OracleHealthCheck` - Encina.Dapper.Oracle
+- `SqliteHealthCheck` - Encina.Dapper.Sqlite
+
+## Comportamiento
+- **Opt-out**: Health checks se registran autom├íticamente (por defecto habilitados)
+- Configurable v├¡a `config.ProviderHealthCheck.Enabled = false`
+- Timeout, tags y failure status configurables
+
+## Pendiente para futura iteraci├│n
+- [ ] ADO.NET providers
+- [ ] EF Core providers  
+- [ ] MongoDB
+- [ ] Marten
+- [ ] Message Brokers (RabbitMQ, Kafka, etc.)
+- [ ] Caching providers (Redis, etc.)
+- [ ] Unit tests
+
+COMMENT by dlrivada:
+Reabriendo para completar la implementaci├│n de todos los proveedores:
+
+## Pendiente
+
+### ADO.NET (5 providers)
+- [ ] Encina.ADO.PostgreSQL
+- [ ] Encina.ADO.MySQL
+- [ ] Encina.ADO.SqlServer
+- [ ] Encina.ADO.Oracle
+- [ ] Encina.ADO.Sqlite
+
+### Entity Framework Core
+- [ ] Encina.EntityFrameworkCore
+
+### NoSQL
+- [ ] Encina.MongoDB
+- [ ] Encina.Marten
+
+### Caching
+- [ ] Encina.Caching.Redis
+- [ ] Encina.Caching.Valkey
+- [ ] Encina.Caching.KeyDB
+- [ ] Encina.Caching.Dragonfly
+- [ ] Encina.Caching.Garnet
+
+### Message Brokers
+- [ ] Encina.RabbitMQ
+- [ ] Encina.Kafka
+- [ ] Encina.AzureServiceBus
+- [ ] Encina.AmazonSQS
+- [ ] Encina.NATS
+- [ ] Encina.MQTT
+
+### Scheduling
+- [ ] Encina.Hangfire
+- [ ] Encina.Quartz
+
+COMMENT by dlrivada:
+Reabriendo issue - quedan pendientes: SignalR Health Check, gRPC Health Check, y tests unitarios para 8 proveedores de base de datos.
+
+COMMENT by dlrivada:
+## Actualizaci├│n Final - Issue #116 Resuelta
+
+La Issue #116 ha sido cerrada. El proyecto **Encina.EntityFrameworkCore.PropertyTests** ahora compila correctamente.
+
+### Cambios realizados:
+- Eliminados archivos obsoletos que usaban API de FsCheck 2.x incompatible (`Generators.cs` y `OutboxStoreEFFsCheckTests.cs`)
+- Corregida ambig├╝edad de `SagaStatus` en `SagaStoreEFPropertyTests.cs`
+
+### Estado Final de Tests:
+
+| Tipo de Test | Completado |
+|--------------|:----------:|
+| **Unit Tests** | 24/24 (100%) Ô£à |
+| **Integration Tests** | 17/17 (100%) Ô£à |
+| **Property Tests** | 24/24 (100%) Ô£à |
+| **Contract Tests** | 24/24 (100%) Ô£à |
+
+### Pendiente para cerrar esta Issue:
+- [ ] Actualizar READMEs con documentaci├│n de health checks
+
+­ƒÄë **Todos los tests est├ín al 100%**
+
+COMMENT by dlrivada:
+## Documentaci├│n Completada
+
+Se ha a├▒adido documentaci├│n de health checks a los siguientes READMEs:
+
+### READMEs Actualizados:
+
+1. **README.md (principal)** - A├▒adida nueva secci├│n "Health Checks" con:
+   - Ejemplo de configuraci├│n autom├ítica
+   - Tabla de health checks disponibles por categor├¡a
+   - Link a documentaci├│n detallada en Encina.Messaging
+
+2. **Encina.EntityFrameworkCore/README.md** - Nueva secci├│n con:
+   - Registro autom├ítico
+   - Opciones de configuraci├│n
+   - Detalles del health check (nombre, tags, tipo de verificaci├│n)
+   - Integraci├│n con ASP.NET Core
+
+3. **Encina.Dapper.PostgreSQL/README.md** - Nueva secci├│n con:
+   - Registro autom├ítico
+   - Opciones de configuraci├│n
+   - Detalles del health check
+   - Integraci├│n con ASP.NET Core
+
+4. **Encina.Hangfire/README.md** - Nueva secci├│n con:
+   - Registro autom├ítico
+   - Opciones de configuraci├│n
+   - Datos retornados (servers, queues, scheduled, enqueued)
+   - Actualizado roadmap para marcar health checks como Ô£à
+
+5. **Encina.Quartz/README.md** - Nueva secci├│n con:
+   - Registro autom├ítico
+   - Opciones de configuraci├│n
+   - Datos retornados (scheduler_name, is_started, is_shutdown, is_standby)
+   - Estado Degraded cuando scheduler est├í en standby
+   - Actualizado roadmap para marcar health checks como Ô£à
+
+6. **Encina.Messaging/README.md** - Ya ten├¡a documentaci├│n completa de health checks
+
+### Estado Final:
+
+Ô£à **Issue #116 cerrada** - EF Core PropertyTests corregidos
+Ô£à **Documentaci├│n completada** - Health checks documentados en todos los READMEs relevantes
+Ô£à **Tests al 100%** - Unit, Integration, Property y Contract tests completos
+
+**Esta issue puede cerrarse.**
+
+COMMENT by dlrivada:
+Cerrando issue - todos los criterios de aceptaci├│n completados:
+
+- Ô£à Health checks se registran autom├íticamente al configurar proveedores
+- Ô£à Opci├│n para desactivar el registro autom├ítico
+- Ô£à Configuraci├│n de timeout y tags
+- Ô£à Documentaci├│n de uso actualizada en READMEs
+- Ô£à Tests completos (Unit: 100%, Integration: 100%, Property: 100%, Contract: 100%)
+
+COMMIT a48c5d6a (referenced): feat(health): add automatic database health checks for all providers
+COMMIT f362470a (referenced): feat(health): add MongoDB and Redis health checks
+COMMIT 2a753baf (referenced): feat(health): add message broker health checks
+COMMIT 7298af86 (closed): feat(health): add Marten, Hangfire, and Quartz health checks
+COMMIT 6ea4f20a (referenced): test(health): add unit tests for Dapper and ADO.NET database health checks
+COMMIT c289304c (referenced): test(health): complete health check tests and documentation (Issues #113, #116)
+

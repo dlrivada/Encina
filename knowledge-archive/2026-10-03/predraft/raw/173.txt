@@ -1,0 +1,139 @@
+ISSUE #173: [FEATURE] CI/CD Workflow Templates for GitHub Actions
+closed_at: 01/03/2026 11:21:28
+labels: enhancement, phase-2-functionality, priority-low, complexity-low, area-testing, area-ci-cd, area-docker, testing-integration
+
+BODY:
+## Summary
+
+Provide **reusable GitHub Actions workflow templates** for testing Encina applications, ensuring consistent CI/CD practices across all users.
+
+## Motivation
+
+- **Standardization**: Consistent testing across all Encina applications
+- **Best practices**: .NET 10 testing with Docker and Testcontainers
+- **Time savings**: Ready-to-use workflows instead of building from scratch
+- **Coverage integration**: Built-in support for code coverage and mutation testing
+
+## Proposed Solution
+
+### Templates to Create
+
+1. **encina-test.yml** - Basic test workflow
+   - Unit tests
+   - Integration tests with Docker services
+   - Code coverage reporting
+   - Cross-platform support (Windows, Linux, macOS)
+
+2. **encina-matrix.yml** - Matrix testing
+   - Multiple OS testing
+   - Multiple database providers
+   - Parallel execution
+
+3. **encina-full-ci.yml** - Complete CI pipeline
+   - Build and pack
+   - Unit tests
+   - Integration tests
+   - Architecture tests
+   - Mutation tests (optional)
+
+### Basic Test Workflow Example
+
+```yaml
+name: Encina Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: YourStrong!Password
+        ports:
+          - 1433:1433
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test
+        run: dotnet test --no-build --collect:"XPlat Code Coverage"
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v4
+```
+
+### Key Features
+
+- Reusable via workflow_call
+- Configurable inputs for customization
+- Docker service containers for databases
+- Artifact upload for reports
+- Cache for NuGet packages
+
+## Alternatives Considered
+
+1. **Azure DevOps pipelines only**: Focusing on Azure DevOps. GitHub Actions has broader adoption, most Encina users are on GitHub.
+
+2. **No templates**: Letting each user build their own workflows. Inconsistent practices, repeated effort, potential for errors.
+
+3. **Docker Compose for all services**: Using docker-compose instead of service containers. More complex setup, harder to configure in GitHub Actions.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: Documentation / CI templates
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Basic test workflow template created
+- [ ] Matrix testing workflow template created
+- [ ] Full CI pipeline template created
+- [ ] Documentation for template usage
+- [ ] Examples in docs/ folder
+- [ ] Tested on actual Encina repository
+
+### Acceptance Criteria
+
+- [ ] Basic test workflow template created
+- [ ] Matrix testing workflow template created
+- [ ] Full CI pipeline template created
+- [ ] Documentation for template usage
+- [ ] Examples in docs/ folder
+- [ ] Tested on actual Encina repository
+
+### References
+
+- [GitHub Actions .NET](https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net)
+- [Building CI/CD with GitHub Actions](https://www.milanjovanovic.tech/blog/how-to-build-ci-cd-pipeline-with-github-actions-and-dotnet)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 1bf19f96 (closed): feat(ci): add reusable CI/CD workflow templates
+

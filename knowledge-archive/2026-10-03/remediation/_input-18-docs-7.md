@@ -1,0 +1,1 @@
+`docs/messaging/transports.md:410` (`options.BrokerAddress = "localhost";`) does not match `src/Encina.MQTT/EncinaMQTTOptions.cs`, which exposes `Host` (also `Port`, `ClientId`, `TopicPrefix`, `Username`, `Password`, `QualityOfService`, `UseTls`, `CleanSession`, `KeepAliveSeconds`), never `BrokerAddress`.

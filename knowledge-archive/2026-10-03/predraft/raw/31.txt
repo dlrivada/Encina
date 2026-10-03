@@ -1,0 +1,75 @@
+ISSUE #31: [INFRA] Verify all CI workflows run green
+closed_at: 12/24/2025 17:56:25
+labels: technical-debt, phase-1-stability, priority-critical, complexity-low, area-ci-cd
+
+BODY:
+## Category
+
+- [x] CI/CD pipeline
+- [ ] Docker infrastructure
+- [ ] Build system
+- [ ] Developer tooling
+- [ ] Deployment
+- [ ] Monitoring
+
+## Description
+
+Ensure all GitHub Actions workflows pass consistently without flaky failures.
+
+- **Phase**: 1 - Stability
+- **Priority**: Critical
+- **Complexity**: Low
+
+## Component Affected
+
+All GitHub Actions workflow files in `.github/workflows/`:
+- `dotnet-ci.yml` - Main CI
+- `sonarcloud.yml` - Code quality
+- `codeql.yml` - Security scanning
+- `sbom.yml` - SBOM generation
+- `benchmarks.yml` - Performance
+- `load-tests.yml` - Load testing
+- `mutation-tests.yml` - Mutation testing
+
+## Current Behavior
+
+Some workflows may have intermittent failures or configuration issues preventing consistent green status.
+
+## Expected Behavior
+
+- All workflows show green status
+- No intermittent failures
+- All badges in README display correctly
+
+## Impact
+
+Unstable CI workflows reduce developer confidence, delay PR merges, and make it difficult to identify real regressions.
+
+## Proposed Solution
+
+- [ ] Run each workflow manually (`.github/workflows/dotnet-ci.yml`)
+- [ ] Run each workflow manually (`.github/workflows/sonarcloud.yml`)
+- [ ] Run each workflow manually (`.github/workflows/codeql.yml`)
+- [ ] Run each workflow manually (`.github/workflows/sbom.yml`)
+- [ ] Run each workflow manually (`.github/workflows/benchmarks.yml`)
+- [ ] Run each workflow manually (`.github/workflows/load-tests.yml`)
+- [ ] Run each workflow manually (`.github/workflows/mutation-tests.yml`)
+- [ ] Fix any failures
+- [ ] Verify no flaky tests
+- [ ] Document any known issues
+
+## Related Issues
+
+- Part of Phase 1 Exit Criteria
+
+
+COMMENT by dlrivada:
+All CI workflows now passing:
+- CI: Ô£à
+- SonarCloud Analysis: Ô£à
+- .NET Quality Gate: Ô£à
+- CodeQL: Ô£à
+
+ContractTests and PropertyTests have been re-enabled and pass successfully.
+
+

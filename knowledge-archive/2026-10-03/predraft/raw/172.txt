@@ -1,0 +1,192 @@
+ISSUE #172: [FEATURE] Mutation Testing Integration with Stryker.NET
+closed_at: 01/02/2026 11:54:12
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-testing, industry-best-practice, area-ci-cd, area-mutation-testing
+
+BODY:
+## Summary
+
+Add **Stryker.NET mutation testing** configuration and helpers to improve test quality verification, ensuring Encina tests actually catch bugs rather than just achieving coverage.
+
+## Motivation
+
+- **Test quality**: Mutation testing evaluates if tests actually catch bugs
+- **Weak test detection**: Identifies tests that pass regardless of code changes
+- **CI/CD integration**: Automated quality gates in pipelines
+- **Coverage complement**: Line coverage doesn't guarantee test effectiveness
+
+## Proposed Solution
+
+### Configuration File
+
+```json
+// stryker-config.json (root level)
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/stryker-schema.json",
+  "stryker-config": {
+    "project": "Encina.slnx",
+    "mutation-level": "Standard",
+    "reporters": ["html", "json", "dashboard"],
+    "threshold-high": 80,
+    "threshold-low": 60,
+    "threshold-break": 50,
+    "concurrency": 4,
+    "ignore-mutations": [
+      "String"
+    ],
+    "ignore-methods": [
+      "ToString",
+      "GetHashCode",
+      "Equals"
+    ],
+    "mutate": [
+      "src/**/*.cs",
+      "!src/**/obj/**/*.cs",
+      "!src/**/*Generated*.cs"
+    ]
+  }
+}
+```
+
+### Helper Script
+
+```csharp
+// scripts/run-stryker.cs
+#r "nuget: Stryker.CLI, 4.0.0"
+
+var packages = new[]
+{
+    "Encina",
+    "Encina.Messaging",
+    "Encina.Testing"
+};
+
+foreach (var package in packages)
+{
+    Console.WriteLine($"Running Stryker on {package}...");
+    var exitCode = await RunStrykerAsync(package);
+    if (exitCode != 0)
+    {
+        Console.WriteLine($"Stryker failed for {package}");
+        return exitCode;
+    }
+}
+
+return 0;
+```
+
+### CI/CD Integration
+
+```yaml
+# .github/workflows/mutation-testing.yml
+name: Mutation Testing
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly
+
+jobs:
+  stryker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Stryker
+        run: dotnet tool install -g dotnet-stryker
+
+      - name: Run Stryker on Core
+        run: dotnet stryker -p src/Encina/Encina.csproj
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-report
+          path: StrykerOutput/
+```
+
+### Test Quality Helpers
+
+```csharp
+public static class MutationTestingHelpers
+{
+    /// <summary>
+    /// Marker attribute for tests that need stronger assertions
+    /// based on Stryker analysis.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public class NeedsMutationCoverageAttribute : Attribute
+    {
+        public string Reason { get; }
+        public NeedsMutationCoverageAttribute(string reason) => Reason = reason;
+    }
+
+    /// <summary>
+    /// Marker for tests that explicitly cover edge cases
+    /// identified by mutation testing.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public class MutationKillerAttribute : Attribute
+    {
+        public string MutationType { get; }
+        public MutationKillerAttribute(string mutationType) => MutationType = mutationType;
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **Code coverage only**: Relying solely on line/branch coverage. Coverage doesn't verify test assertions actually validate behavior.
+
+2. **Manual code review for test quality**: Reviewing tests manually for assertion strength. Time-consuming, subjective, not scalable.
+
+3. **PITest (Java)**: Using PITest mutation testing. Java-only, not applicable to .NET projects.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: Testing infrastructure
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] stryker-config.json created at root
+- [ ] scripts/run-stryker.cs helper script
+- [ ] GitHub Actions workflow for mutation testing
+- [ ] Baseline mutation score documented
+- [ ] Helper attributes for test improvement
+- [ ] Documentation for running locally
+
+### Acceptance Criteria
+
+- [ ] stryker-config.json created at root
+- [ ] scripts/run-stryker.cs helper script
+- [ ] GitHub Actions workflow for mutation testing
+- [ ] Baseline mutation score documented
+- [ ] Helper attributes for test improvement
+- [ ] Documentation for running locally
+
+### References
+
+- [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/introduction/)
+- [Microsoft Mutation Testing Docs](https://learn.microsoft.com/en-us/dotnet/core/testing/mutation-testing)
+- [Mutation Testing Best Practices](https://medium.com/@hamed.shirbandi/mutation-testing-with-stryker-in-net-projects-ff1f05ddce8f)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is a package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 1beb377d (closed): feat(testing): add mutation testing helper attributes (Issue #172)
+

@@ -1,0 +1,118 @@
+ISSUE #169: [FEATURE] Messaging Pattern Test Helpers
+closed_at: 01/01/2026 15:57:28
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-testing, area-messaging, area-scheduling, area-saga, testing-integration, testing-unit
+
+BODY:
+## Summary
+
+Add **specialized test helpers** for each messaging pattern (Outbox, Inbox, Saga, Scheduling) to Encina.Testing, providing Given/When/Then style testing utilities.
+
+## Motivation
+
+- **Pattern-specific needs**: Each messaging pattern has unique testing requirements
+- **Current gap**: AggregateTestBase covers Event Sourcing, but messaging lacks similar utilities
+- **Reduced boilerplate**: Pre-built helpers for common testing scenarios
+- **Consistency**: Standard approach to testing messaging patterns
+
+## Proposed Solution
+
+### Outbox Test Helper
+
+```csharp
+public class OutboxTestHelper : IAsyncDisposable
+{
+    public async Task<IReadOnlyList<OutboxMessage>> CaptureMessages(Func<Task> action);
+    public async Task ProcessPendingMessages();
+    public void VerifyMessagePublished<TEvent>(Action<TEvent>? validator = null);
+    public void VerifyNoMessagesPublished();
+}
+```
+
+### Inbox Test Helper
+
+```csharp
+public class InboxTestHelper
+{
+    public async Task<bool> SimulateMessage(Guid messageId, Func<Task> handler);
+    public async Task VerifyProcessedOnce(Guid messageId);
+    public async Task VerifyDuplicateRejected(Guid messageId);
+}
+```
+
+### Saga Test Helper
+
+```csharp
+public abstract class SagaTestBase<TSaga, TData>
+{
+    protected void GivenSagaStarted(TData initialData);
+    protected void GivenSagaAtStep(string stepName, TData data);
+    protected void WhenStepCompletes(string stepName);
+    protected void WhenStepFails(string stepName, string error);
+    protected void WhenCompensationStarts();
+    protected void ThenSagaStatus(SagaStatus expected);
+    protected void ThenCurrentStep(string expectedStep);
+    protected void ThenSagaData(Action<TData> validator);
+    protected void ThenCompensationStarted();
+}
+```
+
+### Scheduling Test Helper
+
+```csharp
+public class SchedulingTestHelper
+{
+    public async Task<Guid> ScheduleMessage<TRequest>(TRequest request, TimeSpan delay);
+    public async Task<IReadOnlyList<ScheduledMessage>> AdvanceTimeAndGetDue(TimeSpan amount);
+    public void VerifyCronNextExecution(string cron, DateTime expected);
+}
+```
+
+## Alternatives Considered
+
+1. **Generic test utilities only**: Providing only base EncinaFixture without pattern-specific helpers. Requires more boilerplate, harder to test messaging patterns correctly.
+
+2. **Separate packages per pattern**: Creating Encina.Testing.Outbox, Encina.Testing.Saga, etc. Too fragmented, most users need all patterns together.
+
+3. **Mocking-only approach**: Providing only mocks without test helpers. Misses integration testing scenarios, harder to verify actual behavior.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for OutboxTestHelper
+- [ ] Unit tests for InboxTestHelper
+- [ ] Unit tests for SagaTestBase
+- [ ] Unit tests for SchedulingTestHelper
+- [ ] Integration tests with real stores
+- [ ] Tests for edge cases (failures, timeouts)
+
+### Acceptance Criteria
+
+- [ ] OutboxTestHelper class created
+- [ ] InboxTestHelper class created
+- [ ] SagaTestBase<TSaga, TData> class created
+- [ ] SchedulingTestHelper class created
+- [ ] Given/When/Then pattern for all helpers
+- [ ] Unit tests with >=85% coverage
+- [ ] Integration tests with in-memory stores
+- [ ] XML documentation on all public APIs
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This provides test helpers for Outbox, Inbox, Saga, and Scheduling patterns. Part of v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 9d887cbb (closed): feat(testing): add Messaging Pattern Test Helpers (Issue #169)
+

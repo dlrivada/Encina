@@ -1,0 +1,1 @@
+`docs/testing/coverage-measurement-methodology.md:151` documents `coverage-weights.json` and its 12 legacy categories ("up to 85% for Full") as "kept in the repo as historical documentation". AGENTS.md section 3 forbids legacy kept for history; the code stage proposes deleting the file (code finding 8). When it is deleted this paragraph and the legacy list go with it.

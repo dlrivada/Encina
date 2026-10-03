@@ -1,0 +1,223 @@
+ISSUE #18: [SPIKE] Implement Strategy pattern for Messaging Transports (RabbitMQ, Kafka, NATS, etc.)
+closed_at: 12/23/2025 21:42:18
+labels: enhancement, area-transport, area-messaging, investigation
+
+BODY:
+## Context
+
+Implement the Strategy + Orchestrator + Provider pattern for Messaging Transports, recognizing that RabbitMQ, Kafka, NATS, and other transports represent fundamentally different messaging strategies with different semantics and guarantees.
+
+The pattern is: `User selects Strategy ÔåÆ Factory creates Strategy-specific Orchestrator ÔåÆ Orchestrator manages transport`
+
+### Current Packages (8 transports)
+
+> **Note**: Wolverine, NServiceBus, MassTransit, and Dapr were removed as they compete with Encina's core value proposition (see ROADMAP.md "Not Implementing / Deprecated" section).
+
+| Package | Strategy Type | Key Characteristics |
+|---------|--------------|---------------------|
+| `Encina.RabbitMQ` | Message Broker | Exchanges, queues, bindings |
+| `Encina.Kafka` | Event Streaming | Topics, partitions, consumer groups |
+| `Encina.NATS` | Pub/Sub + JetStream | Subjects, streams, consumers |
+| `Encina.AzureServiceBus` | Cloud Message Broker | Queues, topics, subscriptions |
+| `Encina.AmazonSQS` | Cloud Queue | SQS queues, SNS topics |
+| `Encina.Redis.PubSub` | In-Memory Pub/Sub | Channels, patterns |
+| `Encina.InMemory` | Local Channels | System.Threading.Channels |
+| `Encina.MQTT` | IoT Messaging | Topics, QoS levels |
+
+**API/RPC packages** (different category, not messaging transports):
+
+| Package | Type | Notes |
+|---------|------|-------|
+| `Encina.gRPC` | RPC | Request/response, streaming |
+| `Encina.GraphQL` | API Bridge | HotChocolate integration |
+
+### Why Strategies, Not Just Providers?
+
+| Aspect | RabbitMQ | Kafka | NATS |
+|--------|----------|-------|------|
+| **Model** | Message broker (queue) | Distributed log (stream) | Pub/sub + queue hybrid |
+| **Ordering** | Per-queue FIFO | Per-partition ordering | Subject-based |
+| **Retention** | Until consumed | Time/size based retention | JetStream for persistence |
+| **Consumer model** | Push (broker sends) | Pull (consumer fetches) | Push with flow control |
+| **Replay** | No (once consumed, gone) | Yes (offset-based) | JetStream only |
+| **Use case** | Task distribution | Event streaming, audit | Real-time, IoT |
+
+These are **architectural paradigms**, not implementation details.
+
+## Options to Evaluate
+
+### Option A: Three Strategy Types
+
+- **Description**: Define three strategy interfaces: `IMessageBrokerStrategy` (queue-based), `IEventStreamingStrategy` (log-based), `IPubSubStrategy` (broadcast), each with strategy-specific orchestrators
+- **Pros**: Explicit architectural decisions, strategy-specific APIs (Kafka gets offset methods, RabbitMQ gets queue methods), prevents misuse, module isolation
+- **Cons**: More complex, NATS spans multiple strategies
+- **Effort**: High
+
+Strategy mapping:
+- **Message Broker**: RabbitMQ, AzureServiceBus, AmazonSQS (fire-and-forget, at-least-once, no replay)
+- **Event Streaming**: Kafka, NATS JetStream (offset-based, replay, partition ordering)
+- **Pub/Sub**: Redis.PubSub, NATS Core, MQTT (broadcast, ephemeral, real-time)
+
+```csharp
+// User configuration - explicit strategy choice
+services.AddEncina(config => {
+    config.ForModule<OrdersModule>()
+          .UseMessaging<EventStreamingStrategy, KafkaTransport>(m => {
+              m.ConsumerGroup = "orders-service";
+              m.EnableReplay = true;
+          });
+
+    config.ForModule<InventoryModule>()
+          .UseMessaging<MessageBrokerStrategy, RabbitMQTransport>(m => {
+              m.Exchange = "inventory";
+              m.PrefetchCount = 10;
+          });
+});
+```
+
+### Option B: Single Transport Abstraction
+
+- **Description**: Keep a single `IMessageTransport` interface with capability flags
+- **Pros**: Simpler, less abstraction, easier to implement
+- **Cons**: Doesn't capture fundamental semantic differences, easy to misuse
+- **Effort**: Low
+
+### Option C: Two Categories (Persistent vs Ephemeral)
+
+- **Description**: Split into persistent (broker/streaming) and ephemeral (pub/sub) only
+- **Pros**: Simpler than three-way split, captures the main distinction
+- **Cons**: Loses distinction between queue-based and log-based
+- **Effort**: Medium
+
+## Decision Criteria
+
+- [x] Performance impact
+- [x] Complexity / maintainability
+- [x] Ecosystem compatibility (.NET 10)
+- [ ] Provider coverage (13 database providers)
+- [x] Breaking change impact
+- [x] Community/industry adoption
+- [ ] Other: ___
+
+## Scope
+
+### In Scope
+
+- Categorize existing 8 packages into strategies
+- Design strategy interfaces and orchestrators
+- Define strategy-specific configuration builders
+- Document strategy selection guide (when to use which)
+
+### Out of Scope
+
+- Full implementation of all strategy-specific orchestrators (separate issues)
+- gRPC/GraphQL categorization (different pattern)
+- Runtime strategy switching
+
+## Deliverables
+
+- [ ] ADR document in `docs/architecture/adr/`
+- [ ] Proof of concept / prototype
+- [ ] Technical document in `docs/`
+- [ ] Migration guide (if changing existing approach)
+- [ ] Updated ROADMAP.md (if applicable)
+
+## Open Questions
+
+- How to handle NATS which spans multiple strategies (Core = PubSub, JetStream = Streaming)?
+- Should we allow strategy switching at runtime for testing?
+- Per-module strategy vs per-message-type strategy?
+- Should gRPC/GraphQL be considered a separate "RPC Strategy" or kept outside this pattern?
+
+## Time Box
+
+Estimated investigation time: 8-16 hours
+
+## Related Issues
+
+- #16 - Implement Strategy pattern for Sagas (Choreography vs Orchestration)
+- #17 - Implement Strategy pattern for Event Sourcing (EventStoreDB vs Marten)
+- #13 - Apply Orchestrator pattern to Encina.Caching (simpler pattern)
+- #14 - Apply Orchestrator pattern to Encina.Validation (simpler pattern)
+
+
+COMMENT by dlrivada:
+## Decision: NO Strategy Pattern for Messaging Transports
+
+After careful analysis, we decided **NOT to implement the Strategy pattern** for messaging transports. Here's the reasoning:
+
+### Why NOT Strategy Pattern?
+
+1. **Each transport has fundamentally different APIs** - Kafka has offsets/partitions, RabbitMQ has exchanges/bindings, NATS has subjects/streams
+2. **Unifying APIs would lose transport-specific features** - The power of each transport IS its unique capabilities
+3. **Users choose transports precisely for their differences** - If they wanted generic messaging, they'd use a higher-level abstraction
+4. **Already have provider-specific packages** - `Encina.RabbitMQ`, `Encina.Kafka`, etc. each expose their full API
+
+### Open Questions Resolved
+
+| Question | Decision |
+|----------|----------|
+| **NATS multi-strategy?** | One package, two modes: `UseNatsCore()` for pub/sub, `UseNatsJetStream()` for streaming |
+| **Runtime switching for testing?** | NO - Use `Encina.InMemory` for tests (purpose-built for this) |
+| **Per-module vs per-message strategy?** | Per-application - transport choice is architectural, not per-message |
+| **gRPC/GraphQL as RPC Strategy?** | Keep outside pattern - they're API bridges, not messaging transports |
+
+### Transport Categorization (Documentation Only)
+
+We document the transports by category to help users choose, but don't enforce via code:
+
+| Category | Transports | Use Case |
+|----------|-----------|----------|
+| **Message Broker** | RabbitMQ, AzureServiceBus, AmazonSQS | Task distribution, work queues |
+| **Event Streaming** | Kafka, NATS JetStream | Event sourcing, audit logs, replay |
+| **Pub/Sub** | Redis.PubSub, NATS Core, MQTT | Real-time notifications, IoT |
+| **In-Memory** | Encina.InMemory | Testing, local development |
+| **API Bridge** | gRPC, GraphQL | Request/response, API integration |
+
+### What We're Doing Instead
+
+1. Ô£à Keep each transport as independent package with full API
+2. Ô£à Document when to use each transport (see `docs/messaging/transports.md`)
+3. Ô£à Provide decision flowchart for transport selection
+4. Ô£à Use `Encina.InMemory` for testing scenarios
+
+### Documentation Created
+
+- `docs/messaging/transports.md` - Comprehensive transport guide with decision flowchart
+- Updated `docs/messaging/index.md` with transport links
+- Updated `docs/messaging/toc.yml`
+
+This follows the same pattern as Issues #16 (Sagas) and #17 (Event Sourcing): **keep fundamentally different approaches separate, document trade-offs clearly**.
+
+COMMENT by dlrivada:
+## Documentation Created
+
+The following documentation files were created as part of this decision:
+
+### Files Created/Updated
+
+1. **`docs/messaging/transports.md`** (NEW - ~400 lines)
+   - Complete transport comparison guide
+   - Mermaid decision flowchart for choosing transports
+   - Transport categories (Message Broker, Event Streaming, Pub/Sub, In-Memory, API Bridge)
+   - Detailed guides for each of the 10 transports
+   - FAQ section addressing common questions
+
+2. **`docs/messaging/index.md`** (UPDATED)
+   - Added Messaging Transports section with summary table
+   - Link to transports.md in Next Steps
+
+3. **`docs/messaging/toc.yml`** (UPDATED)
+   - Added "Messaging Transports" entry
+
+### Key Sections in transports.md
+
+- **Decision Flowchart** - Mermaid diagram to help choose transport
+- **Transport Categories** - Message Broker, Event Streaming, Pub/Sub, In-Memory, API Bridge
+- **Transport Comparison Table** - Model, ordering, persistence, replay, use case
+- **Detailed Transport Guides** - RabbitMQ, Kafka, NATS, Azure Service Bus, Amazon SQS, Redis Pub/Sub, MQTT, gRPC, GraphQL
+- **Testing with InMemory** - How to use Encina.InMemory for tests
+- **FAQ** - Common questions about transport selection
+
+COMMIT 6a72163a (referenced): docs: add comprehensive Messaging Transports documentation
+

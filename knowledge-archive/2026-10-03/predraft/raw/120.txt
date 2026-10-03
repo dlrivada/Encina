@@ -1,0 +1,120 @@
+ISSUE #120: [DEBT] Fix Encina.Polly integration tests: ResultIsNullException and retry behavior issues
+closed_at: 12/26/2025 19:07:09
+labels: technical-debt, phase-3-testing, area-testing, area-polly
+
+BODY:
+## Type
+
+- [x] Failing tests
+- [ ] Missing tests
+- [ ] Code quality
+- [ ] Performance optimization
+- [ ] Refactoring needed
+- [ ] Documentation gap
+- [x] Incorrect implementation
+- [ ] Other
+
+## Description
+
+The integration tests in `Encina.Polly.IntegrationTests` have several pre-existing issues that were discovered during the Bulkhead Isolation implementation (#53).
+
+### Failing Tests
+
+1. `RetryPolicy_EndToEnd_SuccessOnSecondAttempt` - Retry behavior doesn't properly retry on failure (returns Left immediately)
+2. `CircuitBreaker_EndToEnd_OpensAfterFailures` - Throws `ResultIsNullException` from Encina core logging
+3. `Bulkhead_EndToEnd_RejectsWhenFull` - Throws `ResultIsNullException` from Encina core logging
+
+## Location
+
+- **File(s)**:
+  - `tests/Encina.Polly.IntegrationTests/EndToEndIntegrationTests.cs`
+  - `src/Encina/Core/Encina.cs` (LogSendOutcomeCore method)
+  - `src/Encina/Dispatchers/Encina.RequestDispatcher.cs`
+- **Package(s)**:
+  - `Encina.Polly.IntegrationTests`
+  - `Encina` (core)
+
+## Current Behavior
+
+- `RetryPolicy_EndToEnd_SuccessOnSecondAttempt` returns Left immediately instead of retrying on failure.
+- `CircuitBreaker_EndToEnd_OpensAfterFailures` and `Bulkhead_EndToEnd_RejectsWhenFull` throw `ResultIsNullException` from Encina core logging.
+
+## Expected Behavior
+
+- Retry policy should retry on failure and succeed on the second attempt.
+- Circuit breaker and bulkhead tests should complete without `ResultIsNullException`.
+
+## Root Cause
+
+The `ResultIsNullException` appears to originate from `Encina.Encina.LogSendOutcomeCore` in `src/Encina/Core/Encina.cs:line 85`.
+
+This happens when:
+1. A pipeline behavior returns an error (Left) before the handler executes
+2. The logging mechanism tries to log the outcome but receives a null result
+
+## Proposed Fix
+
+1. Fix the null result handling in `LogSendOutcomeCore` to gracefully handle cases where a pipeline behavior returns Left before the handler executes
+2. Review the retry pipeline behavior to ensure it properly retries on failure instead of returning Left immediately
+3. Ensure integration test pipeline setup correctly wires Polly behaviors
+
+## Priority
+
+- [ ] High
+- [x] Medium
+- [ ] Low
+
+## Effort Estimate
+
+- [ ] Small (< 1 day)
+- [x] Medium (1-3 days)
+- [ ] Large (> 3 days)
+
+## Related Issues
+
+- #53 Bulkhead Isolation implementation (where these issues were discovered)
+
+## Notes
+
+- The **unit tests**, **property tests**, **guard tests**, and **contract tests** all pass (226 tests total)
+- Only the end-to-end integration tests have issues
+- The Bulkhead implementation itself is complete and tested
+
+
+COMMENT by dlrivada:
+Fixed! The issue was in `LogSendOutcomeCore` method in `src/Encina/Core/Encina.cs`.
+
+## Root Cause
+LanguageExt's `Match` method doesn't allow null return values, but the code was returning `null` for the `None` case:
+
+```csharp
+// Before (broken):
+var exception = effectiveError.Exception.Match(
+    Some: ex => (Exception?)ex,
+    None: () => null);  // ÔØî Match doesn't allow null
+```
+
+## Fix
+Changed to `MatchUnsafe` which allows null return values:
+
+```csharp
+// After (fixed):
+var exception = effectiveError.Exception.MatchUnsafe(
+    Some: ex => (Exception?)ex,
+    None: () => (Exception?)null);  // Ô£à MatchUnsafe allows null
+```
+
+## Test Results
+All 7 Polly integration tests now pass:
+- `RetryPolicy_EndToEnd_SuccessOnSecondAttempt` Ô£à
+- `RetryPolicy_EndToEnd_ExhaustsRetries` Ô£à
+- `CircuitBreaker_EndToEnd_OpensAfterFailures` Ô£à
+- `CombinedPolicies_EndToEnd_RetryAndCircuitBreaker` Ô£à
+- `Bulkhead_EndToEnd_LimitsConcurrentExecutions` Ô£à
+- `Bulkhead_EndToEnd_RejectsWhenFull` Ô£à
+- `Bulkhead_CombinedWithRetry_ShouldWork` Ô£à
+
+Core Encina tests: 628 passed, 8 skipped
+
+COMMIT 84ba922b (referenced): feat(polly): add Bulkhead Isolation pattern for concurrent execution limiting (Fixes #53)
+

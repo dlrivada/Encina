@@ -1,0 +1,132 @@
+ISSUE #229: [DEBT] Consolidate ValidationPipelineBehavior - Remove Duplicates
+closed_at: 12/29/2025 20:25:25
+labels: technical-debt, phase-2-functionality, priority-critical, complexity-low, area-validation, area-pipeline
+
+BODY:
+## Type
+- [ ] Missing implementation
+- [x] Incomplete implementation
+- [ ] Code quality issue
+- [ ] Failing tests
+- [ ] Deprecated usage
+- [ ] Performance issue
+- [x] Architecture violation
+
+## Description
+
+**Consolidate ValidationPipelineBehavior** into core Encina package, moving from satellite validation packages to provide a unified validation experience.
+
+Currently, validation behavior is duplicated across FluentValidation and DataAnnotations packages. Users need to choose a validation library before getting pipeline behavior. Core validation orchestration should be provider-agnostic. This simplifies the validation architecture.
+
+## Location
+- **File(s)**: `src/Encina.FluentValidation/`, `src/Encina.DataAnnotations/`, `src/Encina/`
+- **Package(s)**: Encina (core), Encina.FluentValidation, Encina.DataAnnotations, Encina.MiniValidation
+
+## Current Behavior
+
+Validation behavior is duplicated across FluentValidation and DataAnnotations packages:
+
+```
+Before:
+Ôö£ÔöÇÔöÇ Encina.FluentValidation
+Ôöé   ÔööÔöÇÔöÇ ValidationPipelineBehavior<,> (duplicate)
+Ôö£ÔöÇÔöÇ Encina.DataAnnotations
+Ôöé   ÔööÔöÇÔöÇ ValidationPipelineBehavior<,> (duplicate)
+```
+
+## Expected Behavior
+
+A single ValidationPipelineBehavior lives in the core Encina package, with provider-specific implementations in satellite packages:
+
+```
+After:
+Ôö£ÔöÇÔöÇ Encina (core)
+Ôöé   Ôö£ÔöÇÔöÇ IValidationProvider (interface)
+Ôöé   Ôö£ÔöÇÔöÇ ValidationOrchestrator (domain logic)
+Ôöé   ÔööÔöÇÔöÇ ValidationPipelineBehavior<,> (single implementation)
+Ôö£ÔöÇÔöÇ Encina.FluentValidation
+Ôöé   ÔööÔöÇÔöÇ FluentValidationProvider (implements IValidationProvider)
+Ôö£ÔöÇÔöÇ Encina.DataAnnotations
+Ôöé   ÔööÔöÇÔöÇ DataAnnotationsProvider (implements IValidationProvider)
+```
+
+### Usage
+
+```csharp
+// Validation behavior comes from core
+services.AddEncina(config =>
+{
+    config.UseValidation = true; // Enables ValidationPipelineBehavior
+});
+
+// Choose your validation provider
+services.AddEncinaFluentValidation(typeof(MyValidator).Assembly);
+// or
+services.AddEncinaDataAnnotations();
+```
+
+## Root Cause
+
+The validation architecture was initially designed with each satellite package providing its own pipeline behavior, leading to code duplication and potential inconsistencies between providers.
+
+## Proposed Fix
+
+1. Move `IValidationProvider` to Encina core
+2. Move `ValidationOrchestrator` to Encina core
+3. Move `ValidationPipelineBehavior` to Encina core
+4. Update `Encina.FluentValidation` to implement `IValidationProvider`
+5. Update `Encina.DataAnnotations` to implement `IValidationProvider`
+6. Update registration extensions
+7. Unit tests
+8. Documentation
+
+## Alternatives Considered
+
+1. **Keep duplicate behaviors**: Maintaining separate ValidationPipelineBehavior in each package. This leads to code duplication and potential inconsistencies.
+
+2. **Shared package dependency**: Creating a new Encina.Validation.Core package. This adds another package to the dependency graph.
+
+3. **Abstract base class approach**: Sharing logic via inheritance. This couples implementations and makes testing harder.
+
+## Priority
+- [ ] Critical (blocking other work)
+- [ ] High (should fix soon)
+- [x] Medium (fix when convenient)
+- [ ] Low (nice to have)
+
+## Effort Estimate
+- [ ] Small (< 2 hours)
+- [x] Medium (2-8 hours)
+- [ ] Large (1-3 days)
+- [ ] Extra Large (> 3 days)
+
+## Acceptance Criteria
+
+- [ ] Single ValidationPipelineBehavior in core
+- [ ] IValidationProvider interface in core
+- [ ] FluentValidation implements IValidationProvider
+- [ ] DataAnnotations implements IValidationProvider
+- [ ] Backward compatible configuration
+- [ ] Unit tests
+- [ ] Documentation
+
+## Related Issues
+- #230 - Async/Cross-Field Validation
+- #234 - Validation Aggregation Pattern
+- #236 - Two-Phase Validation Pattern
+
+
+COMMENT by dlrivada:
+Consolidated ValidationPipelineBehavior - removed 3 duplicate behaviors from FluentValidation, DataAnnotations, and MiniValidator packages. All validation now uses centralized Encina.Validation.ValidationPipelineBehavior<,> through ValidationOrchestrator + IValidationProvider.
+
+**BREAKING CHANGE**: Removed:
+- `Encina.FluentValidation.ValidationPipelineBehavior<TRequest, TResponse>`
+- `Encina.DataAnnotations.DataAnnotationsValidationBehavior<TRequest, TResponse>`
+- `Encina.MiniValidator.MiniValidationBehavior<TRequest, TResponse>`
+
+**Migration**: No action needed if using `AddEncinaFluentValidation()`, `AddDataAnnotationsValidation()`, or `AddMiniValidation()` extension methods.
+
+Ô£à v0.10.0 - DDD Foundations milestone is now COMPLETE!
+
+LINKED PR #493: test: CodeRabbit integration test (state closed)
+

@@ -1,0 +1,100 @@
+ISSUE #38: [FEATURE] Saga Timeouts - RequestTimeout<T>() pattern
+closed_at: 12/25/2025 08:29:03
+labels: enhancement, phase-2-functionality, priority-critical, complexity-medium, area-messaging-patterns, area-saga
+
+BODY:
+## Summary
+
+Implement saga timeout functionality using the `RequestTimeout<T>()` pattern for handling saga step timeouts.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Critical
+- **Complexity**: Medium
+
+Long-running sagas need timeout mechanisms to handle cases where expected messages never arrive (e.g., payment service down). Without timeouts, sagas can hang indefinitely, blocking business processes and consuming resources.
+
+## Proposed Solution
+
+### Features
+
+- Timeout configuration per saga step
+- Automatic timeout message dispatch
+- Timeout handlers in saga
+- Configurable retry behavior on timeout
+
+### Proposed API
+
+```csharp
+public class OrderSaga : Saga<OrderSagaState>
+{
+    public override void ConfigureHowToFindSaga(SagaPropertyMapper<OrderSagaState> mapper)
+    {
+        mapper.MapSaga(saga => saga.OrderId)
+              .ToMessage<StartOrder>(msg => msg.OrderId);
+    }
+
+    public async Task Handle(StartOrder message, ISagaContext context)
+    {
+        // Request timeout after 5 minutes
+        context.RequestTimeout<PaymentTimeout>(TimeSpan.FromMinutes(5));
+
+        await context.Send(new ProcessPayment(message.OrderId));
+    }
+
+    public async Task Timeout(PaymentTimeout timeout, ISagaContext context)
+    {
+        // Handle timeout - compensation logic
+        await context.Publish(new OrderCancelled(Data.OrderId, "Payment timeout"));
+        MarkAsComplete();
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Design timeout API
+- [ ] Implement `RequestTimeout<T>()` method
+- [ ] Create timeout scheduler integration
+- [ ] Add timeout handlers to saga base
+- [ ] Integrate with existing scheduling infrastructure
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging` (saga timeout API)
+- `Encina.Messaging` scheduling infrastructure (timeout scheduling)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Timeout registration, handler invocation |
+| Integration Tests | Yes | End-to-end timeout firing |
+| Contract Tests | Yes | Saga timeout contract |
+| Property Tests | Maybe | Timeout ordering invariants |
+
+## Acceptance Criteria
+
+- [ ] Timeouts fire correctly
+- [ ] Timeout handlers execute
+- [ ] Integration with Hangfire/Quartz
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+- Uses existing scheduling infrastructure
+
+
+COMMENT by dlrivada:
+Implemented saga timeout support in commit 3cc4d57. See CHANGELOG.md for details.
+
+COMMIT 3cc4d57b (referenced): feat(sagas): add timeout support for saga orchestration
+

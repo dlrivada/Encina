@@ -1,0 +1,126 @@
+ISSUE #58: [FEATURE] Module-scoped behaviors - selective pipeline
+closed_at: 12/27/2025 10:46:31
+labels: enhancement, phase-2-functionality, priority-low, complexity-medium, area-pipeline, area-module-system
+
+BODY:
+## Summary
+
+Implement module-scoped pipeline behaviors that only apply to handlers within a specific module.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: Medium
+
+In a modular monolith, different modules have different cross-cutting concerns. For example, an Orders module may need audit logging while a Notifications module does not. Module-scoped behaviors allow each module to define its own pipeline behaviors without affecting handlers in other modules, and optionally override global behaviors.
+
+## Proposed Solution
+
+- Behaviors scoped to a specific module
+- Module-specific validation, logging, and telemetry
+- Ability to override global behaviors at the module level
+
+```csharp
+public class OrderModule : IModule
+{
+    public string Name => "Orders";
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        // Module-specific behavior
+        services.AddEncinaModuleBehavior<OrderModule, OrderAuditBehavior>();
+    }
+}
+
+// Behavior only runs for handlers in OrderModule
+public class OrderAuditBehavior<TRequest, TResponse>
+    : IModulePipelineBehavior<OrderModule, TRequest, TResponse>
+{
+    public async ValueTask<Either<EncinaError, TResponse>> Handle(...)
+    {
+        _auditLog.Log($"Order operation: {typeof(TRequest).Name}");
+        return await next();
+    }
+}
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina` (Core)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Behavior scoping, filtering, override | Core behavior |
+| Integration Tests | Maybe | Full pipeline with module behaviors | End-to-end |
+| Property Tests | Maybe | Behavior isolation invariants | If complex |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Maybe | Overhead of module filtering | Performance impact on non-module handlers |
+
+## Implementation Tasks
+
+- [ ] Design module-scoped behavior registration
+- [ ] Implement behavior filtering by module
+- [ ] Add module context to pipeline
+- [ ] Create behavior override mechanism
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Module behaviors only run for module handlers
+- [ ] Override mechanism works
+- [ ] No performance impact on non-module handlers
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Modular Monolith Support
+- Depends on #57 (IModule interface)
+
+
+COMMENT by dlrivada:
+Implemented module-scoped pipeline behaviors. See CHANGELOG.md for full details.
+
+### Summary
+- **IModulePipelineBehavior<TModule, TRequest, TResponse>** - Interface for module-specific behaviors
+- **ModuleBehaviorAdapter** - Wraps module behaviors and filters execution by module ownership
+- **IModuleHandlerRegistry** - Maps handler types to their owning modules via assembly association
+- Request context extensions: GetModuleName(), WithModuleName(), IsInModule()
+- DI extensions: AddEncinaModuleBehavior<>() with optional ServiceLifetime
+
+### Usage
+```csharp
+// Define a module-specific behavior
+public class OrderAuditBehavior : IModulePipelineBehavior<OrderModule, CreateOrderRequest, string>
+{
+    public async ValueTask<Either<EncinaError, string>> Handle(
+        CreateOrderRequest request,
+        IRequestContext context,
+        RequestHandlerCallback<string> nextStep,
+        CancellationToken cancellationToken)
+    {
+        // This only executes for handlers in OrderModule
+        Log("Order operation started");
+        var result = await nextStep();
+        Log("Order operation completed");
+        return result;
+    }
+}
+
+// Register
+services.AddEncinaModules(config => config.AddModule(new OrderModule()));
+services.AddEncinaModuleBehavior<OrderModule, CreateOrderRequest, string, OrderAuditBehavior>();
+```
+
+### Test Coverage
+- 100 module-related unit tests passing
+
+COMMIT 3bccb573 (referenced): feat(modules): add module-scoped pipeline behaviors (Fixes #58)
+

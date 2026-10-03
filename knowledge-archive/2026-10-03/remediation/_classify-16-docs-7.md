@@ -1,0 +1,1 @@
+kind: docs; duplicate-of: none; keywords: diátaxis, sagas, documentation structure

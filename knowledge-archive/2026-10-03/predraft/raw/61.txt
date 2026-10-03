@@ -1,0 +1,116 @@
+ISSUE #61: [FEATURE] Durable Functions Integration
+closed_at: 12/27/2025 09:58:25
+labels: enhancement, phase-2-functionality, priority-low, complexity-high, area-serverless, cloud-azure, area-workflow
+
+BODY:
+## Summary
+
+Create Azure Durable Functions integration for orchestration workflows with Encina handlers.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: High
+
+Azure Durable Functions provide stateful orchestration for long-running workflows. Integrating Encina commands as activity functions enables developers to compose complex workflows (saga patterns, fan-out/fan-in) using familiar Encina patterns within the Durable Functions framework, with built-in replay resilience and compensation support.
+
+## Proposed Solution
+
+- Durable orchestration support
+- Activity function integration (each activity is an Encina command)
+- Saga pattern with Durable Functions compensation
+- Fan-out/fan-in patterns
+
+```csharp
+public class OrderOrchestration
+{
+    [Function("OrderOrchestrator")]
+    public async Task<OrderResult> RunOrchestrator(
+        [OrchestrationTrigger] TaskOrchestrationContext context,
+        IEncina encina)
+    {
+        var orderId = context.GetInput<Guid>();
+
+        // Each activity is an Encina command
+        var paymentResult = await context.CallActivityAsync<PaymentResult>(
+            "ProcessPayment", new ProcessPayment(orderId));
+
+        if (!paymentResult.Success)
+        {
+            await context.CallActivityAsync("RefundPayment", new RefundPayment(orderId));
+            return OrderResult.Failed("Payment failed");
+        }
+
+        await context.CallActivityAsync("ShipOrder", new ShipOrder(orderId));
+
+        return OrderResult.Completed(orderId);
+    }
+
+    [Function("ProcessPayment")]
+    public async Task<PaymentResult> ProcessPayment(
+        [ActivityTrigger] ProcessPayment command,
+        IEncina encina)
+    {
+        var result = await encina.Send(command);
+        return result.Match(
+            Right: _ => PaymentResult.Success,
+            Left: error => PaymentResult.Failed(error.Message)
+        );
+    }
+}
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.AzureFunctions`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Orchestration mapping, activity integration | Core behavior |
+| Integration Tests | Yes | End-to-end with Durable Functions host | Real orchestration |
+| Contract Tests | Maybe | Activity function contracts | API consistency |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Design orchestration integration
+- [ ] Implement activity function mapping
+- [ ] Add saga pattern support
+- [ ] Create fan-out/fan-in helpers
+- [ ] Add retry configuration
+- [ ] Add documentation
+- [ ] Add integration tests
+
+## Acceptance Criteria
+
+- [ ] Orchestrations work with Encina
+- [ ] Activity functions execute commands
+- [ ] Saga patterns functional
+- [ ] Retry behavior correct
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Serverless Integration
+- Extends #59 (Azure Functions)
+
+
+COMMENT by dlrivada:
+Implemented in commit c26725b. Added Azure Durable Functions integration with ROP support including:
+
+- OrchestrationContextExtensions for calling activities with Either results
+- ActivityResult<T> serializable wrapper for Durable Functions JSON serialization
+- DurableSagaBuilder fluent API with automatic compensation
+- Fan-out/fan-in extensions for parallel execution
+- DurableFunctionsHealthCheck and configuration options
+- 228 comprehensive tests (unit, contract, property, guard)
+
+COMMIT c26725b8 (referenced): feat(azurefunctions): add Durable Functions integration (Fixes #61)
+

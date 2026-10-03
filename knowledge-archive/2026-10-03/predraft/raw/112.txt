@@ -1,0 +1,85 @@
+ISSUE #112: [REFACTOR] Migrate existing tests to use ROP assertion extensions
+closed_at: 12/24/2025 19:47:22
+labels: enhancement, phase-3-testing, priority-medium, complexity-medium, area-testing, area-result-pattern
+
+BODY:
+## Summary
+
+Migrate existing tests to use the new fluent ROP assertion extensions from `Encina.TestInfrastructure`.
+
+## Motivation
+
+- [ ] Code duplication
+- [ ] Poor separation of concerns
+- [x] Applying a design pattern
+- [x] Simplifying complex code
+- [ ] Improving testability
+- [ ] Performance optimization
+- [ ] Preparing for future feature work
+- [ ] Other
+
+## Current Structure
+
+Tests currently use verbose patterns like:
+```csharp
+result.IsRight.Should().BeTrue();
+var value = result.Match(Right: v => v, Left: _ => "");
+```
+
+## Proposed Structure
+
+Tests should use the new fluent extensions:
+```csharp
+var value = result.ShouldBeSuccess();
+// or
+result.ShouldBeErrorWithCode("encina.validation.failed");
+```
+
+## Affected Files
+
+Files to migrate (approximate):
+- `tests/Encina.Caching.Tests/` - QueryCachingPipelineBehaviorTests, CacheInvalidationPipelineBehaviorTests
+- `tests/Encina.AspNetCore.Tests/` - AuthorizationPipelineBehaviorTests
+- `tests/Encina.Dapper.Sqlite.PropertyTests/` - TransactionPipelineBehaviorPropertyTests
+- Other test projects using `IsRight`/`IsLeft` patterns
+
+## Packages Affected
+
+- `Encina.Caching.Tests`
+- `Encina.AspNetCore.Tests`
+- `Encina.Dapper.Sqlite.PropertyTests`
+- Other test projects using `IsRight`/`IsLeft` patterns
+
+## Behavioral Guarantee
+
+- [x] Existing unit tests
+- [ ] Existing integration tests
+- [ ] New tests added
+- [ ] Contract tests verify
+
+> No behavioral changes expected -- only assertion style changes. Existing tests serve as the behavioral guarantee since the refactoring only changes how assertions are expressed, not what is being tested.
+
+## Risk Assessment
+
+- **Regression Risk**: Low -- assertion-only changes, no production code modified
+- **Affected Providers**: None (test code only)
+- **Breaking Changes**: None
+
+## Related Issues
+
+- #45 ROP Assertion Extensions (completed, dependency)
+
+## Benefits
+
+- More readable test assertions
+- Better error messages on failure
+- Consistent assertion style across all tests
+- Reduced boilerplate
+
+
+COMMIT 08d7b0fb (referenced): refactor(tests): migrate to ROP assertion extensions
+COMMIT da01e8ba (closed): refactor(tests): migrate to ROP assertion extensions
+COMMIT 3608f090 (referenced): refactor(tests): complete migration to ROP assertion extensions
+COMMIT 75ef721a (referenced): refactor(tests): migrate remaining ROP assertion patterns
+COMMIT 25ddcdd2 (referenced): refactor(tests): add ShouldNotBeBottom() and migrate remaining patterns
+

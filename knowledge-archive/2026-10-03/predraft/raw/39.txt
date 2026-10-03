@@ -1,0 +1,133 @@
+ISSUE #39: [FEATURE] Recoverability Pipeline - immediate + delayed retries
+closed_at: 12/26/2025 13:33:56
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-messaging-patterns, area-resilience
+
+BODY:
+## Summary
+
+Implement a recoverability pipeline with immediate and delayed retry capabilities for message processing.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+Message processing failures are inevitable in distributed systems. A structured recoverability pipeline distinguishes between transient errors (worth retrying) and permanent failures (send to DLQ), providing predictable error handling behavior.
+
+## Proposed Solution
+
+### Features
+
+- Immediate retries (in-memory, fast)
+- Delayed retries (persistent, scheduled)
+- Configurable retry policies
+- Error categorization (transient vs permanent)
+- Dead letter handling
+
+### Proposed API
+
+```csharp
+services.AddEncinaRecoverability(config =>
+{
+    config.ImmediateRetries = 3;
+    config.DelayedRetries = new[]
+    {
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(30)
+    };
+    config.OnPermanentFailure = msg => /* DLQ handling */;
+});
+```
+
+### Implementation Tasks
+
+- [ ] Design recoverability pipeline
+- [ ] Implement immediate retries
+- [ ] Implement delayed retries using scheduling
+- [ ] Add error categorization
+- [ ] Create DLQ integration
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging.Enterprise` (new package)
+- `Encina.Messaging` (core retry abstractions)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Retry logic, error categorization |
+| Integration Tests | Yes | End-to-end retry with scheduling |
+| Contract Tests | Yes | Recoverability pipeline contract |
+| Property Tests | Maybe | Retry count invariants |
+| Load Tests | Maybe | Retry under high concurrency |
+
+## Acceptance Criteria
+
+- [ ] Immediate retries work
+- [ ] Delayed retries scheduled correctly
+- [ ] DLQ receives permanently failed messages
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+- Integrates with Hangfire/Quartz for delayed retries
+
+
+COMMENT by dlrivada:
+## Implementation Complete Ô£à
+
+The Recoverability Pipeline has been fully implemented with the following components:
+
+### Core Components
+- `RecoverabilityOptions` - Configuration (immediate/delayed retries, backoff, jitter)
+- `IErrorClassifier` + `DefaultErrorClassifier` - Error classification (Transient/Permanent/Unknown)
+- `RecoverabilityContext` - Retry state tracking
+- `FailedMessage` - DLQ record with full context
+- `RecoverabilityPipelineBehavior<TRequest, TResponse>` - Pipeline behavior
+- `IDelayedRetryScheduler`, `IDelayedRetryStore`, `IDelayedRetryMessage` - Delayed retry abstractions
+- `DelayedRetryScheduler` + `DelayedRetryProcessor` - Implementation
+
+### Features Delivered
+- Ô£à Immediate retries (in-memory, 3 attempts default, exponential backoff)
+- Ô£à Delayed retries (persistent, configurable intervals: 30s ÔåÆ 5m ÔåÆ 30m ÔåÆ 2h)
+- Ô£à Error categorization by exception type, HTTP status, message patterns
+- Ô£à Dead letter queue integration via `OnPermanentFailure` callback
+- Ô£à Jitter support to prevent thundering herd
+- Ô£à Opt-in via `MessagingConfiguration.UseRecoverability = true`
+
+### Test Coverage
+- 64 unit tests covering all recoverability scenarios
+
+### Documentation
+- CHANGELOG.md updated
+- ROADMAP.md marked as complete
+- docs/history/2025-12.md with implementation details
+- Encina.Messaging/README.md with usage examples
+
+### Related Issues (Phase 3 - Testing)
+- #117 - Integration tests (blocked until IDelayedRetryStore provider implementation)
+- #118 - Property-based tests for error classification
+- #119 - Contract tests for Recoverability interfaces
+
+Commits: `9f0ff19`, `22f4107`
+
+COMMIT 9f0ff199 (referenced): test(recoverability): add comprehensive unit tests for Recoverability Pipeline (Issue #39)
+COMMIT 22f41072 (referenced): docs: document Recoverability Pipeline (Issue #39)
+LINKED PR #1093: fix(security): restore the build (Marten 9, .NET 10.0.12 family, Refit 10.2.0) and add the Phase 0 engineering docs (state closed)
+LINKED PR #1098: chore: apply SPEC-000 decisions DEC-001..006 (solution inventory, Secrets cleanup, ci-result gate) and add SPEC-001 (state closed)
+LINKED PR #1113: docs: promote nine rules into CLAUDE.md and record ADR-027..030 from the project history (state closed)
+LINKED PR #1116: fix(marten): run inline projections after aggregate saves so read models are populated (#1095) (state closed)
+LINKED PR #1127: fix(claude): parse git/gh statements in the guard hooks and add their regression suite (state closed)
+LINKED PR #1139: fix(claude): harden issue-worker ÔÇö publish-blocking hook, explicit tools, orchestrator-only skills (#1131 review) (state closed)
+LINKED PR #1259: fix: encrypt persisted message payloads and keep personal data out of job storage and logs (#1168, #1173) (state closed)
+

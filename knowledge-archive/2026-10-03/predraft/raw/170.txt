@@ -1,0 +1,200 @@
+ISSUE #170: [FEATURE] Improved Assertions with Shouldly Integration
+closed_at: 01/01/2026 19:48:46
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-testing, testing-unit
+
+BODY:
+## Summary
+
+Extend `EitherAssertions` in Encina.Testing with **more expressive assertions** and optional Shouldly integration for fluent, readable tests.
+
+## Motivation
+
+- **Current limitations**: Basic success/error checks only
+- **Fluent testing**: Chained assertions for more expressive tests
+- **Streaming support**: Assertions for `IAsyncEnumerable` results
+- **Free alternative**: Shouldly is MIT licensed, unlike FluentAssertions 8+
+
+## Proposed Solution
+
+### Enhanced EitherAssertions
+
+```csharp
+public static class EnhancedEitherAssertions
+{
+    // Chaining with And
+    public static AndConstraint<TRight> ShouldBeSuccess<TLeft, TRight>(
+        this Either<TLeft, TRight> either)
+    {
+        var value = either.Match(
+            Left: _ => throw new XunitException("Expected success but got error"),
+            Right: v => v);
+        return new AndConstraint<TRight>(value);
+    }
+
+    // Property-specific validation errors
+    public static EncinaError ShouldBeErrorForProperty<TRight>(
+        this Either<EncinaError, TRight> either,
+        string propertyName)
+    {
+        var error = either.ShouldBeError();
+        Assert.Contains(propertyName, error.Message);
+        return error;
+    }
+
+    // Multiple error assertions
+    public static void ShouldContainValidationErrorFor(
+        this IEnumerable<EncinaError> errors,
+        string propertyName)
+    {
+        Assert.Contains(errors, e =>
+            e.Code.StartsWith("encina.validation") &&
+            e.Message.Contains(propertyName));
+    }
+}
+```
+
+### Streaming Assertions
+
+```csharp
+public static class StreamingAssertions
+{
+    public static async Task ShouldYieldAtLeast<T>(
+        this IAsyncEnumerable<Either<EncinaError, T>> stream,
+        int count)
+    {
+        var items = new List<T>();
+        await foreach (var item in stream)
+        {
+            item.ShouldBeSuccess();
+            items.Add(item.Match(Left: _ => default!, Right: v => v));
+            if (items.Count >= count) break;
+        }
+        Assert.True(items.Count >= count);
+    }
+
+    public static async Task ShouldCompleteWithoutErrors<T>(
+        this IAsyncEnumerable<Either<EncinaError, T>> stream)
+    {
+        await foreach (var item in stream)
+        {
+            item.ShouldBeSuccess();
+        }
+    }
+
+    public static async Task<List<T>> ShouldYieldAll<T>(
+        this IAsyncEnumerable<Either<EncinaError, T>> stream)
+    {
+        var items = new List<T>();
+        await foreach (var item in stream)
+        {
+            items.Add(item.ShouldBeSuccess());
+        }
+        return items;
+    }
+}
+```
+
+### AndConstraint for Chaining
+
+```csharp
+public class AndConstraint<T>
+{
+    public T Value { get; }
+
+    public AndConstraint<T> And => this;
+
+    public AndConstraint<T> ShouldSatisfy(Action<T> assertion)
+    {
+        assertion(Value);
+        return this;
+    }
+
+    public AndConstraint<T> ShouldNotBeNull()
+    {
+        Assert.NotNull(Value);
+        return this;
+    }
+}
+```
+
+### Usage Examples
+
+```csharp
+[Fact]
+public async Task CreateOrder_ShouldReturnValidOrder()
+{
+    var result = await _encina.Send(new CreateOrderCommand { CustomerId = "123" });
+
+    result.ShouldBeSuccess()
+        .And.ShouldSatisfy(order =>
+        {
+            Assert.NotEqual(Guid.Empty, order.Id);
+            Assert.Equal("123", order.CustomerId);
+        });
+}
+
+[Fact]
+public async Task StreamOrders_ShouldYieldAllItems()
+{
+    var stream = _encina.Stream(new GetOrdersStreamQuery());
+
+    var orders = await stream.ShouldYieldAll();
+    Assert.True(orders.Count > 0);
+}
+```
+
+## Alternatives Considered
+
+1. **FluentAssertions only**: Using FluentAssertions for all assertions. Licensing costs in v8+, Shouldly is MIT licensed and equally expressive.
+
+2. **xUnit Assert only**: Sticking with basic xUnit assertions. Less readable, more verbose, no chaining support.
+
+3. **Custom assertion library**: Building a full assertion framework. Unnecessary effort when Shouldly exists and is well-maintained.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Enhanced EitherAssertions with chaining
+- [ ] AndConstraint for fluent assertions
+- [ ] StreamingAssertions for IAsyncEnumerable
+- [ ] Error collection assertions
+- [ ] Unit tests with >=90% coverage
+- [ ] XML documentation on all public APIs
+
+### Acceptance Criteria
+
+- [ ] Enhanced EitherAssertions with chaining
+- [ ] AndConstraint for fluent assertions
+- [ ] StreamingAssertions for IAsyncEnumerable
+- [ ] Error collection assertions
+- [ ] Unit tests with >=90% coverage
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [Shouldly vs FluentAssertions 2025](https://towardsdev.com/should-you-pay-for-fluentassertions-a-comparison-with-shouldly-ed59e142e850)
+- [AwesomeAssertions as FA alternative](https://www.dimitrilaaraybi.com/blog/migratetoshouldly/)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMENT by dlrivada:
+Completed: Added AndConstraint, Collection, and Streaming assertions. See commit ab423a8.
+
+COMMIT ab423a83 (referenced): feat(testing): add AndConstraint, Collection, and Streaming assertions (Issue #170)
+

@@ -1,0 +1,1 @@
+kind: docs; duplicate-of: none; keywords: ADR-027, EventStoreDB, stale documentation

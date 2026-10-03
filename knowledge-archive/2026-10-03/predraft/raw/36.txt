@@ -1,0 +1,70 @@
+ISSUE #36: [FEATURE] Projections/Read Models - CQRS read side abstractions
+closed_at: 12/26/2025 19:47:21
+labels: enhancement, phase-2-functionality, priority-high, complexity-high, area-event-sourcing, area-cqrs
+
+BODY:
+## Summary
+
+Create abstractions for CQRS read side (projections/read models) that work with all event sourcing providers.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: High
+
+Event sourcing applications need a well-defined read side to project events into queryable read models. Without standardized projection abstractions, each application reinvents this pattern, leading to inconsistency and boilerplate.
+
+## Proposed Solution
+
+### Features
+
+- Projection base classes
+- Read model repositories
+- Projection rebuild capabilities
+- Multi-provider support (Marten, EventStoreDB)
+
+### Implementation Tasks
+
+- [ ] Design projection abstractions
+- [ ] Create `IProjection<TEvent, TReadModel>` interface
+- [ ] Implement `IReadModelRepository<T>`
+- [ ] Add projection rebuild functionality
+- [ ] Integrate with Encina.Marten
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Projections` (new package)
+- `Encina.Marten` (integration)
+- `Encina.EventStoreDB` (future integration)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Projection logic, read model repos |
+| Integration Tests | Yes | Real event store projections |
+| Contract Tests | Yes | `IProjection`, `IReadModelRepository` contracts |
+| Property Tests | Maybe | Projection idempotency invariants |
+
+## Acceptance Criteria
+
+- [ ] Projections work with Marten
+- [ ] Read model repositories functional
+- [ ] Rebuild capabilities tested
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Cross-cutting feature (affects all ES providers)
+- Enables CQRS read side patterns
+
+
+COMMIT 584a712b (closed): feat(marten): add Projections/Read Models for CQRS read side (Fixes #36)
+

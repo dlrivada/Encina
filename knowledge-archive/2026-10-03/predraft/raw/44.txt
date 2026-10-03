@@ -1,0 +1,104 @@
+ISSUE #44: [FEATURE] Encina.Testing - test fixtures and fluent assertions
+closed_at: 12/24/2025 18:37:04
+labels: enhancement, phase-2-functionality, priority-critical, complexity-medium, new-package, area-testing
+
+BODY:
+## Summary
+
+Create a testing package with fixtures and fluent assertions for testing Encina-based applications.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Critical
+- **Complexity**: Medium
+
+Testing Encina-based applications currently requires significant manual setup. A dedicated testing package with fixtures, in-memory transport, and fluent assertions reduces friction and improves test quality. This is critical for user adoption.
+
+## Proposed Solution
+
+### Features
+
+- `EncinaFixture` for test setup
+- Fluent API for test configuration
+- In-memory transport for testing
+- Handler mocking utilities
+- Behavior assertion helpers
+
+### Proposed API
+
+```csharp
+// Test fixture
+public class OrderTests : IClassFixture<EncinaFixture>
+{
+    private readonly EncinaFixture _fixture;
+
+    public OrderTests(EncinaFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task CreateOrder_ShouldSucceed()
+    {
+        // Arrange
+        var encina = _fixture.CreateEncina(config =>
+        {
+            config.AddHandler<CreateOrderHandler>();
+            config.AddValidator<CreateOrderValidator>();
+        });
+
+        // Act
+        var result = await encina.Send(new CreateOrder(Guid.NewGuid(), items));
+
+        // Assert
+        result.ShouldBeSuccess();
+        result.ShouldHaveValue<OrderId>(id => id.Value != Guid.Empty);
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Create `EncinaFixture` class
+- [ ] Implement fluent configuration API
+- [ ] Add in-memory transport
+- [ ] Create handler mocking utilities
+- [ ] Add ROP assertion extensions
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Testing` (new package)
+- `Encina.Testing.Fakes` (fake implementations)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Fixture setup, assertion logic |
+| Integration Tests | Yes | Full test pipeline with fixture |
+| Contract Tests | Yes | Testing API surface |
+| Property Tests | No | Test utilities, not complex logic |
+
+## Acceptance Criteria
+
+- [ ] Fixture simplifies test setup
+- [ ] Fluent API is intuitive
+- [ ] In-memory transport works
+- [ ] ROP assertions work
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Developer Tooling
+- Critical for user adoption
+
+
+COMMIT 929046c5 (closed): feat(testing): add Encina.Testing package with fixtures and ROP assertions
+

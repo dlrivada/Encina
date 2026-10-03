@@ -1,0 +1,94 @@
+ISSUE #59: [FEATURE] Azure Functions Integration
+closed_at: 12/26/2025 23:58:19
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-serverless, cloud-azure
+
+BODY:
+## Summary
+
+Create Azure Functions integration for running Encina handlers in a serverless environment.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+Azure Functions is a widely adopted serverless platform. Integrating Encina with Azure Functions triggers (HTTP, Queue, Timer) allows developers to use familiar Encina command/query patterns in serverless workloads, with cold-start-optimized DI registration and result-to-ActionResult mapping.
+
+## Proposed Solution
+
+- Azure Functions trigger integration
+- HTTP trigger for commands/queries
+- Queue trigger for messages
+- Timer trigger for scheduled handlers
+
+```csharp
+public class OrderFunctions
+{
+    private readonly IEncina _encina;
+
+    public OrderFunctions(IEncina encina) => _encina = encina;
+
+    [Function("CreateOrder")]
+    public async Task<IActionResult> CreateOrder(
+        [HttpTrigger(AuthorizationLevel.Function, "post")] CreateOrder command)
+    {
+        var result = await _encina.Send(command);
+        return result.ToActionResult();
+    }
+
+    [Function("ProcessPayment")]
+    public async Task ProcessPayment(
+        [QueueTrigger("payments")] ProcessPayment command)
+    {
+        await _encina.Send(command);
+    }
+}
+
+// Startup
+services.AddEncina(typeof(Program).Assembly);
+services.AddEncinaAzureFunctions();
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.AzureFunctions` (new package)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Trigger integration, result mapping | Core behavior |
+| Integration Tests | Yes | End-to-end with Azure Functions host | Real trigger execution |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Maybe | Cold start overhead | Serverless-specific |
+
+## Implementation Tasks
+
+- [ ] Create Azure Functions package
+- [ ] Implement HTTP trigger integration
+- [ ] Add Queue trigger support
+- [ ] Add Timer trigger support
+- [ ] Create result-to-ActionResult extensions
+- [ ] Add documentation
+- [ ] Add integration tests
+
+## Acceptance Criteria
+
+- [ ] HTTP triggers work with Encina
+- [ ] Queue triggers process messages
+- [ ] Timer triggers work
+- [ ] Cold start optimized
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Serverless Integration
+
+
+COMMIT f60f3778 (closed): feat(azurefunctions): add Azure Functions integration package (Fixes #59)
+

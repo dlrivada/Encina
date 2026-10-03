@@ -1,0 +1,125 @@
+ISSUE #54: [FEATURE] API Versioning Helpers - contract evolution support
+closed_at: 12/27/2025 12:12:28
+labels: enhancement, phase-2-functionality, priority-low, complexity-medium, area-web-api, area-versioning
+
+BODY:
+## Summary
+
+Add API versioning helpers for contract evolution in ASP.NET Core integration.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: Medium
+
+As APIs evolve, breaking changes to command/query contracts are inevitable. API versioning helpers allow multiple handler versions to coexist, enabling clients to migrate at their own pace while maintaining backward compatibility through version negotiation and deprecation warnings.
+
+## Proposed Solution
+
+- Version-aware handler routing
+- Backward compatibility helpers
+- Version negotiation
+- Deprecation support
+
+```csharp
+// Version-specific handlers
+[ApiVersion("1.0")]
+public class CreateOrderHandlerV1 : ICommandHandler<CreateOrderV1, OrderId> { }
+
+[ApiVersion("2.0")]
+public class CreateOrderHandlerV2 : ICommandHandler<CreateOrderV2, OrderId> { }
+
+// Registration
+services.AddEncinaVersioning(config =>
+{
+    config.DefaultVersion = new ApiVersion(2, 0);
+    config.AssumeDefaultVersionWhenUnspecified = true;
+    config.ReportApiVersions = true;
+});
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.AspNetCore`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Version routing logic, deprecation | Core behavior |
+| Integration Tests | Yes | End-to-end HTTP version negotiation | ASP.NET Core TestServer |
+| Contract Tests | Yes | Version contract compatibility | API consistency |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Integrate with Asp.Versioning
+- [ ] Implement version-aware routing
+- [ ] Add deprecation support
+- [ ] Create migration helpers
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Version routing works
+- [ ] Deprecation warnings shown
+- [ ] Backward compatibility maintained
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Isolated Features (Lower Priority)
+
+
+COMMENT by dlrivada:
+## Closing as Won't Fix
+
+After investigation, this issue provides **limited or no value** because:
+
+### What `Asp.Versioning` already provides (natively in .NET 10):
+
+- URL segment versioning (`/api/v1/...`)
+- Query string versioning (`?api-version=1`)
+- Header versioning (`X-Version: 1`)
+- Media type versioning
+- `[ApiVersion("1.0")]` attribute on controllers
+- `[Deprecated]` for obsolete versions
+- Full OpenAPI/Swagger integration
+- Multiple OpenAPI specs per version (new in .NET 10)
+
+### Why handler-level versioning is unnecessary:
+
+1. **API versioning operates at the HTTP layer** (controllers/endpoints), not at the internal CQRS handler level
+2. **Handlers are internal implementation details** - versioning belongs on the public API surface
+3. **The correct pattern is**:
+   ```csharp
+   // Asp.Versioning handles this
+   [ApiVersion("1.0")]
+   [Route("api/v{version:apiVersion}/orders")]
+   public class OrdersControllerV1 : ControllerBase
+   {
+       public async Task<IActionResult> Create(CreateOrderV1Dto dto)
+       {
+           // Internal handler - no version attribute needed
+           var result = await _encina.Send(new CreateOrderV1(dto));
+           return result.Match(Ok, Problem);
+       }
+   }
+   ```
+4. **Adding `[ApiVersion]` to handlers would be redundant** - the endpoint already declares the version
+
+### Recommendation:
+
+Use `Asp.Versioning` directly for API versioning. Encina handlers don't need version awareness - they're called by versioned endpoints.
+
+References:
+- https://github.com/dotnet/aspnet-api-versioning
+- https://www.infoq.com/news/2025/12/asp-net-core-10-release/
+
+

@@ -1,0 +1,55 @@
+ISSUE #29: [INFRA] Re-enable ContractTests in SonarCloud workflow
+closed_at: 12/24/2025 17:42:47
+labels: technical-debt, phase-1-stability, priority-critical, complexity-medium, area-testing, area-ci-cd
+
+BODY:
+## Category
+
+- [x] CI/CD pipeline
+- [ ] Docker infrastructure
+- [ ] Build system
+- [ ] Developer tooling
+- [ ] Deployment
+- [ ] Monitoring
+
+## Description
+
+ContractTests are currently excluded from SonarCloud workflow due to test failures. These tests need to be fixed and re-enabled.
+
+- **Phase**: 1 - Stability
+- **Priority**: Critical
+- **Complexity**: Medium
+
+## Component Affected
+
+`.github/workflows/sonarcloud.yml` - SonarCloud CI workflow configuration
+
+## Current Behavior
+
+ContractTests excluded in `.github/workflows/sonarcloud.yml` with comment referencing Issue #7. ContractTests are not executed in CI, leaving contract verification gaps.
+
+## Expected Behavior
+
+- All ContractTests pass
+- SonarCloud workflow includes ContractTests
+- CI remains green
+
+## Impact
+
+Contract tests provide critical API consistency verification. Without them, breaking changes to public APIs may go undetected.
+
+## Proposed Solution
+
+- [ ] Identify failing ContractTests
+- [ ] Fix test failures
+- [ ] Remove exclusion from SonarCloud workflow
+- [ ] Verify tests pass in CI
+
+## Related Issues
+
+- Part of Phase 1 Exit Criteria
+- Blocked Issue #7 resolution
+
+
+COMMIT ccf83b00 (closed): ci: re-enable ContractTests and PropertyTests in SonarCloud workflow
+

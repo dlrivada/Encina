@@ -1,0 +1,106 @@
+ISSUE #48: [FEATURE] Encina.OpenApi - auto-generation from handlers
+closed_at: 12/26/2025 22:38:08
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, new-package, area-openapi
+
+BODY:
+## Summary
+
+Create OpenAPI/Swagger specification auto-generation from Encina handlers.
+
+## Motivation
+
+Encina handlers define strongly-typed request/response contracts that can be introspected to generate API documentation automatically. Without OpenAPI integration, users must manually maintain Swagger specs that can drift from actual handler signatures. Auto-generating OpenAPI specs from handler metadata reduces maintenance burden and ensures documentation always matches the real API surface.
+
+## Proposed Solution
+
+### Proposed API
+
+```csharp
+// Registration
+services.AddEncinaOpenApi(options =>
+{
+    options.Title = "Order API";
+    options.Version = "v1";
+    options.IncludeCommands = true;
+    options.IncludeQueries = true;
+});
+
+app.MapEncinaOpenApi("/swagger");
+
+// Handler annotations (optional)
+[OpenApiOperation(Summary = "Create a new order")]
+[OpenApiResponse(200, typeof(OrderId), "Order created")]
+[OpenApiResponse(400, typeof(ValidationError), "Validation failed")]
+public class CreateOrderHandler : ICommandHandler<CreateOrder, OrderId>
+{
+    // ...
+}
+```
+
+### Features
+
+- OpenAPI spec generation from handlers
+- Request/Response schema inference
+- Error response documentation
+- Swagger UI integration
+
+## Alternatives Considered
+
+1. **Manual OpenAPI YAML/JSON files**: Requires hand-maintenance and risks drift from actual handler contracts.
+2. **Swashbuckle-only approach**: Works well for controllers but does not natively understand Encina's handler/mediator pattern without a custom integration layer.
+3. **NSwag code-first**: Similar limitations as Swashbuckle for non-controller-based architectures.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [x] New package: Encina.OpenApi
+- [ ] Encina.AspNetCore (integration with endpoint mapping)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|:---------:|-------|-------|
+| Unit Tests | Yes | Schema inference, handler scanning | Core logic |
+| Integration Tests | Yes | Full OpenAPI spec generation | End-to-end with real handlers |
+| Contract Tests | Yes | Public API surface | Ensure stable API for consumers |
+| Guard Tests | Yes | Public methods | Null checks on configuration |
+| Benchmarks | No | N/A | Not a hot path |
+
+## Tasks
+
+- [ ] Design OpenAPI generation strategy
+- [ ] Implement schema inference
+- [ ] Add request/response mapping
+- [ ] Create error documentation
+- [ ] Integrate with Swashbuckle/NSwag
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] OpenAPI spec generated correctly
+- [ ] Schemas match handler contracts
+- [ ] Error responses documented
+- [ ] Swagger UI works
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Developer Tooling
+
+## Context
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+- **Package**: New - Encina.OpenApi
+
+
+COMMENT by dlrivada:
+Cerramos esta issue sin implementar. Tras analizar las nuevas capacidades de OpenAPI en .NET 10 (OpenAPI 3.1, JSON Schema 2020-12, document transformers, soporte YAML nativo), concluimos que Encina no aportar├¡a valor significativo sobre el paquete nativo de Microsoft.
+
+El usuario puede usar directamente `Microsoft.AspNetCore.OpenApi` con sus endpoints, y los transformers nativos permiten personalizar el documento sin necesidad de una capa adicional.
+
+Mantener un paquete que simplemente envuelve funcionalidad nativa sin aportar valor real no justifica el coste de mantenimiento.
+
+

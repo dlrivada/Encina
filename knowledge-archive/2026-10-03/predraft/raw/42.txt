@@ -1,0 +1,90 @@
+ISSUE #42: [FEATURE] Dead Letter Queue - enhanced DLQ handling
+closed_at: 12/26/2025 18:31:20
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-messaging-patterns
+
+BODY:
+## Summary
+
+Implement enhanced Dead Letter Queue handling across all messaging providers with unified abstractions, replay, and monitoring.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+Failed messages need a consistent, inspectable destination across all transport providers. Enhanced DLQ handling allows operations teams to inspect failed messages, replay them after fixes, and monitor DLQ health for alerting.
+
+## Proposed Solution
+
+### Features
+
+- Unified DLQ abstraction
+- Message inspection and replay
+- DLQ monitoring
+- Automatic poison message detection
+- Manual and automatic replay
+
+### Proposed API
+
+```csharp
+services.AddEncinaDeadLetterQueue(config =>
+{
+    config.MaxRetries = 5;
+    config.RetentionPeriod = TimeSpan.FromDays(7);
+    config.EnableAutoReplay = false;
+    config.OnDeadLetter = async msg =>
+    {
+        // Custom handling, alerting, etc.
+    };
+});
+
+// Manual replay
+var dlqManager = serviceProvider.GetRequiredService<IDeadLetterManager>();
+await dlqManager.ReplayAsync(messageId);
+await dlqManager.ReplayAllAsync(filter: m => m.CreatedAt > DateTime.UtcNow.AddHours(-1));
+```
+
+### Implementation Tasks
+
+- [ ] Design DLQ abstractions
+- [ ] Implement `IDeadLetterStore`
+- [ ] Add message inspection API
+- [ ] Implement replay functionality
+- [ ] Add monitoring metrics
+- [ ] Integrate with all transport providers
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging` (core DLQ abstractions)
+- All transport providers (DLQ integration)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | DLQ store, replay logic |
+| Integration Tests | Yes | Real transport DLQ behavior |
+| Contract Tests | Yes | `IDeadLetterStore`, `IDeadLetterManager` contracts |
+| Property Tests | Maybe | Replay idempotency invariants |
+
+## Acceptance Criteria
+
+- [ ] Unified DLQ across providers
+- [ ] Message replay works
+- [ ] Monitoring metrics available
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+
+
+COMMIT d5c60cab (closed): feat(messaging): add Dead Letter Queue abstraction for failed messages (Fixes #42)
+

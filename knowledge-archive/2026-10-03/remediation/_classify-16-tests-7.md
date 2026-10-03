@@ -1,0 +1,1 @@
+kind: test; duplicate-of: none; keywords: SagaStore, contract-tests, provider-coherence

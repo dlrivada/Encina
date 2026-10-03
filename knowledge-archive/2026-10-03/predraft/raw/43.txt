@@ -1,0 +1,125 @@
+ISSUE #43: [FEATURE] Saga Not Found Handler - IHandleSagaNotFound
+closed_at: 12/25/2025 09:13:31
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-saga
+
+BODY:
+## Summary
+
+Implement a handler interface for when saga correlation fails (saga not found scenarios).
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Low
+
+When a message arrives for a saga that no longer exists (completed, timed out, or never started), the system needs a way to handle this gracefully. Without a saga-not-found handler, these messages are silently lost or cause unhandled exceptions.
+
+## Proposed Solution
+
+### Features
+
+- Custom handling when saga is not found
+- Logging and alerting integration
+- Optional message requeue or DLQ
+
+### Proposed API
+
+```csharp
+public interface IHandleSagaNotFound<TMessage>
+{
+    Task Handle(TMessage message, SagaNotFoundContext context);
+}
+
+public class OrderSagaNotFoundHandler : IHandleSagaNotFound<PaymentCompleted>
+{
+    public async Task Handle(PaymentCompleted message, SagaNotFoundContext context)
+    {
+        _logger.LogWarning("Saga not found for OrderId: {OrderId}", message.OrderId);
+
+        // Option 1: Start a new saga
+        await context.StartNewSaga(new StartOrder(message.OrderId));
+
+        // Option 2: Send to DLQ
+        await context.MoveToDeadLetter("Saga correlation failed");
+
+        // Option 3: Ignore
+        context.Ignore();
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Define `IHandleSagaNotFound<T>` interface
+- [ ] Create `SagaNotFoundContext` class
+- [ ] Integrate with saga pipeline
+- [ ] Add logging for saga not found
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging` (saga infrastructure)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Handler invocation, context methods |
+| Integration Tests | Yes | End-to-end saga not found handling |
+| Contract Tests | Yes | `IHandleSagaNotFound<T>` contract |
+| Property Tests | No | Simple interface, no complex invariants |
+
+## Acceptance Criteria
+
+- [ ] Handler executes on saga not found
+- [ ] Multiple handling strategies available
+- [ ] Logging works correctly
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+
+
+COMMENT by dlrivada:
+## Implemented
+
+### New Types
+- `IHandleSagaNotFound<TMessage>` - Interface for custom handling when saga correlation fails
+- `SagaNotFoundContext` - Context with saga info and available actions (`Ignore()`, `MoveToDeadLetterAsync()`)
+- `SagaNotFoundAction` - Enum: `None`, `Ignored`, `MovedToDeadLetter`
+- `ISagaNotFoundDispatcher` - Internal dispatcher for invoking handlers
+
+### Error Codes
+- `SagaErrorCodes.HandlerCancelled` - When handler is cancelled
+- `SagaErrorCodes.HandlerFailed` - When handler throws exception
+
+### DI Registration
+- `ISagaNotFoundDispatcher` automatically registered when `UseSagas = true`
+
+### Tests
+- 19 unit tests covering `SagaNotFoundContext` and `SagaNotFoundDispatcher`
+
+### Usage Example
+```csharp
+public class OrderSagaNotFoundHandler : IHandleSagaNotFound<PaymentCompleted>
+{
+    public async Task HandleAsync(PaymentCompleted message, SagaNotFoundContext context, CancellationToken ct)
+    {
+        // Option 1: Ignore (expected scenario)
+        context.Ignore();
+        
+        // Option 2: Move to DLQ for investigation
+        await context.MoveToDeadLetterAsync("Saga correlation failed", ct);
+    }
+}
+```
+
+COMMIT ea980e75 (referenced): feat(sagas): add saga not found handler support
+

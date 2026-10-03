@@ -1,0 +1,130 @@
+ISSUE #49: [REFACTOR] Optimize delegate caches - minimize reflection/boxing
+closed_at: 12/26/2025 11:15:03
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-performance, area-pipeline
+
+BODY:
+## Summary
+
+Optimize the delegate caching mechanism to minimize reflection overhead and boxing.
+
+## Motivation
+
+The current delegate cache implementation uses ConcurrentDictionary, expression tree compilation, and some reflection for type resolution. In high-throughput scenarios, reflection overhead and value-type boxing on hot paths can degrade performance. Optimizing these paths is foundational for future source generator work and ensures Encina's mediator dispatch remains competitive with hand-written code.
+
+## Proposed Solution
+
+### Optimization Goals
+
+- Reduce memory allocations in hot paths
+- Minimize boxing of value types
+- Use `CollectionsMarshal.AsSpan` where applicable
+- Cache compiled expressions aggressively
+
+### Current State
+
+Current implementation uses:
+- ConcurrentDictionary for handler caches
+- Expression tree compilation
+- Some reflection for type resolution
+
+### Approach
+
+1. Profile current delegate cache performance to establish baseline
+2. Identify boxing hotspots via allocation profiling
+3. Apply `CollectionsMarshal.AsSpan` for dictionary value access
+4. Optimize ConcurrentDictionary access patterns (e.g., `GetOrAdd` with factory caching)
+5. Add micro-benchmarks for before/after comparison
+6. Verify no regressions in functionality
+
+## Alternatives Considered
+
+1. **Source generators instead of runtime reflection**: Would eliminate reflection entirely but is a larger effort; this optimization is a stepping stone toward that goal.
+2. **Frozen collections (.NET 8+)**: Using `FrozenDictionary` for handler registrations that don't change after startup could reduce lookup overhead, but requires validating that all registrations are truly immutable.
+3. **No optimization (status quo)**: Acceptable for low-throughput scenarios but leaves performance on the table for demanding workloads.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper
+- [ ] Encina.ADO
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|:---------:|-------|-------|
+| Unit Tests | Yes | Delegate cache correctness | Ensure no regressions |
+| Benchmarks | Yes | Hot-path dispatch performance | Before/after comparison with BenchmarkDotNet |
+| Property Tests | Maybe | Invariants on cache behavior | If complex logic warrants it |
+| Guard Tests | Yes | Public methods | Null checks |
+| Integration Tests | No | N/A | Internal optimization, no external behavior change |
+
+## Tasks
+
+- [ ] Profile current delegate cache performance
+- [ ] Identify boxing hotspots
+- [ ] Apply CollectionsMarshal.AsSpan
+- [ ] Optimize ConcurrentDictionary access patterns
+- [ ] Add micro-benchmarks for comparison
+- [ ] Verify no regressions in functionality
+
+## Acceptance Criteria
+
+- [ ] Measurable performance improvement
+- [ ] Reduced memory allocations
+- [ ] All tests pass
+- [ ] Benchmarks show improvement
+
+## Related Issues
+
+- Performance Features
+- Foundation for Source Generators
+
+## Context
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+- **Package**: Encina (Core)
+
+
+COMMENT by dlrivada:
+Issue resolved in commit bcd86ef.
+
+## Summary of Optimizations
+
+### 1. TryGetValue-before-GetOrAdd Pattern
+Applied to both RequestDispatcher and NotificationDispatcher caches. This avoids delegate allocation for the factory function on cache hits (hot path), since `GetOrAdd` always allocates the delegate even when the key exists.
+
+**Before:**
+```csharp
+var dispatcher = RequestHandlerCache.GetOrAdd(
+    (requestType, typeof(TResponse)),
+    static key => CreateRequestHandlerWrapper(key.Request, key.Response));
+```
+
+**After:**
+```csharp
+var cacheKey = (requestType, typeof(TResponse));
+if (!RequestHandlerCache.TryGetValue(cacheKey, out var dispatcher))
+{
+    dispatcher = RequestHandlerCache.GetOrAdd(
+        cacheKey,
+        static key => CreateRequestHandlerWrapper(key.Request, key.Response));
+}
+```
+
+### 2. RequestKind Type Check Caching
+Added a static cache for `GetRequestKind` results to avoid repeated `IsAssignableFrom` calls on every request dispatch.
+
+### 3. New Benchmarks
+Added `CacheOptimizationBenchmarks.cs` with:
+- Raw cache access comparison (GetOrAdd vs TryGetValue+GetOrAdd)
+- Full pipeline cache hit scenarios (Send_Command, Send_Query, Publish_Notification)
+- Type check caching comparison
+
+All tests pass. Ready for Source Generators (#50) as the next optimization step.
+
+COMMIT bcd86ef7 (referenced): perf(core): optimize delegate caches to minimize reflection and boxing
+COMMIT 25d23fb8 (referenced): docs: document delegate cache optimization (Issue #49)
+

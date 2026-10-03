@@ -1,0 +1,125 @@
+ISSUE #80: [FEATURE] Documentation: Introduction & Philosophy
+closed_at: 09/23/2026 17:26:32
+labels: documentation, phase-5-docs, priority-critical, complexity-low, area-documentation-site, p0-mandatory
+
+BODY:
+## Summary
+
+**Create introduction documentation** explaining Encina's philosophy, Railway Oriented Programming, and value proposition.
+
+## Motivation
+
+- **First impression**: Introduction sets expectations and builds interest
+- **Philosophy understanding**: ROP requires explanation for newcomers
+- **Differentiation**: Clear comparison with alternatives (MediatR)
+- **Adoption decision**: Help users decide if Encina is right for them
+
+## Proposed Solution
+
+### Content Structure
+
+#### What is Encina?
+
+- CQRS/Mediator library for .NET 10
+- Built on Railway Oriented Programming
+- Explicit error handling without exceptions
+- Rich ecosystem of integrations
+
+#### Why Railway Oriented Programming?
+
+```
+Command ÔåÆ Validation ÔåÆ Business Logic ÔåÆ Persistence ÔåÆ Response
+              Ôåô              Ôåô              Ôåô
+            Error          Error          Error
+              Ôåô              Ôåô              Ôåô
+              ÔööÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔåÆ Either<Error, T> ÔåÉÔöÇÔöÇÔöÿ
+```
+
+- Explicit error paths
+- Composable operations
+- No hidden control flow
+- Predictable behavior
+
+#### Comparison with MediatR
+
+| Aspect | MediatR | Encina |
+|--------|---------|--------|
+| Error handling | Exceptions | `Either<Error, T>` |
+| CQRS support | Manual | Built-in |
+| Outbox pattern | External | Built-in |
+| Sagas | External | Built-in |
+
+#### When to Use Encina
+
+- Ô£à New projects wanting explicit error handling
+- Ô£à Applications needing messaging patterns
+- Ô£à Teams comfortable with functional concepts
+- ÔÜá´©Å May not fit teams heavily invested in exception-based patterns
+
+### File Location
+
+`docs/introduction.md`
+
+### Tasks
+
+- [ ] Write introduction section
+- [ ] Explain ROP philosophy with diagrams
+- [ ] Create comparison table with MediatR
+- [ ] Add decision flowchart for when to use
+- [ ] Review and polish
+
+## Alternatives Considered
+
+1. **Start with code, skip philosophy**: Jump to tutorials. Users don't understand "why".
+
+2. **Lengthy academic explanation**: Deep dive into functional programming. Overwhelms newcomers.
+
+3. **Marketing-focused intro**: Focus on sales pitch. Developers prefer technical substance.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [x] Other: `docs/introduction.md`
+
+## Additional Context
+
+### Acceptance Criteria
+
+- [ ] Clear value proposition
+- [ ] ROP explained simply
+- [ ] MediatR comparison fair and accurate
+- [ ] Proofread and error-free
+
+### References
+
+- [Railway Oriented Programming - Scott Wlaschin](https://fsharpforfunandprofit.com/rop/)
+- Part of Phase 5 Exit Criteria
+
+## Cross-Cutting Integration
+
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: Ô£à Included in this feature | ÔÅ¡´©Å Deferred (separate issue) | ÔØî N/A (explain why)
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 2 | **OpenTelemetry** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 3 | **Structured Logging** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 4 | **Health Checks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 5 | **Validation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 6 | **Resilience** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 7 | **Distributed Locks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 8 | **Transactions** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 9 | **Idempotency** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 10 | **Multi-Tenancy** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 11 | **Module Isolation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 12 | **Audit Trail** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+
+
+LINKED PR #1175: docs(intro): add the introduction and philosophy page (#80) (state closed)
+LINKED PR #1176: docs(tutorials): add the quickstart tutorial (#81) (state closed)
+LINKED PR #1179: chore(claude): add the encina-docs skill (Di├ítaxis) and the docs-writer / docs-reviewer agents (state closed)
+COMMIT fdf59daf (referenced): docs(intro): state how handler exceptions propagate; drop the quickstart link until #81 lands (#80 review)
+COMMIT 720e11b7 (referenced): docs(intro): add the introduction and philosophy page (#80) (#1175)
+LINKED PR #1305: docs(engineering): fold the 32 issues closed since 2026-09-22 into PROJECT-HISTORY (state closed)
+

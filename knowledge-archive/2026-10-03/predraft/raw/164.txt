@@ -1,0 +1,169 @@
+ISSUE #164: [FEATURE] HTTP Mocking with WireMock.NET
+closed_at: 01/01/2026 14:15:02
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, new-package, area-interop, area-testing, testing-integration, testing-mocking
+
+BODY:
+## Summary
+
+Add **WireMock.NET integration** to `Encina.Testing` for mocking external HTTP APIs during integration tests, including fault simulation and request verification.
+
+## Motivation
+
+- **External API testing**: Mock HTTP dependencies without real network calls
+- **Fault simulation**: Test timeout, delay, and error scenarios
+- **Request verification**: Confirm correct API calls were made
+- **Encina.Refit integration**: Essential for testing Refit-based HTTP clients
+
+## Proposed Solution
+
+### New Package: `Encina.Testing.WireMock`
+
+```csharp
+public class EncinaWireMockFixture : IAsyncLifetime
+{
+    public WireMockServer Server { get; }
+    public string BaseUrl => Server.Url;
+
+    public async Task InitializeAsync();
+    public async Task DisposeAsync();
+
+    // Encina-specific helpers
+    public void SetupOutboxWebhook(string path, HttpStatusCode status = HttpStatusCode.OK);
+    public void SetupExternalApi<TResponse>(string path, TResponse response);
+    public void SetupFault(string path, FaultType fault);
+    public void SetupDelay(string path, TimeSpan delay);
+
+    // Verification
+    public void VerifyRequestReceived(string path, int expectedCount = 1);
+}
+
+// Refit-specific integration
+public class EncinaRefitMockFixture<TClient> : EncinaWireMockFixture
+    where TClient : class
+{
+    public TClient CreateClient();
+}
+```
+
+### Usage Example
+
+```csharp
+public class PaymentHandlerTests : IClassFixture<EncinaWireMockFixture>
+{
+    private readonly EncinaWireMockFixture _wireMock;
+
+    [Fact]
+    public async Task ProcessPayment_WhenGatewaySucceeds_ShouldReturnSuccess()
+    {
+        _wireMock.SetupExternalApi("/api/payments", new { status = "approved" });
+
+        var result = await _encina.Send(new ProcessPaymentCommand { Amount = 100 });
+
+        result.ShouldBeSuccess();
+        _wireMock.VerifyRequestReceived("/api/payments");
+    }
+
+    [Fact]
+    public async Task ProcessPayment_WhenGatewayTimeout_ShouldRetry()
+    {
+        _wireMock.SetupDelay("/api/payments", TimeSpan.FromSeconds(30));
+
+        var result = await _encina.Send(new ProcessPaymentCommand { Amount = 100 });
+
+        result.ShouldBeError();
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **HttpMessageHandler mocking**: Using custom HttpMessageHandler mocks. Less flexible, harder to simulate complex scenarios.
+
+2. **Real test servers**: Running actual test servers. More infrastructure, slower, harder to simulate faults.
+
+3. **MockHttp library**: Using MockHttp instead of WireMock. Less powerful, doesn't support advanced matching or fault simulation.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.WireMock`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for all fixture methods
+- [ ] Integration tests with Encina.Refit
+- [ ] Tests for fault simulation scenarios
+- [ ] Tests for request verification
+- [ ] Tests with Testcontainers (WireMock Docker)
+
+### Acceptance Criteria
+
+- [ ] `Encina.Testing.WireMock` package created
+- [ ] `EncinaWireMockFixture` with common helpers
+- [ ] `EncinaRefitMockFixture<T>` for Refit clients
+- [ ] Fault simulation helpers (delay, timeout, error)
+- [ ] Request verification methods
+- [ ] Unit tests with ÔëÑ85% coverage
+- [ ] Integration tests with Encina.Refit
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [WireMock.NET GitHub](https://github.com/wiremock/WireMock.Net)
+- [WireMock for API testing 2025](https://blog.titansoft.com.sg/2025/03/28/unwiring-wiremock-net-elevate-your-api-testing/)
+- [API mocking in C# with WireMock.Net](https://www.ontestautomation.com/api-mocking-in-csharp-with-wiremock-net/)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMENT by dlrivada:
+## Issue #164 - Extended Implementation Complete Ô£à
+
+### Additional Features Implemented (January 2026)
+
+**EncinaRefitMockFixture<TApiClient>** - Refit API client testing fixture:
+- Auto-configured Refit client via `CreateClient()`
+- HTTP method stubs: `StubGet()`, `StubPost()`, `StubPut()`, `StubPatch()`, `StubDelete()`
+- Error simulation: `StubError()` with status code and optional response
+- Delay simulation: `StubDelay()` for timeout testing
+- Request verification: `VerifyCallMade()`, `VerifyNoCallsMade()`
+- Implements `IAsyncLifetime` for xUnit integration
+
+**WebhookTestingExtensions** - Outbox pattern webhook testing:
+- `SetupWebhookEndpoint()` - Generic webhook endpoint
+- `SetupOutboxWebhook()` - Outbox-specific webhook (JSON POST, default `/webhooks/outbox`)
+- `SetupWebhookFailure()` - Simulate webhook failures for retry testing
+- `SetupWebhookTimeout()` - Simulate timeouts for resilience testing
+- `VerifyWebhookReceived()`, `VerifyNoWebhooksReceived()` - Verification
+- `GetReceivedWebhooks()`, `GetReceivedWebhookBodies<T>()` - Inspection
+
+### Test Coverage (147 tests)
+- Unit tests for all fixture methods
+- Fault simulation tests (EmptyResponse, MalformedResponse, Timeout, HTTP errors)
+- Sequence tests (request ordering, timestamps, workflows)
+- Guard clause tests (parameter validation)
+
+### Files Created
+- `src/Encina.Testing.WireMock/EncinaRefitMockFixture.cs`
+- `src/Encina.Testing.WireMock/WebhookTestingExtensions.cs`
+- `tests/Encina.Testing.WireMock.Tests/EncinaRefitMockFixtureTests.cs`
+- `tests/Encina.Testing.WireMock.Tests/WebhookTestingExtensionsTests.cs`
+- `tests/Encina.Testing.WireMock.Tests/FaultSimulationTests.cs`
+- `tests/Encina.Testing.WireMock.Tests/SequenceTests.cs`
+- `tests/Encina.Testing.WireMock.Tests/GuardClauseTests.cs`
+
+Commit: 30ad87a
+
+COMMIT 30ad87ac (closed): feat(testing): add Refit mock fixture and webhook testing (Issue #164)
+

@@ -1,0 +1,75 @@
+ISSUE #8: [DEBT] Fix Dapper.Sqlite PropertyTests - missing database tables
+closed_at: 12/23/2025 00:22:00
+labels: technical-debt, area-database, area-testing, testing-property-based
+
+BODY:
+## Type
+
+- [x] Failing tests
+- [ ] Missing implementation
+- [ ] Incomplete implementation
+- [ ] Code quality issue
+- [ ] Deprecated usage
+- [ ] Performance issue
+- [ ] Architecture violation
+
+## Description
+
+Several PropertyTests in `Encina.Dapper.Sqlite.PropertyTests` are failing due to missing database tables.
+
+## Location
+
+- **File(s)**: `tests/Encina.Dapper.Sqlite.PropertyTests/TransactionPipelineBehaviorPropertyTests.cs`, `tests/Encina.Dapper.Sqlite.PropertyTests/Scheduling/ScheduledMessageStoreDapperPropertyTests.cs`
+- **Package(s)**: Encina.Dapper.Sqlite
+
+## Current Behavior
+
+Tests fail with SQLite errors:
+
+```
+Microsoft.Data.Sqlite.SqliteException : SQLite Error 1: 'no such table: OutboxMessages'.
+Microsoft.Data.Sqlite.SqliteException : SQLite Error 1: 'no such table: ScheduledMessages'.
+```
+
+### Failing Tests
+
+- `TransactionPipelineBehaviorPropertyTests.ConnectionState_DoesNotAffectBehavior`
+- `TransactionPipelineBehaviorPropertyTests.Behavior_IsIdempotent`
+- `ScheduledMessageStoreDapperPropertyTests.Reschedule_UpdatesDueStatus`
+- `ScheduledMessageStoreDapperPropertyTests.Reschedule_AlwaysResetsRetryFields`
+
+## Expected Behavior
+
+All PropertyTests should pass after properly initializing the in-memory SQLite database with the required schema.
+
+## Root Cause
+
+The PropertyTests are not properly initializing the in-memory SQLite database with the required schema before running tests.
+
+## Proposed Fix
+
+1. Add proper test fixture that creates the required tables before tests run
+2. Or use a shared database initialization helper
+
+## Priority
+
+- [ ] Critical (blocking other work)
+- [x] High (should fix soon)
+- [ ] Medium (fix when convenient)
+- [ ] Low (nice to have)
+
+## Effort Estimate
+
+- [x] Small (< 2 hours)
+- [ ] Medium (2-8 hours)
+- [ ] Large (1-3 days)
+- [ ] Extra Large (> 3 days)
+
+## Related Issues
+
+_None identified_
+
+
+COMMIT 062b705e (closed): fix: resolve SQLite PropertyTests failures with missing tables
+COMMIT c0709390 (referenced): docs: update CHANGELOG with 2025-12-23 fixes (#3, #6, #8)
+

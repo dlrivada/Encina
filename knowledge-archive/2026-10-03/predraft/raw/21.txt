@@ -1,0 +1,69 @@
+ISSUE #21: [FEATURE] Projections/Read Models - CQRS read side abstractions
+closed_at: 12/24/2025 11:52:21
+labels: enhancement, area-event-sourcing, area-cqrs
+
+BODY:
+## Summary
+
+Implement abstractions for CQRS read side (projections/read models).
+
+## Motivation
+
+This is a core feature for Event-Driven Architecture that enables:
+- Materialized views from event streams
+- Optimized read models for queries
+- Event replay for projection rebuilding
+
+High priority - enables full CQRS implementation.
+
+## Proposed Solution
+
+- Create `IProjection<TEvent>` interface
+- Create `IProjectionStore` abstraction
+- Integration with Marten projections
+- Support for inline and async projections
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.Marten
+- [ ] Other: Encina.EventStoreDB
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|:---------:|-------|-------|
+| **UnitTests** | Required | | |
+| **GuardTests** | Required | | |
+| **ContractTests** | | | |
+| **PropertyTests** | | | |
+| **IntegrationTests** | | | |
+| **LoadTests** | | | |
+| **BenchmarkTests** | | | |
+
+## Acceptance Criteria
+
+- [ ] Core abstractions implemented and tested
+- [ ] All applicable providers have implementations
+- [ ] Documentation complete
+- [ ] Zero build warnings
+- [ ] Code coverage >= 85%
+
+## Related Issues
+
+- #22 - Event Versioning
+- #25 - Snapshotting for large aggregates
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

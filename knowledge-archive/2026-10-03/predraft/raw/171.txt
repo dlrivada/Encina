@@ -1,0 +1,161 @@
+ISSUE #171: [FEATURE] TUnit Framework Support
+closed_at: 01/03/2026 12:42:39
+labels: enhancement, phase-2-functionality, priority-low, complexity-medium, dotnet-10, new-package, area-performance, area-testing, testing-unit, aot-compatible
+
+BODY:
+## Summary
+
+Add **TUnit framework support** to Encina.Testing for modern, source-generated testing with NativeAOT compatibility and significantly faster test execution.
+
+## Motivation
+
+- **Source-generated tests**: No reflection for test discovery
+- **Performance**: 10-200x faster test execution than traditional frameworks
+- **NativeAOT support**: Critical for Encina Source Generators and trimming
+- **Modern .NET**: Built on Microsoft.Testing.Platform
+- **Parallel execution**: Default parallelization for faster CI/CD
+
+## Proposed Solution
+
+### New Package: Encina.Testing.TUnit
+
+```csharp
+// TUnit-compatible fixture
+public class EncinaTUnitFixture : IAsyncInitializer, IAsyncDisposable
+{
+    private ServiceProvider? _serviceProvider;
+
+    public async Task InitializeAsync()
+    {
+        var services = new ServiceCollection();
+        ConfigureServices(services);
+        _serviceProvider = services.BuildServiceProvider();
+    }
+
+    protected virtual void ConfigureServices(IServiceCollection services)
+    {
+        services.AddEncina(config =>
+        {
+            config.RegisterServicesFromAssemblyContaining<EncinaTUnitFixture>();
+        });
+    }
+
+    public IEncina CreateEncina() => _serviceProvider!.GetRequiredService<IEncina>();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_serviceProvider != null)
+            await _serviceProvider.DisposeAsync();
+    }
+}
+
+// Attribute for Encina tests (works with TUnit source generator)
+[AttributeUsage(AttributeTargets.Class)]
+public class EncinaTestAttribute : Attribute { }
+
+// Either assertions for TUnit
+public static class TUnitEitherAssertions
+{
+    public static async Task ShouldBeSuccess<TLeft, TRight>(
+        this Either<TLeft, TRight> either)
+    {
+        await Assert.That(either.IsRight).IsTrue();
+    }
+
+    public static async Task ShouldBeError<TLeft, TRight>(
+        this Either<TLeft, TRight> either)
+    {
+        await Assert.That(either.IsLeft).IsTrue();
+    }
+
+    public static async Task<TRight> AndReturn<TLeft, TRight>(
+        this Either<TLeft, TRight> either)
+    {
+        await either.ShouldBeSuccess();
+        return either.Match(Left: _ => default!, Right: v => v);
+    }
+}
+```
+
+### Usage Example
+
+```csharp
+[EncinaTest]
+public class OrderHandlerTests
+{
+    private readonly EncinaTUnitFixture _fixture = new();
+
+    [Before(Test)]
+    public async Task Setup() => await _fixture.InitializeAsync();
+
+    [After(Test)]
+    public async Task Cleanup() => await _fixture.DisposeAsync();
+
+    [Test]
+    public async Task CreateOrder_ShouldSucceed()
+    {
+        var encina = _fixture.CreateEncina();
+        var result = await encina.Send(new CreateOrderCommand { CustomerId = "123" });
+
+        await result.ShouldBeSuccess();
+        var order = await result.AndReturn();
+        await Assert.That(order.Id).IsNotEqualTo(Guid.Empty);
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **xUnit only**: Continue with xUnit exclusively. Misses NativeAOT compatibility and performance benefits of source-generated tests.
+
+2. **NUnit adapter**: Adding NUnit support instead of TUnit. NUnit still uses reflection, doesn't provide NativeAOT benefits.
+
+3. **Custom test framework**: Building our own source-generated framework. Massive effort, TUnit already solves this well.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.TUnit`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Encina.Testing.TUnit package created
+- [ ] EncinaTUnitFixture class
+- [ ] TUnitEitherAssertions extensions
+- [ ] NativeAOT compatibility verified
+- [ ] Unit tests with >=85% coverage
+- [ ] Performance benchmarks documented
+- [ ] XML documentation on all public APIs
+
+### Acceptance Criteria
+
+- [ ] Encina.Testing.TUnit package created
+- [ ] EncinaTUnitFixture class
+- [ ] TUnitEitherAssertions extensions
+- [ ] NativeAOT compatibility verified
+- [ ] Unit tests with >=85% coverage
+- [ ] Performance benchmarks documented
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [TUnit Framework](https://tunit.dev/)
+- [TUnit - Modern .NET Testing Framework](https://medium.com/@thomhurst/tunit-why-i-spent-2-years-building-a-new-net-testing-framework-86efaec0b8b8)
+- [Converting xUnit to TUnit](https://andrewlock.net/converting-an-xunit-project-to-tunit/)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 8abc07db (closed): feat(testing): add TUnit framework support (#171)
+

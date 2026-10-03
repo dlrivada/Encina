@@ -1,0 +1,96 @@
+ISSUE #35: [FEATURE] Health Check Abstractions - IHealthCheck integration
+closed_at: 12/25/2025 10:31:28
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-health-checks
+
+BODY:
+## Summary
+
+Add health check abstractions for microservices readiness, integrating with ASP.NET Core health checks.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+Microservices need health check endpoints for Kubernetes readiness/liveness probes. Encina should provide built-in health checks for all its providers (database, transport, cache) that integrate with ASP.NET Core's `IHealthCheck` infrastructure.
+
+## Proposed Solution
+
+### Features
+
+- Handler health status reporting
+- Database provider health checks
+- Message transport health checks
+- Cache provider health checks
+
+### Implementation Tasks
+
+- [ ] Define `IEncinaHealthCheck` interface
+- [ ] Implement health check for handler registration
+- [ ] Add database provider health checks
+- [ ] Add message transport health checks
+- [ ] Add cache provider health checks
+- [ ] Integrate with ASP.NET Core `IHealthCheck`
+- [ ] Add documentation
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina` (Core) - health check abstractions
+- `Encina.AspNetCore` - ASP.NET Core integration
+- All database providers (health check implementations)
+- All transport providers (health check implementations)
+- All cache providers (health check implementations)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Health check logic per provider |
+| Integration Tests | Yes | Real provider health verification |
+| Contract Tests | Yes | `IEncinaHealthCheck` contract |
+| Property Tests | Maybe | Health status invariants |
+
+## Acceptance Criteria
+
+- [ ] Health checks integrate with ASP.NET Core
+- [ ] All providers report health status
+- [ ] Kubernetes readiness/liveness compatible
+- [ ] Unit tests for health checks
+
+## Related Issues
+
+- Cross-cutting feature (affects Core, AspNetCore, and all providers)
+
+
+COMMENT by dlrivada:
+Implementado en esta sesi├│n:
+
+## Abstracciones en Encina.Messaging (`src/Encina.Messaging/Health/`)
+- `IEncinaHealthCheck` - Interfaz principal para health checks
+- `HealthCheckResult` - Struct con estados `Healthy`/`Degraded`/`Unhealthy`
+- `EncinaHealthCheck` - Clase base abstracta con manejo de excepciones
+- `OutboxHealthCheck` - Monitoreo de mensajes pendientes en outbox
+- `InboxHealthCheck` - Estado de procesamiento del inbox
+- `SagaHealthCheck` - Detecci├│n de sagas atascadas/expiradas
+- `SchedulingHealthCheck` - Mensajes programados vencidos
+
+## Integraci├│n ASP.NET Core (`src/Encina.AspNetCore/Health/`)
+- `EncinaHealthCheckAdapter` - Adapta `IEncinaHealthCheck` a `IHealthCheck`
+- `CompositeEncinaHealthCheck` - Agrega m├║ltiples health checks
+- `HealthCheckBuilderExtensions` - M├®todos de extensi├│n para `IHealthChecksBuilder`
+
+## Tests
+- 52 tests unitarios en `tests/Encina.Tests/Health/`
+
+## Issues relacionadas creadas
+- #113 Health checks autom├íticos por proveedor de infraestructura
+- #114 Health checks para m├│dulos en Modular Monolith
+- #115 Documentaci├│n de integraci├│n con AspNetCore.HealthChecks.*
+
+COMMIT 924ca2e5 (referenced): feat(health): add health check abstractions and ASP.NET Core integration
+

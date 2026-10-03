@@ -1,0 +1,1 @@
+kind: bug; duplicate-of: #1170; keywords: no-op OpenConnectionAsync, saga store, never opens connection

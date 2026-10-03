@@ -1,0 +1,68 @@
+ISSUE #11: [DEBT] Fix FluentValidation PropertyTests - error details verification
+closed_at: 12/23/2025 00:13:12
+labels: technical-debt, area-validation, area-testing, testing-property-based
+
+BODY:
+## Type
+
+- [x] Failing tests
+
+## Description
+
+Two PropertyTests in `Encina.FluentValidation.PropertyTests` are failing when verifying error details structure.
+
+## Location
+
+- **File(s)**: `tests/Encina.FluentValidation.PropertyTests/ValidationPipelineBehaviorPropertyTests.cs`
+- **Package(s)**: Encina.FluentValidation
+
+## Current Behavior
+
+### Failing Tests
+
+- `ValidationPipelineBehaviorPropertyTests.Property_ErrorDetails_AlwaysContainValidationFailures`
+- `ValidationPipelineBehaviorPropertyTests.Property_MultipleValidators_AlwaysAggregatesAllErrors`
+
+### Error Location
+
+```
+at ValidationPipelineBehaviorPropertyTests.<>c.<Property_ErrorDetails_AlwaysContainValidationFailures>b__13_2(EncinaError error) 
+   in tests/Encina.FluentValidation.PropertyTests/ValidationPipelineBehaviorPropertyTests.cs:line 420
+
+at ValidationPipelineBehaviorPropertyTests.<>c.<Property_MultipleValidators_AlwaysAggregatesAllErrors>b__9_2(EncinaError error) 
+   in tests/Encina.FluentValidation.PropertyTests/ValidationPipelineBehaviorPropertyTests.cs:line 305
+```
+
+## Expected Behavior
+
+Both property tests should pass, correctly verifying that validation errors contain specific details.
+
+## Root Cause
+
+The tests are verifying that validation errors contain specific details, but the error structure may have changed during the Mediator to Encina renaming.
+
+## Proposed Fix
+
+Update tests to match the current error structure after the Mediator to Encina renaming.
+
+## Priority
+
+- [ ] **High** - Blocks functionality or causes failures in production
+- [x] **Medium** - Should be fixed before 1.0 release
+- [ ] **Low** - Nice to have, can be deferred
+
+## Effort Estimate
+
+- [x] Small (< 1 hour)
+- [ ] Medium (1-4 hours)
+- [ ] Large (> 4 hours)
+
+## Related Issues
+
+- #7 - Fix 57 failing tests across multiple packages
+
+COMMENT by dlrivada:
+Fixed in commit 3f20fec - error.Exception is Option<Exception>, fixed to use IsSome/IfSome pattern.
+
+LINKED PR #849: feat(attestation): provider-agnostic tamper-evident audit attestation (state closed)
+

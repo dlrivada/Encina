@@ -1,0 +1,55 @@
+# Audit result — issue #8
+
+Checklist version: 1 (with the §15.3 amendments). Date: 2026-09-25. Verdict: **code-removed**.
+
+## Scope
+
+Files changed by the closing commit `062b705e1d163202a6dcf59d29a86f7ad13cec49` (2025-12-23, no pull request; `Fixes #8`):
+
+| File at close | Status today | Evidence |
+|---|---|---|
+| `tests/Encina.Dapper.Sqlite.PropertyTests/Scheduling/ScheduledMessageStoreDapperPropertyTests.cs` | Deleted | `git log --diff-filter=D -- tests/Encina.Dapper.Sqlite.PropertyTests` → commit `22494a97` |
+| `tests/Encina.Dapper.Sqlite.PropertyTests/TransactionPipelineBehaviorPropertyTests.cs` | Deleted | same commit |
+| `tests/Encina.Dapper.Sqlite.PropertyTests/XunitConfiguration.cs` | Deleted | same commit |
+| `tests/Encina.TestInfrastructure/Schemas/SqliteSchema.cs` | Deleted | `git log --diff-filter=D -- tests/Encina.TestInfrastructure/Schemas/SqliteSchema.cs` → commit `22494a97` |
+
+Commit `22494a97` ("feat: remove SQLite provider — move to .backup, clean all references (ADR-024)") deleted the whole `Encina.Dapper.Sqlite.PropertyTests` project and every SQLite-specific file under `Encina.TestInfrastructure`, implementing [ADR-024](../../../../../docs/architecture/adr/024-remove-sqlite-provider-pre-1.0.md) (accepted March 2026, decision: "Remove SQLite provider support from the pre-1.0 release scope"). `.backup/sqlite/` is gitignored (commit `87b124b7`, "fix: restore .gitignore for .backup/ — must not be tracked in git") and is not present in this worktree.
+
+Per SPEC-003 §5.1: "Files deleted since are recorded as `code-removed` and are not audited." Every file this issue touched falls in that category; the checklist items below are therefore all `n/a — code removed`, per §15.4's carve-out for ADR-009/ADR-024 removals.
+
+## Checklist
+
+| AUD | Outcome | Evidence |
+|---|---|---|
+| AUD-01 | n/a — code removed | Decision (defensive schema creation, skip two tests, fix the past-reschedule test data) was implemented as decided; no drift to record because the surrounding provider was removed by ADR-024, a later, recorded change of direction. |
+| AUD-02 | n/a — code removed | The unit was a test project only; it created no entity, store, pipeline behavior or background service of its own. |
+| AUD-03 | n/a — code removed | `Encina.Dapper.Sqlite.PropertyTests` and `Encina.Dapper.Sqlite` are absent from `.github/coverage-manifest/` today (searched: no `Encina.Dapper.Sqlite*.json` manifest file exists). |
+| AUD-04 | n/a — code removed | No surviving test to inspect. |
+| AUD-05 | n/a — code removed | No surviving test folder or justification file to inspect. |
+| AUD-06 | n/a — issue type is `debt`, not `bug` | §15.3 amendment: AUD-06 applies only to `bug`/`delivered`/`partial` records with a closed bug. |
+| AUD-07 | n/a — provider removed | SQLite was one of 10→9 Dapper-adjacent providers pre-ADR-024; the provider itself, not just a feature on it, was removed. |
+| AUD-08 | n/a — code removed | The unit logged nothing (test project). |
+| AUD-09 | n/a — code removed | No public API surface (test project, `PublicAPI.*.txt` not applicable to test projects). |
+| AUD-10 | n/a — code removed | Same as AUD-09. |
+| AUD-11 | n/a — code removed | `Encina.Dapper.Sqlite` had no shipped package/README; it was removed before 1.0. |
+| AUD-12 | n/a | Not a security/compliance/audit/personal-data unit. |
+| AUD-13 | n/a — code removed | No surviving error/log path to inspect. |
+| AUD-14 | n/a — code removed | No surviving production code (test project only). |
+| AUD-15 | n/a | No options classes in scope. |
+| AUD-16 | n/a — code removed | No surviving database calls to inspect. |
+| AUD-17 | n/a | No `AddEncina*` extension in scope (test project only). |
+| AUD-18 | n/a — code removed | No surviving public surface. |
+
+## Specialist passes
+
+- `adversarial-reviewer`: **skipped**. There is no code left to review as "today's PR" — the entire unit (`Encina.Dapper.Sqlite.PropertyTests`, `SqliteSchema.cs`) was deleted by commit `22494a97` implementing ADR-024. Reviewing deleted files against today's standards would produce no verifiable finding.
+- `docs-reviewer`: **skipped**. The feature had no README or docs page (it was internal test infrastructure for a provider removed before 1.0).
+- Test review: **done by the coordinating worker** (this audit). No surviving test to measure coverage on; the manifest for `Encina.Dapper.Sqlite` no longer exists. The one durable fact the original property test got wrong (rescheduling to a past timestamp does not make a message due — the API rejects it) is verified as still correctly enforced and guard-tested on the three surviving Dapper providers: `src/Encina.Dapper.SqlServer/Scheduling/ScheduledMessageStoreDapper.cs:153-154`, `src/Encina.Dapper.PostgreSQL/Scheduling/ScheduledMessageStoreDapper.cs`, `src/Encina.Dapper.MySQL/Scheduling/ScheduledMessageStoreDapper.cs`, each throwing `ArgumentException` via `StoreValidationMessages.NextScheduledDateCannotBeInPast`, covered by `tests/Encina.GuardTests/Dapper/SqlServer/ScheduledMessageStoreDapperGuardTests.cs` and its PostgreSQL/MySQL siblings.
+
+## Remediation
+
+None. No finding was produced because there is no surviving code, test or doc to fail a checklist item against, and the one cross-provider invariant the original tests exercised is already correctly implemented and tested on every surviving provider.
+
+## Deduplication search
+
+Not applicable — no remediation issue drafted.

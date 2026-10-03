@@ -1,0 +1,110 @@
+ISSUE #115: [FEATURE] Health Checks integration with AspNetCore.HealthChecks.*
+closed_at: 12/26/2025 10:38:39
+labels: documentation, area-aspnetcore, area-health-checks
+
+BODY:
+## Summary
+
+Create detailed documentation on how to combine Encina health checks with the existing `AspNetCore.HealthChecks.*` packages.
+
+## Motivation
+
+Users need guidance on how Encina's pattern-level health checks (outbox, inbox, saga) complement infrastructure-level health checks from the `AspNetCore.HealthChecks.*` ecosystem. Without clear documentation, users may duplicate health check coverage or miss important monitoring gaps.
+
+## Proposed Solution
+
+### 1. Integration Guide
+
+- Explain the difference between pattern health checks (Encina) vs infrastructure health checks (`AspNetCore.HealthChecks.*`)
+- Examples of combined configuration
+- Best practices for tags and organization
+
+### 2. Examples by Scenario
+
+#### Typical Microservice
+```csharp
+builder.Services.AddHealthChecks()
+    // Encina: messaging patterns
+    .AddEncinaHealthChecks(sp)
+
+    // Infrastructure: database
+    .AddNpgSql(connectionString, tags: ["db", "critical"])
+
+    // Infrastructure: cache
+    .AddRedis(redisConnection, tags: ["cache"])
+
+    // Infrastructure: message broker
+    .AddRabbitMQ(rabbitUri, tags: ["messaging"]);
+```
+
+#### Modular Monolith
+```csharp
+builder.Services.AddHealthChecks()
+    .AddEncinaHealthChecks(sp)
+    .AddEncinaModuleHealthChecks(sp);  // Per module
+```
+
+### 3. Recommended Packages Table
+
+| Infrastructure | NuGet Package |
+|----------------|---------------|
+| PostgreSQL | `AspNetCore.HealthChecks.NpgSql` |
+| MySQL | `AspNetCore.HealthChecks.MySql` |
+| SQL Server | `AspNetCore.HealthChecks.SqlServer` |
+| Redis | `AspNetCore.HealthChecks.Redis` |
+| RabbitMQ | `AspNetCore.HealthChecks.RabbitMQ` |
+| Kafka | `AspNetCore.HealthChecks.Kafka` |
+| MongoDB | `AspNetCore.HealthChecks.MongoDb` |
+
+### 4. Kubernetes Configuration
+
+- Liveness vs Readiness probes
+- Example `deployment.yaml`
+- Recommended timeouts
+
+### Location
+
+- `docs/guides/health-checks.md`
+- References from `Encina.AspNetCore` README
+
+## Alternatives Considered
+
+None documented.
+
+## Affected Packages
+
+- `Encina.AspNetCore` (README updates with references to the guide)
+- `docs/guides/` (new documentation file)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| UnitTests | No | N/A | Documentation-only issue |
+| GuardTests | No | N/A | Documentation-only issue |
+| ContractTests | No | N/A | Documentation-only issue |
+| PropertyTests | No | N/A | Documentation-only issue |
+| IntegrationTests | No | N/A | Documentation-only issue |
+| LoadTests | No | N/A | Documentation-only issue |
+| BenchmarkTests | No | N/A | Documentation-only issue |
+
+## Acceptance Criteria
+
+- [ ] Complete integration guide
+- [ ] Working code examples
+- [ ] Recommended packages table
+- [ ] Kubernetes configuration guide
+- [ ] Linked from relevant READMEs
+
+## Related Issues
+
+- #35 (Health Check Abstractions)
+- #113 (Automatic health checks per infrastructure provider)
+- #114 (Health checks for modules in Modular Monolith)
+
+
+COMMENT by dlrivada:
+Implemented: Created comprehensive health checks integration guide at docs/guides/health-checks.md. Includes integration with AspNetCore.HealthChecks.* packages, microservice and modular monolith examples, Kubernetes probes configuration, recommended NuGet packages table, and best practices.
+
+COMMIT 1a6143d3 (referenced): docs(health): add comprehensive health checks integration guide
+

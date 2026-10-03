@@ -1,0 +1,152 @@
+ISSUE #14: [REFACTOR] Apply Orchestrator pattern to Encina.Validation (3 packages)
+closed_at: 12/23/2025 17:51:11
+labels: enhancement, technical-debt, area-validation
+
+BODY:
+## Summary
+
+Apply the Orchestrator/Store pattern to the Validation subsystem to centralize validation logic and reduce code duplication across 3 validation providers.
+
+## Motivation
+
+- [x] Code duplication
+- [ ] Poor separation of concerns
+- [x] Applying a design pattern (specify: Orchestrator/Store pattern)
+- [ ] Simplifying complex code
+- [ ] Improving testability
+- [ ] Performance optimization
+- [ ] Preparing for future feature work
+- [ ] Other: ___
+
+## Current Structure
+
+Each validation provider has its own `ValidationPipelineBehavior` with duplicated validation orchestration logic:
+- `src/Encina.FluentValidation/ValidationPipelineBehavior.cs`
+- `src/Encina.DataAnnotations/ValidationPipelineBehavior.cs`
+- `src/Encina.MiniValidator/ValidationPipelineBehavior.cs`
+
+### Common duplicated logic:
+- Error aggregation from validators
+- `Either<EncinaError, T>` wrapping of validation results
+- Validator discovery/resolution pattern
+
+## Proposed Structure
+
+```
+Encina (core)
+Ôö£ÔöÇÔöÇ IValidator<T> (interface) ÔåÉ EXISTING
+Ôö£ÔöÇÔöÇ ValidationOrchestrator (domain logic) ÔåÉ NEW: centralized validation orchestration
+ÔööÔöÇÔöÇ ValidationPipelineBehavior (generic) ÔåÉ CENTRALIZE: uses ValidationOrchestrator
+
+Encina.FluentValidation / DataAnnotations / MiniValidator
+Ôö£ÔöÇÔöÇ *Validator (implements IValidator) ÔåÉ EXISTING/UPDATE
+ÔööÔöÇÔöÇ ServiceCollectionExtensions ÔåÉ UPDATE: register orchestrator
+```
+
+### Expected Improvement
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Duplicated lines | ~80-100 | ~30-40 | ~30% reduction |
+| Files with behavior logic | 3 | 1 | Single source of truth |
+| Validation logic consistency | Varies | Uniform | Same behavior everywhere |
+
+## Affected Files
+
+- `src/Encina/ValidationOrchestrator.cs` (NEW)
+- `src/Encina/ValidationPipelineBehavior.cs` (CENTRALIZE)
+- `src/Encina.FluentValidation/ValidationPipelineBehavior.cs` (REMOVE)
+- `src/Encina.DataAnnotations/ValidationPipelineBehavior.cs` (REMOVE)
+- `src/Encina.MiniValidator/ValidationPipelineBehavior.cs` (REMOVE)
+- `src/Encina.*/ServiceCollectionExtensions.cs` (UPDATE)
+
+## Packages Affected
+
+- [x] Encina (core)
+- [x] Encina.FluentValidation
+- [x] Encina.DataAnnotations
+- [x] Encina.MiniValidator
+
+## Behavioral Guarantee
+
+> Refactoring MUST NOT change external behavior. Describe how this is verified.
+
+- [x] Existing unit tests cover the refactored code
+- [ ] Existing integration tests validate behavior
+- [ ] New tests added to cover refactoring safety
+- [ ] Contract tests verify public API unchanged
+
+## Risk Assessment
+
+- **Regression Risk**: Low-Medium
+- **Affected Providers**: All 3 validation providers
+- **Breaking Changes**: None (refactoring must not break public API)
+
+## Implementation Steps
+
+1. [ ] Create `ValidationOrchestrator` in `Encina` core with centralized validation logic
+2. [ ] Create generic `ValidationPipelineBehavior` that uses orchestrator
+3. [ ] Simplify provider-specific validators to just implement `IValidator<T>`
+4. [ ] Remove duplicated behavior files from each provider package
+5. [ ] Update `ServiceCollectionExtensions` in each provider
+6. [ ] Update `PublicAPI.Unshipped.txt` files
+7. [ ] Run full test suite (46 validation tests)
+
+## Related Issues
+
+- Follows pattern from Encina.Messaging (InboxOrchestrator, OutboxOrchestrator, etc.)
+
+COMMENT by dlrivada:
+## Completed - Orchestrator Pattern Applied to Validation
+
+Successfully implemented the Orchestrator pattern for validation packages.
+
+### What was done
+
+1. **Created abstractions in `Encina.Validation` namespace**:
+   - `IValidationProvider` - Provider-agnostic validation interface
+   - `ValidationResult` - Immutable validation result with `IsValid`, `Errors`
+   - `ValidationError` - Record for property-specific errors
+   - `ValidationOrchestrator` - Centralized validation orchestration
+   - `ValidationPipelineBehavior<TRequest, TResponse>` - Generic behavior using orchestrator
+
+2. **Implemented provider-specific classes**:
+   - `FluentValidationProvider` - Resolves validators from DI, runs in parallel
+   - `DataAnnotationsValidationProvider` - Uses System.ComponentModel.DataAnnotations
+   - `MiniValidationProvider` - Uses MiniValidation library
+
+3. **Updated ServiceCollectionExtensions** for all 3 packages to register:
+   - `IValidationProvider` ÔåÆ Provider-specific implementation
+   - `ValidationOrchestrator`
+   - `ValidationPipelineBehavior<,>`
+
+### Architecture
+
+```
+Encina (core)
+Ôö£ÔöÇÔöÇ Encina.Validation.IValidationProvider (interface)
+Ôö£ÔöÇÔöÇ Encina.Validation.ValidationOrchestrator (domain logic)
+ÔööÔöÇÔöÇ Encina.Validation.ValidationPipelineBehavior<,> (centralized behavior)
+
+Encina.FluentValidation / DataAnnotations / MiniValidator
+Ôö£ÔöÇÔöÇ *ValidationProvider (implements IValidationProvider)
+ÔööÔöÇÔöÇ ServiceCollectionExtensions (registers orchestrator)
+```
+
+### Tests
+
+All 68 validation tests pass:
+- FluentValidation: 28 tests Ô£à
+- DataAnnotations: 20 tests Ô£à
+- MiniValidator: 20 tests Ô£à
+
+### Benefits Achieved
+
+- Single source of truth for pipeline behavior logic
+- Provider-agnostic validation result type
+- Easier to add new validation providers
+- Consistent error handling across all providers
+
+COMMIT fc36f4df (referenced): refactor: apply Orchestrator pattern to validation packages (#14)
+COMMIT 21d68b4a (referenced): fix: remove DPO email from log messages entirely (CodeQL alert #14)
+

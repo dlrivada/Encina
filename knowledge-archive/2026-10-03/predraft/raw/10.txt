@@ -1,0 +1,78 @@
+ISSUE #10: [DEBT] Fix DataAnnotations PropertyTests - ValidationContext issues
+closed_at: 12/23/2025 00:13:10
+labels: technical-debt, area-validation, area-testing, testing-property-based
+
+BODY:
+## Type
+
+- [x] Failing tests
+- [ ] Missing implementation
+- [ ] Incomplete implementation
+- [ ] Code quality issue
+- [ ] Deprecated usage
+- [ ] Performance issue
+- [ ] Architecture violation
+
+## Description
+
+Three PropertyTests in `Encina.DataAnnotations.PropertyTests` are failing due to `ValidationContext` issues with DataAnnotations validator.
+
+### Failing Tests
+
+- `DataAnnotationsValidationBehaviorPropertyTests.Property_TenantId_PassedWhenPresent`
+- `DataAnnotationsValidationBehaviorPropertyTests.Property_ContextEnrichment_AlwaysPassesCorrelationId`
+- `DataAnnotationsValidationBehaviorPropertyTests.Property_UserId_PassedWhenPresent`
+
+## Location
+
+- **File(s)**: `tests/Encina.DataAnnotations.PropertyTests/DataAnnotationsValidationBehaviorPropertyTests.cs`
+- **Package(s)**: Encina.DataAnnotations
+
+## Current Behavior
+
+Tests fail with `ValidationContext` errors:
+
+```
+at System.ComponentModel.DataAnnotations.Validator.TryValidate(...)
+at System.ComponentModel.DataAnnotations.Validator.GetValidationErrors(...)
+at System.ComponentModel.DataAnnotations.Validator.GetObjectPropertyValidationErrors(...)
+at System.ComponentModel.DataAnnotations.Validator.GetObjectValidationErrors(...)
+```
+
+## Expected Behavior
+
+All PropertyTests should pass, with context enrichment features verified correctly.
+
+## Root Cause
+
+The PropertyTests are likely testing context enrichment features but the test requests may have validation attributes that are failing before the context enrichment can be verified.
+
+## Proposed Fix
+
+1. Ensure test requests either don't have validation attributes or satisfy them
+2. Or mock the validation context to isolate context enrichment testing
+
+## Priority
+
+- [ ] Critical (blocking other work)
+- [x] High (should fix soon)
+- [ ] Medium (fix when convenient)
+- [ ] Low (nice to have)
+
+## Effort Estimate
+
+- [x] Small (< 2 hours)
+- [ ] Medium (2-8 hours)
+- [ ] Large (1-3 days)
+- [ ] Extra Large (> 3 days)
+
+## Related Issues
+
+_None identified_
+
+
+COMMENT by dlrivada:
+Fixed in commit 3f20fec - ContextAwareCommand was made public to comply with CustomValidationAttribute requirements.
+
+LINKED PR #849: feat(attestation): provider-agnostic tamper-evident audit attestation (state closed)
+

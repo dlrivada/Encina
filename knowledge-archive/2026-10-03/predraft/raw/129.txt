@@ -1,0 +1,238 @@
+ISSUE #129: [FEATURE] Message Encryption & Security
+closed_at: 03/06/2026 11:20:43
+labels: enhancement, phase-2-functionality, priority-medium, complexity-high, new-package, area-gdpr, area-messaging, area-security, area-compliance, area-encryption
+
+BODY:
+## Summary
+
+Add **transparent message encryption/decryption support** for sensitive data in Outbox/Inbox patterns to meet regulatory compliance requirements.
+
+## Motivation
+
+- **Regulatory compliance** requirements (GDPR, HIPAA, PCI-DSS)
+- Protection of PII, payment info, health records in message queues
+- Defense against insider threats and message broker compromises
+- **Audit logging requirements** for sensitive data access
+- Multi-tenant environments with tenant-specific keys
+
+## Proposed Solution
+
+### Core Interfaces
+
+```csharp
+public interface IMessageEncryptionProvider
+{
+    Task<EncryptedPayload> EncryptAsync(
+        byte[] plaintext,
+        EncryptionContext context,
+        CancellationToken ct);
+
+    Task<byte[]> DecryptAsync(
+        EncryptedPayload ciphertext,
+        EncryptionContext context,
+        CancellationToken ct);
+}
+
+public record EncryptionContext(
+    string? KeyId,
+    string? TenantId,
+    Dictionary<string, string>? Metadata);
+
+public record EncryptedPayload(
+    byte[] Ciphertext,
+    string KeyId,
+    string Algorithm,
+    byte[]? Iv,
+    byte[]? Tag);
+```
+
+### Attribute-Based Encryption
+
+```csharp
+// Encrypt entire message
+[Encrypted]
+public record SensitiveCommand(string CreditCardNumber) : ICommand<Result>;
+
+// Encrypt with specific key
+[Encrypted(KeyId = "payment-key")]
+public record PaymentCommand(decimal Amount) : ICommand<PaymentResult>;
+
+// Tenant-specific encryption
+[Encrypted(UseTenantKey = true)]
+public record TenantDataCommand(string Data) : ICommand<Result>;
+
+// Selective field encryption
+public record MixedCommand(
+    string PublicData,
+    [property: EncryptedField] string SecretData
+) : ICommand<Result>;
+```
+
+### Configuration
+
+```csharp
+config.Encryption.Enabled = true;
+config.Encryption.DefaultProvider = "AzureKeyVault";
+config.Encryption.KeyRotationEnabled = true;
+config.Encryption.AuditDecryption = true;
+config.Encryption.TenantKeyResolver = tenantId => $"tenant-{tenantId}-key";
+```
+
+## Alternatives Considered
+
+1. **Transport encryption only**: Rely on TLS for message broker connections. Doesn't protect data at rest, vulnerable to insider threats.
+
+2. **Application-level encryption**: Encrypt manually in handlers. Inconsistent, error-prone, no centralized key management.
+
+3. **Database encryption only**: Use database TDE. Doesn't protect data in transit through message brokers.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [x] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Encryption`, `Encina.Encryption.AzureKeyVault`, `Encina.Encryption.AwsKms`
+
+## Additional Context
+
+### Provider Packages
+
+- `Encina.Encryption` - Core abstractions
+- `Encina.Encryption.AzureKeyVault` - Azure Key Vault integration
+- `Encina.Encryption.AwsKms` - AWS KMS integration
+- `Encina.Encryption.DataProtection` - ASP.NET Core Data Protection
+- `Encina.Encryption.Local` - Development/testing with local keys
+
+### Implementation Tasks
+
+- [ ] Create `IMessageEncryptionProvider` interface
+- [ ] Create `EncryptedPayload` and `EncryptionContext` records
+- [ ] Create `[Encrypted]` and `[EncryptedField]` attributes
+- [ ] Implement Azure Key Vault provider
+- [ ] Implement AWS KMS provider
+- [ ] Add key rotation support
+- [ ] Create `IEncryptionAuditLogger` for compliance
+- [ ] Add encryption fields to OutboxMessage
+- [ ] Add unit tests
+- [ ] Add integration tests
+- [ ] Update XML documentation
+
+### Acceptance Criteria
+
+- [ ] `IMessageEncryptionProvider` interface
+- [ ] `[Encrypted]` attribute for message-level encryption
+- [ ] `[EncryptedField]` attribute for field-level encryption
+- [ ] Azure Key Vault provider
+- [ ] AWS KMS provider
+- [ ] Key rotation support without re-encryption
+- [ ] Audit logging for encryption/decryption
+- [ ] Unit tests with >90% coverage
+
+### References
+
+- [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/)
+- [AWS KMS](https://aws.amazon.com/kms/)
+- [ASP.NET Core Data Protection](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/)
+
+
+
+COMMENT by dlrivada:
+# Implementation Plan: `Encina.Messaging.Encryption` ÔÇö Message Encryption & Security
+
+> **Issue**: [#129](https://github.com/dlrivada/Encina/issues/129)
+> **Type**: Feature
+> **Complexity**: High (7 phases, 4 new packages, ~55 files)
+> **Estimated Scope**: ~3,000-4,000 lines of production code + ~2,000-3,000 lines of tests
+
+---
+
+## Summary
+
+Implement **transparent message encryption/decryption** for Outbox/Inbox message payloads, enabling regulatory compliance (GDPR, HIPAA, PCI-DSS) by encrypting the serialized `Content` field before persistence. This complements the existing `Encina.Security.Encryption` field-level encryption (which operates on request/response properties in the CQRS pipeline) by adding **payload-level encryption** at the messaging storage layer.
+
+The feature introduces:
+
+1. **`Encina.Messaging.Encryption`** ÔÇö Core abstractions for message payload encryption (`IMessageEncryptionProvider`, `[EncryptedMessage]` attribute, `MessageEncryptionPipelineBehavior`)
+2. **`Encina.Messaging.Encryption.AzureKeyVault`** ÔÇö Azure Key Vault KMS integration for message encryption keys
+3. **`Encina.Messaging.Encryption.AwsKms`** ÔÇö AWS KMS integration for message encryption keys
+4. **`Encina.Messaging.Encryption.DataProtection`** ÔÇö ASP.NET Core Data Protection integration (simplest option for single-deployment scenarios)
+
+**Provider category**: None (provider-independent). Message encryption wraps the serialized `Content` string *before* it reaches any database provider's `IOutboxStore.AddAsync()`, so all 13 database providers benefit automatically without per-provider implementations.
+
+**Affected packages**: `Encina.Messaging` (minor: new hook in `OutboxOrchestrator` / `InboxOrchestrator`), plus 4 new satellite packages.
+
+### Key Architectural Insight
+
+Encina already has **field-level encryption** (`Encina.Security.Encryption`) that encrypts individual properties decorated with `[Encrypt]` before/after handler execution. Issue #129 requests a *different* layer: encrypting the **entire serialized message payload** (`OutboxMessage.Content`) at rest in the database and in transit through message brokers. These two layers are complementary:
+
+| Layer | Package | Scope | When |
+|-------|---------|-------|------|
+| **Field-level** | `Encina.Security.Encryption` | Individual properties with `[Encrypt]` | Before/after handler execution |
+| **Payload-level** | `Encina.Messaging.Encryption` (this feature) | Entire `OutboxMessage.Content` / `InboxMessage.Response` | Before/after database persistence |
+
+---
+
+## Design Choices
+
+<details>
+<summary><strong>1. Package Placement ÔÇö New <code>Encina.Messaging.Encryption</code> package family</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) New `Encina.Messaging.Encryption` package** | Clean separation, own observability, complements existing `Encina.Security.Encryption`, KMS providers as satellite packages | New NuGet packages to maintain |
+| **B) Extend [...]
+
+COMMENT by dlrivada:
+## Implementation Complete Ô£à
+
+Message Encryption & Security has been fully implemented across 7 phases.
+
+### Packages Delivered
+
+| Package | Purpose |
+|---------|---------|
+| **Encina.Messaging.Encryption** | Core abstractions, serializer decorator, encrypted payload format, health check, observability |
+| **Encina.Messaging.Encryption.AzureKeyVault** | HSM-backed key management via Azure Key Vault |
+| **Encina.Messaging.Encryption.AwsKms** | Envelope encryption via AWS KMS |
+| **Encina.Messaging.Encryption.DataProtection** | ASP.NET Core Data Protection (no external KMS needed) |
+
+### Key Features
+
+- **AES-256-GCM** encryption (NIST SP 800-38D) via `Encina.Security.Encryption`
+- **Serializer decorator** (`EncryptingMessageSerializer`) ÔÇö transparent, zero changes to existing handlers
+- **Attribute-based** ÔÇö `[EncryptedMessage]` per-type or `EncryptAllMessages` globally
+- **Multi-tenant isolation** ÔÇö per-tenant key derivation via `ITenantKeyResolver`
+- **Railway Oriented Programming** ÔÇö all operations return `Either<EncinaError, T>`
+- **Compact format** ÔÇö `ENC:v1:{KeyId}:{Algorithm}:{Nonce}:{Tag}:{Ciphertext}`
+- **Observability** ÔÇö OpenTelemetry tracing (2 activities) and metrics (4 instruments)
+- **Health check** ÔÇö roundtrip verification of the encryption pipeline
+- **9 domain error codes** under `msg_encryption.*`
+- **Compliance** ÔÇö GDPR Art. 32, HIPAA ┬º164.312, PCI-DSS Req. 3
+
+### Testing
+
+- **118 tests** across 4 projects: 64 unit, 27 contract, 15 guard, 12 property
+- **BenchmarkDotNet** benchmarks for encrypt/decrypt performance
+- **CI green** ÔÇö all 18 jobs passed Ô£à
+
+### Documentation
+
+- Feature guide: `docs/features/message-encryption.md`
+- 4 package READMEs
+- CHANGELOG and INVENTORY updated
+
+### Commits
+
+- `e2c9259` ÔÇö feat: add Encina.Messaging.Encryption (Fixes #129)
+- `c694b16` ÔÇö style: fix whitespace formatting
+
+COMMIT e2c92590 (closed): feat: add Encina.Messaging.Encryption ÔÇö Message payload encryption for Outbox/Inbox (Fixes #129)
+LINKED PR #1113: docs: promote nine rules into CLAUDE.md and record ADR-027..030 from the project history (state closed)
+

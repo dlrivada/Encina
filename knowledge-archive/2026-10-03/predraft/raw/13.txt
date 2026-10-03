@@ -1,0 +1,145 @@
+ISSUE #13: [REFACTOR] Apply Orchestrator pattern to Encina.Caching (8 packages)
+closed_at: 12/23/2025 20:31:18
+labels: enhancement, technical-debt, area-caching
+
+BODY:
+## Summary
+
+Apply the successful Orchestrator/Store/Factory pattern (used in Encina.Messaging) to the Caching subsystem to centralize domain logic and reduce code duplication across 8 caching providers.
+
+## Motivation
+
+- [ ] Code duplication
+- [ ] Poor separation of concerns
+- [x] Applying a design pattern (specify: Orchestrator/Store/Factory pattern)
+- [ ] Simplifying complex code
+- [ ] Improving testability
+- [ ] Performance optimization
+- [ ] Preparing for future feature work
+- [ ] Other: ___
+
+## Current Structure
+
+Each caching provider (Memory, Hybrid, Redis, Garnet, Valkey, Dragonfly, KeyDB) has its own:
+- `CachingPipelineBehavior` implementation (duplicated logic)
+- Direct coupling between behavior and provider-specific code
+
+### Files with duplicated logic:
+- `src/Encina.Caching.Memory/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.Hybrid/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.Redis/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.Garnet/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.Valkey/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.Dragonfly/CachingPipelineBehavior.cs`
+- `src/Encina.Caching.KeyDB/CachingPipelineBehavior.cs`
+
+## Proposed Structure
+
+```
+Encina.Caching (abstractions)
+Ôö£ÔöÇÔöÇ ICacheProvider (interface) ÔåÉ EXISTING
+Ôö£ÔöÇÔöÇ ICacheKeyGenerator (interface) ÔåÉ EXISTING  
+Ôö£ÔöÇÔöÇ CacheOrchestrator (domain logic) ÔåÉ NEW: centralized caching orchestration
+ÔööÔöÇÔöÇ CachingPipelineBehavior (generic) ÔåÉ CENTRALIZE: uses CacheOrchestrator
+
+Encina.Caching.* (providers)
+Ôö£ÔöÇÔöÇ *CacheProvider (implements ICacheProvider) ÔåÉ EXISTING
+ÔööÔöÇÔöÇ ServiceCollectionExtensions (registers CacheOrchestrator) ÔåÉ UPDATE
+```
+
+### Expected Improvement
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Duplicated lines | ~300-400 | ~50-80 | ~40% reduction |
+| Files with behavior logic | 7+ | 1 | Single source of truth |
+| Maintenance burden | High | Low | Changes in one place |
+
+## Affected Files
+
+- `src/Encina.Caching/CacheOrchestrator.cs` (NEW)
+- `src/Encina.Caching/CachingPipelineBehavior.cs` (CENTRALIZE)
+- `src/Encina.Caching.Memory/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.Hybrid/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.Redis/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.Garnet/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.Valkey/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.Dragonfly/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.KeyDB/CachingPipelineBehavior.cs` (REMOVE)
+- `src/Encina.Caching.*/ServiceCollectionExtensions.cs` (UPDATE)
+
+## Packages Affected
+
+- [x] Encina.Caching (abstractions)
+- [x] Encina.Caching.Memory
+- [x] Encina.Caching.Hybrid
+- [x] Encina.Caching.Redis
+- [x] Encina.Caching.Garnet
+- [x] Encina.Caching.Valkey
+- [x] Encina.Caching.Dragonfly
+- [x] Encina.Caching.KeyDB
+
+## Behavioral Guarantee
+
+> Refactoring MUST NOT change external behavior. Describe how this is verified.
+
+- [x] Existing unit tests cover the refactored code
+- [ ] Existing integration tests validate behavior
+- [ ] New tests added to cover refactoring safety
+- [ ] Contract tests verify public API unchanged
+
+## Risk Assessment
+
+- **Regression Risk**: Medium
+- **Affected Providers**: All 8 caching providers
+- **Breaking Changes**: None (refactoring must not break public API)
+
+## Implementation Steps
+
+1. [ ] Create `CacheOrchestrator` in `Encina.Caching` with centralized caching logic
+2. [ ] Move `CachingPipelineBehavior` to `Encina.Caching` (if not already there)
+3. [ ] Update `CachingPipelineBehavior` to use `CacheOrchestrator`
+4. [ ] Remove duplicated behavior files from each provider package
+5. [ ] Update `ServiceCollectionExtensions` in each provider to register orchestrator
+6. [ ] Update `PublicAPI.Unshipped.txt` files
+7. [ ] Update tests to verify orchestrator behavior
+8. [ ] Run full test suite and verify 0 errors
+
+## Related Issues
+
+- Follows the pattern successfully applied in Encina.Messaging with:
+  - `InboxOrchestrator`, `OutboxOrchestrator`, `SagaOrchestrator`, `SchedulerOrchestrator`
+  - `IInboxMessageFactory`, `IOutboxMessageFactory`, `ISagaStateFactory`, `IScheduledMessageFactory`
+
+COMMENT by dlrivada:
+## Issue Closed: Architecture Already Correct
+
+After analyzing the current caching architecture, this issue is based on an incorrect assumption.
+
+### Current State (Already Correct)
+
+Ô£à **Behaviors are already centralized** in `Encina.Caching`:
+- `QueryCachingPipelineBehavior<,>` - Query result caching
+- `CacheInvalidationPipelineBehavior<,>` - Cache invalidation on commands
+- `DistributedIdempotencyPipelineBehavior<,>` - Distributed idempotency
+
+Ô£à **Providers only implement `ICacheProvider`**:
+- `MemoryCacheProvider`
+- `RedisCacheProvider`
+- `HybridCacheProvider`
+- `GarnetCacheProvider`, `ValkeyCacheProvider`, `DragonflyCacheProvider`, `KeyDBCacheProvider`
+
+Ô£à **No duplicated behavior files** in provider packages
+
+### Why CacheOrchestrator is Not Needed
+
+1. **No actual duplication exists** - The issue mentioned "~300-400 duplicated lines" but this is not the case
+2. **Current architecture is clean** - Behaviors in core, providers only implement interface
+3. **Adding CacheOrchestrator would be over-engineering** - No benefit, just added complexity
+4. **Different from Validation pattern** - Validation needed orchestrator because each provider had its own behavior. Caching already has centralized behaviors.
+
+### Conclusion
+
+The caching subsystem already follows good architecture principles. Creating `CacheOrchestrator` would add unnecessary indirection without reducing any actual duplication.
+
+

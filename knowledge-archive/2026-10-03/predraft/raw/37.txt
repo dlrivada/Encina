@@ -1,0 +1,71 @@
+ISSUE #37: [FEATURE] Event Versioning - upcasting and schema evolution
+closed_at: 12/26/2025 21:37:39
+labels: enhancement, phase-2-functionality, priority-high, complexity-high, area-event-sourcing, area-versioning
+
+BODY:
+## Summary
+
+Implement event versioning with upcasting and schema evolution support for event sourcing providers.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: High
+
+Event-sourced systems accumulate events over time and event schemas inevitably evolve. Without proper versioning and upcasting, older events become incompatible with newer code, making event store maintenance difficult.
+
+## Proposed Solution
+
+### Features
+
+- Event upcasting (v1 -> v2 -> v3)
+- Schema evolution strategies
+- Version metadata on events
+- Migration tooling
+
+### Implementation Tasks
+
+- [ ] Design event versioning abstractions
+- [ ] Implement `IEventUpcaster<TFrom, TTo>` interface
+- [ ] Add version metadata to events
+- [ ] Create upcasting pipeline
+- [ ] Integrate with Marten's existing versioning
+- [ ] Add migration tooling
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Marten` (primary implementation)
+- `Encina.EventStoreDB` (future)
+- `Encina` (core versioning abstractions)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Upcasting pipeline, version resolution |
+| Integration Tests | Yes | Real event store upcasting |
+| Contract Tests | Yes | `IEventUpcaster` contract |
+| Property Tests | Yes | Upcasting chain invariants |
+
+## Acceptance Criteria
+
+- [ ] Events can be upcasted transparently
+- [ ] Schema evolution documented
+- [ ] Migration tooling works
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Cross-cutting feature (affects ES providers)
+- Enables long-term event store maintenance
+
+
+COMMIT 957093c2 (closed): feat(marten): add Event Versioning/Upcasters for schema evolution (Fixes #37)
+

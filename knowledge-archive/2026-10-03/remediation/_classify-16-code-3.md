@@ -1,0 +1,1 @@
+kind: bug; duplicate-of: #1343; keywords: ex.Message, log, persist

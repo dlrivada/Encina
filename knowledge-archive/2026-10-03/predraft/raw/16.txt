@@ -1,0 +1,190 @@
+ISSUE #16: [SPIKE] Implement Strategy pattern for Sagas (Choreography vs Orchestration)
+closed_at: 12/23/2025 20:44:12
+labels: enhancement, area-messaging-patterns, area-saga, investigation
+
+BODY:
+## Context
+
+Implement the Strategy + Orchestrator + Provider pattern for Sagas, recognizing that **Choreography** and **Orchestration** are fundamentally different strategies, not interchangeable implementations.
+
+The pattern is: 
+### Current State Analysis
+
+Currently we have:
+- \ in \ (single implementation)
+- \ with multiple providers (EF, Dapper x5, MongoDB)
+- \ entity
+
+### Why Strategies, Not Just Providers?
+
+| Aspect | Choreography | Orchestration |
+|--------|--------------|---------------|
+| **Coordination** | Decentralized (events) | Centralized (saga coordinator) |
+| **Coupling** | Loose (services don't know each other) | Tighter (orchestrator knows all steps) |
+| **Failure handling** | Event-driven compensation | Explicit rollback commands |
+| **Visibility** | Distributed (harder to trace) | Centralized (easy to monitor) |
+| **Complexity** | Simpler services, complex overall | Complex orchestrator, simpler services |
+
+These are **architectural decisions**, not implementation details.
+
+## Options to Evaluate
+
+### Option A: Strategy + Orchestrator Pattern (Both Strategies)
+
+- **Description**: Define \ marker interfaces, create strategy-specific orchestrators for both Choreography and Orchestration
+- **Pros**: Full coverage of both saga approaches, explicit architectural choice
+- **Cons**: More implementation work, potential complexity
+- **Effort**: High
+
+\
+### Option B: Ship One Strategy, Add Second Later
+
+- **Description**: Ship with current Orchestration pattern, add Choreography post-1.0
+- **Pros**: Simpler, faster to ship, less risk
+- **Cons**: Incomplete saga support initially
+- **Effort**: Low
+
+### Option C: Keep Current Single Implementation
+
+- **Description**: Keep the single \ as-is
+- **Pros**: Already works, no refactoring needed
+- **Cons**: Doesn't explicitly support both architectural patterns
+- **Effort**: None
+
+## Decision Criteria
+
+- [ ] Performance impact
+- [x] Complexity / maintainability
+- [x] Ecosystem compatibility (.NET 10)
+- [x] Provider coverage (13 database providers)
+- [x] Breaking change impact
+- [x] Community/industry adoption
+- [ ] Other: ___
+
+## Scope
+
+### In Scope
+
+- Analyze current \ to identify which strategy it follows
+- Determine if both strategies are needed pre-1.0
+- Design the strategy selection API
+
+### Out of Scope
+
+- Full implementation of both strategies (separate implementation issues)
+- Migration tooling between strategies
+
+## Deliverables
+
+- [x] ADR document in - [ ] Proof of concept / prototype
+- [ ] Technical document in - [ ] Migration guide (if changing existing approach)
+- [ ] Updated ROADMAP.md (if applicable)
+
+## Open Questions
+
+- Do we need both strategies pre-1.0, or can we ship with one and add the other later?
+- Should strategy selection be per-module or application-wide?
+- How do we handle migration if a user wants to switch strategies?
+
+## Time Box
+
+Estimated investigation time: 4-8 hours
+
+## Related Issues
+
+- #13 - Apply Orchestrator pattern to Encina.Caching
+- #14 - Apply Orchestrator pattern to Encina.Validation
+- #15 - Apply Orchestrator pattern to Event Sourcing
+
+COMMENT by dlrivada:
+## Decision: Keep Orchestration and Choreography Separate
+
+After analysis, we've decided **NOT to implement the Strategy pattern** for Sagas. Instead, we'll keep the current architecture with improved documentation.
+
+### Why Not Strategy Pattern?
+
+1. **Orchestration and Choreography are fundamentally different** - unifying them under a common interface would be artificial
+2. **Users must understand the differences** before choosing - abstracting them hides important architectural decisions
+3. **Current implementation already works** - two separate, well-defined systems
+
+### Current Architecture (Maintained)
+
+```
+Encina.Messaging/
+Ôö£ÔöÇÔöÇ Sagas/                    # Orchestration-based
+Ôöé   Ôö£ÔöÇÔöÇ SagaOrchestrator      # Central coordinator
+Ôöé   Ôö£ÔöÇÔöÇ ISagaStore            # Step-based persistence
+Ôöé   ÔööÔöÇÔöÇ SagaStatus            # Running ÔåÆ Completed/Compensated
+Ôöé
+ÔööÔöÇÔöÇ Choreography/             # Event-driven
+    Ôö£ÔöÇÔöÇ IEventReaction<T>     # Decentralized handlers
+    Ôö£ÔöÇÔöÇ IChoreographyStateStore
+    ÔööÔöÇÔöÇ IChoreographyState
+```
+
+### Answers to Open Questions
+
+**Q: Should strategy selection be per-module or application-wide?**
+> **Answer: Application-wide** - Users choose ONE approach for their application. Mixing both creates cognitive overhead and DI complexity. The rare case of needing both can use separate bounded contexts.
+
+**Q: How do we handle migration if a user wants to switch strategies?**
+> **Answer: No automatic migration** - These are fundamentally incompatible:
+> - Orchestration: `CurrentStep`, `Data`, sequential compensation
+> - Choreography: `Events[]`, `Compensations[]`, event-driven compensation
+>
+> Migration requires:
+> 1. Complete or compensate all pending sagas
+> 2. Rewrite saga definitions for new strategy
+> 3. Change configuration
+
+### Action Items
+
+- [ ] Add documentation comparing both strategies with decision flowchart
+- [ ] Add clear examples for each approach
+- [ ] Ensure naming makes it clear they are mutually exclusive alternatives
+
+### Usage (Current - No Changes)
+
+```csharp
+// Option 1: Orchestration (central coordinator)
+services.AddEncinaSagas(options => { ... });
+
+// Option 2: Choreography (event-driven)  
+services.AddEncinaChoreography(options => { ... });
+```
+
+This keeps the API simple and forces users to make an explicit architectural choice.
+
+COMMENT by dlrivada:
+## Documentation Completed
+
+The following documentation was created as part of this issue's action items:
+
+### Files Created
+
+1. **`docs/messaging/sagas.md`** - Comprehensive Saga patterns documentation
+   - Decision flowchart (Mermaid) for choosing between Orchestration and Choreography
+   - Detailed explanation of Orchestration pattern with diagrams
+   - Detailed explanation of Choreography pattern with diagrams
+   - Saga state machine diagram (Mermaid stateDiagram-v2)
+   - Comparison table
+   - Code examples for both patterns
+   - FAQ section (migration, stuck sagas, partial failures)
+
+2. **`docs/messaging/index.md`** - Messaging patterns overview page
+
+3. **`docs/messaging/toc.yml`** - Table of contents for messaging section
+
+4. **`docs/toc.yml`** - Updated with Messaging section
+
+### Commits
+
+- `8301a07` - docs: add comprehensive Saga patterns documentation
+- `1fcca63` - docs: convert ASCII diagrams to Mermaid for GitHub rendering
+
+### View Documentation
+
+- [Saga Patterns](https://github.com/dlrivada/Encina/blob/main/docs/messaging/sagas.md)
+
+COMMIT 8301a07c (referenced): docs: add comprehensive Saga patterns documentation
+

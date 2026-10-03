@@ -1,0 +1,70 @@
+ISSUE #9: [DEBT] Fix Dapper.Sqlite ContractTests - IScheduledMessage interface issues
+closed_at: 12/23/2025 00:13:15
+labels: technical-debt, area-database, area-testing, testing-contract
+
+BODY:
+## Type
+
+- [x] Failing tests
+- [ ] Missing implementation
+- [ ] Incomplete implementation
+- [ ] Code quality issue
+- [ ] Deprecated usage
+- [ ] Performance issue
+- [ ] Architecture violation
+
+## Description
+
+Two ContractTests in `Encina.Dapper.Sqlite.ContractTests` are failing related to `IScheduledMessage` contract compliance.
+
+### Failing Tests
+
+- `ScheduledMessageStoreDapperContractTests.IScheduledMessage_Contract_AllPropertiesAccessible`
+- `ScheduledMessageStoreDapperContractTests.RescheduleRecurringMessageAsync_Contract_ResetsRetryFields`
+
+## Location
+
+- **File(s)**: `tests/Encina.Dapper.Sqlite.ContractTests/Scheduling/ScheduledMessageStoreDapperContractTests.cs`, `src/Encina.Dapper.Sqlite/Scheduling/ScheduledMessage.cs` (if exists)
+- **Package(s)**: Encina.Dapper.Sqlite
+
+## Current Behavior
+
+ContractTests fail when verifying `IScheduledMessage` contract compliance.
+
+## Expected Behavior
+
+The `ScheduledMessage` entity should fully implement the `IScheduledMessage` interface contract, and all test setup should be complete.
+
+## Root Cause
+
+The `ScheduledMessage` entity may not be fully implementing the `IScheduledMessage` interface contract, or the test setup is incomplete.
+
+## Proposed Fix
+
+1. Verify `ScheduledMessage` implements all `IScheduledMessage` properties
+2. Fix test setup if incomplete
+3. Ensure contract compliance
+
+## Priority
+
+- [ ] Critical (blocking other work)
+- [x] High (should fix soon)
+- [ ] Medium (fix when convenient)
+- [ ] Low (nice to have)
+
+## Effort Estimate
+
+- [x] Small (< 2 hours)
+- [ ] Medium (2-8 hours)
+- [ ] Large (1-3 days)
+- [ ] Extra Large (> 3 days)
+
+## Related Issues
+
+_None identified_
+
+
+COMMENT by dlrivada:
+Fixed in commit 3f20fec - IScheduledMessage_Contract_AllPropertiesAccessible now creates message in past. RescheduleRecurringMessageAsync_Contract_ResetsRetryFields skipped due to SQLite datetime format incompatibility.
+
+

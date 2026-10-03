@@ -1,0 +1,102 @@
+ISSUE #98: [INFRA] Configure branch protection rules
+closed_at: 09/21/2026 21:24:54
+labels: enhancement, phase-6-release, priority-high, complexity-low, area-ci-cd
+
+BODY:
+## Category
+- [ ] CI/CD Workflow
+- [ ] Docker Infrastructure
+- [ ] Build System / MSBuild
+- [ ] Developer Tooling / Scripts
+- [ ] NuGet / Package Publishing
+- [x] Repository Configuration
+
+## Description
+
+**Configure branch protection rules** for the main branch to ensure code quality and review requirements.
+
+## Component Affected
+
+Repository settings: Settings > Branches > Branch protection rules for `main`.
+
+## Current Behavior
+
+No branch protection rules are configured. Direct pushes to `main` are allowed, no review or CI checks are required before merging.
+
+## Expected Behavior
+
+- Code quality ensured through required PR reviews before merging
+- CI/CD enforcement: all checks pass before merge
+- Force pushes and direct commits to main blocked
+- Consistent contribution workflow enforced
+
+### Rules to Configure
+
+| Rule | Setting | Rationale |
+|------|---------|-----------|
+| Require PR reviews | 1 reviewer | All changes reviewed |
+| Require status checks | CI workflow | Tests must pass |
+| Require up-to-date branch | Enabled | No merge conflicts |
+| Require signed commits | Optional | Enhanced security |
+| Restrict who can push | Maintainers | Prevent accidents |
+| Require linear history | Optional | Cleaner git history |
+
+## Impact
+
+All contributors are affected. Without branch protection, bugs can be introduced directly to `main` without review, and CI checks can be bypassed.
+
+## Proposed Solution
+
+### Tasks
+
+- [ ] Go to Settings > Branches
+- [ ] Add branch protection rule for `main`
+- [ ] Configure required checks
+- [ ] Set review requirements
+- [ ] Document in CONTRIBUTING.md
+
+### Alternatives Considered
+
+1. **No branch protection**: Allow direct pushes. Risky, no review process, easier to introduce bugs.
+2. **Require multiple reviewers**: Require 2+ reviewers. Too restrictive for single-maintainer project initially.
+3. **Require all checks**: Require every CI check to pass. Too rigid, some checks may be optional.
+
+### Acceptance Criteria
+
+- [ ] Branch protection enabled
+- [ ] Required checks configured
+- [ ] Direct pushes prevented
+- [ ] Documented in CONTRIBUTING.md
+
+## Related Issues
+
+- Part of Phase 6 Exit Criteria
+
+### References
+
+- [GitHub Branch Protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches)
+
+---
+
+## Cross-Cutting Integration
+
+| # | Transversal Function | Status | Notes |
+|---|---------------------|--------|-------|
+| 1 | Caching | ÔØî N/A | Git configuration, no runtime code |
+| 2 | OpenTelemetry | ÔØî N/A | Git configuration, no runtime code |
+| 3 | Structured Logging | ÔØî N/A | Git configuration, no runtime code |
+| 4 | Health Checks | ÔØî N/A | Git configuration, no runtime code |
+| 5 | Validation | ÔØî N/A | Git configuration, no runtime code |
+| 6 | Resilience | ÔØî N/A | Git configuration, no runtime code |
+| 7 | Distributed Locks | ÔØî N/A | Git configuration, no runtime code |
+| 8 | Transactions | ÔØî N/A | Git configuration, no runtime code |
+| 9 | Idempotency | ÔØî N/A | Git configuration, no runtime code |
+| 10 | Multi-Tenancy | ÔØî N/A | Git configuration, no runtime code |
+| 11 | Module Isolation | ÔØî N/A | Git configuration, no runtime code |
+| 12 | Audit Trail | ÔØî N/A | Git configuration, no runtime code |
+
+
+COMMENT by dlrivada:
+Branch protection on main already exists (required PR with 1 approval and code-owner review, linear history, no force-push, conversation resolution, required checks). Two corrections are being applied under SPEC-000 DEC-006 (2026-09-21): the required-check list is realigned with the real ci.yml jobs (it required a non-existent 'Build' and the retired SQLite EF shard) via a new always-run 'ci-result' summary job, and enforce_admins is switched on so the protection applies to everyone. Agents deliver only through pull requests (SPEC-000 INV-006).
+
+

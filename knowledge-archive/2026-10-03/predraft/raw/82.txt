@@ -1,0 +1,127 @@
+ISSUE #82: [FEATURE] Documentation: Fundamentals (Handlers, Behaviors)
+closed_at: 09/23/2026 18:46:48
+labels: documentation, phase-5-docs, priority-critical, complexity-medium, area-pipeline, area-documentation-site, p0-mandatory
+
+BODY:
+## Summary
+
+**Create comprehensive documentation for core Encina concepts**: handlers, pipeline behaviors, and notifications.
+
+## Motivation
+
+- **Core understanding**: These are the fundamental building blocks
+- **Correct usage**: Help users implement handlers properly
+- **Pattern awareness**: Explain pre/post-processors, ordering
+- **Extensibility**: Show how to create custom behaviors
+
+## Proposed Solution
+
+### Documentation Structure
+
+```
+docs/fundamentals/
+Ôö£ÔöÇÔöÇ encina-pattern.md       # Overview of the pattern
+Ôö£ÔöÇÔöÇ handlers.md             # Command, Query, Notification handlers
+Ôö£ÔöÇÔöÇ pipeline-behaviors.md   # Behaviors, ordering, custom
+ÔööÔöÇÔöÇ notifications.md        # Publishing, multiple handlers
+```
+
+### Handlers Content
+
+```csharp
+// Command Handler
+public class CreateOrderHandler : ICommandHandler<CreateOrder, Order>
+{
+    public async Task<Either<EncinaError, Order>> HandleAsync(
+        CreateOrder command,
+        CancellationToken cancellationToken)
+    {
+        // Implementation
+    }
+}
+
+// Query Handler
+public class GetOrderHandler : IQueryHandler<GetOrder, Order>
+{
+    public async Task<Either<EncinaError, Order>> HandleAsync(
+        GetOrder query,
+        CancellationToken cancellationToken)
+    {
+        // Implementation
+    }
+}
+```
+
+### Pipeline Behaviors Content
+
+- What are behaviors?
+- Pre-processor behaviors
+- Post-processor behaviors
+- Ordering behaviors
+- Creating custom behaviors
+
+### Notifications Content
+
+- Publishing notifications
+- Multiple handlers
+- Parallel vs sequential execution
+- Error handling in notifications
+
+### Tasks
+
+- [ ] Write handler documentation
+- [ ] Write behavior documentation
+- [ ] Write notification documentation
+- [ ] Add code examples for each
+- [ ] Create diagrams where helpful
+
+## Alternatives Considered
+
+1. **Single fundamentals document**: Everything in one file. Too long for beginners.
+
+2. **Video-only tutorials**: Create video series. Not searchable, harder to reference.
+
+3. **XML documentation only**: Rely on API docs. Lacks conceptual explanations.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [x] Other: `docs/fundamentals/` directory
+
+## Additional Context
+
+### Acceptance Criteria
+
+- [ ] All core concepts covered
+- [ ] Code examples compile and work
+- [ ] Diagrams are clear and helpful
+- [ ] Cross-references between topics
+
+### References
+
+- Part of Phase 5 Exit Criteria
+
+## Cross-Cutting Integration
+
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: Ô£à Included in this feature | ÔÅ¡´©Å Deferred (separate issue) | ÔØî N/A (explain why)
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 2 | **OpenTelemetry** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 3 | **Structured Logging** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 4 | **Health Checks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 5 | **Validation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 6 | **Resilience** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 7 | **Distributed Locks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 8 | **Transactions** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 9 | **Idempotency** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 10 | **Multi-Tenancy** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 11 | **Module Isolation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 12 | **Audit Trail** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+
+
+LINKED PR #1263: docs: explain the request pipeline, add the pipeline-behavior how-to and reference (#82) (state closed)
+COMMIT 624908d6 (referenced): docs: explain the request pipeline, add the pipeline-behavior how-to and reference (#82) (#1263)
+

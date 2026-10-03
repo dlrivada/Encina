@@ -1,0 +1,46 @@
+Remediation for #19:
+- code 1 (Major): draft 19-code-1-no-automated-gate-enforces-that-each-flag-reaches.md
+- code 2 (Major): draft 19-code-2-the-issue-and-pr-templates-still-carry-the.md
+- code 3 (Major): draft 19-code-3-agent-and-skill-instructions-that-agents-md-section.md
+- code 4 (Major): draft 19-code-4-the-public-coverage-dashboard-hard-codes-a-project.md
+- code 5 (Minor): draft 19-code-5-open-issues-still-state-the-old-global-target.md
+- code 6 (Minor): draft 19-code-6-a-project-wide-percentage-is-still-produced-and.md
+- code 7 (Minor): draft 19-code-7-coverage-report-cs-carries-a-generated-html-dashboard.md
+- code 8 (Minor): merged into docs 2 (manual override)
+- code 9 (Minor): draft 19-code-9-reusable-workflow-templates-expose-a-single-global-line.md
+- code 10 (Minor): draft 19-code-10-github-scripts-check-sonarcloud-coverage-cs-80-98.md
+- code 11 (Minor): draft 19-code-11-the-blocking-crap-gate-job-passes-vacuously-when.md
+- tests 1 (Major): draft 19-tests-1-no-test-exists-for-a-per-flag-target.md
+- tests 2 (Minor): merged into code 11 (same location)
+- tests 3 (Minor): draft 19-tests-3-the-crap-gate-s-self-test-does-not.md
+- tests 4 (Minor): draft 19-tests-4-generate-coverage-manifest-cs-self-test-348-482.md
+- tests 5 (Minor): merged into code 7 (manual override)
+- tests 6 (Minor): draft 19-tests-6-tests-encina-unittests-workflows-workflowtemplatetests-cs-16.md
+- tests 7 (Minor): draft 19-tests-7-the-crap-gate-self-test-invokes-dotnet-run.md
+- tests 8 (Minor): draft 19-tests-8-regression-test-check-for-the-code-stage-s.md
+- docs 1 (Blocker): draft 19-docs-1-contributing-md-98-coverage-does-not-drop-below.md
+- docs 2 (Blocker): draft 19-docs-2-docs-architecture-adr-023-coverage-strategy-codecov-sonarclo.md
+- docs 3 (Major): draft 19-docs-3-docs-testing-coverage-measurement-methodology-md-149-says.md
+- docs 4 (Major): merged into code 4 (manual override)
+- docs 5 (Major): merged into code 3 (manual override)
+- docs 6 (Major): merged into code 2 (manual override)
+- docs 7 (Major): draft 19-docs-7-docs-testing-coverage-measurement-methodology-md-20-and.md
+- docs 8 (Minor): merged into docs 7 (same location)
+- docs 9 (Minor): merged into docs 2 (manual override)
+- docs 10 (Minor): draft 19-docs-10-the-overall-percentage-thresholds-188-190-70-50.md
+- docs 11 (Minor): draft 19-docs-11-docs-en-guides-testing-md-coverage-section-lines.md
+- docs 12 (Minor): draft 19-docs-12-docs-testing-coverage-measurement-methodology-md-1-12.md
+
+## Lessons for the pipeline
+- docs 6: merged into code 2 by manual override
+- docs 5: merged into code 3 by manual override
+- docs 4: merged into code 4 by manual override
+- docs 2: merged into code 8 by manual override (the merged group's primary is docs 2)
+- docs 9: merged into code 8 by manual override (the merged group's primary is docs 2)
+- tests 5: merged into code 7 by manual override
+- tests stage (tests 5): named the report output `coverage.json`; the script writes `encina-coverage-summary.json`, `encina-coverage-report.md`, `docref-index.json`, `badge.json` and `badge.svg` (`coverage-report.cs:739`, `:795`, `:803`, `:818`, `:824`); the code 7 draft uses the real names.
+- tests stage (tests 4): placed `generate-coverage-manifest.cs --self-test` at `:348-482`; the self-test section spans `:348-484` (`RunSelfTest` at `:350`).
+- code stage (code 4): called the 85% line the overall trend chart's; `renderTrendChart` (`docs/coverage/app.js:744`) draws it for the combined series and for every per-flag series alike.
+- code stage (code 9): missed `docs/ci-cd-templates.md`, which documents the `coverage-threshold` input and recommends values (`:49`, `:87`, `:111`, `:132`, `:207`, `:255`, `:293`); the code 9 draft covers it.
+- code stage (code 8): did not notice that `.github/scripts/coverage-weights.json` points `$schema` at a `coverage-weights-schema.json` that does not exist.
+- possible duplicate the manifest did not catch (for audit-verifier): tests 8 (text check for a hand-typed 85% target) overlaps the optional text check named in the code 2 and code 4 drafts; the tests 8 draft stays separate because it asks for the check itself.

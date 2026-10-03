@@ -1,0 +1,96 @@
+ISSUE #66: [TEST] Increase branch coverage to 80%
+closed_at: 09/24/2026 12:08:39
+labels: technical-debt, phase-3-testing, priority-critical, complexity-high, area-testing, p1-recommended
+
+BODY:
+## Test Category
+
+- [ ] Unit Tests
+- [ ] Integration Tests (Docker/Testcontainers)
+- [ ] Property-Based Tests (FsCheck)
+- [ ] Contract Tests
+- [ ] Guard Clause Tests
+- [ ] Load Tests (NBomber)
+- [ ] Benchmark Tests (BenchmarkDotNet)
+- [x] Coverage Gap (below 85% target)
+
+## Description
+
+**Increase branch coverage to >=80%** to ensure all conditional paths are tested.
+
+- **Complete testing**: Branch coverage ensures all decision paths are exercised
+- **Edge case coverage**: Untested branches often contain bugs
+- **Error handling verification**: Error paths need testing too
+- **Quality confidence**: Higher branch coverage means fewer surprises
+
+### Focus Areas
+
+1. **Conditional logic in pipeline behaviors** - Pre-processor conditions, post-processor error handling, behavior chain logic
+2. **Error handling branches** - Exception catch blocks, error result paths, fallback logic
+3. **Configuration validation** - Required option checks, invalid configuration handling
+4. **Guard clauses** - Null checks, range validation, state validation
+
+### Example Uncovered Branch
+
+```csharp
+public async Task<Either<Error, T>> HandleAsync(ICommand<T> command)
+{
+    if (command == null)  // <- Branch 1: Need test with null
+        return new ValidationError("Command required");
+
+    var result = await _handler.HandleAsync(command);
+
+    if (result.IsLeft)    // <- Branch 2: Need test that produces error
+        return result;
+
+    return result;        // <- Branch 3: Success path (likely covered)
+}
+```
+
+## Packages / Providers Affected
+
+- **Package(s):** Encina (core), all packages (branch coverage across all)
+- **Provider(s):** All 13 database providers
+
+## Current Coverage
+
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Branch Coverage | 70.9% | >=80% | 9.1% |
+
+## Infrastructure Required
+
+- [ ] Docker
+- [ ] Real database
+- [ ] Message broker
+- [ ] NBomber
+- [ ] BenchmarkDotNet
+- [x] None (coverage analysis tooling only)
+
+## Test Plan
+
+### Tests to Implement
+
+1. **Run branch coverage report**
+2. **Identify uncovered branches** - Focus on conditional logic, error handling, configuration validation, guard clauses
+3. **Add tests for each conditional path** - Both true and false branches
+4. **Cover null checks and guards** - Explicit null-argument tests
+5. **Verify coverage increase**
+
+### Success Criteria
+
+- [ ] Branch coverage >=80%
+- [ ] All conditional logic tested
+- [ ] Error paths covered
+- [ ] No package below 75%
+
+## Related Issues
+
+- Part of Phase 3 Exit Criteria
+
+
+COMMENT by dlrivada:
+Closing: this target comes from the old single-percentage coverage model. Encina now measures coverage per flag (unit, guard, contract, property, integration) against the per-package targets in .github/coverage-manifest/, computed by .github/scripts/coverage-report.cs and shown on the coverage dashboard. Mutation score is tracked per file with no project-wide target (docs/testing/mutation-measurement-methodology.md). Gaps against those targets are tracked as [TEST] issues per package.
+
+LINKED PR #1300: docs: remove hand-typed quality and inventory figures from README, ROADMAP and architecture pages (#1090) (state closed)
+

@@ -1,0 +1,91 @@
+ISSUE #55: [FEATURE] Distributed Lock Abstractions - IDistributedLock interface
+closed_at: 12/27/2025 11:31:05
+labels: enhancement, phase-2-functionality, priority-low, complexity-medium, area-distributed-lock
+
+BODY:
+## Summary
+
+Create distributed lock abstractions for coordinating access to shared resources.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: Medium
+
+In distributed systems, multiple instances of a service may attempt to access or modify the same shared resource concurrently. A distributed lock abstraction provides a provider-agnostic interface for mutual exclusion, enabling safe coordination across service instances with automatic timeout and release semantics.
+
+## Proposed Solution
+
+- Provider-agnostic lock interface (`IDistributedLock`)
+- Redis lock provider (Redlock algorithm)
+- SQL Server lock provider (`sp_getapplock`)
+- Timeout and auto-release mechanisms
+
+```csharp
+public interface IDistributedLock
+{
+    ValueTask<IAsyncDisposable?> TryAcquireAsync(
+        string lockKey,
+        TimeSpan timeout,
+        CancellationToken ct = default);
+}
+
+// Usage
+await using var lock = await _distributedLock.TryAcquireAsync(
+    $"order:{orderId}",
+    TimeSpan.FromSeconds(30));
+
+if (lock is null)
+{
+    return Either<EncinaError, Unit>.Left(
+        new EncinaError("lock.timeout", "Could not acquire lock"));
+}
+
+// Critical section...
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.DistributedLock` (new package)
+- `Encina.DistributedLock.Redis`
+- `Encina.DistributedLock.SqlServer`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Lock acquisition, timeout, release | Core behavior |
+| Integration Tests | Yes | Redis and SQL Server lock providers | Real infrastructure |
+| Load Tests | Yes | Concurrent lock contention | Key validation |
+| Property Tests | Maybe | Lock invariants (mutual exclusion) | If complex |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Design lock abstractions
+- [ ] Implement Redis provider
+- [ ] Implement SQL Server provider
+- [ ] Add timeout handling
+- [ ] Create auto-release mechanism
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Locks work correctly
+- [ ] Multiple providers supported
+- [ ] Auto-release on timeout
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Isolated Features (Lower Priority)
+
+
+COMMIT 7e50983e (closed): feat(distributedlock): add distributed lock abstractions (Fixes #55)
+

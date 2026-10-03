@@ -1,0 +1,132 @@
+ISSUE #162: [FEATURE] Testcontainers Integration for Database Testing
+closed_at: 12/31/2025 19:16:20
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, new-package, area-database, area-testing, industry-best-practice, area-docker, testing-integration
+
+BODY:
+## Summary
+
+Add **Testcontainers integration** to `Encina.Testing` for spinning up real database instances in Docker during integration tests, providing isolated and reproducible test environments.
+
+## Motivation
+
+- **Real database testing**: Tests against real databases instead of in-memory fakes
+- **Isolation**: Each test run has its own container
+- **Reproducibility**: Consistent environment across developers and CI
+- **All providers**: Support for all Encina database providers
+
+## Proposed Solution
+
+### New Package: `Encina.Testing.Testcontainers`
+
+```csharp
+// Pre-configured fixtures for each database provider
+public class SqlServerContainerFixture : IAsyncLifetime
+{
+    public MsSqlContainer Container { get; }
+    public string ConnectionString => Container.GetConnectionString();
+
+    public async Task InitializeAsync() => await Container.StartAsync();
+    public async Task DisposeAsync() => await Container.DisposeAsync();
+}
+
+public class PostgreSqlContainerFixture : IAsyncLifetime { }
+public class MySqlContainerFixture : IAsyncLifetime { }
+public class MongoDbContainerFixture : IAsyncLifetime { }
+public class RedisContainerFixture : IAsyncLifetime { }
+
+// Factory for quick container creation
+public static class EncinaContainers
+{
+    public static SqlServerContainerFixture SqlServer() => new();
+    public static PostgreSqlContainerFixture PostgreSql() => new();
+    public static MongoDbContainerFixture MongoDb() => new();
+    public static RedisContainerFixture Redis() => new();
+
+    // With custom configuration
+    public static SqlServerContainerFixture SqlServer(Action<MsSqlBuilder> configure);
+}
+
+// Integration with EncinaFixture
+public class EncinaIntegrationFixture<TContainer> : EncinaFixture
+    where TContainer : IAsyncLifetime
+{
+    public TContainer Container { get; }
+}
+```
+
+### Usage Example
+
+```csharp
+public class OutboxStoreIntegrationTests : IClassFixture<SqlServerContainerFixture>
+{
+    private readonly SqlServerContainerFixture _db;
+
+    public OutboxStoreIntegrationTests(SqlServerContainerFixture db) => _db = db;
+
+    [Fact]
+    public async Task AddAsync_ShouldPersistToRealDatabase()
+    {
+        var store = new OutboxStoreDapper(_db.ConnectionString);
+        var message = new OutboxMessageFaker().Generate();
+
+        await store.AddAsync(message);
+
+        var retrieved = await store.GetByIdAsync(message.Id);
+        retrieved.ShouldBeSuccess();
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **In-memory databases only**: Using SQLite in-memory or EF InMemory provider. Behavior differs from real databases, misses SQL dialect issues.
+
+2. **Shared test database**: Using a shared database for all tests. Causes test interference, harder to parallelize.
+
+3. **Manual Docker setup**: Requiring manual Docker container management. More error-prone, harder for CI/CD.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.Testcontainers`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for fixture lifecycle
+- [ ] Integration tests for each database provider
+- [ ] Tests for container configuration options
+- [ ] Tests for parallel test isolation
+- [ ] CI/CD compatibility tests (GitHub Actions)
+
+### Acceptance Criteria
+
+- [ ] `Encina.Testing.Testcontainers` package created
+- [ ] Fixtures for SQL Server, PostgreSQL, MySQL, MongoDB, Redis
+- [ ] Integration with `EncinaFixture`
+- [ ] GitHub Actions CI compatibility verified
+- [ ] Unit tests with ÔëÑ85% coverage
+- [ ] Integration tests for all providers
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [Testcontainers for .NET](https://testcontainers.com/guides/getting-started-with-testcontainers-for-dotnet/)
+- [Milan Jovanovic Testcontainers Guide](https://www.milanjovanovic.tech/blog/testcontainers-integration-testing-using-docker-in-dotnet)
+- [JetBrains Testcontainers with .NET](https://blog.jetbrains.com/dotnet/2023/10/24/how-to-use-testcontainers-with-dotnet-unit-tests/)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT 711675dc (closed): feat(testing): add Encina.Testing.Testcontainers package for Docker integration tests
+

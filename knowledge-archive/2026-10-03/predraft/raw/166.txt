@@ -1,0 +1,135 @@
+ISSUE #166: [FEATURE] Architecture Testing with ArchUnitNET
+closed_at: 01/01/2026 18:41:55
+labels: enhancement, phase-2-functionality, priority-low, complexity-low, new-package, area-testing, area-architecture-testing, testing-unit
+
+BODY:
+## Summary
+
+Add **ArchUnitNET integration** to `Encina.Testing` with pre-defined architectural rules for Encina applications, enabling automated architecture compliance verification.
+
+## Motivation
+
+- **Automated verification**: Enforce architecture rules in CI/CD
+- **CQRS/Clean Architecture**: Pre-built rules for common patterns
+- **Dependency violations**: Detect layer violations automatically
+- **Continuous compliance**: Architecture rules as code
+
+## Proposed Solution
+
+### New Package: `Encina.Testing.Architecture`
+
+```csharp
+public static class EncinaArchitectureRules
+{
+    // CQRS Rules
+    public static IArchRule CommandsMustNotReturnVoid();
+    public static IArchRule QueriesMustNotModifyState();
+    public static IArchRule HandlersMustNotDependOnControllers();
+
+    // Layered Architecture Rules
+    public static IArchRule DomainMustNotDependOnInfrastructure();
+
+    // Messaging Rules
+    public static IArchRule SagasMustInheritFromSagaBase();
+    public static IArchRule NotificationsMustBeImmutable();
+
+    // Pipeline Rules
+    public static IArchRule BehaviorsMustImplementCorrectInterface();
+}
+```
+
+### EncinaArchitectureTestBase
+
+```csharp
+public abstract class EncinaArchitectureTestBase
+{
+    protected abstract Assembly ApplicationAssembly { get; }
+
+    protected Architecture Architecture =>
+        new ArchLoader()
+            .LoadAssemblies(ApplicationAssembly)
+            .Build();
+
+    [Fact]
+    public void Application_ShouldFollowEncinaRules()
+    {
+        Architecture.CheckEncinaRules();
+    }
+}
+```
+
+### Usage Example
+
+```csharp
+public class MyAppArchitectureTests : EncinaArchitectureTestBase
+{
+    protected override Assembly ApplicationAssembly =>
+        typeof(CreateOrderHandler).Assembly;
+
+    [Fact]
+    public void Handlers_ShouldNotDependOnControllers()
+    {
+        EncinaArchitectureRules.HandlersMustNotDependOnControllers()
+            .Check(Architecture);
+    }
+
+    [Fact]
+    public void Domain_ShouldNotDependOnInfrastructure()
+    {
+        EncinaArchitectureRules.DomainMustNotDependOnInfrastructure()
+            .Check(Architecture);
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **NetArchTest only**: Using NetArchTest instead of ArchUnitNET. ArchUnitNET has better rule composition and more active maintenance.
+
+2. **Manual code review for architecture**: Reviewing architecture manually. Not scalable, error-prone, misses violations.
+
+3. **Custom reflection-based checks**: Building custom architecture checks. Reinvents existing solutions, more maintenance burden.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing.Architecture`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for all architecture rules
+- [ ] Tests with intentionally violating code
+- [ ] Tests for rule composition
+- [ ] Integration tests with sample application
+
+### Acceptance Criteria
+
+- [ ] `Encina.Testing.Architecture` package created
+- [ ] `EncinaArchitectureRules` static class with CQRS rules
+- [ ] `EncinaArchitectureTestBase` abstract class
+- [ ] Rules for layers, handlers, sagas, notifications
+- [ ] Unit tests with ÔëÑ85% coverage
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [ArchUnitNET GitHub](https://github.com/TNG/ArchUnitNET)
+- [NimblePros Architecture Testing 2025](https://blog.nimblepros.com/blogs/getting-started-with-archunitnet/)
+- [Architecture Testing in .NET](https://medium.com/@dkorolov1/architecture-testing-in-net-548f79d9f815)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMIT d1e96489 (closed): feat(testing): add CQRS and Saga architecture rules (Issue #166)
+

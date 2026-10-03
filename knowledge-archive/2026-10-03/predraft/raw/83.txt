@@ -1,0 +1,115 @@
+ISSUE #83: [FEATURE] Documentation: Database Providers Overview
+closed_at: 09/23/2026 19:02:41
+labels: documentation, phase-5-docs, priority-high, complexity-medium, area-database, area-documentation-site, p1-recommended
+
+BODY:
+## Summary
+
+**Create documentation for all 13 database providers** including overview, comparison, and detailed configuration for EF Core, Dapper, ADO.NET, and MongoDB.
+
+## Motivation
+
+- **Provider selection**: Help users choose appropriate data access strategy
+- **Configuration reference**: Complete setup for each provider
+- **Feature comparison**: Understand trade-offs between providers
+- **SQL dialect awareness**: Document provider-specific differences
+
+## Proposed Solution
+
+### Documentation Structure
+
+```
+docs/database/
+Ôö£ÔöÇÔöÇ overview.md              # Comparison, selection guide
+Ôö£ÔöÇÔöÇ entityframeworkcore.md   # EF Core (4 databases)
+Ôö£ÔöÇÔöÇ dapper.md                # Dapper (4 databases)
+Ôö£ÔöÇÔöÇ ado.md                   # ADO.NET (4 databases)
+ÔööÔöÇÔöÇ mongodb.md               # MongoDB
+```
+
+### Provider Comparison
+
+| Feature | EF Core | Dapper | ADO.NET | MongoDB |
+|---------|---------|--------|---------|---------|
+| Abstraction Level | High | Medium | Low | High |
+| Performance | Good | Excellent | Excellent | Good |
+| LINQ Support | Ô£à | ÔØî | ÔØî | Ô£à |
+| Change Tracking | Ô£à | ÔØî | ÔØî | ÔØî |
+| Migrations | Ô£à | ÔØî | ÔØî | ÔØî |
+| Raw SQL | Ô£à | Ô£à | Ô£à | ÔØî |
+
+### SQL Dialect Differences
+
+| Provider | Parameters | LIMIT | Boolean |
+|----------|------------|-------|---------|
+| SQLite | `@param` | `LIMIT @n` | `0/1` |
+| SQL Server | `@param` | `TOP (@n)` | `bit` |
+| PostgreSQL | `@param` | `LIMIT @n` | `true/false` |
+| MySQL | `@param` | `LIMIT @n` | `0/1` |
+
+### Tasks
+
+- [ ] Write overview with comparison table
+- [ ] Document EF Core integration
+- [ ] Document Dapper providers (4 databases)
+- [ ] Document ADO.NET providers (4 databases)
+- [ ] Document MongoDB integration
+- [ ] Add troubleshooting section
+
+## Alternatives Considered
+
+1. **Per-package README only**: Documentation scattered across packages. Hard to compare.
+
+2. **Single massive document**: All 13 providers in one file. Too long, overwhelming.
+
+3. **Video tutorials only**: Not searchable, harder to reference specific configurations.
+
+## Affected Packages
+
+- [x] Encina.EntityFrameworkCore
+- [x] Encina.Dapper.* (4 packages)
+- [x] Encina.ADO.* (4 packages)
+- [x] Encina.MongoDB
+- [x] Other: `docs/database/` directory
+
+## Additional Context
+
+### Acceptance Criteria
+
+- [ ] All 13 providers documented
+- [ ] Configuration examples work
+- [ ] Clear guidance on provider selection
+- [ ] SQL dialect differences explained
+
+### References
+
+- Part of Phase 5 Exit Criteria
+
+## Cross-Cutting Integration
+
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: Ô£à Included in this feature | ÔÅ¡´©Å Deferred (separate issue) | ÔØî N/A (explain why)
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 2 | **OpenTelemetry** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 3 | **Structured Logging** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 4 | **Health Checks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 5 | **Validation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 6 | **Resilience** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 7 | **Distributed Locks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 8 | **Transactions** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 9 | **Idempotency** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 10 | **Multi-Tenancy** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 11 | **Module Isolation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 12 | **Audit Trail** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+
+
+LINKED PR #1264: docs: explain the 10 database providers and add their reference matrix (#83) (state closed)
+COMMIT fb073c68 (referenced): docs(architecture): explain Encina's 10 database providers (#83)
+COMMIT 82ade4c6 (referenced): docs(database): add the database providers reference page (#83)
+COMMIT 426dc596 (referenced): docs(features): state provider gaps as facts and link their issues (#83)
+COMMIT b84e76f3 (referenced): docs: explain the 10 database providers and add their reference matrix (#83) (#1264)
+LINKED PR #1305: docs(engineering): fold the 32 issues closed since 2026-09-22 into PROJECT-HISTORY (state closed)
+

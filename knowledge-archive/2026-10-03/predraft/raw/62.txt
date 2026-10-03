@@ -1,0 +1,138 @@
+ISSUE #62: [FEATURE] Routing Slip Pattern
+closed_at: 12/26/2025 23:17:15
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-messaging-patterns, area-eip
+
+BODY:
+## Summary
+
+Implement the Routing Slip pattern for dynamic message routing through multiple processing steps.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+The Routing Slip pattern (an Enterprise Integration Pattern) enables dynamic, multi-step message processing where each step can modify the route at runtime. Unlike sagas which define steps upfront, routing slips allow steps to add, remove, or reorder subsequent steps based on processing results, with built-in compensation for rollback on failure.
+
+## Proposed Solution
+
+- Dynamic route definition via `RoutingSlipBuilder`
+- Step execution with compensation logic
+- Route modification mid-flight (add/remove steps dynamically)
+- Completion tracking and notification
+
+```csharp
+var routingSlip = new RoutingSlipBuilder()
+    .AddStep<ValidateOrder>()
+    .AddStep<ProcessPayment>()
+    .AddStep<ReserveInventory>()
+    .AddStep<ShipOrder>()
+    .OnCompletion<NotifyCustomer>()
+    .Build();
+
+await _encina.Execute(routingSlip, new OrderData(orderId, items));
+
+// Each step can modify the slip
+public class ProcessPaymentStep : IRoutingSlipStep<OrderData>
+{
+    public async Task<RoutingSlipResult> Execute(
+        OrderData data,
+        RoutingSlipContext context)
+    {
+        var result = await _paymentService.Process(data.OrderId);
+
+        if (result.RequiresManualReview)
+        {
+            // Add a new step dynamically
+            context.AddStep<ManualReviewStep>();
+        }
+
+        return RoutingSlipResult.Continue(data with { PaymentId = result.Id });
+    }
+
+    public async Task Compensate(OrderData data, RoutingSlipContext context)
+    {
+        await _paymentService.Refund(data.PaymentId);
+    }
+}
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Step execution, compensation, route modification | Core behavior |
+| Integration Tests | Maybe | End-to-end multi-step execution | Full pipeline |
+| Property Tests | Maybe | Step ordering invariants, compensation correctness | If complex |
+| Contract Tests | Yes | IRoutingSlipStep contract | Public API |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Design routing slip abstractions
+- [ ] Implement `RoutingSlipBuilder`
+- [ ] Create step execution pipeline
+- [ ] Add compensation logic
+- [ ] Implement route modification
+- [ ] Add completion tracking
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Routing slip executes steps in order
+- [ ] Compensation runs on failure
+- [ ] Dynamic route modification works
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Enterprise Integration Patterns
+
+
+COMMENT by dlrivada:
+Implemented Routing Slip Pattern (Phase 2 - Enterprise Patterns).
+
+## Summary
+Added the Routing Slip enterprise integration pattern to `Encina.Messaging` for dynamic message routing with compensation support.
+
+## Features
+- `RoutingSlipBuilder` fluent API for inline step definition
+- Dynamic route modification via `RoutingSlipContext`:
+  - `AddStep()`, `AddStepNext()`, `InsertStep()`, `RemoveStepAt()`, `ClearRemainingSteps()`
+- Automatic compensation in reverse order on failure
+- Configurable via `RoutingSlipOptions`
+- Full ROP error handling with `Either<EncinaError, TData>`
+- High-performance logging with `LoggerMessage` (EventIds 400-415)
+
+## Key Differences from Saga Pattern
+| Aspect | Saga | Routing Slip |
+|--------|------|--------------|
+| Route | Fixed at build time | Dynamic during execution |
+| Step Modification | Not possible | Full control via context |
+| Use Case | Predefined workflows | Adaptive workflows |
+
+## Test Coverage
+- 137 tests (unit, property, guard)
+- No integration/load tests needed (in-memory execution only)
+
+## Files Created
+- 13 source files in `src/Encina.Messaging/RoutingSlip/`
+- 6 test files in `tests/Encina.Tests/`
+
+## Documentation Updated
+- CHANGELOG.md
+- ROADMAP.md  
+- docs/history/2025-12.md
+
+COMMIT f0eff2ff (referenced): feat(messaging): add Routing Slip pattern for dynamic message routing (Fixes #62)
+

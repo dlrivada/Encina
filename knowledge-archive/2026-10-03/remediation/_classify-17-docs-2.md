@@ -1,0 +1,1 @@
+kind: docs; duplicate-of: #1347; keywords: ADR-027, EventStoreDB, AGENTS.md

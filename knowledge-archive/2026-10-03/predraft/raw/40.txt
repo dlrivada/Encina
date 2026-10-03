@@ -1,0 +1,85 @@
+ISSUE #40: [FEATURE] Automatic Rate Limiting - detect outages and auto-throttle
+closed_at: 12/26/2025 14:42:46
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-resilience, area-rate-limiting
+
+BODY:
+## Summary
+
+Implement automatic rate limiting that detects service outages and automatically throttles message processing.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+When downstream services experience outages, continuing to send messages at full rate wastes resources and can worsen the problem. Automatic rate limiting detects failure patterns, throttles processing, and gradually ramps back up on recovery.
+
+## Proposed Solution
+
+### Features
+
+- Automatic outage detection
+- Dynamic rate adjustment
+- Circuit breaker integration
+- Metrics and alerting
+- Recovery detection and ramp-up
+
+### Proposed API
+
+```csharp
+services.AddEncinaRateLimiting(config =>
+{
+    config.MaxConcurrentMessages = 10;
+    config.ErrorThreshold = 0.5; // 50% error rate triggers throttling
+    config.CooldownPeriod = TimeSpan.FromMinutes(1);
+    config.RampUpFactor = 2; // Double capacity on recovery
+});
+```
+
+### Implementation Tasks
+
+- [ ] Design rate limiting algorithm
+- [ ] Implement outage detection
+- [ ] Add dynamic rate adjustment
+- [ ] Integrate with circuit breaker (Polly)
+- [ ] Add metrics and alerting
+- [ ] Implement recovery ramp-up
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging.Enterprise` (new package)
+- `Encina.Polly` (circuit breaker integration)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Rate limiting algorithm, thresholds |
+| Integration Tests | Yes | Full pipeline with throttling |
+| Contract Tests | Maybe | Rate limiter interface |
+| Property Tests | Yes | Rate adjustment invariants |
+| Load Tests | Yes | Throttling under real concurrent load |
+
+## Acceptance Criteria
+
+- [ ] Rate limiting activates on errors
+- [ ] Graceful degradation works
+- [ ] Recovery ramp-up functional
+- [ ] Metrics exposed for monitoring
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+- Integrates with Encina.Polly
+
+
+COMMIT 750e82dd (closed): feat(polly): add automatic rate limiting with adaptive throttling (Fixes #40)
+

@@ -1,0 +1,37 @@
+Remediation for #18:
+- code 1 (Blocker): draft 18-code-1-five-transport-packages-dispose-their-di-singleton-client.md
+- code 2 (Major): merged into docs 1 (same location)
+- code 3 (Major): draft 18-code-3-src-encina-rabbitmq-src-encina-kafka-src-encina.md
+- code 4 (Minor): draft 18-code-4-src-encina-rabbitmq-servicecollectionextensions-cs-53-factor.md
+- tests 1 (Blocker): draft 18-tests-1-five-transport-packages-nats-rabbitmq-mqtt-azureservicebus-k.md
+- tests 2 (Major): draft 18-tests-2-encina-inmemory-the-inmemorymessagebus-implementation-has-ze.md
+- tests 3 (Major): draft 18-tests-3-encina-mqtt-mqttmessagepublisher-cs-is-only-33-6.md
+- tests 4 (Minor): draft 18-tests-4-encina-rabbitmq-servicecollectionextensions-cs-53-59-and-enc.md
+- tests 5 (Minor): draft 18-tests-5-src-encina-nats-natsmessagepublisher-cs-93-141-requestasync.md
+- docs 1 (Blocker): draft 18-docs-1-docs-messaging-transports-md-293-services-addencinanatscore.md
+- docs 2 (Blocker): draft 18-docs-2-docs-messaging-transports-md-224-229-shows-options.md
+- docs 3 (Blocker): draft 18-docs-3-docs-messaging-transports-md-257-262-documents-options.md
+- docs 4 (Blocker): draft 18-docs-4-docs-messaging-transports-md-334-options-queuename-orders.md
+- docs 5 (Blocker): draft 18-docs-5-docs-messaging-transports-md-358-options-queueurl-https.md
+- docs 6 (Blocker): draft 18-docs-6-docs-messaging-transports-md-389-await-subscriber-subscribea.md
+- docs 7 (Blocker): draft 18-docs-7-docs-messaging-transports-md-410-options-brokeraddress-local.md
+- docs 8 (Blocker): draft 18-docs-8-docs-messaging-transports-md-441-447-documents-services.md
+- docs 9 (Blocker): draft 18-docs-9-docs-messaging-transports-md-462-464-documents-services.md
+- docs 10 (Blocker): draft 18-docs-10-docs-messaging-transports-md-498-506-the-testing.md
+- docs 11 (Blocker): draft 18-docs-11-docs-messaging-transports-md-545-549-faq-how.md
+- docs 12 (Blocker): duplicate of #1177 (manual override)
+- docs 13 (Major): draft 18-docs-13-docs-messaging-transports-md-520-528-faq-should.md
+- docs 14 (Major): draft 18-docs-14-docs-messaging-transports-md-mixes-all-four-di.md
+- docs 15 (Major): draft 18-docs-15-the-page-asserts-full-api-parity-per-transport.md
+
+## Lessons for the pipeline
+- docs 12: recorded as duplicate of #1177 by manual override
+- tests 1: cited `RabbitMQ/ServiceCollectionExtensionsTests.cs:89`, which is the comment line; the test method `AddEncinaRabbitMQ_RegistersPublisher` starts at line 81.
+- tests 2: gave `InMemoryMessageBus.cs` as 252 lines; the file has 251 lines.
+- tests 3: cited `MQTTMessagePublisherTests.cs:299-342` as the subscription tests; the null-argument subscription tests extend to line 353.
+- tests 4: said a fake `IConnectionFactory`/`IMqttClient` double can be substituted before resolution; the RabbitMQ and MQTT factory delegates create `new ConnectionFactory` (RabbitMQ `ServiceCollectionExtensions.cs:44`) and `new MqttClientFactory()` (MQTT `:45`) inline, so there is no substitution seam (a pre-registered singleton makes `TryAddSingleton` skip the delegate instead of running it). The test needs the fix of the sync-over-async defect to expose a seam first.
+- tests 5: called `NATSMessagePublisherRequestAsyncTests.cs:71` the only test of `RequestAsync`; `NATSMessagePublisherTests.cs:185` is a second null-request test. Both stop at the null guard, so the conclusion holds.
+- docs 15: named AzureServiceBus among the packages whose consume sample the page shows; the Azure Service Bus section (`docs/messaging/transports.md:321-344`) has none, and the NATS JetStream section does (`consumer.ReplayFromAsync(` at :316). The affected-package list in that draft follows the finding as written.
+- docs 5: did not report `options.Region = RegionEndpoint.USEast1` at `docs/messaging/transports.md:357`; `Region` is a `string` (`src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs:13`), so that line also fails to compile. The draft covers only `QueueUrl` and `StartAsync`, as reported.
+- docs 7: did not report `subscriber.SubscribeAsync("sensors/+/temperature", async (topic, message) => ...)` at `docs/messaging/transports.md:422`; `MQTTMessagePublisher.SubscribeAsync` takes `(handler, topic, ...)` (`src/Encina.MQTT/MQTTMessagePublisher.cs:97-102`) and the `(topic, message)` handler form is `SubscribePatternAsync(handler, topicFilter, ...)` (`:131-136`). The draft covers only `BrokerAddress`, as reported.
+- code 3 and docs 15 describe the same underlying gap (publish-only broker transports) from the code side and from the documentation side; the manifest kept them as two drafts, one per template.

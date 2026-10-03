@@ -1,0 +1,127 @@
+ISSUE #81: [FEATURE] Documentation: Quickstart Guide (5 min)
+closed_at: 09/23/2026 17:36:23
+labels: documentation, phase-5-docs, priority-critical, complexity-low, area-documentation-site, p0-mandatory
+
+BODY:
+## Summary
+
+**Create a quickstart guide** that gets users running their first Encina request in under 5 minutes.
+
+## Motivation
+
+- **Fast onboarding**: Minimize time to first success
+- **Immediate value**: Users see results quickly
+- **Confidence building**: Working code proves library works
+- **Gateway to deeper learning**: Success leads to exploration
+
+## Proposed Solution
+
+### Quickstart Flow (5 Minutes)
+
+1. **Install package** (30 seconds)
+   ```bash
+   dotnet add package Encina
+   ```
+
+2. **Configure services** (30 seconds)
+   ```csharp
+   builder.Services.AddEncina(typeof(Program).Assembly);
+   ```
+
+3. **Create a command** (1 minute)
+   ```csharp
+   public record CreateGreeting(string Name) : ICommand<string>;
+   ```
+
+4. **Create a handler** (1.5 minutes)
+   ```csharp
+   public class CreateGreetingHandler : ICommandHandler<CreateGreeting, string>
+   {
+       public Task<Either<EncinaError, string>> HandleAsync(
+           CreateGreeting command, CancellationToken ct)
+           => Task.FromResult<Either<EncinaError, string>>($"Hello, {command.Name}!");
+   }
+   ```
+
+5. **Send and handle result** (1.5 minutes)
+   ```csharp
+   var result = await mediator.SendAsync(new CreateGreeting("World"));
+   result.Match(
+       error => Console.WriteLine($"Error: {error.Message}"),
+       message => Console.WriteLine(message)); // "Hello, World!"
+   ```
+
+### File Location
+
+`docs/quickstart.md`
+
+### Tasks
+
+- [ ] Write step-by-step guide
+- [ ] Include copy-paste code samples
+- [ ] Add expected output
+- [ ] Test guide from scratch
+- [ ] Add troubleshooting section
+
+## Alternatives Considered
+
+1. **Comprehensive getting started**: Cover more features. Takes too long, loses users.
+
+2. **Video quickstart**: Create a video tutorial. Less accessible, can't copy-paste.
+
+3. **Interactive tutorial**: Use .NET Interactive notebook. Requires additional setup.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [x] Other: `docs/quickstart.md`
+
+## Additional Context
+
+### Acceptance Criteria
+
+- [ ] Can be completed in 5 minutes
+- [ ] All code samples work when copy-pasted
+- [ ] Clear success criteria (expected output)
+- [ ] Troubleshooting covers common issues
+
+### References
+
+- Part of Phase 5 Exit Criteria
+
+## Cross-Cutting Integration
+
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: Ô£à Included in this feature | ÔÅ¡´©Å Deferred (separate issue) | ÔØî N/A (explain why)
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 2 | **OpenTelemetry** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 3 | **Structured Logging** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 4 | **Health Checks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 5 | **Validation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 6 | **Resilience** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 7 | **Distributed Locks** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 8 | **Transactions** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 9 | **Idempotency** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 10 | **Multi-Tenancy** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 11 | **Module Isolation** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+| 12 | **Audit Trail** | ÔØî N/A | Documentation only ÔÇö no runtime code |
+
+
+LINKED PR #1175: docs(intro): add the introduction and philosophy page (#80) (state closed)
+LINKED PR #1176: docs(tutorials): add the quickstart tutorial (#81) (state closed)
+LINKED PR #1178: chore(claude): allow read-only git clone in the worker publish hook (state closed)
+LINKED PR #1179: chore(claude): add the encina-docs skill (Di├ítaxis) and the docs-writer / docs-reviewer agents (state closed)
+COMMIT fdf59daf (referenced): docs(intro): state how handler exceptions propagate; drop the quickstart link until #81 lands (#80 review)
+COMMIT fdea69e0 (referenced): docs(tutorials): add the quickstart tutorial (#81)
+COMMIT d282c82b (referenced): docs(tutorials): distinct top-level nav order and a verified next step (#81 review)
+COMMIT 8c66b0be (referenced): docs(intro): link the quickstart tutorial (#81)
+COMMIT 720e11b7 (referenced): docs(intro): add the introduction and philosophy page (#80) (#1175)
+COMMIT 80b31773 (referenced): docs(tutorials): add the quickstart tutorial (#81)
+COMMIT 94da5d6e (referenced): docs(tutorials): distinct top-level nav order and a verified next step (#81 review)
+COMMIT 0d77faf6 (referenced): docs(intro): link the quickstart tutorial (#81)
+COMMIT 1e248655 (referenced): docs(tutorials): add the quickstart tutorial (#81) (#1176)
+LINKED PR #1305: docs(engineering): fold the 32 issues closed since 2026-09-22 into PROJECT-HISTORY (state closed)
+

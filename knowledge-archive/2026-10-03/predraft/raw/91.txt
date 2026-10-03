@@ -1,0 +1,197 @@
+ISSUE #91: [FEATURE] Generate API reference documentation
+closed_at: 04/20/2026 13:00:12
+labels: documentation, phase-5-docs, priority-high, complexity-low, area-documentation-site
+
+BODY:
+## Summary
+
+**Generate API reference documentation** from XML comments using DocFX for comprehensive API docs.
+
+## Motivation
+
+- **Discoverability**: Users can browse and search all public APIs
+- **Accuracy**: Generated from code ensures documentation is accurate
+- **Examples**: XML docs can include code examples
+- **IDE integration**: Same XML docs power IntelliSense in IDEs
+
+## Proposed Solution
+
+### Current State
+
+XML documentation is enabled on all projects (`<GenerateDocumentationFile>true</GenerateDocumentationFile>`).
+
+### DocFX Configuration
+
+DocFX is already configured to generate API docs from XML comments.
+
+### Enhancement Tasks
+
+```csharp
+/// <summary>
+/// Sends a command through the mediator pipeline.
+/// </summary>
+/// <typeparam name="TResponse">The response type.</typeparam>
+/// <param name="command">The command to send.</param>
+/// <param name="cancellationToken">Cancellation token.</param>
+/// <returns>Either an error or the successful response.</returns>
+/// <example>
+/// <code>
+/// var result = await mediator.SendAsync(new CreateOrderCommand(customerId, items));
+/// return result.Match(
+///     error => BadRequest(error.Message),
+///     order => Ok(order));
+/// </code>
+/// </example>
+public Task<Either<EncinaError, TResponse>> SendAsync<TResponse>(
+    ICommand<TResponse> command,
+    CancellationToken cancellationToken = default);
+```
+
+### Tasks
+
+- [ ] Verify all public APIs have XML comments
+- [ ] Add code examples to key APIs
+- [ ] Configure DocFX API documentation
+- [ ] Generate and review API reference
+- [ ] Fix any missing documentation
+
+## Alternatives Considered
+
+1. **Manual API documentation**: Write API docs by hand. Time-consuming, easily becomes outdated.
+
+2. **No API reference**: Only conceptual docs. Developers need API reference for detailed usage.
+
+3. **Swagger/OpenAPI only**: Generate from API endpoints. Only covers HTTP APIs, not library APIs.
+
+## Affected Packages
+
+- [x] Encina (core)
+- [x] All packages (all public APIs documented)
+
+## Additional Context
+
+### Acceptance Criteria
+
+- [ ] All public APIs have XML documentation
+- [ ] Examples included for key APIs
+- [ ] Navigation works correctly
+- [ ] Search finds APIs
+- [ ] No documentation warnings during build
+
+### Related Issues
+
+- Depends on #90 (GitHub Pages deployment)
+
+### References
+
+- [DocFX](https://dotnet.github.io/docfx/)
+- [XML Documentation Comments](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/)
+- Part of Phase 5 Exit Criteria
+
+
+## Cross-Cutting Integration
+
+> Per CLAUDE.md Cross-Cutting Integration Rule: Every new feature MUST be evaluated against ALL 12 transversal functions.
+> Mark each: Ô£à Included in this feature | ÔÅ¡´©Å Deferred (separate issue) | ÔØî N/A (explain why)
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | **Caching** | ÔØî N/A | Documentation artifact |
+| 2 | **OpenTelemetry** | ÔØî N/A | Documentation artifact |
+| 3 | **Structured Logging** | ÔØî N/A | Documentation artifact |
+| 4 | **Health Checks** | ÔØî N/A | Documentation artifact |
+| 5 | **Validation** | ÔØî N/A | Documentation artifact |
+| 6 | **Resilience** | ÔØî N/A | Documentation artifact |
+| 7 | **Distributed Locks** | ÔØî N/A | Documentation artifact |
+| 8 | **Transactions** | ÔØî N/A | Documentation artifact |
+| 9 | **Idempotency** | ÔØî N/A | Documentation artifact |
+| 10 | **Multi-Tenancy** | ÔØî N/A | Documentation artifact |
+| 11 | **Module Isolation** | ÔØî N/A | Documentation artifact |
+| 12 | **Audit Trail** | ÔØî N/A | Documentation artifact |
+
+
+COMMENT by dlrivada:
+## Proposal: Hybrid Jekyll + DocFX architecture
+
+### Current state (updated)
+
+The "DocFX is already configured" note in the description is outdated. Commit [d951c49c](https://github.com/dlrivada/Encina/commit/d951c49c) (PR #915, 2026-03-27) removed `docs/docfx.json` when migrating the site to Jekyll (`just-the-docs` theme). As a consequence:
+
+- `docs/_config.yml` now drives the site, deployed automatically via `pages-build-deployment`.
+- `.github/workflows/docs.yml` still invokes `dotnet docfx metadata docs/docfx.json` and is disabled (only `workflow_dispatch`). It has had no successful run since 2026-03-27.
+- No API reference is currently generated ÔÇö only narrative docs exist.
+
+### Recommendation: keep both, with disjoint scopes
+
+Jekyll and DocFX can coexist without conflict if we assign each a clear responsibility:
+
+| Scope | Tool | Output |
+|---|---|---|
+| Narrative docs, guides, ADRs, getting-started, features index | **Jekyll** (just-the-docs) | `docs/**/*.md` ÔåÆ site root |
+| Auto-generated API reference (types, members, XML docs, `cref` links) | **DocFX** | `docs/api/*.html` (static HTML) |
+
+#### Why both are needed
+
+- **Jekyll alone is insufficient** for a project with 112 packages and hundreds of public types ÔÇö documenting every `IOutboxStore.AddAsync(...)` by hand does not scale and drifts from code.
+- **DocFX alone loses `just-the-docs`** ÔÇö we'd sacrifice the current (working) narrative UX for the sake of API reference.
+- **Each fills the other's gap**: narrative UX Ôåö auto-generated API ref.
+
+### Technical plan
+
+1. **Restore `docs/docfx.json`** scoped to API metadata only (not the full site):
+   - `metadata`: scan all `src/**/*.csproj`, output YAML to `docs/api/.metadata/`
+   - `build`: consume metadata, render HTML to `docs/api/`
+   - No `toc.yml` for narrative content (Jekyll owns that)
+2. **Exclude `api/` from Jekyll** in `docs/_config.yml`:
+   ```yaml
+   exclude:
+     - api/          # DocFX-generated, serve as static assets
+   ```
+3. **Rewrite `.github/workflows/docs.yml`** so the build order is:
+   - Restore deps ÔåÆ build solution ÔåÆ `dotnet docfx metadata` ÔåÆ `dotnet docfx build` ÔåÆ commit `docs/api/` (or upload as Pages artifact alongside Jekyll output)
+4. **Link from Jekyll nav** to `/Encina/api/` via `aux_links` in `_config.yml`.
+5. **Baseurl alignment**: DocFX `_appBaseUrl` must match Jekyll `baseurl: /Encina` to avoid broken cross-links.
+
+### Known tradeoffs (accepted)
+
+1. **Theme inconsistency**: `/api/*` pages use DocFX's Modern theme, not just-the-docs. Mitigable with custom CSS, never perfect. Acceptable because users visiting API reference are in a different mental mode (code lookup) than users reading guides.
+2. **Separate search indexes**: Jekyll search covers narrative; DocFX search covers API. A global search would require a third tool (Algolia DocSearch) ÔÇö out of scope.
+3. **CI complexity**: two build tools, two sets of deps (`dotnet-tools.json` already has DocFX; Jekyll runs on the Pages side). Par [...]
+
+COMMENT by dlrivada:
+## Implementation summary ÔÇö PR #1031
+
+Hybrid Jekyll + DocFX architecture implemented per the [proposal above](#issuecomment-4279235731). PR open: #1031 (awaiting final review; not merged yet so this issue remains open until then).
+
+### What landed
+
+**New files:**
+- `docs/docfx.json` ÔÇö DocFX configured for API-only scope. Metadata `dest: "api"` ÔåÆ flat layout via `src: "api", dest: "."` in `build.content` so output lives at `_api-build/*.html` (not `_api-build/api/*.html`). `separatePages` member layout, `nested` namespace layout. Private members and explicit interface implementations excluded.
+- `docs/filterConfig.yml` ÔÇö includes `Encina.*`, excludes `System.*`, `Microsoft.*`, and anything marked `[EditorBrowsable(Never)]`.
+- `docs/_api-landing/index.md` ÔÇö human-written landing page served at `/api/`, introduces the reference and links back to the Jekyll site.
+
+**Modified files:**
+- `docs/_config.yml` ÔÇö adds `aux_links["API Reference"]: /api/` to the navbar, excludes `docfx.json`, `filterConfig.yml`, `_api-build/`, `_api-landing/`, `api/` from Jekyll processing.
+- `.github/workflows/docs.yml` ÔÇö full rewrite. Triggers on push/PR to `docs/**`, `src/**/*.cs`, `src/**/*.csproj`, `Directory.Build.{props,targets}`, or the workflow itself. Pipeline: `dotnet tool restore` ÔåÆ `dotnet restore Encina.slnx` ÔåÆ `dotnet build` ÔåÆ `dotnet docfx metadata` ÔåÆ `dotnet docfx build` ÔåÆ `configure-pages` ÔåÆ `jekyll-build-pages` ÔåÆ `sudo chown -R _site` ÔåÆ `Preserve sibling Pages subtrees` (main-only) ÔåÆ `Merge DocFX into _site/api/` ÔåÆ `upload-pages-artifact` (main-only) ÔåÆ `deploy-pages` (main-only).
+- `.gitignore` ÔÇö ignores `docs/_api-build/` (CI intermediate).
+- `.github/lychee.toml` ÔÇö consolidated `docs.nestjs.com` + `courses.nestjs.com` into a single `nestjs.com` pattern that also covers the root (was blocking CI with flaky timeouts).
+
+### Architectural properties preserved from the proposal
+
+- Ô£à Jekyll owns narrative content; DocFX owns the auto-generated API reference. No overlap.
+- Ô£à `/Encina/api/` subpath; `_config.yml` excludes prevent Jekyll from touching DocFX territory.
+- Ô£à CI does a single atomic deploy ÔÇö Jekyll `_site/` + DocFX output merged under `_site/api/` before `upload-pages-artifact`. Unblocks Pages redeployments (stale since 2026-03-29 when the dead DocFX-only workflow was disabled).
+- Ô£à DocFX intermediates never committed to git.
+- Ô£à Sibling Pages subtrees (`/coverage/`, `/benchmarks/`, `/load-tests/`, `/mutations/`) preserved by fetching live copies of `*/data/*.json` and `*/badge.{svg,json}` before upload ÔÇö mirrors the pattern in `publish-benchmarks.yml`.
+
+### Security hardening (from reviewer feedback)
+
+- Deploy job requires `github.ref == 'refs/heads/main'` ÔÇö no workflow_dispatch from feature branches overwriting Pages.
+- `build-docs` job has `pages: write` but not `id-token: write` ÔÇö OIDC only granted to `deploy-pages@v5`.
+- `upload-pages-artifact` gated to main-only ÔÇö PR validation stops at [...]
+
+COMMIT 09255c9f (referenced): feat(docs): implement hybrid Jekyll + DocFX architecture (#91)
+LINKED PR #1031: feat(docs): hybrid Jekyll + DocFX architecture for API reference (state closed)
+COMMIT 649547bb (referenced): feat(docs): hybrid Jekyll + DocFX architecture for API reference (#1031)
+LINKED PR #1035: fix(docs): API Reference aux_link baseurl + namespace dropdown scroll (state closed)
+

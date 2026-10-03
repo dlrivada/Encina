@@ -1,0 +1,111 @@
+ISSUE #47: [FEATURE] Encina.Cli - command-line scaffolding tool
+closed_at: 12/27/2025 14:25:36
+labels: enhancement, phase-2-functionality, priority-medium, complexity-high, new-package, area-cli
+
+BODY:
+## Summary
+
+Create a CLI tool for scaffolding Encina-based projects and components.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: High
+
+Developers need a fast way to scaffold Encina projects and generate handlers, sagas, and package configurations. A CLI tool (like `dotnet ef` or `dotnet aspire`) reduces onboarding friction and enforces project conventions.
+
+## Proposed Solution
+
+### Features
+
+- Project scaffolding
+- Handler generation
+- Saga generation
+- Integration with `dotnet new`
+
+### Proposed Commands
+
+```bash
+# Install the tool
+dotnet tool install -g Encina.Cli
+
+# Create new project
+encina new api MyApi
+encina new worker MyWorker
+
+# Generate handlers
+encina generate handler CreateOrder --response OrderId
+encina generate query GetOrderById --response Order
+
+# Generate sagas
+encina generate saga OrderProcessing --steps "Create,Pay,Ship"
+
+# Add packages
+encina add caching redis
+encina add database dapper-sqlserver
+encina add transport rabbitmq
+```
+
+### Implementation Tasks
+
+- [ ] Create CLI project structure
+- [ ] Implement project scaffolding
+- [ ] Implement handler generation
+- [ ] Implement saga generation
+- [ ] Create `dotnet new` templates
+- [ ] Add documentation
+- [ ] Add integration tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Cli` (new dotnet tool package)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Template rendering, argument parsing |
+| Integration Tests | Yes | Full scaffolding end-to-end |
+| Contract Tests | No | CLI tool, not a library API |
+| Property Tests | No | Template generation, not complex logic |
+
+## Acceptance Criteria
+
+- [ ] CLI installs via `dotnet tool`
+- [ ] Project scaffolding works
+- [ ] Handler generation works
+- [ ] Saga generation works
+- [ ] Documentation complete
+
+## Related Issues
+
+- Developer Tooling
+- Lower priority than Encina.Testing
+
+
+COMMENT by dlrivada:
+Implemented Encina.Cli scaffolding tool:
+
+**Features**:
+- `encina new <template> <name>` - Create new Encina projects (api, worker, console)
+- `encina generate handler|query|saga|notification` - Generate code files
+- `encina add caching|database|transport|validation|resilience|observability` - Add packages
+
+**Technology**: System.CommandLine 2.0.1 + Spectre.Console
+
+**Tests**: 65 tests (21 unit + 44 guard)
+
+**Files created**:
+- src/Encina.Cli/ (project + commands + services)
+- tests/Encina.Cli.Tests/
+- tests/Encina.Cli.GuardTests/
+
+Documented in CHANGELOG.md, ROADMAP.md, and docs/history/2025-12.md
+
+COMMIT b02647b3 (referenced): feat(cli): add Encina.Cli scaffolding tool (Fixes #47)
+

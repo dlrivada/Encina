@@ -1,0 +1,177 @@
+ISSUE #17: [SPIKE] Implement Strategy pattern for Event Sourcing (EventStoreDB vs Marten)
+closed_at: 12/23/2025 21:27:14
+labels: enhancement, area-event-sourcing, investigation
+
+BODY:
+## Context
+
+Implement the Strategy + Orchestrator + Provider pattern for Event Sourcing, recognizing that **EventStoreDB** and **Marten** represent fundamentally different strategies with different capabilities and trade-offs.
+
+The pattern is: `User selects Strategy ÔåÆ Factory creates Strategy-specific Orchestrator ÔåÆ Orchestrator uses EventStore`
+
+### Current State
+
+- `Encina.EventStoreDB` - EventStoreDB client wrapper
+- `Encina.Marten` - Marten integration
+
+Both have `AggregateRepository` but with different capabilities.
+
+### Why Strategies, Not Just Providers?
+
+| Aspect | EventStoreDB Strategy | Marten Strategy |
+|--------|----------------------|-----------------|
+| **Storage** | Dedicated event store | PostgreSQL tables |
+| **Projections** | Server-side, catch-up subscriptions | Inline, async daemon |
+| **Subscriptions** | Native persistent subscriptions | Polling or async daemon |
+| **Query** | Limited (by stream, category) | Full SQL + LINQ |
+| **Ops complexity** | Separate infrastructure | Uses existing PostgreSQL |
+| **Performance** | Optimized for event streams | Good, but general-purpose DB |
+
+These aren't interchangeable - choosing one affects your entire architecture.
+
+## Options to Evaluate
+
+### Option A: Strategy + Orchestrator Pattern (Both Strategies)
+
+- **Description**: Define `IEventSourcingStrategy` marker interfaces, create strategy-specific orchestrators for both EventStoreDB and Marten with their unique features exposed
+- **Pros**: Full coverage, explicit architectural choice, strategy-specific features (projections, subscriptions)
+- **Cons**: More implementation work, potential complexity in abstraction
+- **Effort**: High
+
+```csharp
+// Abstractions
+public interface IEventSourcingStrategy { }
+public interface IEventStoreDBStrategy : IEventSourcingStrategy { }
+public interface IMartenStrategy : IEventSourcingStrategy { }
+
+public interface IAggregateOrchestrator<TStrategy> where TStrategy : IEventSourcingStrategy
+{
+    Task<Either<EncinaError, TAggregate>> LoadAsync<TAggregate>(Guid id, CancellationToken ct)
+        where TAggregate : IAggregate;
+    Task<Either<EncinaError, Unit>> SaveAsync<TAggregate>(TAggregate aggregate, CancellationToken ct)
+        where TAggregate : IAggregate;
+}
+
+// User configuration
+services.AddEncina(config => {
+    config.UseEventSourcing<MartenStrategy>(es => {
+        es.UseInlineProjections<OrderProjection>();
+        es.UseAsyncProjections<ReportingProjection>();
+    });
+});
+```
+
+#### Strategy-Specific Features
+
+**EventStoreDB Strategy**: `SubscribeToStream()`, `SubscribeToCategory()`, `CreateProjection()` (server-side JS projections)
+
+**Marten Strategy**: `UseInlineProjection<T>()`, `UseAsyncProjection<T>()`, `UseLiveAggregation()` (on-demand aggregation)
+
+### Option B: Keep Both Packages Independent
+
+- **Description**: Keep `Encina.EventStoreDB` and `Encina.Marten` as independent packages without shared strategy abstraction
+- **Pros**: Simpler, each package is self-contained, no abstraction overhead
+- **Cons**: No unified API, harder to switch between strategies
+- **Effort**: None (current state)
+
+### Option C: Shared Abstractions Only
+
+- **Description**: Create `Encina.EventSourcing` with shared interfaces but no strategy pattern
+- **Pros**: Common interfaces, simpler than full strategy pattern
+- **Cons**: Doesn't capture the fundamental differences between strategies
+- **Effort**: Medium
+
+## Decision Criteria
+
+- [ ] Performance impact
+- [x] Complexity / maintainability
+- [x] Ecosystem compatibility (.NET 10)
+- [ ] Provider coverage (13 database providers)
+- [x] Breaking change impact
+- [x] Community/industry adoption
+- [ ] Other: ___
+
+## Scope
+
+### In Scope
+
+- Analyze common and divergent patterns between EventStoreDB and Marten
+- Design strategy selection API
+- Define projection abstraction approach
+- Determine if `Encina.EventSourcing` abstractions package is needed
+
+### Out of Scope
+
+- Full implementation of both strategy orchestrators (separate implementation issues)
+- Snapshotting strategy (separate concern)
+
+## Deliverables
+
+- [ ] ADR document in `docs/architecture/adr/`
+- [ ] Proof of concept / prototype
+- [ ] Technical document in `docs/`
+- [ ] Migration guide (if changing existing approach)
+- [ ] Updated ROADMAP.md (if applicable)
+
+## Open Questions
+
+- Should we create `Encina.EventSourcing` abstractions package?
+- How to handle projections API differences?
+- Should snapshotting be part of strategy or separate concern?
+
+## Time Box
+
+Estimated investigation time: 4-8 hours
+
+## Related Issues
+
+- #15 - Apply Orchestrator pattern to Event Sourcing (closed - was using simple Orchestrator pattern)
+- #16 - Implement Strategy pattern for Sagas
+- #18 - Implement Strategy pattern for Messaging Transports
+
+
+COMMENT by dlrivada:
+## Decision: Keep Only Marten, Deprecate EventStoreDB
+
+After analysis, we've decided to **deprecate Encina.EventStoreDB** and keep only **Encina.Marten** for Event Sourcing.
+
+### Why Marten over EventStoreDB?
+
+| Aspect | Marten | EventStoreDB |
+|--------|--------|--------------|
+| **Backend** | PostgreSQL (existing infra) | Dedicated server (extra infra) |
+| **Projections** | C# (native .NET) | JavaScript (server-side) |
+| **Transactions** | PostgreSQL ACID | Eventual consistency |
+| **Query** | Full LINQ + SQL | Limited (stream/category) |
+| **Integration** | Native .NET, async/await | gRPC client |
+| **Community** | Active (Jeremy Miller, Oskar Dudycz) | Active but smaller .NET focus |
+
+### Answers to Open Questions
+
+**Q: Should we create \ abstractions package?**
+> **Answer: No** - With only Marten, there's nothing to abstract. Marten's own API is excellent.
+
+**Q: How to handle projections API differences?**
+> **Answer: N/A** - No longer relevant with single provider.
+
+**Q: Should snapshotting be part of strategy or separate concern?**
+> **Answer: N/A** - Marten handles this natively.
+
+### Actions Taken
+
+1. Ô£à Moved \ to 2. Ô£à Updated \ to remove deprecated project references
+3. Ô£à Updated \ with deprecation note
+4. Ô£à Updated \ with deprecation details
+
+### Package Count Update
+
+- Event Sourcing: 2 ÔåÆ 1 package
+- Total active packages: 40 ÔåÆ 39
+
+### Reference
+
+See also Issue #16 for similar architectural decisions regarding Sagas (Orchestration vs Choreography).
+
+COMMIT 87d92a39 (referenced): refactor: deprecate EventStoreDB, Wolverine, NServiceBus, MassTransit, Dapr
+LINKED PR #1113: docs: promote nine rules into CLAUDE.md and record ADR-027..030 from the project history (state closed)
+

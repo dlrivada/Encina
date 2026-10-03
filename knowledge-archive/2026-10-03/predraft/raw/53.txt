@@ -1,0 +1,117 @@
+ISSUE #53: [FEATURE] Bulkhead Isolation - parallel execution isolation via Polly
+closed_at: 12/26/2025 19:01:33
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-resilience, area-polly
+
+BODY:
+## Summary
+
+Implement bulkhead isolation pattern for parallel execution isolation using Polly.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+In distributed systems, a single slow or failing downstream dependency can consume all available threads and cascade failures across the entire application. The bulkhead pattern isolates execution into separate pools, limiting the blast radius of failures and preventing resource exhaustion.
+
+## Proposed Solution
+
+- Limit concurrent executions per handler type
+- Prevent cascade failures by isolating execution pools
+- Queue excess requests with configurable limits
+- Configurable per command/query type
+
+```csharp
+services.AddEncinaBulkhead(config =>
+{
+    // Global bulkhead
+    config.MaxConcurrency = 100;
+    config.MaxQueuedActions = 50;
+
+    // Per-handler bulkhead
+    config.ForHandler<ProcessPaymentHandler>(options =>
+    {
+        options.MaxConcurrency = 10;  // Limit payment processing
+        options.MaxQueuedActions = 20;
+    });
+});
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Polly`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Concurrency limiting, queue behavior | Core behavior |
+| Integration Tests | Maybe | End-to-end with Polly policies | Real policy execution |
+| Load Tests | Yes | Concurrent execution under pressure | Key validation for bulkhead |
+| Property Tests | Maybe | Invariants on concurrency limits | If complex |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Maybe | Overhead of bulkhead wrapping | Measure per-request cost |
+
+## Implementation Tasks
+
+- [ ] Design bulkhead integration with Polly
+- [ ] Implement per-handler bulkhead
+- [ ] Add queue management
+- [ ] Create metrics for bulkhead usage
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Bulkhead limits concurrent executions
+- [ ] Excess requests queued
+- [ ] Metrics available for monitoring
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Isolated Features (Lower Priority)
+- Extends Encina.Polly
+
+
+COMMENT by dlrivada:
+Bulkhead Isolation Pattern implemented successfully!
+
+## Implementation Summary
+
+### New Files Created
+- `src/Encina.Polly/Attributes/BulkheadAttribute.cs` - Configuration attribute
+- `src/Encina.Polly/Bulkhead/IBulkheadManager.cs` - Interface and result types
+- `src/Encina.Polly/Bulkhead/BulkheadManager.cs` - SemaphoreSlim-based implementation
+- `src/Encina.Polly/Behaviors/BulkheadPipelineBehavior.cs` - Pipeline behavior
+
+### Tests Added
+- **Unit Tests**: 43 new tests in BulkheadAttributeTests, BulkheadManagerTests, BulkheadPipelineBehaviorTests
+- **Property Tests**: 6 new property-based tests for BulkheadMetrics and BulkheadAttribute
+- **Guard Tests**: 8 new guard clause tests
+- **Contract Tests**: Updated for Bulkhead behavior
+- **Integration Tests**: 3 new end-to-end tests
+- **Benchmarks**: New BulkheadBenchmarks class
+
+### Documentation
+- Updated CHANGELOG.md
+- Updated docs/history/2025-12.md
+- Updated PublicAPI.Unshipped.txt
+
+### Test Results
+- Unit Tests: 141 passed
+- Property Tests: 31 passed
+- Guard Tests: 17 passed
+- Contract Tests: 37 passed
+- **Total: 226 passing tests**
+
+### Note
+Some pre-existing integration test issues were discovered and tracked in #120.
+
+COMMIT 84ba922b (referenced): feat(polly): add Bulkhead Isolation pattern for concurrent execution limiting (Fixes #53)
+

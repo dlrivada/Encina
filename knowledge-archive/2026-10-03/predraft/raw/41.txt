@@ -1,0 +1,115 @@
+ISSUE #41: [FEATURE] Low-Ceremony Sagas - Wolverine-style minimal syntax
+closed_at: 12/26/2025 15:05:22
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-saga, wolverine-inspired
+
+BODY:
+## Summary
+
+Implement low-ceremony saga syntax inspired by Wolverine for simpler saga definitions.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+Traditional saga definitions require significant boilerplate (state classes, mappers, handler methods). A low-ceremony alternative reduces friction for simple sagas while keeping full saga capabilities available for complex scenarios.
+
+## Proposed Solution
+
+### Features
+
+- Minimal saga boilerplate
+- Convention-based message routing
+- Inline state management
+- Fluent compensation definition
+
+### Proposed API
+
+```csharp
+// Traditional approach requires much boilerplate
+// Low-ceremony approach:
+
+public class OrderHandler
+{
+    [Saga]
+    public async Task<SagaStep> Handle(StartOrder command)
+    {
+        return SagaStep
+            .Do(new ProcessPayment(command.OrderId))
+            .OnSuccess(new ShipOrder(command.OrderId))
+            .OnFailure(new RefundPayment(command.OrderId))
+            .Timeout(TimeSpan.FromMinutes(5));
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Design low-ceremony saga API
+- [ ] Implement `[Saga]` attribute
+- [ ] Create `SagaStep` fluent builder
+- [ ] Add convention-based routing
+- [ ] Implement inline state
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging` (saga infrastructure)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | SagaStep builder, attribute processing |
+| Integration Tests | Yes | End-to-end low-ceremony saga execution |
+| Contract Tests | Yes | `[Saga]` attribute contract |
+| Property Tests | Maybe | Saga step composition invariants |
+
+## Acceptance Criteria
+
+- [ ] Minimal boilerplate for simple sagas
+- [ ] Full saga capabilities available
+- [ ] Convention-based routing works
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Messaging & Enterprise Features
+- Inspired by Wolverine patterns
+
+
+COMMENT by dlrivada:
+Implemented Low-Ceremony Sagas with:
+
+## Features
+- `SagaDefinition.Create<TData>(sagaType)` fluent API
+- `SagaStepBuilder<TData>` with `Execute()` and `Compensate()` methods
+- `ISagaRunner` / `SagaRunner` for saga execution
+- Sequential step execution with data flow
+- Automatic compensation in reverse order on failure
+- Optional timeout configuration
+
+## Test Coverage
+- 45 unit tests
+- 11 property-based tests (FsCheck)
+- 8 contract tests
+
+## Files Created
+- `src/Encina.Messaging/Sagas/LowCeremony/SagaDefinition.cs`
+- `src/Encina.Messaging/Sagas/LowCeremony/SagaStepBuilder.cs`
+- `src/Encina.Messaging/Sagas/LowCeremony/ISagaRunner.cs`
+- `src/Encina.Messaging/Sagas/LowCeremony/SagaRunner.cs`
+- Unit, property, and contract test files
+
+## Documentation
+- Updated CHANGELOG.md
+- Updated docs/history/2025-12.md
+
+COMMIT c13aee3c (referenced): feat(sagas): add low-ceremony saga API for fluent saga definition (Fixes #41)
+

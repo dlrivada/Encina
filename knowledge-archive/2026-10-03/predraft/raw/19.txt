@@ -1,0 +1,126 @@
+ISSUE #19: [DEBT] Increase code coverage threshold to 85%
+closed_at: 09/24/2026 12:08:35
+labels: enhancement, technical-debt, phase-3-testing, priority-medium, complexity-high, area-testing, p1-recommended
+
+BODY:
+## Type
+
+- [ ] Failing tests
+- [ ] Missing tests
+- [x] Code quality (warnings, analyzers)
+- [ ] Performance optimization
+- [ ] Refactoring needed
+- [ ] Documentation gap
+- [ ] Incorrect implementation
+- [ ] Other
+
+## Description
+
+**Increase code coverage threshold to 85%** from current 45% to meet quality standards defined in CLAUDE.md.
+
+## Location
+
+- **File(s)**: `.github/workflows/dotnet-ci.yml`
+- **Package(s)**: All packages (coverage requirements apply to all)
+
+## Current Behavior
+
+### Current vs Target State
+
+| Metric | Current | Threshold | Target |
+|--------|---------|-----------|--------|
+| Line Coverage | ~67% | 45% | ÔëÑ85% |
+| Branch Coverage | ~71% | N/A | ÔëÑ80% |
+| Method Coverage | N/A | N/A | ÔëÑ90% |
+
+Commit ae9c376: Temporary threshold reduction to unblock CI.
+
+## Expected Behavior
+
+- Line coverage ÔëÑ85%
+- Branch coverage ÔëÑ80%
+- Method coverage ÔëÑ90%
+- CI threshold updated to 85%
+- No package below 80% line coverage
+- Critical packages (Core, Messaging) at 90%+
+
+## Root Cause
+
+Temporary threshold reduction to 45% was applied to unblock CI. The original target from CLAUDE.md Testing Standards is ÔëÑ85% line coverage.
+
+## Proposed Fix
+
+### Implementation Steps
+
+1. **Increase test coverage** (see #65, #66, #67)
+   - Add unit tests for uncovered code
+   - Add integration tests for database operations
+   - Cover error handling paths
+
+2. **Update CI threshold**
+   ```yaml
+   # .github/workflows/dotnet-ci.yml
+   - name: Check coverage threshold
+     run: |
+       # Change threshold from 45% to 85%
+       threshold=85
+   ```
+
+3. **Ensure per-package coverage**
+   - No package below 80% line coverage
+   - Critical packages (Core, Messaging) at 90%+
+
+### Alternatives Considered
+
+1. **Keep current threshold (45%)**: Accept lower standards. Quality degrades.
+2. **Gradual increase (45ÔåÆ65ÔåÆ85)**: Incremental increases. Delays quality improvement.
+3. **Package-specific thresholds**: Different thresholds per package. Inconsistent quality standards.
+
+## Priority
+
+- [x] **High** - Blocks functionality or causes failures in production
+- [ ] **Medium** - Should be fixed before 1.0 release
+- [ ] **Low** - Nice to have, can be deferred
+
+## Effort Estimate
+
+- [ ] Small (< 1 hour)
+- [ ] Medium (1-4 hours)
+- [x] Large (> 4 hours)
+
+## Related Issues
+
+- #65 - Increase line coverage to 85%
+- #66 - Increase branch coverage to 80%
+- #67 - Increase mutation score to 95%
+
+### References
+
+- [Code Coverage in .NET](https://docs.microsoft.com/en-us/dotnet/core/testing/unit-testing-code-coverage)
+- Phase 3 Roadmap: Testing Excellence
+
+---
+
+## Cross-Cutting Integration
+
+| # | Transversal Function | Status | Notes |
+|---|---------------------|--------|-------|
+| 1 | Caching | ÔØî N/A | Coverage threshold config, no runtime code |
+| 2 | OpenTelemetry | ÔØî N/A | Coverage threshold config, no runtime code |
+| 3 | Structured Logging | ÔØî N/A | Coverage threshold config, no runtime code |
+| 4 | Health Checks | ÔØî N/A | Coverage threshold config, no runtime code |
+| 5 | Validation | ÔØî N/A | Coverage threshold config, no runtime code |
+| 6 | Resilience | ÔØî N/A | Coverage threshold config, no runtime code |
+| 7 | Distributed Locks | ÔØî N/A | Coverage threshold config, no runtime code |
+| 8 | Transactions | ÔØî N/A | Coverage threshold config, no runtime code |
+| 9 | Idempotency | ÔØî N/A | Coverage threshold config, no runtime code |
+| 10 | Multi-Tenancy | ÔØî N/A | Coverage threshold config, no runtime code |
+| 11 | Module Isolation | ÔØî N/A | Coverage threshold config, no runtime code |
+| 12 | Audit Trail | ÔØî N/A | Coverage threshold config, no runtime code |
+
+
+COMMENT by dlrivada:
+Closing: this target comes from the old single-percentage coverage model. Encina now measures coverage per flag (unit, guard, contract, property, integration) against the per-package targets in .github/coverage-manifest/, computed by .github/scripts/coverage-report.cs and shown on the coverage dashboard. Mutation score is tracked per file with no project-wide target (docs/testing/mutation-measurement-methodology.md). Gaps against those targets are tracked as [TEST] issues per package.
+
+LINKED PR #1300: docs: remove hand-typed quality and inventory figures from README, ROADMAP and architecture pages (#1090) (state closed)
+

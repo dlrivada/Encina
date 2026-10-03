@@ -1,0 +1,134 @@
+ISSUE #46: [FEATURE] AggregateTestBase - Given/When/Then for Event Sourcing
+closed_at: 12/26/2025 13:49:59
+labels: enhancement, phase-2-functionality, priority-high, complexity-medium, area-event-sourcing, area-testing
+
+BODY:
+## Summary
+
+Create a test base class for testing event-sourced aggregates using Given/When/Then pattern.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: High
+- **Complexity**: Medium
+
+Testing event-sourced aggregates requires setting up event history, executing commands, and verifying produced events and state. A `Given/When/Then` base class standardizes this pattern and reduces test boilerplate.
+
+## Proposed Solution
+
+### Features
+
+- Given/When/Then test structure
+- Event history setup
+- Command execution
+- Event verification
+- State verification
+
+### Proposed API
+
+```csharp
+public class OrderAggregateTests : AggregateTestBase<Order, OrderId>
+{
+    [Fact]
+    public void SubmitOrder_WhenCreated_ShouldProduceOrderSubmittedEvent()
+    {
+        Given(
+            new OrderCreated(OrderId, CustomerId, Items),
+            new PaymentReceived(OrderId, Amount)
+        );
+
+        When(order => order.Submit());
+
+        Then<OrderSubmitted>(e =>
+        {
+            e.OrderId.Should().Be(OrderId);
+            e.SubmittedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        });
+
+        ThenState(order =>
+        {
+            order.Status.Should().Be(OrderStatus.Submitted);
+        });
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyShipped_ShouldFail()
+    {
+        Given(
+            new OrderCreated(OrderId, CustomerId, Items),
+            new OrderShipped(OrderId)
+        );
+
+        When(order => order.Cancel());
+
+        ThenError<InvalidOperationException>(e =>
+            e.Message.Should().Contain("Cannot cancel shipped order"));
+    }
+}
+```
+
+### Implementation Tasks
+
+- [ ] Create `AggregateTestBase<T, TId>` class
+- [ ] Implement `Given()` for event history
+- [ ] Implement `When()` for command execution
+- [ ] Implement `Then<TEvent>()` for event assertions
+- [ ] Implement `ThenState()` for state assertions
+- [ ] Implement `ThenError<T>()` for error assertions
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Testing` (aggregate test base)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | Base class methods, event replay |
+| Integration Tests | No | Pure logic, no external dependencies |
+| Contract Tests | Yes | Test base API surface |
+| Property Tests | Maybe | Event replay invariants |
+
+## Acceptance Criteria
+
+- [ ] Given/When/Then pattern works
+- [ ] Event history setup functional
+- [ ] State verification works
+- [ ] Error scenarios testable
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Developer Tooling
+- Part of Encina.Testing package
+
+
+COMMENT by dlrivada:
+Implemented AggregateTestBase<TAggregate, TId> with Given/When/Then pattern.
+
+Features:
+- Given/GivenEmpty for setting up event history
+- When/WhenAsync for command execution  
+- Then<TEvent>/ThenEvents/ThenNoEvents for event assertions
+- ThenState for aggregate state assertions
+- ThenThrows for exception assertions
+- GetUncommittedEvents for direct access
+
+Test Coverage:
+- 30 unit tests
+- 12 property tests (FsCheck)
+- 15 contract tests
+- 18 guard clause tests
+- 75 total tests
+
+Location: src/Encina.Testing/EventSourcing/AggregateTestBase.cs
+
+COMMIT 9a0ebf9c (referenced): feat(testing): add AggregateTestBase for Given/When/Then testing pattern (Issue #46)
+

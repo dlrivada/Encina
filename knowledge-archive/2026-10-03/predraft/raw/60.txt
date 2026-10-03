@@ -1,0 +1,94 @@
+ISSUE #60: [FEATURE] AWS Lambda Integration
+closed_at: 12/27/2025 00:34:56
+labels: enhancement, phase-2-functionality, priority-medium, complexity-medium, area-serverless, cloud-aws
+
+BODY:
+## Summary
+
+Create AWS Lambda integration for running Encina handlers in a serverless environment.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Medium
+- **Complexity**: Medium
+
+AWS Lambda is a major serverless platform. Integrating Encina with AWS Lambda triggers (API Gateway, SQS, EventBridge) allows developers to use Encina command/query patterns in AWS serverless workloads, with cold-start-optimized DI registration and result-to-response mapping for API Gateway.
+
+## Proposed Solution
+
+- Lambda handler integration
+- API Gateway integration with response mapping
+- SQS trigger support (batch processing)
+- EventBridge trigger support
+
+```csharp
+public class OrderFunctions
+{
+    private readonly IEncina _encina;
+
+    public OrderFunctions(IEncina encina) => _encina = encina;
+
+    [LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
+    public async Task<APIGatewayProxyResponse> CreateOrder(
+        APIGatewayProxyRequest request, ILambdaContext context)
+    {
+        var command = JsonSerializer.Deserialize<CreateOrder>(request.Body);
+        var result = await _encina.Send(command);
+        return result.ToApiGatewayResponse();
+    }
+
+    public async Task ProcessPayment(SQSEvent sqsEvent, ILambdaContext context)
+    {
+        foreach (var record in sqsEvent.Records)
+        {
+            var command = JsonSerializer.Deserialize<ProcessPayment>(record.Body);
+            await _encina.Send(command);
+        }
+    }
+}
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.AwsLambda` (new package)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Trigger integration, response mapping | Core behavior |
+| Integration Tests | Yes | End-to-end with Lambda test utilities | Real trigger execution |
+| Guard Tests | Yes | Public API null checks | Standard |
+| Benchmark Tests | Maybe | Cold start overhead | Serverless-specific |
+
+## Implementation Tasks
+
+- [ ] Create AWS Lambda package
+- [ ] Implement API Gateway integration
+- [ ] Add SQS trigger support
+- [ ] Add EventBridge trigger support
+- [ ] Create result-to-response extensions
+- [ ] Optimize for cold start
+- [ ] Add documentation
+- [ ] Add integration tests
+
+## Acceptance Criteria
+
+- [ ] API Gateway triggers work
+- [ ] SQS triggers process messages
+- [ ] EventBridge triggers work
+- [ ] Cold start optimized
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Serverless Integration
+
+
+COMMIT edec929e (closed): feat(awslambda): add AWS Lambda integration package (Fixes #60)
+

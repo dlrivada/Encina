@@ -1,0 +1,109 @@
+ISSUE #67: [TEST] Increase mutation score to 95%
+closed_at: 09/24/2026 12:08:41
+labels: technical-debt, phase-3-testing, priority-high, complexity-medium, area-testing, area-mutation-testing, p1-recommended
+
+BODY:
+## Test Category
+
+- [ ] Unit Tests
+- [ ] Integration Tests (Docker/Testcontainers)
+- [ ] Property-Based Tests (FsCheck)
+- [ ] Contract Tests
+- [ ] Guard Clause Tests
+- [ ] Load Tests (NBomber)
+- [ ] Benchmark Tests (BenchmarkDotNet)
+- [x] Coverage Gap (below 85% target)
+
+## Description
+
+**Increase mutation score to >=95%** using Stryker mutation testing to ensure test effectiveness.
+
+- **Test quality**: Mutation score measures test effectiveness, not just coverage
+- **Bug detection**: Higher mutation score means tests catch more real bugs
+- **Assertion strength**: Identifies tests with weak assertions
+- **Confidence**: High mutation score provides confidence in test suite
+
+### What Mutation Testing Does
+
+1. **Creates mutants**: Small code changes (e.g., `>` to `>=`, `true` to `false`)
+2. **Runs tests**: Execute tests against each mutant
+3. **Kills mutants**: Good tests fail when code is mutated
+4. **Scores**: Killed mutants / Total mutants = Score
+
+### Common Surviving Mutants
+
+| Mutation | Solution |
+|----------|----------|
+| Boundary changes (`>` to `>=`) | Add boundary tests |
+| Boolean inversions | Assert both true and false paths |
+| Null returns | Assert non-null explicitly |
+| Arithmetic changes (`+` to `-`) | Verify calculations |
+
+### Example Fix
+
+```csharp
+// Original
+public bool IsOverLimit(int count) => count > 100;
+
+// Test that kills boundary mutant (> to >=)
+[Theory]
+[InlineData(99, false)]
+[InlineData(100, false)]  // This kills the >= mutant
+[InlineData(101, true)]
+public void IsOverLimit_BoundaryValues(int count, bool expected)
+{
+    Assert.Equal(expected, IsOverLimit(count));
+}
+```
+
+## Packages / Providers Affected
+
+- **Package(s):** Encina (core), all packages (mutation testing across all)
+- **Provider(s):** All
+
+## Current Coverage
+
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Mutation Score | 79.75% | >=95% | 15.25% |
+
+## Infrastructure Required
+
+- [ ] Docker
+- [ ] Real database
+- [ ] Message broker
+- [ ] NBomber
+- [ ] BenchmarkDotNet
+- [x] None (Stryker.NET mutation testing tool only)
+
+## Test Plan
+
+### Tests to Implement
+
+1. **Run Stryker mutation report** - `dotnet run --file scripts/run-stryker.cs`
+2. **Identify surviving mutants** - Focus on boundary changes, boolean inversions, null returns, arithmetic changes
+3. **Strengthen assertions** - Add boundary value tests, assert both true/false paths, assert non-null explicitly, verify calculations
+4. **Add tests that kill surviving mutants**
+5. **Re-run and verify improvement**
+
+### Success Criteria
+
+- [ ] Mutation score >=95%
+- [ ] No equivalent mutants unaddressed
+- [ ] All critical logic covered
+- [ ] Run `dotnet run --file scripts/run-stryker.cs`
+
+## Related Issues
+
+- Part of Phase 3 Exit Criteria
+
+### References
+
+- [Stryker.NET](https://stryker-mutator.io/docs/stryker-net/)
+
+
+COMMENT by dlrivada:
+Closing: this target comes from the old single-percentage coverage model. Encina now measures coverage per flag (unit, guard, contract, property, integration) against the per-package targets in .github/coverage-manifest/, computed by .github/scripts/coverage-report.cs and shown on the coverage dashboard. Mutation score is tracked per file with no project-wide target (docs/testing/mutation-measurement-methodology.md). Gaps against those targets are tracked as [TEST] issues per package.
+
+LINKED PR #1300: docs: remove hand-typed quality and inventory figures from README, ROADMAP and architecture pages (#1090) (state closed)
+

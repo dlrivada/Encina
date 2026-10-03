@@ -1,0 +1,127 @@
+ISSUE #63: [FEATURE] Scatter-Gather Pattern
+closed_at: 12/27/2025 13:01:38
+labels: enhancement, phase-2-functionality, priority-low, complexity-high, area-messaging-patterns, area-eip
+
+BODY:
+## Summary
+
+Implement the Scatter-Gather pattern for parallel request distribution and response aggregation.
+
+## Motivation
+
+- **Phase**: 2 - Functionality
+- **Priority**: Low
+- **Complexity**: High
+
+The Scatter-Gather pattern (an Enterprise Integration Pattern) broadcasts a request to multiple recipients in parallel and aggregates their responses. This is useful for scenarios like price comparison (scatter to multiple vendors, gather the best quote), parallel search (scatter across multiple data sources), and quorum-based decisions.
+
+## Proposed Solution
+
+- Scatter to multiple recipients in parallel
+- Configurable gathering strategies (WaitForAll, WaitForFirst, WaitForQuorum)
+- Timeout handling for slow responders
+- Partial result support when not all recipients respond
+
+```csharp
+var scatterGather = new ScatterGatherBuilder<PriceQuote>()
+    .ScatterTo<GetQuoteFromVendorA>()
+    .ScatterTo<GetQuoteFromVendorB>()
+    .ScatterTo<GetQuoteFromVendorC>()
+    .GatherWith(GatherStrategy.WaitForAll, timeout: TimeSpan.FromSeconds(10))
+    .Aggregate((quotes) => quotes.MinBy(q => q.Price))
+    .Build();
+
+var bestQuote = await _encina.Execute(scatterGather, new QuoteRequest(productId));
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| Unit Tests | Yes | Scatter, gather strategies, aggregation, timeout | Core behavior |
+| Integration Tests | Maybe | End-to-end parallel execution | Full pipeline |
+| Load Tests | Maybe | High parallelism scatter performance | Concurrent behavior |
+| Property Tests | Maybe | Gather strategy invariants | If complex |
+| Contract Tests | Yes | IScatterGather contracts | Public API |
+| Guard Tests | Yes | Public API null checks | Standard |
+
+## Implementation Tasks
+
+- [ ] Design scatter-gather abstractions
+- [ ] Implement parallel scatter
+- [ ] Create gather strategies (WaitForAll, WaitForFirst, WaitForQuorum)
+- [ ] Add timeout handling
+- [ ] Implement aggregation
+- [ ] Handle partial results
+- [ ] Add documentation
+- [ ] Add unit tests
+
+## Acceptance Criteria
+
+- [ ] Scatter sends to all recipients
+- [ ] Gather strategies work correctly
+- [ ] Timeout handling works
+- [ ] Partial results supported
+- [ ] 85%+ test coverage
+
+## Related Issues
+
+- Enterprise Integration Patterns
+
+
+COMMENT by dlrivada:
+## Implementation Complete Ô£à
+
+### Scatter-Gather Pattern Implemented
+
+The Scatter-Gather Enterprise Integration Pattern has been fully implemented with:
+
+**Core Features:**
+- `IScatterGatherRunner` interface with `ExecuteAsync` method
+- `ScatterGatherBuilder` fluent API for defining scatter-gather operations
+- Four gather strategies: WaitForAll, WaitForFirst, WaitForQuorum, WaitForAllAllowPartial
+- Aggregation methods: TakeFirst, TakeMin, TakeMax, Aggregate, AggregateSuccessful
+- Parallel and sequential execution modes with configurable max parallelism
+- Timeout and cancellation support
+- High-performance logging with LoggerMessage source generators (EventIds 600-615)
+- DI integration via `MessagingConfiguration.UseScatterGather = true`
+
+**Test Coverage (131 tests):**
+- Unit tests: 67 tests (builder + runner)
+- Property-based tests: 15 invariant tests
+- Contract tests: 7 interface contract tests
+- Guard clause tests: 8 parameter validation tests
+- Load tests: 6 concurrency/performance tests
+- Benchmarks: 6 performance scenarios
+
+**Example Usage:**
+```csharp
+var definition = ScatterGatherBuilder.Create<PriceRequest, decimal>("PriceAggregator")
+    .ScatterTo("SupplierA", async (req, ct) => await GetPriceFromA(req, ct))
+    .ScatterTo("SupplierB", async (req, ct) => await GetPriceFromB(req, ct))
+    .ScatterTo("SupplierC", async (req, ct) => await GetPriceFromC(req, ct))
+    .ExecuteInParallel()
+    .GatherAll()
+    .TakeMin(price => price)
+    .Build();
+
+var result = await runner.ExecuteAsync(definition, new PriceRequest("SKU123"));
+```
+
+**Documentation Updated:**
+- CHANGELOG.md
+- ROADMAP.md (Phase 2 status)
+- docs/history/2025-12.md
+
+This completes the Enterprise Integration Patterns block in Phase 2.
+
+COMMIT bb01f3ac (referenced): feat(scattergather): add scatter-gather pattern (Fixes #63)
+

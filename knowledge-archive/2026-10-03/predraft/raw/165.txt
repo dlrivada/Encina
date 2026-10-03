@@ -1,0 +1,145 @@
+ISSUE #165: [FEATURE] Snapshot Testing with Verify
+closed_at: 12/31/2025 23:41:04
+labels: enhancement, phase-2-functionality, priority-medium, complexity-low, area-testing, testing-unit, testing-snapshot
+
+BODY:
+## Summary
+
+Add **Verify snapshot testing integration** to `Encina.Testing` for approval-based testing of complex responses, with automatic serialization and data scrubbing.
+
+## Motivation
+
+- **Complex responses**: Snapshot testing ideal for complex Either<EncinaError, T> responses
+- **Automatic comparison**: Serialization and diff handling built-in
+- **Data scrubbing**: Non-deterministic values (GUIDs, dates) handled automatically
+- **Diff tools**: IDE integration for easy review
+
+## Proposed Solution
+
+### EncinaVerifyExtensions
+
+```csharp
+public static class EncinaVerifyExtensions
+{
+    public static SettingsTask VerifyEither<T>(this Either<EncinaError, T> result);
+
+    public static SettingsTask VerifyValidation(this ValidationResult result);
+
+    public static SettingsTask VerifyOutboxMessage(this OutboxMessage message);
+
+    public static SettingsTask VerifyEncinaErrors(this IEnumerable<EncinaError> errors);
+}
+```
+
+### EncinaVerifySettings
+
+```csharp
+public static class EncinaVerifySettings
+{
+    [ModuleInitializer]
+    public static void Initialize()
+    {
+        VerifierSettings.ScrubInlineGuids();
+        VerifierSettings.AddExtraSettings(settings =>
+        {
+            settings.Converters.Add(new EitherConverter());
+            settings.Converters.Add(new EncinaErrorConverter());
+        });
+    }
+}
+```
+
+### Usage Example
+
+```csharp
+public class CreateOrderHandlerTests
+{
+    [Fact]
+    public async Task Handle_ValidOrder_ShouldReturnExpectedResponse()
+    {
+        var result = await _encina.Send(new CreateOrderCommand
+        {
+            CustomerId = "cust-123",
+            Items = new[] { new OrderItem("SKU-001", 2) }
+        });
+
+        await result.VerifyEither();
+    }
+
+    [Fact]
+    public async Task Handle_InvalidOrder_ShouldReturnValidationErrors()
+    {
+        var result = await _encina.Send(new CreateOrderCommand { });
+
+        var error = result.ShouldBeValidationError();
+        await error.VerifyEncinaErrors();
+    }
+}
+```
+
+## Alternatives Considered
+
+1. **Manual assertion for complex objects**: Writing assertions for each property. Tedious, error-prone, hard to maintain for complex responses.
+
+2. **JSON comparison without Verify**: Custom JSON serialization and comparison. Reinvents Verify functionality, misses scrubbing features.
+
+3. **Approval Tests library**: Using ApprovalTests instead of Verify. Verify has better .NET integration and is more actively maintained.
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.AspNetCore
+- [ ] Encina.EntityFrameworkCore
+- [ ] Encina.Dapper.*
+- [ ] Encina.ADO.*
+- [ ] Encina.MongoDB
+- [ ] Encina.Messaging
+- [ ] Encina.Caching.*
+- [x] Other: `Encina.Testing`
+
+## Additional Context
+
+### Implementation Tasks
+
+- [ ] Unit tests for all Verify extensions
+- [ ] Tests for data scrubbing (GUIDs, dates)
+- [ ] Tests for custom converters
+- [ ] Integration tests with actual handlers
+
+### Acceptance Criteria
+
+- [ ] `EncinaVerifyExtensions` static class created
+- [ ] Extensions for Either, ValidationResult, EncinaError
+- [ ] Extensions for Outbox, Inbox, Saga messages
+- [ ] Custom JSON converters for Encina types
+- [ ] Module initializer for common settings
+- [ ] Unit tests with ÔëÑ90% coverage
+- [ ] XML documentation on all public APIs
+
+### References
+
+- [Verify GitHub](https://github.com/VerifyTests/Verify)
+- [Snapshot Testing in .NET with Verify (JetBrains)](https://blog.jetbrains.com/dotnet/2024/07/11/snapshot-testing-in-net-with-verify/)
+- [Snapshot testing .NET code with Verify (2025)](https://david.gardiner.net.au/2025/07/verify)
+
+
+
+COMMENT by dlrivada:
+@coderabbitai please analyze this issue and suggest related issues/PRs. This is the first foundational package for the v0.11.0 Testing Infrastructure milestone.
+
+COMMENT by dlrivada:
+Issue already fully implemented in commit 8ed37ba (December 30, 2025).
+
+**Implemented features:**
+- `EncinaVerify` static helpers for snapshot testing
+- `PrepareEither<TLeft, TRight>()` - Either result verification
+- `ExtractSuccess()` / `ExtractError()` - Result extraction helpers
+- `PrepareUncommittedEvents()` - Aggregate event verification
+- `PrepareOutboxMessages()`, `PrepareInboxMessages()`, `PrepareSagaState()`, `PrepareScheduledMessages()`, `PrepareDeadLetterMessages()`
+- `EncinaVerifySettings.Initialize()` with automatic scrubbing (timestamps, GUIDs, stack traces)
+- Custom `EncinaErrorConverter` for clean snapshots
+- Full test coverage in `tests/Encina.Testing.Verify.Tests/`
+
+All acceptance criteria met.
+
+

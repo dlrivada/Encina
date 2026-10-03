@@ -1,0 +1,68 @@
+ISSUE #33: [REFACTOR] Refactor Encina.Publish with guards (consistency with Send)
+closed_at: 12/24/2025 21:09:35
+labels: enhancement, phase-2-functionality, priority-critical, complexity-low, area-pipeline
+
+BODY:
+## Summary
+
+Refactor `Encina.Publish` method to use guard clauses like `Send` does, ensuring consistency across the API.
+
+## Motivation
+
+- [x] Code consistency
+- [ ] Performance improvement
+- [ ] Maintainability
+- [ ] Testability
+- [ ] Reduce complexity
+
+`Send` method has proper guard clauses but `Publish` may be missing equivalent validation. Both methods should follow the same patterns for API consistency.
+
+- **Phase**: 2 - Functionality
+- **Priority**: Critical
+- **Complexity**: Low
+
+## Current Structure
+
+`Send` method has proper guard clauses for null parameters and cancellation token validation, but `Publish` may be missing equivalent validation.
+
+## Proposed Structure
+
+`Publish` should mirror `Send` guard clause patterns:
+- Guard clauses for null notifications
+- Guard clauses for cancellation token validation
+- Consistent error messages with `Send`
+
+## Affected Files
+
+- `src/Encina/` - Core `Publish` method implementation
+- `tests/Encina.UnitTests/Core/` - Unit tests for guard behavior
+
+## Packages Affected
+
+- `Encina` (Core)
+
+## Behavioral Guarantee
+
+No breaking changes to public API. Only adds validation that was previously missing, which may surface errors earlier (at call site instead of deep in pipeline).
+
+## Risk Assessment
+
+- **Risk**: Low
+- **Reason**: Adding guard clauses is additive validation. Only risk is throwing `ArgumentNullException` where previously a `NullReferenceException` would have occurred deeper in the stack.
+
+## Related Issues
+
+- Cross-cutting feature (affects Core)
+
+
+COMMENT by dlrivada:
+Guards already implemented. Added unit tests for TryValidateRequest and TryValidateNotification in commit dbb984e.
+
+Tests added:
+- RequestGuardsTests (14 tests): TryValidateRequest, TryValidateHandler, TryValidateHandlerType
+- NotificationGuardsTests (5 tests): TryValidateNotification
+
+All 19 tests pass.
+
+COMMIT dbb984e5 (referenced): test(guards): add unit tests for Request and Notification validation guards
+

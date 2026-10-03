@@ -1,0 +1,1 @@
+`docs/messaging/transports.md:334` (`options.QueueName = "orders";`) does not match `src/Encina.AzureServiceBus`'s options class, which exposes `DefaultQueueName` (also `DefaultTopicName`, `SubscriptionName`), never `QueueName`.

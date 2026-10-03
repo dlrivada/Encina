@@ -1,0 +1,56 @@
+ISSUE #26: [FEATURE] Dead Letter Queue enhancements
+closed_at: 12/24/2025 11:52:31
+labels: enhancement, area-messaging-patterns
+
+BODY:
+## Summary
+
+Enhanced Dead Letter Queue handling across all messaging providers.
+
+## Motivation
+
+Failed messages need consistent handling regardless of transport.
+
+## Proposed Solution
+
+- `IDeadLetterHandler` interface
+- Consistent DLQ configuration across providers
+- Retry policies for DLQ messages
+- DLQ monitoring and alerting hooks
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- `Encina.Messaging` (core DLQ abstractions)
+- All messaging transport providers (RabbitMQ, Kafka, NATS, etc.)
+
+## Test Matrix
+
+| Test Type | Required | Notes |
+|-----------|----------|-------|
+| Unit Tests | Yes | DLQ handler logic |
+| Integration Tests | Yes | Real transport DLQ behavior |
+| Contract Tests | Yes | `IDeadLetterHandler` contract |
+| Property Tests | Maybe | Retry policy invariants |
+
+## Acceptance Criteria
+
+- [ ] `IDeadLetterHandler` interface defined and usable
+- [ ] Consistent DLQ configuration across providers
+- [ ] Retry policies for DLQ messages functional
+- [ ] DLQ monitoring and alerting hooks available
+
+## Related Issues
+
+- Milestone: 1.1 - Advanced Patterns
+- Priority: Medium - improves reliability of message processing
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

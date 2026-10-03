@@ -1,0 +1,61 @@
+ISSUE #25: [FEATURE] Snapshotting for large aggregates
+closed_at: 12/24/2025 11:52:29
+labels: enhancement, area-event-sourcing
+
+BODY:
+## Summary
+
+Implement snapshotting support for event-sourced aggregates with many events.
+
+## Motivation
+
+Aggregates with thousands of events become slow to rehydrate. Snapshotting provides periodic state saves. This is an optimization for high-volume aggregates.
+
+## Proposed Solution
+
+- `ISnapshotStore` abstraction
+- `[Snapshot(every: 100)]` attribute
+- Integration with Marten snapshot support
+- Configurable snapshot frequency
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [ ] Encina.Marten
+- [ ] Other: Encina.EventStoreDB
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|:---------:|-------|-------|
+| **UnitTests** | Required | | |
+| **GuardTests** | Required | | |
+| **ContractTests** | | | |
+| **PropertyTests** | | | |
+| **IntegrationTests** | | | |
+| **LoadTests** | | | |
+| **BenchmarkTests** | | | |
+
+## Acceptance Criteria
+
+- [ ] Core abstractions implemented and tested
+- [ ] Snapshot store works with Marten
+- [ ] Documentation complete
+- [ ] Zero build warnings
+- [ ] Code coverage >= 85%
+
+## Related Issues
+
+- #21 - Projections/Read Models
+- #22 - Event Versioning
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

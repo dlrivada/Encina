@@ -1,0 +1,69 @@
+ISSUE #23: [FEATURE] Encina.Testing - test fixtures and fluent assertions
+closed_at: 12/24/2025 11:52:25
+labels: enhancement, area-testing
+
+BODY:
+## Summary
+
+Create a testing package with fluent assertions and test fixtures for Encina-based applications.
+
+## Motivation
+
+Make it easier to test handlers, pipelines, and ROP code. High priority - improves developer experience significantly.
+
+## Proposed Solution
+
+- `EncinaFixture` fluent API for test setup
+- ROP assertion extensions: `ShouldBeSuccess()`, `ShouldBeError()`
+- `AggregateTestBase` for Given/When/Then event sourcing tests
+- Mock helpers for common Encina interfaces
+
+### Example Usage
+
+```csharp
+result.ShouldBeSuccess()
+      .And.Value.Should().Be(expected);
+
+result.ShouldBeError()
+      .And.ErrorCode.Should().Be("VALIDATION_FAILED");
+```
+
+## Alternatives Considered
+
+_Not evaluated yet._
+
+## Affected Packages
+
+- [ ] Encina (core)
+- [x] Other: Encina.Testing (new package)
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|:---------:|-------|-------|
+| **UnitTests** | Required | | |
+| **GuardTests** | Required | | |
+| **ContractTests** | | | |
+| **PropertyTests** | | | |
+| **IntegrationTests** | | | |
+| **LoadTests** | | | |
+| **BenchmarkTests** | | | |
+
+## Acceptance Criteria
+
+- [ ] Core abstractions implemented and tested
+- [ ] Fluent assertion API works with Either/ROP
+- [ ] Documentation complete
+- [ ] Zero build warnings
+- [ ] Code coverage >= 85%
+
+## Related Issues
+
+_None_
+
+
+COMMENT by dlrivada:
+Reverted - issue created in error
+
+COMMIT 2b50a1ec (referenced): docs: restructure documentation - separate concerns
+

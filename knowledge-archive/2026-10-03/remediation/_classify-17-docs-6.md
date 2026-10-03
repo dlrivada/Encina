@@ -1,0 +1,1 @@
+kind: docs; duplicate-of: #1177; keywords: ADR-019, EventStoreDB, stale-adr

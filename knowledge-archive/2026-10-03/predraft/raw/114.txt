@@ -1,0 +1,165 @@
+ISSUE #114: [FEATURE] Health checks for modules in Modular Monolith
+closed_at: 12/26/2025 10:17:41
+labels: enhancement, area-modular-monolith, area-health-checks
+
+BODY:
+## Summary
+
+Add support for module-level health checks in Modular Monolith applications.
+
+## Motivation
+
+In a modular monolith, each module can have its own infrastructure dependencies. It is useful to be able to:
+- View the health status of each module individually
+- Identify which module is causing problems
+- Disable degraded modules without affecting the rest
+
+## Proposed Solution
+
+### New Interface
+
+```csharp
+namespace Encina.Messaging.Health;
+
+/// <summary>
+/// Health check specific to a module.
+/// </summary>
+public interface IModuleHealthCheck : IEncinaHealthCheck
+{
+    /// <summary>
+    /// Name of the module this health check belongs to.
+    /// </summary>
+    string ModuleName { get; }
+}
+```
+
+### Integration with IModule
+
+```csharp
+public interface IModule
+{
+    string Name { get; }
+    Assembly Assembly { get; }
+
+    // New optional property
+    IEnumerable<IEncinaHealthCheck>? HealthChecks => null;
+}
+```
+
+### Usage
+
+```csharp
+public class OrdersModule : IModule
+{
+    public string Name => "Orders";
+    public Assembly Assembly => typeof(OrdersModule).Assembly;
+
+    public IEnumerable<IEncinaHealthCheck> HealthChecks =>
+    [
+        new OrdersDatabaseHealthCheck(_connectionString),
+        new OrdersQueueHealthCheck(_rabbitMqConnection)
+    ];
+}
+```
+
+### Automatic Registration
+
+```csharp
+services.AddEncinaModules(config => {
+    config.AddModule<OrdersModule>();
+    config.AddModule<InventoryModule>();
+    config.RegisterModuleHealthChecks = true;  // Default: true
+});
+```
+
+### Aggregated Endpoint
+
+```
+GET /health/modules
+
+{
+  "status": "Degraded",
+  "modules": {
+    "Orders": { "status": "Healthy", "checks": [...] },
+    "Inventory": { "status": "Degraded", "checks": [...] },
+    "Shipping": { "status": "Healthy", "checks": [...] }
+  }
+}
+```
+
+## Alternatives Considered
+
+None documented.
+
+## Affected Packages
+
+- `Encina.Messaging` (IModuleHealthCheck interface)
+- `Encina.AspNetCore` (module health endpoint)
+- Any package implementing `IModule`
+
+## Test Matrix
+
+| Test Type | Required? | Scope | Notes |
+|-----------|-----------|-------|-------|
+| UnitTests | Yes | IModuleHealthCheck, registration, endpoint | Core functionality |
+| GuardTests | Yes | Public methods | Null checks on module name, health checks |
+| ContractTests | Yes | IModuleHealthCheck contract | Verify all implementations follow contract |
+| PropertyTests | Maybe | Health check aggregation logic | If aggregation logic is complex |
+| IntegrationTests | Yes | End-to-end module health endpoint | Real HTTP endpoint test |
+| LoadTests | No | N/A | Health checks are lightweight probes |
+| BenchmarkTests | No | N/A | Not a hot path |
+
+## Acceptance Criteria
+
+- [ ] `IModuleHealthCheck` interface
+- [ ] Optional integration with `IModule`
+- [ ] Automatic registration of module health checks
+- [ ] Aggregated endpoint per module
+- [ ] Unit tests
+- [ ] Documentation
+
+## Related Issues
+
+- #35 (Health Check Abstractions) - Completed
+- #57 (Modular Monolith) - Completed
+
+
+COMMENT by dlrivada:
+Implemented module health checks:
+
+**Changes:**
+- `IModuleHealthCheck` interface in `Encina.Messaging.Health` for module-specific health checks with `ModuleName` property
+- `IModuleWithHealthChecks` interface in `Encina.AspNetCore.Modules` for modules to expose their health checks
+- `AddEncinaModuleHealthChecks()` extension method for registering all module health checks
+- `AddEncinaModuleHealthChecks<TModule>()` for registering specific module health checks
+- Automatic tagging with `encina`, `ready`, and `modules` tags
+- 9 unit tests for module health check functionality
+- Updated Encina.AspNetCore README with module health check documentation
+
+**Usage:**
+```csharp
+// Implement in your module
+public class OrdersModule : IModuleWithHealthChecks
+{
+    public string Name => "Orders";
+    public void ConfigureServices(IServiceCollection services) { }
+    public IEnumerable<IEncinaHealthCheck> GetHealthChecks()
+    {
+        yield return new OrdersDatabaseHealthCheck();
+    }
+}
+
+// Register health checks
+builder.Services
+    .AddHealthChecks()
+    .AddEncinaModuleHealthChecks();
+
+// Expose endpoint
+app.MapHealthChecks("/health/modules", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("modules")
+});
+```
+
+COMMIT 1a6143d3 (referenced): docs(health): add comprehensive health checks integration guide
+
