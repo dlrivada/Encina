@@ -1905,6 +1905,24 @@ Test.
     Test-RemediationCase 'Split-Findings: a numbered finding list is unchanged (#1694)' { $numberedSplit.Count -eq 2 -and $numberedSplit[0].Severity -eq 'Major' -and $numberedSplit[1].Severity -eq 'Minor' }
     $noneOfSplit = @(Split-Findings 'code' '- none of the above were verified.')
     Test-RemediationCase 'Split-Findings: "- none of ..." is not the none marker and stays an Unknown finding (#1694)' { $noneOfSplit.Count -eq 1 -and $noneOfSplit[0].Severity -eq 'Unknown' }
+    # #1694 review round: same-line text stays one Unknown finding; anything finding-shaped after "- none" is parsed.
+    $noneSameLine = @(Split-Findings 'code' '- none (all flags met)')
+    Test-RemediationCase 'Split-Findings: "- none (all flags met)" with same-line text stays one Unknown finding (#1694)' { $noneSameLine.Count -eq 1 -and $noneSameLine[0].Severity -eq 'Unknown' }
+    $noneShapes = [ordered]@{
+        'indented numbered'  = "- none`n  1. **Major** -- real."
+        'numbered paren'     = "- none`n1) **Major** -- real."
+        'unbold numbered'    = "- none`n1. Major -- real."
+        'bare bold severity' = "- none`n**Major** -- real."
+        'bulleted severity'  = "- none`n- **Minor**: real."
+        'bullet gap'         = "- none`n`n- Major: real.`n- Minor: other."
+        'bare severity word' = "- none`nMinor details were found in A.cs."
+        'colon form'         = "- none`n1. **Major**: real."
+    }
+    foreach ($shapeName in $noneShapes.Keys) {
+        $shapeText = $noneShapes[$shapeName]
+        $shapeResult = @(Split-Findings 'code' $shapeText)
+        Test-RemediationCase "Split-Findings: finding-shaped text after '- none' ($shapeName) yields at least one finding (#1694)" { $shapeResult.Count -ge 1 }
+    }
     $unknownSplit = @(Split-Findings 'code' 'Some free-form paragraph with no numbered severity line at all.')
     Test-RemediationCase 'Split-Findings: an unrecognized non-empty section yields one Unknown finding, never silently zero' { $unknownSplit.Count -eq 1 -and $unknownSplit[0].Severity -eq 'Unknown' }
 
@@ -2080,6 +2098,15 @@ Test.
         Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupId.Code -ne 0 -and $dupId.Output -match "stage 'tests'" -and $dupId.Output -match "'1'" }
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
         Test-RemediationCase '#1548 a failed -Prepare (here a malformed stage) leaves the previous manifest in place' { $null -ne (Get-RemediationManifest $remWt $remN) }
+
+        # #1694 review round: the ignored-prose note reaches the manifest's lessons (and so the stage file and audit-verifier).
+        $noteN = 6161
+        $noteWt = New-RemediationFixture 'RemediationNoneNoteWt' $noteN "- none`n`nCoverage was measured for every flag."
+        $notePrepare = Invoke-Remediation $noteWt @('-Prepare', '-NoGh')
+        $noteManifest = Get-RemediationManifest $noteWt $noteN
+        Test-RemediationCase "#1694 -Prepare: prose after '- none' yields zero findings and the manifest lesson records the ignored prose" {
+            $notePrepare.Code -eq 0 -and @($noteManifest.findings).Count -eq 0 -and @($noteManifest.lessons) -contains "stage code: '- none' followed by prose; prose ignored"
+        }
 
         # ---- #1572 -Finalize: sanitizers, header/template/placeholder checks, missing drafts and lines ----
         $finN = 5151

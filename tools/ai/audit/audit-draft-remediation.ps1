@@ -169,8 +169,9 @@ if ($null -eq $remediationStageDef -or [string]$remediationStageDef.agent -ne 'r
     Stop-Remediation "$pipelineDir\pipeline.json assigns the remediation stage to '$($remediationStageDef.agent)', not 'remediation-drafter'. Update that worktree copy's remediation entry to `"agent`": `"remediation-drafter`", `"model`": `"sonnet`" (issue-audit skill, step 2) and run this again."
 }
 
-# A '## Findings' header literally present in the file: only an explicit "- none" body means zero findings; a
-# missing header is always an error (#1375 CodeRabbit review).
+# A '## Findings' header literally present in the file: a body that is the "- none" marker alone (optional period,
+# any case) means zero findings; trailing prose after it is ignored with a recorded note, and anything finding-shaped
+# after it falls through to the normal parser (#1694). A missing header is always an error (#1375 CodeRabbit review).
 function Test-FindingsHeaderPresent([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $false }
     return [regex]::IsMatch((Get-Content -LiteralPath $Path -Raw), '(?m)^##\s*Findings\s*$')
@@ -179,7 +180,8 @@ function Test-FindingsHeaderPresent([string]$Path) {
 # Every finding of the code, tests and docs stage artifacts as they are NOW (Split-Findings, _audit-lib.ps1):
 # -Prepare drafts from them, -Finalize compares them with the manifest to catch a stale manifest.
 function Get-AllFindings {
-    $found = [System.Collections.Generic.List[pscustomobject]]::new()
+    $script:SplitFindingsNotes = [System.Collections.Generic.List[string]]::new()
+    $found =[System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($stageName in 'code', 'tests', 'docs') {
         $stageFile = Get-StageFile $stageName
         if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
@@ -632,6 +634,11 @@ foreach ($f in $allFindings) {
     if ($touchedMemberKeys.Contains("$($f.Stage)|$($f.Id)") -and $f.Severity -eq 'Unknown') {
         $lessons.Add("$($f.Stage) $($f.Id): the stage's '## Findings' section did not match the expected numbered 'N. **Blocker/Major/Minor** -- ...' layout; treated as one Unknown-severity finding covering the whole section instead of being split further.")
     }
+}
+# #1694: a '- none' section that was followed by ignored prose is recorded, so the remediation stage and
+# audit-verifier see it (an -Only run keeps an earlier identical lesson instead of repeating it).
+foreach ($splitNote in @($script:SplitFindingsNotes)) {
+    if ($splitNote -and -not $keptLessons.Contains($splitNote) -and -not $lessons.Contains($splitNote)) { $lessons.Add($splitNote) }
 }
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
