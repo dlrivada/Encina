@@ -67,7 +67,7 @@ Pass `--mutate` globs to mutate just one slice, as the CI matrix shards do. Ever
 dotnet run --file .github/scripts/run-stryker.cs -- --mutate:**/Dispatchers/Strategies/SequentialDispatchStrategy.cs
 ```
 
-That run (plus the standard exclusions) tested 4 mutants, killed 4 and took 8 min 41 s. The script forwards `-c`/`--configuration` to Stryker only when you pass it; otherwise Stryker builds the project's default configuration (Debug), which the CI Build step pre-builds. To mimic a CI shard, pass its globs and the standard exclusions; the shard definitions are the `SHARDS` array in `.github/workflows/mutation-tests.yml`:
+That run (plus the standard exclusions) tested 4 mutants, killed 4 and took 8 min 41 s. The script forwards `-c`/`--configuration` to Stryker only when you pass it; otherwise Stryker builds the project's default configuration (Debug), which the CI Build step pre-builds (a Release build was not materially faster in a local comparison, so Debug stays). To mimic a CI shard, pass its globs and the standard exclusions; the shard definitions are the `SHARDS` array in `.github/workflows/mutation-tests.yml`. A glob there may end with a span suffix `{start..end}` that limits it to a character range of the file (character offsets, not line numbers; see [methodology — span splits](../../testing/mutation-measurement-methodology.md#span-splits-of-one-file)); no shard uses one yet:
 
 ```bash
 dotnet run --file .github/scripts/run-stryker.cs -- \
@@ -89,7 +89,9 @@ After Stryker finishes:
 - `artifacts/mutation/reports/mutation-report.json` — raw per-mutant data
 - `artifacts/mutation/reports/mutation-report.html` — interactive HTML report (open in a browser)
 - `artifacts/mutation/logs/log-*.txt` — Stryker's trace log, only when you pass `--log-to-file` (`dotnet run --file .github/scripts/run-stryker.cs -- --log-to-file --mutate:...`). The script does not pass it by default, and CI does not use it: under the MTP runner it also writes a JSON-RPC log per test server that grows about 40 MB per run of the whole test project, so use it for short diagnostic runs only.
-- `artifacts/mutation/logs/runner-resources.log` — runner memory and disk every 60 s; written by the CI shards only (uploaded with the `stryker-logs-shard-<idx>` artifact). Every fifth reading is also printed to the step log with the prefix `[runner-resources]`, so readings taken before a lost runner stay in the live job log
+- `artifacts/mutation/logs/stryker-console.log` and the `runner-resources*.log` files — written by the CI shards only (uploaded with the `stryker-logs-shard-<idx>` artifact): Stryker's console output, and the runner readings taken every minute (`runner-resources.log` holds every full reading, `runner-resources-latest.log` the latest, `runner-resources-history.log` one compact line per minute). Every fifth reading is also printed to the step log with the prefix `[runner-resources]`. What the readings contain and why: [methodology — runner protection and telemetry](../../testing/mutation-measurement-methodology.md#runner-protection-and-telemetry)
+
+A local run uses the configuration's concurrency of 1 and no memory cap. The CI step sets `DOTNET_GCHeapHardLimit` to 4 GiB; to reproduce a CI out-of-memory failure, set that variable (`0x100000000`, hexadecimal bytes) in your shell before running `run-stryker.cs`. Do not pass `-c 1` to lower the concurrency: the script reads `-c` as `--configuration`, so it would select a build configuration named "1".
 
 The C# script `.github/scripts/update-mutation-summary.cs` parses the JSON and writes a concise text summary to stdout.
 
@@ -184,8 +186,10 @@ The publish guard refuses to overwrite the dashboard with a 0-mutant report (e.g
 When a run looks wrong, check the Mutation Tests run summary first:
 
 - In the default matrix mode, a shard that tested mutants and killed none fails (step "Fail a shard that killed no mutant"), and the `aggregate` job refuses to publish a report of that shape, so one such shard blocks the whole run; it means the runner did not activate the mutants. `custom_scope`, `diff_mode` and `full_mode` dispatches are not guarded, because a small scope can legitimately kill none.
-- A "Missing shard reports" block and a "Shards missing a report" row in the aggregate summary name every shard that uploaded no report (lost runner, timeout or earlier failure). Open that shard's job and its `stryker-logs-shard-<idx>` artifact (`runner-resources.log` shows memory and disk). The files of a missing shard keep their previous dashboard data.
-- A failure naming files with mutants in two shard reports means two `SHARDS` entries overlap.
+- A "Missing shard reports" block and a "Shards missing a report" row in the aggregate summary name every shard that uploaded no report (lost runner, timeout or earlier failure). The files of a missing shard keep their previous dashboard data; a file split between two shards is published with the half that ran.
+- For a lost runner, GitHub keeps no job log, but each shard publishes a check run named "mutation telemetry (shard N)" on the commit (N is the shard index, or `custom`, `full` or `diff`). Open the commit's Checks list (or the run's checks): its summary holds the last compact readings (load, memory, swap, top process, `dotnet` process count) and its text the latest full reading. The check run ends with the conclusion `neutral` because it is a record, not a verdict. For a shard that finished, the `stryker-logs-shard-<idx>` artifact has the same readings in full.
+- A failure that names a file and a mutant key means two shard reports hold the same mutant: two `SHARDS` entries overlap, or the two halves of a span-split file do not pair.
+- A shard that hits its timeout: the `TIMEOUTS` are provisional, see [methodology — timeouts](../../testing/mutation-measurement-methodology.md#timeouts).
 
 Why each guard exists: [methodology — guards](../../testing/mutation-measurement-methodology.md#guards).
 
