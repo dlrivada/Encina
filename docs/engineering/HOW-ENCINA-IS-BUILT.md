@@ -246,6 +246,58 @@ Writing those three sections from the sources without the local model would have
 
 There is no date for 1.0. The first two days show why an estimate would be dishonest: the work that dominated them (infrastructure repair, protection, bots) will not repeat, and the throughput of the steady state is unknown until a few specifications have gone through the whole pipeline. When that data exists, "pull requests merged per day" is the number to estimate from. Until then, the sequence is published (SPEC-000 §9) and the calendar is not.
 
+## Retrospective after two weeks (2026-10-03)
+
+This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh` on 2026-10-03: 463 issues created and 173 pull requests merged since the era began. Section 6 covers the first two days; this one covers the whole window and does not repeat it. The counts and the audit numbers below (the 87 remediation issues, the contract-test count, the audit numbers) were reported by the maintainer and the orchestrator from the audit artifacts and GitHub on 2026-10-03 and are not re-derivable from the repository; the issue numbers are.
+
+### What worked
+
+**1. The deep closed-issue audit replaced a superficial one (maintainer decision).** The first pass (audits #1 to #15) was batched and ran on Haiku; it even recorded #149, which is still open ("Dead Letter Queue for Failed Scheduled Messages"), as implemented in audit #26. The replacement is the SPEC-003 pipeline of section 2.6: six single-owner stages, a verifier that returns `Verdict: FAIL` and names the stage to re-run, and per-role lessons. Audits #16 to #28 opened 87 remediation issues.
+
+Because those audits read today's code in the issue's scope, siblings included, they also found defects in the assurance system itself, not only in features:
+
+- CI skips every test job when only props, `.github` or shared test-configuration files change, and still reports green (#1721, from audit #28).
+- The `ci-full` pack job is not gated on test results, so a tag push could publish a package with red tests (audit #29).
+- `ROADMAP.md` and ADR-005 contradict open plans (#1716, #1717).
+- Many contract test files are reflection-only, which section 4.1 says cover no lines (audit #29: 28 of 134 contract test files).
+
+**2. The method itself, which turns "done" into "done, and here is what it hid".** Agents per role, skills, hooks, worktrees, plans before features, reviews, and the CRAP and per-flag coverage gates (section 4) mean the same work now surfaces hidden debt, both as new issues and in the history. Three examples from 2026-10-03:
+
+- The review of #1703 found that the persistent policy administration point captured a scoped `IPolicyStore` in all eight provider registrations; the defect pre-dated the change and became #1707.
+- A multi-agent review of #1712 found an absolute-path bypass of the checkout guard that a single reviewer had missed.
+- The adversarial review of the plan for #1698 found three paths that would have stored health data in plaintext, before any code existed.
+
+**3. Smaller practices that paid off.**
+
+- **Fail closed as a design rule.** ABAC (#1634, #1676, #1677) and the crypto-shredder (#1646) now deny or fail when context is missing, as [`AGENTS.md`](../../AGENTS.md) §3 requires, instead of proceeding with partial data.
+- **Maintainer decisions taken one at a time**, with the options explained and the choice recorded in the issue: the ten questions of #751, option B of #1698, and the single identity model of #1705. This is the human gate of section 2.4 working as designed.
+- **Plan before code, then an adversarial review of the plan.** A defect found in a plan costs a paragraph; found in code it costs a fix round and a re-review.
+- **Pre-1.0 means best solution, no compatibility.** #1705 records the decision to remove `ISecurityContext` completely rather than keep an adapter, which [`AGENTS.md`](../../AGENTS.md) §1 and §3 require.
+- **Two independent refuters per review finding.** They discarded 9 of 10 findings on #1706 and 6 of 10 on #1727, which avoided fix rounds on non-issues.
+- **The role-lessons loop.** A mistake recorded in an agent's lessons file under `.claude/agents/lessons/` stops repeating in later audits.
+- **Resilience.** A power cut and a five-hour usage limit cost no work: workflows resumed from their journals and workers from their progress files.
+
+### What to improve
+
+Each item was approved by the maintainer and is tracked in an issue.
+
+| Weakness | Tracked in |
+| --- | --- |
+| Audit stage citations are checked only by the model verifier | #1729: check them deterministically (file:line, quotes, search claims) before the verifier |
+| An agent's claimed outputs are trusted | #1730: verify files, commits and clean checkouts after every agent finishes |
+| `audit-done` edits the main checkout to publish role lessons | #1731: commit them on a branch and open the lessons pull request |
+| The control board drifts from GitHub | #1732: reconcile work cards, flow fronts and audits automatically |
+| No process metrics, so retrospectives cannot compare trends | #1733: debt discovered versus created, defects caught before merge versus escaped, cost per merged pull request |
+| The method relies on CI telling the truth, and CI does not always | Gate integrity first: #1721 and the `ci-full` pack gating from audit #29 |
+
+### A recorded decision about cost
+
+The maintainer rejected reducing review depth to save tokens: full multi-agent review and verification stay the norm. Cost is still reported as a metric: 79 % of the weekly plan was used by the second day of the weekly plan window, mostly by review and design workflows (maintainer's plan usage on 2026-10-03, not a repository measurement). The reasoning follows the findings above, where most of the value came from the deepest reviews.
+
+### Scope of this retrospective
+
+It covers the method and what it exposed. Product status is in the [roadmap](../../ROADMAP.md) and the active plans listed in [`CLAUDE.md`](../../CLAUDE.md); the internal reference for roles, routing and principles is [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md). No decision record covers the audit redesign beyond SPEC-003 and its issues, and none was invented here.
+
 ## 7. How to replicate it
 
 This section is the conceptual checklist, in the order that worked here. It is deliberately short and it is not enough on its own: replicating the setup from a clean machine means installing and building a specific set of tools (the .NET SDK, Docker with the compose profiles, `gh`, llama.cpp with CUDA and a model, opencode, Claude Code) and copying or re-creating a set of home-made scripts (the coverage obligations report, the mutation sharding and history, the three DocRef renderers, the CI gate, the PR watcher, the local-AI ledger). The step-by-step guide with the exact commands, the files to copy from this repository and indicative times is [`REPLICATION-GUIDE.md`](REPLICATION-GUIDE.md) (#1107); the [contributor guide](../contributing/README.md) (#1103) covers the subset needed to work on Encina itself.
