@@ -139,6 +139,7 @@ Operators can override via the `workflow_dispatch` inputs; any of them collapses
 
 - **A shard that killed no mutant fails (matrix mode only).** When a shard's report has more than 0 tested mutants (Killed, Survived or Timeout) and 0 Killed, the step "Fail a shard that killed no mutant" fails the shard. The `aggregate` job also fails without publishing when any report has that shape. In matrix mode one zero-kill shard therefore blocks the publishing of the whole run; this is by design, because nothing from a runner that cannot activate mutants is published ([#1440](https://github.com/dlrivada/Encina/issues/1440)). The guard does not apply to `custom_scope`, `diff_mode` or `full_mode` dispatches, because a small scope can legitimately kill no mutant. The VsTest runner reported 0 killed on every shard for weeks while every job stayed green ([#1440](https://github.com/dlrivada/Encina/issues/1440)).
 - **Missing reports are named.** The report and summary upload steps run with `if: always()`, so a report Stryker wrote before failing is still uploaded. A shard that lost its runner, timed out before Stryker wrote the report, or failed earlier uploads nothing; the `aggregate` job then writes a `::warning` and a "Missing shard reports" block in the step summary naming every such shard, adds a "Shards missing a report" row to the aggregation table, and merges the other reports. The files of a missing shard keep their previous dashboard data ([#1682](https://github.com/dlrivada/Encina/issues/1682)). A missing report alone does not fail the merge; it fails with "No shard reports found" only when no shard uploaded one.
+- **A shard whose run ran out of memory fails (every mode).** The step "Fail a shard whose run ran out of memory" (id `oom-guard`) runs whenever the Stryker step ran. When `stryker-console.log` contains `OutOfMemoryException`, it fails the shard with an error, and "Upload shard mutation report" skips that shard, so its files keep their previous dashboard data instead of a score skewed by inflated kills. It only sees what reaches Stryker's console; the calibration compares the Killed count of `**/Dispatchers/Strategies/*.cs` with a local concurrency-1 run to check the rest ([#1441](https://github.com/dlrivada/Encina/issues/1441)). See [GC heap cap](#gc-heap-cap).
 - **Runner resources are recorded.** See [Runner protection and telemetry](#runner-protection-and-telemetry).
 - **The merge guards.** See the next section.
 
@@ -152,7 +153,7 @@ Calibration run 37130291929 lost its runner about an hour into the Stryker step 
 
 #### GC heap cap
 
-The step sets `DOTNET_GCHeapHardLimit: "0x100000000"` (hexadecimal bytes, 4 GiB) for every .NET process of the step. A test host that runs out of memory then throws `OutOfMemoryException` and the shard fails visibly, instead of the kernel stalling the runner VM. A local observation, not a CI measurement (2026-10-03, Windows, `Encina.UnitTests` in Debug, 22,233 tests, `-maxthreads 4` to match the runner's 4 vCPU):
+The step sets `DOTNET_GCHeapHardLimit: "0x100000000"` (hexadecimal bytes, 4 GiB) for every .NET process of the step. The intent is that a test host that runs out of memory throws `OutOfMemoryException` instead of the kernel stalling the runner VM. That effect on a shard is a hypothesis, which the phase-2 calibration runs of [#1441](https://github.com/dlrivada/Encina/issues/1441) check: the local measurement below used one fresh process, while Stryker reuses one test host for every mutant and the heap growth across those runs is unmeasured. An `OutOfMemoryException` inside a mutant run fails some test, which Stryker may count as a kill; the guard "Fail a shard whose run ran out of memory" (see [Guards](#guards)) catches what reaches Stryker's console. A local observation, not a CI measurement (2026-10-03, Windows, `Encina.UnitTests` in Debug, 22,233 tests, `-maxthreads 4` to match the runner's 4 vCPU):
 
 | Cap | Result |
 |-----|--------|
@@ -164,14 +165,14 @@ A full rebuild of `Encina.UnitTests` with in-process compilation also passes und
 
 #### Protecting the runner agent
 
-Before starting Stryker the step runs `echo 1000 > /proc/self/oom_score_adj`, which Stryker, its builds and the test hosts inherit (the monitor keeps the default score), and starts Stryker under `nice -n 10`. Under memory or CPU pressure the kernel then kills Stryker or a test host, not the GitHub runner agent, and the agent keeps its heartbeat. No swap is added, because swapping starves the agent; `swapon --show` is recorded instead.
+Before starting Stryker the step runs `echo 1000 > /proc/self/oom_score_adj`, which Stryker, its builds and the test hosts inherit (the monitor keeps the default score), and starts Stryker under `nice -n 10`. A failed write to `oom_score_adj` only logs a warning; it does not fail the shard. Under memory or CPU pressure the kernel then kills Stryker or a test host, not the GitHub runner agent, and the agent keeps its heartbeat. No swap is added, because swapping starves the agent; `swapon --show` is recorded instead.
 
 #### Telemetry that survives a lost runner
 
 GitHub archives no log of a job whose runner is lost (the API returns 404 even for steps that finished), but the last update of a check run stays. The job therefore has `checks: write`, and the step creates a check run named "mutation telemetry (shard N)" on the commit (N is the shard index, or `custom`, `full` or `diff`), with `external_id` `<run id>-<attempt>-<shard>`. A background monitor takes a reading every minute:
 
 - the date, `/proc/loadavg`, `free -m`, `swapon --show` and `df -h / /mnt`;
-- the 7 processes with the largest RSS (`ps ... | head -n 8` prints a header line plus 7) and the count of `dotnet` processes;
+- the 7 processes with the largest RSS (`ps ... | head -n 8` prints a header line plus 7) and the count of `dotnet` processes, plus the count of processes whose command line names `Encina.UnitTests` (test hosts and builds);
 - the kernel OOM lines from `dmesg`, when it is readable;
 - the last 400 bytes of the Stryker console.
 
@@ -181,12 +182,12 @@ The `stryker-logs-shard-<idx>` artifact (folder `artifacts/mutation/logs`) holds
 |------|---------|
 | `runner-resources.log` | Every full reading. |
 | `runner-resources-latest.log` | The latest full reading. |
-| `runner-resources-history.log` | One compact line per minute. |
+| `runner-resources-history.log` | One compact line per minute, with the fields `dotnet=N` and `encina_unittests=N` next to each other. |
 | `stryker-console.log` | Stryker's console output. |
 
-The check run is updated every `PUBLISH_EVERY` minutes, which is `ceil(shard count / 10)`: every minute up to 10 shards, every 2 minutes for 11 to 20, and so on. The reason is that the `GITHUB_TOKEN` allows 1,000 REST requests per hour per repository, shared by every shard. Its summary holds the last 60 compact lines and its text the latest full reading. The step log still gets a `[runner-resources]` block at minute 0 and every fifth minute.
+The check run is updated every `PUBLISH_EVERY` minutes, which is `ceil(shard count / 6)`, computed as `(SHARD_COUNT + 5) / 6`: every minute up to 6 shards, every 2 minutes up to 12, every 4 minutes for 20. The whole matrix then stays at or below about 360 check-run updates per hour. The reason is that, besides the 1,000 REST requests per hour per repository of the `GITHUB_TOKEN`, shared by every shard, GitHub documents a lower secondary limit for content-creating requests (500 per hour). Its summary holds the last 60 compact lines and its text the latest full reading. The step log still gets a `[runner-resources]` block at minute 0 and every fifth minute.
 
-The step "Complete mutation telemetry (shard N)" completes the check run with the conclusion `neutral`: it is a record, not a verdict. For a lost runner, which never reaches that step, the `aggregate` job's step "Close telemetry check runs left open" completes it (status and conclusion only; the last readings stay). Every `gh` call tolerates failure, so telemetry never fails a shard. To read the readings, open the commit's Checks list or the run's checks.
+The step "Complete mutation telemetry (shard N)" completes the check run with the conclusion `neutral`: it is a record, not a verdict. For a lost runner, which never reaches that step, the `aggregate` job's step "Close telemetry check runs left open" completes it (status and conclusion only; the last readings stay). Every `gh` call tolerates failure, so telemetry never fails a shard, and every call has a timeout (30 s; 60 s for the paginated list in the `aggregate` job), so a hung call cannot stall the monitor. The token reaches the step as the environment variable `TELEMETRY_TOKEN`, which the script copies into a shell variable and unsets, so Stryker, its builds and the test hosts (which run mutated code) never see it; only the `gh` calls receive it, as `GH_TOKEN`. To read the readings, open the commit's Checks list or the run's checks.
 
 #### Stryker console and exit code
 
