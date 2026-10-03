@@ -55,7 +55,7 @@ The full per-package and per-file picture lives on the [dashboard](https://dlriv
 
 ### Quick run
 
-The C# helper script wraps Stryker with the repo's configuration (`.github/stryker-config.json`: project mode on `Encina.csproj`, MTP runner, coverage analysis off). It runs Stryker from `tests/Encina.UnitTests`, so run the command below from the repository root:
+The C# helper script wraps Stryker with the repo's configuration (`.github/stryker-config.json`: project mode on `Encina.csproj`, MTP runner, coverage analysis off). It runs Stryker from `tests/Encina.UnitTests`, so run the command below from the repository root. Extra arguments passed after `--` reach Stryker unchanged, so relative paths in them resolve against `tests/Encina.UnitTests`; use absolute paths.
 
 ```bash
 dotnet run --file .github/scripts/run-stryker.cs
