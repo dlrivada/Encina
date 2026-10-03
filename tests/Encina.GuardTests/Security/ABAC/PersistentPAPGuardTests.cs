@@ -509,10 +509,10 @@ public class PersistentPAPGuardTests
 
     private static PersistentPolicyAdministrationPoint CreatePersistentPAP()
     {
-        var store = Substitute.For<IPolicyStore>();
-        var provider = new ServiceCollection().AddScoped(_ => store).BuildServiceProvider();
+        // Guard tests fail before any scope is opened, so a substitute factory needs no disposable provider.
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        return new PersistentPolicyAdministrationPoint(provider.GetRequiredService<IServiceScopeFactory>(), logger);
+        return new PersistentPolicyAdministrationPoint(scopeFactory, logger);
     }
 
     private static PolicySet CreateMinimalPolicySet() => new()
