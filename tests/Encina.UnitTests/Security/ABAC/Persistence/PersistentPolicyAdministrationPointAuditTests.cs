@@ -49,7 +49,8 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         IPolicyStore store,
         IAuditStore? auditStore,
         IRequestContextAccessor? accessor,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        Microsoft.Extensions.Logging.ILogger<PersistentPolicyAdministrationPoint>? capturedLogger = null)
     {
         var services = new ServiceCollection();
         if (auditStore is not null)
@@ -59,7 +60,8 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-        var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
+        var logger = capturedLogger
+            ?? NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
         return new PersistentPolicyAdministrationPoint(
             store, logger, provider.GetRequiredService<IServiceScopeFactory>(), accessor, time);
     }
@@ -516,6 +518,8 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     public async Task CompensatingEntryReturnsLeft_OriginalStoreErrorIsStillReturned()
     {
         // Arrange — the write-ahead entry succeeds, the store rejects, the compensating entry fails
+        var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
+        var sut = CreateSut(_store, _auditStore, _requestContextAccessor, _time, logger);
         var ps = CreatePolicySet("ps-comp-left");
         SetupStoreExistsPolicySet("ps-comp-left", false);
         _store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
@@ -529,19 +533,22 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
                     Either<EncinaError, LanguageExt.Unit>.Left(EncinaErrors.Create("audit.failed", "audit down"))));
 
         // Act
-        var result = await _sut.AddPolicySetAsync(ps);
+        var result = await sut.AddPolicySetAsync(ps);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe("store.failed"));
         await _store.Received(1).SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
         await _auditStore.Received(2).RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        logger.Events.Count(e => e.Id == 9094).ShouldBe(1);
     }
 
     [Fact]
     public async Task CompensatingEntryThrows_OriginalStoreErrorIsStillReturned()
     {
         // Arrange — the write-ahead entry succeeds, the store rejects, the compensating entry throws
+        var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
+        var sut = CreateSut(_store, _auditStore, _requestContextAccessor, _time, logger);
         var ps = CreatePolicySet("ps-comp-throw");
         SetupStoreExistsPolicySet("ps-comp-throw", false);
         _store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
@@ -555,13 +562,14 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
                 : throw new InvalidOperationException("audit crashed"));
 
         // Act
-        var result = await _sut.AddPolicySetAsync(ps);
+        var result = await sut.AddPolicySetAsync(ps);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe("store.failed"));
         await _store.Received(1).SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
         calls.ShouldBe(2);
+        logger.Events.Count(e => e.Id == 9095).ShouldBe(1);
     }
 
     [Fact]
