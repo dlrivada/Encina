@@ -60,25 +60,50 @@ jobs:
           # Shard design (#1441, #1682). Stryker.NET 5 runs with the
           # Microsoft Testing Platform runner, which ignores
           # test-case-filter (stryker-net#3757): every mutant runs the whole
-          # Encina.UnitTests project (~22,000 tests, ~35.6 s per mutant
-          # measured locally in spike #1087). A shard's duration therefore
-          # grows with its tested-mutant count, not with its folder, so
-          # shards are sized to about 150 tested mutants or fewer.
+          # Encina.UnitTests project (~22,000 tests). Stryker runs at
+          # concurrency 1 (.github/stryker-config.json; stryker-net#3832), so
+          # a shard's duration grows with its tested-mutant count, not with
+          # its folder.
+          #
+          # PENDING MEASUREMENT (#1441 phase 2): the entries below are still
+          # the phase-1 split, sized to about 150 tested mutants at the local
+          # 35.6 s per mutant of spike #1087 and concurrency 2. The CI
+          # calibration runs of phase 2 measure the seconds per mutant on
+          # the runner at concurrency 1; SHARDS and TIMEOUTS are re-sized
+          # from that number, not before.
           #
           # A SHARDS entry is one or more Stryker mutate globs separated by
           # ';'. A glob that starts with '!' excludes files. A folder too big
           # for one shard is split by file: one or more shards name its
           # largest files, and the folder's last shard takes the folder glob
           # minus those files, so a file added to the folder later always
-          # lands in some shard. The aggregate job fails when two shard
-          # reports hold mutants of the same file.
+          # lands in some shard.
+          #
+          # A single file too big for one shard is split with Stryker's text
+          # span suffix '{start..end}'. The bounds are CHARACTER offsets in
+          # the file (UTF-16, LF line endings as checked out on the runner),
+          # not line numbers. Split a file in two with the same N in both
+          # shards:
+          #   "**/Dir/Big.cs{0..N}"                  (first part)
+          #   "**/Dir/Big.cs;!**/Dir/Big.cs{0..N}"   (the rest)
+          # Stryker keeps a mutant only when an include span contains it
+          # whole and no exclude span contains it whole, so a mutant that
+          # straddles N goes to the second shard and every mutant lands in
+          # exactly one shard, whatever N is; N only balances the halves
+          # (pick an offset between two members). Build checks below that
+          # every span exclusion has its include twin and the other way
+          # round. The aggregate job merges the shard reports of a split
+          # file mutant by mutant and fails when two reports tested the same
+          # mutant.
           #
           # The counts in the comments are tested mutants (every status
           # except Ignored, CompileError and NoCoverage) from run
           # 36959365309 (2026-10-02), and from run 36304862790 for
           # Modules/Isolation, whose shard lost its runner in 36959365309
-          # (#1682). Two single files exceed 150; a file is the smallest
-          # shard unit because the aggregate merge keys reports by file.
+          # (#1682). Shards 16 and 17 are the two files over 150
+          # (SqlServerPermissionScriptGenerator.cs and
+          # PostgreSqlPermissionScriptGenerator.cs); they are the candidates
+          # for a span split once the per-mutant time is measured.
           SHARDS=(
             "**/Core/EncinaConfiguration.cs;**/Core/ServiceCollectionExtensions.cs;**/Core/Encina.cs"                                    # 0: 140
             "**/Core/*.cs;!**/Core/EncinaConfiguration.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/Encina.cs"                    # 1: 80
@@ -102,13 +127,15 @@ jobs:
             "**/Modules/Isolation/*.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs" # 19: 58
           )
           # Per-shard job timeout in minutes, same index as SHARDS.
-          # PROVISIONAL (#1441): no CI run of the MTP runner exists yet, so
-          # these come from the #1395 formula max(60, ceil(round(minutes) x
-          # 1.5)) applied to an estimate, minutes = 20 (setup: restore, build,
-          # Stryker's build and initial test run) + tested mutants x 35.6 s
-          # (spike #1087, local). The first validation run re-sizes them from
-          # observed shard durations with the same formula. GitHub caps a job
-          # at 360 minutes; 340 is this workflow's ceiling.
+          # PROVISIONAL, PENDING MEASUREMENT (#1441 phase 2): no CI run of
+          # the MTP runner has finished yet, so these come from the #1395
+          # formula max(60, ceil(round(minutes) x 1.5)) applied to an
+          # estimate, minutes = 20 (setup: restore, build, Stryker's build
+          # and initial test run) + tested mutants x 35.6 s (spike #1087,
+          # local, concurrency 2). The phase-2 calibration runs measure the
+          # runner's seconds per mutant at concurrency 1, and both arrays are
+          # re-sized from it with the same formula. GitHub caps a job at 360
+          # minutes; 340 is this workflow's ceiling.
           TIMEOUTS=(
             155
             101
@@ -136,6 +163,37 @@ jobs:
             echo "::error::SHARDS (${#SHARDS[@]}) and TIMEOUTS (${#TIMEOUTS[@]}) must have the same length" >&2
             exit 1
           fi
+
+          # A span split has two halves, "X{a..b}" in one shard and
+          # "!X{a..b}" in another. A lone half drops (or tests twice) the
+          # mutants of the other part of the file, so each span glob must
+          # have its twin somewhere in SHARDS.
+          SPAN_RE='\{[0-9]+\.\.[0-9]+\}$'
+          ALL_GLOBS=()
+          for entry in "${SHARDS[@]}"; do
+            IFS=';' read -ra parts <<< "$entry"
+            ALL_GLOBS+=("${parts[@]}")
+          done
+          for glob in "${ALL_GLOBS[@]}"; do
+            if [[ $glob =~ $SPAN_RE ]]; then
+              if [ "${glob:0:1}" = "!" ]; then
+                twin="${glob:1}"
+              else
+                twin="!$glob"
+              fi
+              found=false
+              for other in "${ALL_GLOBS[@]}"; do
+                if [ "$other" = "$twin" ]; then
+                  found=true
+                  break
+                fi
+              done
+              if [ "$found" != true ]; then
+                echo "::error::SHARDS glob '$glob' has no twin '$twin'; a span split needs both halves (see the comment above SHARDS)." >&2
+                exit 1
+              fi
+            fi
+          done
 
           if [ -n "$CUSTOM_SCOPE" ]; then
             # Custom scope: reuse the paired timeout if the scope equals a
@@ -260,6 +318,9 @@ jobs:
   run-mutation-tests:
     permissions:
       contents: read
+      # The "Run mutation tests" step publishes runner telemetry to a check
+      # run that outlives a lost runner (#1441).
+      checks: write
     needs: select-matrix
     runs-on: ubuntu-latest
     # Per-shard budget from the matrix, not one fixed value: see the
@@ -320,37 +381,163 @@ jobs:
         # attacker-crafted value like `"; rm -rf / #` would otherwise
         # execute in the runner shell. Same script-injection hardening as
         # the "Build matrix" step above.
+        #
+        # Memory and CPU (#1441 phase 2). Calibration run 37130291929 lost
+        # its runner about an hour into this step and left no log; memory
+        # exhaustion of the 16 GB runner is the most likely cause.
+        # - Stryker runs at concurrency 1, set in .github/stryker-config.json
+        #   and not on the command line: run-stryker.cs reads -c as
+        #   --configuration, and Stryker 5.0.0 under-reports kills with the
+        #   MTP runner above concurrency 1 (stryker-net#3832). One slot keeps
+        #   one test host alive for every mutant.
+        # - DOTNET_GCHeapHardLimit (hexadecimal bytes) caps the managed heap
+        #   of every .NET process of the step at 4 GiB, so a test host that
+        #   runs out throws OutOfMemoryException and the shard fails
+        #   visibly instead of the kernel stalling the VM. Measured locally
+        #   on 2026-10-03 (Encina.UnitTests, 22,233 tests, 4 threads like
+        #   the runner's 4 vCPU): 2 GiB fails with OutOfMemoryException,
+        #   3 GiB passes about 30 % slower, 4 GiB passes at full speed. A
+        #   full rebuild of Encina.UnitTests also passes under the cap
+        #   (MSBuild peak 1.3 GiB), so the cap does not need to be scoped to
+        #   the test host.
+        # - The shell raises its own OOM score before starting Stryker and
+        #   runs it under nice, so under memory or CPU pressure the kernel
+        #   sacrifices Stryker or a test host, never the runner agent, and
+        #   the agent keeps its heartbeat. No swap is added: swapping is what
+        #   starves the agent; swapon --show is recorded instead.
         env:
           MATRIX_IDX: ${{ matrix.idx }}
           MATRIX_SCOPE: ${{ matrix.scope }}
           SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
+          SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
+          GH_TOKEN: ${{ github.token }}
+          DOTNET_GCHeapHardLimit: "0x100000000"
         run: |
-          mkdir -p artifacts/mutation/logs
+          # pipefail: Stryker's output goes through tee below, and without it
+          # the step would report tee's exit code and a failing Stryker run
+          # would look green.
+          set -o pipefail
+          LOGS=artifacts/mutation/logs
+          mkdir -p "$LOGS"
+          CONSOLE_LOG="$LOGS/stryker-console.log"
+          HISTORY="$LOGS/runner-resources-history.log"
+          : > "$CONSOLE_LOG"
+          : > "$HISTORY"
           SCOPE="$MATRIX_SCOPE"
           MODE="$SELECT_MODE"
 
           echo "Shard idx: $MATRIX_IDX"
           echo "Scope: $SCOPE"
           echo "Mode: $MODE"
+          echo "Swap:"
+          swapon --show || true
 
-          # Record runner memory and disk once a minute (#1682: a shard lost
-          # its hosted runner without leaving a log). The file is uploaded
-          # with the Stryker logs when the job fails or is cancelled; every
-          # fifth reading also goes to the step log, which keeps the lines
-          # written before a lost runner stops reporting. The EXIT trap
-          # stops the loop, so the step still ends with Stryker.
+          # Telemetry that survives a lost runner (#1441, #1682). GitHub
+          # keeps no log of a job whose runner is lost, not even of its
+          # finished steps, so the monitor below also publishes its readings
+          # to a check run, "mutation telemetry (shard N)", on this commit:
+          # the last update before a loss stays on GitHub. The step "Complete
+          # mutation telemetry" closes it, and the aggregate job closes the
+          # ones a lost runner left open. Every gh call tolerates failure, so
+          # telemetry never fails the shard.
+          CHECK_ID=$(gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name="mutation telemetry (shard $MATRIX_IDX)" \
+            -f head_sha="$GITHUB_SHA" \
+            -f status=in_progress \
+            -f external_id="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$MATRIX_IDX" \
+            -f "output[title]=Shard $MATRIX_IDX: starting" \
+            -f "output[summary]=Run $GITHUB_RUN_ID, attempt $GITHUB_RUN_ATTEMPT, mode $MODE." \
+            --jq .id 2>/dev/null) || CHECK_ID=""
+          echo "check_id=$CHECK_ID" >> "$GITHUB_OUTPUT"
+          if [ -z "$CHECK_ID" ]; then
+            echo "::warning::Could not create the telemetry check run; readings go to the step log and the logs artifact only."
+          fi
+
+          # The GITHUB_TOKEN allows 1,000 REST requests per hour per
+          # repository, shared by every shard of the run. The check run is
+          # updated every PUBLISH_EVERY minutes so the whole matrix stays
+          # near 600 requests per hour: every minute up to 10 shards, every
+          # two minutes up to 20, and so on. Readings are still taken every
+          # minute.
+          PUBLISH_EVERY=$(( (${SHARD_COUNT:-1} + 9) / 10 ))
+          if [ "$PUBLISH_EVERY" -lt 1 ]; then
+            PUBLISH_EVERY=1
+          fi
+
+          # One reading: a full sample (appended to runner-resources.log and
+          # kept in runner-resources-latest.log) and one compact line in
+          # runner-resources-history.log.
+          sample() {
+            local now l1 l5 l15 mem top
+            now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            {
+              echo "== $now"
+              echo "loadavg: $(cat /proc/loadavg)"
+              free -m
+              echo "swap:"
+              swapon --show
+              df -h / /mnt
+              echo "top processes by RSS (KB):"
+              ps -eo pid,ni,rss,pcpu,etimes,comm --sort=-rss | head -n 8
+              echo "dotnet processes: $(pgrep -c dotnet)"
+              echo "kernel OOM lines:"
+              sudo -n dmesg -T 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' | tail -n 3
+              echo "stryker console (last 400 bytes):"
+              tail -c 400 "$CONSOLE_LOG" | tr '\r' '\n' | sed 's/\x1b\[[0-9;]*[A-Za-z]//g'
+              echo
+            } > "$LOGS/runner-resources-latest.log" 2>&1
+            cat "$LOGS/runner-resources-latest.log" >> "$LOGS/runner-resources.log"
+            read -r l1 l5 l15 _ < /proc/loadavg
+            mem=$(free -m | awk '/^Mem:/ {printf "mem_used=%sMB mem_avail=%sMB", $3, $7} /^Swap:/ {printf " swap_used=%sMB", $3}')
+            top=$(ps -eo rss,comm --sort=-rss | awk 'NR == 2 {printf "top=%s:%dMB", $2, $1 / 1024}')
+            echo "$now load=$l1/$l5/$l15 $mem dotnet=$(pgrep -c dotnet) $top" >> "$HISTORY"
+          }
+
+          # Push the last 60 compact lines (summary) and the latest full
+          # sample (text) to the check run.
+          publish() {
+            if [ -z "$CHECK_ID" ]; then
+              return 0
+            fi
+            {
+              echo "Run $GITHUB_RUN_ID, attempt $GITHUB_RUN_ATTEMPT, shard $MATRIX_IDX. One line per minute, newest last:"
+              echo '```text'
+              tail -n 60 "$HISTORY"
+              echo '```'
+            } > "$LOGS/check-summary.md"
+            {
+              echo 'Latest full sample:'
+              echo '```text'
+              cat "$LOGS/runner-resources-latest.log"
+              echo '```'
+            } > "$LOGS/check-text.md"
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
+              -f "output[title]=Shard $MATRIX_IDX: $(tail -n 1 "$HISTORY" | cut -c 1-180)" \
+              -F "output[summary]=@$LOGS/check-summary.md" \
+              -F "output[text]=@$LOGS/check-text.md" > /dev/null 2>&1
+          }
+
+          # Monitor, once a minute (#1682: a shard lost its hosted runner
+          # without leaving a log). The full readings are uploaded with the
+          # Stryker logs when the job ends, even on failure or cancellation;
+          # every fifth reading also goes to the step log, and the check run
+          # gets one every PUBLISH_EVERY minutes. errexit and pipefail are
+          # off inside the loop so a failing probe (no sudo, no match) never
+          # stops it. The EXIT trap stops the loop, so the step still ends
+          # with Stryker.
           (
+            set +e +o pipefail
             minute=0
             while true; do
-              {
-                date -u +%Y-%m-%dT%H:%M:%SZ
-                free -m
-                df -h /
-              } >> artifacts/mutation/logs/runner-resources.log 2>&1
+              sample
+              if [ $((minute % PUBLISH_EVERY)) -eq 0 ]; then
+                publish
+              fi
               if [ $((minute % 5)) -eq 0 ]; then
                 echo "[runner-resources] $(date -u +%Y-%m-%dT%H:%M:%SZ)"
                 free -m
                 df -h /
+                tail -n 1 "$HISTORY"
               fi
               minute=$((minute + 1))
               sleep 60
@@ -358,6 +545,18 @@ jobs:
           ) < /dev/null 2>&1 &
           MONITOR_PID=$!
           trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
+
+          # From here on this shell and everything it starts (Stryker, its
+          # builds and the test hosts) carry the highest OOM score, so the
+          # kernel kills them before the runner agent. Raising one's own
+          # score needs no root, and children inherit it. The monitor above
+          # keeps the default score.
+          echo 1000 > /proc/self/oom_score_adj
+          echo "oom_score_adj: $(cat /proc/self/oom_score_adj)"
+
+          run_stryker() {
+            nice -n 10 dotnet run --file .github/scripts/run-stryker.cs -- "$@" 2>&1 | tee -a "$CONSOLE_LOG"
+          }
 
           # Build --mutate args: every ';'-separated glob of the shard scope,
           # then the standard exclusions.
@@ -397,18 +596,22 @@ jobs:
           # Always expand MUTATE_ARGS via "${MUTATE_ARGS[@]}" (quoted) so
           # each array element becomes exactly one argv entry — no word
           # splitting, no glob expansion.
+          #
+          # run_stryker sends Stryker's console to the step log and to
+          # stryker-console.log, which is uploaded with the logs artifact and
+          # whose tail feeds the telemetry check run.
           if [ "$MODE" = "diff" ]; then
             echo "Running diff mode (vs main)"
-            dotnet run --file .github/scripts/run-stryker.cs -- --since:main "${MUTATE_ARGS[@]}"
+            run_stryker --since:main "${MUTATE_ARGS[@]}"
           elif [ "$MODE" = "full" ]; then
             echo "Running full mode (all files — will exceed the 340-min shard timeout)"
             # Pass MUTATE_ARGS so the CLI exclusion list stays the single
             # source of truth; otherwise full_mode would silently drift if
             # MUTATE_ARGS gains an exclusion the config file does not have.
-            dotnet run --file .github/scripts/run-stryker.cs -- "${MUTATE_ARGS[@]}"
+            run_stryker "${MUTATE_ARGS[@]}"
           else
             echo "Running shard scope: $SCOPE"
-            dotnet run --file .github/scripts/run-stryker.cs -- "${MUTATE_ARGS[@]}"
+            run_stryker "${MUTATE_ARGS[@]}"
           fi
 
       - name: Locate mutation report
@@ -478,6 +681,38 @@ jobs:
           path: artifacts/mutation/logs
           if-no-files-found: ignore
 
+      # Closes the telemetry check run of "Run mutation tests" with the
+      # conclusion neutral: it records readings, not a verdict. A lost runner
+      # never gets here; the aggregate job closes those check runs.
+      - name: Complete mutation telemetry (shard ${{ matrix.idx }})
+        if: always() && steps.stryker.outputs.check_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_ID: ${{ steps.stryker.outputs.check_id }}
+          MATRIX_IDX: ${{ matrix.idx }}
+          STRYKER_OUTCOME: ${{ steps.stryker.outcome }}
+        run: |
+          LOGS=artifacts/mutation/logs
+          {
+            echo "Stryker step outcome: $STRYKER_OUTCOME. One line per minute, newest last:"
+            echo '```text'
+            tail -n 60 "$LOGS/runner-resources-history.log" 2>/dev/null || true
+            echo '```'
+          } > "$RUNNER_TEMP/check-summary.md"
+          {
+            echo 'Latest full sample:'
+            echo '```text'
+            cat "$LOGS/runner-resources-latest.log" 2>/dev/null || true
+            echo '```'
+          } > "$RUNNER_TEMP/check-text.md"
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
+            -f status=completed \
+            -f conclusion=neutral \
+            -f "output[title]=Shard $MATRIX_IDX: Stryker step $STRYKER_OUTCOME" \
+            -F "output[summary]=@$RUNNER_TEMP/check-summary.md" \
+            -F "output[text]=@$RUNNER_TEMP/check-text.md" > /dev/null \
+            || echo "::warning::Could not complete the telemetry check run $CHECK_ID."
+
       # #1440: the VsTest runner reported 0 killed on every shard for weeks
       # and every job stayed green. A report that tested mutants and killed
       # none means the runner did not activate the mutants, so the shard
@@ -510,11 +745,34 @@ jobs:
   aggregate:
     permissions:
       contents: read
+      # Closes the telemetry check runs that lost runners left open.
+      checks: write
     needs: [select-matrix, run-mutation-tests]
     if: always() && needs.select-matrix.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # A shard whose runner was lost never runs its "Complete mutation
+      # telemetry" step, so its check run would stay in progress on the
+      # commit. Every shard has finished by now: complete the ones of this
+      # run (external_id "<run id>-<attempt>-<shard>") that are still open.
+      # Only status and conclusion change; the last readings the shard
+      # published stay in the check run's output. Failure-tolerant, like
+      # all telemetry.
+      - name: Close telemetry check runs left open
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?status=in_progress&per_page=100" \
+            --jq ".check_runs[] | select((.external_id // \"\") | startswith(\"$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-\")) | .id" 2>/dev/null) || OPEN=""
+          for id in $OPEN; do
+            echo "Telemetry check run $id is still in progress (lost runner or cancelled job); completing it."
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" \
+              -f status=completed -f conclusion=neutral > /dev/null \
+              || echo "::warning::Could not complete the telemetry check run $id."
+          done
+
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -561,7 +819,7 @@ jobs:
             fi
           done < <(jq -r '.[].idx' <<< "$MATRIX_JSON")
           if [ "${#MISSING[@]}" -gt 0 ]; then
-            echo "::warning title=Missing shard reports::${#MISSING[@]} of $SHARD_COUNT shards uploaded no mutation report: ${MISSING[*]}. Their files keep their previous dashboard data."
+            echo "::warning title=Missing shard reports::${#MISSING[@]} of $SHARD_COUNT shards uploaded no mutation report: ${MISSING[*]}. Files that only they measured keep their previous dashboard data; a span-split file is published with the part another shard measured."
             {
               echo '### Missing shard reports';
               echo '';
@@ -600,29 +858,53 @@ jobs:
             exit 1
           fi
 
-          # Combine every shard's `files` map into one. A shard lists every
-          # file of the project it mutated, including the files that belong to
-          # other shards' folders, with an empty `mutants` array (#1681). A
-          # plain `add` lets the last shard's empty entry overwrite the entry
-          # that has the mutants, so each shard's empty entries are dropped
-          # before combining. Metadata (thresholds, projectRoot, etc.) inherits
-          # from shard[0].
-          # A file with mutants in two shards means overlapping folder globs:
-          # fail with the file names instead of silently overwriting one.
-          DUPLICATES=$(jq -s -r '[.[] | .files | to_entries[]
-              | select((.value.mutants // []) | length > 0) | .key]
-            | group_by(.) | map(select(length > 1) | .[0]) | .[]' "${REPORTS[@]}")
+          # Combine the shard reports file by file and mutant by mutant.
+          # Metadata (thresholds, projectRoot, etc.) inherits from shard[0].
+          # - Placeholders are dropped. A shard lists every file of the
+          #   project, those outside its globs with an empty `mutants` array
+          #   (#1681), and Stryker 5.0.0 lists the mutants of a file that
+          #   fall outside the shard's text span (a span-split file, see
+          #   SHARDS) with status Ignored and statusReason "Removed by
+          #   mutate filter". Kept, they would overwrite the other shard's
+          #   results, or publish a file that no shard measured; a file with
+          #   placeholders only keeps its previous dashboard data.
+          # - A file's remaining mutants are concatenated across shards, so
+          #   the halves of a span-split file merge. When one half's shard
+          #   uploaded nothing, the file is published with the half that ran
+          #   (the missing shard is named in the warning above).
+          # - The same mutant (location, mutator and replacement) held as a
+          #   result by two shard reports means overlapping globs or a
+          #   broken span pair: fail and name it instead of overwriting one.
+          #   Should Stryker rename the placeholder reason, its placeholders
+          #   count as results and this check fails loudly instead of
+          #   merging them silently.
+          JQ_DEFS='
+            def placeholder: .status == "Ignored" and (.statusReason // "") == "Removed by mutate filter";
+            def results: [(.mutants // [])[] | select(placeholder | not)];
+            def mutant_key: [.location.start.line, .location.start.column, .location.end.line, .location.end.column, .mutatorName, .replacement] | tostring;
+          '
+          DUPLICATES=$(jq -s -r "$JQ_DEFS"'
+            [to_entries[] | .key as $report | .value.files | to_entries[] | .key as $file
+              | .value | results[] | {report: $report, file: $file, key: mutant_key}]
+            | group_by([.file, .key])
+            | map(select((map(.report) | unique | length) > 1) | "\(.[0].file) \(.[0].key)")
+            | .[]' "${REPORTS[@]}")
           if [ -n "$DUPLICATES" ]; then
-            echo "::error::Files with mutants in more than one shard report (overlapping folder globs):"
+            echo "::error::Mutants held as results by more than one shard report (overlapping globs or a broken span pair):"
             echo "$DUPLICATES"
             exit 1
           fi
 
-          jq -s '(.[0]) + {files: (map(.files | with_entries(select((.value.mutants // []) | length > 0))) | add // {})}' \
+          jq -s "$JQ_DEFS"'
+            (.[0]) + {files: (
+              [.[] | .files | to_entries[] | .value.mutants = (.value | results) | select(.value.mutants | length > 0)]
+              | group_by(.key)
+              | map({key: .[0].key, value: (.[0].value + {mutants: (map(.value.mutants) | add)})})
+              | from_entries)}' \
             "${REPORTS[@]}" > artifacts/mutation/reports/mutation-report.json
 
-          # Guard: the merge must neither lose nor invent mutants.
-          EXPECTED=$(jq -s '[.[] | .files | to_entries[] | (.value.mutants // []) | length] | add // 0' "${REPORTS[@]}")
+          # Guard: the merge must neither lose nor invent a result.
+          EXPECTED=$(jq -s "$JQ_DEFS"'[.[] | .files[] | results | length] | add // 0' "${REPORTS[@]}")
 
           MUTANTS=$(jq '[.files | to_entries[] | .value.mutants // [] | length] | add // 0' \
             artifacts/mutation/reports/mutation-report.json)
