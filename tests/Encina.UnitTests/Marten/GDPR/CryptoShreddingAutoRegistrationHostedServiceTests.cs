@@ -135,6 +135,32 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_GetterOnlyEncryptedProperty_ThrowsNamingPropertyAndType()
+    {
+        // #1646: the serializer cannot overwrite a getter-only property with its ciphertext.
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(GetterOnlyEncrypted)));
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+
+        ex.Message.ShouldContain("1 validation error(s)");
+        ex.Message.ShouldContain($"Property '{nameof(GetterOnlyEncrypted.Email)}'");
+        ex.Message.ShouldContain(typeof(GetterOnlyEncrypted).FullName!);
+        ex.Message.ShouldContain("setter");
+    }
+
+    [Fact]
+    public async Task StartAsync_PositionalRecord_CompletesWithoutErrors()
+    {
+        var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
+        var sut = CreateSut(logger, autoRegister: true, new FakeAssembly(typeof(PositionalRecordEvent)));
+
+        await sut.StartAsync(CancellationToken.None);
+
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Level == LogLevel.Error);
+    }
+
+    [Fact]
     public async Task StartAsync_SupportedSubjectIdTypes_CompletesWithoutErrors()
     {
         var logger = new FakeLogger<CryptoShreddingAutoRegistrationHostedService>();
@@ -249,6 +275,19 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
         [CryptoShredded(SubjectIdProperty = nameof(UserId))]
         public int Age { get; set; }
     }
+
+    public sealed class GetterOnlyEncrypted(string userId, string email)
+    {
+        public string UserId { get; } = userId;
+
+        [PersonalData]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; } = email;
+    }
+
+    public sealed record PositionalRecordEvent(
+        string UserId,
+        [property: PersonalData, CryptoShredded(SubjectIdProperty = nameof(PositionalRecordEvent.UserId))] string Email);
 
     public sealed class GuidSubject
     {

@@ -1,3 +1,4 @@
+#pragma warning disable CA2012 // NSubstitute ValueTask stubbing pattern
 using Encina.Compliance.DataSubjectRights;
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
 using Encina.Marten.GDPR;
@@ -8,6 +9,8 @@ using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Npgsql;
+
+using NSubstitute.ExceptionExtensions;
 
 using Shouldly;
 
@@ -208,7 +211,72 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         store.Dispose();
     }
 
+    [Fact]
+    public async Task Append_KeyProviderFails_ThrowsAndStoresNoEvent()
+    {
+        // Arrange (#1646): the key store is down, so the PII field cannot be encrypted
+        var failingKeys = Substitute.For<ISubjectKeyProvider>();
+        failingKeys.GetOrCreateSubjectKeyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new NpgsqlException("key store unreachable"));
+        var store = BuildCryptoShredderStore(failingKeys);
+        await EnsureEventSchemaAsync(store);
+        var streamId = Guid.NewGuid();
+
+        // Act
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.Append(streamId, new TestPiiEvent { UserId = "user-down", Email = "down@example.com", OrderId = "1" });
+            await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+        }
+
+        // Assert: nothing reached the event store, encrypted or not
+        (await CountStoredEventsAsync(store, streamId)).ShouldBe(0);
+
+        store.Dispose();
+    }
+
+    [Fact]
+    public async Task Append_MissingSubjectId_ThrowsAndStoresNoEvent()
+    {
+        // Arrange (#1646)
+        var store = BuildCryptoShredderStore();
+        await EnsureEventSchemaAsync(store);
+        var streamId = Guid.NewGuid();
+
+        // Act
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.Append(streamId, new TestGuidSubjectEvent { PatientId = Guid.Empty, Email = "nobody@example.com" });
+            await Should.ThrowAsync<Exception>(() => session.SaveChangesAsync());
+        }
+
+        // Assert
+        (await CountStoredEventsAsync(store, streamId)).ShouldBe(0);
+
+        store.Dispose();
+    }
+
     #region Helpers
+
+    /// <summary>Creates the event tables by appending a non-PII event to another stream.</summary>
+    private static async Task EnsureEventSchemaAsync(DocumentStore store)
+    {
+        await using var session = store.LightweightSession();
+        session.Events.Append(Guid.NewGuid(), new TestNonPiiEvent { EventName = "SchemaWarmUp", Timestamp = DateTimeOffset.UnixEpoch });
+        await session.SaveChangesAsync();
+    }
+
+    private async Task<long> CountStoredEventsAsync(DocumentStore store, Guid streamId)
+    {
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"select count(*) from {store.Options.DatabaseSchemaName}.mt_events where stream_id = @streamId";
+        command.Parameters.AddWithValue("streamId", streamId);
+
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
 
     private static async Task<string> ReadEmailAsync(DocumentStore store, Guid streamId)
     {
@@ -238,7 +306,7 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
         return json;
     }
 
-    private DocumentStore BuildCryptoShredderStore()
+    private DocumentStore BuildCryptoShredderStore(ISubjectKeyProvider? keyProvider = null)
     {
         return DocumentStore.For(opts =>
         {
@@ -248,7 +316,7 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
             // Apply crypto-shredder serializer
             CryptoShredderSerializerFactory.Apply(
                 opts,
-                _keyProvider,
+                keyProvider ?? _keyProvider,
                 new DefaultForgottenSubjectHandler(
                     NullLogger<DefaultForgottenSubjectHandler>.Instance),
                 NullLogger<CryptoShredderSerializer>.Instance);
