@@ -336,17 +336,27 @@ jobs:
 
           # Record runner memory and disk once a minute (#1682: a shard lost
           # its hosted runner without leaving a log). The file is uploaded
-          # with the Stryker logs even when the job fails or is cancelled.
+          # with the Stryker logs when the job fails or is cancelled; every
+          # fifth reading also goes to the step log, which keeps the lines
+          # written before a lost runner stops reporting. The EXIT trap
+          # stops the loop, so the step still ends with Stryker.
           (
+            minute=0
             while true; do
               {
                 date -u +%Y-%m-%dT%H:%M:%SZ
                 free -m
                 df -h /
               } >> artifacts/mutation/logs/runner-resources.log 2>&1
+              if [ $((minute % 5)) -eq 0 ]; then
+                echo "[runner-resources] $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                free -m
+                df -h /
+              fi
+              minute=$((minute + 1))
               sleep 60
             done
-          ) < /dev/null > /dev/null 2>&1 &
+          ) < /dev/null 2>&1 &
           MONITOR_PID=$!
           trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
 
@@ -473,8 +483,10 @@ jobs:
       # and every job stayed green. A report that tested mutants and killed
       # none means the runner did not activate the mutants, so the shard
       # fails; the aggregate job also refuses to publish such a report.
+      # Only the default matrix is guarded: a custom or diff scope can test
+      # a handful of mutants that all legitimately survive.
       - name: Fail a shard that killed no mutant
-        if: always() && steps.stryker-report.outputs.reports-dir != ''
+        if: always() && steps.stryker-report.outputs.reports-dir != '' && needs.select-matrix.outputs.mode == 'matrix'
         env:
           MATRIX_IDX: ${{ matrix.idx }}
           REPORTS_DIR: ${{ steps.stryker-report.outputs.reports-dir }}
@@ -530,6 +542,7 @@ jobs:
         env:
           SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
           MATRIX_JSON: ${{ needs.select-matrix.outputs.matrix }}
+          SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
         run: |
           mkdir -p artifacts/mutation/reports shards
           mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
@@ -567,9 +580,13 @@ jobs:
 
           # #1440: a report that tested mutants and killed none comes from a
           # runner that did not activate the mutants. Publishing it would
-          # show 0 % for its files as if it were a measurement.
+          # show 0 % for its files as if it were a measurement. Only the
+          # default matrix is guarded (see the shard step of the same name).
           ZERO_KILLED=()
           for report in "${REPORTS[@]}"; do
+            if [ "$SELECT_MODE" != "matrix" ]; then
+              break
+            fi
             TESTED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed" or .status == "Survived" or .status == "Timeout")] | length' "$report")
             KILLED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed")] | length' "$report")
             if [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then

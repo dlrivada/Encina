@@ -12,7 +12,7 @@ try
     Console.WriteLine("Restoring dotnet tools...");
     RunOrThrow("dotnet", ["tool", "restore"]);
 
-    Console.WriteLine($"Executing Stryker mutation analysis (build configuration: {configuration})...");
+    Console.WriteLine($"Executing Stryker mutation analysis (build configuration: {configuration ?? "project default"})...");
 
     // No --log-to-file by default: file logging is always trace level, and
     // under the MTP runner it also writes a JSON-RPC log per test server that
@@ -32,6 +32,14 @@ try
         "--verbosity",
         "info"
     };
+
+    // Without -c/--configuration Stryker builds the project's default
+    // configuration (Debug), which the workflow's Build step pre-builds.
+    if (configuration is not null)
+    {
+        strykerArguments.Add("--configuration");
+        strykerArguments.Add(configuration);
+    }
 
     if (passThrough.Count > 0)
     {
@@ -72,9 +80,9 @@ catch (Exception ex)
     Environment.Exit(1);
 }
 
-static (string Configuration, IReadOnlyList<string> PassThrough) ParseArguments(string[] rawArgs)
+static (string? Configuration, IReadOnlyList<string> PassThrough) ParseArguments(string[] rawArgs)
 {
-    var configuration = "Release";
+    string? configuration = null;
     var passThrough = new List<string>();
 
     var index = 0;
