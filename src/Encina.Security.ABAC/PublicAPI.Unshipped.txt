@@ -47,7 +47,7 @@ Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.Standalone
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicyAsync(Encina.Security.ABAC.Policy! policy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.Administration.InMemoryPolicyAdministrationPoint.UpdatePolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint
-Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.PersistentPolicyAdministrationPoint(Encina.Security.ABAC.Persistence.IPolicyStore! store, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint!>! logger, Encina.Security.Audit.IAuditStore? auditStore = null, Encina.IRequestContextAccessor? requestContextAccessor = null) -> void
+Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.PersistentPolicyAdministrationPoint(Encina.Security.ABAC.Persistence.IPolicyStore! store, Microsoft.Extensions.Logging.ILogger<Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint!>! logger, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? scopeFactory = null, Encina.IRequestContextAccessor? requestContextAccessor = null, System.TimeProvider? timeProvider = null) -> void
 Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.AddPolicyAsync(Encina.Security.ABAC.Policy! policy, string? parentPolicySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.AddPolicySetAsync(Encina.Security.ABAC.PolicySet! policySet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Security.ABAC.Administration.PersistentPolicyAdministrationPoint.GetPoliciesAsync(string? policySetId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, System.Collections.Generic.IReadOnlyList<Encina.Security.ABAC.Policy!>!>>
@@ -509,6 +509,8 @@ const Encina.Security.ABAC.ABACErrors.InvalidPolicySetCode = "abac.invalid_polic
 const Encina.Security.ABAC.ABACErrors.MissingContextCode = "abac.missing_context" -> string!
 const Encina.Security.ABAC.ABACErrors.ObligationFailedCode = "abac.obligation_failed" -> string!
 const Encina.Security.ABAC.ABACErrors.ObligationHandlerExceptionCode = "abac.obligation_handler_exception" -> string!
+const Encina.Security.ABAC.ABACErrors.PolicyChangeAuditFailedCode = "abac.policy_change_audit_failed" -> string!
+const Encina.Security.ABAC.ABACErrors.PolicyChangePrincipalRequiredCode = "abac.policy_change_principal_required" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode = "abac.policy_not_found" -> string!
 const Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode = "abac.policy_set_not_found" -> string!
 const Encina.Security.ABAC.ABACErrors.DeserializationFailedCode = "abac.deserialization_failed" -> string!
@@ -673,6 +675,8 @@ static Encina.Security.ABAC.ABACErrors.InvalidPolicySet(string! policySetId, str
 static Encina.Security.ABAC.ABACErrors.MissingContext(System.Type! requestType) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.ObligationFailed(string! obligationId, string? reason = null) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.ObligationHandlerException(string! obligationId, System.Type! exceptionType) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.PolicyChangeAuditFailed(string! cause) -> Encina.EncinaError
+static Encina.Security.ABAC.ABACErrors.PolicyChangePrincipalRequired() -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicyNotFound(string! policyId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.PolicySetNotFound(string! policySetId) -> Encina.EncinaError
 static Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFound(System.Type! requestType, string! policyName) -> Encina.EncinaError
