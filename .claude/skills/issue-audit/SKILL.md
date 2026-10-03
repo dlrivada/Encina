@@ -117,7 +117,11 @@ committed:
    pwsh -NoProfile -File tools/ai/audit/audit-draft-remediation.ps1 -Prepare
    ```
    It splits each of `code.md`, `tests.md` and `docs.md`'s `## Findings` section into individual findings (the
-   numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents write), groups same-location
+   numbered "N. **Blocker/Major/Minor** — ..." paragraphs the stage agents write; a section that is the `- none`
+   marker alone, optional trailing period, any case, has no findings; prose after the marker is ignored with a note
+   recorded as a pipeline lesson in the manifest, and any finding-shaped line after it (a numbered item, or a line
+   starting with a severity word) makes the section fall through to the normal parser, so a real finding is never
+   dropped), groups same-location
    findings, searches open issues for duplicates with deterministic evidence, applies `-DuplicateOf`
    overrides, and writes in the MAIN checkout's `artifacts/knowledge/remediation/` one
    `_input-<n>-<stage>-<id>.md` per finding plus `_manifest-<n>.json`: per finding its group, duplicate or merge
