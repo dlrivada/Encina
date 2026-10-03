@@ -630,7 +630,7 @@ public sealed class ABACPipelineBehaviorTests
         var executor = new ObligationExecutor([handler], executorLogger);
         var behavior = CreateBehavior(pdp, obligationExecutor: executor, logger: pepLogger);
 
-        var activities = new List<Activity>();
+        var activities = new System.Collections.Concurrent.ConcurrentBag<Activity>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina.Security.ABAC",
