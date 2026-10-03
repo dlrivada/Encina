@@ -21,7 +21,7 @@ public class PersistentPAPGuardTests
     #region PersistentPolicyAdministrationPoint — Constructor Guards
 
     [Fact]
-    public void PersistentPAP_Constructor_NullStore_ThrowsArgumentNullException()
+    public void PersistentPAP_Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         // Arrange
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
@@ -31,17 +31,17 @@ public class PersistentPAPGuardTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("store");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void PersistentPAP_Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var store = Substitute.For<IPolicyStore>();
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
 
         // Act
-        var act = () => new PersistentPolicyAdministrationPoint(store, null!);
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -510,8 +510,9 @@ public class PersistentPAPGuardTests
     private static PersistentPolicyAdministrationPoint CreatePersistentPAP()
     {
         var store = Substitute.For<IPolicyStore>();
+        var provider = new ServiceCollection().AddScoped(_ => store).BuildServiceProvider();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        return new PersistentPolicyAdministrationPoint(store, logger);
+        return new PersistentPolicyAdministrationPoint(provider.GetRequiredService<IServiceScopeFactory>(), logger);
     }
 
     private static PolicySet CreateMinimalPolicySet() => new()
