@@ -343,7 +343,10 @@ public static class EventIdRanges
     // Security extensions (9000-9199)
     // ═══════════════════════════════════════════════════════════════════════
 
-    /// <summary>Encina.Security.ABAC — attribute-based access control.</summary>
+    /// <summary>
+    /// Encina.Security.ABAC — attribute-based access control.
+    /// Free ids inside the range, to reuse for the next ABAC message: 9056-9057 (freed by #1677) and 9098-9099.
+    /// </summary>
     public static readonly (int Min, int Max) SecurityABAC = (9000, 9099);
 
     /// <summary>Encina.Security.AntiTampering — signature validation.</summary>

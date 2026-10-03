@@ -91,17 +91,92 @@ public sealed class ABACPolicySeedingHostedServiceTests
     }
 
     [Fact]
-    public async Task StartAsync_WhenStandalonePolicyAlreadyExists_SkipsIt()
+    public async Task StartAsync_WhenStandalonePolicyAlreadyExists_WarnsWithDuplicateCodeAndSeedsTheNext()
     {
-        var policy = CreatePolicy("dup-p");
+        var dup = CreatePolicy("dup-p");
+        var next = CreatePolicy("next-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(dup);
+        options.Value.SeedPolicies.Add(next);
+        _pap.AddPolicyAsync(dup, null, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicy("dup-p"))));
+        _pap.AddPolicyAsync(next, null, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+        var logger = new CapturingLogger();
+
+        var sut = new ABACPolicySeedingHostedService(_pap, options, logger);
+
+        await sut.StartAsync(CancellationToken.None);
+
+        logger.Messages.ShouldContain(m =>
+            m.Level == Microsoft.Extensions.Logging.LogLevel.Warning && m.Text.Contains(ABACErrors.DuplicatePolicyCode));
+        await _pap.Received(1).AddPolicyAsync(next, null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartAsync_PolicySetDuplicateCodeFromTheSetPath_IsSkipped()
+    {
+        var policySet = CreatePolicySet("dup-ps");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicySets.Add(policySet);
+        _pap.AddPolicySetAsync(policySet, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicySet("dup-ps"))));
+        var logger = new CapturingLogger();
+
+        var sut = new ABACPolicySeedingHostedService(_pap, options, logger);
+
+        await sut.StartAsync(CancellationToken.None);
+
+        logger.Messages.ShouldContain(m =>
+            m.Level == Microsoft.Extensions.Logging.LogLevel.Warning && m.Text.Contains(ABACErrors.DuplicatePolicySetCode));
+    }
+
+    [Fact]
+    public async Task StartAsync_PolicySetDuplicateCodeFromThePolicyPath_FailsStartup()
+    {
+        // The skip rule is per kind: a standalone policy answered with the policy-set duplicate code is not a duplicate.
+        var policy = CreatePolicy("cross-p");
         var options = Options.Create(new ABACOptions());
         options.Value.SeedPolicies.Add(policy);
         _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicy("dup-p"))));
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Left<EncinaError, Unit>(ABACErrors.DuplicatePolicySet("cross-p"))));
 
         var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
 
-        await sut.StartAsync(CancellationToken.None);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+        ex.Message.ShouldContain(ABACErrors.DuplicatePolicySetCode);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenPapThrowsCancellationButTokenIsNotCancelled_FailsStartup()
+    {
+        var policy = CreatePolicy("oce-p");
+        var options = Options.Create(new ABACOptions());
+        options.Value.SeedPolicies.Add(policy);
+        _pap.AddPolicyAsync(policy, null, Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new OperationCanceledException());
+
+        var sut = new ABACPolicySeedingHostedService(_pap, options, NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
+        ex.Message.ShouldContain("oce-p");
+        ex.Message.ShouldContain(nameof(OperationCanceledException));
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<ABACPolicySeedingHostedService>
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel Level, string Text)> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add((logLevel, formatter(state, exception)));
     }
 
     [Fact]
