@@ -45,7 +45,7 @@ All registrations use `TryAdd`, so you can register custom implementations _befo
 ABAC evaluates a request only for an authenticated user, so it needs an `ISecurityContextAccessor` whose `SecurityContext` is populated and authenticated. Without one, the request is denied with `abac.missing_context` in every enforcement mode (see the [error reference](reference/errors.md)).
 
 - Register `Encina.Security` (`AddEncinaSecurity`) and set the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
-- Background jobs and scheduled messages set a context with a service identity: an authenticated `ClaimsIdentity` with a `sub` or `NameIdentifier` claim.
+- Background jobs and scheduled messages set a context with a service identity: a `ClaimsIdentity` created with an authentication type (for example `new ClaimsIdentity(claims, "service")`), so `IsAuthenticated` is true, and with a `sub` or `NameIdentifier` claim.
 - A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
 - Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
 

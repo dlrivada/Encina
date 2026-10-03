@@ -146,7 +146,7 @@ The request is denied in every enforcement mode, `Warn` included, and no attribu
 **Resolution:** ABAC needs an `ISecurityContextAccessor` whose `SecurityContext` is populated and authenticated.
 
 - The application registers `Encina.Security` (`AddEncinaSecurity`) and sets the context for every request, as shown in [Set Security Context](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security/README.md#3-set-security-context).
-- Background jobs and scheduled messages set a context with a service identity: an authenticated `ClaimsIdentity` with a `sub` or `NameIdentifier` claim.
+- Background jobs and scheduled messages set a context with a service identity: a `ClaimsIdentity` created with an authentication type (for example `new ClaimsIdentity(claims, "service")`), so `IsAuthenticated` is true, and with a `sub` or `NameIdentifier` claim.
 - A request meant to run without a user must not carry `[RequirePolicy]` or `[RequireCondition]` (or ABAC must run in `Disabled` mode).
 - Populating the context automatically, for example from `HttpContext.User`, is tracked by #1705.
 
