@@ -494,6 +494,36 @@ public sealed class InMemorySubjectKeyProviderTests
         _sut.SubjectCount.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task GetSubjectKeyAsync_UnknownVersion_ReturnsError()
+    {
+        // Arrange
+        await _sut.GetOrCreateSubjectKeyAsync("user-version");
+
+        // Act
+        var result = await _sut.GetSubjectKeyAsync("user-version", version: 7);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldNotBe(CryptoShreddingErrors.SubjectForgottenCode));
+    }
+
+    [Fact]
+    public async Task GetSubjectKeyAsync_CancelledToken_ReturnsKeyStoreError()
+    {
+        // Arrange
+        await _sut.GetOrCreateSubjectKeyAsync("user-cancel");
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var result = await _sut.GetSubjectKeyAsync("user-cancel", cancellationToken: cts.Token);
+
+        // Assert
+        result.IfLeft(e => e.GetCode().IfNone("").ShouldBe(CryptoShreddingErrors.KeyStoreErrorCode));
+        result.IsLeft.ShouldBeTrue();
+    }
+
     private static async Task<T[]> RunConcurrentlyAsync<T>(int callers, Func<Task<T>> operation)
     {
         using var start = new ManualResetEventSlim(false);

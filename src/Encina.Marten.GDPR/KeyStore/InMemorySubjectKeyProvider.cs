@@ -159,35 +159,28 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
         lock (state.SyncRoot)
         {
-            if (state.IsForgotten)
-            {
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                    Left(CryptoShreddingErrors.SubjectForgotten(subjectId)));
-            }
-
-            if (version.HasValue)
-            {
-                var entry = state.Keys.Find(k => k.Version == version.Value);
-                if (entry is null)
-                {
-                    return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                        Left(Security.Encryption.EncryptionErrors.KeyNotFound(
-                            FormatKeyId(subjectId, version.Value))));
-                }
-
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(CopyOf(entry.KeyMaterial)));
-            }
-
-            // Return active (latest) key
-            if (state.Keys.Count == 0)
-            {
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                    Left(Security.Encryption.EncryptionErrors.KeyNotFound(
-                        FormatKeyId(subjectId, 1))));
-            }
-
-            return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(CopyOf(state.Keys[^1].KeyMaterial)));
+            return ValueTask.FromResult(ReadKey(state, subjectId, version));
         }
+    }
+
+    /// <summary>
+    /// Reads the requested key version, or the active (latest) one when <paramref name="version"/> is
+    /// <c>null</c>, as a copy. The caller holds the subject's lock.
+    /// </summary>
+    private static Either<EncinaError, byte[]> ReadKey(SubjectState state, string subjectId, int? version)
+    {
+        if (state.IsForgotten)
+        {
+            return Left(CryptoShreddingErrors.SubjectForgotten(subjectId));
+        }
+
+        var entry = version.HasValue
+            ? state.Keys.Find(k => k.Version == version.Value)
+            : state.Keys.LastOrDefault();
+
+        return entry is null
+            ? Left(Security.Encryption.EncryptionErrors.KeyNotFound(FormatKeyId(subjectId, version ?? 1)))
+            : Right(CopyOf(entry.KeyMaterial));
     }
 
     /// <inheritdoc />
