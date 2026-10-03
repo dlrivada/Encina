@@ -120,7 +120,7 @@ ABACDiagnostics.RecordIndeterminate(activity, reason);
 
 ## Structured Logging
 
-All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics.
+All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are 9000-9078, 9091-9093 and 9094-9097; 9079-9090 are reserved for #751, and 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
 
 ### Pipeline Messages (9000-9005, 9008-9009)
 
@@ -360,5 +360,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078 and 9091-9093; 9079-9090 are reserved for the ABAC decision audit trail; see [Structured Logging](#structured-logging)) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078, 9091-9093 and 9094-9097; 9079-9090 are reserved for the ABAC decision audit trail (#751); 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

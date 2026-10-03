@@ -177,7 +177,7 @@ Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missin
 
 - **Tracing**: `Encina.Security.ABAC` ActivitySource with `ABAC.Evaluate` spans
 - **Metrics**: counters (`abac.evaluation.*`, `abac.obligation.*`, `abac.advice.*`) + 2 histograms (`abac.evaluation.duration`, `abac.obligation.duration`)
-- **Logging**: structured log events (EventIds 9000-9078 and 9091-9093; 9079-9090 are reserved for the ABAC decision audit trail; `EventIdRanges.SecurityABAC`) via `[LoggerMessage]` source generator; errors are logged by code or exception type, never by message
+- **Logging**: structured log events (EventIds 9000-9078, 9091-9093 and 9094-9097; 9079-9090 are reserved for the ABAC decision audit trail (#751), and 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); `EventIdRanges.SecurityABAC`) via `[LoggerMessage]` source generator; errors are logged by code or exception type, never by message
 - **Health Check**: `encina-abac` with tags `encina`, `security`, `abac`, `ready`
 
 ## Documentation
