@@ -9,11 +9,16 @@
 //   dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --full          regenerate every manifest
 //   dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --self-test
 //   Options: --src <dir>  --defaults <file>  --output <dir>  (relative paths resolve against the repository root)
-//   --append-only is accepted as an explicit spelling of the default. Any other argument is an error.
+//   --append-only is accepted as an explicit spelling of the default. -h/--help prints the usage
+//   and exits 0. Any other argument, an option value that starts with "--", or --self-test combined
+//   with another option is an error (exit 2, usage printed).
 //
 // Repository root (#1702): the git top-level of this script's own directory; the script only ever
 // modifies the checkout it belongs to. When the current directory belongs to a different git
-// top-level the run fails naming both paths. The root, the mode and the plan (manifests and entries
+// top-level the run fails naming both paths (and git's own error when git is missing). --src,
+// --defaults and --output must resolve inside the root, else the run fails (exit 1). A missing
+// --src directory fails with an error line. A manifest whose "files" is not an object of objects is
+// reported, skipped and fails the run, like invalid JSON. The root, the mode and the plan (manifests and entries
 // to create or change) are printed before anything is written, and the same counts after.
 //
 // Ownership (#1542): the generator owns only the package-level keys package, generated,
@@ -48,7 +53,9 @@ const string Usage = """
       --dry-run        print the plan and write nothing
       --append-only    explicit spelling of the default
       --src <dir>  --defaults <file>  --output <dir>   relative paths resolve against the repository root
-      --self-test      run the built-in assertions
+      --self-test      run the built-in assertions (cannot be combined with other options)
+      -h, --help       print this text
+      Paths given with --src, --defaults and --output must stay inside the repository root.
     """;
 
 var (opts, parseError) = ParseArgs(args);
@@ -57,6 +64,11 @@ if (opts is null)
     Console.Error.WriteLine($"ERROR: {parseError}");
     Console.Error.WriteLine(Usage);
     return 2;
+}
+if (opts.Help)
+{
+    Console.WriteLine(Usage);
+    return 0;
 }
 
 var jsonOpts = new JsonSerializerOptions
@@ -83,9 +95,9 @@ if (scriptPath is null)
     Console.Error.WriteLine("ERROR: cannot determine the script's own path; run it with 'dotnet run --file <path>'.");
     return 1;
 }
-var scriptRoot = GitTopLevel(Path.GetDirectoryName(Path.GetFullPath(scriptPath))!);
-var cwdRoot = GitTopLevel(Directory.GetCurrentDirectory());
-var rootError = CheckRoots(scriptRoot, cwdRoot, Directory.GetCurrentDirectory());
+var (scriptRoot, scriptWhy) = GitTopLevel(Path.GetDirectoryName(Path.GetFullPath(scriptPath))!);
+var (cwdRoot, cwdWhy) = GitTopLevel(Directory.GetCurrentDirectory());
+var rootError = CheckRoots(scriptRoot, cwdRoot, Directory.GetCurrentDirectory(), scriptWhy, cwdWhy);
 if (rootError is not null)
 {
     Console.Error.WriteLine($"ERROR: {rootError}");
@@ -96,6 +108,19 @@ var repoRoot = scriptRoot!;
 var srcDir = Path.GetFullPath(opts.Src, repoRoot);
 var defaultsFile = Path.GetFullPath(opts.Defaults, repoRoot);
 var outputDir = Path.GetFullPath(opts.Output, repoRoot);
+
+var insideError = CheckInside(repoRoot, ("--src", srcDir), ("--defaults", defaultsFile), ("--output", outputDir));
+if (insideError is not null)
+{
+    Console.Error.WriteLine($"ERROR: {insideError}");
+    return 1;
+}
+
+if (!Directory.Exists(srcDir))
+{
+    Console.Error.WriteLine($"ERROR: Source directory not found: {srcDir}");
+    return 1;
+}
 
 if (!File.Exists(defaultsFile))
 {
@@ -113,7 +138,7 @@ return Generate(srcDir, defaults, outputDir, opts.Full, opts.DryRun, repoRoot, (
 (Options? Options, string? Error) ParseArgs(string[] argv)
 {
     string src = "src", defs = ".github/coverage-manifest/defaults.json", output = ".github/coverage-manifest";
-    bool full = false, appendOnly = false, dryRun = false, self = false;
+    bool full = false, appendOnly = false, dryRun = false, self = false, help = false;
 
     for (int i = 0; i < argv.Length; i++)
     {
@@ -122,6 +147,7 @@ return Generate(srcDir, defaults, outputDir, opts.Full, opts.DryRun, repoRoot, (
             case "--src" or "--defaults" or "--output":
                 if (i + 1 >= argv.Length) return (null, $"{argv[i]} needs a value.");
                 var value = argv[++i];
+                if (value.StartsWith("--", StringComparison.Ordinal)) return (null, $"{argv[i - 1]} needs a value, got the option '{value}'.");
                 if (argv[i - 1] == "--src") src = value;
                 else if (argv[i - 1] == "--defaults") defs = value;
                 else output = value;
@@ -130,15 +156,17 @@ return Generate(srcDir, defaults, outputDir, opts.Full, opts.DryRun, repoRoot, (
             case "--append-only": appendOnly = true; break;
             case "--dry-run": dryRun = true; break;
             case "--self-test": self = true; break;
+            case "-h" or "--help": help = true; break;
             default: return (null, $"unknown argument '{argv[i]}'.");
         }
     }
 
     if (full && appendOnly) return (null, "--full and --append-only are mutually exclusive.");
-    return (new Options(src, defs, output, full, dryRun, self), null);
+    if (self && argv.Length > 1) return (null, "--self-test cannot be combined with other options.");
+    return (new Options(src, defs, output, full, dryRun, self, help), null);
 }
 
-string? GitTopLevel(string dir)
+(string? Path, string? Reason) GitTopLevel(string dir)
 {
     try
     {
@@ -152,19 +180,42 @@ string? GitTopLevel(string dir)
         psi.ArgumentList.Add("rev-parse");
         psi.ArgumentList.Add("--show-toplevel");
         using var p = System.Diagnostics.Process.Start(psi)!;
+        var errTask = p.StandardError.ReadToEndAsync();
         var text = p.StandardOutput.ReadToEnd().Trim();
         p.WaitForExit();
-        return p.ExitCode == 0 && text.Length > 0 ? Path.GetFullPath(text) : null;
+        var err = errTask.GetAwaiter().GetResult().Trim();
+        if (p.ExitCode == 0 && text.Length > 0) return (System.IO.Path.GetFullPath(text), null);
+        return (null, err.Length > 0 ? $"git said: {err}" : "git printed no top-level path");
     }
-    catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return null; }
+    catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+    {
+        return (null, $"git could not be started (is it on PATH?): {ex.Message}");
+    }
+}
+
+bool SameOrInside(string root, string path)
+{
+    var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    var rel = Path.GetRelativePath(root, path);
+    if (Path.IsPathRooted(rel)) return false; // another drive
+    return rel == "." || (rel != ".." && !rel.StartsWith(".." + Path.DirectorySeparatorChar, cmp) && !rel.StartsWith("../", cmp));
+}
+
+// Returns an error message naming the first path that resolves outside the repository root.
+string? CheckInside(string root, params (string Option, string Path)[] paths)
+{
+    foreach (var (option, path) in paths)
+        if (!SameOrInside(root, path))
+            return $"{option} resolves to '{path}', which is outside the repository root '{root}'; the generator only writes inside the checkout it belongs to.";
+    return null;
 }
 
 // Returns an error message when the script's checkout and the current directory's checkout differ.
-string? CheckRoots(string? scriptTop, string? cwdTop, string cwd)
+string? CheckRoots(string? scriptTop, string? cwdTop, string cwd, string? scriptWhy = null, string? cwdWhy = null)
 {
-    if (scriptTop is null) return "this script is not inside a git checkout.";
+    if (scriptTop is null) return $"this script is not inside a git checkout ({scriptWhy ?? "unknown reason"}).";
     if (cwdTop is null)
-        return $"the current directory '{cwd}' is not inside a git checkout; the script belongs to '{scriptTop}'. Run it from inside that checkout.";
+        return $"the current directory '{cwd}' is not inside a git checkout ({cwdWhy ?? "unknown reason"}); the script belongs to '{scriptTop}'. Run it from inside that checkout.";
     var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
     if (!string.Equals(Path.TrimEndingDirectorySeparator(scriptTop), Path.TrimEndingDirectorySeparator(cwdTop), cmp))
         return $"checkout mismatch: the script belongs to '{scriptTop}' but the current directory is in '{cwdTop}'. Run the script of the checkout you want to change from inside that checkout.";
@@ -240,10 +291,12 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool full, bool dryR
             }
             catch (Exception ex) when (ex is JsonException or ArgumentException) { existing = null; }
 
+            if (existing is not null && !HasValidFilesShape(existing)) existing = null;
+
             if (existing is null)
             {
                 // Overwriting would lose whatever the file holds: skip it and fail the run.
-                Console.Error.WriteLine($"ERROR: {outputFile} exists but is invalid JSON, not a JSON object, or has a duplicate key; skipped.");
+                Console.Error.WriteLine($"ERROR: {outputFile} exists but is invalid JSON, not a JSON object, has a duplicate key, or its \"files\" is not an object of objects; skipped.");
                 failed++;
                 continue;
             }
@@ -386,6 +439,11 @@ int Generate(string src, DefaultsConfig cfg, string outDir, bool full, bool dryR
 (int New, int Changed, int Added, int Removed, int Recomputed) Totals(List<PendingWrite> writes) =>
     (writes.Count(w => w.IsNew), writes.Count(w => !w.IsNew),
      writes.Sum(w => w.Added.Count), writes.Sum(w => w.Removed.Count), writes.Sum(w => w.Changed.Count));
+
+// A manifest may omit "files"; when present it must be an object whose values are all objects.
+bool HasValidFilesShape(JsonObject manifest) =>
+    !manifest.ContainsKey("files")
+    || (manifest["files"] is JsonObject files && files.All(kv => kv.Value is JsonObject));
 
 void Materialize(JsonNode? node)
 {
@@ -616,6 +674,59 @@ int RunSelfTest()
         Check(CheckRoots(Path.Combine(root, "one"), null, root) is not null, "root: current directory outside git fails");
         Check(CheckRoots(null, Path.Combine(root, "one"), root) is not null, "root: script outside git fails");
         Check(CheckRoots(Path.Combine(root, "one"), Path.Combine(root, "one") + Path.DirectorySeparatorChar, root) is null, "root: same checkout passes");
+        Check(CheckRoots(null, Path.Combine(root, "one"), root, "git said: boom") is { } why && why.Contains("git said: boom"), "root: the git failure reason is in the message");
+
+        // 10. Paths must stay inside the root: absolute outside, '..' escape fail naming path and root; inside passes.
+        var repo = Path.Combine(root, "repo");
+        var outside = Path.GetFullPath(Path.Combine(root, "elsewhere", "out"));
+        var escape = Path.GetFullPath("../escape", repo);
+        var inside = Path.GetFullPath(".github/coverage-manifest", repo);
+        var outsideMsg = CheckInside(repo, ("--output", outside));
+        Check(outsideMsg is not null && outsideMsg.Contains(outside) && outsideMsg.Contains(repo) && outsideMsg.Contains("--output"), "inside: absolute path outside the root fails naming path and root");
+        Check(CheckInside(repo, ("--src", escape)) is not null, "inside: '..' escape fails");
+        Check(CheckInside(repo, ("--src", inside), ("--defaults", Path.Combine(repo, "d.json")), ("--output", repo)) is null, "inside: paths inside the root pass");
+        Check(CheckInside(repo, ("--src", repo + "-sibling")) is not null, "inside: a sibling sharing the root's name prefix fails");
+
+        // 11. Append-only creates a missing manifest; dry-run on it writes nothing and creates no directory; exact count text.
+        var src5 = Path.Combine(root, "src5");
+        var out5 = Path.Combine(root, "out5", "nested");
+        Directory.CreateDirectory(Path.Combine(src5, "PkgN"));
+        foreach (var n in new[] { "A.cs", "B.cs" }) File.WriteAllText(Path.Combine(src5, "PkgN", n), "class C {}");
+        var dry5 = new StringWriter();
+        Generate(src5, cfg, out5, false, true, root, () => "T8", dry5);
+        Check(!Directory.Exists(out5), "append-only dry-run: creates no directory and writes nothing");
+        Check(dry5.ToString().Contains("Plan: 1 manifest(s) to create, 0 to change; entries: 2 added, 0 removed, 0 recomputed"), "append-only dry-run: plan text");
+        var real5 = new StringWriter();
+        Generate(src5, cfg, out5, false, false, root, () => "T8", real5);
+        var created = JsonNode.Parse(File.ReadAllText(Path.Combine(out5, "PkgN.json")))!.AsObject();
+        Check(created["totalFiles"]?.GetValue<int>() == 2 && created["files"]!.AsObject().Count == 2, "append-only: creates the missing manifest with totalFiles equal to the file count");
+        Check(real5.ToString().Contains("Plan: 1 manifest(s) to create, 0 to change; entries: 2 added, 0 removed, 0 recomputed")
+            && real5.ToString().Contains($"Written: 1 manifest(s) created, 0 changed; entries: 2 added, 0 removed, 0 recomputed in {out5}"), "append-only: exact plan and written text");
+        var full5 = new StringWriter();
+        Generate(src5, cfg, out5, true, false, root, () => "T9", full5);
+        Check(full5.ToString().Contains("Plan: 0 manifest(s) to create, 1 to change; entries: 0 added, 0 removed, 0 recomputed")
+            && full5.ToString().Contains($"Written: 0 manifest(s) created, 1 changed; entries: 0 added, 0 removed, 0 recomputed in {out5}"), "full: exact plan and written text");
+
+        // 12. A malformed "files" section (not an object, or a non-object entry) skips the manifest and fails the run.
+        var out6 = Path.Combine(root, "out6");
+        Directory.CreateDirectory(out6);
+        var badFiles = """{"package":"PkgN","files":[1,2]}""";
+        var badEntry = """{"package":"PkgN","files":{"A.cs":"oops"}}""";
+        var errBackup = Console.Error;
+        foreach (var bad in new[] { badFiles, badEntry })
+        {
+            File.WriteAllText(Path.Combine(out6, "PkgN.json"), bad);
+            int rcBad;
+            try { Console.SetError(new StringWriter()); rcBad = Generate(src5, cfg, out6, false, false, root, () => "T10", quiet); }
+            finally { Console.SetError(errBackup); }
+            Check(rcBad == 1 && File.ReadAllText(Path.Combine(out6, "PkgN.json")) == bad, $"malformed files section is skipped, untouched, exit 1: {bad}");
+        }
+
+        // 13. More argument rules.
+        Check(ParseArgs(["--self-test", "--full"]).Options is null, "args: --self-test with another flag fails");
+        Check(ParseArgs(["--self-test"]).Options is { SelfTest: true }, "args: --self-test alone parses");
+        Check(ParseArgs(["--output", "--full"]).Error is { } e1 && e1.Contains("--output"), "args: option value starting with -- fails naming the option");
+        Check(ParseArgs(["-h"]).Options is { Help: true } && ParseArgs(["--help"]).Options is { Help: true }, "args: -h and --help parse");
     }
     finally
     {
@@ -650,7 +761,7 @@ record Rule
     public string? Comment { get; init; }
 }
 
-record Options(string Src, string Defaults, string Output, bool Full, bool DryRun, bool SelfTest);
+record Options(string Src, string Defaults, string Output, bool Full, bool DryRun, bool SelfTest, bool Help);
 
 record PendingWrite(string Package, string File, string Text, bool IsNew, List<string> Added, List<string> Removed, List<string> Changed);
 

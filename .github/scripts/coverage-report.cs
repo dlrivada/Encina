@@ -296,7 +296,7 @@ bool RunCheckMissingManifest(
         foreach (var missing in missingFiles.OrderBy(m => m, StringComparer.Ordinal))
             Console.WriteLine($"  - {missing}");
         Console.WriteLine("\n  To fix a missing file entry or a missing manifest run: dotnet run --file .github/scripts/generate-coverage-manifest.cs (append-only by default; add --dry-run to preview)");
-        Console.WriteLine("  Do not run the generator's full mode on an existing manifest until #1597 resolves the hand-edited entries.");
+        Console.WriteLine("  Do not run the generator with --full on an existing manifest until #1597 resolves the hand-edited entries.");
     }
 
     if (hasParseFailures || hasMissingFiles)
