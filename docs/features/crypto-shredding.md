@@ -352,6 +352,13 @@ Positional records and `init`-only properties work. Decryption is unchanged.
 
 `SubjectEncryptionKey` carries `Version` and `KeyMaterial` read together, so the key id written with an encrypted value (`subject:{subjectId}:v{version}`) always names the version that encrypted it. A custom `ISubjectKeyProvider` must return key and version from one read of its store; both built-in providers do.
 
+`PostgreSqlSubjectKeyProvider` serializes key creation, rotation and erasure of one subject with a PostgreSQL transaction-scoped advisory lock (`pg_advisory_xact_lock`) keyed by the Marten tenant and the subject id. The lock is taken inside the same transaction as the forgotten-marker check and the writes, so concurrent first writers all receive the one stored key, each rotation creates exactly one new version, and no key can be created after an erasure commits.
+
+- Key documents are inserted, not upserted. If another writer stored the same version first, the stored key is returned and the provider logs EventId 8468.
+- Each operation opens its own Marten session for the injected session's store and tenant; the provider never flushes the caller's session.
+- `DeleteSubjectKeysAsync` is idempotent. A repeated call deletes any key document still present (EventId 8469 when it finds some), writes the forgotten marker if it is missing, and returns the error code `crypto.subject_forgotten` when the subject was already forgotten.
+- `InMemorySubjectKeyProvider` returns copies of key material, so erasure, which zeroes the stored keys, never alters a key a caller still holds.
+
 ---
 
 ## Forgetting a Subject

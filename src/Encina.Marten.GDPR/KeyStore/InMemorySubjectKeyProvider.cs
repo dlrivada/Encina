@@ -32,7 +32,10 @@ namespace Encina.Marten.GDPR;
 /// </para>
 /// <para>
 /// Thread-safe: Uses <see cref="ConcurrentDictionary{TKey, TValue}"/> for concurrent access
-/// and <see cref="System.Threading.Lock"/> for per-subject synchronization.
+/// and <see cref="System.Threading.Lock"/> for per-subject synchronization. Creation, rotation and erasure
+/// of one subject run under that subject's lock, so concurrent first writers all get the one stored key,
+/// each rotation creates exactly one new version, and no key can be created after an erasure. Key material
+/// is returned as a copy: erasure zeroes the stored arrays and must never alter a key a caller still holds.
 /// </para>
 /// </remarks>
 /// <example>
@@ -100,10 +103,12 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 if (state.Keys.Count > 0)
                 {
-                    // Return the active (latest) key material with its version, read under the same lock
+                    // Return the active (latest) key material with its version, read under the same lock.
+                    // The caller gets a copy: erasure zeroes the stored array, which must never change a key
+                    // a concurrent writer is still encrypting with (#1699).
                     var activeKey = state.Keys[^1];
                     return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
-                        Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = activeKey.KeyMaterial }));
+                        Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = CopyOf(activeKey.KeyMaterial) }));
                 }
 
                 // Create the first key for this subject
@@ -118,10 +123,10 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 // The data subject's own identifier is never logged (#1429, following #1314);
                 // correlate via the key version instead.
-                _logger.LogDebug("Created initial encryption key. Version={Version}", version);
+                _logger.KeyCreated(version);
 
                 return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
-                    Right(new SubjectEncryptionKey { Version = version, KeyMaterial = keyMaterial }));
+                    Right(new SubjectEncryptionKey { Version = version, KeyMaterial = CopyOf(keyMaterial) }));
             }
         }
         catch (Exception ex)
@@ -154,35 +159,28 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
         lock (state.SyncRoot)
         {
-            if (state.IsForgotten)
-            {
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                    Left(CryptoShreddingErrors.SubjectForgotten(subjectId)));
-            }
-
-            if (version.HasValue)
-            {
-                var entry = state.Keys.Find(k => k.Version == version.Value);
-                if (entry is null)
-                {
-                    return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                        Left(Security.Encryption.EncryptionErrors.KeyNotFound(
-                            FormatKeyId(subjectId, version.Value))));
-                }
-
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(entry.KeyMaterial));
-            }
-
-            // Return active (latest) key
-            if (state.Keys.Count == 0)
-            {
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                    Left(Security.Encryption.EncryptionErrors.KeyNotFound(
-                        FormatKeyId(subjectId, 1))));
-            }
-
-            return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(state.Keys[^1].KeyMaterial));
+            return ValueTask.FromResult(ReadKey(state, subjectId, version));
         }
+    }
+
+    /// <summary>
+    /// Reads the requested key version, or the active (latest) one when <paramref name="version"/> is
+    /// <c>null</c>, as a copy. The caller holds the subject's lock.
+    /// </summary>
+    private static Either<EncinaError, byte[]> ReadKey(SubjectState state, string subjectId, int? version)
+    {
+        if (state.IsForgotten)
+        {
+            return Left(CryptoShreddingErrors.SubjectForgotten(subjectId));
+        }
+
+        var entry = version.HasValue
+            ? state.Keys.Find(k => k.Version == version.Value)
+            : state.Keys.LastOrDefault();
+
+        return entry is null
+            ? Left(Security.Encryption.EncryptionErrors.KeyNotFound(FormatKeyId(subjectId, version ?? 1)))
+            : Right(CopyOf(entry.KeyMaterial));
     }
 
     /// <inheritdoc />
@@ -243,7 +241,8 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
         }
         catch (Exception ex)
         {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
+            // Only the exception type reaches the trace, never its message.
+            CryptoShreddingDiagnostics.RecordFailed(activity, ex.GetType().Name);
             return ValueTask.FromResult<Either<EncinaError, CryptoShreddingResult>>(
                 Left(CryptoShreddingErrors.KeyStoreError("DeleteSubjectKeys", ex)));
         }
@@ -352,7 +351,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
         }
         catch (Exception ex)
         {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
+            CryptoShreddingDiagnostics.RecordFailed(activity, ex.GetType().Name);
             return ValueTask.FromResult<Either<EncinaError, KeyRotationResult>>(
                 Left(CryptoShreddingErrors.KeyRotationFailed(subjectId, ex)));
         }
@@ -405,23 +404,34 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
     /// Clears all subjects and resets state.
     /// </summary>
     /// <remarks>
-    /// Intended for testing only to reset state between tests.
+    /// Intended for testing only to reset state between tests; do not call it while other operations run.
+    /// Each subject is removed before its key material is zeroed, so no later read can return a zeroed key.
     /// </remarks>
     public void Clear()
     {
-        foreach (var kvp in _subjects)
+        foreach (var subjectId in _subjects.Keys)
         {
-            lock (kvp.Value.SyncRoot)
+            if (!_subjects.TryRemove(subjectId, out var state))
             {
-                foreach (var key in kvp.Value.Keys)
+                continue;
+            }
+
+            lock (state.SyncRoot)
+            {
+                foreach (var key in state.Keys)
                 {
                     CryptographicOperations.ZeroMemory(key.KeyMaterial);
                 }
+
+                state.Keys.Clear();
             }
         }
-
-        _subjects.Clear();
     }
+
+    /// <summary>
+    /// Returns a copy of stored key material, so callers never share the array the provider zeroes on erasure.
+    /// </summary>
+    private static byte[] CopyOf(byte[] keyMaterial) => (byte[])keyMaterial.Clone();
 
     /// <summary>
     /// Formats a key identifier following the convention <c>"subject:{subjectId}:v{version}"</c>.

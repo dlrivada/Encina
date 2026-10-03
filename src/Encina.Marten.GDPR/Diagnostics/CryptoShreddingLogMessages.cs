@@ -7,15 +7,17 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses <c>LoggerMessage.Define</c> to avoid boxing and string formatting overhead
-/// in hot paths. All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
+/// The existing messages use <c>LoggerMessage.Define</c> (one literal <c>new EventId(n, ...)</c> each,
+/// scanned by the allocation test, #1125) to avoid boxing and string formatting overhead
+/// in hot paths; the newer messages use the <c>[LoggerMessage]</c> source generator.
+/// All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
 /// </para>
 /// <para>
 /// Event IDs are allocated in the 8450-8499 range reserved for Marten GDPR crypto-shredding
 /// (see <c>EventIdRanges.MartenGDPRCryptoShredding</c>).
 /// </para>
 /// </remarks>
-internal static class CryptoShreddingLogMessages
+internal static partial class CryptoShreddingLogMessages
 {
     // Note: none of these templates carry the data subject's own identifier — it is personal data
     // and must never reach a log sink in plain text (#1429, following #1314). Correlate via
@@ -213,4 +215,39 @@ internal static class CryptoShreddingLogMessages
     internal static void EncryptionSubjectIdMissing(
         this ILogger logger, string propertyName, string eventType, string subjectIdProperty)
         => EncryptionSubjectIdMissingDef(logger, propertyName, eventType, subjectIdProperty, null);
+
+    // -- 8467: Subject key created --
+
+    /// <summary>
+    /// Logs the creation of a subject's first encryption key. Event ID: 8467 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8467,
+        Level = LogLevel.Debug,
+        Message = "Created initial encryption key. Version={Version}")]
+    internal static partial void KeyCreated(this ILogger logger, int version);
+
+    // -- 8468: Concurrent key write resolved --
+
+    /// <summary>
+    /// Logs that a key insert hit a key version another writer had already stored, and the stored key was
+    /// returned instead. Event ID: 8468 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8468,
+        Level = LogLevel.Warning,
+        Message = "Key version already stored by a concurrent writer; the stored key is used. Operation={Operation}, Version={Version}")]
+    internal static partial void ConcurrentKeyWriteResolved(this ILogger logger, string operation, int version);
+
+    // -- 8469: Leftover keys erased --
+
+    /// <summary>
+    /// Logs that a repeated erasure of an already forgotten subject found and deleted key documents.
+    /// Event ID: 8469 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8469,
+        Level = LogLevel.Warning,
+        Message = "Subject was already forgotten; leftover encryption keys deleted. KeysDeleted={KeysDeleted}")]
+    internal static partial void LeftoverKeysErased(this ILogger logger, int keysDeleted);
 }

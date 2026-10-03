@@ -20,7 +20,7 @@ The core performance-critical operation â€” AES-256-GCM encryption/decryption â€
 
 ### 3. No Concurrency Bottlenecks
 
-The `InMemorySubjectKeyProvider` uses `ConcurrentDictionary` with per-subject `Lock` for thread safety. This is a well-understood concurrency pattern that doesn't require load testing to validate. The `PostgreSqlSubjectKeyProvider` delegates to Marten's `IDocumentSession`, whose concurrency behavior is already tested by Marten's own test suite.
+The `InMemorySubjectKeyProvider` uses `ConcurrentDictionary` with per-subject `Lock` for thread safety. This is a well-understood concurrency pattern that doesn't require load testing to validate. The `PostgreSqlSubjectKeyProvider` serializes key creation, rotation and erasure per subject with a PostgreSQL transaction-scoped advisory lock and insert semantics (#1699); its races (concurrent first writers, concurrent rotations, writers racing an erasure, insert conflicts) are proven by `PostgreSqlSubjectKeyProviderConcurrencyIntegrationTests` against a real PostgreSQL instance, and the in-memory provider's by its unit and property tests.
 
 ### 4. Adequate Coverage from Other Test Types
 
