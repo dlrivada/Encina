@@ -383,7 +383,8 @@ public sealed class CryptoShredderSerializer : ISerializer
                 continue;
             }
 
-            // Throws InvalidOperationException for an unsupported subject-id type: fail closed (#1174).
+            // An unsupported declared subject-id type is already unencryptable (ThrowIfUnencryptable); this
+            // still throws InvalidOperationException when the runtime value is of an unsupported type (#1174).
             var subjectId = field.ResolveSubjectId(document)
                 ?? throw SubjectIdMissing(field, eventType);
 
