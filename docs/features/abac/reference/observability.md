@@ -57,7 +57,6 @@ internal static readonly Meter Meter = new("Encina.Security.ABAC", "1.0");
 | `abac.evaluation.total` | `Counter<long>` | Total number of ABAC policy evaluations |
 | `abac.evaluation.permitted` | `Counter<long>` | Number of evaluations that resulted in Permit |
 | `abac.evaluation.denied` | `Counter<long>` | Number of evaluations that resulted in Deny |
-| `abac.evaluation.not_applicable` | `Counter<long>` | Number of evaluations that resulted in NotApplicable |
 | `abac.evaluation.indeterminate` | `Counter<long>` | Number of evaluations that resulted in Indeterminate |
 | `abac.obligation.executed` | `Counter<long>` | Total number of obligations executed |
 | `abac.obligation.failed` | `Counter<long>` | Number of obligation executions that failed |
@@ -80,7 +79,7 @@ All tag keys used by activities and metrics are defined as internal constants:
 | Constant | Tag Key | Used On | Description |
 |----------|---------|---------|-------------|
 | `TagRequestType` | `abac.request_type` | Activity | The MediatR request type name being evaluated |
-| `TagEffect` | `abac.effect` | Activity | The evaluation result (`permit`, `deny`, `not_applicable`, `indeterminate`) |
+| `TagEffect` | `abac.effect` | Activity | The evaluation result (`permit`, `deny`, `indeterminate`) |
 | `TagPolicyId` | `abac.policy_id` | Activity | The identifier of the matching policy |
 | `TagEnforcementMode` | `abac.enforcement_mode` | Activity | The current enforcement mode (`Block`, `Warn`, `Disabled`) |
 | `TagObligationId` | `abac.obligation_id` | Activity | The identifier of the obligation being executed |
@@ -90,7 +89,7 @@ All tag keys used by activities and metrics are defined as internal constants:
 
 ## Activity Recording Helpers
 
-Four static helper methods set the appropriate tags and status codes on the current activity after the PDP produces a decision.
+Three static helper methods set the appropriate tags and status codes on the current activity once the requirements of the request have been decided. A required policy that is NotApplicable is recorded as a deny.
 
 ### RecordPermitted
 
@@ -116,21 +115,13 @@ ABACDiagnostics.RecordIndeterminate(activity, reason);
 // Status: ActivityStatusCode.Error with reason description
 ```
 
-### RecordNotApplicable
-
-```csharp
-ABACDiagnostics.RecordNotApplicable(activity);
-// Sets: abac.effect = "not_applicable"
-// Status: ActivityStatusCode.Ok
-```
-
 ---
 
 ## Structured Logging
 
 All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics.
 
-### Pipeline Messages (9000-9009)
+### Pipeline Messages (9000-9005, 9008-9009)
 
 | EventId | Level | Message Template | Parameters |
 |---------|-------|------------------|------------|
@@ -140,8 +131,6 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | 9003 | `Debug` | `ABAC enforcement: denied {RequestType}` | `requestType` |
 | 9004 | `Warning` | `ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed` | `requestType`, `errorCode` |
 | 9005 | `Warning` | `Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorCode}` | `requestType`, `errorCode` |
-| 9006 | `Debug` | `ABAC: NotApplicable for {RequestType} - allowing per DefaultNotApplicableEffect=Permit` | `requestType` |
-| 9007 | `Debug` | `ABAC: NotApplicable for {RequestType} - denying per DefaultNotApplicableEffect=Deny` | `requestType` |
 | 9008 | `Warning` | `ABAC: Indeterminate for {RequestType}: {Reason}` | `requestType`, `reason` |
 | 9009 | `Error` | `ABAC evaluation failed for {RequestType} after {DurationMs:F2}ms` | `exception`, `requestType`, `durationMs` |
 
@@ -164,6 +153,20 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | 9021 | `Warning` | `Advice handler for {AdviceId} failed: {ErrorCode}. Continuing (advice is best-effort)` | `adviceId`, `errorCode` |
 | 9022 | `Debug` | `Advice {AdviceId} executed successfully` | `adviceId` |
 
+### Required Policy, Condition and Handler Messages (9072-9078)
+
+These messages carry error codes and exception types only, never an error or exception message.
+
+| EventId | Level | Message Template | Parameters |
+|---------|-------|------------------|------------|
+| 9072 | `Warning` | `Lookup of required policy {PolicyId} failed: {ErrorCode}. The policy is Indeterminate` | `policyId`, `errorCode` |
+| 9073 | `Error` | `Unexpected error while evaluating required policy {PolicyId}. The policy is Indeterminate` | `exception`, `policyId` |
+| 9074 | `Warning` | `Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied in Block mode and proceeds in Warn mode` | `policyId`, `requestType` (emitted in every enforcement mode that evaluates policies, not only `Warn`) |
+| 9075 | `Debug` | `Condition {ConditionIndex} for {RequestType} evaluated to false. Access denied` | `conditionIndex`, `requestType` |
+| 9076 | `Warning` | `Condition {ConditionIndex} for {RequestType} could not be compiled: {ErrorCode}. The condition is Indeterminate` | `conditionIndex`, `requestType`, `errorCode` |
+| 9077 | `Warning` | `Condition {ConditionIndex} for {RequestType} failed during evaluation. The condition is Indeterminate` | `exception`, `conditionIndex`, `requestType` |
+| 9078 | `Error` | `Handler for obligation or advice {ObligationId} threw an exception` | `exception`, `obligationId` |
+
 ---
 
 ## Health Check
@@ -182,7 +185,7 @@ The `ABACHealthCheck` verifies that the ABAC engine has policies loaded and can 
 |-----------|--------|---------|
 | At least one PolicySet loaded | `Healthy` | ABAC engine has loaded policy sets |
 | No PolicySets, but standalone Policies loaded | `Healthy` | ABAC engine has loaded standalone policies |
-| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. The ABAC engine will return NotApplicable for all requests |
+| No PolicySets and no Policies | `Degraded` | No policies or policy sets loaded. Every policy named by `[RequirePolicy]` will be missing, so those requests are denied with `abac.policy_not_found` |
 | Exception querying PAP | `Unhealthy` | Failed to query the Policy Administration Point |
 
 ### Enabling the Health Check
@@ -282,7 +285,7 @@ abac_obligation_no_handler
 | Panel | Type | Metric(s) | Purpose |
 |-------|------|-----------|---------|
 | **Evaluation Rate** | Time series | `abac.evaluation.total` | Traffic volume over time |
-| **Decision Distribution** | Pie chart | `permitted`, `denied`, `not_applicable`, `indeterminate` | Decision breakdown |
+| **Decision Distribution** | Pie chart | `permitted`, `denied`, `indeterminate` | Decision breakdown |
 | **Evaluation Latency** | Heatmap | `abac.evaluation.duration` | P50/P95/P99 latency |
 | **Obligation Health** | Stat | `executed` vs `failed` vs `no_handler` | Obligation success rate |
 | **Obligation Latency** | Time series | `abac.obligation.duration` | Per-obligation timing |
@@ -335,5 +338,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9055; the persistence and administration classes use 9056-9071) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078; see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

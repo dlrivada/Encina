@@ -1,4 +1,7 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
+
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
 
@@ -373,5 +376,91 @@ public sealed class XACMLPolicyDecisionPointContractTests
         // Assert
         decision.EvaluationDuration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero,
             "EvaluationDuration must always be set, even for empty evaluations");
+    }
+
+    // ── Contract: EvaluatePolicyAsync evaluates only the named policy (#1634) ──
+
+    private static async Task<IPolicyAdministrationPoint> StoreWithDenyingPolicyInPermittingSetAsync()
+    {
+        var pap = new InMemoryPolicyAdministrationPoint(NullLogger<InMemoryPolicyAdministrationPoint>.Instance);
+
+        (await pap.AddPolicySetAsync(MakePolicySet(
+            "root",
+            CombiningAlgorithmId.PermitOverrides,
+            policies:
+            [
+                MakePolicy("policy-a", rules: [MakeRule("deny", Effect.Deny)]),
+                MakePolicy("policy-b", rules: [MakeRule("permit", Effect.Permit)])
+            ]))).IsRight.ShouldBeTrue();
+
+        // A standalone policy that does not apply (disabled): the store as a whole still permits.
+        (await pap.AddPolicyAsync(
+            MakePolicy("standalone", rules: [MakeRule("permit", Effect.Permit)]) with { IsEnabled = false },
+            null)).IsRight.ShouldBeTrue();
+
+        return pap;
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_NamedStandalonePolicy_ShouldReturnItsOwnDecision_NotTheStoreDecision()
+    {
+        var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
+
+        (await pdp.EvaluateAsync(MakeContext())).Effect.ShouldBe(Effect.Permit);
+        var named = await pdp.EvaluatePolicyAsync("standalone", MakeContext());
+
+        named.IsRight.ShouldBeTrue();
+        named.IfRight(decision =>
+        {
+            decision.Effect.ShouldBe(Effect.NotApplicable, "the named policy decides on its own");
+            decision.PolicyId.ShouldBe("standalone");
+        });
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_PolicyNestedInASet_ShouldReturnLeftPolicyNotFound()
+    {
+        var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
+
+        var named = await pdp.EvaluatePolicyAsync("policy-a", MakeContext());
+
+        named.Match(Right: _ => "<right>", Left: e => e.GetCode().IfNone("<none>"))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode, "a nested policy is reached only through its parent set");
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_NamedPolicySet_ShouldEvaluateTheSet()
+    {
+        var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
+
+        var named = await pdp.EvaluatePolicyAsync("root", MakeContext());
+
+        named.IfRight(decision => decision.Effect.ShouldBe(Effect.Permit));
+        named.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_UnknownName_ShouldReturnLeftPolicyNotFound()
+    {
+        var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
+
+        var named = await pdp.EvaluatePolicyAsync("no-such-policy", MakeContext());
+
+        named.Match(Right: _ => "<right>", Left: e => e.GetCode().IfNone("<none>"))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode);
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_StoreReadFails_ShouldReturnIndeterminate()
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<PolicySet>>(EncinaError.New("Store unavailable")));
+        var pdp = CreatePdp(pap);
+
+        var named = await pdp.EvaluatePolicyAsync("policy-a", MakeContext());
+
+        named.IsRight.ShouldBeTrue("a store failure is a decision, not a missing policy");
+        named.IfRight(decision => decision.Effect.ShouldBe(Effect.Indeterminate));
     }
 }

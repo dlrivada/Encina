@@ -32,10 +32,6 @@ internal static class ABACDiagnostics
         Meter.CreateCounter<long>("abac.obligation.executed",
             description: "Total number of obligations executed.");
 
-    internal static readonly Counter<long> EvaluationNotApplicable =
-        Meter.CreateCounter<long>("abac.evaluation.not_applicable",
-            description: "Number of ABAC evaluations that resulted in NotApplicable.");
-
     internal static readonly Counter<long> EvaluationIndeterminate =
         Meter.CreateCounter<long>("abac.evaluation.indeterminate",
             description: "Number of ABAC evaluations that resulted in Indeterminate.");
@@ -166,12 +162,6 @@ internal static class ABACDiagnostics
     {
         activity?.SetTag(TagEffect, "indeterminate");
         activity?.SetStatus(ActivityStatusCode.Error, reason);
-    }
-
-    internal static void RecordNotApplicable(Activity? activity)
-    {
-        activity?.SetTag(TagEffect, "not_applicable");
-        activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
     // ── PAP Activity Helpers ────────────────────────────────────────

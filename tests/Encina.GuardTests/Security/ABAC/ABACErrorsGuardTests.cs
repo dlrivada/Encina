@@ -37,6 +37,75 @@ public class ABACErrorsGuardTests
         ABACErrors.StoreOperationFailedCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.PersistentStoreNotRegisteredCode.ShouldNotBeNullOrWhiteSpace();
         ABACErrors.CacheProviderNotRegisteredCode.ShouldNotBeNullOrWhiteSpace();
+        ABACErrors.ConditionNotMetCode.ShouldNotBeNullOrWhiteSpace();
+        ABACErrors.ObligationHandlerExceptionCode.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    #endregion
+
+    #region RequiredPolicyNotFound, ConditionNotMet, ObligationHandlerException (#1634)
+
+    [Fact]
+    public void RequiredPolicyNotFound_NullRequestType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.RequiredPolicyNotFound(null!, "policy-a"))
+            .ParamName.ShouldBe("requestType");
+    }
+
+    [Fact]
+    public void RequiredPolicyNotFound_NullPolicyName_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.RequiredPolicyNotFound(typeof(string), null!))
+            .ParamName.ShouldBe("policyName");
+    }
+
+    [Fact]
+    public void RequiredPolicyNotFound_KeepsTheNameOutOfTheMessage()
+    {
+        var error = ABACErrors.RequiredPolicyNotFound(typeof(string), "policy-a");
+
+        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyNotFoundCode);
+        error.Message.ShouldNotContain("policy-a");
+        error.GetDetails()["policyId"].ShouldBe("policy-a");
+    }
+
+    [Fact]
+    public void ConditionNotMet_NullRequestType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.ConditionNotMet(null!, 0))
+            .ParamName.ShouldBe("requestType");
+    }
+
+    [Fact]
+    public void ConditionNotMet_RecordsTheConditionIndex()
+    {
+        var error = ABACErrors.ConditionNotMet(typeof(string), 2);
+
+        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.ConditionNotMetCode);
+        error.GetDetails()["conditionIndex"].ShouldBe(2);
+    }
+
+    [Fact]
+    public void ObligationHandlerException_NullObligationId_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.ObligationHandlerException(null!, typeof(Exception)))
+            .ParamName.ShouldBe("obligationId");
+    }
+
+    [Fact]
+    public void ObligationHandlerException_NullExceptionType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.ObligationHandlerException("ob-1", null!))
+            .ParamName.ShouldBe("exceptionType");
+    }
+
+    [Fact]
+    public void ObligationHandlerException_RecordsTheTypeNotAMessage()
+    {
+        var error = ABACErrors.ObligationHandlerException("ob-1", typeof(InvalidOperationException));
+
+        error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.ObligationHandlerExceptionCode);
+        error.GetDetails()["exceptionType"].ShouldBe(typeof(InvalidOperationException).FullName);
     }
 
     #endregion

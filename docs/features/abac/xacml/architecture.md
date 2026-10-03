@@ -95,7 +95,7 @@ graph TB
     PEP -->|"1. Collect attributes"| PIP
     PIP --> CH
     CH -->|"PolicyEvaluationContext"| PEP
-    PEP -->|"2. EvaluateAsync()"| PDP
+    PEP -->|"2. EvaluatePolicyAsync() per required policy"| PDP
     PDP -->|"Retrieve policies"| PAP
     PDP --> TE
     PDP --> CE
@@ -129,15 +129,16 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
 ### Dependencies
 
-The PEP depends on five collaborators, all injected via the constructor:
+The PEP depends on six collaborators, all injected via the constructor:
 
 | Dependency | Purpose |
 |------------|---------|
-| `IPolicyDecisionPoint` | Evaluates the authorization decision |
+| `IPolicyDecisionPoint` | Evaluates each policy named by `[RequirePolicy]` on its own (`EvaluatePolicyAsync`) |
 | `IAttributeProvider` | Collects subject, resource, and environment attributes |
 | `ISecurityContextAccessor` | Provides the current user identity |
 | `ObligationExecutor` | Executes mandatory obligations and best-effort advice |
-| `IOptions<ABACOptions>` | Configuration (enforcement mode, default effects) |
+| `EELCompiler` | Supplies the cached compiled delegates that evaluate `[RequireCondition]` expressions |
+| `IOptions<ABACOptions>` | Configuration (enforcement mode, advice, obligation handling) |
 
 ### Evaluation Steps
 
@@ -147,12 +148,11 @@ The `Handle` method follows XACML 3.0 section 7.18:
 2. **Check for ABAC attributes** -- if the request type has no `[RequirePolicy]` or `[RequireCondition]`, skip.
 3. **Collect attributes** -- call `IAttributeProvider` to resolve subject, resource, and environment attributes.
 4. **Build evaluation context** -- use `AttributeContextBuilder.Build()` to create a `PolicyEvaluationContext`.
-5. **Evaluate via PDP** -- call `IPolicyDecisionPoint.EvaluateAsync()` to get a `PolicyDecision`.
-6. **Process the decision** -- handle the four possible effects:
+5. **Evaluate the requirements** -- call `IPolicyDecisionPoint.EvaluatePolicyAsync()` once for each `[RequirePolicy]` (the named top-level policy set or standalone policy is evaluated on its own, not the whole store), combine the policy results (`AllMustPass = true` policies must all permit; when any policy has `AllMustPass = false`, at least one of those must permit), and only if the policies pass evaluate each `[RequireCondition]` EEL expression in declaration order against the `user`, `resource`, `environment` and `action` variables. Everything combines with AND into one verdict.
+6. **Process the verdict** -- handle the three possible outcomes (a required policy that is NotApplicable is already a Deny):
    - **Permit**: execute obligations (mandatory), execute advice (best-effort), call `nextStep()`.
-   - **Deny**: execute OnDeny obligations, apply enforcement mode (Block or Warn).
-   - **NotApplicable**: apply `DefaultNotApplicableEffect` (Deny or Permit).
-   - **Indeterminate**: apply enforcement mode.
+   - **Deny**: execute OnDeny obligations, apply enforcement mode (Block or Warn). The error code is `abac.access_denied`, `abac.policy_not_found` (the named policy is not in the store) or `abac.condition_not_met` (a condition was `false`).
+   - **Indeterminate**: a required policy or condition could not be evaluated; the request is denied with `abac.indeterminate` in every enforcement mode.
 
 ### Static Attribute Caching
 
@@ -171,14 +171,14 @@ The `ABACEnforcementMode` enum controls how Deny decisions are handled:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny decisions reject the request with an `EncinaError` | Production |
-| `Warn` | Deny decisions are logged but the request proceeds | Policy validation, gradual rollout |
+| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
 | `Disabled` | ABAC evaluation is completely skipped | Development, feature-flagging |
 
 ---
 
 ## 4. Policy Decision Point (PDP)
 
-The PDP is the core evaluation engine. It receives a `PolicyEvaluationContext`, evaluates all applicable policies, applies combining algorithms, and returns a `PolicyDecision`.
+The PDP is the core evaluation engine. It receives a `PolicyEvaluationContext`, evaluates all applicable policies, applies combining algorithms, and returns a `PolicyDecision`. `EvaluatePolicyAsync` evaluates one named top-level policy set or standalone policy; the PEP calls it once for each `[RequirePolicy]`.
 
 ### Class Signature
 
@@ -194,8 +194,15 @@ public interface IPolicyDecisionPoint
     ValueTask<PolicyDecision> EvaluateAsync(
         PolicyEvaluationContext context,
         CancellationToken cancellationToken = default);
+
+    ValueTask<Either<EncinaError, PolicyDecision>> EvaluatePolicyAsync(
+        string policyId,
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken = default);
 }
 ```
+
+`EvaluatePolicyAsync` looks the name up among the top-level policy sets first, then among the standalone policies (those contained in no policy set). A name that exists only nested inside a policy set is not found and the PEP denies with `abac.policy_not_found`; to require a nested policy, name its parent set, so that the set's target, enabled flag, combining algorithm and obligations apply. When a set and a standalone policy share a name, the set is evaluated. A PDP `Left` with a code other than `abac.policy_not_found` is treated as Indeterminate.
 
 ### Evaluation Algorithm (XACML 3.0 sections 7.12-7.14)
 
@@ -488,16 +495,26 @@ sequenceDiagram
     PEP->>CB: Build(subject, resource, environment, requestType)
     CB-->>PEP: PolicyEvaluationContext
 
-    PEP->>PDP: EvaluateAsync(context)
+    Note over PEP: For each [RequirePolicy] the PDP evaluates that top-level policy set<br/>or standalone policy on its own. The steps below show one such call.
+    PEP->>PDP: EvaluatePolicyAsync(policyName, context)
 
     PDP->>PAP: GetPolicySetsAsync()
     PAP-->>PDP: List<PolicySet>
+    Note over PDP: Match a top-level policy set by id (ordinal)
 
-    loop For each PolicySet
-        PDP->>TE: EvaluateTarget(policySet.Target, context)
+    alt A policy set has that id
+        Note over PDP: Evaluate only that policy set
+    else No policy set has that id
+        PDP->>PAP: GetPoliciesAsync(null)
+        PAP-->>PDP: List<Policy> (standalone)
+        Note over PDP: Match a standalone policy by id (ordinal)
+    end
+
+    opt A policy set or a standalone policy matched
+        PDP->>TE: EvaluateTarget(target, context)
         TE-->>PDP: Match / NotApplicable / Indeterminate
 
-        loop For each Rule in Policy
+        loop For each Rule in the Policy
             PDP->>TE: EvaluateTarget(rule.Target, context)
             TE-->>PDP: Match result
             PDP->>CE: Evaluate(rule.Condition, context, variables)
@@ -506,16 +523,22 @@ sequenceDiagram
 
         PDP->>CA: GetAlgorithm(policy.Algorithm)
         CA-->>PDP: ICombiningAlgorithm
-        Note over PDP: Combine rule results
+        Note over PDP: Combine the rule results of that one policy<br/>(no root combine across the store)
     end
 
-    PDP->>PAP: GetPoliciesAsync(null)
-    PAP-->>PDP: List<Policy> (standalone)
-    Note over PDP: Evaluate standalone policies<br/>Root combine with DenyOverrides
+    alt Nothing matched
+        PDP-->>PEP: Either.Left(abac.policy_not_found)
+    else A store read returned Left or evaluation threw
+        PDP-->>PEP: Either.Right(PolicyDecision with Effect.Indeterminate)
+    else Evaluated
+        PDP-->>PEP: Either.Right(PolicyDecision) (effect, obligations, advice)
+    end
 
-    PDP-->>PEP: PolicyDecision (effect, obligations, advice)
+    Note over PEP: Combine the per-policy verdicts (AND / OR groups).<br/>Only if the policies pass, evaluate each [RequireCondition]<br/>in declaration order (EELCompiler.CompileAsync, cached delegate).
 
-    alt Effect == Permit
+    alt Indeterminate (store failure, PDP error, condition does not compile or throws)
+        PEP-->>App: Either.Left(abac.indeterminate), in every enforcement mode
+    else Effect == Permit
         PEP->>OE: ExecuteObligationsAsync(obligations)
         OE->>OH: HandleAsync(obligation)
         OH-->>OE: Either<EncinaError, Unit>
@@ -528,7 +551,7 @@ sequenceDiagram
         Handler-->>PEP: TResponse
         PEP-->>App: Either.Right(response)
 
-    else Effect == Deny
+    else Definite denial (Deny, policy NotApplicable or not found, condition false)
         PEP->>OE: ExecuteObligationsAsync(onDeny obligations)
         Note over PEP: Apply enforcement mode
 
@@ -545,9 +568,11 @@ sequenceDiagram
 ### Key Flow Details
 
 - **Obligation failures cause denial**: per XACML 3.0 section 7.18, if any mandatory obligation handler fails or is missing, the PEP must deny access even if the PDP returned Permit.
+- **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error inside the executor; a mandatory obligation then denies with `abac.obligation_failed`, advice is skipped.
 - **Advice is best-effort**: advice handler failures are logged but do not affect the decision.
-- **NotApplicable fallback**: when no policy matches, the `DefaultNotApplicableEffect` option determines whether the request is denied (closed-world assumption, the default) or permitted (open-world assumption).
-- **Indeterminate handling**: evaluation errors produce `Indeterminate`, which is treated according to the enforcement mode.
+- **NotApplicable denies**: a required policy that returns NotApplicable denies the request, and a policy name that is not in the store denies with `abac.policy_not_found`. A request type with no `[RequirePolicy]` and no `[RequireCondition]` is not evaluated at all.
+- **Indeterminate handling**: evaluation errors produce `Indeterminate`, which denies with `abac.indeterminate` in every enforcement mode, `Warn` included. `Warn` relaxes only definite verdicts. An error denies when it decides the verdict; next to a definite denial among the required policies, the definite denial is the verdict and `Warn` lets it through.
+- **Conditions come after the policies**: `[RequireCondition]` expressions are not evaluated before the PDP and are not a short-circuit in front of it.
 
 ---
 
@@ -596,7 +621,7 @@ Requests opt into ABAC by applying attributes:
 public sealed record GetFinancialReportQuery(Guid ReportId) : IQuery<ReportDto>;
 
 // Inline EEL condition
-[RequireCondition("subject.clearanceLevel >= resource.classification")]
+[RequireCondition("user.clearanceLevel >= resource.classification")]
 public sealed record GetClassifiedDocumentQuery(Guid DocumentId) : IQuery<DocumentDto>;
 
 // Combining both: named policy AND inline condition
@@ -604,7 +629,7 @@ public sealed record GetClassifiedDocumentQuery(Guid DocumentId) : IQuery<Docume
 [RequireCondition("environment.isBusinessHours == true")]
 public sealed record ProcessPayrollCommand(Guid PayrollId) : ICommand;
 
-// Multiple policies with OR logic
+// Multiple policies with OR logic: at least one of them must permit
 [RequirePolicy("admin-override", AllMustPass = false)]
 [RequirePolicy("standard-access", AllMustPass = false)]
 public sealed record GetResourceQuery(Guid ResourceId) : IQuery<ResourceDto>;
@@ -753,9 +778,7 @@ services.AddScoped<IObligationHandler, MfaChallengeObligationHandler>();
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.IncludeAdvice = true;
-    options.FailOnMissingObligationHandler = true;
     options.AddHealthCheck = true;
 
     // Custom functions

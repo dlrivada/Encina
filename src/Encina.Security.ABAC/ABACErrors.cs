@@ -81,6 +81,12 @@ public static class ABACErrors
     /// <summary>Error code when policy caching is enabled but no <c>ICacheProvider</c> is registered.</summary>
     public const string CacheProviderNotRegisteredCode = "abac.cache_provider_not_registered";
 
+    /// <summary>Error code when a <see cref="RequireConditionAttribute"/> expression evaluated to <c>false</c>.</summary>
+    public const string ConditionNotMetCode = "abac.condition_not_met";
+
+    /// <summary>Error code when an obligation or advice handler threw an exception instead of returning a result.</summary>
+    public const string ObligationHandlerExceptionCode = "abac.obligation_handler_exception";
+
     // ── Factory Methods ─────────────────────────────────────────────
 
     /// <summary>
@@ -135,6 +141,72 @@ public static class ABACErrors
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["policyId"] = policyId
             });
+
+    /// <summary>
+    /// Creates an error when a policy named by <see cref="RequirePolicyAttribute"/> is neither a
+    /// policy set nor a policy in the policy store.
+    /// </summary>
+    /// <param name="requestType">The request type that requires the policy.</param>
+    /// <param name="policyName">The required policy name, recorded in the error details only.</param>
+    /// <returns>An error with code <see cref="PolicyNotFoundCode"/> and a fixed message.</returns>
+    public static EncinaError RequiredPolicyNotFound(Type requestType, string policyName)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+        ArgumentNullException.ThrowIfNull(policyName);
+
+        return EncinaErrors.Create(
+            code: PolicyNotFoundCode,
+            message: "A policy required by the request was not found in the policy store. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["policyId"] = policyName
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when a <see cref="RequireConditionAttribute"/> expression evaluated to <c>false</c>.
+    /// </summary>
+    /// <param name="requestType">The request type whose condition was not met.</param>
+    /// <param name="conditionIndex">The zero-based position of the condition among the request's conditions.</param>
+    /// <returns>An error with code <see cref="ConditionNotMetCode"/> and a fixed message.</returns>
+    public static EncinaError ConditionNotMet(Type requestType, int conditionIndex)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+
+        return EncinaErrors.Create(
+            code: ConditionNotMetCode,
+            message: "A condition required by the request was not met. Access denied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["conditionIndex"] = conditionIndex
+            });
+    }
+
+    /// <summary>
+    /// Creates an error when an obligation or advice handler threw an exception.
+    /// </summary>
+    /// <param name="obligationId">The identifier of the obligation or advice whose handler threw.</param>
+    /// <param name="exceptionType">The type of the exception; its message is never recorded.</param>
+    /// <returns>An error with code <see cref="ObligationHandlerExceptionCode"/> and a fixed message.</returns>
+    public static EncinaError ObligationHandlerException(string obligationId, Type exceptionType)
+    {
+        ArgumentNullException.ThrowIfNull(obligationId);
+        ArgumentNullException.ThrowIfNull(exceptionType);
+
+        return EncinaErrors.Create(
+            code: ObligationHandlerExceptionCode,
+            message: "An obligation or advice handler threw an exception.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["obligationId"] = obligationId,
+                ["exceptionType"] = exceptionType.FullName
+            });
+    }
 
     /// <summary>
     /// Creates an error when a referenced policy set does not exist.

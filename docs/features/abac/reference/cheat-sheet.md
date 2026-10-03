@@ -16,23 +16,37 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 ## Request Decoration
 
 ```csharp
-[RequirePolicy("finance-access")]                               // Named policy
-[RequirePolicy("admin-override", AllMustPass = false)]          // OR logic
-[RequireCondition("subject.department == 'engineering'")]        // Inline EEL
-[RequireCondition("subject.clearanceLevel >= resource.classification")]
+[RequirePolicy("finance-access")]                               // Named policy, must permit (AND)
+[RequirePolicy("admin-override", AllMustPass = false)]          // At least one of these must permit (OR)
+[RequireCondition("user.department == \"engineering\"")]        // Inline EEL (C# string literals, escaped inside the attribute)
+[RequireCondition("user.clearanceLevel >= resource.classification")]
 ```
+
+| Rule | Behavior |
+|------|----------|
+| Named policy | The top-level policy set or standalone policy (one contained in no set) with that id is evaluated on its own; only `Permit` passes. A policy that exists only inside a set is not found: name the parent set instead |
+| `NotApplicable` from a required policy | Denies |
+| Policy not in the store | Denies with `abac.policy_not_found` |
+| `Indeterminate` or evaluation error | Denies (`abac.indeterminate` / `abac.evaluation_failed`), in every enforcement mode |
+| Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
+| `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
+| `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies with `abac.indeterminate` |
+| Policies and conditions | Combined with AND; conditions run only after the named policies permit, in declaration order. The variables are `user`, `resource`, `environment` and `action` (`action.name` is the request type name) |
+| No `[RequirePolicy]` and no `[RequireCondition]` | The request is not evaluated |
 
 ## Policy Builder (Minimal)
 
 ```csharp
 var policy = new PolicyBuilder("my-policy")
     .WithAlgorithm(CombiningAlgorithmId.DenyOverrides)
-    .AddRule("allow-read", Effect.Permit, rule => rule
+    .AddRule("allow-get-report", Effect.Permit, rule => rule
         .WithCondition(ConditionBuilder.Equal(
             ConditionBuilder.Attribute(AttributeCategory.Action, "name", XACMLDataTypes.String),
-            ConditionBuilder.StringValue("read"))))
+            ConditionBuilder.StringValue("GetReportQuery"))))
     .Build();
 ```
+
+The action attribute `name` is the request type name, so the value above matches a `GetReportQuery` request.
 
 ## PolicySet Builder (Minimal)
 
@@ -99,16 +113,17 @@ var policySet = new PolicySetBuilder("org-policies")
 
 ```csharp
 // Attribute access
-subject.department                     // Subject attribute
+user.department                        // Subject attribute
 resource.classification                // Resource attribute
 environment.isBusinessHours            // Environment attribute
+action.name                            // Action attribute (the request type name)
 
 // Comparisons
-subject.clearanceLevel >= resource.classification
-subject.department == "engineering"
+user.clearanceLevel >= resource.classification
+user.department == "engineering"
 
 // Boolean logic
-subject.isAdmin == true || subject.department == "security"
+user.isAdmin == true || user.department == "security"
 ```
 
 ## Enforcement Modes
@@ -116,7 +131,7 @@ subject.isAdmin == true || subject.department == "security"
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny stops request execution | Production |
-| `Warn` | Deny logged but request proceeds | Policy validation / rollout |
+| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
 | `Disabled` | ABAC skipped entirely | Development / feature flag |
 
 ## Error Codes
@@ -140,6 +155,8 @@ subject.isAdmin == true || subject.department == "security"
 | `abac.function_not_found` | Function not registered in registry |
 | `abac.function_error` | Function evaluation threw exception |
 | `abac.variable_not_found` | VariableReference to undefined VariableDefinition |
+| `abac.condition_not_met` | A `[RequireCondition]` expression evaluated to `false` |
+| `abac.obligation_handler_exception` | An obligation or advice handler threw (handled inside the executor; the request fails with `abac.obligation_failed`) |
 
 ## Metrics
 
@@ -148,7 +165,6 @@ subject.isAdmin == true || subject.department == "security"
 | `abac.evaluation.total` | Counter | Total evaluations |
 | `abac.evaluation.permitted` | Counter | Permit decisions |
 | `abac.evaluation.denied` | Counter | Deny decisions |
-| `abac.evaluation.not_applicable` | Counter | NotApplicable decisions |
 | `abac.evaluation.indeterminate` | Counter | Indeterminate decisions |
 | `abac.obligation.executed` | Counter | Obligations executed |
 | `abac.obligation.failed` | Counter | Obligations failed |
@@ -174,9 +190,7 @@ subject.isAdmin == true || subject.department == "security"
 | Property | Default | Description |
 |----------|---------|-------------|
 | `EnforcementMode` | `Block` | Block / Warn / Disabled |
-| `DefaultNotApplicableEffect` | `Deny` | Effect when no policy matches |
 | `IncludeAdvice` | `true` | Execute advice expressions |
-| `FailOnMissingObligationHandler` | `true` | Deny if no handler (XACML 7.18) |
 | `AddHealthCheck` | `false` | Register `encina-abac` health check |
 | `ValidateExpressionsAtStartup` | `false` | Fail-fast on invalid EEL |
 | `SeedPolicySets` | `[]` | PolicySets loaded at startup |
@@ -188,13 +202,14 @@ subject.isAdmin == true || subject.department == "security"
 | State | Condition |
 |-------|-----------|
 | `Healthy` | At least one Policy or PolicySet loaded |
-| `Degraded` | PAP is empty (all requests get NotApplicable) |
+| `Degraded` | PAP is empty (every `[RequirePolicy]` is missing, so those requests are denied) |
 | `Unhealthy` | PAP query threw an exception |
 
 ## Log Event ID Ranges
 
 | Range | Category |
 |-------|----------|
-| 9000-9009 | Pipeline (evaluation start, decision, enforcement) |
+| 9000-9005, 9008-9009 | Pipeline (evaluation start, decision, enforcement) |
 | 9010-9019 | Obligations (execution, failure, missing handler) |
 | 9020-9029 | Advice (execution, failure, skipped) |
+| 9072-9078 | Required policies, conditions and obligation or advice handler exceptions |

@@ -317,9 +317,17 @@ If the user satisfies `admin-override` or `standard-access`, the request proceed
 
 ### 6.3 Mixing Strategies
 
-You can combine AND and OR by structuring policies within policy sets that use appropriate
-combining algorithms. The `AllMustPass` property controls only the pipeline-level behavior
-for the attributes on that request class.
+A request class can carry both groups at once. Attributes with `AllMustPass = true` (the
+default) form the AND group: every one of those policies must permit. Attributes with
+`AllMustPass = false` form the OR group: at least one of them must permit. When both groups
+are present, both must hold; a group that is absent does not constrain the request.
+
+```csharp
+[RequirePolicy("tenant-member")]                         // AND group: must permit
+[RequirePolicy("admin-override", AllMustPass = false)]   // OR group: one of these must permit
+[RequirePolicy("standard-access", AllMustPass = false)]
+public sealed record GetResourceQuery(Guid ResourceId) : IQuery<ResourceDto>;
+```
 
 ---
 
@@ -542,7 +550,6 @@ services.AddEncinaSecurity(options =>
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.AddHealthCheck = true;
 });
 ```
@@ -633,14 +640,17 @@ controlled decisions:
 [Fact]
 public async Task Handler_WhenPolicyPermits_ShouldReturnData()
 {
+    // The PEP evaluates each [RequirePolicy] through EvaluatePolicyAsync
+    Either<EncinaError, PolicyDecision> decision = new PolicyDecision
+    {
+        Effect = Effect.Permit,
+        Obligations = [],
+        Advice = []
+    };
     var mockPdp = new Mock<IPolicyDecisionPoint>();
-    mockPdp.Setup(p => p.EvaluateAsync(It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
-           .ReturnsAsync(new PolicyDecision
-           {
-               Effect = Effect.Permit,
-               Obligations = [],
-               Advice = []
-           });
+    mockPdp.Setup(p => p.EvaluatePolicyAsync(
+               It.IsAny<string>(), It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
+           .ReturnsAsync(decision);
 
     // Inject mockPdp.Object into the pipeline behavior or handler under test
 }
@@ -648,14 +658,16 @@ public async Task Handler_WhenPolicyPermits_ShouldReturnData()
 [Fact]
 public async Task Handler_WhenPolicyDenies_ShouldRejectRequest()
 {
+    Either<EncinaError, PolicyDecision> decision = new PolicyDecision
+    {
+        Effect = Effect.Deny,
+        Obligations = [],
+        Advice = []
+    };
     var mockPdp = new Mock<IPolicyDecisionPoint>();
-    mockPdp.Setup(p => p.EvaluateAsync(It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
-           .ReturnsAsync(new PolicyDecision
-           {
-               Effect = Effect.Deny,
-               Obligations = [],
-               Advice = []
-           });
+    mockPdp.Setup(p => p.EvaluatePolicyAsync(
+               It.IsAny<string>(), It.IsAny<PolicyEvaluationContext>(), It.IsAny<CancellationToken>()))
+           .ReturnsAsync(decision);
 
     // Assert that the pipeline returns an authorization error
 }

@@ -61,7 +61,7 @@ Key points about Permit:
 
 A **Deny** effect means the evaluated rule or policy explicitly refuses the requested access.
 When the PDP returns Deny, the PEP blocks the request. In `ABACEnforcementMode.Block` mode,
-the pipeline behavior returns an error. In `ABACEnforcementMode.Warn` mode, the deny is logged
+the pipeline behavior returns an error. In `ABACEnforcementMode.Warn` mode, a definite deny is logged
 but the request proceeds.
 
 ```csharp
@@ -113,7 +113,7 @@ NotApplicable is produced when:
 - A policy's `Target` does not match, so none of its rules are evaluated.
 - All rules within a matching policy individually return NotApplicable.
 
-The PEP decides what to do with NotApplicable via `ABACOptions.DefaultNotApplicableEffect`.
+For a policy named by `[RequirePolicy]`, the PEP treats NotApplicable as a denial (see [Default Not-Applicable Behavior](#default-not-applicable-behavior)).
 
 ## Indeterminate
 
@@ -195,28 +195,22 @@ and diagnostic information from every level of the evaluation hierarchy.
 
 ## Default Not-Applicable Behavior
 
-When no policy or rule applies to a request (the final combined effect is NotApplicable),
-the PEP must decide how to proceed. The `ABACOptions.DefaultNotApplicableEffect` property
-controls this behavior:
+The PEP evaluates a request only when its type declares `[RequirePolicy]` or
+`[RequireCondition]`. Each `[RequirePolicy("name")]` is evaluated on its own through
+`IPolicyDecisionPoint.EvaluatePolicyAsync`, and only `Permit` passes:
 
-```csharp
-services.AddEncinaABAC(options =>
-{
-    // Closed-world assumption (default): unmatched requests are denied
-    options.DefaultNotApplicableEffect = Effect.Deny;
+| Result of the required policy | PEP outcome |
+|-------------------------------|-------------|
+| `Permit` | The requirement passes |
+| `Deny` | Denied (`abac.access_denied`) |
+| `NotApplicable` | Denied (`abac.access_denied`): an explicitly required policy that does not apply cannot authorize |
+| Policy not in the store | Denied (`abac.policy_not_found`) |
+| `Indeterminate` or evaluation error | Denied (`abac.indeterminate`) |
 
-    // Open-world assumption: unmatched requests are allowed
-    options.DefaultNotApplicableEffect = Effect.Permit;
-});
-```
-
-| Setting | Behavior | Use Case |
-|---------|----------|----------|
-| `Effect.Deny` (default) | Unmatched requests are treated as denied | Security-critical systems, principle of least privilege |
-| `Effect.Permit` | Unmatched requests are treated as permitted | Open systems, gradual policy adoption |
-
-The default is `Effect.Deny` following the **secure-by-default** principle: if no policy
-explicitly permits an action, it is denied.
+There is no option that turns NotApplicable into Permit. How several `[RequirePolicy]`
+and `[RequireCondition]` attributes combine is described in the
+[ABAC README](https://github.com/dlrivada/Encina/blob/main/src/Encina.Security.ABAC/README.md#how-the-attributes-decide-a-request)
+and the [cheat sheet](../reference/cheat-sheet.md).
 
 ## Indeterminate Handling
 
@@ -246,14 +240,23 @@ The `ABACEnforcementMode` determines what the PEP does with the final decision:
 public enum ABACEnforcementMode
 {
     Block,    // Deny/Indeterminate blocks the request (production)
-    Warn,     // Deny/Indeterminate logs a warning but allows the request (observation)
+    Warn,     // Definite denials are logged but proceed; errors still deny (observation)
     Disabled  // ABAC evaluation is skipped entirely
 }
 ```
 
-In `Block` mode, an Indeterminate final decision **denies the request** because the PDP
-could not determine that access is allowed. In `Warn` mode, the Indeterminate is logged
-for analysis but the request proceeds.
+An Indeterminate final decision **denies the request** in every enforcement mode, `Warn`
+included, unless a definite denial decides the verdict (see below) (`abac.indeterminate`), because the PDP could not determine that access is allowed.
+`Warn` relaxes only definite verdicts: a Deny, a required policy that is NotApplicable, Deny
+or not found, and a condition that evaluates to `false`. Those are logged and the request
+proceeds. Exceptions from the attribute provider or the PDP (`abac.evaluation_failed`) and
+mandatory OnPermit obligations that cannot be fulfilled (`abac.obligation_failed`) also deny in `Warn`.
+
+An error denies when it decides the verdict. When a definite denial and an error occur
+together among the required policies, the definite denial wins: an `AllMustPass` policy that
+is NotApplicable next to one that is Indeterminate, or a missing policy name next to an
+Indeterminate one, yields `abac.access_denied` or `abac.policy_not_found`. `Warn` logs that
+verdict and lets the request through.
 
 ## Effect Precedence in Combining Algorithms
 
