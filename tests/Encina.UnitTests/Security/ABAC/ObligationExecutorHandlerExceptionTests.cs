@@ -122,6 +122,41 @@ public sealed class ObligationExecutorHandlerExceptionTests
     }
 
     [Fact]
+    public async Task ExecuteObligationsAsync_CanHandleThrows_ReturnsObligationFailedWithoutTheMessage()
+    {
+        var handler = Substitute.For<IObligationHandler>();
+        handler.CanHandle(Arg.Any<string>()).Returns(_ => throw new InvalidOperationException(Sentinel));
+        var sut = new ObligationExecutor([handler], _logger);
+
+        var result = await sut.ExecuteObligationsAsync([Obligation("ob-1")], Context, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue("a handler whose CanHandle throws fails its mandatory obligation (fail closed)");
+        result.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.ObligationFailedCode));
+        var records = _logger.Collector.GetSnapshot();
+        records.ShouldContain(r => r.Id.Id == 9011 && r.Message.Contains(ABACErrors.ObligationHandlerExceptionCode));
+        records.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+        records.Where(r => r.Exception != null)
+            .ShouldAllBe(r => !r.Exception!.ToString().Contains(Sentinel, StringComparison.Ordinal));
+        await handler.DidNotReceiveWithAnyArgs().HandleAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task ExecuteAdviceAsync_CanHandleThrows_SkipsTheAdviceAndContinues()
+    {
+        var throwing = Substitute.For<IObligationHandler>();
+        throwing.CanHandle("advice-1").Returns(_ => throw new InvalidOperationException(Sentinel));
+        var second = Handler("advice-2", _ => Right<EncinaError, Unit>(unit));
+        var sut = new ObligationExecutor([throwing, second], _logger);
+
+        await sut.ExecuteAdviceAsync([Advice("advice-1"), Advice("advice-2")], Context, CancellationToken.None);
+
+        await second.Received(1).HandleAsync(Arg.Any<Obligation>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>());
+        var records = _logger.Collector.GetSnapshot();
+        records.ShouldContain(r => r.Id.Id == 9021 && r.Message.Contains(ABACErrors.ObligationHandlerExceptionCode));
+        records.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteObligationsAsync_CancellationWithoutCancelledToken_IsAFailedObligation()
     {
         var sut = new ObligationExecutor(

@@ -65,7 +65,11 @@ internal readonly record struct RequiredPolicyOutcome(string PolicyId, bool AllM
 /// </remarks>
 internal static class ABACRequirementCombiner
 {
-    /// <summary>Combines policy outcomes and condition outcomes with AND.</summary>
+    /// <summary>
+    /// Combines policy outcomes and condition outcomes with AND. This is the verdict the Policy
+    /// Enforcement Point enforces: <see cref="ABACRequirementEvaluator"/> calls it with every policy
+    /// outcome and the condition outcomes it evaluated (none when the policies did not pass).
+    /// </summary>
     public static RequirementVerdictKind Combine(
         IReadOnlyList<RequiredPolicyOutcome> policies,
         IReadOnlyList<ConditionOutcome> conditions)

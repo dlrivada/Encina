@@ -187,7 +187,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Decision Processing ─────────────────────────────────────────
 
     // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is
-    // NotApplicable of a required policy is already a Deny verdict.
+    // NotApplicable is already a Deny verdict.
     private async ValueTask<Either<EncinaError, TResponse>> ProcessDecisionAsync(
         ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
@@ -206,9 +206,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 verdict, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
                 .ConfigureAwait(false),
 
-            _ => await HandleIndeterminateAsync(
-                verdict.Decision, nextStep, startTimestamp, activity)
-                .ConfigureAwait(false)
+            _ => HandleIndeterminate(verdict.Decision, startTimestamp, activity)
         };
     }
 
@@ -321,9 +319,12 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     // ── Indeterminate ───────────────────────────────────────────────
 
-    private async ValueTask<Either<EncinaError, TResponse>> HandleIndeterminateAsync(
+    // An Indeterminate verdict is an error (a condition that does not compile or throws, a
+    // policy store failure, a PDP error), not a definite verdict: it denies in every enforcement
+    // mode, like an exception from the PDP or the attribute provider. Warn mode relaxes only
+    // definite denials (see ApplyEnforcementAsync).
+    private Either<EncinaError, TResponse> HandleIndeterminate(
         PolicyDecision decision,
-        RequestHandlerCallback<TResponse> nextStep,
         long startTimestamp,
         Activity? activity)
     {
@@ -339,8 +340,9 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             requestTypeName,
             reason);
 
-        var error = ABACErrors.Indeterminate(typeof(TRequest), reason);
-        return await ApplyEnforcementAsync(error, requestTypeName, nextStep).ConfigureAwait(false);
+        ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
+
+        return ABACErrors.Indeterminate(typeof(TRequest), reason);
     }
 
     // ── Attribute Collection ────────────────────────────────────────
@@ -376,6 +378,8 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     // ── Enforcement ─────────────────────────────────────────────────
 
+    // Called only for definite denials (a Deny, a required policy that is NotApplicable or not
+    // found, a condition that evaluates to false): Warn mode logs them and lets the request proceed.
     private async ValueTask<Either<EncinaError, TResponse>> ApplyEnforcementAsync(
         EncinaError error,
         string requestTypeName,

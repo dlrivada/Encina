@@ -214,28 +214,39 @@ public sealed class XACMLPolicyDecisionPoint(
     }
 
     /// <summary>
-    /// Looks up <paramref name="policyId"/> as a policy set, then as a policy, and evaluates the
-    /// first match. A failed store read yields an Indeterminate result; <c>None</c> means not found.
+    /// Looks up <paramref name="policyId"/> among the top-level policy sets, then among the
+    /// standalone policies (the same two lists <see cref="EvaluateAsync"/> combines at the root),
+    /// and evaluates the first match. A policy or policy set nested inside a policy set is never
+    /// matched: evaluating it alone would skip its parent's enabled flag, target, combining
+    /// algorithm and obligations. A failed store read yields an Indeterminate result;
+    /// <c>None</c> means not found.
     /// </summary>
     private async ValueTask<Option<PolicyEvaluationResult>> FindAndEvaluateAsync(
         string policyId,
         PolicyEvaluationContext context,
         CancellationToken cancellationToken)
     {
-        var policySetLookup = await _pap.GetPolicySetAsync(policyId, cancellationToken).ConfigureAwait(false);
-        var fromPolicySet = policySetLookup.Match(
+        var policySets = await _pap.GetPolicySetsAsync(cancellationToken).ConfigureAwait(false);
+        var fromPolicySet = policySets.Match(
             Left: error => LookupFailed(policyId, error),
-            Right: policySet => policySet.Map(found => EvaluatePolicySet(found, context)));
+            Right: sets => FindById(sets, policyId, set => set.Id).Map(found => EvaluatePolicySet(found, context)));
 
         if (fromPolicySet.IsSome)
         {
             return fromPolicySet;
         }
 
-        var policyLookup = await _pap.GetPolicyAsync(policyId, cancellationToken).ConfigureAwait(false);
-        return policyLookup.Match(
+        var standalonePolicies = await _pap.GetPoliciesAsync(null, cancellationToken).ConfigureAwait(false);
+        return standalonePolicies.Match(
             Left: error => LookupFailed(policyId, error),
-            Right: policy => policy.Map(found => EvaluatePolicy(found, context)));
+            Right: policies => FindById(policies, policyId, policy => policy.Id).Map(found => EvaluatePolicy(found, context)));
+    }
+
+    private static Option<T> FindById<T>(IReadOnlyList<T> items, string id, Func<T, string> idOf)
+        where T : class
+    {
+        var found = items.FirstOrDefault(item => string.Equals(idOf(item), id, StringComparison.Ordinal));
+        return found is null ? Option<T>.None : Option<T>.Some(found);
     }
 
     private Option<PolicyEvaluationResult> LookupFailed(string policyId, EncinaError error)

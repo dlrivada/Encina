@@ -29,15 +29,6 @@ public sealed class ABACOptionsTests
     }
 
     [Fact]
-    public void FailOnMissingObligationHandler_DefaultsToTrue()
-    {
-        var options = new ABACOptions();
-
-        options.FailOnMissingObligationHandler.ShouldBeTrue(
-            "XACML 7.18 mandates denying access if obligation cannot be fulfilled");
-    }
-
-    [Fact]
     public void AddHealthCheck_DefaultsToFalse()
     {
         var options = new ABACOptions();

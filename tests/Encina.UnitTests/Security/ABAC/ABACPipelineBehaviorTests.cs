@@ -522,13 +522,50 @@ public sealed class ABACPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_WarnMode_Indeterminate_KeepsTodaysPassThrough()
+    public async Task Handle_WarnMode_RequiredPolicyMissing_LogsAndCallsNextStep()
+    {
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(), ABACEnforcementMode.Warn);
+
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_WarnMode_Indeterminate_StillDenies()
     {
         var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Indeterminate)), ABACEnforcementMode.Warn);
 
-        var (result, _) = await SendAsync(behavior, new PolicyARequest());
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
 
-        result.IsRight.ShouldBeTrue();
+        Code(result).ShouldBe(ABACErrors.IndeterminateCode);
+        nextCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WarnMode_ConditionDoesNotCompile_StillDenies()
+    {
+        var behavior = CreateBehavior<UncompilableConditionRequest>(Pdp(), ABACEnforcementMode.Warn);
+
+        var (result, nextCalled) = await SendAsync(behavior, new UncompilableConditionRequest());
+
+        Code(result).ShouldBe(ABACErrors.IndeterminateCode);
+        nextCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WarnMode_PdpReturnsLeftWithAnotherCode_StillDenies()
+    {
+        var pdp = Substitute.For<IPolicyDecisionPoint>();
+        pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, PolicyDecision>(ABACErrors.PersistentStoreNotRegistered())));
+        var behavior = CreateBehavior<PolicyARequest>(pdp, ABACEnforcementMode.Warn);
+
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        Code(result).ShouldBe(ABACErrors.IndeterminateCode);
+        nextCalled.ShouldBeFalse();
     }
 
     [Fact]
@@ -616,6 +653,59 @@ public sealed class ABACPipelineBehaviorTests
 
         await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cts.Token));
     }
+
+    #endregion
+
+    #region Cancellation
+
+    [Fact]
+    public async Task Handle_PdpCancelled_PropagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var pdp = Substitute.For<IPolicyDecisionPoint>();
+        pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, PolicyDecision>>>(_ => throw new OperationCanceledException(cts.Token));
+        var behavior = CreateBehavior<PolicyARequest>(pdp);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cts.Token));
+    }
+
+    [Fact]
+    public async Task Handle_CancelledWhileCompilingACondition_PropagatesCancellation()
+    {
+        // A fresh compiler has no cached delegate, so CompileAsync waits on its lock with the
+        // already-cancelled token and throws; the PEP must not turn that into Indeterminate.
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        using var freshCompiler = new EELCompiler();
+        var behavior = new ABACPipelineBehavior<HrConditionRequest, string>(
+            Pdp(),
+            AttributeProviderReturningEmpty<HrConditionRequest>(),
+            Substitute.For<ISecurityContextAccessor>(),
+            Executor(),
+            freshCompiler,
+            Options.Create(new ABACOptions()),
+            NullLogger<ABACPipelineBehavior<HrConditionRequest, string>>.Instance);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new HrConditionRequest(), cts.Token));
+    }
+
+    private static IAttributeProvider AttributeProviderReturningEmpty<TRequest>()
+    {
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, object>());
+        attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, object>());
+        attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, object>());
+        return attributeProvider;
+    }
+
+    #endregion
+
+    #region Sentinel
 
     [Fact]
     public async Task Handle_ThrowingHandler_SentinelReachesNoLogNoActivityTagAndNoError()

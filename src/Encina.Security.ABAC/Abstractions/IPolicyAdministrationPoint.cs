@@ -88,7 +88,7 @@ public interface IPolicyAdministrationPoint
     /// </summary>
     /// <param name="policySetId">
     /// If specified, returns only policies within that policy set.
-    /// If <c>null</c>, returns all policies.
+    /// If <c>null</c>, returns the standalone policies (those no policy set contains).
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A list of matching policies, or an error.</returns>

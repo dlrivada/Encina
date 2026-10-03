@@ -1,11 +1,13 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.Evaluation;
 
 using LanguageExt;
 
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Testing;
 
 using Shouldly;
@@ -58,12 +60,23 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
     private static IPolicyAdministrationPoint Pap(PolicySet? policySet = null, Policy? policy = null)
     {
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<PolicySet>>(Optional(policySet)));
-        pap.GetPolicyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<Policy>>(Optional(policy)));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<PolicySet>>(policySet is null ? [] : [policySet]));
+        pap.GetPoliciesAsync(null, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<Policy>>(policy is null ? [] : [policy]));
         return pap;
     }
+
+    private static PolicySet MakePolicySet(string id, bool isEnabled, params Policy[] policies) => new()
+    {
+        Id = id,
+        IsEnabled = isEnabled,
+        Algorithm = CombiningAlgorithmId.DenyOverrides,
+        Policies = policies,
+        PolicySets = [],
+        Obligations = [],
+        Advice = []
+    };
 
     private static PolicyDecision RightOrFail(Either<EncinaError, PolicyDecision> result) =>
         result.Match(Right: decision => decision, Left: error => throw new ShouldAssertException(error.Message));
@@ -94,22 +107,41 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
     [Fact]
     public async Task EvaluatePolicyAsync_PolicySetAndPolicyShareTheName_EvaluatesThePolicySet()
     {
-        var policySet = new PolicySet
-        {
-            Id = "shared",
-            Algorithm = CombiningAlgorithmId.DenyOverrides,
-            Policies = [MakePolicy("inner", Effect.Deny)],
-            PolicySets = [],
-            Obligations = [],
-            Advice = []
-        };
+        var policySet = MakePolicySet("shared", isEnabled: true, MakePolicy("inner", Effect.Deny));
         var pap = Pap(policySet, MakePolicy("shared", Effect.Permit));
         var pdp = CreatePdp(pap);
 
         var decision = RightOrFail(await pdp.EvaluatePolicyAsync("shared", Context()));
 
         decision.Effect.ShouldBe(Effect.Deny);
-        await pap.DidNotReceiveWithAnyArgs().GetPolicyAsync(default!, default);
+        await pap.DidNotReceiveWithAnyArgs().GetPoliciesAsync(default, default);
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_PolicyNestedInDisabledSet_IsNotFound()
+    {
+        // The real in-memory PAP finds nested policies through GetPolicyAsync; the PDP must not.
+        var pap = new InMemoryPolicyAdministrationPoint(NullLogger<InMemoryPolicyAdministrationPoint>.Instance);
+        (await pap.AddPolicySetAsync(MakePolicySet("parent", isEnabled: false, MakePolicy("child", Effect.Permit))))
+            .IsRight.ShouldBeTrue();
+        var pdp = CreatePdp(pap);
+
+        var result = await pdp.EvaluatePolicyAsync("child", Context());
+
+        result.Match(Right: _ => "<right>", Left: e => e.GetCode().IfNone("<none>")).ShouldBe(ABACErrors.PolicyNotFoundCode);
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_DisabledParentSetNamed_IsNotApplicable()
+    {
+        var pap = new InMemoryPolicyAdministrationPoint(NullLogger<InMemoryPolicyAdministrationPoint>.Instance);
+        (await pap.AddPolicySetAsync(MakePolicySet("parent", isEnabled: false, MakePolicy("child", Effect.Permit))))
+            .IsRight.ShouldBeTrue();
+        var pdp = CreatePdp(pap);
+
+        var decision = RightOrFail(await pdp.EvaluatePolicyAsync("parent", Context()));
+
+        decision.Effect.ShouldBe(Effect.NotApplicable);
     }
 
     [Fact]
@@ -148,8 +180,8 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
     public async Task EvaluatePolicyAsync_PolicySetLookupFails_IsIndeterminateAndLogsTheCodeOnly()
     {
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Option<PolicySet>>(EncinaErrors.Create("store.down", "secret connection detail")));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<PolicySet>>(EncinaErrors.Create("store.down", "secret connection detail")));
         var pdp = CreatePdp(pap);
 
         var decision = RightOrFail(await pdp.EvaluatePolicyAsync("policy-a", Context()));
@@ -164,10 +196,10 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
     public async Task EvaluatePolicyAsync_PolicyLookupFails_IsIndeterminate()
     {
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, Option<PolicySet>>(None));
-        pap.GetPolicyAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Option<Policy>>(EncinaErrors.Create("store.down", "down")));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<PolicySet>>([]));
+        pap.GetPoliciesAsync(null, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<Policy>>(EncinaErrors.Create("store.down", "down")));
         var pdp = CreatePdp(pap);
 
         var decision = RightOrFail(await pdp.EvaluatePolicyAsync("policy-a", Context()));
@@ -179,8 +211,8 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
     public async Task EvaluatePolicyAsync_StoreThrows_IsIndeterminateAndLogsNoMessage()
     {
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, Option<PolicySet>>>>(_ => throw new InvalidOperationException("secret detail"));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<PolicySet>>>>(_ => throw new InvalidOperationException("secret detail"));
         var pdp = CreatePdp(pap);
 
         var decision = RightOrFail(await pdp.EvaluatePolicyAsync("policy-a", Context()));
@@ -197,11 +229,26 @@ public sealed class XACMLPolicyDecisionPointNamedPolicyTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<Either<EncinaError, Option<PolicySet>>>>(_ => throw new OperationCanceledException(cts.Token));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<PolicySet>>>>(_ => throw new OperationCanceledException(cts.Token));
         var pdp = CreatePdp(pap);
 
         await Should.ThrowAsync<OperationCanceledException>(
             async () => await pdp.EvaluatePolicyAsync("policy-a", Context(), cts.Token));
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_OperationCanceledWithUncancelledToken_IsIndeterminate()
+    {
+        // An OperationCanceledException the caller did not ask for (an HttpClient timeout in a
+        // persistent store, for instance) is a store failure, not a cancellation: fail closed.
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, IReadOnlyList<PolicySet>>>>(_ => throw new OperationCanceledException("timeout"));
+        var pdp = CreatePdp(pap);
+
+        var decision = RightOrFail(await pdp.EvaluatePolicyAsync("policy-a", Context(), CancellationToken.None));
+
+        decision.Effect.ShouldBe(Effect.Indeterminate);
     }
 }

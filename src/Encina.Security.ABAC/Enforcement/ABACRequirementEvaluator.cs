@@ -66,16 +66,19 @@ internal sealed class ABACRequirementEvaluator
         var policies = await EvaluatePoliciesAsync(info.PolicyAttributes, attributes.Context, requestType, cancellationToken)
             .ConfigureAwait(false);
 
-        var kind = ABACRequirementCombiner.CombinePolicies(policies.ConvertAll(policy => policy.Outcome));
-        var failedCondition = -1;
+        var policyOutcomes = policies.ConvertAll(policy => policy.Outcome);
 
-        if (kind == RequirementVerdictKind.Permit)
-        {
-            (kind, failedCondition) = await EvaluateConditionsAsync(
-                info.ConditionAttributes, attributes, requestType, cancellationToken).ConfigureAwait(false);
-        }
+        // Conditions run only when the policies pass; otherwise the policies decide on their own.
+        List<ConditionOutcome> conditionOutcomes = ABACRequirementCombiner.CombinePolicies(policyOutcomes) == RequirementVerdictKind.Permit
+            ? await EvaluateConditionsAsync(info.ConditionAttributes, attributes, requestType, cancellationToken)
+                .ConfigureAwait(false)
+            : [];
 
-        return BuildVerdict(kind, policies, failedCondition, requestType, Stopwatch.GetElapsedTime(startTimestamp));
+        // The verdict comes from the same rule the property tests check (#1634).
+        var kind = ABACRequirementCombiner.Combine(policyOutcomes, conditionOutcomes);
+
+        // EvaluateConditionsAsync stops at the first condition that is not true, so it is the last one.
+        return BuildVerdict(kind, policies, conditionOutcomes.Count - 1, requestType, Stopwatch.GetElapsedTime(startTimestamp));
     }
 
     // ── Required policies ───────────────────────────────────────────
@@ -132,7 +135,7 @@ internal sealed class ABACRequirementEvaluator
 
     // ── Required conditions ─────────────────────────────────────────
 
-    private async ValueTask<(RequirementVerdictKind Kind, int FailedIndex)> EvaluateConditionsAsync(
+    private async ValueTask<List<ConditionOutcome>> EvaluateConditionsAsync(
         IReadOnlyList<RequireConditionAttribute> conditions,
         ABACCollectedAttributes attributes,
         Type requestType,
@@ -140,7 +143,7 @@ internal sealed class ABACRequirementEvaluator
     {
         if (conditions.Count == 0)
         {
-            return (RequirementVerdictKind.Permit, -1);
+            return [];
         }
 
         var globals = CreateGlobals(attributes, requestType);
@@ -159,7 +162,7 @@ internal sealed class ABACRequirementEvaluator
             }
         }
 
-        return (ABACRequirementCombiner.CombineConditions(outcomes), outcomes.Count - 1);
+        return outcomes;
     }
 
     private async ValueTask<ConditionOutcome> EvaluateConditionAsync(

@@ -59,12 +59,16 @@ public interface IPolicyDecisionPoint
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Evaluates a single policy set or policy, identified by <paramref name="policyId"/>, against
-    /// the given attribute context, without evaluating the rest of the policy store.
+    /// Evaluates a single top-level policy set or standalone policy, identified by
+    /// <paramref name="policyId"/>, against the given attribute context, without evaluating the
+    /// rest of the policy store.
     /// </summary>
     /// <param name="policyId">
-    /// The identifier of the policy set or policy to evaluate. A policy set with this identifier
-    /// is evaluated in preference to a policy with the same identifier.
+    /// The identifier of a top-level policy set or of a standalone policy (one that no policy set
+    /// contains). A policy set with this identifier is evaluated in preference to a policy with
+    /// the same identifier. A policy or policy set nested inside a policy set is not found by its
+    /// own identifier, because evaluating it without its parent would skip the parent's enabled
+    /// flag, target, combining algorithm and obligations; name the parent policy set instead.
     /// </param>
     /// <param name="context">
     /// The evaluation context containing subject, resource, action, and environment attributes.
@@ -75,7 +79,7 @@ public interface IPolicyDecisionPoint
     /// Indeterminate, with the obligations and advice that match its effect); a failure to read
     /// the policy store or to evaluate the policy is an <see cref="Effect.Indeterminate"/> decision.
     /// <c>Left</c> with code <see cref="ABACErrors.PolicyNotFoundCode"/> when the store holds no
-    /// policy set and no policy with that identifier.
+    /// top-level policy set and no standalone policy with that identifier.
     /// </returns>
     /// <remarks>
     /// Used by <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> to enforce

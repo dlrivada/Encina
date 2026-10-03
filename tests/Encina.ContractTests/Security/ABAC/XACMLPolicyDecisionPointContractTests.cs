@@ -393,23 +393,39 @@ public sealed class XACMLPolicyDecisionPointContractTests
                 MakePolicy("policy-b", rules: [MakeRule("permit", Effect.Permit)])
             ]))).IsRight.ShouldBeTrue();
 
+        // A standalone policy that does not apply (disabled): the store as a whole still permits.
+        (await pap.AddPolicyAsync(
+            MakePolicy("standalone", rules: [MakeRule("permit", Effect.Permit)]) with { IsEnabled = false },
+            null)).IsRight.ShouldBeTrue();
+
         return pap;
     }
 
     [Fact]
-    public async Task EvaluatePolicyAsync_NamedPolicy_ShouldReturnItsOwnDecision_NotTheStoreDecision()
+    public async Task EvaluatePolicyAsync_NamedStandalonePolicy_ShouldReturnItsOwnDecision_NotTheStoreDecision()
     {
         var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
 
         (await pdp.EvaluateAsync(MakeContext())).Effect.ShouldBe(Effect.Permit);
-        var named = await pdp.EvaluatePolicyAsync("policy-a", MakeContext());
+        var named = await pdp.EvaluatePolicyAsync("standalone", MakeContext());
 
         named.IsRight.ShouldBeTrue();
         named.IfRight(decision =>
         {
-            decision.Effect.ShouldBe(Effect.Deny, "the named policy decides on its own");
-            decision.PolicyId.ShouldBe("policy-a");
+            decision.Effect.ShouldBe(Effect.NotApplicable, "the named policy decides on its own");
+            decision.PolicyId.ShouldBe("standalone");
         });
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_PolicyNestedInASet_ShouldReturnLeftPolicyNotFound()
+    {
+        var pdp = CreatePdp(await StoreWithDenyingPolicyInPermittingSetAsync());
+
+        var named = await pdp.EvaluatePolicyAsync("policy-a", MakeContext());
+
+        named.Match(Right: _ => "<right>", Left: e => e.GetCode().IfNone("<none>"))
+            .ShouldBe(ABACErrors.PolicyNotFoundCode, "a nested policy is reached only through its parent set");
     }
 
     [Fact]
@@ -438,8 +454,8 @@ public sealed class XACMLPolicyDecisionPointContractTests
     public async Task EvaluatePolicyAsync_StoreReadFails_ShouldReturnIndeterminate()
     {
         var pap = Substitute.For<IPolicyAdministrationPoint>();
-        pap.GetPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, Option<PolicySet>>(EncinaError.New("Store unavailable")));
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<PolicySet>>(EncinaError.New("Store unavailable")));
         var pdp = CreatePdp(pap);
 
         var named = await pdp.EvaluatePolicyAsync("policy-a", MakeContext());

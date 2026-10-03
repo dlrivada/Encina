@@ -30,14 +30,6 @@ public class ABACOptionsGuardTests
     }
 
     [Fact]
-    public void Defaults_FailOnMissingObligationHandler_IsTrue()
-    {
-        var options = new ABACOptions();
-
-        options.FailOnMissingObligationHandler.ShouldBeTrue();
-    }
-
-    [Fact]
     public void Defaults_AddHealthCheck_IsFalse()
     {
         var options = new ABACOptions();
@@ -128,14 +120,6 @@ public class ABACOptionsGuardTests
         var options = new ABACOptions { IncludeAdvice = false };
 
         options.IncludeAdvice.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void FailOnMissingObligationHandler_CanBeSetToFalse()
-    {
-        var options = new ABACOptions { FailOnMissingObligationHandler = false };
-
-        options.FailOnMissingObligationHandler.ShouldBeFalse();
     }
 
     [Fact]

@@ -74,7 +74,6 @@ public static class ServiceCollectionExtensions
     /// {
     ///     options.EnforcementMode = ABACEnforcementMode.Block;
     ///     options.IncludeAdvice = true;
-    ///     options.FailOnMissingObligationHandler = true;
     ///     options.AddHealthCheck = true;
     ///
     ///     // Enable persistent PAP (requires IPolicyStore from a provider package)

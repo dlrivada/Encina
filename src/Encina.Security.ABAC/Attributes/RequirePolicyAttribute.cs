@@ -5,17 +5,24 @@ namespace Encina.Security.ABAC;
 /// </summary>
 /// <remarks>
 /// <para>
-/// When applied to a request class, the ABAC pipeline behavior evaluates the policy set or
-/// policy whose identifier is <see cref="PolicyName"/>, read from the policy store, against the
-/// current subject, resource, action, and environment attributes. The named policies decide the
-/// request on their own: the rest of the policy store is not evaluated.
+/// When applied to a request class, the ABAC pipeline behavior evaluates the top-level policy set
+/// or standalone policy whose identifier is <see cref="PolicyName"/>, read from the policy store,
+/// against the current subject, resource, action, and environment attributes. The named policies
+/// decide the request on their own: the rest of the policy store is not evaluated.
+/// </para>
+/// <para>
+/// The name must be a top-level policy set or a standalone policy (a policy that no policy set
+/// contains). A policy or policy set nested inside a policy set is not found by its own name: to
+/// require it, name its parent policy set, so that the set's enabled flag, target, combining
+/// algorithm and obligations apply too.
 /// </para>
 /// <para>
 /// A required policy passes only when it returns <see cref="Effect.Permit"/>. Deny and
 /// NotApplicable do not pass (a policy that is required but does not apply cannot authorize);
-/// Indeterminate is handled as an Indeterminate decision. A name that is neither a policy set nor a policy in the
-/// store denies the request with <see cref="ABACErrors.PolicyNotFoundCode"/>. When a policy set
-/// and a policy share the name, the policy set is evaluated.
+/// Indeterminate denies the request in every enforcement mode. A name that is neither a top-level
+/// policy set nor a standalone policy denies the request with
+/// <see cref="ABACErrors.PolicyNotFoundCode"/>. When a policy set and a policy share the name, the
+/// policy set is evaluated.
 /// </para>
 /// <para>
 /// Multiple <see cref="RequirePolicyAttribute"/> instances can be applied to a single request.
@@ -52,14 +59,14 @@ public sealed class RequirePolicyAttribute : SecurityAttribute
     /// <summary>
     /// Initializes a new instance of the <see cref="RequirePolicyAttribute"/> class.
     /// </summary>
-    /// <param name="policyName">The identifier of the ABAC policy set or policy to evaluate.</param>
+    /// <param name="policyName">The identifier of the top-level ABAC policy set or standalone policy to evaluate.</param>
     public RequirePolicyAttribute(string policyName)
     {
         PolicyName = policyName;
     }
 
     /// <summary>
-    /// Gets the name of the ABAC policy to evaluate.
+    /// Gets the name of the top-level ABAC policy set or standalone policy to evaluate.
     /// </summary>
     public string PolicyName { get; }
 

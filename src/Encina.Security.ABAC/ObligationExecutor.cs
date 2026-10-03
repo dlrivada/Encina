@@ -26,7 +26,8 @@ namespace Encina.Security.ABAC;
 /// authorization decision.
 /// </para>
 /// <para>
-/// A handler that throws is treated as a handler that failed: the exception becomes an
+/// A handler that throws, from <see cref="IObligationHandler.CanHandle"/> or from
+/// <see cref="IObligationHandler.HandleAsync"/>, is treated as a handler that failed: the exception becomes an
 /// <see cref="ABACErrors.ObligationHandlerExceptionCode"/> error (its message is never logged or
 /// returned), so a mandatory obligation denies access and an advice is skipped. Cancellation of
 /// the request's token propagates as <see cref="OperationCanceledException"/>.
@@ -89,9 +90,12 @@ public sealed class ObligationExecutor
 
         foreach (var obligation in obligations)
         {
-            var handler = FindHandler(obligation.Id);
+            var handlerStartTimestamp = Stopwatch.GetTimestamp();
 
-            if (handler is null)
+            var outcome = await InvokeHandlerAsync(obligation, context, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (outcome is not { } result)
             {
                 ABACLogMessages.ObligationNoHandler(_logger, obligation.Id);
 
@@ -106,11 +110,6 @@ public sealed class ObligationExecutor
                     string.Format(CultureInfo.InvariantCulture,
                         "No handler registered for obligation '{0}'.", obligation.Id));
             }
-
-            var handlerStartTimestamp = Stopwatch.GetTimestamp();
-
-            var result = await InvokeHandlerAsync(handler, obligation, context, cancellationToken)
-                .ConfigureAwait(false);
 
             var handlerElapsed = Stopwatch.GetElapsedTime(handlerStartTimestamp);
             ABACDiagnostics.ObligationDuration.Record(handlerElapsed.TotalMilliseconds,
@@ -177,14 +176,6 @@ public sealed class ObligationExecutor
 
         foreach (var advice in adviceExpressions)
         {
-            var handler = FindHandler(advice.Id);
-
-            if (handler is null)
-            {
-                ABACLogMessages.AdviceNoHandler(_logger, advice.Id);
-                continue;
-            }
-
             // Advice uses the same handler mechanism as obligations,
             // but we wrap it in an Obligation-shaped call for handler compatibility
             var syntheticObligation = new Obligation
@@ -196,8 +187,14 @@ public sealed class ObligationExecutor
 
             var adviceStartTimestamp = Stopwatch.GetTimestamp();
 
-            var result = await InvokeHandlerAsync(handler, syntheticObligation, context, cancellationToken)
+            var outcome = await InvokeHandlerAsync(syntheticObligation, context, cancellationToken)
                 .ConfigureAwait(false);
+
+            if (outcome is not { } result)
+            {
+                ABACLogMessages.AdviceNoHandler(_logger, advice.Id);
+                continue;
+            }
 
             var adviceElapsed = Stopwatch.GetElapsedTime(adviceStartTimestamp);
             ABACDiagnostics.ObligationDuration.Record(adviceElapsed.TotalMilliseconds,
@@ -220,18 +217,25 @@ public sealed class ObligationExecutor
     // ── Private Helpers ─────────────────────────────────────────────
 
     /// <summary>
-    /// Calls the handler and turns an exception into a <c>Left</c> with a fixed message, so the
-    /// obligation rules apply to it (a failed mandatory obligation denies; failed advice is logged).
-    /// Cancellation of <paramref name="cancellationToken"/> propagates.
+    /// Finds the handler of <paramref name="obligation"/> and calls it; <c>null</c> when no handler
+    /// can handle it. An exception from <see cref="IObligationHandler.CanHandle"/> or
+    /// <see cref="IObligationHandler.HandleAsync"/> becomes a <c>Left</c> with a fixed message, so
+    /// the obligation rules apply to it (a failed mandatory obligation denies; failed advice is
+    /// logged). Cancellation of <paramref name="cancellationToken"/> propagates.
     /// </summary>
-    private async ValueTask<Either<EncinaError, Unit>> InvokeHandlerAsync(
-        IObligationHandler handler,
+    private async ValueTask<Either<EncinaError, Unit>?> InvokeHandlerAsync(
         Obligation obligation,
         PolicyEvaluationContext context,
         CancellationToken cancellationToken)
     {
         try
         {
+            var handler = FindHandler(obligation.Id);
+            if (handler is null)
+            {
+                return null;
+            }
+
             return await handler.HandleAsync(obligation, context, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

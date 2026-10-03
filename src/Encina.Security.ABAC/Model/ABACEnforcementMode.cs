@@ -23,9 +23,27 @@ public enum ABACEnforcementMode
     Block,
 
     /// <summary>
-    /// Deny decisions are logged as warnings but do not block request execution.
+    /// Definite denials are logged as warnings but do not block request execution; evaluation
+    /// errors still deny.
     /// </summary>
-    /// <remarks>Observation mode — useful for validating policies before enforcement. All decisions are logged for analysis.</remarks>
+    /// <remarks>
+    /// <para>
+    /// Observation mode — useful for validating policies before enforcement. All decisions are logged for analysis.
+    /// </para>
+    /// <para>
+    /// Warn relaxes only definite verdicts: a Deny, a required policy that returns Deny or
+    /// NotApplicable or is not found (<c>abac.policy_not_found</c>), and a required condition that
+    /// evaluates to <c>false</c> (<c>abac.condition_not_met</c>). These are logged and the request
+    /// proceeds.
+    /// </para>
+    /// <para>
+    /// Errors deny exactly as in <see cref="Block"/>, because they say nothing about whether the
+    /// request should be allowed: an Indeterminate result (<c>abac.indeterminate</c>: a condition
+    /// that does not compile or throws, a policy store failure, a PDP error), an exception from the
+    /// attribute provider or the PDP (<c>abac.evaluation_failed</c>), and a mandatory obligation
+    /// that cannot be fulfilled (<c>abac.obligation_failed</c>).
+    /// </para>
+    /// </remarks>
     Warn,
 
     /// <summary>
