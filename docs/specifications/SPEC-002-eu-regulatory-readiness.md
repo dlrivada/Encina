@@ -786,7 +786,7 @@ All milestones are named exactly as on GitHub. The three DEC-014 milestones were
 | #860 | Attestation deferred review items | v0.14.0 — Hardening | unchanged | — | REQ-021 |
 | #857 | Orphan attributes, `EncryptedField` among them | Post-1.0: Critical Bugs & Quality Debt (deferred items) | v0.14.0 — Hardening | — | REQ-020 |
 | #858 | PII hash helper is not an HMAC | v0.14.0 — Hardening | unchanged | — | REQ-019 |
-| #751 | Audit trail for ABAC decisions | v0.14.0 — Hardening | unchanged | — | REQ-007 (related) |
+| #751 | Audit trail for ABAC decisions | v0.14.0 — Hardening | unchanged | kept in v0.14.0 by maintainer decision 2026-10-03, exception to DEC-014 | REQ-007 (related) |
 | #731, #734 | Inbound webhook validation and idempotency | v0.14.0 — Hardening | unchanged; add the REQ-036 requirements as a comment | — | REQ-036 |
 | #733 | Idempotency for notification processing | v0.14.0 — Hardening | unchanged | — | REQ-031 (related) |
 | #689, #1090 | Compliance documentation hub; unbacked claims | v0.14.0 — Hardening | unchanged | — | REQ-022, REQ-023 |
