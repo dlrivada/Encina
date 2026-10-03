@@ -1917,6 +1917,17 @@ Test.
         'bullet gap'         = "- none`n`n- Major: real.`n- Minor: other."
         'bare severity word' = "- none`nMinor details were found in A.cs."
         'colon form'         = "- none`n1. **Major**: real."
+        'bullet then number' = "- none`n- 1. **Major** -- real."
+        'colon after number' = "- none`n1: **Major** -- real."
+        'number inside bold' = "- none`n**1. Major** -- real."
+        'hash number'        = "- none`n#1 **Major** -- real."
+        'letter item'        = "- none`na. **Major** -- real."
+        'bracket severity'   = "- none`n[Major] foo.cs:12 real."
+        'paren severity'     = "- none`n(Major) foo.cs:12 real."
+        'italic severity'    = "- none`n*Major* real."
+        'severity label'     = "- none`nSeverity: Major real."
+        'blockquote'         = "- none`n> 1. **Major** -- real."
+        'high bold bullet'   = "- none`n- **High**: real."
     }
     foreach ($shapeName in $noneShapes.Keys) {
         $shapeText = $noneShapes[$shapeName]

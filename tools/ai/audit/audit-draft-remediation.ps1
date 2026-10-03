@@ -181,7 +181,7 @@ function Test-FindingsHeaderPresent([string]$Path) {
 # -Prepare drafts from them, -Finalize compares them with the manifest to catch a stale manifest.
 function Get-AllFindings {
     $script:SplitFindingsNotes = [System.Collections.Generic.List[string]]::new()
-    $found =[System.Collections.Generic.List[pscustomobject]]::new()
+    $found = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($stageName in 'code', 'tests', 'docs') {
         $stageFile = Get-StageFile $stageName
         if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }

@@ -182,7 +182,7 @@ function Split-Findings([string]$Stage, [string]$FindingsText) {
     # a bullet or bold line starting with a severity word), the section contradicts itself and falls through to
     # the normal parser (one or more findings, Unknown when unparseable) so no real finding is dropped. Only
     # plain prose is ignored, with a note that is also recorded in $script:SplitFindingsNotes (#1694).
-    $findingShaped = '(?im)^[ \t]*(?:\d+[.)][ \t]|(?:[-*+][ \t]+)?(?:\*\*)?(?:Blocker|Critical|Major|Minor|Nit)\b)'
+    $findingShaped = '(?im)^[ \t]*(?:[-*+>][ \t]*)*(?:[#(\[]?\d+[.):\]](?=[ \t*])|#\d+(?=[ \t])|[A-Za-z][.)][ \t]+\*\*|[\[(*_]*(?:Blocker|Critical|Major|Minor|Nit|High|Medium|Low|Warning|Severity)\b)'
     if ($noneMatch.Success -and $noneMatch.Groups['rest'].Value -notmatch $findingShaped) {
         if (-not [string]::IsNullOrWhiteSpace($noneMatch.Groups['rest'].Value)) {
             Write-Host "Split-Findings: trailing text after '- none' in $Stage ignored."
