@@ -60,8 +60,7 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
         auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(
                 Either<EncinaError, Unit>.Left(EncinaErrors.Create("audit.failed", "store down"))));
-        var sut = new PersistentPolicyAdministrationPoint(
-            store, NullLogger<PersistentPolicyAdministrationPoint>.Instance, auditStore, CreateAccessor("alice"));
+        var sut = CreateSut(store, auditStore, CreateAccessor("alice"));
 
         var result = await sut.AddPolicyAsync(CreatePolicy(), parentPolicySetId: null);
 
@@ -70,11 +69,48 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     }
 
     [Fact]
+    public async Task SeedingHostedService_WithoutPrincipal_SeedsThroughTheSystemActorScope()
+    {
+        var store = CreateStoreForNewStandalonePolicy();
+        var auditStore = Substitute.For<IAuditStore>();
+        auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Either<EncinaError, Unit>.Right(Prelude.unit)));
+        var pap = CreateSut(store, auditStore, accessor: null);
+        var options = new ABACOptions();
+        options.SeedPolicies.Add(CreatePolicy("seeded"));
+        var seeder = new ABACPolicySeedingHostedService(
+            pap, Microsoft.Extensions.Options.Options.Create(options), NullLogger<ABACPolicySeedingHostedService>.Instance);
+
+        await seeder.StartAsync(CancellationToken.None);
+
+        await store.Received(1).SavePolicyAsync(Arg.Is<Policy>(p => p.Id == "seeded"), Arg.Any<CancellationToken>());
+        await auditStore.Received(1).RecordAsync(
+            Arg.Is<AuditEntry>(e => e.UserId == "system" && e.EntityId == "seeded"), Arg.Any<CancellationToken>());
+        (await pap.AddPolicyAsync(CreatePolicy("after"), parentPolicySetId: null)).IsLeft.ShouldBeTrue();
+    }
+
+    private static PersistentPolicyAdministrationPoint CreateSut(
+        IPolicyStore store, IAuditStore? auditStore, IRequestContextAccessor? accessor)
+    {
+        var services = new ServiceCollection();
+        if (auditStore is not null)
+        {
+            services.AddScoped(_ => auditStore);
+        }
+
+        var provider = services.BuildServiceProvider();
+        return new PersistentPolicyAdministrationPoint(
+            store,
+            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            accessor);
+    }
+
+    [Fact]
     public async Task AddPolicyAsync_NoResolvablePrincipal_ChangeIsRefused()
     {
         var store = CreateStoreForNewStandalonePolicy();
-        var sut = new PersistentPolicyAdministrationPoint(
-            store, NullLogger<PersistentPolicyAdministrationPoint>.Instance, auditStore: null, CreateAccessor(null));
+        var sut = CreateSut(store, auditStore: null, CreateAccessor(null));
 
         var result = await sut.AddPolicyAsync(CreatePolicy(), parentPolicySetId: null);
 

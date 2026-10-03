@@ -55,7 +55,9 @@ public static class ServiceCollectionExtensions
     /// When <see cref="ABACOptions.UsePersistentPAP"/> is <c>true</c>, the
     /// <see cref="PersistentPolicyAdministrationPoint"/> is registered instead of the default
     /// <see cref="InMemoryPolicyAdministrationPoint"/>. This requires an <see cref="IPolicyStore"/>
-    /// to be registered by a database provider package.
+    /// to be registered by a database provider package. Policy changes are attributed to the
+    /// principal of the request context and refused without one; when an <c>IAuditStore</c> is
+    /// registered (scoped or not), each change is audited fail closed in its own DI scope.
     /// </para>
     /// <para>
     /// <b>Policy seeding:</b>
@@ -198,9 +200,12 @@ public static class ServiceCollectionExtensions
                 }
 
                 var logger = sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>();
-                var auditStore = sp.GetService<Audit.IAuditStore>();
+                // The audit store is NOT resolved here: database stores are scoped, and this PAP is a
+                // singleton. It takes the scope factory and resolves IAuditStore per write.
+                var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
                 var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
-                return new PersistentPolicyAdministrationPoint(store, logger, auditStore, requestContextAccessor);
+                var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+                return new PersistentPolicyAdministrationPoint(store, logger, scopeFactory, requestContextAccessor, timeProvider);
             });
 
             // ── Policy Cache PubSub Hosted Service ───────────────────

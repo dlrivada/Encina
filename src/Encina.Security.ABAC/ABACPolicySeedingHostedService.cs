@@ -1,3 +1,4 @@
+using Encina.Security.ABAC.Administration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,7 +20,7 @@ namespace Encina.Security.ABAC;
 /// in the <see cref="ServiceCollectionExtensions.AddEncinaABAC"/> method.
 /// </para>
 /// </remarks>
-internal sealed class ABACPolicySeedingHostedService : IHostedService
+internal sealed partial class ABACPolicySeedingHostedService : IHostedService
 {
     private readonly IPolicyAdministrationPoint _pap;
     private readonly ABACOptions _options;
@@ -54,6 +55,12 @@ internal sealed class ABACPolicySeedingHostedService : IHostedService
             "Seeding ABAC policies: {PolicySetCount} policy set(s), {PolicyCount} standalone policy(ies)",
             policySets.Count,
             policies.Count);
+
+        // Startup seeding has no request principal: it runs inside an explicit system-actor
+        // scope, logged here, so the persistent PAP records the system actor instead of
+        // refusing the change (and never attributes it silently).
+        LogSystemActorScopeOpened(_logger);
+        using var systemActor = PolicyChangeActorScope.BeginSystemActor();
 
         // ── Seed policy sets ───────────────────────────────────────
         var seededSets = 0;
@@ -102,4 +109,10 @@ internal sealed class ABACPolicySeedingHostedService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    [LoggerMessage(
+        EventId = 9096,
+        Level = LogLevel.Information,
+        Message = "System actor scope opened for ABAC policy seeding; policy changes are recorded as made by the system actor")]
+    private static partial void LogSystemActorScopeOpened(ILogger logger);
 }

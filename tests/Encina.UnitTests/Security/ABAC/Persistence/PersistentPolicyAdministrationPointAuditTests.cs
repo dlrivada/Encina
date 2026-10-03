@@ -5,7 +5,9 @@ using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Encina.UnitTests.Security.ABAC.Persistence;
@@ -20,6 +22,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     private readonly IAuditStore _auditStore;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
+    private readonly FakeTimeProvider _time;
     private readonly PersistentPolicyAdministrationPoint _sut;
 
     public PersistentPolicyAdministrationPointAuditTests()
@@ -38,8 +41,27 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
             .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
                 Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
 
+        _time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 3, 12, 0, 0, TimeSpan.Zero));
+        _sut = CreateSut(_store, _auditStore, _requestContextAccessor, _time);
+    }
+
+    private static PersistentPolicyAdministrationPoint CreateSut(
+        IPolicyStore store,
+        IAuditStore? auditStore,
+        IRequestContextAccessor? accessor,
+        TimeProvider? time = null)
+    {
+        var services = new ServiceCollection();
+        if (auditStore is not null)
+        {
+            services.AddScoped(_ => auditStore);
+        }
+
+        var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        _sut = new PersistentPolicyAdministrationPoint(_store, logger, _auditStore, _requestContextAccessor);
+        return new PersistentPolicyAdministrationPoint(
+            store, logger, provider.GetRequiredService<IServiceScopeFactory>(), accessor, time);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -138,14 +160,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
                 Either<EncinaError, Option<Policy>>.Right(option)));
     }
 
-    /// <summary>
-    /// Waits briefly for fire-and-forget audit tasks to complete.
-    /// </summary>
-    private static async Task WaitForAuditAsync()
-    {
-        await Task.Delay(50);
-    }
-
     // ── AddPolicySetAsync ───────────────────────────────────────────
 
     [Fact]
@@ -158,7 +172,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.AddPolicySetAsync(ps);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -182,7 +195,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.AddPolicySetAsync(ps);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.DidNotReceive().RecordAsync(
@@ -203,7 +215,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.UpdatePolicySetAsync(updatedPs);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -229,7 +240,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.RemovePolicySetAsync("ps-del");
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -255,7 +265,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.AddPolicyAsync(policy, parentPolicySetId: null);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -282,7 +291,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.AddPolicyAsync(policy, parentPolicySetId: "ps-parent");
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -308,7 +316,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.UpdatePolicyAsync(updatedPolicy);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -335,7 +342,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.UpdatePolicyAsync(policy);
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -362,7 +368,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.RemovePolicyAsync("p-del");
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -388,7 +393,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Act
         await _sut.RemovePolicyAsync("p-nested-del");
-        await WaitForAuditAsync();
 
         // Assert
         await _auditStore.Received(1).RecordAsync(
@@ -401,10 +405,10 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
             Arg.Any<CancellationToken>());
     }
 
-    // ── Fire-and-Forget Behavior ────────────────────────────────────
+    // ── Fail-closed behavior ────────────────────────────────────────
 
     [Fact]
-    public async Task AuditFailure_DoesNotBlockPolicyOperation()
+    public async Task AuditFailure_FailsPolicyOperationAndPersistsNothing()
     {
         // Arrange
         var ps = CreatePolicySet("ps-audit-fail");
@@ -418,12 +422,14 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         // Act
         var result = await _sut.AddPolicySetAsync(ps);
 
-        // Assert — the policy operation still succeeds
-        result.IsRight.ShouldBeTrue();
+        // Assert — fail closed: nothing was persisted
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangeAuditFailedCode));
+        await _store.DidNotReceive().SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task AuditException_DoesNotBlockPolicyOperation()
+    public async Task AuditException_FailsPolicyOperationAndPersistsNothing()
     {
         // Arrange
         var ps = CreatePolicySet("ps-audit-ex");
@@ -437,8 +443,98 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         // Act
         var result = await _sut.AddPolicySetAsync(ps);
 
-        // Assert — the policy operation still succeeds
-        result.IsRight.ShouldBeTrue();
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangeAuditFailedCode));
+        await _store.DidNotReceive().SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AuditWriteTimeout_FailsPolicyOperationAndPersistsNothing()
+    {
+        // Arrange — an audit store that never completes until its token is cancelled
+        var ps = CreatePolicySet("ps-audit-slow");
+        SetupStoreExistsPolicySet("ps-audit-slow", false);
+        SetupStoreSavePolicySetSuccess();
+        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns(call => HangUntilCancelledAsync(call.Arg<CancellationToken>()));
+
+        // Act
+        var pending = _sut.AddPolicySetAsync(ps).AsTask();
+        await Task.Yield();
+        _time.Advance(TimeSpan.FromSeconds(31));
+        var result = await pending;
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await _store.DidNotReceive().SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CallerCancellation_PropagatesAsCancellationNotAuditFailure()
+    {
+        // Arrange
+        var ps = CreatePolicySet("ps-cancel");
+        SetupStoreExistsPolicySet("ps-cancel", false);
+        using var cts = new CancellationTokenSource();
+        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            .Returns(call => HangUntilCancelledAsync(call.Arg<CancellationToken>()));
+
+        // Act
+        var pending = _sut.AddPolicySetAsync(ps, cts.Token).AsTask();
+        await Task.Yield();
+        await cts.CancelAsync();
+
+        // Assert
+        await Should.ThrowAsync<OperationCanceledException>(async () => await pending);
+    }
+
+    [Fact]
+    public async Task StoreRejectsChangeAfterAudit_RecordsErrorEntry()
+    {
+        // Arrange
+        var ps = CreatePolicySet("ps-store-fail");
+        SetupStoreExistsPolicySet("ps-store-fail", false);
+        _store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
+                Either<EncinaError, LanguageExt.Unit>.Left(EncinaErrors.Create("store.failed", "db down"))));
+
+        // Act
+        var result = await _sut.AddPolicySetAsync(ps);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<AuditEntry>(e => e.Outcome == AuditOutcome.Success), Arg.Any<CancellationToken>());
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<AuditEntry>(e => e.Outcome == AuditOutcome.Error && e.ErrorMessage == "store.failed"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Timestamps_ComeFromTheInjectedTimeProvider()
+    {
+        // Arrange
+        var ps = CreatePolicySet("ps-time");
+        SetupStoreExistsPolicySet("ps-time", false);
+        SetupStoreSavePolicySetSuccess();
+
+        // Act
+        await _sut.AddPolicySetAsync(ps);
+
+        // Assert
+        var expected = _time.GetUtcNow();
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<AuditEntry>(e =>
+                e.StartedAtUtc == expected && e.CompletedAtUtc == expected && e.TimestampUtc == expected.UtcDateTime),
+            Arg.Any<CancellationToken>());
+    }
+
+    private static async ValueTask<Either<EncinaError, LanguageExt.Unit>> HangUntilCancelledAsync(
+        CancellationToken cancellationToken)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        return LanguageExt.Prelude.unit;
     }
 
     // ── No Audit Store ──────────────────────────────────────────────
@@ -448,8 +544,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     {
         // Arrange — SUT without audit store
         var store = Substitute.For<IPolicyStore>();
-        var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        var sutNoAudit = new PersistentPolicyAdministrationPoint(store, logger);
+        var sutNoAudit = CreateSut(store, auditStore: null, _requestContextAccessor);
 
         var ps = CreatePolicySet("ps-no-audit");
         store.ExistsPolicySetAsync("ps-no-audit", Arg.Any<CancellationToken>())
@@ -469,13 +564,30 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     // ── Actor Resolution ────────────────────────────────────────────
 
     [Fact]
-    public async Task NoRequestContext_UsesSystemAsActor()
+    public async Task NoRequestContext_RefusesChangeWithPrincipalRequiredError()
     {
         // Arrange — SUT with audit but no request context
         var store = Substitute.For<IPolicyStore>();
         var auditStore = Substitute.For<IAuditStore>();
-        var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
-        var sutNoContext = new PersistentPolicyAdministrationPoint(store, logger, auditStore);
+        var sutNoContext = CreateSut(store, auditStore, accessor: null);
+
+        // Act
+        var result = await sutNoContext.AddPolicySetAsync(CreatePolicySet("ps-refused"));
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangePrincipalRequiredCode));
+        await store.DidNotReceive().ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SystemActorScope_AllowsChangeAndRecordsSystemActor()
+    {
+        // Arrange — SUT with audit but no request context, inside the explicit system-actor scope
+        var store = Substitute.For<IPolicyStore>();
+        var auditStore = Substitute.For<IAuditStore>();
+        var sutNoContext = CreateSut(store, auditStore, accessor: null);
 
         auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
@@ -490,12 +602,15 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
                 Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
 
         // Act
-        await sutNoContext.AddPolicySetAsync(ps);
-        await WaitForAuditAsync();
+        using (PolicyChangeActorScope.BeginSystemActor())
+        {
+            (await sutNoContext.AddPolicySetAsync(ps)).IsRight.ShouldBeTrue();
+        }
 
         // Assert
+        PolicyChangeActorScope.IsSystemActorActive.ShouldBeFalse();
         await auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e => e.UserId == "system"),
+            Arg.Is<AuditEntry>(e => e.UserId == "system" && (string?)e.Metadata["actor"] == "system"),
             Arg.Any<CancellationToken>());
     }
 }
