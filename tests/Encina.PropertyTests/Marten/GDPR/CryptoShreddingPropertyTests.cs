@@ -53,7 +53,7 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
 
         byte[] createdKey = null!;
         byte[] gottenKey = null!;
-        createResult.IfRight(k => createdKey = k);
+        createResult.IfRight(k => createdKey = k.KeyMaterial);
         getResult.IfRight(k => gottenKey = k);
 
         return createdKey.SequenceEqual(gottenKey);
@@ -74,8 +74,8 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
 
         byte[] firstKey = null!;
         byte[] secondKey = null!;
-        first.IfRight(k => firstKey = k);
-        second.IfRight(k => secondKey = k);
+        first.IfRight(k => firstKey = k.KeyMaterial);
+        second.IfRight(k => secondKey = k.KeyMaterial);
 
         return firstKey.SequenceEqual(secondKey);
     }
@@ -92,7 +92,7 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
         if (result.IsLeft) return false;
 
         byte[] key = null!;
-        result.IfRight(k => key = k);
+        result.IfRight(k => key = k.KeyMaterial);
 
         return key.Length == 32; // AES-256 = 32 bytes
     }
@@ -180,7 +180,7 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
         if (originalResult.IsLeft) return false;
 
         byte[] originalKey = null!;
-        originalResult.IfRight(k => originalKey = k);
+        originalResult.IfRight(k => originalKey = k.KeyMaterial);
 
         var rotateResult = _keyProvider.RotateSubjectKeyAsync(id)
             .AsTask().GetAwaiter().GetResult();

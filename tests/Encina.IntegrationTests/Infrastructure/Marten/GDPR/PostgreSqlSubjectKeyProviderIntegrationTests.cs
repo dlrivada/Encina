@@ -44,7 +44,11 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetim
 
         // Assert
         result.IsRight.ShouldBeTrue("Should create key for new subject");
-        result.IfRight(key => key.Length.ShouldBe(32, "AES-256 key should be 32 bytes"));
+        result.IfRight(key =>
+        {
+            key.KeyMaterial.Length.ShouldBe(32, "AES-256 key should be 32 bytes");
+            key.Version.ShouldBe(1);
+        });
     }
 
     [Fact]
@@ -66,8 +70,8 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetim
 
         byte[] firstKey = null!;
         byte[] secondKey = null!;
-        first.IfRight(k => firstKey = k);
-        second.IfRight(k => secondKey = k);
+        first.IfRight(k => firstKey = k.KeyMaterial);
+        second.IfRight(k => secondKey = k.KeyMaterial);
 
         firstKey.SequenceEqual(secondKey).ShouldBeTrue(
             "Getting the same subject twice should return the same key");
@@ -93,7 +97,7 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetim
 
         byte[] createdKey = null!;
         byte[] gottenKey = null!;
-        createResult.IfRight(k => createdKey = k);
+        createResult.IfRight(k => createdKey = k.KeyMaterial);
         getResult.IfRight(k => gottenKey = k);
 
         createdKey.SequenceEqual(gottenKey).ShouldBeTrue();
@@ -173,7 +177,7 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetim
         originalResult.IsRight.ShouldBeTrue();
 
         byte[] originalKey = null!;
-        originalResult.IfRight(k => originalKey = k);
+        originalResult.IfRight(k => originalKey = k.KeyMaterial);
 
         // Act
         var rotateResult = await sut.RotateSubjectKeyAsync(subjectId);
@@ -193,6 +197,27 @@ public sealed class PostgreSqlSubjectKeyProviderIntegrationTests : IAsyncLifetim
         newKeyResult.IfRight(k => newKey = k);
 
         originalKey.SequenceEqual(newKey).ShouldBeFalse("Rotated key should differ from original");
+    }
+
+    [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_AfterRotation_ReturnsTheActiveKeyWithItsVersion()
+    {
+        // Arrange (#1646): key material and version come from the same document
+        await using var session = _fixture.Store!.LightweightSession();
+        var sut = new PostgreSqlSubjectKeyProvider(
+            session, TimeProvider.System, NullLogger<PostgreSqlSubjectKeyProvider>.Instance);
+        var subjectId = $"integration-test-{Guid.NewGuid():N}";
+        await sut.GetOrCreateSubjectKeyAsync(subjectId);
+        (await sut.RotateSubjectKeyAsync(subjectId)).IsRight.ShouldBeTrue();
+        var v2 = (byte[])await sut.GetSubjectKeyAsync(subjectId, version: 2);
+
+        // Act
+        var result = await sut.GetOrCreateSubjectKeyAsync(subjectId);
+
+        // Assert
+        var key = (SubjectEncryptionKey)result;
+        key.Version.ShouldBe(2);
+        key.KeyMaterial.SequenceEqual(v2).ShouldBeTrue();
     }
 
     [Fact]

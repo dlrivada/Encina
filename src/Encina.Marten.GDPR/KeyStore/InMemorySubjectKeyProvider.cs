@@ -74,7 +74,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
     }
 
     /// <inheritdoc />
-    public ValueTask<Either<EncinaError, byte[]>> GetOrCreateSubjectKeyAsync(
+    public ValueTask<Either<EncinaError, SubjectEncryptionKey>> GetOrCreateSubjectKeyAsync(
         string subjectId,
         CancellationToken cancellationToken = default)
     {
@@ -82,7 +82,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
         if (cancellationToken.IsCancellationRequested)
         {
-            return ValueTask.FromResult<Either<EncinaError, byte[]>>(
+            return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
                 Left(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey")));
         }
 
@@ -94,16 +94,16 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
             {
                 if (state.IsForgotten)
                 {
-                    return ValueTask.FromResult<Either<EncinaError, byte[]>>(
+                    return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
                         Left(CryptoShreddingErrors.SubjectForgotten(subjectId)));
                 }
 
                 if (state.Keys.Count > 0)
                 {
-                    // Return the active (latest) key material
+                    // Return the active (latest) key material with its version, read under the same lock
                     var activeKey = state.Keys[^1];
-                    return ValueTask.FromResult<Either<EncinaError, byte[]>>(
-                        Right(activeKey.KeyMaterial));
+                    return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
+                        Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = activeKey.KeyMaterial }));
                 }
 
                 // Create the first key for this subject
@@ -120,12 +120,13 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                 // correlate via the key version instead.
                 _logger.LogDebug("Created initial encryption key. Version={Version}", version);
 
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(keyMaterial));
+                return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
+                    Right(new SubjectEncryptionKey { Version = version, KeyMaterial = keyMaterial }));
             }
         }
         catch (Exception ex)
         {
-            return ValueTask.FromResult<Either<EncinaError, byte[]>>(
+            return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
                 Left(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey", ex)));
         }
     }

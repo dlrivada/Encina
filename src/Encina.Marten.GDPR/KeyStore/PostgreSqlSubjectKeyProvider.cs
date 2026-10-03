@@ -65,7 +65,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
     }
 
     /// <inheritdoc />
-    public async ValueTask<Either<EncinaError, byte[]>> GetOrCreateSubjectKeyAsync(
+    public async ValueTask<Either<EncinaError, SubjectEncryptionKey>> GetOrCreateSubjectKeyAsync(
         string subjectId,
         CancellationToken cancellationToken = default)
     {
@@ -90,9 +90,9 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
 
             if (existingKeys.Count > 0)
             {
-                // Return the highest version active key
+                // Return the highest version active key with its version, from the same document
                 var activeKey = existingKeys.OrderByDescending(k => k.Version).First();
-                return Right(activeKey.KeyMaterial);
+                return Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = activeKey.KeyMaterial });
             }
 
             // Create the first key for this subject
@@ -119,7 +119,7 @@ public sealed class PostgreSqlSubjectKeyProvider : ISubjectKeyProvider
             // correlate via the key version instead.
             _logger.LogDebug("Created initial encryption key. Version={Version}", version);
 
-            return Right(keyMaterial);
+            return Right(new SubjectEncryptionKey { Version = version, KeyMaterial = keyMaterial });
         }
         catch (Exception ex)
         {

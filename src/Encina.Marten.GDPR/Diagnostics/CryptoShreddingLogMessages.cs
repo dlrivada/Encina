@@ -78,14 +78,16 @@ internal static class CryptoShreddingLogMessages
 
     // -- 8455: Encryption failed --
 
-    private static readonly Action<ILogger, string, string, Exception?> EncryptionFailedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionFailedDef =
+        LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
             new EventId(8455, nameof(EncryptionFailed)),
-            "Failed to encrypt PII field. PropertyName={PropertyName}, EventType={EventType}");
+            "Failed to encrypt PII field; the event is not stored. PropertyName={PropertyName}, EventType={EventType}, ErrorCode={ErrorCode}");
 
-    internal static void EncryptionFailed(this ILogger logger, string propertyName, string eventType, Exception? exception = null)
-        => EncryptionFailedDef(logger, propertyName, eventType, exception);
+    // The exception, when present, must already be redacted with ForLogging() (#1557).
+    internal static void EncryptionFailed(
+        this ILogger logger, string propertyName, string eventType, string errorCode, Exception? exception = null)
+        => EncryptionFailedDef(logger, propertyName, eventType, errorCode, exception);
 
     // -- 8456: Decryption failed --
 
@@ -122,14 +124,16 @@ internal static class CryptoShreddingLogMessages
 
     // -- 8459: Attribute misconfigured --
 
-    private static readonly Action<ILogger, string, string, Exception?> AttributeMisconfiguredDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Warning,
+    private static readonly Action<ILogger, string, string, string, Exception?> AttributeMisconfiguredDef =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Error,
             new EventId(8459, nameof(AttributeMisconfigured)),
-            "CryptoShredded attribute misconfigured. PropertyName={PropertyName}, DeclaringType={DeclaringType}");
+            "CryptoShredded attribute misconfigured; the event is not stored. "
+            + "PropertyName={PropertyName}, DeclaringType={DeclaringType}, MisconfiguredProperties={MisconfiguredProperties}");
 
-    internal static void AttributeMisconfigured(this ILogger logger, string propertyName, string declaringType)
-        => AttributeMisconfiguredDef(logger, propertyName, declaringType, null);
+    internal static void AttributeMisconfigured(
+        this ILogger logger, string propertyName, string declaringType, string misconfiguredProperties)
+        => AttributeMisconfiguredDef(logger, propertyName, declaringType, misconfiguredProperties, null);
 
     // -- 8460: Serializer wrapped --
 
@@ -196,4 +200,17 @@ internal static class CryptoShreddingLogMessages
 
     internal static void ReEncryptionStarted(this ILogger logger, int newVersion)
         => ReEncryptionStartedDef(logger, newVersion, null);
+
+    // -- 8466: Subject id missing at encryption --
+
+    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionSubjectIdMissingDef =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Error,
+            new EventId(8466, nameof(EncryptionSubjectIdMissing)),
+            "Cannot encrypt PII field: the subject id is missing; the event is not stored. "
+            + "PropertyName={PropertyName}, EventType={EventType}, SubjectIdProperty={SubjectIdProperty}");
+
+    internal static void EncryptionSubjectIdMissing(
+        this ILogger logger, string propertyName, string eventType, string subjectIdProperty)
+        => EncryptionSubjectIdMissingDef(logger, propertyName, eventType, subjectIdProperty, null);
 }

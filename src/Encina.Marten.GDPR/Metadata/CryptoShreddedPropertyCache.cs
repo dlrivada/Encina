@@ -34,83 +34,147 @@ namespace Encina.Marten.GDPR;
 /// encrypted for crypto-shredding)</description></item>
 /// </list>
 /// <para>
-/// Misconfigured properties are excluded from the cache silently. Configuration errors
-/// can be detected at application startup by inspecting <see cref="GetFields"/> results.
+/// A <c>[CryptoShredded]</c> property that fails any of these checks, or whose setter cannot be
+/// compiled (for example a getter-only property assigned in a constructor), is not a field: it is
+/// recorded as unencryptable (<see cref="GetUnencryptableProperties"/>) so that the serializer refuses
+/// to serialize the type instead of storing the value in plaintext (#1646). The startup scan
+/// (<c>CryptoShreddingAutoRegistrationHostedService</c>) rejects the same properties by name.
 /// </para>
 /// </remarks>
 internal static class CryptoShreddedPropertyCache
 {
-    private static readonly ConcurrentDictionary<Type, CryptoShreddedFieldInfo[]> Cache = new();
+    private static readonly ConcurrentDictionary<Type, TypeMetadata> Cache = new();
 
     /// <summary>
     /// Gets the crypto-shredded field descriptors for the specified event type.
     /// </summary>
     /// <param name="eventType">The event type to discover crypto-shredded properties on.</param>
     /// <returns>
-    /// An array of <see cref="CryptoShreddedFieldInfo"/> for properties decorated with
-    /// <see cref="CryptoShreddedAttribute"/>. Returns an empty array if the type has no
-    /// crypto-shredded properties.
+    /// An array of <see cref="CryptoShreddedFieldInfo"/> for the correctly configured properties decorated
+    /// with <see cref="CryptoShreddedAttribute"/>. Returns an empty array if the type has none.
     /// </returns>
-    internal static CryptoShreddedFieldInfo[] GetFields(Type eventType)
-    {
-        return Cache.GetOrAdd(eventType, static t => DiscoverProperties(t));
-    }
+    internal static CryptoShreddedFieldInfo[] GetFields(Type eventType) => GetMetadata(eventType).Fields;
 
     /// <summary>
-    /// Checks whether the specified event type has any properties decorated with
+    /// Gets the names of the <c>[CryptoShredded]</c> properties of the specified type that cannot be
+    /// encrypted because they are misconfigured (see the class remarks).
+    /// </summary>
+    /// <param name="eventType">The event type to inspect.</param>
+    /// <returns>The property names, or an empty array when every <c>[CryptoShredded]</c> property is usable.</returns>
+    internal static string[] GetUnencryptableProperties(Type eventType) => GetMetadata(eventType).UnencryptableProperties;
+
+    /// <summary>
+    /// Checks whether the specified event type has any correctly configured property decorated with
     /// <see cref="CryptoShreddedAttribute"/>.
     /// </summary>
     /// <param name="eventType">The event type to check.</param>
     /// <returns>
-    /// <c>true</c> if the type has at least one crypto-shredded property; otherwise, <c>false</c>.
+    /// <c>true</c> if the type has at least one encryptable crypto-shredded property; otherwise, <c>false</c>.
     /// </returns>
     /// <remarks>
-    /// This is a fast-path check used by the serializer to skip encryption/decryption
-    /// processing for events that have no PII fields.
+    /// This is the fast-path check of the decryption paths, which only ever touch encryptable fields.
+    /// The serialization paths use <see cref="HasCryptoShreddedProperties"/> instead.
     /// </remarks>
-    internal static bool HasCryptoShreddedFields(Type eventType)
+    internal static bool HasCryptoShreddedFields(Type eventType) => GetFields(eventType).Length > 0;
+
+    /// <summary>
+    /// Checks whether the specified event type declares any property decorated with
+    /// <see cref="CryptoShreddedAttribute"/>, encryptable or not.
+    /// </summary>
+    /// <param name="eventType">The event type to check.</param>
+    /// <returns>
+    /// <c>true</c> if serializing the type must go through encryption (or fail because a property is
+    /// unencryptable); <c>false</c> if the type carries no crypto-shredded data.
+    /// </returns>
+    internal static bool HasCryptoShreddedProperties(Type eventType) => GetMetadata(eventType).HasAnyProperty;
+
+    /// <summary>
+    /// Determines whether a compiled setter can be built for the property, which is what the serializer
+    /// needs to overwrite the plaintext with its ciphertext. Used by the startup scan.
+    /// </summary>
+    /// <param name="ownerType">The type that declares the property.</param>
+    /// <param name="property">The property to check.</param>
+    /// <returns><c>true</c> if the property can be written; otherwise, <c>false</c>.</returns>
+    /// <remarks>
+    /// <para>
+    /// A property of a value type is never settable here: the serializer receives the event boxed, and a
+    /// setter compiled for a struct writes to an unboxed copy, so the ciphertext would never reach the
+    /// serialized instance and the plaintext would be stored (#1646).
+    /// </para>
+    /// <para>
+    /// A property declared on an interface is never settable either: the attribute is not inherited by the
+    /// implementing property, so the serializer never sees it on a concrete event.
+    /// </para>
+    /// <para>
+    /// No setter can be compiled for an open generic type definition, so the scan decides from the
+    /// declaration (a <c>set</c> or <c>init</c> accessor exists); the runtime cache only sees closed types and
+    /// compiles the setter.
+    /// </para>
+    /// </remarks>
+    internal static bool CanSetProperty(Type ownerType, PropertyInfo property)
     {
-        return GetFields(eventType).Length > 0;
+        if (ownerType.IsValueType || ownerType.IsInterface)
+        {
+            return false;
+        }
+
+        return ownerType.ContainsGenericParameters
+            ? property.SetMethod is not null
+            : CompileSetter(ownerType, property) is not null;
     }
+
+    private static TypeMetadata GetMetadata(Type eventType) =>
+        Cache.GetOrAdd(eventType, static t => DiscoverProperties(t));
 
     /// <summary>
     /// Discovers all properties on the given type that are decorated with <see cref="CryptoShreddedAttribute"/>
-    /// and builds compiled setter delegates for each.
+    /// and builds compiled setter delegates for each; misconfigured ones are recorded as unencryptable.
     /// </summary>
-    private static CryptoShreddedFieldInfo[] DiscoverProperties(Type type)
+    private static TypeMetadata DiscoverProperties(Type type)
     {
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var cryptoShredded = new List<CryptoShreddedFieldInfo>();
+        var unencryptable = new List<string>();
 
         foreach (var property in properties)
         {
             var attribute = property.GetCustomAttribute<CryptoShreddedAttribute>();
-            if (attribute is null || !IsEncryptableProperty(property))
+            if (attribute is null)
             {
                 continue;
             }
 
-            var subjectIdProperty = FindReadableSubjectIdProperty(type, attribute);
-            if (subjectIdProperty is null)
+            var field = TryCreateField(type, property, attribute);
+            if (field is null)
             {
-                continue;
+                unencryptable.Add(property.Name);
             }
-
-            // Compile a fast setter delegate
-            var setter = CompileSetter(type, property);
-            if (setter is null)
+            else
             {
-                continue;
+                cryptoShredded.Add(field);
             }
-
-            cryptoShredded.Add(new CryptoShreddedFieldInfo(
-                property,
-                attribute,
-                setter,
-                subjectIdProperty));
         }
 
-        return [.. cryptoShredded];
+        return new TypeMetadata([.. cryptoShredded], [.. unencryptable]);
+    }
+
+    private static CryptoShreddedFieldInfo? TryCreateField(Type type, PropertyInfo property, CryptoShreddedAttribute attribute)
+    {
+        if (!IsEncryptableProperty(property))
+        {
+            return null;
+        }
+
+        var subjectIdProperty = FindReadableSubjectIdProperty(type, attribute);
+        if (subjectIdProperty is null)
+        {
+            return null;
+        }
+
+        // A property without a usable setter (getter-only, or declared on a struct whose boxed copy
+        // the setter cannot reach) cannot receive its ciphertext.
+        var setter = type.IsValueType ? null : CompileSetter(type, property);
+        return setter is null ? null : new CryptoShreddedFieldInfo(property, attribute, setter, subjectIdProperty);
     }
 
     // SubjectIdProperty must reference a valid, readable property (its type is checked at startup
@@ -121,7 +185,11 @@ internal static class CryptoShreddedPropertyCache
             attribute.SubjectIdProperty,
             BindingFlags.Public | BindingFlags.Instance);
 
-        return subjectIdProperty is { CanRead: true } ? subjectIdProperty : null;
+        // An unsupported subject-id type is unencryptable too, so it fails through the same
+        // logged and counted path as the other misconfigurations (#1646).
+        return subjectIdProperty is { CanRead: true } && SubjectIdConversion.IsSupportedType(subjectIdProperty.PropertyType)
+            ? subjectIdProperty
+            : null;
     }
 
     // The property must be readable, a string (only strings can be encrypted) and carry [PersonalData].
@@ -173,8 +241,8 @@ internal static class CryptoShreddedPropertyCache
         }
         catch (ArgumentException)
         {
-            // Property may not have a setter accessible via expression trees
-            // (e.g., init-only properties in some scenarios)
+            // The property has no setter usable from an expression tree (e.g. a getter-only property);
+            // the caller records it as unencryptable so serialization fails closed (#1646).
             return null;
         }
     }
@@ -202,5 +270,14 @@ internal static class CryptoShreddedPropertyCache
     internal static void ClearCache()
     {
         Cache.Clear();
+    }
+
+    /// <summary>
+    /// The discovery result for one type: its encryptable fields and the names of its unencryptable
+    /// <c>[CryptoShredded]</c> properties.
+    /// </summary>
+    private sealed record TypeMetadata(CryptoShreddedFieldInfo[] Fields, string[] UnencryptableProperties)
+    {
+        public bool HasAnyProperty { get; } = Fields.Length > 0 || UnencryptableProperties.Length > 0;
     }
 }

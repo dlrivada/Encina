@@ -117,8 +117,12 @@ flowchart TD
     C -- "No" --> D["Delegate to inner ISerializer<br/>(zero overhead)"]
     C -- "Yes" --> E["For each [CryptoShredded] property"]
     E --> F["Extract SubjectId from SubjectIdProperty"]
-    F --> G["ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"]
-    G --> H["IFieldEncryptor.Encrypt plaintext, key"]
+    F --> F2{"Subject id present?"}
+    F2 -- "No" --> X["Throw CryptoShreddingEncryptionException<br/>nothing is stored"]
+    F2 -- "Yes" --> G["ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"]
+    G --> G2{"Usable key returned?"}
+    G2 -- "No (Left, throw, unusable key)" --> X
+    G2 -- "Yes" --> H["AES-256-GCM encrypt with the subject key"]
     H --> I["Replace property value with<br/>encrypted JSON envelope"]
     I --> J["Restore original value after serialization"]
     J --> K["Delegate to inner ISerializer"]
@@ -234,6 +238,8 @@ var registered = events[0].Data as UserRegisteredEvent;
 | **`[PersonalData]` co-located** | Must be on the same property (governs DSR participation) |
 | **`SubjectIdProperty`** | Must reference a readable public property of a supported subject-id type on the same type (see below) |
 | **Property type** | The encrypted property itself must be `string` (only strings are encrypted) |
+| **Writable** | The encrypted property needs a setter or an `init` accessor (positional record properties qualify); a getter-only property is rejected |
+| **Class or record class** | The event type that declares the property must be a class or a record class. A `struct` or `record struct` event cannot be encrypted: the serializer receives the event boxed, so a setter would write to a copy and the plaintext would be stored. Serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`) and the startup scan rejects the type |
 | **Use `nameof()`** | Compile-time safety for `SubjectIdProperty` |
 
 ### Subject-id types
@@ -248,9 +254,9 @@ The subject-id property (the one `SubjectIdProperty` names, not the encrypted on
 | Strongly-typed id (record struct, record class, struct or class) with a public `Value` property of a type above | The converted `Value` |
 | Strongly-typed id declared outside the base class library that implements `IFormattable` | `ToString(null, CultureInfo.InvariantCulture)` |
 
-A missing subject (`null`, `Guid.Empty`, or an empty or whitespace string) leaves the field stored unencrypted and logs a warning; the warning never contains the id. This fail-open behaviour is a known defect tracked by [#1646](https://github.com/dlrivada/Encina/issues/1646).
+A missing subject (`null`, `Guid.Empty`, or an empty or whitespace string) fails serialization with `CryptoShreddingEncryptionException` (reason `SubjectIdMissing`); see [Fail-closed serialization](#fail-closed-serialization). The failure is logged as EventId 8466 with the property, the event type and the subject-id property name, never the id.
 
-Any other type (`double`, `decimal`, `DateTime`, an enum, a wrapper without a supported `Value` property, `object`) is a configuration error: the startup scan rejects it when the type is in scope (see Validation), and serialization throws `InvalidOperationException` instead of storing plaintext.
+Any other type (`double`, `decimal`, `DateTime`, an enum, a wrapper without a supported `Value` property, `object`) is a configuration error: the startup scan rejects it when the type is in scope (see Validation), and serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`) instead of storing plaintext. The failure is logged as EventId 8459 and counted.
 
 ```csharp
 public readonly record struct PatientId(Guid Value);
@@ -290,10 +296,37 @@ The startup scan runs only when `AutoRegisterFromAttributes` is `true`. It cover
 3. `SubjectIdProperty` names a public instance property on the same type
 4. that subject-id property is readable (it has a getter)
 5. the subject-id property type is a supported type (see above)
+6. the property has a setter or an `init` accessor, so the serializer can replace its value with the ciphertext (a getter-only property such as `public string Email { get; }` set in a constructor is rejected)
+7. the declaring type is not a struct (a struct or `record struct` event is rejected with a message that names the property and the type and says it is declared on a struct)
 
 When any property fails, startup throws `InvalidOperationException` listing every error; each message names the property and its type.
 
-A type outside the scanned assemblies is not checked at startup. If its subject-id type is unsupported, serialization throws `InvalidOperationException` (from the subject-id conversion, `CryptoShreddedFieldInfo.ResolveSubjectId`) and the append fails.
+A type outside the scanned assemblies is not checked at startup. If its subject-id type is unsupported, serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`, logged as EventId 8459 and counted) and the append fails.
+
+The scan also accepts open generic event types: whether a property is settable is decided from its declaration, and a closed generic type compiles its setter at runtime. A `[CryptoShredded]` declared on an interface is rejected at startup, because the attribute is not inherited by the implementing property; put it on the property of the class or record.
+
+### Fail-closed serialization
+
+The event store is append-only, so a value written in plaintext can never be crypto-shredded afterwards. `CryptoShredderSerializer` therefore fails closed, as [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006 requires of compliance gates: when a non-null `[CryptoShredded]` value cannot be encrypted (or a `[CryptoShredded]` property is misconfigured, whatever its value), serialization throws `CryptoShreddingEncryptionException` (derives from `InvalidOperationException`) before the inner serializer runs. Marten's append or `SaveChangesAsync` fails and nothing is stored. There is no opt-out. A `null` `[CryptoShredded]` value is left `null` without a key lookup.
+
+`CryptoShreddingEncryptionException` exposes:
+
+| Member | Meaning |
+|--------|---------|
+| `EventTypeName` | Full name of the event type being serialized |
+| `PropertyName` | The `[CryptoShredded]` property that could not be encrypted |
+| `Reason` | A `CryptoShreddingEncryptionFailureReason` (table below) |
+| `ErrorCode` | The key-provider error code for `KeyUnavailable` (for example `crypto.key_store_error`, `crypto.subject_forgotten`, or `crypto.encryption_failed` for an unusable key or a `Left` that carries no code); `null` otherwise |
+
+The message names the event type and the property only. It never contains the subject id, the value or the message of an inner exception, and no inner exception is attached; the serializer logs the exception type and stack through `ForLogging()`.
+
+| `Reason` | Cause | Logged as |
+|----------|-------|-----------|
+| `SubjectIdMissing` | The subject-id property is `null`, `Guid.Empty`, or an empty or whitespace string | EventId 8466 |
+| `KeyUnavailable` | `ISubjectKeyProvider.GetOrCreateSubjectKeyAsync` returned `Left` (including for a forgotten subject: new personal data for a forgotten subject is not written), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) | EventId 8455, with the error code |
+| `PropertyMisconfigured` | The property cannot be overwritten (getter-only, or declared on a struct or `record struct` event), is not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property | EventId 8459 (error), then the exception is thrown; `PropertyName` is the comma-separated list of every misconfigured property of the type |
+
+Positional records and `init`-only properties work. Decryption is unchanged.
 
 ---
 
@@ -303,7 +336,7 @@ A type outside the scanned assemblies is not checked at startup. If its subject-
 
 | Operation | Method | Description |
 |-----------|--------|-------------|
-| **Create** | `GetOrCreateSubjectKeyAsync` | Creates AES-256 key on first use (idempotent) |
+| **Create** | `GetOrCreateSubjectKeyAsync` | Creates AES-256 key on first use (idempotent); returns `ValueTask<Either<EncinaError, SubjectEncryptionKey>>` |
 | **Retrieve** | `GetSubjectKeyAsync` | Gets key material for a specific version |
 | **Rotate** | `RotateSubjectKeyAsync` | Creates new key version; old versions remain |
 | **Delete** | `DeleteSubjectKeysAsync` | Deletes ALL versions (crypto-shredding) |
@@ -316,6 +349,8 @@ A type outside the scanned assemblies is not checked at startup. If its subject-
 |----------|-------------|-------------|
 | `InMemorySubjectKeyProvider` | `UsePostgreSqlKeyStore = false` (default) | Process lifetime |
 | `PostgreSqlSubjectKeyProvider` | `UsePostgreSqlKeyStore = true` | Marten document store |
+
+`SubjectEncryptionKey` carries `Version` and `KeyMaterial` read together, so the key id written with an encrypted value (`subject:{subjectId}:v{version}`) always names the version that encrypted it. A custom `ISubjectKeyProvider` must return key and version from one read of its store; both built-in providers do.
 
 ---
 
@@ -457,7 +492,7 @@ isForgotten.IfRight(forgotten =>
 
 ### Structured Logging
 
-Zero-allocation logging via `LoggerMessage.Define` for all operations.
+Zero-allocation logging via `LoggerMessage.Define` for all operations. Encryption failures are logged at error level before `CryptoShreddingEncryptionException` is thrown: EventId 8455 (key unavailable), 8466 (subject id missing); a misconfigured property is logged at error level as EventId 8459 ("the event is not stored"), naming every misconfigured property of the type.
 
 ---
 
@@ -491,6 +526,8 @@ All errors follow the Railway Oriented Programming pattern (`Either<EncinaError,
 | `crypto.key_already_exists` | Active key exists (use rotation) |
 | `crypto.serialization_error` | Serialization/deserialization error |
 | `crypto.attribute_misconfigured` | `[CryptoShredded]` attribute misconfigured |
+
+Serialization does not return these as `Either` values: it throws `CryptoShreddingEncryptionException` (see [Fail-closed serialization](#fail-closed-serialization)), which carries the key-provider error code in `ErrorCode`.
 
 ---
 
@@ -538,7 +575,7 @@ Crypto-shredding applies to events written after enabling it. Existing plaintext
 
 ### What encryption algorithm is used?
 
-AES-256-GCM via `Encina.Security.Encryption`. The same `IFieldEncryptor` used throughout the Encina security infrastructure.
+AES-256-GCM, applied by `CryptoShredderSerializer` directly with the 32-byte subject key (no `IFieldEncryptor` is involved in serialization).
 
 ### How do I test crypto-shredding?
 
@@ -546,7 +583,21 @@ Use `InMemorySubjectKeyProvider` (the default) for unit and integration tests. I
 
 ### What if the key provider is unavailable during serialization?
 
-The serializer logs the failure and stores the field unencrypted, so event persistence is not blocked by key provider failures. This fail-open behaviour is a known defect tracked by [#1646](https://github.com/dlrivada/Encina/issues/1646).
+Serialization throws `CryptoShreddingEncryptionException` with reason `KeyUnavailable` and the provider's error code, and the event is not stored. See [Fail-closed serialization](#fail-closed-serialization).
+
+### Why does appending an event throw `CryptoShreddingEncryptionException`?
+
+Read `Reason` and `PropertyName` on the exception:
+
+- `SubjectIdMissing`: set the subject-id property the attribute names (`SubjectIdProperty`) before appending; `null`, `Guid.Empty` and empty or whitespace strings are rejected.
+- `KeyUnavailable`: check `ErrorCode`. `crypto.key_store_error` points at the key store; `crypto.subject_forgotten` means the subject was erased and no new personal data can be written for it; `crypto.encryption_failed` means the provider returned an unusable key or a `Left` with no code.
+- `PropertyMisconfigured`: make the property a `string` with a setter or `init` accessor on a class or record class event (not a struct), add `[PersonalData]`, and point `SubjectIdProperty` at a readable property. With `AutoRegisterFromAttributes` enabled, the startup scan reports most of these at startup.
+
+---
+
+## Limitations
+
+- **Only the top-level event type is scanned.** `[CryptoShredded]` is discovered only on the type of the event that is appended. A `[CryptoShredded]` property on a type nested inside an event (a property whose type is another class, or an element of a collection on the event) is neither encrypted nor rejected, and is stored in plaintext. Put every `[CryptoShredded]` property directly on the event type. This is tracked by a follow-up issue.
 
 ---
 

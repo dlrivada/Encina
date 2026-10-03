@@ -49,8 +49,9 @@ public interface ISubjectKeyProvider
     /// <param name="subjectId">The unique identifier of the data subject.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// <c>Right&lt;byte[]&gt;</c> containing the 256-bit key material on success, or
-    /// <c>Left&lt;EncinaError&gt;</c> if the subject has been forgotten or key creation fails.
+    /// <c>Right&lt;SubjectEncryptionKey&gt;</c> containing the 256-bit key material of the active key and
+    /// its version on success, or <c>Left&lt;EncinaError&gt;</c> if the subject has been forgotten or key
+    /// creation fails.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -58,11 +59,17 @@ public interface ISubjectKeyProvider
     /// calling it multiple times for the same subject returns the same active key.
     /// </para>
     /// <para>
+    /// The key material and its version MUST come from the same read of the key store, so that a
+    /// concurrent rotation can never pair the material of one version with the number of another (#1646).
+    /// The serializer writes the returned version into the encrypted value's key id.
+    /// </para>
+    /// <para>
     /// If the subject has been cryptographically forgotten (all keys deleted),
-    /// returns <c>Left</c> with error code <c>crypto.subject_forgotten</c>.
+    /// returns <c>Left</c> with error code <c>crypto.subject_forgotten</c>. The serializer treats every
+    /// <c>Left</c> as a failure and does not store the event.
     /// </para>
     /// </remarks>
-    ValueTask<Either<EncinaError, byte[]>> GetOrCreateSubjectKeyAsync(
+    ValueTask<Either<EncinaError, SubjectEncryptionKey>> GetOrCreateSubjectKeyAsync(
         string subjectId,
         CancellationToken cancellationToken = default);
 

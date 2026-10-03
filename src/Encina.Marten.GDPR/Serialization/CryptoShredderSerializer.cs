@@ -9,6 +9,8 @@ using Encina.Marten.GDPR.Abstractions;
 using Encina.Marten.GDPR.Diagnostics;
 using Encina.Security.Encryption;
 
+using LanguageExt;
+
 using Marten;
 
 using Microsoft.Extensions.Logging;
@@ -36,14 +38,21 @@ namespace Encina.Marten.GDPR;
 /// <b>Serialize flow</b> (<c>ToJson</c>, <c>ToCleanJson</c>):
 /// </para>
 /// <list type="number">
-/// <item><description>Fast-path check via <see cref="CryptoShreddedPropertyCache.HasCryptoShreddedFields"/>
+/// <item><description>Fast-path check via <see cref="CryptoShreddedPropertyCache.HasCryptoShreddedProperties"/>
 ///   — if no crypto-shredded properties, delegate directly to inner serializer</description></item>
 /// <item><description>For each <c>[CryptoShredded]</c> property: extract subject ID, obtain
-///   encryption key via <see cref="ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"/>,
+///   the active encryption key and its version via <see cref="ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"/>,
 ///   encrypt with AES-256-GCM, replace property value with encrypted JSON envelope</description></item>
 /// <item><description>Serialize modified object with inner serializer, then restore original
 ///   property values</description></item>
 /// </list>
+/// <para>
+/// <b>Fail closed</b> (#1646): when a non-null <c>[CryptoShredded]</c> value cannot be encrypted — its
+/// subject id is missing, the key provider returns an error or throws, or the property is misconfigured
+/// (for example getter-only) — serialization throws <see cref="CryptoShreddingEncryptionException"/>
+/// before the inner serializer runs, so Marten's append fails and nothing is stored. Personal data never
+/// reaches the append-only event store in plaintext.
+/// </para>
 /// <para>
 /// <b>Deserialize flow</b> (<c>FromJson</c>, <c>FromJsonAsync</c>):
 /// </para>
@@ -127,7 +136,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     /// <inheritdoc />
     public string ToJson(object? document)
     {
-        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(document.GetType()))
+        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
         {
             return _inner.ToJson(document);
         }
@@ -138,7 +147,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     /// <inheritdoc />
     public string ToCleanJson(object? document)
     {
-        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(document.GetType()))
+        if (document is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
         {
             return _inner.ToCleanJson(document);
         }
@@ -151,7 +160,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(document.GetType()))
+        if (!CryptoShreddedPropertyCache.HasCryptoShreddedProperties(document.GetType()))
         {
             return _inner.ToJsonWithTypes(document);
         }
@@ -164,7 +173,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(writer);
 
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
         {
             _inner.WriteTo(writer, value);
             return;
@@ -178,7 +187,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(writer);
 
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
         {
             _inner.WriteToCleanJson(writer, value);
             return;
@@ -193,7 +202,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(value);
 
-        if (!CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        if (!CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
         {
             _inner.WriteToJsonWithTypes(writer, value);
             return;
@@ -207,7 +216,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(parameter);
 
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
         {
             _inner.WriteToParameter(parameter, value);
             return;
@@ -221,7 +230,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     {
         ArgumentNullException.ThrowIfNull(parameter);
 
-        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedFields(value.GetType()))
+        if (value is null || !CryptoShreddedPropertyCache.HasCryptoShreddedProperties(value.GetType()))
         {
             _inner.WriteToParameter(parameter, value);
             return;
@@ -308,6 +317,7 @@ public sealed class CryptoShredderSerializer : ISerializer
 
         try
         {
+            ThrowIfUnencryptable(eventType);
             EncryptFields(document, eventType, fields, eventTypeName);
 
             var result = innerSerialize(document);
@@ -333,9 +343,33 @@ public sealed class CryptoShredderSerializer : ISerializer
     }
 
     /// <summary>
-    /// Encrypts each PII field on the document in place. A field without a resolvable plaintext
-    /// value or subject id is left untouched (and, for a missing subject id, the field name and
-    /// event type are logged — never the subject id itself, see #1429).
+    /// Refuses to serialize a type that declares a <c>[CryptoShredded]</c> property the serializer cannot
+    /// encrypt (misconfigured or getter-only): it would otherwise be stored in plaintext (#1646).
+    /// </summary>
+    private void ThrowIfUnencryptable(Type eventType)
+    {
+        var unencryptable = CryptoShreddedPropertyCache.GetUnencryptableProperties(eventType);
+        if (unencryptable.Length == 0)
+        {
+            return;
+        }
+
+        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
+
+        // Every misconfigured property is named, so one failed append shows the whole list to fix.
+        var names = string.Join(", ", unencryptable);
+        _logger.AttributeMisconfigured(unencryptable[0], FullTypeName(eventType), names);
+        throw new CryptoShreddingEncryptionException(
+            eventType, names, CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+    }
+
+    // The same form the exception uses, so a log line and the exception correlate.
+    private static string FullTypeName(Type type) => type.FullName ?? type.Name;
+
+    /// <summary>
+    /// Encrypts each PII field on the document in place. A <c>null</c> value stays <c>null</c>; any other
+    /// value is encrypted or serialization throws <see cref="CryptoShreddingEncryptionException"/> — it is
+    /// never left in plaintext (#1646). Logs carry the field name and event type, never the subject id (#1429).
     /// </summary>
     private void EncryptFields(
         object document, Type eventType, CryptoShreddedFieldInfo[] fields, string eventTypeName)
@@ -349,28 +383,25 @@ public sealed class CryptoShredderSerializer : ISerializer
                 continue;
             }
 
-            // Throws InvalidOperationException for an unsupported subject-id type: fail closed (#1174).
-            var subjectId = field.ResolveSubjectId(document);
-            if (subjectId is null)
-            {
-                // The data subject's own identifier is never logged (#1429, following #1314);
-                // the configured property name is the identifying-but-safe correlation here.
-                _logger.LogWarning(
-                    "Cannot extract subject ID from property '{SubjectIdProperty}' on event type '{EventType}'. Skipping encryption for field '{FieldName}'",
-                    field.SubjectIdProperty,
-                    eventType.Name,
-                    field.Property.Name);
-                continue;
-            }
+            // An unsupported declared subject-id type is already unencryptable (ThrowIfUnencryptable); this
+            // still throws InvalidOperationException when the runtime value is of an unsupported type (#1174).
+            var subjectId = field.ResolveSubjectId(document)
+                ?? throw SubjectIdMissing(field, eventType);
 
-            var encryptedJson = EncryptField(subjectId, plaintext, field.Property.Name, eventType);
-            if (encryptedJson is not null)
-            {
-                field.SetValue(document, encryptedJson);
-                CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
-                _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
-            }
+            field.SetValue(document, EncryptField(subjectId, plaintext, field.Property.Name, eventType));
+            CryptoShreddingDiagnostics.EncryptionTotal.Add(1);
+            _logger.PiiFieldEncrypted(field.Property.Name, eventTypeName);
         }
+    }
+
+    private CryptoShreddingEncryptionException SubjectIdMissing(CryptoShreddedFieldInfo field, Type eventType)
+    {
+        // The data subject's own identifier is never logged (#1429, following #1314);
+        // the configured property name is the identifying-but-safe correlation here.
+        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
+        _logger.EncryptionSubjectIdMissing(field.Property.Name, FullTypeName(eventType), field.SubjectIdProperty);
+        return new CryptoShreddingEncryptionException(
+            eventType, field.Property.Name, CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
     }
 
     /// <summary>
@@ -388,70 +419,88 @@ public sealed class CryptoShredderSerializer : ISerializer
     }
 
     /// <summary>
-    /// Encrypts a single plaintext value using AES-256-GCM with the subject's key.
+    /// Encrypts a single plaintext value using AES-256-GCM with the subject's active key.
     /// </summary>
-    /// <returns>The encrypted JSON envelope string, or <c>null</c> if encryption fails.</returns>
-    private string? EncryptField(string subjectId, string plaintext, string propertyName, Type eventType)
+    /// <returns>The encrypted JSON envelope string.</returns>
+    /// <exception cref="CryptoShreddingEncryptionException">The key could not be obtained or is unusable.</exception>
+    private string EncryptField(string subjectId, string plaintext, string propertyName, Type eventType)
     {
+        var key = GetEncryptionKey(subjectId, propertyName, eventType);
+
+        // The version comes with the key material from one provider call, never from a second
+        // lookup that a concurrent rotation could make disagree, and is never guessed (#1646).
+        var keyId = $"subject:{subjectId}:v{key.Version}";
+
+        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+        var nonce = new byte[NonceSizeInBytes];
+        RandomNumberGenerator.Fill(nonce);
+
+        var ciphertext = new byte[plaintextBytes.Length];
+        var tag = new byte[TagSizeInBytes];
+
+        using var aesGcm = new AesGcm(key.KeyMaterial, TagSizeInBytes);
+        aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
+
+        var encryptedValue = new EncryptedValue
+        {
+            KeyId = keyId,
+            Ciphertext = [.. ciphertext],
+            Nonce = [.. nonce],
+            Tag = [.. tag],
+            Algorithm = EncryptionAlgorithm.Aes256Gcm
+        };
+
+        return EncryptedFieldJsonConverter.Serialize(encryptedValue);
+    }
+
+    /// <summary>
+    /// Obtains the subject's active key and its version. Every failure — a <c>Left</c>, an exception or an
+    /// unusable key — throws, so the value is never serialized in plaintext (#1646).
+    /// </summary>
+    private SubjectEncryptionKey GetEncryptionKey(string subjectId, string propertyName, Type eventType)
+    {
+        Either<EncinaError, SubjectEncryptionKey> keyResult;
         try
         {
-            // Get or create key — sync-over-async is safe here because Marten invokes
-            // serializers from within its async pipeline (no SynchronizationContext)
-            var keyResult = _subjectKeyProvider
+            // Sync-over-async is safe here because Marten invokes serializers from within its
+            // async pipeline (no SynchronizationContext)
+            keyResult = _subjectKeyProvider
                 .GetOrCreateSubjectKeyAsync(subjectId)
                 .GetAwaiter()
                 .GetResult();
-
-            return keyResult.Match<string?>(
-                Right: keyMaterial =>
-                {
-                    // Get subject info for version number
-                    var infoResult = _subjectKeyProvider
-                        .GetSubjectInfoAsync(subjectId)
-                        .GetAwaiter()
-                        .GetResult();
-
-                    var version = infoResult.Match(
-                        Right: info => info.ActiveKeyVersion,
-                        Left: _ => 1);
-
-                    var keyId = $"subject:{subjectId}:v{version}";
-
-                    // Perform AES-256-GCM encryption
-                    var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-                    var nonce = new byte[NonceSizeInBytes];
-                    RandomNumberGenerator.Fill(nonce);
-
-                    var ciphertext = new byte[plaintextBytes.Length];
-                    var tag = new byte[TagSizeInBytes];
-
-                    using var aesGcm = new AesGcm(keyMaterial, TagSizeInBytes);
-                    aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-
-                    var encryptedValue = new EncryptedValue
-                    {
-                        KeyId = keyId,
-                        Ciphertext = [.. ciphertext],
-                        Nonce = [.. nonce],
-                        Tag = [.. tag],
-                        Algorithm = EncryptionAlgorithm.Aes256Gcm
-                    };
-
-                    return EncryptedFieldJsonConverter.Serialize(encryptedValue);
-                },
-                Left: error =>
-                {
-                    CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-                    _logger.EncryptionFailed(propertyName, eventType.Name);
-                    return null;
-                });
         }
         catch (Exception ex)
         {
-            CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
-            _logger.EncryptionFailed(propertyName, eventType.Name, ex.ForLogging());
-            return null;
+            throw KeyUnavailable(propertyName, eventType, CryptoShreddingErrors.KeyStoreErrorCode, ex);
         }
+
+        if (keyResult.IsLeft)
+        {
+            var errorCode = ((EncinaError)keyResult).GetCode().IfNone(CryptoShreddingErrors.EncryptionFailedCode);
+            throw KeyUnavailable(propertyName, eventType, errorCode, exception: null);
+        }
+
+        var key = (SubjectEncryptionKey)keyResult;
+        return IsUsable(key)
+            ? key
+            : throw KeyUnavailable(propertyName, eventType, CryptoShreddingErrors.EncryptionFailedCode, exception: null);
+    }
+
+    // An AES-256 key is 32 bytes; a version below 1 would write a key id no decryption can resolve.
+    private static bool IsUsable(SubjectEncryptionKey? key) =>
+        key is { Version: >= 1, KeyMaterial.Length: 32 };
+
+    /// <summary>
+    /// Records a key failure by error code (and the exception redacted, never its message or the
+    /// subject id) and builds the exception that stops serialization.
+    /// </summary>
+    private CryptoShreddingEncryptionException KeyUnavailable(
+        string propertyName, Type eventType, string errorCode, Exception? exception)
+    {
+        CryptoShreddingDiagnostics.EncryptionFailedTotal.Add(1);
+        _logger.EncryptionFailed(propertyName, FullTypeName(eventType), errorCode, exception?.ForLogging());
+        return new CryptoShreddingEncryptionException(
+            eventType, propertyName, CryptoShreddingEncryptionFailureReason.KeyUnavailable, errorCode);
     }
 
     /// <summary>
