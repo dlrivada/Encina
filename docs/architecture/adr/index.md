@@ -35,9 +35,18 @@ has_children: true
 | [023](023-coverage-strategy-codecov-sonarcloud.md) | Coverage Strategy (Codecov + SonarCloud) |
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
-| 026 | Reserved for the OTLP exporter opt-in decision (`docs/plans/otlp-exporter-implementation-plan-1043.md`, #1043) |
 | [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
 | [028](028-domain-events-versus-integration-events.md) | Domain Events vs Integration Events (Outbox only) |
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
+
+## Reserved numbers
+
+An ADR takes the next number that is neither used nor reserved. A plan or spike that needs an ADR before the ADR is written reserves the next free number in this table, in the same PR. A reservation is removed when the ADR is merged (its row moves to the table above) or when the plan is dropped.
+
+| Number | Reserved by | Topic | Status |
+| ------ | ----------- | ----- | ------ |
+| 026 | [otlp-exporter-implementation-plan-1043.md](../../plans/otlp-exporter-implementation-plan-1043.md) (#1043) | OTLP exporter opt-in decision | Reserved, ADR not written |
+| 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
+| 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
