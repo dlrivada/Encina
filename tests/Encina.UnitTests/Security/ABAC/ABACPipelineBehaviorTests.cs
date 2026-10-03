@@ -884,6 +884,24 @@ public sealed class ABACPipelineBehaviorTests
         });
     }
 
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_SecurityContextAccessorThrows_DeniesWithEvaluationFailed(ABACEnforcementMode mode)
+    {
+        var accessor = Substitute.For<ISecurityContextAccessor>();
+        accessor.SecurityContext.Returns(_ => throw new InvalidOperationException("accessor failed"));
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        var behavior = CreateBehavior<PolicyARequest>(
+            Pdp(("policy-a", Effect.Permit)), mode, accessor: accessor, attributeProvider: attributeProvider);
+
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
+        nextCalled.ShouldBeFalse();
+        await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
+    }
+
     [Fact]
     public async Task Handle_DisabledModeWithoutSecurityContext_StillSkipsEvaluation()
     {
