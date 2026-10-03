@@ -119,7 +119,7 @@ public sealed class CryptoShreddingAutoRegistrationHostedServiceTests
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => sut.StartAsync(CancellationToken.None));
 
-        ex.Message.ShouldContain("no public getter");
+        ex.Message.ShouldContain("it has no getter");
     }
 
     [Fact]

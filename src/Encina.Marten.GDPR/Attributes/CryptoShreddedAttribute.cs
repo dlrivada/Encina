@@ -44,9 +44,14 @@ public sealed class CryptoShreddedAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This property name must reference a readable <c>string</c> property on the same
-    /// declaring type. The value of that property at serialization time determines
-    /// which per-subject encryption key is used.
+    /// This property name must reference a readable public property on the same
+    /// declaring type whose type is a supported subject-id type: <c>string</c>, <see cref="Guid"/>,
+    /// an integer type (or its nullable form), or a strongly-typed id that implements
+    /// <see cref="IFormattable"/> or exposes a public <c>Value</c> property of a supported type.
+    /// The value of that property at serialization time determines which per-subject
+    /// encryption key is used. It is converted to an invariant string for the key id
+    /// (a <see cref="Guid"/> as <c>"D"</c>; a <c>string</c> is used unchanged). Any other
+    /// type is rejected at startup and fails closed at serialization.
     /// </para>
     /// <para>
     /// Use <c>nameof()</c> for compile-time safety:

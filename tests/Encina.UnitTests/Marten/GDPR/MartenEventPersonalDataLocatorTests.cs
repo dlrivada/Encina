@@ -166,7 +166,7 @@ public sealed class MartenEventPersonalDataLocatorTests : IDisposable
     {
         var evt = new GuidPiiEvent { PatientId = Guid.Empty, Email = "test@example.com" };
 
-        MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, "subject-1").ShouldBeEmpty();
+        MartenEventPersonalDataLocator.LocateFieldsInEvent(evt, Guid.Empty.ToString("D")).ShouldBeEmpty();
     }
 
     [Fact]

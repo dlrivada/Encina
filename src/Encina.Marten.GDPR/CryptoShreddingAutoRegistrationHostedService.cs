@@ -191,7 +191,7 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
 
         if (!subjectIdProp.CanRead)
         {
-            return prefix + "has no public getter, so the subject id cannot be read.";
+            return prefix + "is not readable (it has no getter), so the subject id cannot be read.";
         }
 
         if (SubjectIdConversion.IsSupportedType(subjectIdProp.PropertyType))

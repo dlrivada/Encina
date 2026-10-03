@@ -156,6 +156,21 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
             e => e.Email,
             stored => new WrappedSubjectEvent { PatientId = new PatientId(SampleGuid), Email = stored });
 
+    [Fact]
+    public async Task RoundTrip_StringSubjectId_KeepsTheRawStringInTheKeyId()
+    {
+        const string rawSubject = " User-1 ";
+        AssertEnvelopeKeyAndRoundTrip(
+            new StringSubjectEvent { UserId = rawSubject, Email = PlainEmail },
+            rawSubject,
+            e => e.Email,
+            stored => new StringSubjectEvent { UserId = rawSubject, Email = stored });
+
+        await _keys.Received().GetOrCreateSubjectKeyAsync(rawSubject, Arg.Any<CancellationToken>());
+        await _keys.DidNotReceive().GetOrCreateSubjectKeyAsync(
+            Arg.Is<string>(s => s != rawSubject), Arg.Any<CancellationToken>());
+    }
+
     private void AssertEnvelopeKeyAndRoundTrip<TEvent>(
         TEvent evt,
         string invariantSubjectId,
@@ -223,6 +238,15 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     {
         public string ToString(string? format, IFormatProvider? formatProvider) =>
             "opaque-" + number.ToString(formatProvider);
+    }
+
+    public sealed class StringSubjectEvent
+    {
+        public string UserId { get; set; } = string.Empty;
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
+        public string Email { get; set; } = string.Empty;
     }
 
     public sealed class LongSubjectEvent

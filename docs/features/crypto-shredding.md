@@ -288,7 +288,7 @@ The startup scan runs only when `AutoRegisterFromAttributes` is `true`. It cover
 1. the property has a co-located `[PersonalData]`
 2. the property is a `string`
 3. `SubjectIdProperty` names a public instance property on the same type
-4. that subject-id property has a public getter
+4. that subject-id property is readable (it has a getter)
 5. the subject-id property type is a supported type (see above)
 
 When any property fails, startup throws `InvalidOperationException` listing every error; each message names the property and its type.
