@@ -216,7 +216,9 @@ The event store is append-only, so personal data written in plaintext can never 
 
 - `SubjectIdMissing`: the subject id is `null`, `Guid.Empty`, or an empty or whitespace string (logged as EventId 8466).
 - `KeyUnavailable`: `GetOrCreateSubjectKeyAsync` returned `Left` (a forgotten subject included), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) (logged as EventId 8455).
-- `PropertyMisconfigured`: the property is getter-only, not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property (logged as EventId 8459). Positional records and `init`-only properties work; the startup scan also rejects a getter-only `[CryptoShredded]` property.
+- `PropertyMisconfigured`: the property is getter-only or declared on a struct or `record struct` event (events must be classes or record classes), not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property (logged as EventId 8459). Positional records and `init`-only properties work; the startup scan also rejects a getter-only `[CryptoShredded]` property and a struct event.
+
+Limitation: `[CryptoShredded]` is discovered only on the top-level event type, so a property on a type nested inside an event (or in a collection on it) is stored in plaintext; put every `[CryptoShredded]` property directly on the event type. Tracked by a follow-up issue.
 
 The message names the event type and property only; it never carries the subject id, the value or an inner exception message. See the [crypto-shredding feature page](../../docs/features/crypto-shredding.md#fail-closed-serialization).
 

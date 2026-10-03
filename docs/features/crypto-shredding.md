@@ -239,6 +239,7 @@ var registered = events[0].Data as UserRegisteredEvent;
 | **`SubjectIdProperty`** | Must reference a readable public property of a supported subject-id type on the same type (see below) |
 | **Property type** | The encrypted property itself must be `string` (only strings are encrypted) |
 | **Writable** | The encrypted property needs a setter or an `init` accessor (positional record properties qualify); a getter-only property is rejected |
+| **Class or record class** | The event type that declares the property must be a class or a record class. A `struct` or `record struct` event cannot be encrypted: the serializer receives the event boxed, so a setter would write to a copy and the plaintext would be stored. Serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`) and the startup scan rejects the type |
 | **Use `nameof()`** | Compile-time safety for `SubjectIdProperty` |
 
 ### Subject-id types
@@ -296,6 +297,7 @@ The startup scan runs only when `AutoRegisterFromAttributes` is `true`. It cover
 4. that subject-id property is readable (it has a getter)
 5. the subject-id property type is a supported type (see above)
 6. the property has a setter or an `init` accessor, so the serializer can replace its value with the ciphertext (a getter-only property such as `public string Email { get; }` set in a constructor is rejected)
+7. the declaring type is not a struct (a struct or `record struct` event is rejected with a message that names the property and the type and says it is declared on a struct)
 
 When any property fails, startup throws `InvalidOperationException` listing every error; each message names the property and its type.
 
@@ -320,7 +322,7 @@ The message names the event type and the property only. It never contains the su
 |----------|-------|-----------|
 | `SubjectIdMissing` | The subject-id property is `null`, `Guid.Empty`, or an empty or whitespace string | EventId 8466 |
 | `KeyUnavailable` | `ISubjectKeyProvider.GetOrCreateSubjectKeyAsync` returned `Left` (including for a forgotten subject: new personal data for a forgotten subject is not written), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) | EventId 8455, with the error code |
-| `PropertyMisconfigured` | The property cannot be overwritten (getter-only), is not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property | EventId 8459, then the exception is thrown |
+| `PropertyMisconfigured` | The property cannot be overwritten (getter-only, or declared on a struct or `record struct` event), is not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property | EventId 8459, then the exception is thrown |
 
 Positional records and `init`-only properties work. Decryption is unchanged.
 
@@ -587,7 +589,13 @@ Read `Reason` and `PropertyName` on the exception:
 
 - `SubjectIdMissing`: set the subject-id property the attribute names (`SubjectIdProperty`) before appending; `null`, `Guid.Empty` and empty or whitespace strings are rejected.
 - `KeyUnavailable`: check `ErrorCode`. `crypto.key_store_error` points at the key store; `crypto.subject_forgotten` means the subject was erased and no new personal data can be written for it; `crypto.encryption_failed` means the provider returned an unusable key or a `Left` with no code.
-- `PropertyMisconfigured`: make the property a `string` with a setter or `init` accessor, add `[PersonalData]`, and point `SubjectIdProperty` at a readable property. With `AutoRegisterFromAttributes` enabled, the startup scan reports most of these at startup.
+- `PropertyMisconfigured`: make the property a `string` with a setter or `init` accessor on a class or record class event (not a struct), add `[PersonalData]`, and point `SubjectIdProperty` at a readable property. With `AutoRegisterFromAttributes` enabled, the startup scan reports most of these at startup.
+
+---
+
+## Limitations
+
+- **Only the top-level event type is scanned.** `[CryptoShredded]` is discovered only on the type of the event that is appended. A `[CryptoShredded]` property on a type nested inside an event (a property whose type is another class, or an element of a collection on the event) is neither encrypted nor rejected, and is stored in plaintext. Put every `[CryptoShredded]` property directly on the event type. This is tracked by a follow-up issue.
 
 ---
 
