@@ -248,7 +248,7 @@ There is no date for 1.0. The first two days show why an estimate would be disho
 
 ## Retrospective after two weeks (2026-10-03)
 
-This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh` on 2026-10-03: 463 issues created and 173 pull requests merged since the era began. Section 6 covers the first two days; this one covers the whole window and does not repeat it.
+This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh` on 2026-10-03: 463 issues created and 173 pull requests merged since the era began. Section 6 covers the first two days; this one covers the whole window and does not repeat it. The counts and the audit numbers below (the 87 remediation issues, the contract-test count, the audit numbers) were reported by the maintainer and the orchestrator from the audit artifacts and GitHub on 2026-10-03 and are not re-derivable from the repository; the issue numbers are.
 
 ### What worked
 
@@ -263,7 +263,7 @@ Because those audits read today's code in the issue's scope, siblings included, 
 
 **2. The method itself, which turns "done" into "done, and here is what it hid".** Agents per role, skills, hooks, worktrees, plans before features, reviews, and the CRAP and per-flag coverage gates (section 4) mean the same work now surfaces hidden debt, both as new issues and in the history. Three examples from 2026-10-03:
 
-- The review of #1703 found that the persistent policy administration point captured a scoped `IPolicyStore` in all eight database providers; the defect pre-dated the change and became #1707.
+- The review of #1703 found that the persistent policy administration point captured a scoped `IPolicyStore` in all eight provider registrations; the defect pre-dated the change and became #1707.
 - A multi-agent review of #1712 found an absolute-path bypass of the checkout guard that a single reviewer had missed.
 - The adversarial review of the plan for #1698 found three paths that would have stored health data in plaintext, before any code existed.
 
@@ -272,7 +272,7 @@ Because those audits read today's code in the issue's scope, siblings included, 
 - **Fail closed as a design rule.** ABAC (#1634, #1676, #1677) and the crypto-shredder (#1646) now deny or fail when context is missing, as [`AGENTS.md`](../../AGENTS.md) §3 requires, instead of proceeding with partial data.
 - **Maintainer decisions taken one at a time**, with the options explained and the choice recorded in the issue: the ten questions of #751, option B of #1698, and the single identity model of #1705. This is the human gate of section 2.4 working as designed.
 - **Plan before code, then an adversarial review of the plan.** A defect found in a plan costs a paragraph; found in code it costs a fix round and a re-review.
-- **Pre-1.0 means best solution, no compatibility.** #1705 removes `ISecurityContext` completely rather than keeping an adapter, which [`AGENTS.md`](../../AGENTS.md) §1 and §3 require.
+- **Pre-1.0 means best solution, no compatibility.** #1705 records the decision to remove `ISecurityContext` completely rather than keep an adapter, which [`AGENTS.md`](../../AGENTS.md) §1 and §3 require.
 - **Two independent refuters per review finding.** They discarded 9 of 10 findings on #1706 and 6 of 10 on #1727, which avoided fix rounds on non-issues.
 - **The role-lessons loop.** A mistake recorded in an agent's lessons file under `.claude/agents/lessons/` stops repeating in later audits.
 - **Resilience.** A power cut and a five-hour usage limit cost no work: workflows resumed from their journals and workers from their progress files.
@@ -292,7 +292,7 @@ Each item was approved by the maintainer and is tracked in an issue.
 
 ### A recorded decision about cost
 
-The maintainer rejected reducing review depth to save tokens: full multi-agent review and verification stay the norm. Cost is still reported as a metric: 79 % of the weekly plan was used by the second day of the window, mostly by review and design workflows (maintainer's plan usage on 2026-10-03, not a repository measurement). The reasoning follows the findings above, where most of the value came from the deepest reviews.
+The maintainer rejected reducing review depth to save tokens: full multi-agent review and verification stay the norm. Cost is still reported as a metric: 79 % of the weekly plan was used by the second day of the weekly plan window, mostly by review and design workflows (maintainer's plan usage on 2026-10-03, not a repository measurement). The reasoning follows the findings above, where most of the value came from the deepest reviews.
 
 ### Scope of this retrospective
 
