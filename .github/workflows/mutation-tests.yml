@@ -8,11 +8,11 @@ on:
         type: boolean
         default: false
       full_mode:
-        description: "Mutate ALL files in one shard (very slow). Default: 17-shard matrix."
+        description: "Mutate ALL files in one shard (very slow). Default: the shard matrix."
         type: boolean
         default: false
       custom_scope:
-        description: "Override mutation scope glob (collapses matrix to 1 shard). e.g. **/Pipeline/Behaviors/*.cs"
+        description: "Override mutation scope: one glob, or several separated by ';' with '!' for exclusions (collapses matrix to 1 shard). e.g. **/Pipeline/Behaviors/*.cs"
         type: string
         default: ""
   schedule:
@@ -30,13 +30,13 @@ env:
 jobs:
   # Phase 1 — Select matrix shards.
   #
-  # Default (scheduled run, or dispatch without overrides): emits 17 shard
-  # entries, one per rotation folder. Every weekly run now mutates the entire
-  # src/Encina/Encina.csproj in parallel instead of one folder per ISO-week.
+  # Default (scheduled run, or dispatch without overrides): emits one matrix
+  # entry per SHARDS element, so every weekly run mutates all the rotation
+  # folders of src/Encina/Encina.csproj in parallel.
   #
   # Dispatch overrides (custom_scope / full_mode / diff_mode) collapse the
   # matrix to a single shard so operators can target narrow scopes without
-  # spawning 17 parallel runners.
+  # spawning the whole matrix.
   select-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -58,113 +58,94 @@ jobs:
           FULL_MODE: ${{ inputs.full_mode }}
           DIFF_MODE: ${{ inputs.diff_mode }}
         run: |
-          # Keep FOLDERS, FILTERS and TIMEOUTS in lock-step: each rotation
-          # entry pairs a mutation scope glob with a VSTest
-          # --test-case-filter substring (or empty to use the
-          # stryker-config.json default) and a per-shard job timeout in
-          # minutes. See docs/testing/mutation-measurement-methodology.md
-          # for the full edge-case notes — especially the rationale for
-          # root-namespace fallbacks, overly broad substrings, and how the
-          # TIMEOUTS values were sized from run 36089523656 (#1395).
-          FOLDERS=(
-            "**/Core/*.cs"
-            "**/Pipeline/Behaviors/*.cs"
-            "**/Pipeline/*.cs"
-            "**/Dispatchers/Strategies/*.cs"
-            "**/Validation/*.cs"
-            "**/Sharding/Migrations/Strategies/*.cs"
-            "**/Sharding/Routing/*.cs"
-            "**/Sharding/ReplicaSelection/*.cs"
-            "**/Sharding/Execution/*.cs"
-            "**/Sharding/Shadow/**/*.cs"
-            "**/Sharding/Colocation/*.cs"
-            "**/Sharding/TimeBased/*.cs"
-            "**/Sharding/Resharding/Phases/*.cs"
-            "**/Sharding/Diagnostics/*.cs"
-            "**/Modules/Isolation/*.cs"
-            "**/Results/*.cs"
-            "**/Sharding/Health/*.cs"
+          # Shard design (#1441, #1682). Stryker.NET 5 runs with the
+          # Microsoft Testing Platform runner, which ignores
+          # test-case-filter (stryker-net#3757): every mutant runs the whole
+          # Encina.UnitTests project (~22,000 tests, ~35.6 s per mutant
+          # measured locally in spike #1087). A shard's duration therefore
+          # grows with its tested-mutant count, not with its folder, so
+          # shards are sized to about 150 tested mutants or fewer.
+          #
+          # A SHARDS entry is one or more Stryker mutate globs separated by
+          # ';'. A glob that starts with '!' excludes files. A folder too big
+          # for one shard is split by file: one or more shards name its
+          # largest files, and the folder's last shard takes the folder glob
+          # minus those files, so a file added to the folder later always
+          # lands in some shard. The aggregate job fails when two shard
+          # reports hold mutants of the same file.
+          #
+          # The counts in the comments are tested mutants (every status
+          # except Ignored, CompileError and NoCoverage) from run
+          # 36959365309 (2026-10-02), and from run 36304862790 for
+          # Modules/Isolation, whose shard lost its runner in 36959365309
+          # (#1682). Two single files exceed 150; a file is the smallest
+          # shard unit because the aggregate merge keys reports by file.
+          SHARDS=(
+            "**/Core/EncinaConfiguration.cs;**/Core/ServiceCollectionExtensions.cs;**/Core/Encina.cs"                                    # 0: 140
+            "**/Core/*.cs;!**/Core/EncinaConfiguration.cs;!**/Core/ServiceCollectionExtensions.cs;!**/Core/Encina.cs"                    # 1: 80
+            "**/Pipeline/Behaviors/*.cs"                                                                                                 # 2: 142
+            "**/Pipeline/*.cs"                                                                                                           # 3: 136
+            "**/Dispatchers/Strategies/*.cs"                                                                                             # 4: 64
+            "**/Validation/*.cs;**/Results/*.cs;**/Sharding/Health/*.cs"                                                                 # 5: 29 + 16 + 57
+            "**/Sharding/Migrations/Strategies/*.cs;**/Sharding/Execution/*.cs"                                                          # 6: 59 + 60
+            "**/Sharding/Routing/GeoShardRouter.cs;**/Sharding/Routing/RangeShardRouter.cs"                                              # 7: 121
+            "**/Sharding/Routing/*.cs;!**/Sharding/Routing/GeoShardRouter.cs;!**/Sharding/Routing/RangeShardRouter.cs"                   # 8: 127
+            "**/Sharding/ReplicaSelection/*.cs"                                                                                          # 9: 151
+            "**/Sharding/Shadow/**/*.cs"                                                                                                 # 10: 115
+            "**/Sharding/Colocation/*.cs;**/Sharding/Diagnostics/*.cs"                                                                   # 11: 58 + 66
+            "**/Sharding/TimeBased/TimeBasedShardRouter.cs;**/Sharding/TimeBased/ShardTierInfo.cs;**/Sharding/TimeBased/TierTransition.cs" # 12: 142
+            "**/Sharding/TimeBased/*.cs;!**/Sharding/TimeBased/TimeBasedShardRouter.cs;!**/Sharding/TimeBased/ShardTierInfo.cs;!**/Sharding/TimeBased/TierTransition.cs" # 13: 139
+            "**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;**/Sharding/Resharding/Phases/CuttingOverPhase.cs"                 # 14: 89
+            "**/Sharding/Resharding/Phases/*.cs;!**/Sharding/Resharding/Phases/ReshardingPhaseExecutor.cs;!**/Sharding/Resharding/Phases/CuttingOverPhase.cs" # 15: 113
+            "**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs"                                                                 # 16: 201
+            "**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs"                                                                # 17: 185
+            "**/Modules/Isolation/SqlSchemaExtractor.cs;**/Modules/Isolation/ModuleSchemaRegistry.cs"                                    # 18: 108
+            "**/Modules/Isolation/*.cs;!**/Modules/Isolation/SqlServerPermissionScriptGenerator.cs;!**/Modules/Isolation/PostgreSqlPermissionScriptGenerator.cs;!**/Modules/Isolation/SqlSchemaExtractor.cs;!**/Modules/Isolation/ModuleSchemaRegistry.cs" # 19: 58
           )
-          FILTERS=(
-            "Encina.UnitTests.Core|Encina.ContractTests.Core"
-            "Pipeline.Behaviors|Core.Pipeline"
-            "Pipeline"
-            "Dispatchers.Strategies"
-            "Core.Validation"
-            "Sharding.Migrations.Strategies"
-            "Sharding.Routing"
-            "Sharding.ReplicaSelection"
-            "Sharding.Execution"
-            "Sharding.Shadow"
-            "Sharding.Colocation"
-            "Sharding.TimeBased"
-            "Sharding.Resharding"
-            "Sharding.Diagnostics"
-            "Modules.Isolation"
-            ""
-            "Sharding.Health"
-          )
-          # Per-shard job timeout in minutes, re-sized from run 36240706037
-          # (2026-09-26, #1395's own validation dispatch, superseding the
-          # first estimate from run 36089523656 on 2026-09-25): completed
-          # shards use max(60, ceil(round(observed minutes) x 1.5)); the one shard
-          # that was still cancelled (shard 2) is a documented exception,
-          # capped at the 340-minute ceiling rather than computed — see
-          # below.
-          # Shard 2 (Pipeline) is a documented exception (#1402-follow-up,
-          # tracked separately from #1401): it has a real test-case-filter
-          # (not empty, unlike shard 15) and a fast baseline pass, yet it
-          # has now failed to finish its 140 mutants in TWO consecutive
-          # runs at increasing budgets (60 then 72 minutes) while every
-          # other filtered shard's duration matches setup time + mutant
-          # count x the ~0.27 min/mutant pool average within a small
-          # margin. That formula predicts only ~73 min for shard 2 —
-          # almost exactly what it already failed twice — so it is capped
-          # at 340 instead of computed; see the follow-up issue tracking
-          # its root cause (a too-broad filter substring, or property/timing
-          # tests hidden inside its filtered set).
-          # Shard 15 (Results) is no longer an exception: it now has a real
-          # completed observation (73 min in run 36240706037) and its
-          # timeout is computed from the same formula as every other
-          # completed shard. Its empty test-case-filter override (every
-          # mutant reruns the full ~24k-test default suite instead of a
-          # narrow per-shard subset) remains tracked in #1401 as a
-          # correctness/efficiency follow-up, not a timeout risk.
+          # Per-shard job timeout in minutes, same index as SHARDS.
+          # PROVISIONAL (#1441): no CI run of the MTP runner exists yet, so
+          # these come from the #1395 formula max(60, ceil(round(minutes) x
+          # 1.5)) applied to an estimate, minutes = 20 (setup: restore, build,
+          # Stryker's build and initial test run) + tested mutants x 35.6 s
+          # (spike #1087, local). The first validation run re-sizes them from
+          # observed shard durations with the same formula. GitHub caps a job
+          # at 360 minutes; 340 is this workflow's ceiling.
           TIMEOUTS=(
+            155
+            101
+            156
+            152
+            87
+            122
+            137
+            138
+            143
+            165
+            132
+            141
+            156
+            153
             110
-            69
-            340
-            60
-            60
-            60
-            123
-            96
-            60
-            63
-            60
-            128
-            117
-            60
-            204
-            110
-            60
+            131
+            209
+            195
+            126
+            81
           )
 
-          if [ "${#FOLDERS[@]}" -ne "${#FILTERS[@]}" ] || [ "${#FOLDERS[@]}" -ne "${#TIMEOUTS[@]}" ]; then
-            echo "::error::FOLDERS (${#FOLDERS[@]}), FILTERS (${#FILTERS[@]}) and TIMEOUTS (${#TIMEOUTS[@]}) must have the same length" >&2
+          if [ "${#SHARDS[@]}" -ne "${#TIMEOUTS[@]}" ]; then
+            echo "::error::SHARDS (${#SHARDS[@]}) and TIMEOUTS (${#TIMEOUTS[@]}) must have the same length" >&2
             exit 1
           fi
 
           if [ -n "$CUSTOM_SCOPE" ]; then
-            # Custom scope: reuse paired filter and timeout if the glob
-            # matches a rotation entry; otherwise fall back to the largest
-            # configured timeout so an arbitrary scope still gets a
-            # generous budget instead of the job's implicit default.
-            FILTER=""
+            # Custom scope: reuse the paired timeout if the scope equals a
+            # SHARDS entry; otherwise fall back to the largest configured
+            # timeout so an arbitrary scope still gets a generous budget
+            # instead of the job's implicit default.
             TIMEOUT=""
-            for i in "${!FOLDERS[@]}"; do
-              if [ "${FOLDERS[$i]}" = "$CUSTOM_SCOPE" ]; then
-                FILTER="${FILTERS[$i]}"
+            for i in "${!SHARDS[@]}"; do
+              if [ "${SHARDS[$i]}" = "$CUSTOM_SCOPE" ]; then
                 TIMEOUT="${TIMEOUTS[$i]}"
                 break
               fi
@@ -177,23 +158,23 @@ jobs:
                 fi
               done
             fi
-            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --arg filter "$FILTER" --argjson timeout "$TIMEOUT" \
-              '[{idx: "custom", scope: $scope, filter: $filter, timeout: $timeout}]')
+            MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --argjson timeout "$TIMEOUT" \
+              '[{idx: "custom", scope: $scope, timeout: $timeout}]')
             MODE="custom"
           elif [ "$FULL_MODE" = "true" ]; then
             # Mutates every file in one shard: always needs the largest
             # configured budget.
-            MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", filter: "", timeout: 340}]')
+            MATRIX=$(jq -nc '[{idx: "full", scope: "**/*.cs", timeout: 340}]')
             MODE="full"
           elif [ "$DIFF_MODE" = "true" ]; then
-            MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", filter: "", timeout: 340}]')
+            MATRIX=$(jq -nc '[{idx: "diff", scope: "**/*.cs", timeout: 340}]')
             MODE="diff"
           else
-            # Default: emit all 17 rotation entries as matrix shards.
+            # Default: emit every SHARDS entry as a matrix shard.
             ENTRIES=""
-            for i in "${!FOLDERS[@]}"; do
-              ENTRY=$(jq -nc --arg idx "$i" --arg scope "${FOLDERS[$i]}" --arg filter "${FILTERS[$i]}" --argjson timeout "${TIMEOUTS[$i]}" \
-                '{idx: $idx, scope: $scope, filter: $filter, timeout: $timeout}')
+            for i in "${!SHARDS[@]}"; do
+              ENTRY=$(jq -nc --arg idx "$i" --arg scope "${SHARDS[$i]}" --argjson timeout "${TIMEOUTS[$i]}" \
+                '{idx: $idx, scope: $scope, timeout: $timeout}')
               if [ -z "$ENTRIES" ]; then
                 ENTRIES="$ENTRY"
               else
@@ -205,18 +186,20 @@ jobs:
           fi
 
           COUNT=$(echo "$MATRIX" | jq 'length')
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "shard_count=$COUNT" >> "$GITHUB_OUTPUT"
+          {
+            echo "matrix=$MATRIX"
+            echo "mode=$MODE"
+            echo "shard_count=$COUNT"
+          } >> "$GITHUB_OUTPUT"
           echo "Mode: $MODE"
           echo "Shard count: $COUNT"
           echo "Matrix:"
           echo "$MATRIX" | jq .
 
   # Diagnostic baseline — runs once in parallel with the matrix instead of
-  # once per shard. Stryker auto-discovers every test project that references
-  # src/Encina/Encina.csproj; this step surfaces which project owns any
-  # "unable to test" failures Stryker reports.
+  # once per shard. Stryker runs in project mode from tests/Encina.UnitTests
+  # (#1441), so a failing test there breaks every shard's initial test run
+  # (break-on-initial-test-failure); this job shows which test fails.
   test-baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -242,22 +225,16 @@ jobs:
             ${{ runner.os }}-nuget
 
       - name: Restore
-        run: dotnet restore Encina.slnx
+        run: dotnet restore tests/Encina.UnitTests/Encina.UnitTests.csproj
 
       - name: Build
-        run: dotnet build Encina.slnx --configuration Release --no-restore
+        run: dotnet build tests/Encina.UnitTests/Encina.UnitTests.csproj --configuration Debug --no-restore
 
-      - name: Run Stryker test projects (diagnostic baseline)
+      - name: Run the Stryker test project (diagnostic baseline)
         run: |
           mkdir -p artifacts/test-baseline
           for proj in \
-            tests/Encina.UnitTests/Encina.UnitTests.csproj \
-            tests/Encina.PropertyTests/Encina.PropertyTests.csproj \
-            tests/Encina.ContractTests/Encina.ContractTests.csproj \
-            tests/Encina.GuardTests/Encina.GuardTests.csproj \
-            tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj \
-            tests/Encina.LoadTests/Encina.LoadTests.csproj \
-            tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj; do
+            tests/Encina.UnitTests/Encina.UnitTests.csproj; do
             name=$(basename "$proj" .csproj)
             echo "::group::$name"
             dotnet test "$proj" \
@@ -323,11 +300,15 @@ jobs:
             ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
             ${{ runner.os }}-dotnet-tools
 
+      # Stryker builds tests/Encina.UnitTests (Debug, the project's default
+      # configuration) and runs only that project (project mode, #1441), so
+      # the shard restores and builds that project alone; the build here is
+      # an early failure gate and leaves Stryker an incremental build.
       - name: Restore
-        run: dotnet restore Encina.slnx
+        run: dotnet restore tests/Encina.UnitTests/Encina.UnitTests.csproj
 
       - name: Build
-        run: dotnet build Encina.slnx --configuration Release --no-restore
+        run: dotnet build tests/Encina.UnitTests/Encina.UnitTests.csproj --configuration Debug --no-restore
 
       - name: Restore .NET tools
         run: dotnet tool restore
@@ -335,28 +316,42 @@ jobs:
       - name: Run mutation tests (shard ${{ matrix.idx }})
         id: stryker
         # Pass matrix fields + select-matrix outputs via env: rather than
-        # ${{ }} template interpolation. matrix.scope/matrix.filter carry
-        # the user-controlled `custom_scope` input in custom mode — an
+        # ${{ }} template interpolation. matrix.scope carries the
+        # user-controlled `custom_scope` input in custom mode — an
         # attacker-crafted value like `"; rm -rf / #` would otherwise
         # execute in the runner shell. Same script-injection hardening as
         # the "Build matrix" step above.
         env:
           MATRIX_IDX: ${{ matrix.idx }}
           MATRIX_SCOPE: ${{ matrix.scope }}
-          MATRIX_FILTER: ${{ matrix.filter }}
           SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
         run: |
-          mkdir -p artifacts/mutation
+          mkdir -p artifacts/mutation/logs
           SCOPE="$MATRIX_SCOPE"
-          FILTER="$MATRIX_FILTER"
           MODE="$SELECT_MODE"
 
           echo "Shard idx: $MATRIX_IDX"
           echo "Scope: $SCOPE"
-          echo "Filter: ${FILTER:-<default from stryker-config.json>}"
           echo "Mode: $MODE"
 
-          # Build --mutate args: shard scope + standard exclusions.
+          # Record runner memory and disk once a minute (#1682: a shard lost
+          # its hosted runner without leaving a log). The file is uploaded
+          # with the Stryker logs even when the job fails or is cancelled.
+          (
+            while true; do
+              {
+                date -u +%Y-%m-%dT%H:%M:%SZ
+                free -m
+                df -h /
+              } >> artifacts/mutation/logs/runner-resources.log 2>&1
+              sleep 60
+            done
+          ) < /dev/null > /dev/null 2>&1 &
+          MONITOR_PID=$!
+          trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
+
+          # Build --mutate args: every ';'-separated glob of the shard scope,
+          # then the standard exclusions.
           #
           # Stored as a bash array (not a space-joined string) so every
           # element is passed as a single argv entry when expanded via
@@ -366,33 +361,29 @@ jobs:
           # crafted whitespace in the scope spill into neighbouring args,
           # and glob expansion could substitute matching filenames from the
           # runner working tree.
-          MUTATE_ARGS=("--mutate:$SCOPE")
+          #
+          # There is no test-case-filter: the MTP runner ignores it
+          # (stryker-net#3757), so every mutant runs the whole
+          # Encina.UnitTests project and shards are sized by mutant count.
+          IFS=';' read -ra SCOPE_GLOBS <<< "$SCOPE"
+          MUTATE_ARGS=()
+          INCLUDES=0
+          for glob in "${SCOPE_GLOBS[@]}"; do
+            if [ -z "$glob" ]; then
+              continue
+            fi
+            MUTATE_ARGS+=("--mutate:$glob")
+            if [ "${glob:0:1}" != "!" ]; then
+              INCLUDES=$((INCLUDES + 1))
+            fi
+          done
+          if [ "$INCLUDES" -eq 0 ]; then
+            echo "::error::Shard scope '$SCOPE' has no include glob (only empty or '!' entries)."
+            exit 1
+          fi
           for excl in '!**/Log.cs' '!**/LogMessages.cs' '!**/Diagnostics/*ActivitySource.cs' '!**/Diagnostics/*Metrics.cs' '!**/*Errors.cs' '!**/*Constants.cs'; do
             MUTATE_ARGS+=("--mutate:$excl")
           done
-
-          # Stryker.NET 4.14 exposes test-case-filter only via the config file,
-          # not the CLI (stryker-mutator/stryker-net#3091). Patch the config
-          # in place before invoking Stryker. CI runners are ephemeral, so
-          # the in-place edit does not leak into tracked state.
-          if [ -n "$FILTER" ]; then
-            IFS='|' read -ra FILTER_PARTS <<< "$FILTER"
-            TCF=""
-            for part in "${FILTER_PARTS[@]}"; do
-              if [ -z "$TCF" ]; then
-                TCF="FullyQualifiedName~$part"
-              else
-                TCF="$TCF|FullyQualifiedName~$part"
-              fi
-            done
-            echo "Patching stryker-config.json test-case-filter: $TCF"
-            tmp=$(mktemp)
-            jq --arg tcf "$TCF" '."stryker-config"."test-case-filter" = $tcf' \
-              .github/stryker-config.json > "$tmp"
-            mv "$tmp" .github/stryker-config.json
-          else
-            echo "No FILTER set; using stryker-config.json default test-case-filter"
-          fi
 
           # Always expand MUTATE_ARGS via "${MUTATE_ARGS[@]}" (quoted) so
           # each array element becomes exactly one argv entry — no word
@@ -419,10 +410,10 @@ jobs:
           #   - artifacts/mutation/reports/mutation-report.json (direct)
           #   - artifacts/mutation/<timestamp>/reports/mutation-report.json
           #     (when it adds a timestamp subdirectory)
-          # Because run-stryker.cs also passes `--log-to-file`, Stryker
-          # creates artifacts/mutation/logs/ — that directory sorts
-          # lexicographically AFTER numeric timestamps, so a naive
-          # "newest subdirectory under artifacts/mutation" lookup picks
+          # artifacts/mutation/logs/ also exists (the runner-resources log,
+          # and Stryker's own logs when `--log-to-file` is passed) — that
+          # directory sorts lexicographically AFTER numeric timestamps, so a
+          # naive "newest subdirectory under artifacts/mutation" lookup picks
           # `logs/` and silently misses the real report (reported by
           # Copilot on #1030).
           #
@@ -439,8 +430,11 @@ jobs:
             echo "summary-file=$reports_dir/mutation-report.txt" >> "$GITHUB_OUTPUT"
           fi
 
+      # The report steps run even when the Stryker step failed (#1682): a
+      # report that Stryker wrote before failing is still uploaded, and the
+      # aggregate job decides what to do with it.
       - name: Publish shard text summary
-        if: steps.stryker-report.outputs.summary-file != ''
+        if: always() && steps.stryker-report.outputs.summary-file != ''
         # matrix.scope carries user input in custom mode; the value only
         # reaches the job summary (no shell execution), but passing via
         # env: keeps the hardening consistent and prevents a future edit
@@ -460,7 +454,7 @@ jobs:
           fi
 
       - name: Upload shard mutation report
-        if: steps.stryker-report.outputs.reports-dir != ''
+        if: always() && steps.stryker-report.outputs.reports-dir != ''
         uses: actions/upload-artifact@v7
         with:
           name: mutation-report-shard-${{ matrix.idx }}
@@ -474,6 +468,25 @@ jobs:
           name: stryker-logs-shard-${{ matrix.idx }}
           path: artifacts/mutation/logs
           if-no-files-found: ignore
+
+      # #1440: the VsTest runner reported 0 killed on every shard for weeks
+      # and every job stayed green. A report that tested mutants and killed
+      # none means the runner did not activate the mutants, so the shard
+      # fails; the aggregate job also refuses to publish such a report.
+      - name: Fail a shard that killed no mutant
+        if: always() && steps.stryker-report.outputs.reports-dir != ''
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
+          REPORTS_DIR: ${{ steps.stryker-report.outputs.reports-dir }}
+        run: |
+          REPORT="$REPORTS_DIR/mutation-report.json"
+          TESTED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed" or .status == "Survived" or .status == "Timeout")] | length' "$REPORT")
+          KILLED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed")] | length' "$REPORT")
+          echo "Shard $MATRIX_IDX: $TESTED tested mutants (Killed, Survived or Timeout), $KILLED killed"
+          if [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+            echo "::error title=No mutant killed::Shard $MATRIX_IDX tested $TESTED mutants and killed none; the test runner did not activate the mutants (#1440)"
+            exit 1
+          fi
 
   # Phase 3 — Aggregate shard reports into a single mutation-report artifact.
   #
@@ -512,12 +525,37 @@ jobs:
         # SHARD_COUNT is derived from jq 'length' over a JSON built with
         # --arg, so it's always a number — but pass it via env: for
         # consistency with the rest of the workflow's injection hardening.
+        # MATRIX_JSON carries the custom_scope input in custom mode; it is
+        # only read by jq here, never evaluated by the shell.
         env:
           SHARD_COUNT: ${{ needs.select-matrix.outputs.shard_count }}
+          MATRIX_JSON: ${{ needs.select-matrix.outputs.matrix }}
         run: |
           mkdir -p artifacts/mutation/reports shards
           mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
           SUCCESSFUL=${#REPORTS[@]}
+
+          # A shard that lost its runner, timed out before Stryker wrote the
+          # report, or failed earlier uploads nothing (#1682). The merge
+          # goes on with the other shards, and the missing ones are named in
+          # a warning and in the step summary so the run is not taken for a
+          # complete one.
+          MISSING=()
+          while IFS= read -r idx; do
+            if [ -z "$(find shards -type f -name mutation-report.json -path "shards/mutation-report-shard-${idx}/*" -print -quit)" ]; then
+              MISSING+=("$idx")
+            fi
+          done < <(jq -r '.[].idx' <<< "$MATRIX_JSON")
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            echo "::warning title=Missing shard reports::${#MISSING[@]} of $SHARD_COUNT shards uploaded no mutation report: ${MISSING[*]}. Their files keep their previous dashboard data."
+            {
+              echo '### Missing shard reports';
+              echo '';
+              echo "> [!WARNING]";
+              echo "> ${#MISSING[@]} of $SHARD_COUNT shards uploaded no mutation report: shard(s) ${MISSING[*]}. Check those jobs (lost runner, timeout or failure)."
+              echo '';
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           if [ "$SUCCESSFUL" -eq 0 ]; then
             echo "::error::No shard reports found. All $SHARD_COUNT shards failed to produce mutation-report.json."
@@ -526,6 +564,23 @@ jobs:
 
           echo "Merging $SUCCESSFUL / $SHARD_COUNT shard reports:"
           printf '  - %s\n' "${REPORTS[@]}"
+
+          # #1440: a report that tested mutants and killed none comes from a
+          # runner that did not activate the mutants. Publishing it would
+          # show 0 % for its files as if it were a measurement.
+          ZERO_KILLED=()
+          for report in "${REPORTS[@]}"; do
+            TESTED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed" or .status == "Survived" or .status == "Timeout")] | length' "$report")
+            KILLED=$(jq '[.files[] | (.mutants // [])[] | select(.status == "Killed")] | length' "$report")
+            if [ "$TESTED" -gt 0 ] && [ "$KILLED" -eq 0 ]; then
+              ZERO_KILLED+=("$report ($TESTED tested)")
+            fi
+          done
+          if [ "${#ZERO_KILLED[@]}" -gt 0 ]; then
+            echo "::error title=No mutant killed::Shard reports that tested mutants and killed none (the runner did not activate the mutants, #1440); nothing is published:"
+            printf '  - %s\n' "${ZERO_KILLED[@]}"
+            exit 1
+          fi
 
           # Combine every shard's `files` map into one. A shard lists every
           # file of the project it mutated, including the files that belong to
@@ -560,9 +615,11 @@ jobs:
             exit 1
           fi
 
-          echo "successful=$SUCCESSFUL" >> "$GITHUB_OUTPUT"
-          echo "mutants=$MUTANTS" >> "$GITHUB_OUTPUT"
-          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          {
+            echo "successful=$SUCCESSFUL"
+            echo "mutants=$MUTANTS"
+            echo "files=$FILES"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo '### Matrix Aggregation';
@@ -571,6 +628,7 @@ jobs:
             echo "|--------|------:|";
             echo "| Shards attempted | $SHARD_COUNT |";
             echo "| Shards with reports | $SUCCESSFUL |";
+            echo "| Shards missing a report | ${#MISSING[@]}${MISSING[*]:+ (${MISSING[*]})} |";
             echo "| Mutated files | $FILES |";
             echo "| Mutants | $MUTANTS |";
           } >> "$GITHUB_STEP_SUMMARY"
