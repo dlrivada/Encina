@@ -26,12 +26,13 @@
 #      placeholders, and that stages/remediation.md carries the manifest's line for every finding. It prints
 #      every problem and exits 1 when any remains; the orchestrator re-spawns the drafter with that output.
 #
-# -Only "<stage> <n>" (repeatable, -Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
+# -Only "<stage> <n>" (one value per run today, because PowerShell rejects a repeated parameter and pwsh -File does
+# not split a list; comma-separated values are #1645's scope; -Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
 # the named finding's location group. Every other finding keeps its draft, its input and its stages/remediation.md
 # line untouched: the manifest carries that line verbatim with "regenerate": false. Requires an existing
 # stages/remediation.md with a line for every other finding.
 #
-# -DuplicateOf "<stage> <n>=<issue>" (repeatable, -Prepare only; #1534): records the named finding's whole
+# -DuplicateOf "<stage> <n>=<issue>" (one value per run today, like -Only; #1645; -Prepare only; #1534): records the named finding's whole
 # group as a duplicate of the given OPEN issue by explicit, logged override (" (manual override)" on its line,
 # a lesson in the manifest). A malformed entry or an unknown key fails before any file is touched; the issue
 # must be OPEN (checked with gh unless -NoGh). An override's group is always prepared, even without -Only.
@@ -44,6 +45,10 @@
 # a cycle, a target that is itself merged, a source or target that a -DuplicateOf override names) fails before
 # any file is touched. An override's group is always prepared, even without -Only. The manifest rule version
 # is NOT bumped: a manifest written before this switch stays valid for -Finalize (it simply has no merge fields).
+# Merges persist: the manifest lists them (mergeOverrides) and every later -Prepare, full or -Only, re-applies them
+# with a printed note, so an -Only run never un-merges a group; a -MergeInto that names a kept source with another
+# target is an error (delete the manifest to start the merges over). -Finalize fails when a "merged into <x>" line
+# of stages/remediation.md names a finding that x's draft does not list in its "Reported by:" line.
 #
 # -DryRun (#1540): both modes work only inside artifacts/knowledge/remediation/_dryrun-<n>/, a self-contained
 # sandbox: -Prepare -DryRun writes the inputs, the manifest and the draft paths there (the stage file preview
@@ -119,24 +124,26 @@ if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
 # #1632: -MergeInto "<stage> <n>=<stage> <m>", source key -> target key. Format, self-merge and conflicting
 # entries fail here; the checks that need the parsed findings (unknown key, groups, cycles, duplicates) follow
 # in -Prepare, still before any file is touched.
-$mergeIntoEntries = $null
-# PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b', so
-# several overrides arrive as one comma-separated value: -MergeInto 'docs 6=code 2','docs 5=code 3'.
-if ($MergeInto) { $MergeInto = @($MergeInto | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() -ne '' }) }
-if ($MergeInto -and $MergeInto.Count -gt 0) {
-    $mergeIntoEntries = [ordered]@{}
-    foreach ($spec in $MergeInto) {
+function ConvertTo-MergeEntries([string[]]$Specs) {
+    $entries = [ordered]@{}
+    foreach ($spec in $Specs) {
         $mergeMatch = [regex]::Match($spec.Trim(), '^(?<s1>\S+)\s+(?<i1>\d+)\s*=\s*(?<s2>\S+)\s+(?<i2>\d+)$')
         if (-not $mergeMatch.Success) { Stop-Remediation "-MergeInto value '$spec' must be '<stage> <n>=<stage> <m>' (e.g. 'docs 6=code 2')." }
         $mergeSourceKey = "$($mergeMatch.Groups['s1'].Value)|$($mergeMatch.Groups['i1'].Value)"
         $mergeTargetKey = "$($mergeMatch.Groups['s2'].Value)|$($mergeMatch.Groups['i2'].Value)"
         if ($mergeSourceKey -ieq $mergeTargetKey) { Stop-Remediation "-MergeInto '$spec' merges a finding into itself." }
-        if ($mergeIntoEntries.Contains($mergeSourceKey) -and $mergeIntoEntries[$mergeSourceKey] -ine $mergeTargetKey) {
-            Stop-Remediation "-MergeInto has conflicting entries for '$($mergeSourceKey -replace '\|', ' ')' (into '$($mergeIntoEntries[$mergeSourceKey] -replace '\|', ' ')' and into '$($mergeTargetKey -replace '\|', ' ')')."
+        if ($entries.Contains($mergeSourceKey) -and $entries[$mergeSourceKey] -ine $mergeTargetKey) {
+            Stop-Remediation "-MergeInto has conflicting entries for '$($mergeSourceKey -replace '\|', ' ')' (into '$($entries[$mergeSourceKey] -replace '\|', ' ')' and into '$($mergeTargetKey -replace '\|', ' ')')."
         }
-        $mergeIntoEntries[$mergeSourceKey] = $mergeTargetKey
+        $entries[$mergeSourceKey] = $mergeTargetKey
     }
+    return , $entries
 }
+# PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b', so
+# several overrides arrive as one comma-separated value: -MergeInto 'docs 6=code 2','docs 5=code 3'.
+if ($MergeInto) { $MergeInto = @($MergeInto | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() -ne '' }) }
+$newMergeEntries = if ($MergeInto -and $MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeInto } else { [ordered]@{} }
+$mergeIntoEntries = $null   # the effective set (previous manifest's merges plus this run's), built in -Prepare
 
 $mainRoot = Get-MainRoot $PSScriptRoot
 $audit = Get-CurrentAudit $mainRoot
@@ -361,6 +368,19 @@ if ($Finalize) {
         foreach ($lesson in @(@($manifest.keptLessons) + @($manifest.lessons) | Where-Object { $_ })) {
             if ($stageLines -notcontains "- $lesson") { $problems.Add("$(Split-Path -Leaf $stageOut) lacks the manifest's lesson '- $lesson' under '$lessonsHeading'.") }
         }
+        # #1632 consistency: a finding the stage file says is "merged into <x>" must be named in the Reported by
+        # line of x's draft (as written by this run or kept by an -Only run), or it is covered by no issue.
+        foreach ($stageLine in $stageLines) {
+            $mergedMatch = [regex]::Match($stageLine, '^-\s+(?<s>\S+)\s+(?<i>\S+)\s+\([^)]*\):\s+merged into\s+(?<ts>\S+)\s+(?<ti>\S+?)(?:\s+\(.*\))?\s*$')
+            if (-not $mergedMatch.Success) { continue }
+            $mergedName = "$($mergedMatch.Groups['s'].Value) $($mergedMatch.Groups['i'].Value)"
+            $mergeTargetEntry = $findingsByKey["$($mergedMatch.Groups['ts'].Value) $($mergedMatch.Groups['ti'].Value)"]
+            if ($null -eq $mergeTargetEntry -or -not $mergeTargetEntry.draftFile -or -not (Test-Path -LiteralPath ([string]$mergeTargetEntry.draftFile))) { continue }
+            $targetDraftText = Get-Content -LiteralPath ([string]$mergeTargetEntry.draftFile) -Raw
+            if ($targetDraftText -notmatch ('(?im)^\s*Reported by:[^\r\n]*(?<![\w])' + [regex]::Escape($mergedName) + '(?!\d)')) {
+                $problems.Add("$mergedName is recorded as merged into $($mergeTargetEntry.key), but $(Split-Path -Leaf ([string]$mergeTargetEntry.draftFile)) has no 'Reported by:' line naming it, so no issue would cover it; re-run -Prepare with the merge.")
+            }
+        }
     }
 
     foreach ($note in $notes) { "note: $note" }
@@ -401,13 +421,34 @@ $allFindings = Get-AllFindings
 $allFindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($f in $allFindings) { [void]$allFindingKeys.Add("$($f.Stage)|$($f.Id)") }
 
+# #1632 round 2: manual merges persist. The previous manifest's mergeOverrides are re-applied by every later
+# -Prepare (full or -Only), so an -Only run never silently un-merges a group; a -MergeInto of this run that names
+# a kept source with another target is an error (delete the manifest to start over). A kept merge whose
+# findings no longer exist (a stage was re-run) is dropped with a note.
+$mergeNotes = [System.Collections.Generic.List[string]]::new()
+$mergeIntoEntries = [ordered]@{}
+if (Test-Path -LiteralPath $manifestPath) {
+    $previousSpecs = @()
+    try { $previousSpecs = @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).mergeOverrides | Where-Object { $_ }) } catch { $previousSpecs = @() }
+    $previousMerges = ConvertTo-MergeEntries ([string[]]$previousSpecs)
+    foreach ($mergeSrc in $previousMerges.Keys) {
+        $mergeTgt = $previousMerges[$mergeSrc]
+        $keptName = "$($mergeSrc -replace '\|', ' ')=$($mergeTgt -replace '\|', ' ')"
+        if (-not ($allFindingKeys.Contains($mergeSrc) -and $allFindingKeys.Contains($mergeTgt))) { $mergeNotes.Add("dropped the manual merge '$keptName' of the previous manifest: a finding it names is no longer in the stage artifacts."); continue }
+        if ($newMergeEntries.Contains($mergeSrc) -and $newMergeEntries[$mergeSrc] -ine $mergeTgt) {
+            Stop-Remediation "-MergeInto '$($mergeSrc -replace '\|', ' ')=$($newMergeEntries[$mergeSrc] -replace '\|', ' ')' conflicts with the manual merge '$keptName' kept from the previous manifest; delete $manifestPath (and run a full -Prepare) to start the merges over."
+        }
+        $mergeIntoEntries[$mergeSrc] = $mergeTgt
+        if (-not $newMergeEntries.Contains($mergeSrc)) { $mergeNotes.Add("keeping the manual merge '$keptName' of the previous manifest.") }
+    }
+}
+foreach ($mergeSrc in $newMergeEntries.Keys) { $mergeIntoEntries[$mergeSrc] = $newMergeEntries[$mergeSrc] }
+
 $requestedKeys = @()
 if ($duplicateOfEntries) { $requestedKeys += @($duplicateOfEntries.Keys | ForEach-Object { [pscustomobject]@{ Option = '-DuplicateOf'; Key = $_ } }) }
-if ($mergeIntoEntries) {
-    foreach ($mergeSrc in $mergeIntoEntries.Keys) {
-        $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeSrc }
-        $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeIntoEntries[$mergeSrc] }
-    }
+foreach ($mergeSrc in $mergeIntoEntries.Keys) {
+    $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeSrc }
+    $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeIntoEntries[$mergeSrc] }
 }
 if ($onlyKeys) { $requestedKeys += @($onlyKeys | ForEach-Object { [pscustomobject]@{ Option = '-Only'; Key = $_ } }) }
 foreach ($requested in $requestedKeys) {
@@ -449,11 +490,11 @@ if ($duplicateOfEntries) {
 # group it joins). Everything is validated here, before any file is touched; then the source group's members
 # move into the target group (its Primary stays), exactly the shape a same-location merge (#1491) has.
 $manualMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-$mergeTargetGroupIndexes = [System.Collections.Generic.List[int]]::new()
-if ($mergeIntoEntries) {
+$mergeTargetGroupIndexes = [System.Collections.Generic.List[int]]::new()   # groups of THIS run's -MergeInto only
+$mergeLessonItems = [System.Collections.Generic.List[pscustomobject]]::new()
+if ($mergeIntoEntries.Count -gt 0) {
     $groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
     $mergeSourceOrder = [System.Collections.Generic.List[int]]::new()
-    $mergeLessons = [System.Collections.Generic.List[string]]::new()
     foreach ($mergeSrc in $mergeIntoEntries.Keys) {
         $mergeTgt = $mergeIntoEntries[$mergeSrc]
         $srcName = $mergeSrc -replace '\|', ' '
@@ -479,6 +520,14 @@ if ($mergeIntoEntries) {
             if ($groupDuplicateIssue.ContainsKey($checked.Idx)) { Stop-Remediation "-MergeInto '$srcName=$tgtName': the $($checked.Role) '$($checked.Name)' belongs to a group a -DuplicateOf override records as a duplicate of #$($groupDuplicateIssue[$checked.Idx])." }
         }
     }
+    # What each target group looked like before any member moved in: its members and its own primary.
+    $originalTargets = @{}
+    foreach ($tgtIdx in @($groupMergedInto.Values | Select-Object -Unique)) {
+        $originalTargets[[int]$tgtIdx] = [pscustomobject]@{
+            MemberKeys = @($groups[[int]$tgtIdx].Members | ForEach-Object { "$($_.Stage)|$($_.Id)" })
+            PrimaryName = "$($groups[[int]$tgtIdx].Primary.Stage) $($groups[[int]$tgtIdx].Primary.Id)"
+        }
+    }
     foreach ($srcIdx in $mergeSourceOrder) {
         $tgtIdx = [int]$groupMergedInto[$srcIdx]
         foreach ($m in $groups[$srcIdx].Members) {
@@ -487,21 +536,29 @@ if ($mergeIntoEntries) {
             [void]$manualMergeKeys.Add("$($m.Stage)|$($m.Id)")
         }
         $groups[$srcIdx].Members.Clear()
-        if (-not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
     }
     # The merged group's primary is the highest-severity member again (#1491 decision 2), so a Blocker merged
-    # into a Minor drafts from the Blocker; ties keep the target group's own first member.
-    foreach ($tgtIdx in $mergeTargetGroupIndexes) { $groups[$tgtIdx].Primary = Get-GroupPrimary $groups[$tgtIdx].Members }
+    # into a Minor drafts from the Blocker; ties keep the target group's own first member. When the primary
+    # changes, the target group's own members now merge into the new primary through the override too.
+    foreach ($tgtIdx in $originalTargets.Keys) {
+        $groups[$tgtIdx].Primary = Get-GroupPrimary $groups[$tgtIdx].Members
+        if ("$($groups[$tgtIdx].Primary.Stage) $($groups[$tgtIdx].Primary.Id)" -ine $originalTargets[$tgtIdx].PrimaryName) {
+            foreach ($originalKey in $originalTargets[$tgtIdx].MemberKeys) { [void]$manualMergeKeys.Add($originalKey) }
+        }
+    }
     foreach ($mergeSrc in $mergeIntoEntries.Keys) {
         $mergeTgt = $mergeIntoEntries[$mergeSrc]
-        $mergedPrimary = $groups[[int]$groupIndexByKey[$mergeTgt]].Primary
+        $tgtIdx = [int]$groupIndexByKey[$mergeTgt]
+        $mergedPrimary = $groups[$tgtIdx].Primary
         $tgtName = $mergeTgt -replace '\|', ' '
         $primaryName = "$($mergedPrimary.Stage) $($mergedPrimary.Id)"
-        # A named target that lost the primary role to a higher-severity source is merged by the override too.
-        if ($primaryName -ine $tgtName) { [void]$manualMergeKeys.Add($mergeTgt) }
-        $mergeLessons.Add("$($mergeSrc -replace '\|', ' '): merged into $tgtName by manual override$(if ($primaryName -ine $tgtName) { " (the merged group's primary is $primaryName)" })")
+        $mergeLessonItems.Add([pscustomobject]@{ Key = $mergeSrc; Text = "$($mergeSrc -replace '\|', ' '): merged into $tgtName by manual override$(if ($primaryName -ine $tgtName) { " (the merged group's primary is $primaryName)" })" })
+        # Only an override given in THIS run forces its target group to be prepared; a kept one is touched only
+        # when -Only names one of its findings (or the run is a full one).
+        if ($newMergeEntries.Contains($mergeSrc) -and -not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
     }
 }
+foreach ($note in $mergeNotes) { "audit-draft-remediation: $note" }
 
 # #1492 decision 3: -Only keeps every other finding's existing line and lessons, read from the stage file this
 # run's drafter will rewrite (the sandbox preview under -DryRun).
@@ -579,7 +636,8 @@ foreach ($f in $allFindings) {
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
 }
-if ($mergeIntoEntries) { foreach ($mergeLesson in $mergeLessons) { $lessons.Add($mergeLesson) } }
+# A kept merge's lesson stays with the stage file's own lines (keptLessons) unless its source is prepared again.
+foreach ($mergeLesson in $mergeLessonItems) { if ($touchedMemberKeys.Contains($mergeLesson.Key)) { $lessons.Add($mergeLesson.Text) } }
 
 $entriesByKey = @{}
 $ghIssueCache = @{}
@@ -721,10 +779,10 @@ $findingEntries = foreach ($f in $allFindings) {
         inputFile        = if (Test-Path -LiteralPath $existingInput) { $existingInput } else { $null }
         groupPrimary     = "$($group.Primary.Stage) $($group.Primary.Id)"
         groupMembers     = @($group.Members | ForEach-Object { "$($_.Stage) $($_.Id)" })
-        mergedInto       = $null
+        mergedInto       = if ($manualMergeKeys.Contains($key) -and "$($group.Primary.Stage)|$($group.Primary.Id)" -ine $key) { "$($group.Primary.Stage) $($group.Primary.Id)" } else { $null }
         duplicateOf      = $null
         duplicateSource  = $null
-        mergeSource      = $null
+        mergeSource      = if ($manualMergeKeys.Contains($key)) { 'manual override' } else { $null }
         partiallyRelated = @()
         possiblyRelated  = @()
         kind             = $null
@@ -752,6 +810,7 @@ $manifest = [ordered]@{
     lessonsHeading = $lessonsHeading
     lessons        = @($lessons)
     keptLessons    = @($keptLessons)
+    mergeOverrides = @($mergeIntoEntries.Keys | ForEach-Object { "$($_ -replace '\|', ' ')=$($mergeIntoEntries[$_] -replace '\|', ' ')" })
     routes         = $routes
     findings       = @($findingEntries)
 }
