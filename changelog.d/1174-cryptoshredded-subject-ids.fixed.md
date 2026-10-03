@@ -1,0 +1,1 @@
+- `[CryptoShredded]` now resolves `Guid`, integer and strongly-typed subject ids with the same conversion as the other compliance packages instead of persisting the field unencrypted, and any other subject-id type fails the startup scan with an error naming the property and type (#1174)

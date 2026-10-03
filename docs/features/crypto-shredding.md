@@ -232,18 +232,68 @@ var registered = events[0].Data as UserRegisteredEvent;
 | Requirement | Description |
 |-------------|-------------|
 | **`[PersonalData]` co-located** | Must be on the same property (governs DSR participation) |
-| **`SubjectIdProperty`** | Must reference a readable `string` property on the same type |
-| **Property type** | Must be `string` (only strings are encrypted) |
+| **`SubjectIdProperty`** | Must reference a readable public property of a supported subject-id type on the same type (see below) |
+| **Property type** | The encrypted property itself must be `string` (only strings are encrypted) |
 | **Use `nameof()`** | Compile-time safety for `SubjectIdProperty` |
+
+### Subject-id types
+
+The subject-id property (the one `SubjectIdProperty` names, not the encrypted one) can have any of these types. The value is converted to a culture-invariant string, with the same rules as the other compliance packages, and that string is the subject id in the key id (`subject:<id>:v1`).
+
+| Subject-id property type | Converted to |
+|--------------------------|--------------|
+| `string` | The value as is |
+| `Guid` | Format `"D"`: lower-case, hyphenated (`7f3a2c1e-...`) |
+| Integer types (`sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `Int128`, `UInt128`) | Invariant-culture digits; `0` is a valid id |
+| Strongly-typed id (record struct, record class, struct or class) with a public `Value` property of a type above | The converted `Value` |
+| Strongly-typed id declared outside the base class library that implements `IFormattable` | `ToString(null, CultureInfo.InvariantCulture)` |
+
+A missing subject (`null`, `Guid.Empty`, or an empty or whitespace string) leaves the field stored unencrypted and logs a warning; the warning never contains the id. This fail-open behaviour is a known defect tracked by [#1646](https://github.com/dlrivada/Encina/issues/1646).
+
+Any other type (`double`, `decimal`, `DateTime`, an enum, a wrapper without a supported `Value` property, `object`) is a configuration error: the startup scan rejects it when the type is in scope (see Validation), and serialization throws `InvalidOperationException` instead of storing plaintext.
+
+```csharp
+public readonly record struct PatientId(Guid Value);
+
+public sealed record PatientRegisteredEvent
+{
+    public PatientId PatientId { get; init; }   // Guid-backed strongly-typed id
+
+    [PersonalData(Category = PersonalDataCategory.Identity, Erasable = true)]
+    [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+    public string FullName { get; init; } = string.Empty;
+}
+```
+
+The key id for this event is `subject:<guid>:v1`, where `<guid>` is `PatientId.Value.ToString("D")`. Erasure is keyed by the invariant string form of the subject id (`subject:<id>`), so erase the id the events were written with, in that string form:
+
+```csharp
+var patientGuid = Guid.NewGuid();   // generated once, when the patient is registered
+var registered = new PatientRegisteredEvent
+{
+    PatientId = new PatientId(patientGuid),   // the subject id written with the events
+    FullName = "Alice Smith"
+};
+
+// ... append and save the event, then later, on an erasure request:
+await keyProvider.DeleteSubjectKeysAsync(registered.PatientId.Value.ToString("D"));
+```
+
+A property declared directly as `Guid` works the same way, without the wrapper.
 
 ### Validation
 
-At startup (when `AutoRegisterFromAttributes = true`), the auto-registration hosted service validates:
-1. `[CryptoShredded]` has co-located `[PersonalData]`
-2. `SubjectIdProperty` references a valid, readable property
-3. The property type is `string`
+The startup scan runs only when `AutoRegisterFromAttributes` is `true`. It covers the types of `AssembliesToScan`, or of the entry assembly (the calling assembly when there is none) when that list is empty. For each `[CryptoShredded]` property of a scanned type it checks that:
 
-Misconfigured properties are excluded with a warning log.
+1. the property has a co-located `[PersonalData]`
+2. the property is a `string`
+3. `SubjectIdProperty` names a public instance property on the same type
+4. that subject-id property is readable (it has a getter)
+5. the subject-id property type is a supported type (see above)
+
+When any property fails, startup throws `InvalidOperationException` listing every error; each message names the property and its type.
+
+A type outside the scanned assemblies is not checked at startup. If its subject-id type is unsupported, serialization throws `InvalidOperationException` (from the subject-id conversion, `CryptoShreddedFieldInfo.ResolveSubjectId`) and the append fails.
 
 ---
 
@@ -496,7 +546,7 @@ Use `InMemorySubjectKeyProvider` (the default) for unit and integration tests. I
 
 ### What if the key provider is unavailable during serialization?
 
-The serializer logs the error and delegates to the inner serializer without encryption. This ensures event persistence is never blocked by key provider failures.
+The serializer logs the failure and stores the field unencrypted, so event persistence is not blocked by key provider failures. This fail-open behaviour is a known defect tracked by [#1646](https://github.com/dlrivada/Encina/issues/1646).
 
 ---
 

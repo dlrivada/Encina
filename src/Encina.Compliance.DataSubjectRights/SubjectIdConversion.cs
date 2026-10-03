@@ -38,9 +38,11 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </para>
 /// <para>
 /// <c>Encina.Compliance.DataSubjectRights</c> and <c>Encina.Compliance.Consent</c> share no internal
-/// assembly, so this helper exists as two identical copies (one per package, in the package's root
-/// namespace). A unit test asserts that both copies behave identically on the same inputs; change
-/// them together (project history: #1149).
+/// assembly, so <see cref="ToInvariantString"/> exists as two identical copies (one per package, in the
+/// package's root namespace). A unit test asserts that both copies behave identically on the same inputs;
+/// change them together (project history: #1149). <c>Encina.Marten.GDPR</c> references this package and
+/// reuses this copy through <c>InternalsVisibleTo</c> for <c>[CryptoShredded]</c> subject ids (#1174);
+/// <see cref="IsSupportedType"/> exists only here, for its startup validation.
 /// </para>
 /// </remarks>
 internal static class SubjectIdConversion
@@ -121,6 +123,43 @@ internal static class SubjectIdConversion
             "which is not a supported subject identifier. Supported types are string, Guid, integer types, " +
             "strongly-typed ids implementing IFormattable, and wrappers exposing a public 'Value' property of " +
             "one of those primitive types.");
+    }
+
+    /// <summary>
+    /// Determines whether a property of the given declared type can hold a supported subject id, so a
+    /// startup scan can reject a misconfigured property before any value is read.
+    /// </summary>
+    /// <param name="type">The declared type of the subject-id property.</param>
+    /// <returns>
+    /// <c>true</c> for <see cref="string"/>, <see cref="Guid"/>, the integer types (or their nullable form),
+    /// and for non-base-class-library types that implement <see cref="IFormattable"/> or expose a supported
+    /// public <c>Value</c> property; otherwise <c>false</c>.
+    /// </returns>
+    /// <remarks>
+    /// Mirrors the rules of <see cref="ToInvariantString"/>. A property declared as <see cref="object"/> or
+    /// an interface is judged by its declared type, so it is only supported when that type itself qualifies.
+    /// </remarks>
+    public static bool IsSupportedType(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        return IsPrimitiveSubjectType(underlying) || IsStronglyTypedId(underlying);
+    }
+
+    private static bool IsPrimitiveSubjectType(Type type) =>
+        type == typeof(string) || type == typeof(Guid) || IntegerTypes.Contains(type);
+
+    private static bool IsStronglyTypedId(Type type)
+    {
+        // Enums and every other base-class-library type implement IFormattable but are not identifiers.
+        if (type.IsEnum || type.Assembly == typeof(object).Assembly)
+        {
+            return false;
+        }
+
+        return ValuePropertyCache.GetOrAdd(type, ResolveValueProperty) is not null
+            || typeof(IFormattable).IsAssignableFrom(type);
     }
 
     private static bool TryConvertPrimitive(object value, out string? result)

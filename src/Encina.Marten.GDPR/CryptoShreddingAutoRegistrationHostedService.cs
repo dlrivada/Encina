@@ -20,7 +20,8 @@ namespace Encina.Marten.GDPR;
 /// <list type="bullet">
 /// <item><description>Each crypto-shredded property also has <see cref="PersonalDataAttribute"/></description></item>
 /// <item><description>The <see cref="CryptoShreddedAttribute.SubjectIdProperty"/> references a valid,
-/// readable <c>string</c> property on the declaring type</description></item>
+/// readable property on the declaring type, of a supported subject-id type (<c>string</c>, <c>Guid</c>,
+/// an integer type or a strongly-typed id); any other type is a configuration error (#1174)</description></item>
 /// </list>
 /// <para>
 /// Pre-populates the <see cref="CryptoShreddedPropertyCache"/> so that the first serialization
@@ -145,28 +146,66 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
                 + "but is missing [PersonalData]. Both attributes are required.");
         }
 
-        // Validate SubjectIdProperty reference
+        // Only string properties can be encrypted; any other type would be skipped (stored in plaintext).
+        if (property.PropertyType != typeof(string))
+        {
+            ReportError(
+                validationErrors,
+                $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] "
+                + $"but is of type '{FormatTypeName(property.PropertyType)}'. Only string properties can be encrypted.");
+        }
+
+        ValidateSubjectIdProperty(type, property, cryptoAttr, validationErrors);
+    }
+
+    private void ValidateSubjectIdProperty(
+        Type type,
+        PropertyInfo property,
+        CryptoShreddedAttribute cryptoAttr,
+        List<string> validationErrors)
+    {
         var subjectIdProp = type.GetProperty(
             cryptoAttr.SubjectIdProperty,
             BindingFlags.Public | BindingFlags.Instance);
 
-        if (subjectIdProp is null)
+        var error = DescribeSubjectIdProblem(type, property, cryptoAttr, subjectIdProp);
+        if (error is not null)
         {
-            ReportError(
-                validationErrors,
-                $"Property '{property.Name}' on type '{type.FullName}' references "
-                + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which does not exist "
-                + "as a public instance property on the declaring type.");
-        }
-        else if (subjectIdProp.PropertyType != typeof(string))
-        {
-            ReportError(
-                validationErrors,
-                $"Property '{property.Name}' on type '{type.FullName}' references "
-                + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which is of type "
-                + $"'{subjectIdProp.PropertyType.Name}' instead of 'string'.");
+            ReportError(validationErrors, error);
         }
     }
+
+    private static string? DescribeSubjectIdProblem(
+        Type type,
+        PropertyInfo property,
+        CryptoShreddedAttribute cryptoAttr,
+        PropertyInfo? subjectIdProp)
+    {
+        var prefix = $"Property '{property.Name}' on type '{type.FullName}' references "
+            + $"SubjectIdProperty='{cryptoAttr.SubjectIdProperty}' which ";
+
+        if (subjectIdProp is null)
+        {
+            return prefix + "does not exist as a public instance property on the declaring type.";
+        }
+
+        if (!subjectIdProp.CanRead)
+        {
+            return prefix + "is not readable (it has no getter), so the subject id cannot be read.";
+        }
+
+        if (SubjectIdConversion.IsSupportedType(subjectIdProp.PropertyType))
+        {
+            return null;
+        }
+
+        return prefix + $"is of type '{FormatTypeName(subjectIdProp.PropertyType)}'. Supported subject-id types "
+            + "are string, Guid, integer types, strongly-typed ids implementing IFormattable, and wrappers "
+            + "exposing a public 'Value' property of one of those types.";
+    }
+
+    private static string FormatTypeName(Type type) =>
+        Nullable.GetUnderlyingType(type) is { } underlying ? underlying.Name + "?" : type.Name;
 
     private void ReportError(List<string> validationErrors, string error)
     {

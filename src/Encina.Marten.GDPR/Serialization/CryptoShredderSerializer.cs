@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Encina.Diagnostics;
@@ -350,7 +349,8 @@ public sealed class CryptoShredderSerializer : ISerializer
                 continue;
             }
 
-            var subjectId = GetSubjectId(document, eventType, field);
+            // Throws InvalidOperationException for an unsupported subject-id type: fail closed (#1174).
+            var subjectId = field.ResolveSubjectId(document);
             if (subjectId is null)
             {
                 // The data subject's own identifier is never logged (#1429, following #1314);
@@ -527,7 +527,7 @@ public sealed class CryptoShredderSerializer : ISerializer
     /// actually holds an encrypted envelope and a subject id can be resolved for it.
     /// </summary>
     private static bool TryGetEncryptedFieldSubject(
-        object target, Type eventType, CryptoShreddedFieldInfo field,
+        object target, CryptoShreddedFieldInfo field,
         out string currentValue, out string subjectId)
     {
         currentValue = string.Empty;
@@ -539,7 +539,7 @@ public sealed class CryptoShredderSerializer : ISerializer
             return false;
         }
 
-        var resolvedSubjectId = GetSubjectId(target, eventType, field);
+        var resolvedSubjectId = field.ResolveSubjectId(target);
         if (resolvedSubjectId is null)
         {
             return false;
@@ -583,7 +583,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
+                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
@@ -622,7 +622,7 @@ public sealed class CryptoShredderSerializer : ISerializer
         {
             foreach (var field in fields)
             {
-                if (!TryGetEncryptedFieldSubject(target, eventType, field, out var currentValue, out var subjectId))
+                if (!TryGetEncryptedFieldSubject(target, field, out var currentValue, out var subjectId))
                 {
                     continue;
                 }
@@ -751,18 +751,6 @@ public sealed class CryptoShredderSerializer : ISerializer
         aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
 
         return Encoding.UTF8.GetString(plaintext);
-    }
-
-    /// <summary>
-    /// Extracts the subject ID from the event object using the field's <see cref="CryptoShreddedAttribute.SubjectIdProperty"/>.
-    /// </summary>
-    private static string? GetSubjectId(object document, Type eventType, CryptoShreddedFieldInfo field)
-    {
-        var subjectIdProp = eventType.GetProperty(
-            field.SubjectIdProperty,
-            BindingFlags.Public | BindingFlags.Instance);
-
-        return subjectIdProp?.GetValue(document) as string;
     }
 
     /// <summary>
