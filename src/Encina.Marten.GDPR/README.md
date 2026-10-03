@@ -204,6 +204,22 @@ The serializer automatically substitutes the `AnonymizedPlaceholder` during dese
 | `crypto.serialization_error` | Crypto-shredding serialization/deserialization error |
 | `crypto.attribute_misconfigured` | `[CryptoShredded]` attribute is misconfigured |
 
+## Fail-Closed Serialization
+
+The event store is append-only, so personal data written in plaintext can never be crypto-shredded. When a non-null `[CryptoShredded]` value cannot be encrypted, `CryptoShredderSerializer` throws `CryptoShreddingEncryptionException` (derives from `InvalidOperationException`) before the inner serializer runs (compliance gates fail closed, [SPEC-002](../../docs/specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006; a misconfigured property throws whatever its value): Marten's append or `SaveChangesAsync` fails and nothing is stored. There is no opt-out. A null value is left null without a key lookup.
+
+| Member | Meaning |
+|--------|---------|
+| `EventTypeName`, `PropertyName` | The event type and `[CryptoShredded]` property that failed |
+| `Reason` | `CryptoShreddingEncryptionFailureReason`: `SubjectIdMissing`, `KeyUnavailable`, `PropertyMisconfigured` |
+| `ErrorCode` | The key-provider error code for `KeyUnavailable` (for example `crypto.key_store_error`, `crypto.subject_forgotten`, `crypto.encryption_failed`, also used for a `Left` with no code); otherwise `null` |
+
+- `SubjectIdMissing`: the subject id is `null`, `Guid.Empty`, or an empty or whitespace string (logged as EventId 8466).
+- `KeyUnavailable`: `GetOrCreateSubjectKeyAsync` returned `Left` (a forgotten subject included), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) (logged as EventId 8455).
+- `PropertyMisconfigured`: the property is getter-only, not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property (logged as EventId 8459). Positional records and `init`-only properties work; the startup scan also rejects a getter-only `[CryptoShredded]` property.
+
+The message names the event type and property only; it never carries the subject id, the value or an inner exception message. See the [crypto-shredding feature page](../../docs/features/crypto-shredding.md#fail-closed-serialization).
+
 ## Observability
 
 ### Tracing
@@ -259,6 +275,8 @@ services.AddScoped<IDataErasureStrategy, CustomErasureStrategy>();
 
 services.AddEncinaMartenGdpr(); // Won't override your registrations
 ```
+
+A custom `ISubjectKeyProvider` implements `GetOrCreateSubjectKeyAsync` with the return type `ValueTask<Either<EncinaError, SubjectEncryptionKey>>`. `SubjectEncryptionKey` carries `Version` and `KeyMaterial`, which must come from one read of the key store so the key id `subject:{subjectId}:v{version}` names the version that encrypted the value. Return `Left` (for example `crypto.subject_forgotten`) when no key can be provided; the serializer then refuses to store the event.
 
 ## Domain Events
 
