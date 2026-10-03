@@ -229,8 +229,10 @@ public static class ServiceCollectionExtensions
 
     private static PersistentPolicyAdministrationPoint CreatePersistentPolicyAdministrationPoint(IServiceProvider sp)
     {
-        var store = sp.GetService<IPolicyStore>();
-        if (store is null)
+        // The store is checked by registration, never resolved here: database stores are scoped and
+        // this PAP is a singleton, so it resolves (and caches-wraps) the store per operation scope.
+        var isService = sp.GetRequiredService<IServiceProviderIsService>();
+        if (!isService.IsService(typeof(IPolicyStore)))
         {
             var startupLogger = sp.GetRequiredService<ILoggerFactory>()
                 .CreateLogger(typeof(ServiceCollectionExtensions));
@@ -244,24 +246,27 @@ public static class ServiceCollectionExtensions
                 "Register a provider package (e.g., services.AddEncinaEntityFrameworkCore(c => c.UseABACPolicyStore = true)).");
         }
 
-        // The audit store is NOT resolved here: database stores are scoped, and this PAP is a
-        // singleton. It takes the scope factory and resolves IAuditStore per write.
+        // The PAP takes the scope factory: it opens one scope per operation and resolves the
+        // IPolicyStore (wrapped by ResolvePolicyStore) and the IAuditStore from it.
         return new PersistentPolicyAdministrationPoint(
-            WrapWithPolicyCache(sp, store),
-            sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),
             sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),
             sp.GetService<IRequestContextAccessor>(),
-            sp.GetService<TimeProvider>());
+            sp.GetService<TimeProvider>(),
+            ResolvePolicyStore);
     }
 
     // ── Policy Caching (decorator wrapping) ──────────────
-    // When PolicyCaching.Enabled = true and an ICacheProvider is available,
-    // wrap the inner IPolicyStore with CachingPolicyStoreDecorator for
-    // cache-aside reads with stampede protection and write-through invalidation.
-    private static IPolicyStore WrapWithPolicyCache(IServiceProvider sp, IPolicyStore store)
+    // Resolves the policy store of one operation scope. When PolicyCaching.Enabled = true and an
+    // ICacheProvider is available, the scoped inner IPolicyStore is wrapped with a
+    // CachingPolicyStoreDecorator for cache-aside reads with stampede protection and write-through
+    // invalidation. The decorator holds no per-request state; the cache and the pub/sub channel are
+    // shared through the singleton providers.
+    private static IPolicyStore ResolvePolicyStore(IServiceProvider scopedProvider)
     {
-        var resolvedOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
-        var cacheProvider = resolvedOptions.PolicyCaching.Enabled ? sp.GetService<ICacheProvider>() : null;
+        var store = scopedProvider.GetRequiredService<IPolicyStore>();
+        var resolvedOptions = scopedProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
+        var cacheProvider = resolvedOptions.PolicyCaching.Enabled ? scopedProvider.GetService<ICacheProvider>() : null;
         if (cacheProvider is null)
         {
             return store;
@@ -270,9 +275,10 @@ public static class ServiceCollectionExtensions
         return new CachingPolicyStoreDecorator(
             store,
             cacheProvider,
-            sp.GetService<IPubSubProvider>(),
+            scopedProvider.GetService<IPubSubProvider>(),
             resolvedOptions.PolicyCaching,
-            sp.GetRequiredService<ILogger<CachingPolicyStoreDecorator>>());
+            scopedProvider.GetRequiredService<ILogger<CachingPolicyStoreDecorator>>(),
+            scopedProvider.GetService<TimeProvider>() ?? TimeProvider.System);
     }
 
     private static PolicyCachePubSubHostedService CreatePolicyCachePubSubHostedService(IServiceProvider sp)
