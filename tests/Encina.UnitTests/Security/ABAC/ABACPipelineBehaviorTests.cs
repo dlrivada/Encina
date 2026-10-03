@@ -117,32 +117,50 @@ public sealed class ABACPipelineBehaviorTests
         IReadOnlyDictionary<string, object>? subject = null,
         ObligationExecutor? obligationExecutor = null,
         ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
-        Func<TRequest, IReadOnlyDictionary<string, object>>? resourceOf = null)
+        Func<TRequest, IReadOnlyDictionary<string, object>>? resourceOf = null,
+        ISecurityContextAccessor? accessor = null,
+        IAttributeProvider? attributeProvider = null)
         where TRequest : IRequest<string>
     {
-        var attributeProvider = Substitute.For<IAttributeProvider>();
-        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(subject ?? new Dictionary<string, object>());
-        attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
-            .Returns(call => resourceOf is null
-                ? new Dictionary<string, object>()
-                : resourceOf(call.ArgAt<TRequest>(0)));
-        attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<string, object>());
-
-        var securityContext = Substitute.For<ISecurityContext>();
-        securityContext.UserId.Returns("test-user");
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns(securityContext);
+        if (attributeProvider is null)
+        {
+            attributeProvider = Substitute.For<IAttributeProvider>();
+            attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(subject ?? new Dictionary<string, object>());
+            attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
+                .Returns(call => resourceOf is null
+                    ? new Dictionary<string, object>()
+                    : resourceOf(call.ArgAt<TRequest>(0)));
+            attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<string, object>());
+        }
 
         return new ABACPipelineBehavior<TRequest, string>(
             pdp,
             attributeProvider,
-            accessor,
+            accessor ?? AccessorFor("test-user"),
             obligationExecutor ?? Executor(),
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = mode }),
             logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+    }
+
+    /// <summary>An accessor whose security context carries <paramref name="userId"/>.</summary>
+    private static ISecurityContextAccessor AccessorFor(string? userId)
+    {
+        var securityContext = Substitute.For<ISecurityContext>();
+        securityContext.UserId.Returns(userId);
+        var accessor = Substitute.For<ISecurityContextAccessor>();
+        accessor.SecurityContext.Returns(securityContext);
+        return accessor;
+    }
+
+    /// <summary>An accessor that has no security context at all.</summary>
+    private static ISecurityContextAccessor AccessorWithoutContext()
+    {
+        var accessor = Substitute.For<ISecurityContextAccessor>();
+        accessor.SecurityContext.Returns((ISecurityContext?)null);
+        return accessor;
     }
 
     private static ObligationExecutor Executor(params IObligationHandler[] handlers) =>
@@ -682,7 +700,7 @@ public sealed class ABACPipelineBehaviorTests
         var behavior = new ABACPipelineBehavior<HrConditionRequest, string>(
             Pdp(),
             AttributeProviderReturningEmpty<HrConditionRequest>(),
-            Substitute.For<ISecurityContextAccessor>(),
+            AccessorFor("test-user"),
             Executor(),
             freshCompiler,
             Options.Create(new ABACOptions()),
@@ -749,6 +767,144 @@ public sealed class ABACPipelineBehaviorTests
         activities.ShouldAllBe(a =>
             (a.StatusDescription == null || !a.StatusDescription.Contains(Sentinel, StringComparison.Ordinal))
             && a.TagObjects.All(tag => tag.Value == null || !tag.Value.ToString()!.Contains(Sentinel, StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task Handle_AttributeProviderThrows_SentinelReachesNoLogNoActivityTagAndNoError()
+    {
+        // Arrange
+        const string Sentinel = "SENTINEL-1676-secret-subject-data";
+        var pepLogger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<IReadOnlyDictionary<string, object>>>(_ => throw new InvalidOperationException(Sentinel));
+        var behavior = CreateBehavior<PolicyARequest>(
+            Pdp(("policy-a", Effect.Permit)), logger: pepLogger, attributeProvider: attributeProvider);
+
+        var activities = new System.Collections.Concurrent.ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Security.ABAC",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activities.Add
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        // Act
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        // Assert
+        Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
+        nextCalled.ShouldBeFalse();
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldNotContain(Sentinel);
+            error.GetDetails().Values.ShouldAllBe(value => value == null || !value.ToString()!.Contains(Sentinel));
+        });
+
+        var records = pepLogger.Collector.GetSnapshot();
+        records.ShouldContain(r => r.Id.Id == 9009);
+        records.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+        records.Where(r => r.Exception != null)
+            .ShouldAllBe(r => !r.Exception!.ToString().Contains(Sentinel, StringComparison.Ordinal));
+
+        activities.ShouldAllBe(a =>
+            (a.StatusDescription == null || !a.StatusDescription.Contains(Sentinel, StringComparison.Ordinal))
+            && a.TagObjects.All(tag => tag.Value == null || !tag.Value.ToString()!.Contains(Sentinel, StringComparison.Ordinal)));
+    }
+
+    #endregion
+
+    #region Missing security context (#1676)
+
+    public static TheoryData<ABACEnforcementMode, string?, bool> MissingContextCases => new()
+    {
+        // mode, user id, whether the accessor has a context at all
+        { ABACEnforcementMode.Block, null, false },
+        { ABACEnforcementMode.Warn, null, false },
+        { ABACEnforcementMode.Block, null, true },
+        { ABACEnforcementMode.Warn, null, true },
+        { ABACEnforcementMode.Block, "", true },
+        { ABACEnforcementMode.Warn, "", true },
+        { ABACEnforcementMode.Block, "   ", true },
+        { ABACEnforcementMode.Warn, "   ", true }
+    };
+
+    [Theory]
+    [MemberData(nameof(MissingContextCases))]
+    public async Task Handle_NoSecurityContextOrUser_DeniesWithMissingContextBeforeCollectingAttributes(
+        ABACEnforcementMode mode, string? userId, bool hasContext)
+    {
+        // Arrange: the named policy would permit, so only the missing context can deny.
+        var pdp = Pdp(("policy-a", Effect.Permit));
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        var accessor = hasContext ? AccessorFor(userId) : AccessorWithoutContext();
+        var behavior = CreateBehavior<PolicyARequest>(pdp, mode, accessor: accessor, attributeProvider: attributeProvider);
+
+        // Act
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        // Assert
+        Code(result).ShouldBe(ABACErrors.MissingContextCode);
+        nextCalled.ShouldBeFalse("a missing security context is not a definite verdict, so Warn mode denies too");
+        await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
+        await attributeProvider.DidNotReceiveWithAnyArgs().GetResourceAttributesAsync<PolicyARequest>(default!, default);
+        await attributeProvider.DidNotReceiveWithAnyArgs().GetEnvironmentAttributesAsync(default);
+        await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_NoSecurityContext_LogsTheCodeAndNeverTheWarnModeBypass(ABACEnforcementMode mode)
+    {
+        var logger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
+        var behavior = CreateBehavior<PolicyARequest>(
+            Pdp(("policy-a", Effect.Permit)), mode, logger: logger, accessor: AccessorWithoutContext());
+
+        await SendAsync(behavior, new PolicyARequest());
+
+        var records = logger.Collector.GetSnapshot();
+        records.ShouldContain(r => r.Id.Id == 9091 && r.Message.Contains(ABACErrors.MissingContextCode, StringComparison.Ordinal));
+        records.ShouldNotContain(r => r.Id.Id == 9004, "Warn mode must not let a missing context through");
+    }
+
+    [Fact]
+    public async Task Handle_NoSecurityContext_ErrorCarriesNoUserIdentifier()
+    {
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Permit)), accessor: AccessorFor("   "));
+
+        var (result, _) = await SendAsync(behavior, new PolicyARequest());
+
+        Code(result).ShouldBe(ABACErrors.MissingContextCode);
+        result.IfLeft(error =>
+        {
+            error.GetDetails().ShouldNotContainKey("userId");
+            error.GetDetails()["requestType"].ShouldBe(typeof(PolicyARequest).FullName);
+        });
+    }
+
+    [Fact]
+    public async Task Handle_DisabledModeWithoutSecurityContext_StillSkipsEvaluation()
+    {
+        var behavior = CreateBehavior<PolicyARequest>(
+            Pdp(), ABACEnforcementMode.Disabled, accessor: AccessorWithoutContext());
+
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_UnprotectedRequestWithoutSecurityContext_StillSkipsEvaluation()
+    {
+        var behavior = CreateBehavior<UnprotectedRequest>(Pdp(), accessor: AccessorWithoutContext());
+
+        var (result, nextCalled) = await SendAsync(behavior, new UnprotectedRequest());
+
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
     }
 
     #endregion

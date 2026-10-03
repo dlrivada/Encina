@@ -6,9 +6,13 @@ using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 
+using System.Diagnostics;
+
 using LanguageExt;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 
 using Shouldly;
@@ -155,6 +159,71 @@ public sealed class ABACRequirementEnforcementTests
         ErrorCode(result).ShouldBe(ABACErrors.ConditionNotMetCode);
     }
 
+    // ── Store failures (#1676) ──────────────────────────────────────
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_StandalonePolicyRetrievalFails_IsIndeterminateInEveryMode(ABACEnforcementMode mode)
+    {
+        // Arrange
+        var behavior = CreateBehavior<RequiresPolicyA>(
+            PapFailingStandaloneRetrieval("down"), new Dictionary<string, object>(), mode: mode);
+        var nextCalled = false;
+
+        // Act
+        var result = await behavior.Handle(
+            new RequiresPolicyA(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue("a store that cannot be read is an error, not a verdict");
+        nextCalled.ShouldBeFalse();
+        ErrorCode(result).ShouldBe(ABACErrors.IndeterminateCode);
+    }
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_StandalonePolicyRetrievalFails_SentinelReachesNoLogNoActivityTagAndNoError(ABACEnforcementMode mode)
+    {
+        // Arrange
+        const string Sentinel = "SENTINEL-1676-secret-connection-string";
+        var pdpLogger = new FakeLogger<XACMLPolicyDecisionPoint>();
+        var pepLogger = new FakeLogger<ABACPipelineBehavior<RequiresPolicyA, string>>();
+        var behavior = CreateBehavior<RequiresPolicyA>(
+            PapFailingStandaloneRetrieval(Sentinel), new Dictionary<string, object>(),
+            mode: mode, pdpLogger: pdpLogger, pepLogger: pepLogger);
+
+        var activities = new System.Collections.Concurrent.ConcurrentBag<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Security.ABAC",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activities.Add
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        // Act
+        var result = await behavior.Handle(
+            new RequiresPolicyA(), Substitute.For<IRequestContext>(), Next(() => { }), CancellationToken.None);
+
+        // Assert
+        ErrorCode(result).ShouldBe(ABACErrors.IndeterminateCode);
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldNotContain(Sentinel);
+            error.GetDetails().Values.ShouldAllBe(value => value == null || !value.ToString()!.Contains(Sentinel));
+        });
+
+        var records = pdpLogger.Collector.GetSnapshot().Concat(pepLogger.Collector.GetSnapshot()).ToList();
+        records.ShouldContain(r => r.Id.Id == 9072 && r.Message.Contains("store.down", StringComparison.Ordinal));
+        records.ShouldAllBe(r => !r.Message.Contains(Sentinel, StringComparison.Ordinal));
+
+        activities.ShouldAllBe(a =>
+            (a.StatusDescription == null || !a.StatusDescription.Contains(Sentinel, StringComparison.Ordinal))
+            && a.TagObjects.All(tag => tag.Value == null || !tag.Value.ToString()!.Contains(Sentinel, StringComparison.Ordinal)));
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private static InMemoryPolicyAdministrationPoint NewPap() =>
@@ -188,7 +257,10 @@ public sealed class ABACRequirementEnforcementTests
     private static ABACPipelineBehavior<TRequest, string> CreateBehavior<TRequest>(
         IPolicyAdministrationPoint pap,
         IReadOnlyDictionary<string, object> subjectAttributes,
-        IEnumerable<IObligationHandler>? handlers = null)
+        IEnumerable<IObligationHandler>? handlers = null,
+        ABACEnforcementMode mode = ABACEnforcementMode.Block,
+        ILogger<XACMLPolicyDecisionPoint>? pdpLogger = null,
+        ILogger<ABACPipelineBehavior<TRequest, string>>? pepLogger = null)
         where TRequest : IRequest<string>
     {
         var registry = new DefaultFunctionRegistry();
@@ -197,7 +269,7 @@ public sealed class ABACRequirementEnforcementTests
             new TargetEvaluator(registry),
             new ConditionEvaluator(registry),
             new CombiningAlgorithmFactory(),
-            NullLogger<XACMLPolicyDecisionPoint>.Instance);
+            pdpLogger ?? NullLogger<XACMLPolicyDecisionPoint>.Instance);
 
         var attributeProvider = Substitute.For<IAttributeProvider>();
         attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -218,8 +290,19 @@ public sealed class ABACRequirementEnforcementTests
             accessor,
             new ObligationExecutor(handlers ?? [], NullLogger<ObligationExecutor>.Instance),
             Compiler,
-            Options.Create(new ABACOptions { EnforcementMode = ABACEnforcementMode.Block }),
-            NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+            Options.Create(new ABACOptions { EnforcementMode = mode }),
+            pepLogger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
+    }
+
+    /// <summary>A PAP whose policy sets load (empty) but whose standalone policies cannot be read.</summary>
+    private static IPolicyAdministrationPoint PapFailingStandaloneRetrieval(string errorMessage)
+    {
+        var pap = Substitute.For<IPolicyAdministrationPoint>();
+        pap.GetPolicySetsAsync(Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, IReadOnlyList<PolicySet>>([]));
+        pap.GetPoliciesAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, IReadOnlyList<Policy>>(EncinaErrors.Create("store.down", errorMessage)));
+        return pap;
     }
 
     private static RequestHandlerCallback<string> Next(Action onCalled) => () =>
