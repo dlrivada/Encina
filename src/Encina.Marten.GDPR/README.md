@@ -123,6 +123,12 @@ result.Match(
 | `InMemorySubjectKeyProvider` | Singleton | Process lifetime | Testing, development |
 | `PostgreSqlSubjectKeyProvider` | Scoped | Marten document store | Production |
 
+- `PostgreSqlSubjectKeyProvider` serializes key creation, rotation and erasure of one subject with `pg_advisory_xact_lock` (keyed by the Marten tenant and the subject id) inside the transaction that checks the forgotten marker and writes, so concurrent first writers receive the one stored key and no key is created after an erasure commits.
+- Each operation opens its own Marten session and never flushes the caller's.
+- `DeleteSubjectKeysAsync` is idempotent and returns `crypto.subject_forgotten` when the subject was already forgotten.
+- `InMemorySubjectKeyProvider` returns copies of key material, so erasure never alters a key a caller holds.
+- Log EventIds: 8467 (initial key created, Debug), 8468 (concurrent key write resolved to the stored key, Warning; fields `Operation`, `Version`), 8469 (leftover keys erased on a repeated erasure, Warning; field `KeysDeleted`).
+
 ```csharp
 // Development (default)
 services.AddEncinaMartenGdpr();
