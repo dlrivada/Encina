@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Caching.Hybrid.Benchmarks.Benchmarks.HybridCacheProviderBenchmarks-20261003-155452</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.81GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  Job-NUBXJZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>ExistsAsync_False</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1.182 &mu;s</td><td>0.0080 &mu;s</td><td>0.0092 &mu;s</td><td>0.82</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>ExistsAsync_True</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1.177 &mu;s</td><td>0.0065 &mu;s</td><td>0.0069 &mu;s</td><td>0.82</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetAsync_CacheHit</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1.443 &mu;s</td><td>0.0066 &mu;s</td><td>0.0076 &mu;s</td><td>1.00</td><td>0.01</td><td>0.0286</td><td>-</td><td>496 B</td><td>1.00</td>
+</tr><tr><td>GetAsync_CacheMiss</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1.135 &mu;s</td><td>0.0082 &mu;s</td><td>0.0094 &mu;s</td><td>0.79</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetOrSetAsync_CacheHit</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>1.439 &mu;s</td><td>0.0038 &mu;s</td><td>0.0041 &mu;s</td><td>1.00</td><td>0.01</td><td>0.0324</td><td>-</td><td>560 B</td><td>1.13</td>
+</tr><tr><td>GetOrSetAsync_CacheMiss</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>7.285 &mu;s</td><td>0.2904 &mu;s</td><td>0.3107 &mu;s</td><td>5.05</td><td>0.21</td><td>0.1068</td><td>0.0992</td><td>1792 B</td><td>3.61</td>
+</tr><tr><td>GetOrSetAsync_WithTags</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>11.666 &mu;s</td><td>0.8589 &mu;s</td><td>0.9190 &mu;s</td><td>8.08</td><td>0.62</td><td>0.1221</td><td>0.1068</td><td>2216 B</td><td>4.47</td>
+</tr><tr><td>RemoveAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>4.409 &mu;s</td><td>0.0827 &mu;s</td><td>0.0952 &mu;s</td><td>3.05</td><td>0.07</td><td>0.0610</td><td>-</td><td>1136 B</td><td>2.29</td>
+</tr><tr><td>RemoveByTagAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>10.227 &mu;s</td><td>0.4595 &mu;s</td><td>0.4719 &mu;s</td><td>7.08</td><td>0.32</td><td>0.1373</td><td>0.1221</td><td>2448 B</td><td>4.94</td>
+</tr><tr><td>SetAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>4.478 &mu;s</td><td>0.2333 &mu;s</td><td>0.2497 &mu;s</td><td>3.10</td><td>0.17</td><td>0.0610</td><td>0.0534</td><td>1064 B</td><td>2.15</td>
+</tr><tr><td>SetWithSlidingExpirationAsync</td><td>Job-NUBXJZ</td><td>20</td><td>Default</td><td>5</td><td>4.385 &mu;s</td><td>0.2186 &mu;s</td><td>0.2339 &mu;s</td><td>3.04</td><td>0.16</td><td>0.0763</td><td>0.0687</td><td>1331 B</td><td>2.68</td>
+</tr><tr><td>ExistsAsync_False</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1.173 &mu;s</td><td>0.2296 &mu;s</td><td>0.0126 &mu;s</td><td>0.83</td><td>0.01</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>ExistsAsync_True</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1.186 &mu;s</td><td>0.1186 &mu;s</td><td>0.0065 &mu;s</td><td>0.84</td><td>0.00</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetAsync_CacheHit</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1.416 &mu;s</td><td>0.0677 &mu;s</td><td>0.0037 &mu;s</td><td>1.00</td><td>0.00</td><td>0.0286</td><td>-</td><td>496 B</td><td>1.00</td>
+</tr><tr><td>GetAsync_CacheMiss</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1.114 &mu;s</td><td>0.0321 &mu;s</td><td>0.0018 &mu;s</td><td>0.79</td><td>0.00</td><td>0.0362</td><td>-</td><td>616 B</td><td>1.24</td>
+</tr><tr><td>GetOrSetAsync_CacheHit</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>1.447 &mu;s</td><td>0.0286 &mu;s</td><td>0.0016 &mu;s</td><td>1.02</td><td>0.00</td><td>0.0324</td><td>-</td><td>560 B</td><td>1.13</td>
+</tr><tr><td>GetOrSetAsync_CacheMiss</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>6.759 &mu;s</td><td>6.9755 &mu;s</td><td>0.3823 &mu;s</td><td>4.77</td><td>0.23</td><td>0.1068</td><td>0.0992</td><td>1792 B</td><td>3.61</td>
+</tr><tr><td>GetOrSetAsync_WithTags</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>10.074 &mu;s</td><td>3.3432 &mu;s</td><td>0.1832 &mu;s</td><td>7.11</td><td>0.11</td><td>0.1221</td><td>0.1068</td><td>2216 B</td><td>4.47</td>
+</tr><tr><td>RemoveAsync</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>4.451 &mu;s</td><td>0.3462 &mu;s</td><td>0.0190 &mu;s</td><td>3.14</td><td>0.01</td><td>0.0610</td><td>-</td><td>1136 B</td><td>2.29</td>
+</tr><tr><td>RemoveByTagAsync</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>10.667 &mu;s</td><td>10.3209 &mu;s</td><td>0.5657 &mu;s</td><td>7.53</td><td>0.35</td><td>0.1373</td><td>0.1221</td><td>2448 B</td><td>4.94</td>
+</tr><tr><td>SetAsync</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>4.365 &mu;s</td><td>2.0405 &mu;s</td><td>0.1118 &mu;s</td><td>3.08</td><td>0.07</td><td>0.0610</td><td>0.0534</td><td>1064 B</td><td>2.15</td>
+</tr><tr><td>SetWithSlidingExpirationAsync</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>4.028 &mu;s</td><td>2.2042 &mu;s</td><td>0.1208 &mu;s</td><td>2.84</td><td>0.07</td><td>0.0610</td><td>0.0534</td><td>1072 B</td><td>2.16</td>
+</tr></tbody></table>
+</body>
+</html>
