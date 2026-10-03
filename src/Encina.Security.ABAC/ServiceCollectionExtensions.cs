@@ -247,7 +247,7 @@ public static class ServiceCollectionExtensions
         }
 
         // The PAP takes the scope factory: it opens one scope per operation and resolves the
-        // IPolicyStore (wrapped by ResolvePolicyStore) and the IAuditStore from it.
+        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IAuditStore from a second scope.
         return new PersistentPolicyAdministrationPoint(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),

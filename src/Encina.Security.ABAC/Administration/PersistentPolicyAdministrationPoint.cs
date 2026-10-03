@@ -48,8 +48,9 @@ namespace Encina.Security.ABAC.Administration;
 /// <para>
 /// <b>Lifetimes</b>: this PAP is a singleton. It never captures a scoped service: every operation
 /// (a read or a mutation) opens its own async DI scope and resolves the <see cref="IPolicyStore"/>
-/// from it, and a mutation resolves its <see cref="IAuditStore"/> from the same scope, so two
-/// concurrent operations never share a store instance (database stores are scoped).
+/// from it, and a mutation resolves its <see cref="IAuditStore"/> in a separate scope, so two
+/// concurrent operations never share a store instance and the audit write never shares a unit of
+/// work with the policy write (database stores are scoped).
 /// </para>
 /// <para>
 /// <b>Audit trail (fail closed)</b>: when an <see cref="IAuditStore"/> is registered, each mutation
@@ -90,10 +91,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     private readonly record struct PolicyActor(string UserId, string? TenantId, string CorrelationId, bool IsSystem);
 
     /// <summary>
-    /// The state of one PAP operation: the policy store and the service provider of the operation's
-    /// own DI scope, plus the actor of a mutation (default for reads).
+    /// The state of one PAP operation: the policy store of the operation's own DI scope, plus the
+    /// actor of a mutation.
     /// </summary>
-    private readonly record struct PolicyOperation(IPolicyStore Store, IServiceProvider Services, PolicyActor Actor);
+    private readonly record struct PolicyOperation(IPolicyStore Store, PolicyActor Actor);
 
     private sealed record PolicyChange(
         string Action,
@@ -107,10 +108,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// Initializes a new instance of the <see cref="PersistentPolicyAdministrationPoint"/> class.
     /// </summary>
     /// <param name="scopeFactory">
-    /// Scope factory used to open one DI scope per operation. The <see cref="IPolicyStore"/> (a
-    /// scoped service in every database provider) and, for a mutation, the
-    /// <see cref="IAuditStore"/> are resolved from that scope, so this singleton never captures a
-    /// scoped service. When no <see cref="IAuditStore"/> is registered, policy change auditing is
+    /// Scope factory used to open one DI scope per operation (and a separate one for the
+    /// <see cref="IAuditStore"/> of a mutation). The <see cref="IPolicyStore"/> (a scoped service
+    /// in every database provider) is resolved from the operation's scope, so this singleton
+    /// never captures a scoped service. When no <see cref="IAuditStore"/> is registered, policy change auditing is
     /// not configured.
     /// </param>
     /// <param name="logger">Logger for structured PAP logging.</param>
@@ -607,8 +608,9 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     // ── Principal and audited application of a change ───────────────
 
     /// <summary>
-    /// Runs one mutation for the resolved actor in its own DI scope. The policy store, every read
-    /// the mutation makes and the audit store all come from that one scope.
+    /// Runs one mutation for the resolved actor in its own DI scope. The policy store and every
+    /// read the mutation makes come from that one scope; the audit store has a scope of its own
+    /// (see <see cref="ApplyAsync"/>).
     /// </summary>
     private async ValueTask<Either<EncinaError, Unit>> RunAsActorAsync(
         Func<PolicyOperation, ValueTask<Either<EncinaError, Unit>>> body)
@@ -619,7 +621,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        return await body(new PolicyOperation(_storeResolver(scope.ServiceProvider), scope.ServiceProvider, actor));
+        return await body(new PolicyOperation(_storeResolver(scope.ServiceProvider), actor));
     }
 
     private bool TryResolveActor(out PolicyActor actor)
@@ -645,9 +647,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         context?.CorrelationId ?? Guid.NewGuid().ToString();
 
     /// <summary>
-    /// Applies a change after its audit record is written. The audit store is resolved from the
-    /// operation's scope (the one that also holds the policy store); a failed write stops the
-    /// change (fail closed).
+    /// Applies a change after its audit record is written. The audit store is resolved in its own
+    /// scope, separate from the one holding the policy store: with a shared unit of work (an EF Core
+    /// <c>DbContext</c>), a failed policy save would leave its entity tracked and the audit write
+    /// of the failure would retry it. A failed audit write stops the change (fail closed).
     /// </summary>
     private async ValueTask<Either<EncinaError, Unit>> ApplyAsync(
         PolicyOperation op,
@@ -656,7 +659,8 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         CancellationToken cancellationToken)
     {
         var actor = op.Actor;
-        var resolved = ResolveAuditStore(op.Services, change, out var auditStore);
+        await using var auditScope = _scopeFactory.CreateAsyncScope();
+        var resolved = ResolveAuditStore(auditScope.ServiceProvider, change, out var auditStore);
         if (resolved.IsLeft)
         {
             return resolved;

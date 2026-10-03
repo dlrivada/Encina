@@ -4,6 +4,7 @@ using Encina.Caching;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
+using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -72,6 +73,51 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         await stores[1].Received(1).GetAllPolicySetsAsync(Arg.Any<CancellationToken>());
         scopesDisposed.ShouldBe(2);
     }
+
+    [Fact]
+    public async Task Mutation_ResolvesAuditStoreInAScopeSeparateFromThePolicyStore()
+    {
+        var policyStoreScopes = new List<ScopeMarker>();
+        var auditStoreScopes = new List<ScopeMarker>();
+        var services = new ServiceCollection();
+        services.AddScoped<ScopeMarker>();
+        services.AddScoped<IPolicyStore>(sp =>
+        {
+            policyStoreScopes.Add(sp.GetRequiredService<ScopeMarker>());
+            var store = Substitute.For<IPolicyStore>();
+            store.ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<Either<EncinaError, bool>>(Right<EncinaError, bool>(false)));
+            store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+            return store;
+        });
+        services.AddScoped<IAuditStore>(sp =>
+        {
+            auditStoreScopes.Add(sp.GetRequiredService<ScopeMarker>());
+            var audit = Substitute.For<IAuditStore>();
+            audit.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
+            return audit;
+        });
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        var context = Substitute.For<IRequestContext>();
+        context.UserId.Returns("alice");
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(context);
+        var pap = new PersistentPolicyAdministrationPoint(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
+            accessor);
+
+        (await pap.AddPolicySetAsync(CreatePolicySet("ps-audit"))).IsRight.ShouldBeTrue();
+
+        policyStoreScopes.Count.ShouldBe(1);
+        auditStoreScopes.Count.ShouldBe(1);
+        ReferenceEquals(policyStoreScopes[0], auditStoreScopes[0]).ShouldBeFalse();
+    }
+
+    private sealed class ScopeMarker;
 
     [Fact]
     public async Task AddEncinaABAC_PolicyCachingEnabled_WrapsTheScopedStoreInTheDecoratorPerOperation()
