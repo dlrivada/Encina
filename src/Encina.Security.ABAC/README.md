@@ -112,7 +112,7 @@ public sealed record TransferFunds(decimal Amount) : ICommand<TransferResult>;
 
 ### How the attributes decide a request
 
-- `[RequirePolicy("name")]` evaluates the top-level policy set or standalone policy (one contained in no set) with that id on its own, through `IPolicyDecisionPoint.EvaluatePolicyAsync`; the rest of the policy store is not evaluated. Only `Permit` passes. `Deny` and `NotApplicable` deny, because an explicitly required policy that does not apply cannot authorize. A name that matches no top-level set or standalone policy, including a policy that exists only nested inside a set, denies with `abac.policy_not_found`; to require a nested policy, name its parent set. `Indeterminate` denies with `abac.indeterminate` and an exception from the attribute provider or the PDP with `abac.evaluation_failed`, in every enforcement mode (`Warn` relaxes only definite verdicts such as a Deny).
+- `[RequirePolicy("name")]` evaluates the top-level policy set or standalone policy (one contained in no set) with that id on its own, through `IPolicyDecisionPoint.EvaluatePolicyAsync`; the rest of the policy store is not evaluated. Only `Permit` passes. `Deny` and `NotApplicable` deny, because an explicitly required policy that does not apply cannot authorize. A name that matches no top-level set or standalone policy, including a policy that exists only nested inside a set, denies with `abac.policy_not_found`; to require a nested policy, name its parent set. `Indeterminate` denies with `abac.indeterminate` and an exception from the attribute provider or the PDP with `abac.evaluation_failed` (fixed message, exception type in the details), in every enforcement mode (`Warn` relaxes only definite verdicts such as a Deny). A request with no security context, or whose `UserId` is null, empty or whitespace, is denied with `abac.missing_context` in every enforcement mode before any attribute is collected.
 - Several `[RequirePolicy]` attributes: every one with `AllMustPass = true` (the default) must permit, and when there is at least one with `AllMustPass = false`, at least one of those must permit. Both groups must hold.
 - `[RequireCondition("expression")]` is an EEL expression evaluated per request, after the required policies permit, against the variables `user`, `resource`, `environment` and `action` (built from the `IAttributeProvider` dictionaries; `action.name` is the request type name). Resource attributes come from `IAttributeProvider.GetResourceAttributesAsync(request)`. A `false` result denies with `abac.condition_not_met`; a compile or evaluation error is `Indeterminate` and denies with `abac.indeterminate`.
 - Policies and conditions combine with AND. A request with neither attribute is not evaluated and passes through.
@@ -167,7 +167,7 @@ Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missin
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors still deny when they decide the verdict), or `Disabled` |
+| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors, including a missing security context, still deny when they decide the verdict), or `Disabled` |
 | `IncludeAdvice` | `true` | Execute advice expressions after decision |
 | `ValidateExpressionsAtStartup` | `false` | Pre-compile all EEL expressions at startup |
 | `AddHealthCheck` | `false` | Register ABAC health check |

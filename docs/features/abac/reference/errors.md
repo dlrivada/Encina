@@ -24,7 +24,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | A required policy or a `[RequireCondition]` expression could not produce a definitive result (evaluation error, expression that does not compile). |
 | `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound`, `RequiredPolicyNotFound` | `string policyId`; `Type requestType, string policyName` | A referenced policy does not exist in the PAP. `RequiredPolicyNotFound` is the error the PEP returns when `[RequirePolicy("name")]` names no top-level policy set or standalone policy in the store (a policy that exists only nested inside a set is not found; name its parent set); its message is fixed and the name is only in the details. |
 | `abac.policy_set_not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
-| `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. |
+| `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. The message is fixed (`Policy evaluation failed for '<RequestType>'. Access denied.`); only the exception type is recorded, in `details["exceptionType"]`, never the exception message. |
 | `abac.attribute_resolution_failed` | `AttributeResolutionFailedCode` | `AttributeResolutionFailed` | `string attributeId, AttributeCategory category` | A required attribute (MustBePresent = true) could not be resolved. |
 | `abac.invalid_policy` | `InvalidPolicyCode` | `InvalidPolicy` | `string policyId, string reason` | A policy definition is structurally invalid. |
 | `abac.invalid_policy_set` | `InvalidPolicySetCode` | `InvalidPolicySet` | `string policySetId, string reason` | A policy set definition is structurally invalid. |
@@ -32,7 +32,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.duplicate_policy` | `DuplicatePolicyCode` | `DuplicatePolicy` | `string policyId` | A policy with the same ID already exists in the PAP. |
 | `abac.duplicate_policy_set` | `DuplicatePolicySetCode` | `DuplicatePolicySet` | `string policySetId` | A policy set with the same ID already exists in the PAP. |
 | `abac.combining_failed` | `CombiningFailedCode` | `CombiningFailed` | `string algorithmId, string? reason = null` | A combining algorithm produced an Indeterminate result. |
-| `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | The security context is not available for ABAC evaluation. |
+| `abac.missing_context` | `MissingContextCode` | `MissingContext` | `Type requestType` | There is no security context, or its `UserId` is null, empty or whitespace. The PEP denies in every enforcement mode (`Block` and `Warn`) before it collects any attribute. |
 | `abac.obligation_failed` | `ObligationFailedCode` | `ObligationFailed` | `string obligationId, string? reason = null` | A mandatory obligation handler failed or was not found. Per XACML 3.0 section 7.18, access must be denied. |
 | `abac.function_not_found` | `FunctionNotFoundCode` | `FunctionNotFound` | `string functionId` | A function referenced in a policy condition is not registered in `IFunctionRegistry`. |
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
@@ -135,14 +135,15 @@ Error: Access denied for 'DeletePatientRecord' by policy 'medical-records-policy
 
 ### 2. Missing Context (abac.missing_context)
 
-**Scenario:** The ABAC pipeline behavior executes but no security context is available.
+**Scenario:** The ABAC pipeline behavior executes for a request with `[RequirePolicy]` or `[RequireCondition]`, but `ISecurityContextAccessor.SecurityContext` is null or its `UserId` is null, empty or whitespace.
 
 ```
-Error: Security context is not available for ABAC evaluation of 'CreateOrder'.
-       Ensure ABAC middleware is configured.
+Error: Security context or authenticated user is not available for ABAC evaluation of 'CreateOrder'. Access denied.
 ```
 
-**Resolution:** Verify that authentication middleware runs before the ABAC pipeline. Ensure `IAttributeProvider` has access to the current user's claims and request context.
+The request is denied in every enforcement mode, `Warn` included, and no attribute is requested for an empty user id. The denial is logged with EventId 9091 (request type and error code only).
+
+**Resolution:** Verify that authentication middleware runs before the ABAC pipeline and that `ISecurityContextAccessor` returns a context with a non-empty `UserId`.
 
 ### 3. Obligation Failed (abac.obligation_failed)
 
@@ -225,10 +226,10 @@ Error: A policy with ID 'order-access-v2' already exists.
 **Scenario:** An unhandled exception occurred during policy evaluation (e.g., a null reference in a custom function).
 
 ```
-Error: Policy evaluation failed for 'TransferFunds': Object reference not set to an instance of an object.
+Error: Policy evaluation failed for 'TransferFunds'. Access denied.
 ```
 
-**Resolution:** Check the `exceptionType` in the error metadata. Debug the custom function or attribute provider that threw the exception. The `EvaluationFailed` error wraps the original exception details.
+**Resolution:** Read the `exceptionType` in the error details, then debug the custom function or attribute provider that threw. The error never carries the exception message, because it can contain data; the exception itself is logged with EventId 9009 through `ForLogging()` (type and stack trace only).
 
 ### 11. Condition Not Met (abac.condition_not_met)
 
