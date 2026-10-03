@@ -64,12 +64,15 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     {
         var evt = new StringSubjectEvent { UserId = subjectId!, Email = PlainEmail };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.SubjectIdMissing);
         ex.Message.ShouldContain(nameof(StringSubjectEvent));
         ex.Message.ShouldContain(nameof(StringSubjectEvent.Email));
         _inner.ReceivedCalls().ShouldBeEmpty();
+        _keys.ReceivedCalls().ShouldBeEmpty();
         evt.Email.ShouldBe(PlainEmail);
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Level == LogLevel.Error && r.Id.Id == 8466);
     }
 
     [Fact]
@@ -77,7 +80,7 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     {
         var evt = new GuidSubjectEvent { PatientId = Guid.Empty, Email = PlainEmail };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
         ex.Message.ShouldContain(nameof(GuidSubjectEvent));
         ex.Message.ShouldContain(nameof(GuidSubjectEvent.Email));
@@ -100,11 +103,15 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     public void ToJson_KeyProviderReturnsLeft_ThrowsAndLogsTheErrorCodeOnly()
     {
         _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(_ => ValueTask.FromResult(Left<EncinaError, byte[]>(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey"))));
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey")));
         var evt = new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.KeyUnavailable);
+        ex.ErrorCode.ShouldBe(CryptoShreddingErrors.KeyStoreErrorCode);
+        ex.PropertyName.ShouldBe(nameof(StringSubjectEvent.Email));
+        ex.EventTypeName.ShouldBe(typeof(StringSubjectEvent).FullName);
         ex.Message.ShouldContain(nameof(StringSubjectEvent));
         ex.Message.ShouldContain(nameof(StringSubjectEvent.Email));
         ex.Message.ShouldNotContain(SubjectId);
@@ -120,11 +127,46 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     public void ToJson_ForgottenSubject_Throws()
     {
         _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(_ => ValueTask.FromResult(Left<EncinaError, byte[]>(CryptoShreddingErrors.SubjectForgotten(SubjectId))));
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(CryptoShreddingErrors.SubjectForgotten(SubjectId)));
 
-        Should.Throw<InvalidOperationException>(() => _sut.ToJson(new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail }));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.ToJson(new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail }));
+
+        ex.ErrorCode.ShouldBe(CryptoShreddingErrors.SubjectForgottenCode);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(0, 32)]
+    [InlineData(1, 16)]
+    public void ToJson_KeyProviderReturnsAnUnusableKey_Throws(int version, int keyLength)
+    {
+        _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = version, KeyMaterial = new byte[keyLength] }));
+
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.ToJson(new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail }));
+
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.KeyUnavailable);
+        ex.ErrorCode.ShouldBe(CryptoShreddingErrors.EncryptionFailedCode);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_SecondFieldFails_RestoresTheFirstFieldAndNeverSerializes()
+    {
+        var keyMaterial = new byte[32];
+        _keys.GetOrCreateSubjectKeyAsync("first", Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
+        _keys.GetOrCreateSubjectKeyAsync("second", Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey")));
+        var evt = new TwoSubjectEvent { FirstId = "first", First = PlainEmail, SecondId = "second", Second = PlainEmail };
+
+        Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
         _inner.ReceivedCalls().ShouldBeEmpty();
+        evt.First.ShouldBe(PlainEmail);
+        evt.Second.ShouldBe(PlainEmail);
     }
 
     [Fact]
@@ -134,7 +176,7 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
             .Throws(new InvalidOperationException(Sentinel + " " + SubjectId));
         var evt = new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
         ex.Message.ShouldNotContain(Sentinel);
         ex.Message.ShouldNotContain(SubjectId);
@@ -155,10 +197,10 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     public void EveryWritePath_KeyProviderReturnsLeft_ThrowsAndNeverReachesTheInnerSerializer(string entryPoint)
     {
         _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(_ => ValueTask.FromResult(Left<EncinaError, byte[]>(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey"))));
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(CryptoShreddingErrors.KeyStoreError("GetOrCreateSubjectKey")));
         var evt = new StringSubjectEvent { UserId = SubjectId, Email = PlainEmail };
 
-        Should.Throw<InvalidOperationException>(() => Invoke(entryPoint, evt));
+        Should.Throw<CryptoShreddingEncryptionException>(() => Invoke(entryPoint, evt));
 
         _inner.ReceivedCalls().ShouldBeEmpty();
         evt.Email.ShouldBe(PlainEmail);
@@ -204,11 +246,43 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
     {
         var evt = new GetterOnlyEvent(SubjectId, PlainEmail);
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
         ex.Message.ShouldContain(nameof(GetterOnlyEvent));
         ex.Message.ShouldContain(nameof(GetterOnlyEvent.Email));
         _inner.ReceivedCalls().ShouldBeEmpty();
+        _keys.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void WriteTo_GetterOnlyCryptoShreddedProperty_Throws()
+    {
+        Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.WriteTo(new ArrayBufferWriter<byte>(), new GetterOnlyEvent(SubjectId, PlainEmail)));
+
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ToJson_CryptoShreddedWithoutPersonalData_ThrowsInsteadOfStoringPlaintext()
+    {
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(
+            () => _sut.ToJson(new MissingPersonalDataEvent { UserId = SubjectId, Email = PlainEmail }));
+
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
+        ex.PropertyName.ShouldBe(nameof(MissingPersonalDataEvent.Email));
+        _inner.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void FromJson_GetterOnlyCryptoShreddedProperty_DelegatesToInnerUnchanged()
+    {
+        // Decryption is unchanged: an unencryptable property has nothing to decrypt
+        var stored = new GetterOnlyEvent(SubjectId, PlainEmail);
+        _inner.FromJson<GetterOnlyEvent>(Arg.Any<Stream>()).Returns(stored);
+
+        _sut.FromJson<GetterOnlyEvent>(new MemoryStream()).ShouldBeSameAs(stored);
     }
 
     [Fact]
@@ -230,11 +304,9 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
 
     private void ArrangeKey()
     {
-        var real =new InMemorySubjectKeyProvider(TimeProvider.System, NullLogger<InMemorySubjectKeyProvider>.Instance);
+        var real = new InMemorySubjectKeyProvider(TimeProvider.System, NullLogger<InMemorySubjectKeyProvider>.Instance);
         _keys.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(_ => real.GetOrCreateSubjectKeyAsync(SubjectId));
-        _keys.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(_ => real.GetSubjectInfoAsync(SubjectId));
     }
 
     private void Invoke(string entryPoint, object evt)
@@ -277,6 +349,29 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
 
         [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
         [CryptoShredded(SubjectIdProperty = nameof(PatientId))]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class TwoSubjectEvent
+    {
+        public string FirstId { get; set; } = string.Empty;
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(FirstId))]
+        public string First { get; set; } = string.Empty;
+
+        public string SecondId { get; set; } = string.Empty;
+
+        [PersonalData(Category = PersonalDataCategory.Contact, Erasable = true)]
+        [CryptoShredded(SubjectIdProperty = nameof(SecondId))]
+        public string Second { get; set; } = string.Empty;
+    }
+
+    public sealed class MissingPersonalDataEvent
+    {
+        public string UserId { get; set; } = string.Empty;
+
+        [CryptoShredded(SubjectIdProperty = nameof(UserId))]
         public string Email { get; set; } = string.Empty;
     }
 

@@ -131,7 +131,7 @@ public sealed class ISubjectKeyProviderContractTests
 
         byte[] createdKey = null!;
         byte[] gottenKey = null!;
-        createResult.IfRight(k => createdKey = k);
+        createResult.IfRight(k => createdKey = k.KeyMaterial);
         getResult.IfRight(k => gottenKey = k);
 
         createdKey.SequenceEqual(gottenKey).ShouldBeTrue(

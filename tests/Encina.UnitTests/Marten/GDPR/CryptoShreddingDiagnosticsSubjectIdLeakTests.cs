@@ -56,7 +56,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         var keyMaterial = new byte[32];
         Random.Shared.NextBytes(keyMaterial);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
             {
@@ -87,7 +87,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
 
         var error = CryptoShreddingErrors.SubjectForgotten(SubjectId);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, byte[]>(error));
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(error));
 
         var (logger, capture) = CreateCapture<CryptoShredderSerializer>();
         using (capture)
@@ -95,7 +95,9 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
             var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger);
             var evt = new PiiEvent { UserId = SubjectId, Email = "test@example.com" };
 
-            DiagnosticsCapture.Capture(() => sut.ToJson(evt));
+            // Fails closed (#1646); the exception, logs and activity never carry the subject id
+            var ex = Should.Throw<CryptoShreddingEncryptionException>(() => DiagnosticsCapture.Capture(() => sut.ToJson(evt)));
+            ex.Message.ShouldNotContain(SubjectId);
         }
 
         capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
@@ -113,7 +115,8 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
             var sut = new CryptoShredderSerializer(mockInner, _mockKeyProvider, _mockForgottenHandler, logger);
             var evt = new NullableSubjectEvent { UserId = null, Email = "test@example.com" };
 
-            DiagnosticsCapture.Capture(() => sut.ToJson(evt));
+            // A missing subject id fails closed (#1646)
+            Should.Throw<CryptoShreddingEncryptionException>(() => DiagnosticsCapture.Capture(() => sut.ToJson(evt)));
         }
 
         capture.AssertNoSubjectId(logger, SubjectId, expectActivity: true);
@@ -126,7 +129,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         var keyMaterial = new byte[32];
         Random.Shared.NextBytes(keyMaterial);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
             {
@@ -157,7 +160,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         var keyMaterial = new byte[32];
         Random.Shared.NextBytes(keyMaterial);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
             {
@@ -205,7 +208,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         var keyMaterial = new byte[32];
         Random.Shared.NextBytes(keyMaterial);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
             {
@@ -250,7 +253,7 @@ public sealed class CryptoShreddingDiagnosticsSubjectIdLeakTests : IDisposable
         var keyMaterial = new byte[32];
         Random.Shared.NextBytes(keyMaterial);
         _mockKeyProvider.GetOrCreateSubjectKeyAsync(SubjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider.GetSubjectInfoAsync(SubjectId, Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
             {

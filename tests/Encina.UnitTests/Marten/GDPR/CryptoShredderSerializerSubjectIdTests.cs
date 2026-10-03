@@ -207,16 +207,7 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     {
         keyMaterial ??= new byte[32];
         _keys.GetOrCreateSubjectKeyAsync(subjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
-        _keys.GetSubjectInfoAsync(subjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
-            {
-                SubjectId = subjectId,
-                Status = SubjectStatus.Active,
-                ActiveKeyVersion = 1,
-                TotalKeyVersions = 1,
-                CreatedAtUtc = DateTimeOffset.UtcNow
-            }));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         return new StringHolder();
     }
 

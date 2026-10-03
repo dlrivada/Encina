@@ -32,8 +32,26 @@ public sealed class InMemorySubjectKeyProviderTests
         result.IfRight(key =>
         {
             key.ShouldNotBeNull();
-            key.Length.ShouldBe(32); // AES-256 = 32 bytes
+            key.KeyMaterial.Length.ShouldBe(32); // AES-256 = 32 bytes
+            key.Version.ShouldBe(1);
         });
+    }
+
+    [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_AfterRotation_ReturnsTheActiveKeyWithItsVersion()
+    {
+        // Arrange (#1646): the version comes with the key material, never from a second lookup
+        await _sut.GetOrCreateSubjectKeyAsync("user-1");
+        await _sut.RotateSubjectKeyAsync("user-1");
+        var v2 = (byte[])await _sut.GetSubjectKeyAsync("user-1", version: 2);
+
+        // Act
+        var result = await _sut.GetOrCreateSubjectKeyAsync("user-1");
+
+        // Assert
+        var key = (SubjectEncryptionKey)result;
+        key.Version.ShouldBe(2);
+        key.KeyMaterial.ShouldBe(v2);
     }
 
     [Fact]
@@ -77,7 +95,7 @@ public sealed class InMemorySubjectKeyProviderTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        created.IfRight(k1 => result.IfRight(k2 => k1.ShouldBe(k2)));
+        created.IfRight(k1 => result.IfRight(k2 => k1.KeyMaterial.ShouldBe(k2)));
     }
 
     [Fact]

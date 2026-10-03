@@ -81,7 +81,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
@@ -116,7 +116,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
     }
 
     [Fact]
-    public async Task ToJson_ForgottenSubject_ReturnsError()
+    public async Task ToJson_ForgottenSubject_ThrowsAndNeverStoresThePlaintext()
     {
         // Arrange
         var evt = new PiiEvent { UserId = "user-forgotten", Email = "test@example.com" };
@@ -124,12 +124,13 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-forgotten", Arg.Any<CancellationToken>())
-            .Returns(Left<EncinaError, byte[]>(error));
+            .Returns(Left<EncinaError, SubjectEncryptionKey>(error));
 
-        // Act & Assert — when key provider fails, serializer should still work
-        // (it logs the error but lets the inner serializer handle the event)
-        _mockInner.ToJson(Arg.Any<PiiEvent>()).Returns("{}");
-        var json = _sut.ToJson(evt);
+        // Act & Assert — a key failure fails the write instead of storing plaintext (#1646)
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.KeyUnavailable);
+        ex.ErrorCode.ShouldBe(CryptoShreddingErrors.SubjectForgottenCode);
+        _mockInner.DidNotReceiveWithAnyArgs().ToJson(default);
 
         // Should have attempted key retrieval
         await _mockKeyProvider.Received(1)
@@ -186,7 +187,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
@@ -247,7 +248,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
@@ -308,7 +309,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
@@ -369,7 +370,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
@@ -420,7 +421,7 @@ public sealed class CryptoShredderSerializerTests : IDisposable
 
         _mockKeyProvider
             .GetOrCreateSubjectKeyAsync("user-1", Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         _mockKeyProvider
             .GetSubjectInfoAsync("user-1", Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
