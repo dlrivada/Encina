@@ -66,7 +66,11 @@ public sealed class InMemorySubjectKeyProviderTests
         // Assert
         first.IsRight.ShouldBeTrue();
         second.IsRight.ShouldBeTrue();
-        first.IfRight(k1 => second.IfRight(k2 => k1.ShouldBe(k2)));
+        first.IfRight(k1 => second.IfRight(k2 =>
+        {
+            k2.Version.ShouldBe(k1.Version);
+            k2.KeyMaterial.ShouldBe(k1.KeyMaterial);
+        }));
     }
 
     [Fact]
@@ -367,5 +371,141 @@ public sealed class InMemorySubjectKeyProviderTests
         // Assert
         results.ShouldAllBe(r => r.IsRight);
         _sut.SubjectCount.ShouldBe(50);
+    }
+
+    // -- Races on one subject (#1699) --
+
+    [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_ConcurrentFirstWriters_AllGetTheOneStoredKey()
+    {
+        // Act
+        var results = await RunConcurrentlyAsync(32, () => _sut.GetOrCreateSubjectKeyAsync("user-race").AsTask());
+
+        // Assert
+        var stored = (byte[])await _sut.GetSubjectKeyAsync("user-race");
+        foreach (var result in results)
+        {
+            var key = (SubjectEncryptionKey)result;
+            key.Version.ShouldBe(1);
+            key.KeyMaterial.ShouldBe(stored);
+        }
+
+        ((SubjectEncryptionInfo)await _sut.GetSubjectInfoAsync("user-race")).TotalKeyVersions.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task RotateSubjectKeyAsync_ConcurrentRotations_EachCreatesExactlyOneNewVersion()
+    {
+        // Arrange
+        await _sut.GetOrCreateSubjectKeyAsync("user-rotate");
+        const int rotations = 16;
+
+        // Act
+        var results = await RunConcurrentlyAsync(rotations, () => _sut.RotateSubjectKeyAsync("user-rotate").AsTask());
+
+        // Assert
+        results.Select(r => ((KeyRotationResult)r).NewVersion).Order()
+            .ShouldBe(Enumerable.Range(2, rotations));
+        var info = (SubjectEncryptionInfo)await _sut.GetSubjectInfoAsync("user-rotate");
+        info.ActiveKeyVersion.ShouldBe(rotations + 1);
+        info.TotalKeyVersions.ShouldBe(rotations + 1);
+    }
+
+    [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_RacingErasure_NoKeySurvivesTheErasure()
+    {
+        for (var i = 0; i < 50; i++)
+        {
+            // Arrange
+            var subjectId = $"user-erase-{i}";
+
+            // Act
+            var writers = RunConcurrentlyAsync(8, () => _sut.GetOrCreateSubjectKeyAsync(subjectId).AsTask());
+            var erasure = _sut.DeleteSubjectKeysAsync(subjectId).AsTask();
+            await Task.WhenAll(writers, erasure);
+
+            // Assert: whatever the interleaving, the subject ends forgotten with no key left
+            (await erasure).IsRight.ShouldBeTrue();
+            var info = (SubjectEncryptionInfo)await _sut.GetSubjectInfoAsync(subjectId);
+            info.Status.ShouldBe(SubjectStatus.Forgotten);
+            info.TotalKeyVersions.ShouldBe(0);
+            (await _sut.GetOrCreateSubjectKeyAsync(subjectId)).IsLeft.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task DeleteSubjectKeysAsync_DoesNotZeroKeyMaterialAlreadyReturnedToACaller()
+    {
+        // Arrange: a writer holds the key while the subject is erased
+        var held = (SubjectEncryptionKey)await _sut.GetOrCreateSubjectKeyAsync("user-held");
+        var copy = held.KeyMaterial.ToArray();
+
+        // Act
+        await _sut.DeleteSubjectKeysAsync("user-held");
+
+        // Assert: the writer never encrypts with an all-zero key
+        held.KeyMaterial.ShouldBe(copy);
+        held.KeyMaterial.ShouldContain(b => b != 0);
+    }
+
+    [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_ReturnsACopy_CallerMutationDoesNotChangeTheStoredKey()
+    {
+        // Arrange
+        var first = (SubjectEncryptionKey)await _sut.GetOrCreateSubjectKeyAsync("user-copy");
+        var original = first.KeyMaterial.ToArray();
+
+        // Act
+        Array.Clear(first.KeyMaterial);
+
+        // Assert
+        ((SubjectEncryptionKey)await _sut.GetOrCreateSubjectKeyAsync("user-copy")).KeyMaterial.ShouldBe(original);
+        ((byte[])await _sut.GetSubjectKeyAsync("user-copy")).ShouldBe(original);
+        ((byte[])await _sut.GetSubjectKeyAsync("user-copy", version: 1)).ShouldBe(original);
+    }
+
+    [Fact]
+    public async Task GetSubjectKeyAsync_ReturnsACopy_CallerMutationDoesNotChangeTheStoredKey()
+    {
+        // Arrange
+        await _sut.GetOrCreateSubjectKeyAsync("user-copy-2");
+        var original = (byte[])await _sut.GetSubjectKeyAsync("user-copy-2");
+
+        // Act
+        Array.Clear((byte[])await _sut.GetSubjectKeyAsync("user-copy-2"));
+        Array.Clear((byte[])await _sut.GetSubjectKeyAsync("user-copy-2", version: 1));
+
+        // Assert
+        ((byte[])await _sut.GetSubjectKeyAsync("user-copy-2")).ShouldBe(original);
+    }
+
+    [Fact]
+    public async Task Clear_DoesNotZeroKeyMaterialAlreadyReturnedToACaller()
+    {
+        // Arrange
+        var held = (SubjectEncryptionKey)await _sut.GetOrCreateSubjectKeyAsync("user-clear");
+        var copy = held.KeyMaterial.ToArray();
+
+        // Act
+        _sut.Clear();
+
+        // Assert
+        held.KeyMaterial.ShouldBe(copy);
+        _sut.SubjectCount.ShouldBe(0);
+    }
+
+    private static async Task<T[]> RunConcurrentlyAsync<T>(int callers, Func<Task<T>> operation)
+    {
+        using var start = new ManualResetEventSlim(false);
+        var tasks = Enumerable.Range(0, callers)
+            .Select(_ => Task.Run(() =>
+            {
+                start.Wait();
+                return operation();
+            }))
+            .ToArray();
+
+        start.Set();
+        return await Task.WhenAll(tasks);
     }
 }
