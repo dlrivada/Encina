@@ -1,0 +1,3 @@
+- The ABAC Policy Enforcement Point (`ABACPipelineBehavior`) now denies a request with `abac.missing_context` when there is no security context or it carries no user, in every enforcement mode (`Warn` included) and before any attribute is collected; it previously evaluated the request as user `""` (#1676).
+- `XACMLPolicyDecisionPoint.EvaluateAsync` now returns Indeterminate when either the policy sets or the standalone policies cannot be read from the policy administration point, instead of deciding on the policy sets alone and missing a Deny among the standalone policies (#1676).
+- `abac.evaluation_failed` errors, the PDP decision status and the PEP's activity tags no longer carry exception messages: only the exception type is recorded (#1676).
