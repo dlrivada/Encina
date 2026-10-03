@@ -606,12 +606,46 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var auditStore = scope.ServiceProvider.GetService<IAuditStore>();
+        var resolved = ResolveAuditStore(scope.ServiceProvider, change, out var auditStore);
+        if (resolved.IsLeft)
+        {
+            return resolved;
+        }
+
         if (auditStore is null)
         {
             return await apply();
         }
 
+        return await ApplyAuditedAsync(auditStore, actor, change, apply, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the audit store from the per-write scope. A store whose own dependencies cannot be
+    /// built fails the change closed, like a failed write, instead of surfacing a raw exception.
+    /// </summary>
+    private Either<EncinaError, Unit> ResolveAuditStore(IServiceProvider scopedProvider, PolicyChange change, out IAuditStore? auditStore)
+    {
+        try
+        {
+            auditStore = scopedProvider.GetService<IAuditStore>();
+            return unit;
+        }
+        catch (Exception ex)
+        {
+            auditStore = null;
+            LogAuditWriteException(_logger, change.Action, change.EntityType, change.EntityId, ex.ForLogging());
+            return ABACErrors.PolicyChangeAuditFailed(ex.GetType().Name);
+        }
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> ApplyAuditedAsync(
+        IAuditStore auditStore,
+        PolicyActor actor,
+        PolicyChange change,
+        Func<ValueTask<Either<EncinaError, Unit>>> apply,
+        CancellationToken cancellationToken)
+    {
         var beforeState = change.LoadBefore is null ? null : await change.LoadBefore(cancellationToken);
         var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Success, errorCode: null);
         var recorded = await RecordAuditAsync(auditStore, entry, cancellationToken);
@@ -620,19 +654,39 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             return recorded;
         }
 
-        var result = await apply();
+        Either<EncinaError, Unit> result;
+        try
+        {
+            result = await apply();
+        }
+        catch (Exception ex)
+        {
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, ex.GetType().Name);
+            throw;
+        }
+
         if (result.IsLeft)
         {
             var errorCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone("encina.unknown"));
-            await RecordAuditAsync(
-                auditStore, BuildEntry(actor, change, beforeState, AuditOutcome.Error, errorCode), cancellationToken);
-        }
-        else
-        {
-            _logger.LogDebug("Policy change {Action} on {EntityType} '{EntityId}' applied", change.Action, change.EntityType, change.EntityId);
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, errorCode);
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Records that a change announced by a write-ahead entry did not happen. It ignores the
+    /// caller's cancellation so the trail is completed, and it never replaces the original outcome.
+    /// </summary>
+    private async ValueTask RecordFailedChangeAsync(
+        IAuditStore auditStore,
+        PolicyActor actor,
+        PolicyChange change,
+        object? beforeState,
+        string errorCode)
+    {
+        var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Error, errorCode);
+        await RecordAuditAsync(auditStore, entry, CancellationToken.None);
     }
 
     private async ValueTask<Either<EncinaError, Unit>> RecordAuditAsync(

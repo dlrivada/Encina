@@ -530,6 +530,46 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task StoreThrowsAfterAudit_RecordsErrorEntryAndRethrows()
+    {
+        // Arrange
+        var ps = CreatePolicySet("ps-store-throws");
+        SetupStoreExistsPolicySet("ps-store-throws", false);
+        _store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, LanguageExt.Unit>>>(_ => throw new InvalidOperationException("db crashed"));
+
+        // Act and assert
+        await Should.ThrowAsync<InvalidOperationException>(async () => await _sut.AddPolicySetAsync(ps));
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<AuditEntry>(e => e.Outcome == AuditOutcome.Error && e.ErrorMessage == nameof(InvalidOperationException)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AuditStoreCannotBeResolved_FailsPolicyOperationClosed()
+    {
+        // Arrange — a scoped audit store whose construction throws
+        var services = new ServiceCollection();
+        services.AddScoped<IAuditStore>(_ => throw new InvalidOperationException("no connection"));
+        var provider = services.BuildServiceProvider();
+        var sut = new PersistentPolicyAdministrationPoint(
+            _store,
+            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>(),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            _requestContextAccessor);
+        var ps = CreatePolicySet("ps-unresolvable");
+        SetupStoreExistsPolicySet("ps-unresolvable", false);
+
+        // Act
+        var result = await sut.AddPolicySetAsync(ps);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangeAuditFailedCode));
+        await _store.DidNotReceive().SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
+    }
+
     private static async ValueTask<Either<EncinaError, LanguageExt.Unit>> HangUntilCancelledAsync(
         CancellationToken cancellationToken)
     {
