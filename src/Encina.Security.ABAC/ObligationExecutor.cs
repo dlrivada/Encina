@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 
+using Encina.Diagnostics;
 using Encina.Security.ABAC.Diagnostics;
 
 using LanguageExt;
@@ -23,6 +24,12 @@ namespace Encina.Security.ABAC;
 /// <para>
 /// Advice expressions are best-effort: failures are logged but do not affect the
 /// authorization decision.
+/// </para>
+/// <para>
+/// A handler that throws is treated as a handler that failed: the exception becomes an
+/// <see cref="ABACErrors.ObligationHandlerExceptionCode"/> error (its message is never logged or
+/// returned), so a mandatory obligation denies access and an advice is skipped. Cancellation of
+/// the request's token propagates as <see cref="OperationCanceledException"/>.
 /// </para>
 /// </remarks>
 /// <example>
@@ -102,7 +109,7 @@ public sealed class ObligationExecutor
 
             var handlerStartTimestamp = Stopwatch.GetTimestamp();
 
-            var result = await handler.HandleAsync(obligation, context, cancellationToken)
+            var result = await InvokeHandlerAsync(handler, obligation, context, cancellationToken)
                 .ConfigureAwait(false);
 
             var handlerElapsed = Stopwatch.GetElapsedTime(handlerStartTimestamp);
@@ -189,7 +196,7 @@ public sealed class ObligationExecutor
 
             var adviceStartTimestamp = Stopwatch.GetTimestamp();
 
-            var result = await handler.HandleAsync(syntheticObligation, context, cancellationToken)
+            var result = await InvokeHandlerAsync(handler, syntheticObligation, context, cancellationToken)
                 .ConfigureAwait(false);
 
             var adviceElapsed = Stopwatch.GetElapsedTime(adviceStartTimestamp);
@@ -211,6 +218,32 @@ public sealed class ObligationExecutor
     }
 
     // ── Private Helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Calls the handler and turns an exception into a <c>Left</c> with a fixed message, so the
+    /// obligation rules apply to it (a failed mandatory obligation denies; failed advice is logged).
+    /// Cancellation of <paramref name="cancellationToken"/> propagates.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, Unit>> InvokeHandlerAsync(
+        IObligationHandler handler,
+        Obligation obligation,
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await handler.HandleAsync(obligation, context, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ABACLogMessages.ObligationHandlerThrew(_logger, ex.ForLogging(), obligation.Id);
+            return ABACErrors.ObligationHandlerException(obligation.Id, ex.GetType());
+        }
+    }
 
     private IObligationHandler? FindHandler(string obligationId)
     {

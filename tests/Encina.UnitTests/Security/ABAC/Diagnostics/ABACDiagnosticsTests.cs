@@ -76,12 +76,6 @@ public sealed class ABACDiagnosticsTests
     }
 
     [Fact]
-    public void EvaluationNotApplicable_IsNotNull()
-    {
-        ABACDiagnostics.EvaluationNotApplicable.ShouldNotBeNull();
-    }
-
-    [Fact]
     public void EvaluationIndeterminate_IsNotNull()
     {
         ABACDiagnostics.EvaluationIndeterminate.ShouldNotBeNull();
@@ -258,24 +252,6 @@ public sealed class ABACDiagnosticsTests
     }
 
     [Fact]
-    public void RecordNotApplicable_SetsCorrectTags()
-    {
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == ABACDiagnostics.SourceName,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
-        };
-        ActivitySource.AddActivityListener(listener);
-
-        using var activity = ABACDiagnostics.StartEvaluation("TestRequest");
-        ABACDiagnostics.RecordNotApplicable(activity);
-
-        activity.ShouldNotBeNull();
-        activity!.GetTagItem(ABACDiagnostics.TagEffect).ShouldBe("not_applicable");
-        activity.Status.ShouldBe(ActivityStatusCode.Ok);
-    }
-
-    [Fact]
     public void RecordPermitted_NullActivity_DoesNotThrow()
     {
         var act = () => ABACDiagnostics.RecordPermitted(null, "policy-1");
@@ -299,14 +275,6 @@ public sealed class ABACDiagnosticsTests
         Should.NotThrow(act);
     }
 
-    [Fact]
-    public void RecordNotApplicable_NullActivity_DoesNotThrow()
-    {
-        var act = () => ABACDiagnostics.RecordNotApplicable(null);
-
-        Should.NotThrow(act);
-    }
-
     #endregion
 
     #region Counter Metrics Collection
@@ -322,7 +290,6 @@ public sealed class ABACDiagnosticsTests
             ABACDiagnostics.EvaluationTotal.Add(1, tag);
             ABACDiagnostics.EvaluationPermitted.Add(1, tag);
             ABACDiagnostics.EvaluationDenied.Add(1, tag);
-            ABACDiagnostics.EvaluationNotApplicable.Add(1, tag);
             ABACDiagnostics.EvaluationIndeterminate.Add(1, tag);
             ABACDiagnostics.ObligationExecuted.Add(1,
                 new KeyValuePair<string, object?>(ABACDiagnostics.TagObligationId, "test-obligation"));

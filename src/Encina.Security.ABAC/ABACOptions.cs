@@ -60,6 +60,11 @@ public sealed class ABACOptions
     /// <item><description><see cref="Effect.Permit"/> — open-world assumption; unmatched requests are allowed.</description></item>
     /// </list>
     /// Default is <see cref="Effect.Deny"/> (secure by default).
+    /// <para>
+    /// <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> does not consult this value: a policy
+    /// named by <see cref="RequirePolicyAttribute"/> that is NotApplicable denies the request, and
+    /// <see cref="RequireConditionAttribute"/> conditions are true or false.
+    /// </para>
     /// </remarks>
     public Effect DefaultNotApplicableEffect { get; set; } = Effect.Deny;
 

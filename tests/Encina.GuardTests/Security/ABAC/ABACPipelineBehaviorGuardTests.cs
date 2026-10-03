@@ -1,6 +1,8 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
 using Encina.Security.ABAC;
+using Encina.Security.ABAC.EEL;
+using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -15,6 +17,8 @@ namespace Encina.GuardTests.Security.ABAC;
 /// </summary>
 public class ABACPipelineBehaviorGuardTests
 {
+    private static readonly EELCompiler Compiler = new();
+
     // Dummy request/response types for generic instantiation
     [RequirePolicy("test-policy")]
     private sealed record TestRequest : IRequest<string>;
@@ -29,6 +33,7 @@ public class ABACPipelineBehaviorGuardTests
             Substitute.For<IAttributeProvider>(),
             Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
+            Compiler,
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -44,6 +49,7 @@ public class ABACPipelineBehaviorGuardTests
             null!,
             Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
+            Compiler,
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -59,6 +65,7 @@ public class ABACPipelineBehaviorGuardTests
             Substitute.For<IAttributeProvider>(),
             null!,
             CreateObligationExecutor(),
+            Compiler,
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -74,11 +81,28 @@ public class ABACPipelineBehaviorGuardTests
             Substitute.For<IAttributeProvider>(),
             Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             null!,
+            Compiler,
             Options.Create(new ABACOptions()),
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("obligationExecutor");
+    }
+
+    [Fact]
+    public void Constructor_NullEelCompiler_ThrowsArgumentNullException()
+    {
+        var act = () => new ABACPipelineBehavior<TestRequest, string>(
+            Substitute.For<IPolicyDecisionPoint>(),
+            Substitute.For<IAttributeProvider>(),
+            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
+            CreateObligationExecutor(),
+            null!,
+            Options.Create(new ABACOptions()),
+            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
+
+        Should.Throw<ArgumentNullException>(act)
+            .ParamName.ShouldBe("eelCompiler");
     }
 
     [Fact]
@@ -89,6 +113,7 @@ public class ABACPipelineBehaviorGuardTests
             Substitute.For<IAttributeProvider>(),
             Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
+            Compiler,
             null!,
             NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
 
@@ -104,6 +129,7 @@ public class ABACPipelineBehaviorGuardTests
             Substitute.For<IAttributeProvider>(),
             Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
+            Compiler,
             Options.Create(new ABACOptions()),
             null!);
 
@@ -148,274 +174,84 @@ public class ABACPipelineBehaviorGuardTests
 
     #endregion
 
-    #region Handle — Permit Decision Calls Next (no obligations)
+    #region Handle — Named Policy Decisions
 
-    [Fact]
-    public async Task Handle_PermitDecision_NoObligations_ExecutesNextStep()
+    [Theory]
+    [InlineData(Effect.Permit, ABACEnforcementMode.Block, true)]
+    [InlineData(Effect.Deny, ABACEnforcementMode.Block, false)]
+    [InlineData(Effect.Deny, ABACEnforcementMode.Warn, true)]
+    [InlineData(Effect.NotApplicable, ABACEnforcementMode.Block, false)]
+    [InlineData(Effect.Indeterminate, ABACEnforcementMode.Block, false)]
+    public async Task Handle_NamedPolicyDecision_IsEnforced(Effect effect, ABACEnforcementMode mode, bool proceeds)
     {
         // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.Permit,
-                PolicyId = "test-policy",
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var sut = CreateBehavior(pdp: pdp);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
+        var pdp = PdpReturning(effect);
+        var sut = CreateBehavior(pdp: pdp, abacOptions: new ABACOptions { EnforcementMode = mode });
         RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("permitted"));
+            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("reached"));
 
         // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
 
         // Assert
-        result.IsRight.ShouldBeTrue();
+        result.IsRight.ShouldBe(proceeds);
     }
-
-    #endregion
-
-    #region Handle — Deny Decision in Block Mode
-
-    [Fact]
-    public async Task Handle_DenyDecision_BlockMode_ReturnsError()
-    {
-        // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.Deny,
-                PolicyId = "deny-policy",
-                Reason = "Unauthorized",
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Block };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
-
-        // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    #endregion
-
-    #region Handle — Deny Decision in Warn Mode
-
-    [Fact]
-    public async Task Handle_DenyDecision_WarnMode_CallsNextStep()
-    {
-        // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.Deny,
-                PolicyId = "deny-policy",
-                Reason = "Unauthorized",
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Warn };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("warned-but-allowed"));
-
-        // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-    }
-
-    #endregion
-
-    #region Handle — NotApplicable With Default Deny
-
-    [Fact]
-    public async Task Handle_NotApplicable_DefaultDeny_BlockMode_ReturnsError()
-    {
-        // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.NotApplicable,
-                PolicyId = null,
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var options = new ABACOptions
-        {
-            EnforcementMode = ABACEnforcementMode.Block,
-            DefaultNotApplicableEffect = Effect.Deny
-        };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
-
-        // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    #endregion
-
-    #region Handle — NotApplicable With Default Permit
-
-    [Fact]
-    public async Task Handle_NotApplicable_DefaultPermit_CallsNextStep()
-    {
-        // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.NotApplicable,
-                PolicyId = null,
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var options = new ABACOptions
-        {
-            EnforcementMode = ABACEnforcementMode.Block,
-            DefaultNotApplicableEffect = Effect.Permit
-        };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("permitted-na"));
-
-        // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
-
-        // Assert
-        result.IsRight.ShouldBeTrue();
-    }
-
-    #endregion
-
-    #region Handle — Indeterminate Decision
-
-    [Fact]
-    public async Task Handle_IndeterminateDecision_BlockMode_ReturnsError()
-    {
-        // Arrange
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.Indeterminate,
-                PolicyId = null,
-                Reason = "Evaluation error",
-                Obligations = [],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
-
-        var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Block };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
-        RequestHandlerCallback<string> next = () =>
-            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
-
-        // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
-
-        // Assert
-        result.IsLeft.ShouldBeTrue();
-    }
-
-    #endregion
-
-    #region Handle — PDP Exception Returns Error
 
     [Fact]
     public async Task Handle_PdpThrows_ReturnsEvaluationFailedError()
     {
         // Arrange
         var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns<ValueTask<PolicyDecision>>(_ => throw new InvalidOperationException("PDP crash"));
+        pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, PolicyDecision>>>(_ => throw new InvalidOperationException("PDP crash"));
 
         var sut = CreateBehavior(pdp: pdp);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
         RequestHandlerCallback<string> next = () =>
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
 
         // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
     }
 
-    #endregion
-
-    #region Handle — Permit With Obligations (real executor, no handlers = obligation fails)
-
     [Fact]
     public async Task Handle_PermitWithObligations_NoHandlers_ReturnsDeny()
     {
-        // Arrange: PDP returns Permit with an obligation, but no handlers registered
-        var pdp = Substitute.For<IPolicyDecisionPoint>();
-        pdp.EvaluateAsync(Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult(new PolicyDecision
-            {
-                Effect = Effect.Permit,
-                PolicyId = "test-policy",
-                Obligations = [new Obligation { Id = "ob-1", FulfillOn = FulfillOn.Permit, AttributeAssignments = [] }],
-                Advice = [],
-                EvaluationDuration = TimeSpan.FromMilliseconds(1)
-            }));
+        // Arrange: the named policy permits with an obligation, but no handlers are registered
+        var pdp = PdpReturning(Effect.Permit,
+            [new Obligation { Id = "ob-1", FulfillOn = FulfillOn.Permit, AttributeAssignments = [] }]);
 
-        // FailOnMissingObligationHandler = true by default, so missing handler = obligation failure = deny
-        var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Block };
-        var sut = CreateBehavior(pdp: pdp, abacOptions: options);
-        var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
+        var sut = CreateBehavior(pdp: pdp, abacOptions: new ABACOptions { EnforcementMode = ABACEnforcementMode.Block });
         RequestHandlerCallback<string> next = () =>
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
 
         // Act
-        var result = await sut.Handle(request, context, next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
 
         // Assert
-        result.IsLeft.ShouldBeTrue("obligation failure should deny even when PDP says Permit per XACML 7.18");
+        result.IsLeft.ShouldBeTrue("obligation failure should deny even when the policy permits per XACML 7.18");
     }
 
     #endregion
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    private static IPolicyDecisionPoint PdpReturning(Effect effect, IReadOnlyList<Obligation>? obligations = null)
+    {
+        var pdp = Substitute.For<IPolicyDecisionPoint>();
+        pdp.EvaluatePolicyAsync("test-policy", Arg.Any<PolicyEvaluationContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, PolicyDecision>(new PolicyDecision
+            {
+                Effect = effect,
+                PolicyId = "test-policy",
+                Obligations = obligations ?? [],
+                Advice = [],
+                EvaluationDuration = TimeSpan.FromMilliseconds(1)
+            })));
+        return pdp;
+    }
 
     private static ObligationExecutor CreateObligationExecutor()
     {
@@ -437,7 +273,7 @@ public class ABACPipelineBehaviorGuardTests
         var logger = NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>();
 
         return new ABACPipelineBehavior<TestRequest, string>(
-            pdp, attributeProvider, securityContextAccessor, obligationExecutor, options, logger);
+            pdp, attributeProvider, securityContextAccessor, obligationExecutor, Compiler, options, logger);
     }
 
     private static IAttributeProvider CreateDefaultAttributeProvider()

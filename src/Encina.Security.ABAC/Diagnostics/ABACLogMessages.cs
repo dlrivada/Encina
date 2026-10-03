@@ -58,20 +58,6 @@ internal static partial class ABACLogMessages
         ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 9006,
-        Level = LogLevel.Debug,
-        Message = "ABAC: NotApplicable for {RequestType} - allowing per DefaultNotApplicableEffect=Permit")]
-    internal static partial void NotApplicablePermit(
-        ILogger logger, string requestType);
-
-    [LoggerMessage(
-        EventId = 9007,
-        Level = LogLevel.Debug,
-        Message = "ABAC: NotApplicable for {RequestType} - denying per DefaultNotApplicableEffect=Deny")]
-    internal static partial void NotApplicableDeny(
-        ILogger logger, string requestType);
-
-    [LoggerMessage(
         EventId = 9008,
         Level = LogLevel.Warning,
         Message = "ABAC: Indeterminate for {RequestType}: {Reason}")]
@@ -274,4 +260,57 @@ internal static partial class ABACLogMessages
         Message = "Unknown XACML expression element '{ElementName}' encountered. Treating as string AttributeValue")]
     internal static partial void XacmlXmlUnknownElement(
         ILogger logger, string elementName);
+
+    // ── Required Policy, Condition and Handler Messages (9072-9078) ──
+    // Event IDs: 9072-9078 (see EventIdRanges.SecurityABAC). Codes and exception types only,
+    // never an error or exception message.
+
+    [LoggerMessage(
+        EventId = 9072,
+        Level = LogLevel.Warning,
+        Message = "Lookup of required policy {PolicyId} failed: {ErrorCode}. The policy is Indeterminate")]
+    internal static partial void RequiredPolicyLookupFailed(
+        ILogger logger, string policyId, string errorCode);
+
+    [LoggerMessage(
+        EventId = 9073,
+        Level = LogLevel.Error,
+        Message = "Unexpected error while evaluating required policy {PolicyId}. The policy is Indeterminate")]
+    internal static partial void RequiredPolicyEvaluationFailed(
+        ILogger logger, Exception exception, string policyId);
+
+    [LoggerMessage(
+        EventId = 9074,
+        Level = LogLevel.Warning,
+        Message = "Required policy {PolicyId} for {RequestType} was not found in the policy store. Access denied")]
+    internal static partial void RequiredPolicyNotFound(
+        ILogger logger, string policyId, string requestType);
+
+    [LoggerMessage(
+        EventId = 9075,
+        Level = LogLevel.Debug,
+        Message = "Condition {ConditionIndex} for {RequestType} evaluated to false. Access denied")]
+    internal static partial void ConditionNotMet(
+        ILogger logger, int conditionIndex, string requestType);
+
+    [LoggerMessage(
+        EventId = 9076,
+        Level = LogLevel.Warning,
+        Message = "Condition {ConditionIndex} for {RequestType} could not be compiled: {ErrorCode}. The condition is Indeterminate")]
+    internal static partial void ConditionCompilationFailed(
+        ILogger logger, int conditionIndex, string requestType, string errorCode);
+
+    [LoggerMessage(
+        EventId = 9077,
+        Level = LogLevel.Warning,
+        Message = "Condition {ConditionIndex} for {RequestType} failed during evaluation. The condition is Indeterminate")]
+    internal static partial void ConditionEvaluationFailed(
+        ILogger logger, Exception exception, int conditionIndex, string requestType);
+
+    [LoggerMessage(
+        EventId = 9078,
+        Level = LogLevel.Error,
+        Message = "Handler for obligation or advice {ObligationId} threw an exception")]
+    internal static partial void ObligationHandlerThrew(
+        ILogger logger, Exception exception, string obligationId);
 }

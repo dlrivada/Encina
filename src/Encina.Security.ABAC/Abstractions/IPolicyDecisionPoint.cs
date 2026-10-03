@@ -1,3 +1,5 @@
+using LanguageExt;
+
 namespace Encina.Security.ABAC;
 
 /// <summary>
@@ -53,6 +55,35 @@ public interface IPolicyDecisionPoint
     /// NotApplicable, or Indeterminate), along with any obligations and advice.
     /// </returns>
     ValueTask<PolicyDecision> EvaluateAsync(
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Evaluates a single policy set or policy, identified by <paramref name="policyId"/>, against
+    /// the given attribute context, without evaluating the rest of the policy store.
+    /// </summary>
+    /// <param name="policyId">
+    /// The identifier of the policy set or policy to evaluate. A policy set with this identifier
+    /// is evaluated in preference to a policy with the same identifier.
+    /// </param>
+    /// <param name="context">
+    /// The evaluation context containing subject, resource, action, and environment attributes.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>
+    /// <c>Right</c> with the decision of that policy set or policy (Permit, Deny, NotApplicable or
+    /// Indeterminate, with the obligations and advice that match its effect); a failure to read
+    /// the policy store or to evaluate the policy is an <see cref="Effect.Indeterminate"/> decision.
+    /// <c>Left</c> with code <see cref="ABACErrors.PolicyNotFoundCode"/> when the store holds no
+    /// policy set and no policy with that identifier.
+    /// </returns>
+    /// <remarks>
+    /// Used by <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> to enforce
+    /// <see cref="RequirePolicyAttribute"/>: the named policy decides on its own, so the
+    /// root-level combination of <see cref="EvaluateAsync"/> does not apply.
+    /// </remarks>
+    ValueTask<Either<EncinaError, PolicyDecision>> EvaluatePolicyAsync(
+        string policyId,
         PolicyEvaluationContext context,
         CancellationToken cancellationToken = default);
 }

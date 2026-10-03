@@ -1,6 +1,9 @@
+#pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
+
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
+using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
 
 using LanguageExt;
@@ -22,6 +25,8 @@ namespace Encina.UnitTests.Security.ABAC;
 /// </summary>
 public sealed class ABACRequirementEnforcementTests
 {
+    private static readonly EELCompiler Compiler = new();
+
     [RequirePolicy("policy-a")]
     private sealed record RequiresPolicyA : IRequest<string>;
 
@@ -74,7 +79,7 @@ public sealed class ABACRequirementEnforcementTests
         // Assert
         result.IsLeft.ShouldBeTrue("the required condition is false, so the request must be denied");
         nextCalled.ShouldBeFalse();
-        ErrorCode(result).ShouldBe("abac.condition_not_met");
+        ErrorCode(result).ShouldBe(ABACErrors.ConditionNotMetCode);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────
@@ -123,6 +128,7 @@ public sealed class ABACRequirementEnforcementTests
             attributeProvider,
             accessor,
             new ObligationExecutor([], NullLogger<ObligationExecutor>.Instance),
+            Compiler,
             Options.Create(new ABACOptions { EnforcementMode = ABACEnforcementMode.Block }),
             NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }

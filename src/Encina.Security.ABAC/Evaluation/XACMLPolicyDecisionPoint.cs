@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 using Encina.Diagnostics;
 using Encina.Security.ABAC.CombiningAlgorithms;
+using Encina.Security.ABAC.Diagnostics;
+
+using LanguageExt;
 
 using Microsoft.Extensions.Logging;
 
@@ -175,6 +178,70 @@ public sealed class XACMLPolicyDecisionPoint(
                 EvaluationDuration = stopwatch.Elapsed
             };
         }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<Either<EncinaError, PolicyDecision>> EvaluatePolicyAsync(
+        string policyId,
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var stopwatch = Stopwatch.StartNew();
+        Option<PolicyEvaluationResult> result;
+
+        try
+        {
+            result = await FindAndEvaluateAsync(policyId, context, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ABACLogMessages.RequiredPolicyEvaluationFailed(_logger, ex.ForLogging(), policyId);
+            result = IndeterminateResult(policyId);
+        }
+
+        stopwatch.Stop();
+
+        return result.Match<Either<EncinaError, PolicyDecision>>(
+            Some: evaluated => BuildDecision(evaluated, context, stopwatch.Elapsed),
+            None: () => ABACErrors.PolicyNotFound(policyId));
+    }
+
+    /// <summary>
+    /// Looks up <paramref name="policyId"/> as a policy set, then as a policy, and evaluates the
+    /// first match. A failed store read yields an Indeterminate result; <c>None</c> means not found.
+    /// </summary>
+    private async ValueTask<Option<PolicyEvaluationResult>> FindAndEvaluateAsync(
+        string policyId,
+        PolicyEvaluationContext context,
+        CancellationToken cancellationToken)
+    {
+        var policySetLookup = await _pap.GetPolicySetAsync(policyId, cancellationToken).ConfigureAwait(false);
+        var fromPolicySet = policySetLookup.Match(
+            Left: error => LookupFailed(policyId, error),
+            Right: policySet => policySet.Map(found => EvaluatePolicySet(found, context)));
+
+        if (fromPolicySet.IsSome)
+        {
+            return fromPolicySet;
+        }
+
+        var policyLookup = await _pap.GetPolicyAsync(policyId, cancellationToken).ConfigureAwait(false);
+        return policyLookup.Match(
+            Left: error => LookupFailed(policyId, error),
+            Right: policy => policy.Map(found => EvaluatePolicy(found, context)));
+    }
+
+    private Option<PolicyEvaluationResult> LookupFailed(string policyId, EncinaError error)
+    {
+        ABACLogMessages.RequiredPolicyLookupFailed(_logger, policyId, error.GetCode().IfNone("encina.unknown"));
+        return IndeterminateResult(policyId);
     }
 
     /// <summary>
