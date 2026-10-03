@@ -32,7 +32,10 @@ namespace Encina.Marten.GDPR;
 /// </para>
 /// <para>
 /// Thread-safe: Uses <see cref="ConcurrentDictionary{TKey, TValue}"/> for concurrent access
-/// and <see cref="System.Threading.Lock"/> for per-subject synchronization.
+/// and <see cref="System.Threading.Lock"/> for per-subject synchronization. Creation, rotation and erasure
+/// of one subject run under that subject's lock, so concurrent first writers all get the one stored key,
+/// each rotation creates exactly one new version, and no key can be created after an erasure. Key material
+/// is returned as a copy: erasure zeroes the stored arrays and must never alter a key a caller still holds.
 /// </para>
 /// </remarks>
 /// <example>
@@ -100,10 +103,12 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 if (state.Keys.Count > 0)
                 {
-                    // Return the active (latest) key material with its version, read under the same lock
+                    // Return the active (latest) key material with its version, read under the same lock.
+                    // The caller gets a copy: erasure zeroes the stored array, which must never change a key
+                    // a concurrent writer is still encrypting with (#1699).
                     var activeKey = state.Keys[^1];
                     return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
-                        Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = activeKey.KeyMaterial }));
+                        Right(new SubjectEncryptionKey { Version = activeKey.Version, KeyMaterial = CopyOf(activeKey.KeyMaterial) }));
                 }
 
                 // Create the first key for this subject
@@ -118,10 +123,10 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
 
                 // The data subject's own identifier is never logged (#1429, following #1314);
                 // correlate via the key version instead.
-                _logger.LogDebug("Created initial encryption key. Version={Version}", version);
+                _logger.KeyCreated(version);
 
                 return ValueTask.FromResult<Either<EncinaError, SubjectEncryptionKey>>(
-                    Right(new SubjectEncryptionKey { Version = version, KeyMaterial = keyMaterial }));
+                    Right(new SubjectEncryptionKey { Version = version, KeyMaterial = CopyOf(keyMaterial) }));
             }
         }
         catch (Exception ex)
@@ -170,7 +175,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                             FormatKeyId(subjectId, version.Value))));
                 }
 
-                return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(entry.KeyMaterial));
+                return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(CopyOf(entry.KeyMaterial)));
             }
 
             // Return active (latest) key
@@ -181,7 +186,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
                         FormatKeyId(subjectId, 1))));
             }
 
-            return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(state.Keys[^1].KeyMaterial));
+            return ValueTask.FromResult<Either<EncinaError, byte[]>>(Right(CopyOf(state.Keys[^1].KeyMaterial)));
         }
     }
 
@@ -405,23 +410,34 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
     /// Clears all subjects and resets state.
     /// </summary>
     /// <remarks>
-    /// Intended for testing only to reset state between tests.
+    /// Intended for testing only to reset state between tests; do not call it while other operations run.
+    /// Each subject is removed before its key material is zeroed, so no later read can return a zeroed key.
     /// </remarks>
     public void Clear()
     {
-        foreach (var kvp in _subjects)
+        foreach (var subjectId in _subjects.Keys)
         {
-            lock (kvp.Value.SyncRoot)
+            if (!_subjects.TryRemove(subjectId, out var state))
             {
-                foreach (var key in kvp.Value.Keys)
+                continue;
+            }
+
+            lock (state.SyncRoot)
+            {
+                foreach (var key in state.Keys)
                 {
                     CryptographicOperations.ZeroMemory(key.KeyMaterial);
                 }
+
+                state.Keys.Clear();
             }
         }
-
-        _subjects.Clear();
     }
+
+    /// <summary>
+    /// Returns a copy of stored key material, so callers never share the array the provider zeroes on erasure.
+    /// </summary>
+    private static byte[] CopyOf(byte[] keyMaterial) => (byte[])keyMaterial.Clone();
 
     /// <summary>
     /// Formats a key identifier following the convention <c>"subject:{subjectId}:v{version}"</c>.
