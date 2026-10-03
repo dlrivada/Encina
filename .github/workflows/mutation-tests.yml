@@ -233,17 +233,13 @@ jobs:
       - name: Run the Stryker test project (diagnostic baseline)
         run: |
           mkdir -p artifacts/test-baseline
-          for proj in \
-            tests/Encina.UnitTests/Encina.UnitTests.csproj; do
-            name=$(basename "$proj" .csproj)
-            echo "::group::$name"
-            dotnet test "$proj" \
-              --configuration Debug \
-              --logger "trx;LogFileName=${name}.trx" \
-              --results-directory artifacts/test-baseline \
-              2>&1 | tee "artifacts/test-baseline/${name}.log" || true
-            echo "::endgroup::"
-          done
+          echo "::group::Encina.UnitTests"
+          dotnet test tests/Encina.UnitTests/Encina.UnitTests.csproj \
+            --configuration Debug \
+            --logger "trx;LogFileName=Encina.UnitTests.trx" \
+            --results-directory artifacts/test-baseline \
+            2>&1 | tee artifacts/test-baseline/Encina.UnitTests.log || true
+          echo "::endgroup::"
 
       - name: Upload diagnostic baseline
         if: always()
