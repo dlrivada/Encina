@@ -178,7 +178,9 @@ function Split-Findings([string]$Stage, [string]$FindingsText) {
     # any text after it is prose the stage agent should have put under '## Informational (not findings)', and
     # is ignored with a note (#1694) instead of turning into an Unknown finding.
     $noneMatch = [regex]::Match($text, '(?i)^(?:-\s*)?none\s*\.?[ \t]*(?:\r?\n(?<rest>[\s\S]*))?$')
-    if ($noneMatch.Success) {
+    # Fail closed: when the text after the marker contains a numbered finding line, the section contradicts
+    # itself and falls through to the normal parser so no real finding is dropped.
+    if ($noneMatch.Success -and $noneMatch.Groups['rest'].Value -notmatch '(?m)^\d+\.\s+\*\*[^*]+\*\*') {
         if (-not [string]::IsNullOrWhiteSpace($noneMatch.Groups['rest'].Value)) {
             Write-Host "Split-Findings: trailing text after '- none' in $Stage ignored."
         }

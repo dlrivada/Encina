@@ -1893,10 +1893,12 @@ Test.
     # #1694: prose after a leading "- none" is ignored with a note; "- none." and "None" variants are honoured.
     $noneProse = @(Split-Findings 'tests' "- none`n`nCoverage was measured for all flags and every target is met.")
     Test-RemediationCase 'Split-Findings: "- none" plus trailing prose yields zero findings (#1694)' { $noneProse.Count -eq 0 }
-    $noneNote = (@(Split-Findings 'tests' "- none`n`nSome prose.") 6>&1 | Out-String)
-    Test-RemediationCase 'Split-Findings: trailing text after "- none" prints a note naming the stage (#1694)' { $noneNote -match "trailing text after '- none' in tests ignored" }
-    $noneAlone = (@(Split-Findings 'tests' '- none') 6>&1 | Out-String)
-    Test-RemediationCase 'Split-Findings: "- none" alone prints no note (#1694)' { $noneAlone.Trim().Length -eq 0 }
+    $noneNote = @(& { [void](Split-Findings 'tests' "- none`n`nSome prose.") } 6>&1 | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { [string]$_.MessageData })
+    Test-RemediationCase 'Split-Findings: trailing text after "- none" prints a note naming the stage (#1694)' { $noneNote.Count -eq 1 -and $noneNote[0] -match "trailing text after '- none' in tests ignored" }
+    $noneAlone = @(& { [void](Split-Findings 'tests' '- none') } 6>&1 | Where-Object { $_ -is [System.Management.Automation.InformationRecord] })
+    Test-RemediationCase 'Split-Findings: "- none" alone prints no note (#1694)' { $noneAlone.Count -eq 0 }
+    $noneThenFinding = @(Split-Findings 'code' "- none`n1. **Blocker** -- real bug.")
+    Test-RemediationCase 'Split-Findings: a numbered finding after "- none" is never dropped (#1694)' { $noneThenFinding.Count -eq 1 -and $noneThenFinding[0].Severity -eq 'Blocker' }
     Test-RemediationCase 'Split-Findings: "- none." with a period yields zero findings (#1694)' { @(Split-Findings 'code' '- none.').Count -eq 0 }
     Test-RemediationCase 'Split-Findings: "None" in any case, with or without the dash, yields zero findings (#1694)' { @(Split-Findings 'code' 'None').Count -eq 0 -and @(Split-Findings 'code' '- NONE.').Count -eq 0 }
     $numberedSplit = @(Split-Findings 'code' "1. **Major** -- a.`n2. **Minor** -- b.")
