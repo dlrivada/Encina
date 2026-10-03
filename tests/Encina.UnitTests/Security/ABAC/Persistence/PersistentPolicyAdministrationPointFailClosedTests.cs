@@ -13,8 +13,8 @@ namespace Encina.UnitTests.Security.ABAC.Persistence;
 
 /// <summary>
 /// Regression tests for #1677: policy changes of <see cref="PersistentPolicyAdministrationPoint"/>
-/// are audited fail closed, refused without a principal, and wired without a captive scoped
-/// <see cref="IAuditStore"/>.
+/// are audited fail closed, refused without a principal, and wired with the <see cref="IAuditStore"/>
+/// resolved per write in its own scope (the policy-store lifetime is tracked by #1707).
 /// </summary>
 public sealed class PersistentPolicyAdministrationPointFailClosedTests
 {
@@ -122,25 +122,46 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     public async Task AddEncinaABAC_PersistentPapWithScopedAuditStore_BuildsAndAuditsInItsOwnScope()
     {
         var store = CreateStoreForNewStandalonePolicy();
-        var auditStore = Substitute.For<IAuditStore>();
-        auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, Unit>>(Either<EncinaError, Unit>.Right(Prelude.unit)));
+        var created = 0;
+        var disposed = 0;
+        var recorded = 0;
 
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddSingleton(CreateAccessor("alice"));
+        // The guarantee proven here covers IAuditStore only (resolved per write in its own scope).
+        // The policy store is registered as a singleton because the singleton PAP still captures
+        // the scoped IPolicyStore of every database provider until #1707 fixes the policy-store lifetime.
         services.AddSingleton(store);
-        services.AddScoped(_ => auditStore);
+        services.AddScoped<IAuditStore>(_ =>
+        {
+            created++;
+            var auditStore = Substitute.For<IAuditStore, IAsyncDisposable>();
+            auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    recorded++;
+                    return new ValueTask<Either<EncinaError, Unit>>(Either<EncinaError, Unit>.Right(Prelude.unit));
+                });
+            ((IAsyncDisposable)auditStore).DisposeAsync().Returns(_ =>
+            {
+                disposed++;
+                return ValueTask.CompletedTask;
+            });
+            return auditStore;
+        });
         services.AddEncinaABAC(options => options.UsePersistentPAP = true);
 
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         var pap = provider.GetRequiredService<IPolicyAdministrationPoint>();
-        var result = await pap.AddPolicyAsync(CreatePolicy(), parentPolicySetId: null);
+        (await pap.AddPolicyAsync(CreatePolicy("p-1"), parentPolicySetId: null)).IsRight.ShouldBeTrue();
+        (await pap.AddPolicyAsync(CreatePolicy("p-2"), parentPolicySetId: null)).IsRight.ShouldBeTrue();
 
-        result.IsRight.ShouldBeTrue();
-        await auditStore.Received(1).RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        created.ShouldBe(2);
+        disposed.ShouldBe(2);
+        recorded.ShouldBe(2);
     }
 }

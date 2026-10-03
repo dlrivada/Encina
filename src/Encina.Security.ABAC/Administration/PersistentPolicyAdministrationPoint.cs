@@ -54,7 +54,7 @@ namespace Encina.Security.ABAC.Administration;
 /// change is ever committed without its audit record. When the change itself is then rejected by
 /// the policy store, a second entry with outcome <see cref="AuditOutcome.Error"/> records that
 /// the announced change did not happen. With no <see cref="IAuditStore"/> registered, policy
-/// change auditing is not configured and mutations are applied without a record. This supports
+/// change auditing is not configured and mutations are applied without a record, and a Warning (EventId 9097) says so once per instance. This supports
 /// NIS2 Art. 10 and SOX §404 compliance requirements.
 /// </para>
 /// <para>
@@ -74,6 +74,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     private readonly IRequestContextAccessor? _requestContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<PersistentPolicyAdministrationPoint> _logger;
+    private int _unauditedWarningLogged;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -602,6 +603,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         if (_scopeFactory is null)
         {
+            WarnUnauditedOnce("no IServiceScopeFactory was supplied");
             return await apply();
         }
 
@@ -614,10 +616,20 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
 
         if (auditStore is null)
         {
+            WarnUnauditedOnce("no IAuditStore is registered");
             return await apply();
         }
 
         return await ApplyAuditedAsync(auditStore, actor, change, apply, cancellationToken);
+    }
+
+    /// <summary>Logs, once per instance, that changes are being applied without an audit record.</summary>
+    private void WarnUnauditedOnce(string condition)
+    {
+        if (Interlocked.Exchange(ref _unauditedWarningLogged, 1) == 0)
+        {
+            LogChangesUnaudited(_logger, condition);
+        }
     }
 
     /// <summary>
@@ -648,6 +660,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         var beforeState = change.LoadBefore is null ? null : await change.LoadBefore(cancellationToken);
         var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Success, errorCode: null);
+        var writeAheadEntryId = entry.Id;
         var recorded = await RecordAuditAsync(auditStore, entry, cancellationToken);
         if (recorded.IsLeft)
         {
@@ -661,14 +674,14 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
         catch (Exception ex)
         {
-            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, ex.GetType().Name);
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, ex.GetType().Name, writeAheadEntryId);
             throw;
         }
 
         if (result.IsLeft)
         {
             var errorCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone("encina.unknown"));
-            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, errorCode);
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, errorCode, writeAheadEntryId);
         }
 
         return result;
@@ -683,9 +696,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         PolicyActor actor,
         PolicyChange change,
         object? beforeState,
-        string errorCode)
+        string errorCode,
+        Guid writeAheadEntryId)
     {
-        var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Error, errorCode);
+        var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Error, errorCode, writeAheadEntryId);
         await RecordAuditAsync(auditStore, entry, CancellationToken.None);
     }
 
@@ -721,7 +735,8 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         PolicyChange change,
         object? beforeState,
         AuditOutcome outcome,
-        string? errorCode)
+        string? errorCode,
+        Guid? writeAheadEntryId = null)
     {
         var now = _timeProvider.GetUtcNow();
 
@@ -739,17 +754,22 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             TimestampUtc = now.UtcDateTime,
             StartedAtUtc = now,
             CompletedAtUtc = now,
-            Metadata = BuildMetadata(actor, change, beforeState)
+            Metadata = BuildMetadata(actor, change, beforeState, writeAheadEntryId)
         };
     }
 
-    private static Dictionary<string, object?> BuildMetadata(PolicyActor actor, PolicyChange change, object? beforeState)
+    private static Dictionary<string, object?> BuildMetadata(PolicyActor actor, PolicyChange change, object? beforeState, Guid? writeAheadEntryId)
     {
         var metadata = new Dictionary<string, object?>
         {
             ["source"] = "PersistentPolicyAdministrationPoint",
             ["actor"] = actor.IsSystem ? SystemActorId : "principal"
         };
+
+        if (writeAheadEntryId is { } writeAheadId)
+        {
+            metadata["writeAheadEntryId"] = writeAheadId;
+        }
 
         if (beforeState is not null)
         {
@@ -802,4 +822,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         string entityType,
         string entityId,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 9097,
+        Level = LogLevel.Warning,
+        Message = "ABAC policy changes are being applied without an audit record: {Condition}")]
+    private static partial void LogChangesUnaudited(ILogger logger, string condition);
 }

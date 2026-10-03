@@ -467,6 +467,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangeAuditFailedCode));
         await _store.DidNotReceive().SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>());
     }
 
@@ -509,6 +510,90 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         await _auditStore.Received(1).RecordAsync(
             Arg.Is<AuditEntry>(e => e.Outcome == AuditOutcome.Error && e.ErrorMessage == "store.failed"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StoreRejectsChangeAfterAudit_ErrorEntryPointsToTheWriteAheadEntry()
+    {
+        // Arrange
+        var ps = CreatePolicySet("ps-link");
+        SetupStoreExistsPolicySet("ps-link", false);
+        _store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
+                Either<EncinaError, LanguageExt.Unit>.Left(EncinaErrors.Create("store.failed", "db down"))));
+        var recorded = new List<AuditEntry>();
+        _auditStore.RecordAsync(Arg.Do<AuditEntry>(recorded.Add), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
+                Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
+
+        // Act
+        await _sut.AddPolicySetAsync(ps);
+
+        // Assert
+        var writeAhead = recorded.Single(e => e.Outcome == AuditOutcome.Success);
+        var failure = recorded.Single(e => e.Outcome == AuditOutcome.Error);
+        failure.Metadata["writeAheadEntryId"].ShouldBe(writeAhead.Id);
+        writeAhead.Metadata.ContainsKey("writeAheadEntryId").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task NoScopeFactory_AppliesChangeAndWarnsOncePerInstance()
+    {
+        // Arrange
+        var store = Substitute.For<IPolicyStore>();
+        store.ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, bool>>(Either<EncinaError, bool>.Right(false)));
+        store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
+                Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
+        var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
+        var sut = new PersistentPolicyAdministrationPoint(store, logger, scopeFactory: null, _requestContextAccessor);
+
+        // Act
+        (await sut.AddPolicySetAsync(CreatePolicySet("a"))).IsRight.ShouldBeTrue();
+        (await sut.AddPolicySetAsync(CreatePolicySet("b"))).IsRight.ShouldBeTrue();
+
+        // Assert
+        logger.Events.Count(e => e.Id == 9097 && e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task NoAuditStoreRegistered_AppliesChangeAndWarnsOncePerInstance()
+    {
+        // Arrange
+        var store = Substitute.For<IPolicyStore>();
+        store.ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, bool>>(Either<EncinaError, bool>.Right(false)));
+        store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
+                Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
+        var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
+        var provider = new ServiceCollection().BuildServiceProvider();
+        var sut = new PersistentPolicyAdministrationPoint(
+            store, logger, provider.GetRequiredService<IServiceScopeFactory>(), _requestContextAccessor);
+
+        // Act
+        (await sut.AddPolicySetAsync(CreatePolicySet("a"))).IsRight.ShouldBeTrue();
+        (await sut.AddPolicySetAsync(CreatePolicySet("b"))).IsRight.ShouldBeTrue();
+
+        // Assert
+        logger.Events.Count(e => e.Id == 9097 && e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).ShouldBe(1);
+    }
+
+    private sealed class CapturingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<(int Id, Microsoft.Extensions.Logging.LogLevel Level)> Events { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel,
+            Microsoft.Extensions.Logging.EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) => Events.Add((eventId.Id, logLevel));
     }
 
     [Fact]

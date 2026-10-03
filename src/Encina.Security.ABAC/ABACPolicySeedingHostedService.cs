@@ -13,7 +13,9 @@ namespace Encina.Security.ABAC;
 /// <para>
 /// This service runs once during application startup. It reads the seed lists from
 /// <see cref="ABACOptions.SeedPolicySets"/> and <see cref="ABACOptions.SeedPolicies"/>,
-/// and adds them to the PAP. Duplicate IDs are logged as warnings and skipped.
+/// and adds them to the PAP. Duplicate IDs are logged as warnings and skipped; any other failure
+/// (for example an audit-store or policy-store failure) fails startup with an
+/// <see cref="InvalidOperationException"/>.
 /// </para>
 /// <para>
 /// The service is automatically registered when either seed list contains entries
@@ -69,16 +71,11 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             var result = await _pap.AddPolicySetAsync(policySet, cancellationToken)
                 .ConfigureAwait(false);
 
-            result.Match(
-                Left: error => _logger.LogWarning(
-                    "Failed to seed policy set '{PolicySetId}': {ErrorCode}",
-                    policySet.Id,
-                    error.GetCode().IfNone("encina.unknown")),
-                Right: _ =>
-                {
-                    seededSets++;
-                    _logger.LogDebug("Seeded policy set '{PolicySetId}'", policySet.Id);
-                });
+            if (IsAccepted(result, ABACErrors.DuplicatePolicySetCode, "policy set", policySet.Id))
+            {
+                seededSets++;
+                _logger.LogDebug("Seeded policy set '{PolicySetId}'", policySet.Id);
+            }
         }
 
         // ── Seed standalone policies ───────────────────────────────
@@ -88,16 +85,11 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             var result = await _pap.AddPolicyAsync(policy, parentPolicySetId: null, cancellationToken)
                 .ConfigureAwait(false);
 
-            result.Match(
-                Left: error => _logger.LogWarning(
-                    "Failed to seed standalone policy '{PolicyId}': {ErrorCode}",
-                    policy.Id,
-                    error.GetCode().IfNone("encina.unknown")),
-                Right: _ =>
-                {
-                    seededPolicies++;
-                    _logger.LogDebug("Seeded standalone policy '{PolicyId}'", policy.Id);
-                });
+            if (IsAccepted(result, ABACErrors.DuplicatePolicyCode, "standalone policy", policy.Id))
+            {
+                seededPolicies++;
+                _logger.LogDebug("Seeded standalone policy '{PolicyId}'", policy.Id);
+            }
         }
 
         _logger.LogInformation(
@@ -106,6 +98,33 @@ internal sealed partial class ABACPolicySeedingHostedService : IHostedService
             policySets.Count,
             seededPolicies,
             policies.Count);
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the seed was applied, <c>false</c> when it already existed (logged
+    /// and skipped), and throws for any other failure so the host never starts with a partial
+    /// policy set. The message carries the id and the error code, never the error message.
+    /// </summary>
+    private bool IsAccepted(
+        Either<EncinaError, Unit> result,
+        string duplicateCode,
+        string kind,
+        string id)
+    {
+        var errorCode = result.Match(Right: _ => (string?)null, Left: e => e.GetCode().IfNone("encina.unknown"));
+        if (errorCode is null)
+        {
+            return true;
+        }
+
+        if (errorCode == duplicateCode)
+        {
+            _logger.LogWarning("Failed to seed {Kind} '{SeedId}': {ErrorCode}", kind, id, errorCode);
+            return false;
+        }
+
+        throw new InvalidOperationException(
+            $"ABAC seeding failed for {kind} '{id}' with error code '{errorCode}'; the application cannot start with a partial policy set.");
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
