@@ -122,7 +122,7 @@ flowchart TD
     F2 -- "Yes" --> G["ISubjectKeyProvider.GetOrCreateSubjectKeyAsync"]
     G --> G2{"Usable key returned?"}
     G2 -- "No (Left, throw, unusable key)" --> X
-    G2 -- "Yes" --> H["IFieldEncryptor.Encrypt plaintext, key"]
+    G2 -- "Yes" --> H["AES-256-GCM encrypt with the subject key"]
     H --> I["Replace property value with<br/>encrypted JSON envelope"]
     I --> J["Restore original value after serialization"]
     J --> K["Delegate to inner ISerializer"]
@@ -256,7 +256,7 @@ The subject-id property (the one `SubjectIdProperty` names, not the encrypted on
 
 A missing subject (`null`, `Guid.Empty`, or an empty or whitespace string) fails serialization with `CryptoShreddingEncryptionException` (reason `SubjectIdMissing`); see [Fail-closed serialization](#fail-closed-serialization). The failure is logged as EventId 8466 with the property, the event type and the subject-id property name, never the id.
 
-Any other type (`double`, `decimal`, `DateTime`, an enum, a wrapper without a supported `Value` property, `object`) is a configuration error: the startup scan rejects it when the type is in scope (see Validation), and serialization throws `InvalidOperationException` instead of storing plaintext.
+Any other type (`double`, `decimal`, `DateTime`, an enum, a wrapper without a supported `Value` property, `object`) is a configuration error: the startup scan rejects it when the type is in scope (see Validation), and serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`) instead of storing plaintext. The failure is logged as EventId 8459 and counted.
 
 ```csharp
 public readonly record struct PatientId(Guid Value);
@@ -301,7 +301,9 @@ The startup scan runs only when `AutoRegisterFromAttributes` is `true`. It cover
 
 When any property fails, startup throws `InvalidOperationException` listing every error; each message names the property and its type.
 
-A type outside the scanned assemblies is not checked at startup. If its subject-id type is unsupported, serialization throws `InvalidOperationException` (from the subject-id conversion, `CryptoShreddedFieldInfo.ResolveSubjectId`) and the append fails.
+A type outside the scanned assemblies is not checked at startup. If its subject-id type is unsupported, serialization throws `CryptoShreddingEncryptionException` (reason `PropertyMisconfigured`, logged as EventId 8459 and counted) and the append fails.
+
+The scan also accepts open generic event types: whether a property is settable is decided from its declaration, and a closed generic type compiles its setter at runtime. A `[CryptoShredded]` declared on an interface is rejected at startup, because the attribute is not inherited by the implementing property; put it on the property of the class or record.
 
 ### Fail-closed serialization
 
@@ -322,7 +324,7 @@ The message names the event type and the property only. It never contains the su
 |----------|-------|-----------|
 | `SubjectIdMissing` | The subject-id property is `null`, `Guid.Empty`, or an empty or whitespace string | EventId 8466 |
 | `KeyUnavailable` | `ISubjectKeyProvider.GetOrCreateSubjectKeyAsync` returned `Left` (including for a forgotten subject: new personal data for a forgotten subject is not written), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) | EventId 8455, with the error code |
-| `PropertyMisconfigured` | The property cannot be overwritten (getter-only, or declared on a struct or `record struct` event), is not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property | EventId 8459, then the exception is thrown |
+| `PropertyMisconfigured` | The property cannot be overwritten (getter-only, or declared on a struct or `record struct` event), is not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property | EventId 8459 (error), then the exception is thrown; `PropertyName` is the comma-separated list of every misconfigured property of the type |
 
 Positional records and `init`-only properties work. Decryption is unchanged.
 
@@ -490,7 +492,7 @@ isForgotten.IfRight(forgotten =>
 
 ### Structured Logging
 
-Zero-allocation logging via `LoggerMessage.Define` for all operations. Encryption failures are logged at error level before `CryptoShreddingEncryptionException` is thrown: EventId 8455 (key unavailable), 8466 (subject id missing); a misconfigured property is logged as warning EventId 8459.
+Zero-allocation logging via `LoggerMessage.Define` for all operations. Encryption failures are logged at error level before `CryptoShreddingEncryptionException` is thrown: EventId 8455 (key unavailable), 8466 (subject id missing); a misconfigured property is logged at error level as EventId 8459 ("the event is not stored"), naming every misconfigured property of the type.
 
 ---
 
@@ -573,7 +575,7 @@ Crypto-shredding applies to events written after enabling it. Existing plaintext
 
 ### What encryption algorithm is used?
 
-AES-256-GCM via `Encina.Security.Encryption`. The same `IFieldEncryptor` used throughout the Encina security infrastructure.
+AES-256-GCM, applied by `CryptoShredderSerializer` directly with the 32-byte subject key (no `IFieldEncryptor` is involved in serialization).
 
 ### How do I test crypto-shredding?
 
