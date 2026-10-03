@@ -282,7 +282,7 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9074,
         Level = LogLevel.Warning,
-        Message = "Required policy {PolicyId} for {RequestType} was not found in the policy store. Access denied")]
+        Message = "Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied (logged only in Warn mode)")]
     internal static partial void RequiredPolicyNotFound(
         ILogger logger, string policyId, string requestType);
 

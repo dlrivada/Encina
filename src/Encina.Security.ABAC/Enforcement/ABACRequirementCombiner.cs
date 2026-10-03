@@ -12,7 +12,7 @@ internal enum RequirementVerdictKind
     /// <summary>A required policy returned Deny or NotApplicable, so its group did not pass.</summary>
     PolicyDenied,
 
-    /// <summary>A required policy is neither a policy set nor a policy in the store.</summary>
+    /// <summary>A required policy is neither a top-level policy set nor a standalone policy in the store.</summary>
     PolicyNotFound,
 
     /// <summary>A required policy or condition could not be evaluated.</summary>
