@@ -38,6 +38,8 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 | `abac.function_error` | `FunctionErrorCode` | `FunctionError` | `string functionId, Exception exception` | A registered function threw an exception during evaluation. |
 | `abac.variable_not_found` | `VariableNotFoundCode` | `VariableNotFound` | `string variableId` | A `VariableReference` references an undefined `VariableDefinition` within the policy. |
 | `abac.condition_not_met` | `ConditionNotMetCode` | `ConditionNotMet` | `Type requestType, int conditionIndex` | A `[RequireCondition]` expression evaluated to `false`. The message is fixed. |
+| `abac.policy_change_principal_required` | `PolicyChangePrincipalRequiredCode` | `PolicyChangePrincipalRequired` | none | `PersistentPolicyAdministrationPoint` refused a mutation because the request context carries no principal. The message is fixed. |
+| `abac.policy_change_audit_failed` | `PolicyChangeAuditFailedCode` | `PolicyChangeAuditFailed` | `string cause` | The audit record of a policy change could not be written, so the change was not applied. `cause` (details) is the underlying error code or exception type. |
 | `abac.obligation_handler_exception` | `ObligationHandlerExceptionCode` | `ObligationHandlerException` | `string obligationId, Type exceptionType` | An obligation or advice handler threw instead of returning a result. The message is fixed and the exception message is never recorded. `ObligationExecutor` handles this error itself: a mandatory obligation then fails the request with `abac.obligation_failed`, and advice is skipped. |
 
 ## Error Metadata

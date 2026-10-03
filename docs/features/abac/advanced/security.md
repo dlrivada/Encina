@@ -407,12 +407,15 @@ The `IPolicyAdministrationPoint` controls what policies exist in the system. Una
 
 The built-in `InMemoryPolicyAdministrationPoint` stores policies in `ConcurrentDictionary` instances. It is thread-safe but has no access control, no audit logging, and no persistence. Policies are lost on process restart.
 
-**Production recommendation**: Implement a database-backed `IPolicyAdministrationPoint` with:
+**Production recommendation**: Use the database-backed `PersistentPolicyAdministrationPoint` (`ABACOptions.UsePersistentPAP`), which attributes and audits every policy change (see below), and add what it does not provide:
 
 - Authentication and authorization for policy CRUD operations
-- Audit logging of all policy changes (who changed what, when)
 - Policy versioning to support rollback
 - Approval workflows for policy modifications
+
+### Policy Change Audit Trail
+
+`PersistentPolicyAdministrationPoint` attributes every add, update and remove of a policy or policy set to the principal of the ambient `IRequestContext` and refuses the change with `abac.policy_change_principal_required` when there is none. When an `IAuditStore` is registered, the audit entry is written before the change is applied; if that write fails, throws or exceeds 30 seconds, the change is not applied (`abac.policy_change_audit_failed`). With no `IAuditStore` registered, changes are applied without a record, so register one in production. Startup seeding runs under an explicit, logged system actor (`UserId` `"system"`). The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md). Details: [Persistent PAP](../reference/persistent-pap.md#policy-change-principal-and-audit-trail).
 
 ### Protecting PAP Operations
 

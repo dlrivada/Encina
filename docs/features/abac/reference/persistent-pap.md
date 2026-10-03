@@ -182,6 +182,49 @@ The PAP implementation that wraps `IPolicyStore` with business rules:
 - **Duplicate detection**: Checks both standalone policies and nested policies within all policy sets before adding.
 - **Parent-child management**: `AddPolicyAsync` with a `parentPolicySetId` loads the parent, appends the policy, and saves the updated policy set.
 - **Search-then-mutate**: `GetPolicyAsync`, `UpdatePolicyAsync`, and `RemovePolicyAsync` search standalone policies first, then scan all policy sets for nested matches.
+- **Principal and audit**: every mutation is attributed to a principal and audited before it is applied (see [Policy Change Principal and Audit Trail](#policy-change-principal-and-audit-trail)).
+
+Constructor (`AddEncinaABAC` wires every argument):
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `store` | `IPolicyStore` | required | Persistence provider |
+| `logger` | `ILogger<PersistentPolicyAdministrationPoint>` | required | Structured logging |
+| `scopeFactory` | `IServiceScopeFactory?` | `null` | Resolves `IAuditStore` per write in its own scope |
+| `requestContextAccessor` | `IRequestContextAccessor?` | `null` | Resolves the principal of each change |
+| `timeProvider` | `TimeProvider?` | `TimeProvider.System` | Every timestamp and the audit write timeout |
+
+## Policy Change Principal and Audit Trail
+
+Applies to `AddPolicySetAsync`, `UpdatePolicySetAsync`, `RemovePolicySetAsync`, `AddPolicyAsync`, `UpdatePolicyAsync` and `RemovePolicyAsync`. Reads are not audited.
+
+### Principal
+
+- Each change is attributed to the principal of the ambient `IRequestContext`: `UserId`, plus `TenantId` and `CorrelationId` when present.
+- When no principal can be resolved (no accessor, no context, or an empty `UserId`), the change is refused with `abac.policy_change_principal_required` (`ABACErrors.PolicyChangePrincipalRequiredCode`). The PAP never attributes a change silently to a default actor.
+- The only exception is an internal system-actor scope that `ABACPolicySeedingHostedService` opens while it seeds `ABACOptions.SeedPolicySets` and `ABACOptions.SeedPolicies` at startup. Opening it is logged at `Information` level (EventId 9096). The audit entry then has `UserId` `"system"` and metadata `actor` = `system`; otherwise `actor` = `principal`.
+
+### Audit write (fail closed)
+
+The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md).
+
+- The PAP does not hold an `IAuditStore`. It takes an `IServiceScopeFactory` and resolves `IAuditStore` for each write in its own scope, because database audit stores are scoped and the PAP is a singleton.
+- With no `IAuditStore` registered, policy change auditing is not configured and changes are applied without a record.
+- With an `IAuditStore` registered, the audit entry is written and awaited before the change is applied. If the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted.
+- Failures are logged by error code (EventId 9094) or exception type (EventId 9095), never by message.
+- If the policy store then rejects the change, a second entry with outcome `AuditOutcome.Error` and the store's error code in `ErrorMessage` records that the announced change did not happen.
+- Caller cancellation propagates as cancellation; it is not reported as an audit failure.
+
+### Audit entry
+
+| Field | Value |
+|-------|-------|
+| `Action` | `PolicySetCreated`, `PolicySetUpdated`, `PolicySetRemoved`, `PolicyCreated`, `PolicyUpdated`, `PolicyRemoved` |
+| `EntityType` / `EntityId` | `PolicySet` or `Policy`, and the identifier |
+| `UserId`, `TenantId`, `CorrelationId` | From the request context (`"system"` for the seeding scope) |
+| `Outcome` / `ErrorMessage` | `Success`; or `Error` with the store error code on the second entry |
+| `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc` | From the injected `TimeProvider` |
+| `Metadata` | `source`, `actor`, `beforeState` (updates and removals), `afterState` (adds and updates), `parentPolicySetId` for a policy nested in a policy set |
 
 ## Policy Caching
 
@@ -284,6 +327,8 @@ All operations return `Either<EncinaError, T>`. Common errors:
 | `ABACErrors.PolicySetNotFound` | Updating/removing a non-existent policy set |
 | `ABACErrors.DuplicatePolicy` | Adding a policy with an existing ID (standalone or nested) |
 | `ABACErrors.PolicyNotFound` | Updating/removing a non-existent policy |
+| `ABACErrors.PolicyChangePrincipalRequired` | A mutation with no resolvable principal in the request context (`abac.policy_change_principal_required`) |
+| `ABACErrors.PolicyChangeAuditFailed` | The audit write failed, threw or timed out; the change was not applied (`abac.policy_change_audit_failed`) |
 | Store infrastructure errors | Database connection failures, serialization errors |
 
 ## Health Check
