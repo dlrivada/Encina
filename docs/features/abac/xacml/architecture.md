@@ -171,7 +171,7 @@ The `ABACEnforcementMode` enum controls how Deny decisions are handled:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny decisions reject the request with an `EncinaError` | Production |
-| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny | Policy validation, gradual rollout |
+| `Warn` | Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that evaluates to `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict | Policy validation, gradual rollout |
 | `Disabled` | ABAC evaluation is completely skipped | Development, feature-flagging |
 
 ---
@@ -500,12 +500,21 @@ sequenceDiagram
 
     PDP->>PAP: GetPolicySetsAsync()
     PAP-->>PDP: List<PolicySet>
+    Note over PDP: Match a top-level policy set by id (ordinal)
 
-    loop For each PolicySet
-        PDP->>TE: EvaluateTarget(policySet.Target, context)
+    alt A policy set has that id
+        Note over PDP: Evaluate only that policy set
+    else No policy set has that id
+        PDP->>PAP: GetPoliciesAsync(null)
+        PAP-->>PDP: List<Policy> (standalone)
+        Note over PDP: Match a standalone policy by id (ordinal)
+    end
+
+    opt A policy set or a standalone policy matched
+        PDP->>TE: EvaluateTarget(target, context)
         TE-->>PDP: Match / NotApplicable / Indeterminate
 
-        loop For each Rule in Policy
+        loop For each Rule in the Policy
             PDP->>TE: EvaluateTarget(rule.Target, context)
             TE-->>PDP: Match result
             PDP->>CE: Evaluate(rule.Condition, context, variables)
@@ -514,14 +523,16 @@ sequenceDiagram
 
         PDP->>CA: GetAlgorithm(policy.Algorithm)
         CA-->>PDP: ICombiningAlgorithm
-        Note over PDP: Combine rule results
+        Note over PDP: Combine the rule results of that one policy<br/>(no root combine across the store)
     end
 
-    PDP->>PAP: GetPoliciesAsync(null)
-    PAP-->>PDP: List<Policy> (standalone)
-    Note over PDP: Evaluate standalone policies<br/>Root combine with DenyOverrides
-
-    PDP-->>PEP: Either<EncinaError, PolicyDecision> (effect, obligations, advice)
+    alt Nothing matched
+        PDP-->>PEP: Either.Left(abac.policy_not_found)
+    else A store read returned Left or evaluation threw
+        PDP-->>PEP: Either.Right(PolicyDecision with Effect.Indeterminate)
+    else Evaluated
+        PDP-->>PEP: Either.Right(PolicyDecision) (effect, obligations, advice)
+    end
 
     Note over PEP: Combine the per-policy verdicts (AND / OR groups).<br/>Only if the policies pass, evaluate each [RequireCondition]<br/>in declaration order (EELCompiler.CompileAsync, cached delegate).
 
@@ -560,7 +571,7 @@ sequenceDiagram
 - **Handler exceptions do not escape**: an obligation or advice handler that throws becomes an `abac.obligation_handler_exception` error inside the executor; a mandatory obligation then denies with `abac.obligation_failed`, advice is skipped.
 - **Advice is best-effort**: advice handler failures are logged but do not affect the decision.
 - **NotApplicable denies**: a required policy that returns NotApplicable denies the request, and a policy name that is not in the store denies with `abac.policy_not_found`. A request type with no `[RequirePolicy]` and no `[RequireCondition]` is not evaluated at all.
-- **Indeterminate handling**: evaluation errors produce `Indeterminate`, which denies with `abac.indeterminate` in every enforcement mode, `Warn` included. `Warn` relaxes only definite verdicts.
+- **Indeterminate handling**: evaluation errors produce `Indeterminate`, which denies with `abac.indeterminate` in every enforcement mode, `Warn` included. `Warn` relaxes only definite verdicts. An error denies when it decides the verdict; next to a definite denial among the required policies, the definite denial is the verdict and `Warn` lets it through.
 - **Conditions come after the policies**: `[RequireCondition]` expressions are not evaluated before the PDP and are not a short-circuit in front of it.
 
 ---

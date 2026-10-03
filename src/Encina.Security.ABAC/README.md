@@ -167,7 +167,7 @@ Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missin
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors still deny), or `Disabled` |
+| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors still deny when they decide the verdict), or `Disabled` |
 | `IncludeAdvice` | `true` | Execute advice expressions after decision |
 | `ValidateExpressionsAtStartup` | `false` | Pre-compile all EEL expressions at startup |
 | `AddHealthCheck` | `false` | Register ABAC health check |

@@ -131,7 +131,7 @@ user.isAdmin == true || user.department == "security"
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny stops request execution | Production |
-| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny | Policy validation / rollout |
+| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny when they decide the verdict (a definite denial found next to an error is the verdict and passes) | Policy validation / rollout |
 | `Disabled` | ABAC skipped entirely | Development / feature flag |
 
 ## Error Codes

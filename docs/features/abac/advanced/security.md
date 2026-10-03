@@ -312,12 +312,12 @@ The `ABACEnforcementMode` enum enables gradual rollout of ABAC policies without 
 
 ### Warn Mode Security Implications
 
-In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny exactly as in `Block`: Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
+In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
 
 ```csharp
 // During shadow mode, monitor these log events (EventIds in reference/observability.md):
 // 9004: ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed
-// 9074: Required policy {PolicyId} for {RequestType} was not found in the policy store. Access denied
+// 9074: Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied (logged only in Warn mode)
 ```
 
 ### Disabled Mode

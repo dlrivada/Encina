@@ -246,11 +246,17 @@ public enum ABACEnforcementMode
 ```
 
 An Indeterminate final decision **denies the request** in every enforcement mode, `Warn`
-included (`abac.indeterminate`), because the PDP could not determine that access is allowed.
+included, unless a definite denial decides the verdict (see below) (`abac.indeterminate`), because the PDP could not determine that access is allowed.
 `Warn` relaxes only definite verdicts: a Deny, a required policy that is NotApplicable, Deny
 or not found, and a condition that evaluates to `false`. Those are logged and the request
 proceeds. Exceptions from the attribute provider or the PDP (`abac.evaluation_failed`) and
 mandatory OnPermit obligations that cannot be fulfilled (`abac.obligation_failed`) also deny in `Warn`.
+
+An error denies when it decides the verdict. When a definite denial and an error occur
+together among the required policies, the definite denial wins: an `AllMustPass` policy that
+is NotApplicable next to one that is Indeterminate, or a missing policy name next to an
+Indeterminate one, yields `abac.access_denied` or `abac.policy_not_found`. `Warn` logs that
+verdict and lets the request through.
 
 ## Effect Precedence in Combining Algorithms
 

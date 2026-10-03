@@ -161,7 +161,7 @@ These messages carry error codes and exception types only, never an error or exc
 |---------|-------|------------------|------------|
 | 9072 | `Warning` | `Lookup of required policy {PolicyId} failed: {ErrorCode}. The policy is Indeterminate` | `policyId`, `errorCode` |
 | 9073 | `Error` | `Unexpected error while evaluating required policy {PolicyId}. The policy is Indeterminate` | `exception`, `policyId` |
-| 9074 | `Warning` | `Required policy {PolicyId} for {RequestType} was not found in the policy store. Access denied` | `policyId`, `requestType` |
+| 9074 | `Warning` | `Required policy {PolicyId} for {RequestType} is not a top-level policy set or standalone policy in the policy store. The request is denied (logged only in Warn mode)` | `policyId`, `requestType` (emitted in every enforcement mode that evaluates policies, not only `Warn`) |
 | 9075 | `Debug` | `Condition {ConditionIndex} for {RequestType} evaluated to false. Access denied` | `conditionIndex`, `requestType` |
 | 9076 | `Warning` | `Condition {ConditionIndex} for {RequestType} could not be compiled: {ErrorCode}. The condition is Indeterminate` | `conditionIndex`, `requestType`, `errorCode` |
 | 9077 | `Warning` | `Condition {ConditionIndex} for {RequestType} failed during evaluation. The condition is Indeterminate` | `exception`, `conditionIndex`, `requestType` |

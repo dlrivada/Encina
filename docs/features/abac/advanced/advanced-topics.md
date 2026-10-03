@@ -317,9 +317,17 @@ If the user satisfies `admin-override` or `standard-access`, the request proceed
 
 ### 6.3 Mixing Strategies
 
-You can combine AND and OR by structuring policies within policy sets that use appropriate
-combining algorithms. The `AllMustPass` property controls only the pipeline-level behavior
-for the attributes on that request class.
+A request class can carry both groups at once. Attributes with `AllMustPass = true` (the
+default) form the AND group: every one of those policies must permit. Attributes with
+`AllMustPass = false` form the OR group: at least one of them must permit. When both groups
+are present, both must hold; a group that is absent does not constrain the request.
+
+```csharp
+[RequirePolicy("tenant-member")]                         // AND group: must permit
+[RequirePolicy("admin-override", AllMustPass = false)]   // OR group: one of these must permit
+[RequirePolicy("standard-access", AllMustPass = false)]
+public sealed record GetResourceQuery(Guid ResourceId) : IQuery<ResourceDto>;
+```
 
 ---
 
