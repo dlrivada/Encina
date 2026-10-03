@@ -50,3 +50,4 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 026 | [otlp-exporter-implementation-plan-1043.md](../../plans/otlp-exporter-implementation-plan-1043.md) (#1043) | OTLP exporter opt-in decision | Reserved, ADR not written |
 | 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
 | 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
+| 034 | [crypto-shredding-nested-implementation-plan-1698.md](../../plans/crypto-shredding-nested-implementation-plan-1698.md) (#1698) | Crypto-shredding through the System.Text.Json contract | Reserved, ADR written in Phase 9 of the plan |
