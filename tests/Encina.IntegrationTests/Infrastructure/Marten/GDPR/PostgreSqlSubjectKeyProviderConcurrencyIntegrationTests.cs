@@ -221,6 +221,62 @@ public sealed class PostgreSqlSubjectKeyProviderConcurrencyIntegrationTests : IA
     }
 
     [Fact]
+    public async Task GetOrCreateSubjectKeyAsync_ConflictWhoseWinnerIsNotAKeyOfTheSubject_FailsClosed()
+    {
+        // Arrange: the conflicting document has the key id but belongs to no active key of the subject,
+        // so the reload finds no stored winner
+        var subjectId = NewSubjectId();
+        var foreign = KeyDocument(subjectId, version: 1);
+        foreign.SubjectId = NewSubjectId();
+        var listener = new RacingWriterListener(_fixture.Store!, foreign);
+        using var store = StoreWithListener(listener);
+        await using var session = store.LightweightSession();
+        var sut = new PostgreSqlSubjectKeyProvider(session, TimeProvider.System, NullLogger<PostgreSqlSubjectKeyProvider>.Instance);
+
+        // Act
+        var result = await sut.GetOrCreateSubjectKeyAsync(subjectId);
+
+        // Assert: never a key that is not stored for the subject
+        listener.Fired.ShouldBeTrue();
+        ErrorCode(result).ShouldBe(CryptoShreddingErrors.KeyStoreErrorCode);
+        (await StoredKeysAsync(subjectId)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Tenants_ErasureInOneTenant_NeitherBlocksNorErasesTheSameSubjectInAnother()
+    {
+        // Arrange: a conjoined multi-tenant store in its own schema; tenant A erases while holding its lock
+        using var store = DocumentStore.For(opts =>
+        {
+            opts.Connection(_fixture.ConnectionString);
+            opts.DatabaseSchemaName = "gdpr_key_tenancy";
+            opts.Policies.AllDocumentsAreMultiTenanted();
+        });
+        var subjectId = NewSubjectId();
+        await using var tenantASession = store.LightweightSession("tenant-a");
+        await using var tenantBSession = store.LightweightSession("tenant-b");
+        var tenantA = new PostgreSqlSubjectKeyProvider(tenantASession, TimeProvider.System, NullLogger<PostgreSqlSubjectKeyProvider>.Instance);
+        var tenantB = new PostgreSqlSubjectKeyProvider(tenantBSession, TimeProvider.System, NullLogger<PostgreSqlSubjectKeyProvider>.Instance);
+        (await tenantA.GetOrCreateSubjectKeyAsync(subjectId)).IsRight.ShouldBeTrue();
+
+        await using var erasure = store.LightweightSession("tenant-a");
+        await erasure.BeginTransactionAsync(CancellationToken.None);
+        await TakeSubjectLockAsync(erasure, subjectId);
+
+        // Act: tenant B is not serialized behind tenant A's lock
+        var tenantBKey = await tenantB.GetOrCreateSubjectKeyAsync(subjectId).AsTask().WaitAsync(WaitTimeout);
+        await erasure.DisposeAsync();
+        var erased = await tenantA.DeleteSubjectKeysAsync(subjectId);
+
+        // Assert
+        tenantBKey.IsRight.ShouldBeTrue();
+        erased.IsRight.ShouldBeTrue();
+        ErrorCode(await tenantA.GetOrCreateSubjectKeyAsync(subjectId)).ShouldBe(CryptoShreddingErrors.SubjectForgottenCode);
+        ((byte[])await tenantB.GetSubjectKeyAsync(subjectId)).ShouldBe(((SubjectEncryptionKey)tenantBKey).KeyMaterial);
+        ((bool)await tenantB.IsSubjectForgottenAsync(subjectId)).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task RotateSubjectKeyAsync_WithoutKey_ReturnsKeyNotFound()
     {
         // Act
@@ -288,9 +344,9 @@ public sealed class PostgreSqlSubjectKeyProviderConcurrencyIntegrationTests : IA
     /// Waits until another connection is blocked on the subject's advisory lock (a 64-bit key is stored in
     /// pg_locks as classid = high 32 bits, objid = low 32 bits).
     /// </summary>
-    private async Task WaitUntilLockHasWaiterAsync(string subjectId)
+    private async Task WaitUntilLockHasWaiterAsync(string subjectId, string tenantId = "*DEFAULT*")
     {
-        var key = PostgreSqlSubjectKeyProvider.ComputeSubjectLockKey("*DEFAULT*", subjectId);
+        var key = PostgreSqlSubjectKeyProvider.ComputeSubjectLockKey(tenantId, subjectId);
         await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(

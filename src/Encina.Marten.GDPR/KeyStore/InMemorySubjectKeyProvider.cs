@@ -241,7 +241,8 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
         }
         catch (Exception ex)
         {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
+            // Only the exception type reaches the trace, never its message.
+            CryptoShreddingDiagnostics.RecordFailed(activity, ex.GetType().Name);
             return ValueTask.FromResult<Either<EncinaError, CryptoShreddingResult>>(
                 Left(CryptoShreddingErrors.KeyStoreError("DeleteSubjectKeys", ex)));
         }
@@ -350,7 +351,7 @@ public sealed class InMemorySubjectKeyProvider : ISubjectKeyProvider
         }
         catch (Exception ex)
         {
-            CryptoShreddingDiagnostics.RecordFailed(activity, ex.Message);
+            CryptoShreddingDiagnostics.RecordFailed(activity, ex.GetType().Name);
             return ValueTask.FromResult<Either<EncinaError, KeyRotationResult>>(
                 Left(CryptoShreddingErrors.KeyRotationFailed(subjectId, ex)));
         }
