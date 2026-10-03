@@ -178,6 +178,17 @@ These messages carry error codes, source names and exception types only, never a
 | 9092 | `Warning` | `Retrieval of the {Source} from the policy administration point failed: {ErrorCode}. The decision is Indeterminate` | `source` (`policy sets` or `standalone policies`), `errorCode` |
 | 9093 | `Error` | `Unexpected error while evaluating the policy store. The decision is Indeterminate` | `exception` (through `ForLogging()`: type and stack trace) |
 
+### Policy Administration Messages (9094-9097)
+
+Emitted by `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096). They carry error codes and exception types only, never an error or exception message. See [Persistent PAP](persistent-pap.md#policy-change-principal-and-audit-trail).
+
+| EventId | Level | Message Template | Parameters |
+|---------|-------|------------------|------------|
+| 9094 | `Error` | `Audit write failed for policy change {Action} on {EntityType} '{EntityId}': {ErrorCode}` | `action`, `entityType`, `entityId`, `errorCode` |
+| 9095 | `Error` | `Exception during the audit write (or while resolving the audit store) for policy change {Action} on {EntityType} '{EntityId}'` | `action`, `entityType`, `entityId`, `exception` |
+| 9096 | `Information` | `System actor scope opened for ABAC policy seeding; policy changes are recorded as made by the system actor` | none |
+| 9097 | `Warning` | `ABAC policy changes are being applied without an audit record: {Condition}` | `condition` (logged once per PAP instance) |
+
 ---
 
 ## Health Check

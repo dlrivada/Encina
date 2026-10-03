@@ -209,11 +209,18 @@ Applies to `AddPolicySetAsync`, `UpdatePolicySetAsync`, `RemovePolicySetAsync`, 
 The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md).
 
 - The PAP does not hold an `IAuditStore`. It takes an `IServiceScopeFactory` and resolves `IAuditStore` for each write in its own scope, because database audit stores are scoped and the PAP is a singleton.
-- With no `IAuditStore` registered, policy change auditing is not configured and changes are applied without a record.
-- With an `IAuditStore` registered, the audit entry is written and awaited before the change is applied. If the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted.
+- The per-write scope covers `IAuditStore`. The `IPolicyStore` is still captured as a singleton until #1707 fixes the policy-store lifetime.
+- With no `IServiceScopeFactory` or no `IAuditStore` registered, policy change auditing is not configured and changes are applied without a record. One `Warning` per PAP instance (EventId 9097) says so.
+- With an `IAuditStore` registered, the audit entry is written and awaited before the change is applied. If resolving the `IAuditStore` throws, or the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted. The 30 second timeout only bounds audit stores that honour the `CancellationToken` (tracked by #1704).
 - Failures are logged by error code (EventId 9094) or exception type (EventId 9095), never by message.
-- If the policy store then rejects the change, a second entry with outcome `AuditOutcome.Error` and the store's error code in `ErrorMessage` records that the announced change did not happen.
+- If the policy store then rejects the change, a second entry with outcome `AuditOutcome.Error` and the store's error code in `ErrorMessage` records that the announced change did not happen. Its metadata `writeAheadEntryId` holds the `Id` of the first entry.
 - Caller cancellation propagates as cancellation; it is not reported as an audit failure.
+
+The first entry is a write-ahead entry: it records an authorized change that is about to be applied, not a change that was applied. A change that failed afterwards has a later `Error` entry whose `writeAheadEntryId` points to it. If the process stops between the two writes, the trail can show a write-ahead entry whose change was never applied, so readers reconcile the trail against the policy store.
+
+### Startup seeding
+
+`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown while applying a seed propagates from `StartAsync` unchanged. The application does not start with a partial seed.
 
 ### Audit entry
 
@@ -224,7 +231,7 @@ The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002
 | `UserId`, `TenantId`, `CorrelationId` | From the request context (`"system"` for the seeding scope) |
 | `Outcome` / `ErrorMessage` | `Success`; or `Error` with the store error code on the second entry |
 | `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc` | From the injected `TimeProvider` |
-| `Metadata` | `source`, `actor`, `beforeState` (updates and removals), `afterState` (adds and updates), `parentPolicySetId` for a policy nested in a policy set |
+| `Metadata` | `source`, `actor`, `beforeState` (updates and removals), `afterState` (adds and updates), `parentPolicySetId` for a policy nested in a policy set, `writeAheadEntryId` on the `Error` entry |
 
 ## Policy Caching
 
