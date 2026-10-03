@@ -18,20 +18,20 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 ```csharp
 [RequirePolicy("finance-access")]                               // Named policy, must permit (AND)
 [RequirePolicy("admin-override", AllMustPass = false)]          // At least one of these must permit (OR)
-[RequireCondition("user.department == 'engineering'")]          // Inline EEL
+[RequireCondition("user.department == \"engineering\"")]        // Inline EEL (C# string literals, escaped inside the attribute)
 [RequireCondition("user.clearanceLevel >= resource.classification")]
 ```
 
 | Rule | Behavior |
 |------|----------|
-| Named policy | The policy set or policy with that id is evaluated on its own; only `Permit` passes |
+| Named policy | The top-level policy set or standalone policy (one contained in no set) with that id is evaluated on its own; only `Permit` passes. A policy that exists only inside a set is not found: name the parent set instead |
 | `NotApplicable` from a required policy | Denies |
 | Policy not in the store | Denies with `abac.policy_not_found` |
-| `Indeterminate` or evaluation error | Denies |
+| `Indeterminate` or evaluation error | Denies (`abac.indeterminate` / `abac.evaluation_failed`), in every enforcement mode |
 | Several `[RequirePolicy]` | `AllMustPass = true` ones are ANDed, `AllMustPass = false` ones are ORed, both groups must hold |
 | `[RequireCondition]` is `false` | Denies with `abac.condition_not_met` |
-| `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies |
-| Policies and conditions | Combined with AND |
+| `[RequireCondition]` fails to compile or throws | `Indeterminate`, denies with `abac.indeterminate` |
+| Policies and conditions | Combined with AND; conditions run only after the named policies permit, in declaration order. The variables are `user`, `resource`, `environment` and `action` (`action.name` is the request type name) |
 | No `[RequirePolicy]` and no `[RequireCondition]` | The request is not evaluated |
 
 ## Policy Builder (Minimal)
@@ -39,12 +39,14 @@ services.AddEncinaABAC(o => o.EnforcementMode = ABACEnforcementMode.Block);  // 
 ```csharp
 var policy = new PolicyBuilder("my-policy")
     .WithAlgorithm(CombiningAlgorithmId.DenyOverrides)
-    .AddRule("allow-read", Effect.Permit, rule => rule
+    .AddRule("allow-get-report", Effect.Permit, rule => rule
         .WithCondition(ConditionBuilder.Equal(
             ConditionBuilder.Attribute(AttributeCategory.Action, "name", XACMLDataTypes.String),
-            ConditionBuilder.StringValue("read"))))
+            ConditionBuilder.StringValue("GetReportQuery"))))
     .Build();
 ```
+
+The action attribute `name` is the request type name, so the value above matches a `GetReportQuery` request.
 
 ## PolicySet Builder (Minimal)
 
@@ -129,7 +131,7 @@ user.isAdmin == true || user.department == "security"
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `Block` | Deny stops request execution | Production |
-| `Warn` | Deny logged but request proceeds | Policy validation / rollout |
+| `Warn` | Definite verdicts (Deny, required policy NotApplicable/Deny/not found, condition `false`) are logged and the request proceeds; errors (`abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`) still deny | Policy validation / rollout |
 | `Disabled` | ABAC skipped entirely | Development / feature flag |
 
 ## Error Codes
@@ -189,7 +191,6 @@ user.isAdmin == true || user.department == "security"
 |----------|---------|-------------|
 | `EnforcementMode` | `Block` | Block / Warn / Disabled |
 | `IncludeAdvice` | `true` | Execute advice expressions |
-| `FailOnMissingObligationHandler` | `true` | Deny if no handler (XACML 7.18) |
 | `AddHealthCheck` | `false` | Register `encina-abac` health check |
 | `ValidateExpressionsAtStartup` | `false` | Fail-fast on invalid EEL |
 | `SeedPolicySets` | `[]` | PolicySets loaded at startup |

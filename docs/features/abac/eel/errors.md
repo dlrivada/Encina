@@ -70,6 +70,8 @@ Runtime errors occur when a compiled expression executes against an `EELGlobals`
 The `EELCompiler.EvaluateAsync` method wraps any exception thrown during `runner.Invoke`
 into `ABACErrors.InvalidCondition(expression, $"Evaluation failed: {ex.Message}")`.
 
+The ABAC pipeline behavior does not call `EvaluateAsync`: it compiles each `[RequireCondition]` expression with `EELCompiler.CompileAsync`, invokes the cached delegate itself and catches the exception. A compile or runtime error there makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode, `Warn` included.
+
 ### Error Code: `abac.invalid_condition` (Runtime Variant)
 
 **Triggered by:** An exception during evaluation of a successfully compiled expression.
@@ -109,7 +111,8 @@ errors may appear in the broader policy evaluation pipeline:
 | `abac.evaluation_failed`          | Policy evaluation threw an unhandled exception             |
 | `abac.access_denied`              | Policy evaluation produced a Deny decision                 |
 | `abac.indeterminate`              | Evaluation could not reach Permit or Deny                  |
-| `abac.policy_not_found`           | Referenced policy ID does not exist in the store           |
+| `abac.policy_not_found`           | Referenced policy ID does not exist in the store, or a `[RequirePolicy]` name matches no top-level policy set or standalone policy |
+| `abac.condition_not_met`          | A `[RequireCondition]` expression evaluated to `false`     |
 | `abac.policy_set_not_found`       | Referenced policy set ID does not exist in the store       |
 | `abac.attribute_resolution_failed`| Required attribute (MustBePresent) could not be resolved   |
 | `abac.invalid_policy`             | Policy definition is structurally invalid                  |

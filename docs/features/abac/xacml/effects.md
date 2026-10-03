@@ -61,7 +61,7 @@ Key points about Permit:
 
 A **Deny** effect means the evaluated rule or policy explicitly refuses the requested access.
 When the PDP returns Deny, the PEP blocks the request. In `ABACEnforcementMode.Block` mode,
-the pipeline behavior returns an error. In `ABACEnforcementMode.Warn` mode, the deny is logged
+the pipeline behavior returns an error. In `ABACEnforcementMode.Warn` mode, a definite deny is logged
 but the request proceeds.
 
 ```csharp
@@ -240,14 +240,17 @@ The `ABACEnforcementMode` determines what the PEP does with the final decision:
 public enum ABACEnforcementMode
 {
     Block,    // Deny/Indeterminate blocks the request (production)
-    Warn,     // Deny/Indeterminate logs a warning but allows the request (observation)
+    Warn,     // Definite denials are logged but proceed; errors still deny (observation)
     Disabled  // ABAC evaluation is skipped entirely
 }
 ```
 
-In `Block` mode, an Indeterminate final decision **denies the request** because the PDP
-could not determine that access is allowed. In `Warn` mode, the Indeterminate is logged
-for analysis but the request proceeds.
+An Indeterminate final decision **denies the request** in every enforcement mode, `Warn`
+included (`abac.indeterminate`), because the PDP could not determine that access is allowed.
+`Warn` relaxes only definite verdicts: a Deny, a required policy that is NotApplicable, Deny
+or not found, and a condition that evaluates to `false`. Those are logged and the request
+proceeds. Exceptions from the attribute provider or the PDP (`abac.evaluation_failed`) and
+mandatory OnPermit obligations that cannot be fulfilled (`abac.obligation_failed`) also deny in `Warn`.
 
 ## Effect Precedence in Combining Algorithms
 

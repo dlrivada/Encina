@@ -56,9 +56,8 @@ All registrations use `TryAdd`, meaning you can register custom implementations 
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `EnforcementMode` | `ABACEnforcementMode` | `Block` | Controls how Deny decisions are enforced. See [ABACEnforcementMode](#abacenforcementmode). |
+| `EnforcementMode` | `ABACEnforcementMode` | `Block` | Controls how Deny decisions are enforced; errors deny in every mode. See [ABACEnforcementMode](#abacenforcementmode). |
 | `IncludeAdvice` | `bool` | `true` | When `true`, advice expressions from policies are included in evaluation results and executed on a best-effort basis. |
-| `FailOnMissingObligationHandler` | `bool` | `true` | When `true`, a missing obligation handler causes an immediate deny (per XACML 3.0 section 7.18). Set to `false` only during development. |
 | `AddHealthCheck` | `bool` | `false` | When `true`, registers an `ABACHealthCheck` that verifies at least one policy or policy set is loaded. Returns `Degraded` if the PAP is empty. |
 | `ValidateExpressionsAtStartup` | `bool` | `false` | When `true`, scans assemblies in `ExpressionScanAssemblies` for `RequireConditionAttribute` and compiles all EEL expressions at startup. Throws `InvalidOperationException` on failure. |
 | `ExpressionScanAssemblies` | `List<Assembly>` | `[]` | Assemblies to scan for `RequireConditionAttribute` when `ValidateExpressionsAtStartup` is `true`. If the list is empty, a debug log is emitted and no validation occurs. |
@@ -75,7 +74,7 @@ The `ABACEnforcementMode` enum controls the Policy Enforcement Point (PEP) behav
 | Value | Behavior |
 |-------|----------|
 | `Block` | **Production mode.** Deny decisions block request execution and return an `EncinaError`. Obligations are enforced. This is the default. |
-| `Warn` | **Observation mode.** Deny decisions are logged as warnings but requests proceed normally. Useful for validating policies before enabling enforcement. |
+| `Warn` | **Observation mode.** Definite verdicts (a Deny, a required policy that is NotApplicable, Deny or not found, a condition that is `false`) are logged as warnings and requests proceed. Errors still deny exactly as in `Block`: `abac.indeterminate`, `abac.evaluation_failed`, `abac.obligation_failed`. Useful for validating policies before enabling enforcement. |
 | `Disabled` | **Bypass mode.** ABAC evaluation is completely skipped. No policies are evaluated, no obligations are executed. Useful during development or for feature-flagging ABAC. |
 
 **Gradual rollout strategy:** Start with `Warn` to observe decisions in production logs, validate that policies behave as expected, then switch to `Block`.
@@ -169,7 +168,6 @@ services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Block;
     options.IncludeAdvice = true;
-    options.FailOnMissingObligationHandler = true;
     options.AddHealthCheck = true;
 
     // Validate all EEL expressions at startup
@@ -194,7 +192,6 @@ services.AddEncinaABAC(options =>
 services.AddEncinaABAC(options =>
 {
     options.EnforcementMode = ABACEnforcementMode.Warn;
-    options.FailOnMissingObligationHandler = false;  // Allow soft-fail
     options.AddHealthCheck = true;
 
     options.SeedPolicySets.Add(draftPolicies);

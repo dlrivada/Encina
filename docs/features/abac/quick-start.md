@@ -206,7 +206,7 @@ services.AddEncinaABAC(options =>
 });
 ```
 
-Denied requests will proceed to the handler, but a warning is logged with the full evaluation result.
+Definite denials will proceed to the handler, but a warning is logged with the full evaluation result. Errors (an Indeterminate result, an exception from the attribute provider or the PDP, a mandatory OnPermit obligation that cannot be fulfilled) still deny in `Warn` mode.
 
 ## 8. Alternative: Use [RequireCondition] for Simple Cases
 
@@ -215,11 +215,11 @@ For straightforward checks that do not need a full policy definition, use `[Requ
 ```csharp
 using Encina.Security.ABAC;
 
-[RequireCondition("user.department == 'Engineering'")]
+[RequireCondition("user.department == \"Engineering\"")]
 public sealed record GetCodeReviewsQuery(Guid ProjectId) : IQuery<List<CodeReviewDto>>;
 ```
 
-EEL expressions are compiled once via Roslyn and cached. They have access to `subject`, `resource`, `action`, and `environment` attribute bags.
+EEL expressions are compiled once via Roslyn and cached. They have access to the `user`, `resource`, `environment`, and `action` attribute bags, which the PEP builds from your `IAttributeProvider` dictionaries. String literals are double-quoted and escaped inside the attribute. Conditions run only after the policies named by `[RequirePolicy]` permit.
 
 More examples:
 

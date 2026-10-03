@@ -112,9 +112,9 @@ public sealed record TransferFunds(decimal Amount) : ICommand<TransferResult>;
 
 ### How the attributes decide a request
 
-- `[RequirePolicy("name")]` evaluates the policy set or policy with that id on its own, through `IPolicyDecisionPoint.EvaluatePolicyAsync`; the rest of the policy store is not evaluated. Only `Permit` passes. `Deny` and `NotApplicable` deny, because an explicitly required policy that does not apply cannot authorize. A name that is not in the store denies with `abac.policy_not_found`; `Indeterminate` and evaluation errors deny with `abac.indeterminate`.
+- `[RequirePolicy("name")]` evaluates the top-level policy set or standalone policy (one contained in no set) with that id on its own, through `IPolicyDecisionPoint.EvaluatePolicyAsync`; the rest of the policy store is not evaluated. Only `Permit` passes. `Deny` and `NotApplicable` deny, because an explicitly required policy that does not apply cannot authorize. A name that matches no top-level set or standalone policy, including a policy that exists only nested inside a set, denies with `abac.policy_not_found`; to require a nested policy, name its parent set. `Indeterminate` denies with `abac.indeterminate` and an exception from the attribute provider or the PDP with `abac.evaluation_failed`, in every enforcement mode (`Warn` relaxes only definite verdicts such as a Deny).
 - Several `[RequirePolicy]` attributes: every one with `AllMustPass = true` (the default) must permit, and when there is at least one with `AllMustPass = false`, at least one of those must permit. Both groups must hold.
-- `[RequireCondition("expression")]` is an EEL expression evaluated per request against the variables `user`, `resource`, `environment` and `action`. Resource attributes come from `IAttributeProvider.GetResourceAttributesAsync(request)`. A `false` result denies with `abac.condition_not_met`; a compile or evaluation error is `Indeterminate` and denies.
+- `[RequireCondition("expression")]` is an EEL expression evaluated per request, after the required policies permit, against the variables `user`, `resource`, `environment` and `action` (built from the `IAttributeProvider` dictionaries; `action.name` is the request type name). Resource attributes come from `IAttributeProvider.GetResourceAttributesAsync(request)`. A `false` result denies with `abac.condition_not_met`; a compile or evaluation error is `Indeterminate` and denies with `abac.indeterminate`.
 - Policies and conditions combine with AND. A request with neither attribute is not evaluated and passes through.
 
 ## Two Authorization Models
@@ -161,15 +161,14 @@ public sealed class AuditObligationHandler(IAuditService audit) : IObligationHan
 services.AddSingleton<IObligationHandler, AuditObligationHandler>();
 ```
 
-Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missing, access is automatically denied. A handler that throws does not escape the pipeline: the exception becomes `abac.obligation_handler_exception` (fixed message, exception type in the error details) inside the executor, so a mandatory obligation denies with `abac.obligation_failed` and advice is skipped. The exception message is never logged. Cancellation of the request token still propagates.
+Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missing, access is automatically denied; there is no option to relax this, and advice without a handler is skipped. A handler that throws does not escape the pipeline: the exception becomes `abac.obligation_handler_exception` (fixed message, exception type in the error details) inside the executor, so a mandatory obligation denies with `abac.obligation_failed` and advice is skipped. The exception message is never logged. Cancellation of the request token still propagates.
 
 ## Configuration
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `EnforcementMode` | `Block` | `Block`, `Warn` (log only), or `Disabled` |
+| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors still deny), or `Disabled` |
 | `IncludeAdvice` | `true` | Execute advice expressions after decision |
-| `FailOnMissingObligationHandler` | `true` | Deny access if obligation handler is missing |
 | `ValidateExpressionsAtStartup` | `false` | Pre-compile all EEL expressions at startup |
 | `AddHealthCheck` | `false` | Register ABAC health check |
 

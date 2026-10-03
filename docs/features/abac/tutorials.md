@@ -40,7 +40,7 @@ public static class DepartmentAccessPolicies
                                 ConditionOperator.Equals,
                                 "FinancialReport"))))
                 .AddRule("allow-finance-read", Effect.Permit, rule => rule
-                    .WithDescription("Permit when subject is in Finance department")
+                    .WithDescription("Permit when subject is in Finance department and the request is GetFinancialReportQuery")
                     .WithTarget(t => t
                         .AnyOf(any => any
                             .AllOf(all => all
@@ -52,7 +52,7 @@ public static class DepartmentAccessPolicies
                     .WithCondition(ConditionBuilder.Equal(
                         ConditionBuilder.Attribute(
                             AttributeCategory.Action, "name", XACMLDataTypes.String),
-                        ConditionBuilder.StringValue("read")))))
+                        ConditionBuilder.StringValue("GetFinancialReportQuery")))))
             .AddPolicy("hr-records-policy", policy => policy
                 .WithDescription("HR department can read employee records")
                 .WithTarget(t => t
@@ -75,7 +75,7 @@ public static class DepartmentAccessPolicies
                     .WithCondition(ConditionBuilder.Equal(
                         ConditionBuilder.Attribute(
                             AttributeCategory.Action, "name", XACMLDataTypes.String),
-                        ConditionBuilder.StringValue("read")))))
+                        ConditionBuilder.StringValue("GetEmployeeRecordQuery")))))
             .Build();
 }
 ```
@@ -142,6 +142,8 @@ services.AddEncinaABAC(options =>
 ```
 
 ### Expected Behavior
+
+The action attribute `name` is the request type name (for example `GetFinancialReportQuery`), which is why the rule conditions compare it with those values.
 
 | User Department | Request | Result |
 |-----------------|---------|--------|
@@ -725,7 +727,6 @@ services.AddScoped<IAttributeProvider, AuditedFinanceAttributeProvider>();
 services.AddScoped<IObligationHandler, AuditLogObligationHandler>();
 services.AddEncinaABAC(options =>
 {
-    options.FailOnMissingObligationHandler = true; // XACML 3.0 compliant
     options.SeedPolicies.Add(AuditedFinancePolicies.Build());
 });
 ```
@@ -738,7 +739,7 @@ services.AddEncinaABAC(options =>
 | Finance | Down/failing | **Deny** (obligation failed) |
 | Engineering | N/A | **Deny** (rule does not match) |
 
-> **Key point**: If `FailOnMissingObligationHandler = true` and no handler is registered for `"audit-log"`, every Permit decision converts to Deny. This ensures audit compliance.
+> **Key point**: If no handler is registered for `"audit-log"`, every Permit decision converts to Deny with `abac.obligation_failed`; there is no option to relax this. This ensures audit compliance.
 
 ---
 
@@ -898,7 +899,6 @@ services.AddScoped<IAttributeProvider, HealthcareAttributeProvider>();
 services.AddScoped<IObligationHandler, EmergencyAuditHandler>();
 services.AddEncinaABAC(options =>
 {
-    options.FailOnMissingObligationHandler = true;
     options.SeedPolicySets.Add(HealthcarePolicies.Build());
     options.ValidateExpressionsAtStartup = true;
     options.ExpressionScanAssemblies.Add(typeof(GetPatientRecordQuery).Assembly);
@@ -976,17 +976,12 @@ public static class OrganizationPolicies
                             ConditionOperator.Equals,
                             "Engineering"))))
             .AddPolicy("code-repo-access", policy => policy
-                .WithDescription("Engineers can read/write code repositories")
+                .WithDescription("Engineers can read code repositories")
                 .AddRule("allow-repo-access", Effect.Permit, rule => rule
-                    .WithCondition(ConditionBuilder.Or(
-                        ConditionBuilder.Equal(
-                            ConditionBuilder.Attribute(
-                                AttributeCategory.Action, "name", XACMLDataTypes.String),
-                            ConditionBuilder.StringValue("read")),
-                        ConditionBuilder.Equal(
-                            ConditionBuilder.Attribute(
-                                AttributeCategory.Action, "name", XACMLDataTypes.String),
-                            ConditionBuilder.StringValue("write"))))))
+                    .WithCondition(ConditionBuilder.Equal(
+                        ConditionBuilder.Attribute(
+                            AttributeCategory.Action, "name", XACMLDataTypes.String),
+                        ConditionBuilder.StringValue("ReadRepositoryQuery")))))
             .AddPolicy("deploy-access", policy => policy
                 .WithDescription("Only senior engineers can deploy")
                 .AddRule("allow-senior-deploy", Effect.Permit, rule => rule
@@ -994,7 +989,7 @@ public static class OrganizationPolicies
                         ConditionBuilder.Equal(
                             ConditionBuilder.Attribute(
                                 AttributeCategory.Action, "name", XACMLDataTypes.String),
-                            ConditionBuilder.StringValue("deploy")),
+                            ConditionBuilder.StringValue("DeployToProductionCommand")),
                         ConditionBuilder.Equal(
                             ConditionBuilder.Attribute(
                                 AttributeCategory.Subject, "seniority",
@@ -1088,14 +1083,16 @@ services.AddEncinaABAC(options =>
 
 The `DenyOverrides` algorithm on the root policy set means global denials always win:
 
+The Action column is the request type, which is the value of the action attribute `name`.
+
 | Account | Department | Seniority | IP | Action | Result |
 |---------|-----------|-----------|-----|--------|--------|
-| Active | Engineering | Senior | Clean | deploy | **Permit** |
-| Active | Engineering | Junior | Clean | read | **Permit** |
-| Active | Engineering | Junior | Clean | deploy | **Deny** (not senior) |
-| Suspended | Engineering | Senior | Clean | deploy | **Deny** (global: inactive) |
-| Active | Engineering | Senior | Blocked | deploy | **Deny** (global: blocked IP) |
-| Active | Marketing | Senior | Clean | read | **Deny** (dept target miss) |
+| Active | Engineering | Senior | Clean | `DeployToProductionCommand` | **Permit** |
+| Active | Engineering | Junior | Clean | `ReadRepositoryQuery` | **Permit** |
+| Active | Engineering | Junior | Clean | `DeployToProductionCommand` | **Deny** (not senior) |
+| Suspended | Engineering | Senior | Clean | `DeployToProductionCommand` | **Deny** (global: inactive) |
+| Active | Engineering | Senior | Blocked | `DeployToProductionCommand` | **Deny** (global: blocked IP) |
+| Active | Marketing | Senior | Clean | `ReadRepositoryQuery` | **Deny** (dept target miss) |
 
 ### How DenyOverrides Works Here
 

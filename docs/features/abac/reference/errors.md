@@ -22,7 +22,7 @@ All ABAC errors are created through factory methods on the `ABACErrors` static c
 |------------|----------|---------------|------------|----------------|
 | `abac.access_denied` | `AccessDeniedCode` | `AccessDenied` | `Type requestType, string? policyId = null` | A policy named by `[RequirePolicy]` returned Deny or NotApplicable (an explicitly required policy that does not apply cannot authorize). |
 | `abac.indeterminate` | `IndeterminateCode` | `Indeterminate` | `Type requestType, string? reason = null` | A required policy or a `[RequireCondition]` expression could not produce a definitive result (evaluation error, expression that does not compile). |
-| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound`, `RequiredPolicyNotFound` | `string policyId`; `Type requestType, string policyName` | A referenced policy does not exist in the PAP. `RequiredPolicyNotFound` is the error the PEP returns when `[RequirePolicy("name")]` names a policy set or policy that is not in the store; its message is fixed and the name is only in the details. |
+| `abac.policy_not_found` | `PolicyNotFoundCode` | `PolicyNotFound`, `RequiredPolicyNotFound` | `string policyId`; `Type requestType, string policyName` | A referenced policy does not exist in the PAP. `RequiredPolicyNotFound` is the error the PEP returns when `[RequirePolicy("name")]` names no top-level policy set or standalone policy in the store (a policy that exists only nested inside a set is not found; name its parent set); its message is fixed and the name is only in the details. |
 | `abac.policy_set_not_found` | `PolicySetNotFoundCode` | `PolicySetNotFound` | `string policySetId` | A referenced policy set does not exist in the PAP. |
 | `abac.evaluation_failed` | `EvaluationFailedCode` | `EvaluationFailed` | `Type requestType, Exception exception` | An unhandled exception occurred during policy evaluation. |
 | `abac.attribute_resolution_failed` | `AttributeResolutionFailedCode` | `AttributeResolutionFailed` | `string attributeId, AttributeCategory category` | A required attribute (MustBePresent = true) could not be resolved. |
@@ -153,7 +153,7 @@ Error: Mandatory obligation 'log-access-audit' could not be fulfilled.
        Access denied per XACML specification.
 ```
 
-**Resolution:** Register an `IObligationHandler` for the obligation ID. If in development, set `ABACOptions.FailOnMissingObligationHandler = false` to allow soft-fail. This must be `true` in production per XACML 3.0 section 7.18.
+**Resolution:** Register an `IObligationHandler` for the obligation ID. A mandatory obligation with no handler always denies, in every enforcement mode; there is no option to relax this (XACML 3.0 section 7.18). Advice without a handler is skipped.
 
 ### 4. Attribute Resolution Failed (abac.attribute_resolution_failed)
 
