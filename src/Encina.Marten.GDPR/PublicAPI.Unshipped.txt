@@ -3,7 +3,7 @@ Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler
 Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! propertyName, System.Type! eventType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
-Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionKey!>>
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.IsSubjectForgottenAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
@@ -40,6 +40,16 @@ static Encina.Marten.GDPR.CryptoShreddingErrors.KeyRotationFailed(string! subjec
 static Encina.Marten.GDPR.CryptoShreddingErrors.KeyStoreError(string! operation, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Marten.GDPR.CryptoShreddingErrors.SerializationError(System.Type! eventType, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Marten.GDPR.CryptoShreddingErrors.SubjectForgotten(string! subjectId) -> Encina.EncinaError
+Encina.Marten.GDPR.CryptoShreddingEncryptionException
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.CryptoShreddingEncryptionException(System.Type! eventType, string! propertyName, Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason reason, string? errorCode = null) -> void
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.ErrorCode.get -> string?
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.EventTypeName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.PropertyName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.Reason.get -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.KeyUnavailable = 1 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.PropertyMisconfigured = 2 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.SubjectIdMissing = 0 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
 Encina.Marten.GDPR.CryptoShreddingResult
 Encina.Marten.GDPR.CryptoShreddingResult.FieldsAffected.get -> int
 Encina.Marten.GDPR.CryptoShreddingResult.FieldsAffected.init -> void
@@ -85,6 +95,12 @@ Encina.Marten.GDPR.SubjectEncryptionInfo.SubjectId.get -> string!
 Encina.Marten.GDPR.SubjectEncryptionInfo.SubjectId.init -> void
 Encina.Marten.GDPR.SubjectEncryptionInfo.TotalKeyVersions.get -> int
 Encina.Marten.GDPR.SubjectEncryptionInfo.TotalKeyVersions.init -> void
+Encina.Marten.GDPR.SubjectEncryptionKey
+Encina.Marten.GDPR.SubjectEncryptionKey.KeyMaterial.get -> byte[]!
+Encina.Marten.GDPR.SubjectEncryptionKey.KeyMaterial.init -> void
+Encina.Marten.GDPR.SubjectEncryptionKey.Version.get -> int
+Encina.Marten.GDPR.SubjectEncryptionKey.Version.init -> void
+override Encina.Marten.GDPR.SubjectEncryptionKey.ToString() -> string!
 Encina.Marten.GDPR.SubjectForgottenEvent
 Encina.Marten.GDPR.SubjectForgottenEvent.FieldsAffected.get -> int
 Encina.Marten.GDPR.SubjectForgottenEvent.FieldsAffected.init -> void
@@ -159,7 +175,7 @@ Encina.Marten.GDPR.DefaultForgottenSubjectHandler.HandleForgottenSubjectAsync(st
 Encina.Marten.GDPR.InMemorySubjectKeyProvider
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.Clear() -> void
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
-Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionKey!>>
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.InMemorySubjectKeyProvider(System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.InMemorySubjectKeyProvider!>! logger) -> void
@@ -171,7 +187,7 @@ Encina.Marten.GDPR.MartenEventPersonalDataLocator.LocateAllDataAsync(string! sub
 Encina.Marten.GDPR.MartenEventPersonalDataLocator.MartenEventPersonalDataLocator(Marten.IDocumentSession! session, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.MartenEventPersonalDataLocator!>! logger) -> void
 Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider
 Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
-Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
+Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionKey!>>
 Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetSubjectInfoAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionInfo!>>
 Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.GetSubjectKeyAsync(string! subjectId, int? version = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, byte[]!>>
 Encina.Marten.GDPR.PostgreSqlSubjectKeyProvider.IsSubjectForgottenAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, bool>>
