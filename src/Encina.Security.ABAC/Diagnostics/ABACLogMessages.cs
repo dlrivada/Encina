@@ -322,7 +322,7 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9091,
         Level = LogLevel.Warning,
-        Message = "ABAC denied {RequestType}: no security context or authenticated user is available ({ErrorCode}). The request is denied in every enforcement mode")]
+        Message = "ABAC denied {RequestType}: no authenticated security context with a user is available ({ErrorCode}). The request is denied in every enforcement mode")]
     internal static partial void MissingSecurityContext(
         ILogger logger, string requestType, string errorCode);
 

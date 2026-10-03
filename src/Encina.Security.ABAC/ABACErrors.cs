@@ -368,7 +368,7 @@ public static class ABACErrors
     public static EncinaError MissingContext(Type requestType) =>
         EncinaErrors.Create(
             code: MissingContextCode,
-            message: $"Security context or authenticated user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
+            message: $"Authenticated security context with a user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,

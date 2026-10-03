@@ -146,10 +146,11 @@ public sealed class ABACPipelineBehaviorTests
     }
 
     /// <summary>An accessor whose security context carries <paramref name="userId"/>.</summary>
-    private static ISecurityContextAccessor AccessorFor(string? userId)
+    private static ISecurityContextAccessor AccessorFor(string? userId, bool isAuthenticated = true)
     {
         var securityContext = Substitute.For<ISecurityContext>();
         securityContext.UserId.Returns(userId);
+        securityContext.IsAuthenticated.Returns(isAuthenticated);
         var accessor = Substitute.For<ISecurityContextAccessor>();
         accessor.SecurityContext.Returns(securityContext);
         return accessor;
@@ -850,6 +851,27 @@ public sealed class ABACPipelineBehaviorTests
         await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
         await attributeProvider.DidNotReceiveWithAnyArgs().GetResourceAttributesAsync<PolicyARequest>(default!, default);
         await attributeProvider.DidNotReceiveWithAnyArgs().GetEnvironmentAttributesAsync(default);
+        await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_UnauthenticatedContextWithUserId_DeniesWithMissingContext(ABACEnforcementMode mode)
+    {
+        // Arrange: a user id claim without an authenticated identity must not be evaluated as that user.
+        var pdp = Pdp(("policy-a", Effect.Permit));
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        var behavior = CreateBehavior<PolicyARequest>(
+            pdp, mode, accessor: AccessorFor("u1", isAuthenticated: false), attributeProvider: attributeProvider);
+
+        // Act
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+
+        // Assert
+        Code(result).ShouldBe(ABACErrors.MissingContextCode);
+        nextCalled.ShouldBeFalse();
+        await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
         await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
     }
 

@@ -360,11 +360,17 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Missing Security Context ────────────────────────────────────
 
     // The user the subject attributes are collected for, or null when there is no security
-    // context or it carries no user (no HttpContext, a background job, a misconfiguration).
+    // context, it is not authenticated or it carries no user (no HttpContext, a background job,
+    // a misconfiguration, an identity that has a user id claim but is not authenticated).
     private string? ResolveUserId()
     {
-        var userId = _securityContextAccessor.SecurityContext?.UserId;
-        return string.IsNullOrWhiteSpace(userId) ? null : userId;
+        var context = _securityContextAccessor.SecurityContext;
+        if (context is null || !context.IsAuthenticated)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(context.UserId) ? null : context.UserId;
     }
 
     // A missing security context is not a definite policy verdict, so it denies in every

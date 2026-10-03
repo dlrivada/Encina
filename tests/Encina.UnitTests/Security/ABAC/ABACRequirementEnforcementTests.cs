@@ -281,6 +281,7 @@ public sealed class ABACRequirementEnforcementTests
 
         var securityContext = Substitute.For<ISecurityContext>();
         securityContext.UserId.Returns("user-1");
+        securityContext.IsAuthenticated.Returns(true);
         var accessor = Substitute.For<ISecurityContextAccessor>();
         accessor.SecurityContext.Returns(securityContext);
 

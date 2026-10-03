@@ -797,6 +797,18 @@ public sealed class XACMLPolicyDecisionPointTests
         await Should.ThrowAsync<OperationCanceledException>(async () => await pdp.EvaluateAsync(MakeContext(), cts.Token));
     }
 
+    [Fact]
+    public async Task EvaluateAsync_StoreThrowsOperationCanceledWithoutCallerCancellation_IsIndeterminate()
+    {
+        // A store timeout surfaces as OperationCanceledException although the caller never cancelled.
+        var pap = new FailingPap(failPolicySets: false, failPolicies: false, throws: new OperationCanceledException());
+        var pdp = CreatePdp(pap);
+
+        var decision = await pdp.EvaluateAsync(MakeContext(), CancellationToken.None);
+
+        decision.Effect.ShouldBe(Effect.Indeterminate);
+    }
+
     private const string Sentinel = "SENTINEL-1676-secret-store-detail";
 
     #endregion
