@@ -2,6 +2,8 @@ using System.Diagnostics;
 
 using Encina.Diagnostics;
 using Encina.Security.ABAC.Diagnostics;
+using Encina.Security.ABAC.EEL;
+using Encina.Security.ABAC.Enforcement;
 
 using LanguageExt;
 
@@ -52,7 +54,6 @@ namespace Encina.Security.ABAC;
 /// services.AddEncinaABAC(options =>
 /// {
 ///     options.EnforcementMode = ABACEnforcementMode.Block;
-///     options.DefaultNotApplicableEffect = Effect.Deny;
 /// });
 /// </code>
 /// </example>
@@ -63,7 +64,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Static per-generic-type attribute caching ────────────────────
     private static readonly ABACAttributeInfo? CachedAttributeInfo = ABACAttributeInfo.Resolve<TRequest>();
 
-    private readonly IPolicyDecisionPoint _pdp;
+    private readonly ABACRequirementEvaluator _requirementEvaluator;
     private readonly IAttributeProvider _attributeProvider;
     private readonly Security.ISecurityContextAccessor _securityContextAccessor;
     private readonly ObligationExecutor _obligationExecutor;
@@ -73,10 +74,11 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     /// <summary>
     /// Initializes a new instance of the <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="pdp">The policy decision point for evaluating authorization decisions.</param>
+    /// <param name="pdp">The policy decision point that evaluates each policy named by <see cref="RequirePolicyAttribute"/>.</param>
     /// <param name="attributeProvider">The attribute provider for collecting subject, resource, and environment attributes.</param>
     /// <param name="securityContextAccessor">Accessor for the current security context.</param>
     /// <param name="obligationExecutor">The executor for processing obligations and advice.</param>
+    /// <param name="eelCompiler">The EEL compiler whose cached delegates evaluate <see cref="RequireConditionAttribute"/> expressions.</param>
     /// <param name="options">ABAC configuration options.</param>
     /// <param name="logger">Logger for ABAC evaluation tracing.</param>
     public ABACPipelineBehavior(
@@ -84,6 +86,7 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         IAttributeProvider attributeProvider,
         Security.ISecurityContextAccessor securityContextAccessor,
         ObligationExecutor obligationExecutor,
+        EELCompiler eelCompiler,
         IOptions<ABACOptions> options,
         ILogger<ABACPipelineBehavior<TRequest, TResponse>> logger)
     {
@@ -91,10 +94,11 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         ArgumentNullException.ThrowIfNull(attributeProvider);
         ArgumentNullException.ThrowIfNull(securityContextAccessor);
         ArgumentNullException.ThrowIfNull(obligationExecutor);
+        ArgumentNullException.ThrowIfNull(eelCompiler);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _pdp = pdp;
+        _requirementEvaluator = new ABACRequirementEvaluator(pdp, eelCompiler, logger);
         _attributeProvider = attributeProvider;
         _securityContextAccessor = securityContextAccessor;
         _obligationExecutor = obligationExecutor;
@@ -139,23 +143,28 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         try
         {
             // ── 4. Collect attributes ───────────────────────────────
-            var evaluationContext = await CollectAttributesAsync(cancellationToken)
+            var attributes = await CollectAttributesAsync(request, cancellationToken)
                 .ConfigureAwait(false);
 
-            // ── 5. Evaluate policies via PDP ────────────────────────
-            var decision = await _pdp.EvaluateAsync(evaluationContext, cancellationToken)
+            // ── 5. Evaluate the required policies and conditions ────
+            var verdict = await _requirementEvaluator
+                .EvaluateAsync(CachedAttributeInfo, attributes, typeof(TRequest), cancellationToken)
                 .ConfigureAwait(false);
 
             ABACLogMessages.PdpDecisionReceived(_logger,
                 requestTypeName,
-                decision.Effect.ToString(),
-                decision.PolicyId,
-                decision.EvaluationDuration.TotalMilliseconds);
+                verdict.Decision.Effect.ToString(),
+                verdict.Decision.PolicyId,
+                verdict.Decision.EvaluationDuration.TotalMilliseconds);
 
             // ── 6. Process decision ─────────────────────────────────
             return await ProcessDecisionAsync(
-                decision, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
+                verdict, attributes.Context, nextStep, startTimestamp, activity, cancellationToken)
                 .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -177,33 +186,27 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     // ── Decision Processing ─────────────────────────────────────────
 
+    // The requirement verdict is Permit, Deny or Indeterminate; a required policy that is
+    // NotApplicable is already a Deny verdict.
     private async ValueTask<Either<EncinaError, TResponse>> ProcessDecisionAsync(
-        PolicyDecision decision,
+        ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
         RequestHandlerCallback<TResponse> nextStep,
         long startTimestamp,
         Activity? activity,
         CancellationToken cancellationToken)
     {
-        return decision.Effect switch
+        return verdict.Decision.Effect switch
         {
             Effect.Permit => await HandlePermitAsync(
-                decision, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
+                verdict.Decision, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
                 .ConfigureAwait(false),
 
             Effect.Deny => await HandleDenyAsync(
-                decision, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
+                verdict, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
                 .ConfigureAwait(false),
 
-            Effect.NotApplicable => await HandleNotApplicableAsync(
-                decision, evaluationContext, nextStep, startTimestamp, activity, cancellationToken)
-                .ConfigureAwait(false),
-
-            Effect.Indeterminate => await HandleIndeterminateAsync(
-                decision, nextStep, startTimestamp, activity)
-                .ConfigureAwait(false),
-
-            _ => ABACErrors.Indeterminate(typeof(TRequest), "Unknown effect value.")
+            _ => HandleIndeterminate(verdict.Decision, startTimestamp, activity)
         };
     }
 
@@ -268,13 +271,14 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     // ── Deny ────────────────────────────────────────────────────────
 
     private async ValueTask<Either<EncinaError, TResponse>> HandleDenyAsync(
-        PolicyDecision decision,
+        ABACRequirementVerdict verdict,
         PolicyEvaluationContext evaluationContext,
         RequestHandlerCallback<TResponse> nextStep,
         long startTimestamp,
         Activity? activity,
         CancellationToken cancellationToken)
     {
+        var decision = verdict.Decision;
         var requestTypeName = typeof(TRequest).Name;
         var reason = decision.Reason ?? "Access denied by ABAC policy.";
 
@@ -307,62 +311,20 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         ABACDiagnostics.EvaluationDenied.Add(1,
             new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
 
-        var error2 = ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
+        // A missing policy or an unmet condition carries its own error code.
+        var error = verdict.DenyError ?? ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
 
-        return await ApplyEnforcementAsync(error2, requestTypeName, nextStep).ConfigureAwait(false);
-    }
-
-    // ── NotApplicable ───────────────────────────────────────────────
-
-    private async ValueTask<Either<EncinaError, TResponse>> HandleNotApplicableAsync(
-        PolicyDecision decision,
-        PolicyEvaluationContext evaluationContext,
-        RequestHandlerCallback<TResponse> nextStep,
-        long startTimestamp,
-        Activity? activity,
-        CancellationToken cancellationToken)
-    {
-        var requestTypeName = typeof(TRequest).Name;
-
-        if (_options.DefaultNotApplicableEffect == Effect.Permit)
-        {
-            ABACLogMessages.NotApplicablePermit(_logger, requestTypeName);
-
-            // Execute any advice (best-effort)
-            if (decision.Advice.Count > 0)
-            {
-                await _obligationExecutor.ExecuteAdviceAsync(
-                    decision.Advice, evaluationContext, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            ABACDiagnostics.RecordNotApplicable(activity);
-            RecordDuration(startTimestamp);
-
-            ABACDiagnostics.EvaluationNotApplicable.Add(1,
-                new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
-            return await nextStep().ConfigureAwait(false);
-        }
-
-        // Default: Deny (closed-world assumption)
-        ABACLogMessages.NotApplicableDeny(_logger, requestTypeName);
-
-        RecordCompletion(startTimestamp, activity, Effect.NotApplicable, decision.PolicyId,
-            "No applicable policy found");
-
-        ABACDiagnostics.EvaluationNotApplicable.Add(1,
-            new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
-
-        var error = ABACErrors.AccessDenied(typeof(TRequest), decision.PolicyId);
         return await ApplyEnforcementAsync(error, requestTypeName, nextStep).ConfigureAwait(false);
     }
 
     // ── Indeterminate ───────────────────────────────────────────────
 
-    private async ValueTask<Either<EncinaError, TResponse>> HandleIndeterminateAsync(
+    // An Indeterminate verdict is an error (a condition that does not compile or throws, a
+    // policy store failure, a PDP error), not a definite verdict: it denies in every enforcement
+    // mode, like an exception from the PDP or the attribute provider. Warn mode relaxes only
+    // definite denials (see ApplyEnforcementAsync).
+    private Either<EncinaError, TResponse> HandleIndeterminate(
         PolicyDecision decision,
-        RequestHandlerCallback<TResponse> nextStep,
         long startTimestamp,
         Activity? activity)
     {
@@ -378,13 +340,15 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             requestTypeName,
             reason);
 
-        var error = ABACErrors.Indeterminate(typeof(TRequest), reason);
-        return await ApplyEnforcementAsync(error, requestTypeName, nextStep).ConfigureAwait(false);
+        ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
+
+        return ABACErrors.Indeterminate(typeof(TRequest), reason);
     }
 
     // ── Attribute Collection ────────────────────────────────────────
 
-    private async ValueTask<PolicyEvaluationContext> CollectAttributesAsync(
+    private async ValueTask<ABACCollectedAttributes> CollectAttributesAsync(
+        TRequest request,
         CancellationToken cancellationToken)
     {
         var securityContext = _securityContextAccessor.SecurityContext;
@@ -395,23 +359,27 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
             .ConfigureAwait(false);
 
         var resourceAttributes = await _attributeProvider
-            .GetResourceAttributesAsync<TRequest>(default!, cancellationToken)
+            .GetResourceAttributesAsync(request, cancellationToken)
             .ConfigureAwait(false);
 
         var environmentAttributes = await _attributeProvider
             .GetEnvironmentAttributesAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return AttributeContextBuilder.Build(
+        var context = AttributeContextBuilder.Build(
             subjectAttributes,
             resourceAttributes,
             environmentAttributes,
             typeof(TRequest),
             _options.IncludeAdvice);
+
+        return new ABACCollectedAttributes(subjectAttributes, resourceAttributes, environmentAttributes, context);
     }
 
     // ── Enforcement ─────────────────────────────────────────────────
 
+    // Called only for definite denials (a Deny, a required policy that is NotApplicable or not
+    // found, a condition that evaluates to false): Warn mode logs them and lets the request proceed.
     private async ValueTask<Either<EncinaError, TResponse>> ApplyEnforcementAsync(
         EncinaError error,
         string requestTypeName,
@@ -448,9 +416,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
                 break;
             case Effect.Indeterminate:
                 ABACDiagnostics.RecordIndeterminate(activity, reason ?? "indeterminate");
-                break;
-            case Effect.NotApplicable:
-                ABACDiagnostics.RecordNotApplicable(activity);
                 break;
         }
     }

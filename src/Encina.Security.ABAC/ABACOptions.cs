@@ -19,9 +19,7 @@ namespace Encina.Security.ABAC;
 /// services.AddEncinaABAC(options =>
 /// {
 ///     options.EnforcementMode = ABACEnforcementMode.Block;
-///     options.DefaultNotApplicableEffect = Effect.Deny;
 ///     options.IncludeAdvice = true;
-///     options.FailOnMissingObligationHandler = true;
 ///     options.AddHealthCheck = true;
 ///
 ///     // Register custom functions
@@ -41,27 +39,12 @@ public sealed class ABACOptions
     /// <remarks>
     /// <list type="bullet">
     /// <item><description><see cref="ABACEnforcementMode.Block"/> — Deny decisions block request execution.</description></item>
-    /// <item><description><see cref="ABACEnforcementMode.Warn"/> — Deny decisions are logged but requests proceed.</description></item>
+    /// <item><description><see cref="ABACEnforcementMode.Warn"/> — Definite denials are logged but requests proceed; evaluation errors (Indeterminate, exceptions, failed mandatory obligations) still deny.</description></item>
     /// <item><description><see cref="ABACEnforcementMode.Disabled"/> — ABAC evaluation is completely skipped.</description></item>
     /// </list>
     /// Default is <see cref="ABACEnforcementMode.Block"/>.
     /// </remarks>
     public ABACEnforcementMode EnforcementMode { get; set; } = ABACEnforcementMode.Block;
-
-    /// <summary>
-    /// Gets or sets the effect to apply when no policy matches the request (NotApplicable).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// XACML 3.0 leaves the handling of NotApplicable to the PEP. Common choices:
-    /// </para>
-    /// <list type="bullet">
-    /// <item><description><see cref="Effect.Deny"/> — closed-world assumption; unmatched requests are denied (default).</description></item>
-    /// <item><description><see cref="Effect.Permit"/> — open-world assumption; unmatched requests are allowed.</description></item>
-    /// </list>
-    /// Default is <see cref="Effect.Deny"/> (secure by default).
-    /// </remarks>
-    public Effect DefaultNotApplicableEffect { get; set; } = Effect.Deny;
 
     /// <summary>
     /// Gets or sets whether to include advice expressions in policy evaluation results.
@@ -72,21 +55,6 @@ public sealed class ABACOptions
     /// Default is <c>true</c>.
     /// </remarks>
     public bool IncludeAdvice { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets whether to fail with an error when an obligation has no registered handler.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// XACML 3.0 section 7.18 mandates that if an obligation cannot be fulfilled, the PEP must
-    /// deny access. When <c>true</c> (default), a missing handler causes an immediate deny.
-    /// </para>
-    /// <para>
-    /// Set to <c>false</c> during development to allow soft-fail when handlers are not yet
-    /// implemented. <b>Must be <c>true</c> in production.</b>
-    /// </para>
-    /// </remarks>
-    public bool FailOnMissingObligationHandler { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether to register an ABAC health check.

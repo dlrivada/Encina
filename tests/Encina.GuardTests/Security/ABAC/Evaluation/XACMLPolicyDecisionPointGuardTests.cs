@@ -120,6 +120,33 @@ public class XACMLPolicyDecisionPointGuardTests
 
     #endregion
 
+    #region EvaluatePolicyAsync — Guards
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task EvaluatePolicyAsync_NullOrWhiteSpacePolicyId_ThrowsArgumentException(string? policyId)
+    {
+        var sut = CreatePDP();
+
+        var act = async () => await sut.EvaluatePolicyAsync(policyId!, CreateMinimalContext());
+
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("policyId");
+    }
+
+    [Fact]
+    public async Task EvaluatePolicyAsync_NullContext_ThrowsArgumentNullException()
+    {
+        var sut = CreatePDP();
+
+        var act = async () => await sut.EvaluatePolicyAsync("policy-a", null!);
+
+        (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("context");
+    }
+
+    #endregion
+
     #region EvaluateAsync — Empty PAP Returns NotApplicable
 
     [Fact]

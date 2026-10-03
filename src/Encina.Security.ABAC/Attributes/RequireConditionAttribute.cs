@@ -10,13 +10,24 @@ namespace Encina.Security.ABAC;
 /// </summary>
 /// <remarks>
 /// <para>
-/// EEL expressions are compiled at startup using Roslyn scripting and cached.
-/// They provide a concise way to define ABAC conditions directly on request classes
+/// EEL expressions are compiled with Roslyn scripting and cached: at startup when
+/// <see cref="ABACOptions.ValidateExpressionsAtStartup"/> scans the request's assembly, otherwise
+/// on first use. They provide a concise way to define ABAC conditions directly on request classes
 /// without creating separate policy definitions.
 /// </para>
 /// <para>
-/// Expressions have access to subject, resource, action, and environment attributes
-/// through a predefined context. The expression must evaluate to a boolean value.
+/// The ABAC pipeline behavior evaluates every expression for each request, against the attributes
+/// collected for it, exposed as <c>user</c> (subject), <c>resource</c>, <c>environment</c> and
+/// <c>action</c> (with <c>action.name</c> set to the request type name). The expression must
+/// evaluate to a boolean value. All expressions on a request must be <c>true</c> (AND), checked in
+/// declaration order: <c>false</c> denies the request with <see cref="ABACErrors.ConditionNotMetCode"/>;
+/// an expression that does not compile or throws (for example, a missing attribute) is
+/// Indeterminate and denies the request.
+/// </para>
+/// <para>
+/// With only <see cref="RequireConditionAttribute"/> on a request, the conditions alone decide it
+/// and no policy is evaluated. With <see cref="RequirePolicyAttribute"/> as well, the policies and
+/// the conditions combine with AND: the request proceeds only when every requirement passes.
 /// </para>
 /// <para>
 /// The <c>expression</c> parameter is annotated with <see cref="StringSyntaxAttribute"/>
@@ -26,8 +37,8 @@ namespace Encina.Security.ABAC;
 /// </remarks>
 /// <example>
 /// <code>
-/// // Simple role-based condition
-/// [RequireCondition("subject.department == 'engineering'")]
+/// // Simple subject-based condition
+/// [RequireCondition("user.department == \"engineering\"")]
 /// public sealed record GetCodeReviewQuery(Guid ReviewId) : IQuery&lt;ReviewDto&gt;;
 ///
 /// // Time-based condition
@@ -35,7 +46,7 @@ namespace Encina.Security.ABAC;
 /// public sealed record ProcessPayrollCommand(Guid PayrollId) : ICommand;
 ///
 /// // Complex condition with multiple attributes
-/// [RequireCondition("subject.clearanceLevel >= resource.classification")]
+/// [RequireCondition("user.clearanceLevel >= resource.classification")]
 /// public sealed record GetClassifiedDocumentQuery(Guid DocumentId) : IQuery&lt;DocumentDto&gt;;
 /// </code>
 /// </example>

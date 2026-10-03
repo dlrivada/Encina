@@ -22,27 +22,11 @@ public class ABACOptionsGuardTests
     }
 
     [Fact]
-    public void Defaults_DefaultNotApplicableEffect_IsDeny()
-    {
-        var options = new ABACOptions();
-
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Deny);
-    }
-
-    [Fact]
     public void Defaults_IncludeAdvice_IsTrue()
     {
         var options = new ABACOptions();
 
         options.IncludeAdvice.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Defaults_FailOnMissingObligationHandler_IsTrue()
-    {
-        var options = new ABACOptions();
-
-        options.FailOnMissingObligationHandler.ShouldBeTrue();
     }
 
     [Fact]
@@ -131,27 +115,11 @@ public class ABACOptionsGuardTests
     }
 
     [Fact]
-    public void DefaultNotApplicableEffect_CanBeSetToPermit()
-    {
-        var options = new ABACOptions { DefaultNotApplicableEffect = Effect.Permit };
-
-        options.DefaultNotApplicableEffect.ShouldBe(Effect.Permit);
-    }
-
-    [Fact]
     public void IncludeAdvice_CanBeSetToFalse()
     {
         var options = new ABACOptions { IncludeAdvice = false };
 
         options.IncludeAdvice.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void FailOnMissingObligationHandler_CanBeSetToFalse()
-    {
-        var options = new ABACOptions { FailOnMissingObligationHandler = false };
-
-        options.FailOnMissingObligationHandler.ShouldBeFalse();
     }
 
     [Fact]

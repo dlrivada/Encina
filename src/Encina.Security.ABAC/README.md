@@ -12,7 +12,7 @@ XACML 3.0-based Attribute-Based Access Control (ABAC) engine for Encina. Provide
 - **70+ Standard Functions** - Equality, comparison, arithmetic, string, logical, bag, set, higher-order, type conversion, regex
 - **EEL (Encina Expression Language)** - Write policy conditions as inline C# boolean expressions compiled by Roslyn
 - **Obligations & Advice** - Mandatory post-decision actions (XACML 3.0 section 7.18) with pluggable handlers
-- **Full Observability** - OpenTelemetry tracing, 9 counters, 2 histograms, 23 structured log events
+- **Full Observability** - OpenTelemetry tracing, counters, histograms and structured log events
 - **Pipeline Integration** - Seamless integration with Encina's CQRS pipeline via `ABACPipelineBehavior`
 - **Railway Oriented Programming** - All operations return `Either<EncinaError, T>`, no exceptions
 - **Health Check** - Optional health check verifying PAP policy loading
@@ -31,7 +31,6 @@ dotnet add package Encina.Security.ABAC
 ```csharp
 services.AddEncinaABAC(options =>
 {
-    options.DefaultNotApplicableEffect = Effect.Deny;
     options.EnforcementMode = ABACEnforcementMode.Block;
     options.AddHealthCheck = true;
 });
@@ -105,11 +104,18 @@ public sealed record GetFinancialReport(Guid ReportId) : IQuery<ReportDto>;
 [RequireCondition("user.roles.Contains(\"admin\") || user.clearanceLevel >= 5")]
 public sealed record AccessClassifiedDocument(Guid DocId) : IQuery<DocumentDto>;
 
-// Multiple conditions (AND logic by default)
+// A policy and a condition on the same request: both must hold (AND)
 [RequirePolicy("global-security")]
 [RequireCondition("environment.isBusinessHours")]
 public sealed record TransferFunds(decimal Amount) : ICommand<TransferResult>;
 ```
+
+### How the attributes decide a request
+
+- `[RequirePolicy("name")]` evaluates the top-level policy set or standalone policy (one contained in no set) with that id on its own, through `IPolicyDecisionPoint.EvaluatePolicyAsync`; the rest of the policy store is not evaluated. Only `Permit` passes. `Deny` and `NotApplicable` deny, because an explicitly required policy that does not apply cannot authorize. A name that matches no top-level set or standalone policy, including a policy that exists only nested inside a set, denies with `abac.policy_not_found`; to require a nested policy, name its parent set. `Indeterminate` denies with `abac.indeterminate` and an exception from the attribute provider or the PDP with `abac.evaluation_failed`, in every enforcement mode (`Warn` relaxes only definite verdicts such as a Deny).
+- Several `[RequirePolicy]` attributes: every one with `AllMustPass = true` (the default) must permit, and when there is at least one with `AllMustPass = false`, at least one of those must permit. Both groups must hold.
+- `[RequireCondition("expression")]` is an EEL expression evaluated per request, after the required policies permit, against the variables `user`, `resource`, `environment` and `action` (built from the `IAttributeProvider` dictionaries; `action.name` is the request type name). Resource attributes come from `IAttributeProvider.GetResourceAttributesAsync(request)`. A `false` result denies with `abac.condition_not_met`; a compile or evaluation error is `Indeterminate` and denies with `abac.indeterminate`.
+- Policies and conditions combine with AND. A request with neither attribute is not evaluated and passes through.
 
 ## Two Authorization Models
 
@@ -155,24 +161,22 @@ public sealed class AuditObligationHandler(IAuditService audit) : IObligationHan
 services.AddSingleton<IObligationHandler, AuditObligationHandler>();
 ```
 
-Per XACML 3.0 section 7.18: if an obligation handler fails or is missing, access is automatically denied.
+Per XACML 3.0 section 7.18: if a mandatory obligation handler fails or is missing, access is automatically denied; there is no option to relax this, and advice without a handler is skipped. A handler that throws does not escape the pipeline: the exception becomes `abac.obligation_handler_exception` (fixed message, exception type in the error details) inside the executor, so a mandatory obligation denies with `abac.obligation_failed` and advice is skipped. The exception message is never logged. Cancellation of the request token still propagates.
 
 ## Configuration
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `EnforcementMode` | `Block` | `Block`, `Warn` (log only), or `Disabled` |
-| `DefaultNotApplicableEffect` | `Deny` | What to do when no policy matches |
+| `EnforcementMode` | `Block` | `Block`, `Warn` (definite denials are logged and proceed; errors still deny when they decide the verdict), or `Disabled` |
 | `IncludeAdvice` | `true` | Execute advice expressions after decision |
-| `FailOnMissingObligationHandler` | `true` | Deny access if obligation handler is missing |
 | `ValidateExpressionsAtStartup` | `false` | Pre-compile all EEL expressions at startup |
 | `AddHealthCheck` | `false` | Register ABAC health check |
 
 ## Observability
 
 - **Tracing**: `Encina.Security.ABAC` ActivitySource with `ABAC.Evaluate` spans
-- **Metrics**: 9 counters (`abac.evaluation.*`, `abac.obligation.*`, `abac.advice.*`) + 2 histograms (`abac.evaluation.duration`, `abac.obligation.duration`)
-- **Logging**: 52 structured log events (EventIds 9000-9071, `EventIdRanges.SecurityABAC`) via `[LoggerMessage]` source generator
+- **Metrics**: counters (`abac.evaluation.*`, `abac.obligation.*`, `abac.advice.*`) + 2 histograms (`abac.evaluation.duration`, `abac.obligation.duration`)
+- **Logging**: structured log events (EventIds 9000-9078, `EventIdRanges.SecurityABAC`) via `[LoggerMessage]` source generator; errors are logged by code or exception type, never by message
 - **Health Check**: `encina-abac` with tags `encina`, `security`, `abac`, `ready`
 
 ## Documentation

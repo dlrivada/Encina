@@ -29,7 +29,7 @@ public sealed record ApproveExpenseCommand(Guid ExpenseId) : ICommand;
 | Policies that reference custom XACML functions | XACML expression trees |
 | Need for XACML combining algorithms | XACML expression trees |
 
-Both approaches can coexist in the same application. EEL conditions are evaluated **before** the full XACML PDP pipeline, providing a fast short-circuit path for simple cases.
+Both approaches can coexist in the same application. The PEP evaluates the policies named by `[RequirePolicy]` first; EEL conditions run only after those policies permit, in declaration order. A condition is not evaluated before the PDP and is not a short-circuit in front of it.
 
 ---
 
@@ -69,7 +69,7 @@ services.AddEncinaABAC(options =>
 
 ### 3. Populate Context Attributes
 
-The ABAC pipeline behavior populates `EELGlobals` from the current security context. Your attribute resolvers provide the `user`, `resource`, `environment`, and `action` values as `ExpandoObject` instances. See the ABAC attribute resolution documentation for details.
+The PEP builds the `user`, `resource`, `environment` and `action` `ExpandoObject` instances of `EELGlobals` from the dictionaries your `IAttributeProvider` implementations return. `action.name` is the request type name (for example `"GetReportQuery"`).
 
 ---
 
@@ -124,7 +124,7 @@ Describes the action being performed on the resource.
 
 ```csharp
 // Common properties
-action.name        // "read", "write", "delete", "approve"
+action.name        // the request type name, e.g. "GetReportQuery"
 action.httpMethod  // "GET", "POST", "PUT", "DELETE"
 action.isReadOnly  // bool
 ```
@@ -156,12 +156,12 @@ The `ScriptRunner<bool>` delegate is stored in a `ConcurrentDictionary<string, S
 
 ### 4. Evaluation
 
-When a request arrives, the pipeline behavior calls `EvaluateAsync(expression, globals)`:
+When a request arrives and its `[RequirePolicy]` policies permit, the PEP calls `EELCompiler.CompileAsync(expression)` for each `[RequireCondition]` and invokes the returned delegate itself:
 
-1. **Cache hit** (fast path): The cached `ScriptRunner<bool>` is retrieved and invoked directly.
-2. **Cache miss**: The expression is compiled, cached, and then invoked.
-3. The runner executes via `runner.Invoke(globals, cancellationToken)`.
-4. Runtime exceptions during evaluation are caught and returned as `Left(EncinaError)`.
+1. **Cache hit** (fast path): The cached `ScriptRunner<bool>` is returned.
+2. **Cache miss**: The expression is compiled and cached.
+3. The PEP invokes the delegate with the `EELGlobals` it built.
+4. A compile error or an exception thrown by the expression makes the decision Indeterminate, and the request is denied with `abac.indeterminate` in every enforcement mode (see [EEL error handling](errors.md)). A condition that evaluates to `false` is `abac.condition_not_met`.
 
 ```
 [RequireCondition("user.role == \"Admin\"")]
