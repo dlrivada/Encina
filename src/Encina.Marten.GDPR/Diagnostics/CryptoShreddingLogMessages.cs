@@ -9,8 +9,8 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// <para>
 /// The existing messages use <c>LoggerMessage.Define</c> (one literal <c>new EventId(n, ...)</c> each,
 /// scanned by the allocation test, #1125) to avoid boxing and string formatting overhead
-/// in hot paths; the newer messages use the <c>[LoggerMessage]</c> source generator.
-/// All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
+/// in hot paths; the newer messages use the <c>[LoggerMessage]</c> source generator (see also
+/// <see cref="CryptoShreddingLog"/>, Event IDs 8470-8484).
 /// </para>
 /// <para>
 /// Event IDs are allocated in the 8450-8499 range reserved for Marten GDPR crypto-shredding
@@ -19,9 +19,9 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// </remarks>
 internal static partial class CryptoShreddingLogMessages
 {
-    // Note: none of these templates carry the data subject's own identifier — it is personal data
-    // and must never reach a log sink in plain text (#1429, following #1314). Correlate via
-    // property name, event type or key version instead.
+    // Note: none of these templates carry the data subject's own identifier, a value, a collection index or a
+    // dictionary key — they are personal data and must never reach a log sink (#1429, following #1314).
+    // Correlate via the declaring type, property name, reason and error code instead.
 
     // -- 8450: PII field encrypted --
 
@@ -29,10 +29,10 @@ internal static partial class CryptoShreddingLogMessages
         LoggerMessage.Define<string, string>(
             LogLevel.Debug,
             new EventId(8450, nameof(PiiFieldEncrypted)),
-            "PII field encrypted. PropertyName={PropertyName}, EventType={EventType}");
+            "PII field encrypted. DeclaringType={DeclaringType}, PropertyName={PropertyName}");
 
-    internal static void PiiFieldEncrypted(this ILogger logger, string propertyName, string eventType)
-        => PiiFieldEncryptedDef(logger, propertyName, eventType, null);
+    internal static void PiiFieldEncrypted(this ILogger logger, string declaringType, string propertyName)
+        => PiiFieldEncryptedDef(logger, declaringType, propertyName, null);
 
     // -- 8451: PII field decrypted --
 
@@ -40,10 +40,10 @@ internal static partial class CryptoShreddingLogMessages
         LoggerMessage.Define<string, string>(
             LogLevel.Debug,
             new EventId(8451, nameof(PiiFieldDecrypted)),
-            "PII field decrypted. PropertyName={PropertyName}, EventType={EventType}");
+            "PII field decrypted. DeclaringType={DeclaringType}, PropertyName={PropertyName}");
 
-    internal static void PiiFieldDecrypted(this ILogger logger, string propertyName, string eventType)
-        => PiiFieldDecryptedDef(logger, propertyName, eventType, null);
+    internal static void PiiFieldDecrypted(this ILogger logger, string declaringType, string propertyName)
+        => PiiFieldDecryptedDef(logger, declaringType, propertyName, null);
 
     // -- 8452: Subject forgotten --
 
@@ -71,36 +71,38 @@ internal static partial class CryptoShreddingLogMessages
 
     private static readonly Action<ILogger, string, string, Exception?> ForgottenSubjectAccessedDef =
         LoggerMessage.Define<string, string>(
-            LogLevel.Warning,
+            LogLevel.Information,
             new EventId(8454, nameof(ForgottenSubjectAccessed)),
-            "Attempt to decrypt data for forgotten subject. PropertyName={PropertyName}, EventType={EventType}");
+            "Data of a forgotten subject read as the placeholder. DeclaringType={DeclaringType}, PropertyName={PropertyName}");
 
-    internal static void ForgottenSubjectAccessed(this ILogger logger, string propertyName, string eventType)
-        => ForgottenSubjectAccessedDef(logger, propertyName, eventType, null);
+    internal static void ForgottenSubjectAccessed(this ILogger logger, string declaringType, string propertyName)
+        => ForgottenSubjectAccessedDef(logger, declaringType, propertyName, null);
 
     // -- 8455: Encryption failed --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionFailedDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, string, string, Exception?> EncryptionFailedDef =
+        LoggerMessage.Define<string, string, string, string>(
             LogLevel.Error,
             new EventId(8455, nameof(EncryptionFailed)),
-            "Failed to encrypt PII field; the event is not stored. PropertyName={PropertyName}, EventType={EventType}, ErrorCode={ErrorCode}");
+            "Failed to encrypt PII field; nothing is stored. DeclaringType={DeclaringType}, PropertyName={PropertyName}, Reason={Reason}, ErrorCode={ErrorCode}");
 
     // The exception, when present, must already be redacted with ForLogging() (#1557).
     internal static void EncryptionFailed(
-        this ILogger logger, string propertyName, string eventType, string errorCode, Exception? exception = null)
-        => EncryptionFailedDef(logger, propertyName, eventType, errorCode, exception);
+        this ILogger logger, string declaringType, string propertyName, string reason, string errorCode, Exception? exception = null)
+        => EncryptionFailedDef(logger, declaringType, propertyName, reason, errorCode, exception);
 
     // -- 8456: Decryption failed --
 
-    private static readonly Action<ILogger, string, string, Exception?> DecryptionFailedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, string, string, string, Exception?> DecryptionFailedDef =
+        LoggerMessage.Define<string, string, string, string>(
             LogLevel.Error,
             new EventId(8456, nameof(DecryptionFailed)),
-            "Failed to decrypt PII field. PropertyName={PropertyName}, EventType={EventType}");
+            "Failed to decrypt PII field. DeclaringType={DeclaringType}, PropertyName={PropertyName}, Reason={Reason}, ErrorCode={ErrorCode}");
 
-    internal static void DecryptionFailed(this ILogger logger, string propertyName, string eventType, Exception? exception = null)
-        => DecryptionFailedDef(logger, propertyName, eventType, exception);
+    // The exception, when present, must already be redacted with ForLogging() (#1557).
+    internal static void DecryptionFailed(
+        this ILogger logger, string declaringType, string propertyName, string reason, string errorCode, Exception? exception = null)
+        => DecryptionFailedDef(logger, declaringType, propertyName, reason, errorCode, exception);
 
     // -- 8457: Key store error --
 
@@ -113,16 +115,16 @@ internal static partial class CryptoShreddingLogMessages
     internal static void KeyStoreError(this ILogger logger, string operation, Exception? exception = null)
         => KeyStoreErrorDef(logger, operation, exception);
 
-    // -- 8458: Metadata cache built --
+    // -- 8458: Crypto contract built --
 
-    private static readonly Action<ILogger, int, int, Exception?> MetadataCacheBuiltDef =
-        LoggerMessage.Define<int, int>(
-            LogLevel.Information,
-            new EventId(8458, nameof(MetadataCacheBuilt)),
-            "Crypto-shredded metadata cache built. TypeCount={TypeCount}, FieldCount={FieldCount}");
+    private static readonly Action<ILogger, string, int, Exception?> CryptoContractBuiltDef =
+        LoggerMessage.Define<string, int>(
+            LogLevel.Debug,
+            new EventId(8458, nameof(CryptoContractBuilt)),
+            "Crypto-shredding contract built. DeclaringType={DeclaringType}, FieldCount={FieldCount}");
 
-    internal static void MetadataCacheBuilt(this ILogger logger, int typeCount, int fieldCount)
-        => MetadataCacheBuiltDef(logger, typeCount, fieldCount, null);
+    internal static void CryptoContractBuilt(this ILogger logger, string declaringType, int fieldCount)
+        => CryptoContractBuiltDef(logger, declaringType, fieldCount, null);
 
     // -- 8459: Attribute misconfigured --
 
@@ -130,56 +132,56 @@ internal static partial class CryptoShreddingLogMessages
         LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
             new EventId(8459, nameof(AttributeMisconfigured)),
-            "CryptoShredded attribute misconfigured; the event is not stored. "
-            + "PropertyName={PropertyName}, DeclaringType={DeclaringType}, MisconfiguredProperties={MisconfiguredProperties}");
+            "CryptoShredded property misconfigured; nothing of this type is stored. "
+            + "DeclaringType={DeclaringType}, PropertyName={PropertyName}, Problems={Problems}");
 
     internal static void AttributeMisconfigured(
-        this ILogger logger, string propertyName, string declaringType, string misconfiguredProperties)
-        => AttributeMisconfiguredDef(logger, propertyName, declaringType, misconfiguredProperties, null);
+        this ILogger logger, string declaringType, string propertyName, string problems)
+        => AttributeMisconfiguredDef(logger, declaringType, propertyName, problems, null);
 
-    // -- 8460: Serializer wrapped --
+    // -- 8460: Contract modifier installed --
 
-    private static readonly Action<ILogger, string, Exception?> SerializerWrappedDef =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, int, Exception?> SerializerWrappedDef =
+        LoggerMessage.Define<int>(
             LogLevel.Information,
             new EventId(8460, nameof(SerializerWrapped)),
-            "Marten serializer wrapped with crypto-shredding decorator. InnerSerializerType={InnerSerializerType}");
+            "Crypto-shredding contract modifier installed on Marten's System.Text.Json serializer. OptionsCount={OptionsCount}");
 
-    internal static void SerializerWrapped(this ILogger logger, string innerSerializerType)
-        => SerializerWrappedDef(logger, innerSerializerType, null);
+    internal static void SerializerWrapped(this ILogger logger, int optionsCount)
+        => SerializerWrappedDef(logger, optionsCount, null);
 
-    // -- 8461: Auto-registration completed --
+    // -- 8461: Startup validation completed --
 
-    private static readonly Action<ILogger, int, int, Exception?> AutoRegistrationCompletedDef =
-        LoggerMessage.Define<int, int>(
+    private static readonly Action<ILogger, int, Exception?> StartupValidationCompletedDef =
+        LoggerMessage.Define<int>(
             LogLevel.Information,
-            new EventId(8461, nameof(AutoRegistrationCompleted)),
-            "Crypto-shredding auto-registration completed. TypeCount={TypeCount}, AssemblyCount={AssemblyCount}");
+            new EventId(8461, nameof(StartupValidationCompleted)),
+            "Crypto-shredding startup validation completed. TypeCount={TypeCount}");
 
-    internal static void AutoRegistrationCompleted(this ILogger logger, int typeCount, int assemblyCount)
-        => AutoRegistrationCompletedDef(logger, typeCount, assemblyCount, null);
+    internal static void StartupValidationCompleted(this ILogger logger, int typeCount)
+        => StartupValidationCompletedDef(logger, typeCount, null);
 
-    // -- 8462: Auto-registration skipped --
+    // -- 8462: Startup validation skipped (explicit opt-out) --
 
-    private static readonly Action<ILogger, string, Exception?> AutoRegistrationSkippedDef =
-        LoggerMessage.Define<string>(
-            LogLevel.Debug,
-            new EventId(8462, nameof(AutoRegistrationSkipped)),
-            "Type skipped during crypto-shredding auto-registration. TypeName={TypeName}");
+    private static readonly Action<ILogger, Exception?> StartupValidationSkippedDef =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(8462, nameof(StartupValidationSkipped)),
+            "Crypto-shredding startup validation is disabled (ValidateOnStartup = false); misconfigured types fail on first use");
 
-    internal static void AutoRegistrationSkipped(this ILogger logger, string typeName)
-        => AutoRegistrationSkippedDef(logger, typeName, null);
+    internal static void StartupValidationSkipped(this ILogger logger)
+        => StartupValidationSkippedDef(logger, null);
 
     // -- 8463: Health check completed --
 
-    private static readonly Action<ILogger, string, int, Exception?> HealthCheckCompletedDef =
-        LoggerMessage.Define<string, int>(
+    private static readonly Action<ILogger, string, int, int, Exception?> HealthCheckCompletedDef =
+        LoggerMessage.Define<string, int, int>(
             LogLevel.Debug,
             new EventId(8463, nameof(HealthCheckCompleted)),
-            "Crypto-shredding health check completed. Status={Status}, CachedTypeCount={CachedTypeCount}");
+            "Crypto-shredding health check completed. Status={Status}, CryptoContractCount={CryptoContractCount}, MisconfiguredTypeCount={MisconfiguredTypeCount}");
 
-    internal static void HealthCheckCompleted(this ILogger logger, string status, int cachedTypeCount)
-        => HealthCheckCompletedDef(logger, status, cachedTypeCount, null);
+    internal static void HealthCheckCompleted(this ILogger logger, string status, int cryptoContractCount, int misconfiguredTypeCount)
+        => HealthCheckCompletedDef(logger, status, cryptoContractCount, misconfiguredTypeCount, null);
 
     // -- 8464: Key rotation scheduled --
 
@@ -203,18 +205,18 @@ internal static partial class CryptoShreddingLogMessages
     internal static void ReEncryptionStarted(this ILogger logger, int newVersion)
         => ReEncryptionStartedDef(logger, newVersion, null);
 
-    // -- 8466: Subject id missing at encryption --
+    // -- 8466: Subject id missing --
 
-    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionSubjectIdMissingDef =
-        LoggerMessage.Define<string, string, string>(
+    private static readonly Action<ILogger, string, string, string, string, Exception?> SubjectIdMissingDef =
+        LoggerMessage.Define<string, string, string, string>(
             LogLevel.Error,
-            new EventId(8466, nameof(EncryptionSubjectIdMissing)),
-            "Cannot encrypt PII field: the subject id is missing; the event is not stored. "
-            + "PropertyName={PropertyName}, EventType={EventType}, SubjectIdProperty={SubjectIdProperty}");
+            new EventId(8466, nameof(SubjectIdMissing)),
+            "The subject id of a PII field is missing. "
+            + "Operation={Operation}, DeclaringType={DeclaringType}, PropertyName={PropertyName}, SubjectIdProperty={SubjectIdProperty}");
 
-    internal static void EncryptionSubjectIdMissing(
-        this ILogger logger, string propertyName, string eventType, string subjectIdProperty)
-        => EncryptionSubjectIdMissingDef(logger, propertyName, eventType, subjectIdProperty, null);
+    internal static void SubjectIdMissing(
+        this ILogger logger, string operation, string declaringType, string propertyName, string subjectIdProperty)
+        => SubjectIdMissingDef(logger, operation, declaringType, propertyName, subjectIdProperty, null);
 
     // -- 8467: Subject key created --
 

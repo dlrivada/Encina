@@ -16,9 +16,9 @@ namespace Encina.Compliance.DataSubjectRights;
 /// unified response.
 /// </para>
 /// <para>
-/// If any individual locator fails, the error is logged and the locator is skipped —
-/// results from other locators are still returned. This ensures partial availability
-/// when some data stores are temporarily unreachable.
+/// Fails closed: if any individual locator fails, the failure is logged and the whole request returns
+/// <c>Left</c>. A partial inventory would make an access, portability or erasure request look complete while
+/// the personal data of an unreachable store is left out (AGENTS.md: compliance gates fail closed).
 /// </para>
 /// </remarks>
 /// <example>
@@ -35,7 +35,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// </example>
 public sealed class CompositePersonalDataLocator : IPersonalDataLocator
 {
-    private readonly IReadOnlyList<IPersonalDataLocator> _locators;
+    private readonly System.Collections.ObjectModel.ReadOnlyCollection<IPersonalDataLocator> _locators;
     private readonly ILogger<CompositePersonalDataLocator> _logger;
 
     /// <summary>
@@ -53,6 +53,9 @@ public sealed class CompositePersonalDataLocator : IPersonalDataLocator
         _locators = locators.ToList().AsReadOnly();
         _logger = logger;
     }
+
+    /// <summary>Gets the aggregated locators (used by startup checks that a locator takes part in requests).</summary>
+    internal IReadOnlyList<IPersonalDataLocator> Locators => _locators;
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, IReadOnlyList<PersonalDataLocation>>> LocateAllDataAsync(
@@ -89,10 +92,10 @@ public sealed class CompositePersonalDataLocator : IPersonalDataLocator
                 });
         }
 
-        if (failedLocators > 0 && allLocations.Count == 0)
+        if (failedLocators > 0)
         {
             return DSRErrors.LocatorFailed(subjectId,
-                $"All {failedLocators} personal data locator(s) failed. No data could be located.");
+                $"{failedLocators} of {_locators.Count} personal data locator(s) failed; the inventory would be incomplete.");
         }
 
         IReadOnlyList<PersonalDataLocation> result2 = allLocations.AsReadOnly();

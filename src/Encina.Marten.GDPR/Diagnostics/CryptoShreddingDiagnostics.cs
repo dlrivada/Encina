@@ -43,6 +43,10 @@ internal static class CryptoShreddingDiagnostics
         Meter.CreateCounter<long>("crypto.forget.total",
             description: "Total number of subject forget (crypto-shredding) operations.");
 
+    internal static readonly Counter<long> MisconfiguredTotal =
+        Meter.CreateCounter<long>("crypto.configuration.misconfigured.total",
+            description: "Number of types rejected at runtime because a [CryptoShredded] shape is misconfigured.");
+
     // Histograms
     internal static readonly Histogram<double> EncryptionDuration =
         Meter.CreateHistogram<double>("crypto.encryption.duration",
@@ -61,10 +65,9 @@ internal static class CryptoShreddingDiagnostics
 
     // Tag names
     internal const string TagEventType = "crypto.event_type";
-    internal const string TagPropertyName = "crypto.property_name";
     // Note: no subject-id tag is exposed here. A data subject's own identifier must never appear
-    // as a trace or metric tag (it is high-cardinality personal data); correlate via the event
-    // type, property name or key version instead (#1429, following #1314).
+    // as a trace or metric tag (it is high-cardinality personal data); correlate via the root
+    // type, the failure reason or key version instead (#1429, following #1314).
     internal const string TagOutcome = "crypto.outcome";
     internal const string TagKeyProviderType = "crypto.key_provider_type";
     internal const string TagFailureReason = "crypto.failure_reason";
@@ -137,6 +140,12 @@ internal static class CryptoShreddingDiagnostics
         activity?.SetTag(TagFailureReason, reason);
         activity?.SetStatus(ActivityStatusCode.Error, reason);
     }
+
+    /// <summary>
+    /// Builds the low-cardinality tag list of a failure counter: the failure reason (an enum name or an
+    /// exception type name, never a message).
+    /// </summary>
+    internal static KeyValuePair<string, object?> FailureReasonTag(string reason) => new(TagFailureReason, reason);
 
     internal static void RecordForgottenAccess(Activity? activity)
     {
