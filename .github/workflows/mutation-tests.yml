@@ -412,6 +412,29 @@ jobs:
         #   sacrifices Stryker or a test host, never the runner agent, and
         #   the agent keeps its heartbeat. No swap is added: swapping is what
         #   starves the agent; swapon --show is recorded instead.
+        # - Hard memory cap (phase 2b). Validation run 37150985477 lost its
+        #   runner although the heap cap above was set: from 20:35Z one
+        #   process whose comm is "dotnet" grew about 4 GB a minute to
+        #   14.5 GB RSS, the VM went to 122 MB available and 3 GB of swap,
+        #   telemetry stopped at 20:40Z and the runner was lost at 21:25Z.
+        #   The OOM score did not save the agent: the kernel swapped instead
+        #   of killing. So Stryker and everything it starts now run in a
+        #   cgroup v2 of their own, memory.max STRYKER_MEMORY_MAX (12 GiB of
+        #   the runner's 16 GB, about 3.5 GB left for the agent, the
+        #   monitor and the kernel), memory.swap.max 0 (no thrashing inside
+        #   the cap) and memory.oom.group 1 (the kernel kills the whole
+        #   tree at once, so Stryker cannot restart a killed test host and
+        #   count the crash as a kill). The step then fails with the
+        #   cgroup's OOM count and the processes of the last reading.
+        #   A cgroup the step creates under /sys/fs/cgroup with sudo, not
+        #   `systemd-run --user --scope`: the runner agent runs as a system
+        #   service, which normally has no user manager or session bus to
+        #   connect to (unverified; the step logs whether `systemctl --user`
+        #   answers), it needs the memory controller delegated to that
+        #   manager, and a transient scope
+        #   is removed with its last process, together with the
+        #   memory.events that prove the kill; this cgroup stays readable
+        #   after it.
         env:
           MATRIX_IDX: ${{ matrix.idx }}
           MATRIX_SCOPE: ${{ matrix.scope }}
@@ -422,6 +445,8 @@ jobs:
           # hosts running mutated code never see it; only the gh calls get it.
           TELEMETRY_TOKEN: ${{ github.token }}
           DOTNET_GCHeapHardLimit: "0x100000000"
+          # 12 GiB in bytes, for the cgroup's memory.max (see above).
+          STRYKER_MEMORY_MAX: "12884901888"
         run: |
           # pipefail: Stryker's output goes through tee below, and without it
           # the step would report tee's exit code and a failing Stryker run
@@ -443,6 +468,40 @@ jobs:
           echo "Mode: $MODE"
           echo "Swap:"
           swapon --show || true
+
+          # The Build step left a compiler server (VBCSCompiler, about 3 GB
+          # in run 37150985477) and build nodes running outside the memory
+          # cap; Stryker's builds would reuse them. Stop them so Stryker
+          # starts its own, inside the cap.
+          dotnet build-server shutdown > /dev/null 2>&1 || true
+
+          # Hard memory cap: a cgroup v2 for Stryker and everything it starts
+          # (see the step comment). Without it a runaway process swaps the
+          # VM until the runner is lost and no log survives, so a shard that
+          # cannot set it up fails here instead of running uncapped.
+          echo "systemctl --user: $(systemctl --user is-system-running 2>&1 | head -n 1)"
+          CG=/sys/fs/cgroup/encina-stryker-$GITHUB_RUN_ID-$MATRIX_IDX
+          setup_memory_cap() {
+            [ -f /sys/fs/cgroup/cgroup.controllers ] || { echo "cgroup v2 is not mounted at /sys/fs/cgroup"; return 1; }
+            if ! grep -qw memory /sys/fs/cgroup/cgroup.subtree_control; then
+              echo +memory | sudo -n tee /sys/fs/cgroup/cgroup.subtree_control > /dev/null || return 1
+            fi
+            sudo -n mkdir -p "$CG" || return 1
+            echo "$STRYKER_MEMORY_MAX" | sudo -n tee "$CG/memory.max" > /dev/null || return 1
+            # Without these two the cap still bounds the RAM the tree takes
+            # from the agent, and an OOM kill still fails the step at the
+            # end, so they only warn.
+            echo 0 | sudo -n tee "$CG/memory.swap.max" > /dev/null \
+              || echo "::warning::memory.swap.max not set; the processes under the cap may swap."
+            echo 1 | sudo -n tee "$CG/memory.oom.group" > /dev/null \
+              || echo "::warning::memory.oom.group not set; an OOM kill under the cap may take one process instead of the whole tree."
+            [ "$(cat "$CG/memory.max")" = "$STRYKER_MEMORY_MAX" ] || { echo "memory.max reads $(cat "$CG/memory.max")"; return 1; }
+          }
+          if ! setup_memory_cap; then
+            echo "::error title=No memory cap::Shard $MATRIX_IDX could not create the cgroup $CG with memory.max $STRYKER_MEMORY_MAX; Stryker does not run uncapped (#1441)."
+            exit 1
+          fi
+          echo "Memory cap: $CG memory.max=$(cat "$CG/memory.max") memory.swap.max=$(cat "$CG/memory.swap.max" 2>&1) memory.oom.group=$(cat "$CG/memory.oom.group" 2>&1)"
 
           # Telemetry that survives a lost runner (#1441, #1682). GitHub
           # keeps no log of a job whose runner is lost, not even of its
@@ -478,12 +537,59 @@ jobs:
             PUBLISH_EVERY=1
           fi
 
+          # Every process over 200 MB of RSS, largest first (phase 2b: run
+          # 37150985477 showed only "top=dotnet", which could not tell
+          # Stryker from a test host). One line each: pid, ppid, RSS; for a
+          # .NET process (libcoreclr.so mapped) whether
+          # DOTNET_GCHeapHardLimit is in the environment it started with
+          # (/proc/<pid>/environ) and how its RSS splits into anonymous
+          # memory (GC heap and native allocations together), file mappings
+          # and swap (/proc/<pid>/smaps_rollup); then its command line. The
+          # GC heap size itself is not read: dotnet-counters would have to
+          # be installed and would attach one more .NET process every minute
+          # to a VM that is short of memory.
+          processes() {
+            local pid ppid rss args kind gclimit split
+            echo "processes over 200 MB (MB; gc_limit = DOTNET_GCHeapHardLimit at process start):"
+            ps -eo pid=,ppid=,rss=,args= --sort=-rss | while read -r pid ppid rss args; do
+              [ "$rss" -gt 204800 ] || break
+              kind=native
+              gclimit=-
+              if grep -qs libcoreclr.so "/proc/$pid/maps"; then
+                kind=dotnet
+                if [ -r "/proc/$pid/environ" ]; then
+                  gclimit=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DOTNET_GCHeapHardLimit=//p')
+                  gclimit=${gclimit:-absent}
+                else
+                  gclimit=unreadable
+                fi
+              fi
+              split=$(awk '/^Rss:/ {r = $2} /^Anonymous:/ {a = $2} /^Swap:/ {s = $2} END {printf "anon=%d file=%d swap=%d", a / 1024, (r - a) / 1024, s / 1024}' "/proc/$pid/smaps_rollup" 2>/dev/null)
+              echo "pid=$pid ppid=$ppid rss=$((rss / 1024)) $kind gc_limit=$gclimit ${split:-anon=? file=? swap=?} args=${args:0:400}"
+            done
+          }
+
+          # The memory cap's cgroup: current and peak usage, OOM kills, and
+          # how many processes it holds.
+          cgroup_state() {
+            local current peak kills procs
+            current=$(( $(cat "$CG/memory.current" 2>/dev/null || echo 0) / 1048576 ))
+            peak=$(( $(cat "$CG/memory.peak" 2>/dev/null || echo 0) / 1048576 ))
+            kills=$(awk '$1 == "oom_kill" {print $2}' "$CG/memory.events" 2>/dev/null)
+            procs=$(wc -l < "$CG/cgroup.procs" 2>/dev/null)
+            echo "cg_mem=${current}MB cg_peak=${peak}MB cg_oom_kill=${kills:-?} cg_procs=${procs:-?}"
+          }
+
           # One reading: a full sample (appended to runner-resources.log and
-          # kept in runner-resources-latest.log) and one compact line in
+          # kept in runner-resources-latest.log), the process lines alone in
+          # runner-processes-latest.log, and one compact line in
           # runner-resources-history.log.
           sample() {
             local now l1 l5 l15 mem top
             now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            # Written aside and renamed, so a reader never sees half a file.
+            processes > "$LOGS/runner-processes-latest.log.tmp" 2>&1
+            mv -f "$LOGS/runner-processes-latest.log.tmp" "$LOGS/runner-processes-latest.log"
             {
               echo "== $now"
               echo "loadavg: $(cat /proc/loadavg)"
@@ -491,8 +597,8 @@ jobs:
               echo "swap:"
               swapon --show
               df -h / /mnt
-              echo "top processes by RSS (KB):"
-              ps -eo pid,ni,rss,pcpu,etimes,comm --sort=-rss | head -n 8
+              echo "memory cap: $(cgroup_state)"
+              cat "$LOGS/runner-processes-latest.log"
               echo "dotnet processes: $(pgrep -c dotnet), processes whose command line names Encina.UnitTests (test hosts, builds): $(pgrep -c -f Encina.UnitTests)"
               echo "kernel OOM lines:"
               sudo -n dmesg -T 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' | tail -n 3
@@ -503,12 +609,20 @@ jobs:
             cat "$LOGS/runner-resources-latest.log" >> "$LOGS/runner-resources.log"
             read -r l1 l5 l15 _ < /proc/loadavg
             mem=$(free -m | awk '/^Mem:/ {printf "mem_used=%sMB mem_avail=%sMB", $3, $7} /^Swap:/ {printf " swap_used=%sMB", $3}')
-            top=$(ps -eo rss,comm --sort=-rss | awk 'NR == 2 {printf "top=%s:%dMB", $2, $1 / 1024}')
-            echo "$now load=$l1/$l5/$l15 $mem dotnet=$(pgrep -c dotnet) encina_unittests=$(pgrep -c -f Encina.UnitTests) $top" >> "$HISTORY"
+            top=$(ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR == 1 {printf "top=%s/%s:%dMB", $1, $3, $2 / 1024}')
+            # The largest process and the cap come first: the check run's
+            # title shows the first 180 characters of the newest line.
+            echo "$now $top $(cgroup_state) $mem load=$l1/$l5/$l15 dotnet=$(pgrep -c dotnet) encina_unittests=$(pgrep -c -f Encina.UnitTests)" >> "$HISTORY"
           }
 
-          # Push the last 60 compact lines (summary) and the latest full
-          # sample (text) to the check run.
+          # Push the compact lines and the latest process lines (summary)
+          # and the latest full sample (text) to the check run. The process
+          # lines go in the summary because the text field of run
+          # 37150985477's check run came back empty although every update
+          # sent one. Both are reduced to printable ASCII (a cut multi-byte
+          # character or a control byte from the console tail must not spoil
+          # the request) and the summary stays under GitHub's 65,535
+          # characters: 45 history lines of about 260 and the process lines.
           publish() {
             if [ -z "$CHECK_ID" ]; then
               return 0
@@ -516,15 +630,19 @@ jobs:
             {
               echo "Run $GITHUB_RUN_ID, attempt $GITHUB_RUN_ATTEMPT, shard $MATRIX_IDX. One line per minute, newest last:"
               echo '```text'
-              tail -n 60 "$HISTORY"
+              tail -n 45 "$HISTORY"
               echo '```'
-            } > "$LOGS/check-summary.md"
+              echo 'Latest reading, processes over 200 MB:'
+              echo '```text'
+              head -c 20000 "$LOGS/runner-processes-latest.log"
+              echo '```'
+            } | LC_ALL=C tr -cd '\11\12\40-\176' > "$LOGS/check-summary.md"
             {
               echo 'Latest full sample:'
               echo '```text'
-              cat "$LOGS/runner-resources-latest.log"
+              head -c 40000 "$LOGS/runner-resources-latest.log"
               echo '```'
-            } > "$LOGS/check-text.md"
+            } | LC_ALL=C tr -cd '\11\12\40-\176' > "$LOGS/check-text.md"
             GH_TOKEN="$TOKEN" timeout 30 gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
               -f "output[title]=Shard $MATRIX_IDX: $(tail -n 1 "$HISTORY" | cut -c 1-180)" \
               -F "output[summary]=@$LOGS/check-summary.md" \
@@ -570,8 +688,44 @@ jobs:
           echo 1000 > /proc/self/oom_score_adj || echo "::warning::Could not raise oom_score_adj; the runner agent is not protected from the OOM killer."
           echo "oom_score_adj: $(cat /proc/self/oom_score_adj)"
 
+          # The subshell moves itself into the memory cap's cgroup (root
+          # writes the pid: moving a process needs write access to the
+          # cgroup.procs of the common ancestor, the root cgroup) and then
+          # becomes Stryker, so Stryker and every process it starts are
+          # capped. tee stays outside: when the cap kills the tree, the
+          # console log is still complete. A failed move fails the shard
+          # (exit 90) rather than running uncapped.
           run_stryker() {
-            nice -n 10 dotnet run --file .github/scripts/run-stryker.cs -- "$@" 2>&1 | tee -a "$CONSOLE_LOG"
+            (
+              echo "$BASHPID" | sudo -n tee "$CG/cgroup.procs" > /dev/null || {
+                echo "::error title=No memory cap::Could not move the Stryker process into $CG."
+                exit 90
+              }
+              exec nice -n 10 dotnet run --file .github/scripts/run-stryker.cs -- "$@"
+            ) 2>&1 | tee -a "$CONSOLE_LOG"
+          }
+
+          # Fails the step with the evidence when the cap's OOM killer fired:
+          # the kill count and peak of the cgroup, and the processes of the
+          # last reading before the kill (taken at most a minute earlier;
+          # in run 37150985477 the runaway grew about 4 GB a minute, so it
+          # is already the largest there).
+          report_memory_cap() {
+            local status=$1 kills peak
+            kills=$(awk '$1 == "oom_kill" {print $2}' "$CG/memory.events" 2>/dev/null)
+            peak=$(( $(cat "$CG/memory.peak" 2>/dev/null || echo 0) / 1048576 ))
+            echo "Stryker exit status: $status; memory cap: oom_kill=${kills:-?} peak=${peak}MB of $((STRYKER_MEMORY_MAX / 1048576))MB"
+            if [ "${kills:-0}" -gt 0 ]; then
+              # memory-cap.txt also goes to the telemetry check run (step
+              # "Complete mutation telemetry").
+              echo "Memory cap reached: peak ${peak} MB, $kills OOM kill(s). Largest process at the last reading: $(head -n 2 "$LOGS/runner-processes-latest.log" | tail -n 1 | cut -c 1-600)" > "$LOGS/memory-cap.txt"
+              echo "::error title=Memory cap reached::Shard $MATRIX_IDX: the processes under Stryker reached the $((STRYKER_MEMORY_MAX / 1073741824)) GiB cap (peak ${peak} MB) and the kernel killed all of them ($kills OOM kill(s)). Largest process at the last reading: $(head -n 2 "$LOGS/runner-processes-latest.log" | tail -n 1 | cut -c 1-600)"
+              echo "Processes over 200 MB at the last reading before the kill:"
+              cat "$LOGS/runner-processes-latest.log"
+              echo "Readings of the last 10 minutes:"
+              tail -n 10 "$HISTORY"
+              return 1
+            fi
           }
 
           # Build --mutate args: every ';'-separated glob of the shard scope,
@@ -615,24 +769,33 @@ jobs:
           #
           # run_stryker sends Stryker's console to the step log and to
           # stryker-console.log, which is uploaded with the logs artifact and
-          # whose tail feeds the telemetry check run.
+          # whose tail feeds the telemetry check run. Its status is kept
+          # (|| under bash -e) so the memory cap can be reported before the
+          # step fails with it.
+          STRYKER_STATUS=0
           if [ "$MODE" = "diff" ]; then
             echo "Running diff mode (vs main)"
-            run_stryker --since:main "${MUTATE_ARGS[@]}"
+            run_stryker --since:main "${MUTATE_ARGS[@]}" || STRYKER_STATUS=$?
           elif [ "$MODE" = "full" ]; then
             echo "Running full mode (all files — will exceed the 340-min shard timeout)"
             # Pass MUTATE_ARGS so the CLI exclusion list stays the single
             # source of truth; otherwise full_mode would silently drift if
             # MUTATE_ARGS gains an exclusion the config file does not have.
-            run_stryker "${MUTATE_ARGS[@]}"
+            run_stryker "${MUTATE_ARGS[@]}" || STRYKER_STATUS=$?
           else
             echo "Running shard scope: $SCOPE"
-            run_stryker "${MUTATE_ARGS[@]}"
+            run_stryker "${MUTATE_ARGS[@]}" || STRYKER_STATUS=$?
           fi
+          # An OOM kill under the cap fails the step even if the exit status
+          # somehow came back 0.
+          report_memory_cap "$STRYKER_STATUS" || [ "$STRYKER_STATUS" -ne 0 ] || STRYKER_STATUS=1
+          exit "$STRYKER_STATUS"
 
       - name: Locate mutation report
         id: stryker-report
         if: always()
+        env:
+          MATRIX_IDX: ${{ matrix.idx }}
         run: |
           # Stryker writes the report to one of:
           #   - artifacts/mutation/reports/mutation-report.json (direct)
@@ -654,6 +817,12 @@ jobs:
           report=$(find artifacts/mutation -type f -name "mutation-report.json" -path "*/reports/*" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)
           if [ -n "$report" ]; then
             reports_dir=$(dirname "$report")
+            # The shard's identity travels inside its artifact: the aggregate
+            # job reads shard-id.txt next to each report, because
+            # actions/download-artifact extracts a lone matching artifact
+            # straight into its path, without the artifact-name directory
+            # (.github/scripts/mutation-shard-reports.cs).
+            printf '%s\n' "$MATRIX_IDX" > "$reports_dir/shard-id.txt"
             echo "reports-dir=$reports_dir" >> "$GITHUB_OUTPUT"
             echo "summary-file=$reports_dir/mutation-report.txt" >> "$GITHUB_OUTPUT"
           fi
@@ -730,22 +899,34 @@ jobs:
           STRYKER_OUTCOME: ${{ steps.stryker.outcome }}
         run: |
           LOGS=artifacts/mutation/logs
+          # Same layout as the step's publish(): history and process lines
+          # in the summary, the full sample in the text, printable ASCII.
+          TITLE="Shard $MATRIX_IDX: Stryker step $STRYKER_OUTCOME"
+          if [ -f "$LOGS/memory-cap.txt" ]; then
+            TITLE="$TITLE, memory cap reached"
+          fi
           {
-            echo "Stryker step outcome: $STRYKER_OUTCOME. One line per minute, newest last:"
+            echo "Stryker step outcome: $STRYKER_OUTCOME."
+            cat "$LOGS/memory-cap.txt" 2>/dev/null || true
+            echo "One line per minute, newest last:"
             echo '```text'
-            tail -n 60 "$LOGS/runner-resources-history.log" 2>/dev/null || true
+            tail -n 45 "$LOGS/runner-resources-history.log" 2>/dev/null || true
             echo '```'
-          } > "$RUNNER_TEMP/check-summary.md"
+            echo 'Last reading, processes over 200 MB:'
+            echo '```text'
+            head -c 20000 "$LOGS/runner-processes-latest.log" 2>/dev/null || true
+            echo '```'
+          } | LC_ALL=C tr -cd '\11\12\40-\176' > "$RUNNER_TEMP/check-summary.md"
           {
             echo 'Latest full sample:'
             echo '```text'
-            cat "$LOGS/runner-resources-latest.log" 2>/dev/null || true
+            head -c 40000 "$LOGS/runner-resources-latest.log" 2>/dev/null || true
             echo '```'
-          } > "$RUNNER_TEMP/check-text.md"
+          } | LC_ALL=C tr -cd '\11\12\40-\176' > "$RUNNER_TEMP/check-text.md"
           timeout 30 gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
             -f status=completed \
             -f conclusion=neutral \
-            -f "output[title]=Shard $MATRIX_IDX: Stryker step $STRYKER_OUTCOME" \
+            -f "output[title]=$TITLE" \
             -F "output[summary]=@$RUNNER_TEMP/check-summary.md" \
             -F "output[text]=@$RUNNER_TEMP/check-text.md" > /dev/null \
             || echo "::warning::Could not complete the telemetry check run $CHECK_ID."
@@ -841,20 +1022,25 @@ jobs:
           SELECT_MODE: ${{ needs.select-matrix.outputs.mode }}
         run: |
           mkdir -p artifacts/mutation/reports shards
-          mapfile -t REPORTS < <(find shards -name "mutation-report.json" -type f | sort)
-          SUCCESSFUL=${#REPORTS[@]}
 
           # A shard that lost its runner, timed out before Stryker wrote the
           # report, or failed earlier uploads nothing (#1682). The merge
           # goes on with the other shards, and the missing ones are named in
           # a warning and in the step summary so the run is not taken for a
-          # complete one.
-          MISSING=()
-          while IFS= read -r idx; do
-            if [ -z "$(find shards -type f -name mutation-report.json -path "shards/mutation-report-shard-${idx}/*" -print -quit)" ]; then
-              MISSING+=("$idx")
-            fi
-          done < <(jq -r '.[].idx' <<< "$MATRIX_JSON")
+          # complete one. Each report is identified by the shard-id.txt its
+          # shard wrote next to it, not by its directory: download-artifact
+          # extracts a lone matching artifact straight into shards/, which
+          # made the custom shard look missing (run 37149399906). The script
+          # fails on a report it cannot attribute to exactly one matrix
+          # shard; its --self-test covers both download layouts.
+          dotnet run --file .github/scripts/mutation-shard-reports.cs -- \
+            --shards shards \
+            --matrix "$MATRIX_JSON" \
+            --reports-out "$RUNNER_TEMP/shard-reports.txt" \
+            --missing-out "$RUNNER_TEMP/missing-shards.txt"
+          mapfile -t REPORTS < "$RUNNER_TEMP/shard-reports.txt"
+          mapfile -t MISSING < "$RUNNER_TEMP/missing-shards.txt"
+          SUCCESSFUL=${#REPORTS[@]}
           if [ "${#MISSING[@]}" -gt 0 ]; then
             echo "::warning title=Missing shard reports::${#MISSING[@]} of $SHARD_COUNT shards uploaded no mutation report: ${MISSING[*]}. Files that only they measured keep their previous dashboard data; a span-split file is published with the part another shard measured."
             {
