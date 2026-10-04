@@ -49,11 +49,16 @@ Rules:
 - CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
   touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
   the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage (every
-  flag that exercises them: unit, guard, contract, property, integration), write the diff to a file with
-  git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, then run
+  flag that exercises them: unit, guard, contract, property, integration), create the folder and write the diff to a file with
+  New-Item -ItemType Directory -Force <wt>\artifacts\crap-gate | Out-Null (a fresh worktree has no
+  git-ignored folders and the redirect does not create them), then
+  git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, list the inputs with
+  Get-ChildItem <wt>\artifacts\coverage -Recurse -Filter coverage.cobertura.xml (each run puts its file in a
+  GUID subfolder), then run
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/crap-gate.cs -- --report --diff <wt>\artifacts\crap-gate\diff.patch <each coverage.cobertura.xml>
   (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
-  table in the report, and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
+  script output in the report (it prints only the violations: an empty table means no touched method is over
+  the threshold), and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.
@@ -105,7 +110,7 @@ Fill `<wt>` in every command. Each one either starts with `Set-Location <wt>;` o
 | Public API | the above, plus `PublicAPI.Unshipped.txt` updated by `mechanical-fixer` (RS0016/RS0017 clean) |
 | Tests only | `dotnet test <wt>\tests\<Project>\<Project>.csproj --filter <new classes> --results-directory <wt>\artifacts\test-results`, run twice for determinism |
 | `.github/scripts/*.cs` | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\<script>.cs -- <the mode the change touches>` against a real input |
-| Hooks in `.claude/hooks` | `pwsh -NoProfile -File <wt>\.claude\hooks\tests\Test-Hooks.ps1`, plus an AST parse of each changed hook: `[System.Management.Automation.Language.Parser]::ParseFile('<wt>\.claude\hooks\<hook>.ps1', [ref]$null, [ref]$errors)` with `$errors` empty |
+| Hooks in `.claude/hooks` | `Set-Location <wt>` as its own tool call first, not chained in the same statement (hooks load from the main checkout, so the live copies govern the worker; see `.claude/agents/README.md`, "Where hooks load from"), then `pwsh -NoProfile -File <wt>\.claude\hooks\tests\Test-Hooks.ps1`, plus an AST parse of each changed hook: `[System.Management.Automation.Language.Parser]::ParseFile('<wt>\.claude\hooks\<hook>.ps1', [ref]$null, [ref]$errors)` with `$errors` empty |
 | Changelog fragment | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\changelog-fragments.cs -- --check` |
 | Knowledge record | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\knowledge-records.cs -- --check` |
 | Local-model draft | `Set-Location <wt>; dotnet run --file <wt>\tools\ai\local-ai-ask.cs -- --task <name> --brief <wt>\artifacts\local-ai\briefs\<name>.md --input <file> --out <wt>\artifacts\local-ai\out\<name>.md` (the script appends to `artifacts/local-ai/ledger.csv` under the current directory, hence the `Set-Location`) |
