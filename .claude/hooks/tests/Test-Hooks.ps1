@@ -1343,8 +1343,12 @@ try {
         Invoke-AuditCase 'docs-reviewer' 'A normal documentation self-review, no audit context.' $null 0 'audit-stage-guard: docs-reviewer without wia-<n> is not an audit stage'
         Set-AuditOpen $true
 
-        Invoke-AuditCase 'issue-worker' "Run the SPEC-003 audit for #$auditN end to end." $null 2 'audit-stage-guard: issue-worker SPEC-003 audit coordinator path is closed'
-        Invoke-AuditCase 'general-purpose' "Run the SPEC-003 audit for #$auditN." $null 2 'audit-stage-guard: general-purpose SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'issue-worker' "Run the SPEC-003 audit for #$auditN end to end in wia-$auditN." $null 2 'audit-stage-guard: issue-worker SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'general-purpose' "Run the SPEC-003 audit for #$auditN in wia-$auditN." $null 2 'audit-stage-guard: general-purpose SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'issue-worker' 'Run the audit in wia-29.' $null 2 'audit-stage-guard: issue-worker prompt naming wia-29 is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Continue on branch audit/29 and finish it.' $null 2 'audit-stage-guard: issue-worker prompt naming audit/29 is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Write artifacts\knowledge\stages\code.md for the issue.' $null 2 'audit-stage-guard: issue-worker prompt naming artifacts\knowledge\stages\ is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Worktree D:\Proyectos\Encina\.claude\worktrees\w1735. Change tools/ai/audit/audit-done.ps1 so it handles X; this is part of the SPEC-003 audit pipeline.' $null 0 'audit-stage-guard: issue-worker brief on the audit tooling is allowed (#1744)'
 
         Write-AuditStage 'docs' 'docs.md' -Commit
         Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify." $null 2 'audit-stage-guard: remediation stage still pending, agent spawn is out of order'

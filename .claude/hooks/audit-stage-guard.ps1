@@ -23,9 +23,11 @@
 #     makes that PASS verdict stale (it never inspected the new content) — every other out-of-order stage
 #     agent stays blocked while the last verdict is PASS.
 #
-# Also denies any issue-worker or general-purpose spawn whose prompt mentions "SPEC-003 audit": the old
+# Also denies any issue-worker or general-purpose spawn whose prompt names an audit run marker — an audit
+# worktree (wia-<n>), an audit/<n> branch or the artifacts/knowledge/stages/ folder: the old
 # coordinator-does-everything path (#1345) is closed; the pipeline's own scripts and stage agents are the
-# only way to run the audit now.
+# only way to run the audit now. Mentioning the audit by name alone does not deny, so a brief that works on
+# the audit tooling is allowed (#1744).
 #
 # pipeline.json is read from the OPEN AUDIT'S OWN worktree (not this hook's checkout), so a fixture or a
 # later reorder of the file changes the stage this hook expects without redeploying the hook.
@@ -45,8 +47,11 @@ try {
     $subagent = [string]$payload.tool_input.subagent_type
     $prompt = [string]$payload.tool_input.prompt
 
-    if ($subagent -in 'issue-worker', 'general-purpose' -and $prompt -match 'SPEC-003 audit') {
-        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, remediation-drafter, audit-verifier) instead.")
+    # Only a prompt that RUNS an audit is denied: it names an audit worktree (wia-<n>), an audit/<n> branch or
+    # the stage artifact folder. A brief that merely works on the audit tooling mentions none of these (#1744).
+    $auditRunMarker = [regex]::Match($prompt, '(?i)wia-\d+|\baudit/\d+|artifacts[\\/]knowledge[\\/]stages[\\/]')
+    if ($subagent -in 'issue-worker', 'general-purpose' -and $auditRunMarker.Success) {
+        [Console]::Error.WriteLine("Blocked: the SPEC-003 audit no longer runs through a $subagent coordinator (#1345); the prompt names '$($auditRunMarker.Value)', an audit run marker (#1744). Use tools/ai/audit/audit-next.ps1 and the fixed stage agents (issue-archivist, issue-auditor, test-auditor, docs-reviewer, remediation-drafter, audit-verifier) instead.")
         exit 2
     }
 
