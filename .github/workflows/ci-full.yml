@@ -530,6 +530,7 @@ jobs:
   # Pack and publish - runs after all tests
   pack:
     needs:
+      - build
       - test-unit
       - test-integration
       - test-contract
@@ -538,7 +539,9 @@ jobs:
       - test-ef-providers
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: always() && needs.build.result == 'success'
+    # Publishing needs a green build and all six test jobs. Each result is checked explicitly: a
+    # failed, skipped or cancelled test job blocks the pack, and there is no always() (#1745).
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.test-unit.result == 'success' && needs.test-integration.result == 'success' && needs.test-contract.result == 'success' && needs.test-property.result == 'success' && needs.test-guard.result == 'success' && needs.test-ef-providers.result == 'success' }}
     # The tag push publishes to GitHub Packages; the default GITHUB_TOKEN is read-only, which is
     # why v0.13.0's push failed with 403 (job-level permissions per CLAUDE.md, Sonar S8264).
     permissions:
