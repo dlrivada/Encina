@@ -576,7 +576,7 @@ jobs:
             current=$(( $(cat "$CG/memory.current" 2>/dev/null || echo 0) / 1048576 ))
             peak=$(( $(cat "$CG/memory.peak" 2>/dev/null || echo 0) / 1048576 ))
             kills=$(awk '$1 == "oom_kill" {print $2}' "$CG/memory.events" 2>/dev/null)
-            procs=$(wc -l < "$CG/cgroup.procs" 2>/dev/null)
+            procs=$(wc -l 2>/dev/null < "$CG/cgroup.procs")
             echo "cg_mem=${current}MB cg_peak=${peak}MB cg_oom_kill=${kills:-?} cg_procs=${procs:-?}"
           }
 
@@ -697,29 +697,42 @@ jobs:
           # (exit 90) rather than running uncapped.
           run_stryker() {
             (
-              echo "$BASHPID" | sudo -n tee "$CG/cgroup.procs" > /dev/null || {
-                echo "::error title=No memory cap::Could not move the Stryker process into $CG."
+              # $BASHPID is read here, before the pipeline: the left side of
+              # a pipeline runs in a forked child with its own $BASHPID.
+              self=$BASHPID
+              if ! { echo "$self" | sudo -n tee "$CG/cgroup.procs" > /dev/null && grep -qx "$self" "$CG/cgroup.procs"; }; then
+                echo "::error title=No memory cap::Could not move the Stryker process ($self) into $CG."
                 exit 90
-              }
+              fi
               exec nice -n 10 dotnet run --file .github/scripts/run-stryker.cs -- "$@"
             ) 2>&1 | tee -a "$CONSOLE_LOG"
           }
 
-          # Fails the step with the evidence when the cap's OOM killer fired:
-          # the kill count and peak of the cgroup, and the processes of the
-          # last reading before the kill (taken at most a minute earlier;
-          # in run 37150985477 the runaway grew about 4 GB a minute, so it
-          # is already the largest there).
+          # Fails the step with the evidence when an OOM kill happened under
+          # the cap: the kill count and peak of the cgroup, the kernel's own
+          # OOM lines (they name the process it chose, exactly), and the
+          # processes of the last reading before the kill (taken at most a
+          # minute earlier; in run 37150985477 the runaway grew about 4 GB a
+          # minute, so it is already the largest there).
           report_memory_cap() {
-            local status=$1 kills peak
+            local status=$1 kills peak largest kernel
             kills=$(awk '$1 == "oom_kill" {print $2}' "$CG/memory.events" 2>/dev/null)
             peak=$(( $(cat "$CG/memory.peak" 2>/dev/null || echo 0) / 1048576 ))
             echo "Stryker exit status: $status; memory cap: oom_kill=${kills:-?} peak=${peak}MB of $((STRYKER_MEMORY_MAX / 1048576))MB"
             if [ "${kills:-0}" -gt 0 ]; then
+              largest=$(head -n 2 "$LOGS/runner-processes-latest.log" | tail -n 1 | cut -c 1-600)
+              kernel=$(sudo -n dmesg -T 2>/dev/null | grep -iE 'memory cgroup out of memory|killed process' | tail -n 5)
               # memory-cap.txt also goes to the telemetry check run (step
-              # "Complete mutation telemetry").
-              echo "Memory cap reached: peak ${peak} MB, $kills OOM kill(s). Largest process at the last reading: $(head -n 2 "$LOGS/runner-processes-latest.log" | tail -n 1 | cut -c 1-600)" > "$LOGS/memory-cap.txt"
-              echo "::error title=Memory cap reached::Shard $MATRIX_IDX: the processes under Stryker reached the $((STRYKER_MEMORY_MAX / 1073741824)) GiB cap (peak ${peak} MB) and the kernel killed all of them ($kills OOM kill(s)). Largest process at the last reading: $(head -n 2 "$LOGS/runner-processes-latest.log" | tail -n 1 | cut -c 1-600)"
+              # "Complete mutation telemetry") and makes the step "Fail a
+              # shard whose run ran out of memory" withhold the report.
+              {
+                echo "Memory cap: an OOM kill occurred under the cap (peak ${peak} MB, $kills OOM kill(s)). Largest process at the last reading: $largest"
+                echo "Kernel OOM lines:"
+                echo "$kernel"
+              } > "$LOGS/memory-cap.txt"
+              echo "::error title=Memory cap reached::Shard $MATRIX_IDX: an OOM kill occurred under the $((STRYKER_MEMORY_MAX / 1073741824)) GiB cap (peak ${peak} MB, $kills OOM kill(s)). Kernel: $(echo "$kernel" | tail -n 1 | cut -c 1-300). Largest process at the last reading: $largest"
+              echo "Kernel OOM lines:"
+              echo "$kernel"
               echo "Processes over 200 MB at the last reading before the kill:"
               cat "$LOGS/runner-processes-latest.log"
               echo "Readings of the last 10 minutes:"
@@ -857,12 +870,23 @@ jobs:
       # keep their previous dashboard data instead of a skewed score. Only
       # what reaches the console is seen; the phase-2 calibration compares
       # Killed counts with a local run to check the rest (#1441).
+      # An OOM kill under the memory cap (memory-cap.txt) withholds the
+      # report too: if memory.oom.group could not be set, the kernel may
+      # kill one test host, Stryker restarts it, and the crash may count as
+      # a kill.
       - name: Fail a shard whose run ran out of memory
         id: oom-guard
         if: always() && steps.stryker.outcome != 'skipped'
         env:
           MATRIX_IDX: ${{ matrix.idx }}
         run: |
+          CAP_FILE=artifacts/mutation/logs/memory-cap.txt
+          if [ -f "$CAP_FILE" ]; then
+            echo "oom=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Out of memory::Shard $MATRIX_IDX: an OOM kill occurred under the memory cap; the report is not uploaded because kills may be inflated (#1441)."
+            cat "$CAP_FILE"
+            exit 1
+          fi
           CONSOLE_LOG=artifacts/mutation/logs/stryker-console.log
           if [ -f "$CONSOLE_LOG" ] && grep -q 'OutOfMemoryException' "$CONSOLE_LOG"; then
             echo "oom=true" >> "$GITHUB_OUTPUT"
@@ -1032,7 +1056,10 @@ jobs:
           # extracts a lone matching artifact straight into shards/, which
           # made the custom shard look missing (run 37149399906). The script
           # fails on a report it cannot attribute to exactly one matrix
-          # shard; its --self-test covers both download layouts.
+          # shard; its --self-test covers both download layouts and runs
+          # first, so a broken attribution fails here instead of misnaming
+          # shards.
+          dotnet run --file .github/scripts/mutation-shard-reports.cs -- --self-test
           dotnet run --file .github/scripts/mutation-shard-reports.cs -- \
             --shards shards \
             --matrix "$MATRIX_JSON" \
