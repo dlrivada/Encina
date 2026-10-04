@@ -1,5 +1,5 @@
 <!--
-title: [BUG] CI Full pack job runs under always() and publishes on a tag push even when test jobs, contract tests included, failed
+title: [BUG] CI Full `pack` job runs and publishes the package when test jobs fail
 labels: bug
 milestone: v0.14.0 — Hardening
 kind: bug
@@ -7,41 +7,36 @@ kind: bug
 
 ## Description
 
-The `pack` job of `.github/workflows/ci-full.yml` is not gated on the result of the test jobs. It declares them in `needs:` (`:532-538`: `test-unit`, `test-integration`, `test-contract`, `test-property`, `test-guard`, `test-ef-providers`) but its condition is `if: always() && needs.build.result == 'success'` (`:541`). `always()` runs the job whatever the result of the jobs it needs, and the only result the condition inspects is the one of `build`. The test jobs therefore only order the jobs; nothing checks whether they passed.
+In `.github/workflows/ci-full.yml` the `pack` job is declared with `if: always() && needs.build.result == 'success'` (`ci-full.yml:541`). The six test jobs are listed under `needs:` (`:532-538`: `test-unit`, `test-integration`, `test-contract`, `test-property`, `test-guard`, `test-ef-providers`) only to order the jobs. `always()` discards their results and nothing else checks them, so `pack` runs after any test job fails, `test-contract` included. On a `v*` tag push the step "Publish to GitHub Packages" (`:569-578`, `if: startsWith(github.ref, 'refs/tags/v')`) then runs `dotnet nuget push` for the package, so a release can be published from a commit whose test suite is red.
 
-The last step of `pack`, "Publish to GitHub Packages" (`:569-578`), runs `dotnet nuget push` and has the condition `startsWith(github.ref, 'refs/tags/v')` (`:570`). The workflow is triggered by `push: tags: ["v*"]` (`:6-7`), so a `v*` tag push with a red test suite, the contract suite included, still publishes the package.
-
-The run history shows the condition lets `pack` run on red tests: CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) had 18 failed test jobs (1 `test-property`, 1 `test-guard`, 8 `test-unit` shards, 4 `test-integration` shards, 4 `test-ef-providers` shards), and `pack` concluded `success` (`build`, `test-contract` and `coverage` also succeeded). That run was not a tag push, so its publish step was skipped.
-
-This breaks the AGENTS.md section 8 statement "CI enforces: all tests pass" for the release path, and it is the opposite of the fail-closed single-gate design that `ci.yml` follows: `ci-result` (`ci.yml:639-651`) fails when any needed job is `failure` or `cancelled` (`ci.yml:650`), while CI Full has no aggregate job.
+CI Full has no aggregate job like the `ci-result` gate that `ci.yml` uses, so no other job turns a red test job into a failed run that blocks publishing. `test-contract` has the same wiring as the other test jobs: it declares `needs: build` (`ci-full.yml:199`) and sits in `pack`'s `needs:` list (`:535`).
 
 ## Steps to Reproduce
 
-1. Make any job named in `pack`'s `needs:` fail, for example a failing test in `Encina.ContractTests` (`test-contract`, `ci-full.yml:198-215`).
-2. Push a tag that matches `v*`, so `ci-full.yml` starts (`:6-7`). `build` succeeds.
-3. The test job fails; `pack` still starts because of `always()` and `needs.build.result == 'success'` (`:541`).
-4. The "Publish to GitHub Packages" step runs because the ref starts with `refs/tags/v` (`:570`) and pushes `artifacts/*.nupkg` to `https://nuget.pkg.github.com/<owner>/index.json` (`:572-578`).
+1. Make one of the test jobs of `.github/workflows/ci-full.yml` fail (for example a failing test in `tests/Encina.ContractTests`, which `test-contract` runs at `ci-full.yml:210-215`).
+2. Run CI Full, either with `workflow_dispatch` or by pushing a `v*` tag (the workflow triggers on both, `ci-full.yml:3-8`).
+3. Look at the conclusion of the `pack` job.
 
-The `workflow_dispatch` run 35652357800 reproduces steps 1 to 3 without a tag (step 4 is skipped there).
+CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) shows it: `test-property`, `test-guard`, `test-unit`, `test-integration` and four `test-ef-providers` shards failed, and `pack` concluded `success`. That run was not a tag push, so the publish step was skipped. On a `v*` tag push the same wiring reaches the publish step.
 
 ## Expected Behavior
 
-`pack`, and above all its publish step, runs only when `build` and every test job it needs concluded `success`. A failing test job, `test-contract` included, stops the release package from being pushed.
+The `pack` job, and in particular the "Publish to GitHub Packages" step, does not run unless every test job it depends on concluded `success`. A red test job, `test-contract` included, stops the publish. This is what AGENTS.md section 8 states ("CI enforces: all tests pass") and what the single-gate design of `ci.yml` (`ci-result`) already does.
 
 ## Actual Behavior
 
-`pack` runs after any test job fails, and on a `v*` tag it pushes the package. Only a failure of `build` stops it.
-
-## Root Cause
-
-`always()` in the job condition discards the results of the jobs listed in `needs:`, and the only result the condition checks is `build`'s (`ci-full.yml:541`). The workflow also has no aggregate job that checks every needed result, unlike `ci.yml`'s `ci-result`.
+`pack` runs when any test job fails. With a `v*` tag the package is pushed to GitHub Packages with `dotnet nuget push artifacts/*.nupkg --source "$GITHUB_PACKAGES_SOURCE" --api-key "$NUGET_API_KEY" --skip-duplicate` (`ci-full.yml:575-578`).
 
 ## Environment
 
 - **Encina Version**: 0.14.0-dev
 - **.NET Version**: .NET 10
 - **OS**: Not applicable (found by static review of the code, not at runtime)
-- **Package(s) Affected**: none (CI workflow `.github/workflows/ci-full.yml`; the package it packs and publishes is `src/Encina/Encina.csproj`, `:561`)
+- **Package(s) Affected**: none (CI workflow `.github/workflows/ci-full.yml`; the package published by the `pack` job is `src/Encina/Encina.csproj`)
+
+## Root Cause
+
+`always()` in the job-level `if:` makes the job run whatever the result of its `needs:`. The condition then checks only `needs.build.result`; no `needs.<test job>.result` is checked anywhere in the job. `build` is not in `pack`'s `needs:` list (`:532-538` lists only the six test jobs), so the condition refers to a job outside that list.
 
 ## Code Sample
 
@@ -66,16 +61,12 @@ The `workflow_dispatch` run 35652357800 reproduces steps 1 to 3 without a tag (s
 
 ## Stack Trace
 
-```
-Not applicable: no exception is thrown. Run 35652357800: 18 test jobs failed (1 test-property, 1 test-guard, 8 test-unit shards, 4 test-integration shards, 4 test-ef-providers shards); pack concluded success.
-```
+Not applicable: a workflow condition defect, no exception is thrown.
 
 ## Additional Context
 
-Fix direction: drop `always()` from the `pack` condition, or keep it and require `success` from every needed job, for example `needs.build.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')` (the same expression style as `ci.yml:503-504`), or add an aggregate result job and make `pack` depend on it. Whichever is chosen, the publish step must not run when any test job failed.
+Proposed fix: drop `always()`, or keep it and require every test job result in the condition, for example `needs.test-unit.result == 'success' && needs.test-integration.result == 'success' && ...` for all six jobs, so the "Publish to GitHub Packages" step cannot run after a red test job. When changing the condition, also decide how `build` is referenced, since it is not in the `needs:` list. Acceptance: a CI Full run in which one test job is forced to fail ends with `pack` skipped (or failed) and no publish step run; a run with all test jobs green still packs and, on a `v*` tag, publishes.
 
-Verification: workflow wiring is not exercised by any test project, so the fix is verified by a CI Full `workflow_dispatch` run in which a test job is made to fail and `pack` is skipped, and by a run in which every job passes and `pack` succeeds.
+`docs/releases/RELEASE-PROCESS.md` (Step 3) currently tells the releaser to check every job of the run after the tag push because of this behaviour; update it when the workflow is gated.
 
-Related Issues:
-
-- #29 (This issue)
+Related issues: #29 (This issue).

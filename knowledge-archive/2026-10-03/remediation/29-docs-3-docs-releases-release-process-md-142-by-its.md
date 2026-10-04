@@ -1,7 +1,7 @@
 <!--
-title: [DEBT] RELEASE-PROCESS.md says the pack-on-failed-tests case was never exercised, but a CI Full run shows it
+title: [DEBT] RELEASE-PROCESS.md says the pack-on-red-tests condition was never exercised, but CI Full run 35652357800 exercised it
 labels: technical-debt
-milestone: 
+milestone:
 kind: docs
 -->
 
@@ -18,32 +18,30 @@ kind: docs
 
 ## Description
 
-`docs/releases/RELEASE-PROCESS.md:142`, in Step 3, says of the `pack` job of `ci-full.yml`: "by its condition it is not skipped when a test job fails; that was never exercised, so check every job of the run, not only the push."
+`docs/releases/RELEASE-PROCESS.md:142` says of the `pack` job of CI Full: "by its condition it is not skipped when a test job fails; that was never exercised". It was exercised. CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) has 18 failed test jobs (1 `test-property`, 1 `test-guard`, 8 `test-unit` shards, 4 `test-integration` shards, 4 `test-ef-providers` shards) while `build`, `test-contract`, `pack` and `coverage` concluded `success`. That run was not a tag push, so the publish step was skipped. The v0.13.0 tag push (run 35736044176, event `push`) also ran `pack`, whose conclusion was `failure`: the 403 the page mentions at `:157`.
 
-It was exercised. CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) has 18 failed test jobs (1 `test-property`, 1 `test-guard`, 8 `test-unit` shards, 4 `test-integration` shards, 4 `test-ef-providers` shards) while `build`, `test-contract`, `pack` and `coverage` concluded `success`. That run was not a tag push, so its "Publish to GitHub Packages" step was skipped. The v0.13.0 tag push (run 35736044176, event `push`) also ran `pack`, which concluded `failure` with the 403 the page itself describes at `:157`. The condition (`if: always() && needs.build.result == 'success'`, `ci-full.yml:541`) is therefore proven to let `pack` run on red tests.
-
-The sentence understates the risk and points the reader at a hypothetical, when the run history already holds the evidence.
+The condition `always() && needs.build.result == 'success'` (`.github/workflows/ci-full.yml:541`) is therefore proven to let `pack` run on red tests. The sentence understates the risk.
 
 ## Location
 
-- **File(s)**: `docs/releases/RELEASE-PROCESS.md:142`; the condition at `.github/workflows/ci-full.yml:532-541`
-- **Package(s)**: None (documentation only)
+- **File(s)**: `docs/releases/RELEASE-PROCESS.md:142`
+- **Package(s)**: none (documentation only)
 
 ## Current Behavior
 
-The page tells the reader the failing-tests case "was never exercised" and leaves them to treat it as unproven.
+The page presents the behaviour as a theoretical reading of the condition ("by its condition ... that was never exercised"), which lets a releaser treat a red test suite on the tag run as unlikely to reach the publish step.
 
 ## Expected Behavior
 
-The page states that the case happened, cites CI Full run 35652357800 and says that a `v*` tag push in the same state publishes, so the reader treats a green `ci-full.yml` run as a pre-condition of the tag and not as an afterthought.
+The sentence states that the behaviour has been observed and cites the run: CI Full run 35652357800 ran `pack` to `success` while 18 test jobs had failed, so a `v*` tag push with a red suite reaches the "Publish to GitHub Packages" step.
 
 ## Root Cause
 
-Not established. No date is verified for when the sentence was written, so whether the run already existed at that time is unknown.
+The sentence rests on the workflow condition alone; the run history holds a run that exercises it.
 
 ## Proposed Fix
 
-Rewrite the second half of `RELEASE-PROCESS.md:142` so that it cites the run: "by its condition it is not skipped when a test job fails, and it was not: in CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) `pack` concluded `success` while 18 test jobs had failed. That run was not a tag push, so nothing was published; on a tag push the same result publishes the package. Check every job of the run, not only the push." When the workflow itself is gated on the test jobs, replace the sentence with a pointer to that gate.
+Replace "that was never exercised" with the run reference above (run id, date, the number of failed test jobs and the `pack` conclusion), keeping the instruction to check every job of the run. When `ci-full.yml` is gated on the test results, rewrite the sentence to describe the gated behaviour.
 
 ## Priority
 
