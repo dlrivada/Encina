@@ -4,6 +4,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -28,7 +29,9 @@ public sealed class PersistentPolicyAdministrationPointTests
         requestContext.UserId.Returns("test-user");
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(requestContext);
-        _sut = new PersistentPolicyAdministrationPoint(_store, logger, requestContextAccessor: accessor);
+        var provider = new ServiceCollection().AddScoped(_ => _store).BuildServiceProvider();
+        _sut = new PersistentPolicyAdministrationPoint(
+            provider.GetRequiredService<IServiceScopeFactory>(), logger, requestContextAccessor: accessor);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -738,7 +741,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     #region Constructor Guard Clauses
 
     [Fact]
-    public void Constructor_NullStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var act = () => new PersistentPolicyAdministrationPoint(
             null!,
@@ -750,8 +753,8 @@ public sealed class PersistentPolicyAdministrationPointTests
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var store = Substitute.For<IPolicyStore>();
-        var act = () => new PersistentPolicyAdministrationPoint(store, null!);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!);
 
         Should.Throw<ArgumentNullException>(act);
     }

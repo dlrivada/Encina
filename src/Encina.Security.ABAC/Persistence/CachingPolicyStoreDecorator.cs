@@ -33,6 +33,13 @@ namespace Encina.Security.ABAC.Persistence;
 /// at <c>Warning</c> level and the decorator falls back to the inner store — cache errors
 /// never propagate to the caller.
 /// </para>
+/// <para>
+/// <b>Lifetime</b>: the decorator holds no per-request state, so it is created per operation
+/// scope around the provider's scoped <see cref="IPolicyStore"/>. The cache itself is shared
+/// across scopes through the singleton <see cref="ICacheProvider"/> and
+/// <see cref="IPubSubProvider"/>. Invalidation messages are stamped from the injected
+/// <see cref="TimeProvider"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -48,6 +55,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
     private readonly IPubSubProvider? _pubSub;
     private readonly PolicyCachingOptions _options;
     private readonly ILogger<CachingPolicyStoreDecorator> _logger;
+    private readonly TimeProvider _timeProvider;
 
     // ── Cache Key Builders ─────────────────────────────────────────
 
@@ -67,12 +75,17 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
     /// </param>
     /// <param name="options">The policy caching configuration.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="timeProvider">
+    /// Optional time provider that stamps invalidation messages. Defaults to
+    /// <see cref="TimeProvider.System"/>.
+    /// </param>
     public CachingPolicyStoreDecorator(
         IPolicyStore inner,
         ICacheProvider cache,
         IPubSubProvider? pubSub,
         PolicyCachingOptions options,
-        ILogger<CachingPolicyStoreDecorator> logger)
+        ILogger<CachingPolicyStoreDecorator> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(cache);
@@ -84,6 +97,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
         _pubSub = pubSub;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     // ── PolicySet Read Operations (Cache-Aside) ────────────────────
@@ -394,7 +408,7 @@ public sealed partial class CachingPolicyStoreDecorator : IPolicyStore
             try
             {
                 var message = new PolicyCacheInvalidationMessage(
-                    entityType, entityId, operation, DateTime.UtcNow);
+                    entityType, entityId, operation, _timeProvider.GetUtcNow().UtcDateTime);
 
                 await _pubSub.PublishAsync(
                     _options.InvalidationChannel,

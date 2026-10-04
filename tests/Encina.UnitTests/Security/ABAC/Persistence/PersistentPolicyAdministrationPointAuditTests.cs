@@ -53,6 +53,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         Microsoft.Extensions.Logging.ILogger<PersistentPolicyAdministrationPoint>? capturedLogger = null)
     {
         var services = new ServiceCollection();
+        services.AddScoped(_ => store);
         if (auditStore is not null)
         {
             services.AddScoped(_ => auditStore);
@@ -63,7 +64,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         var logger = capturedLogger
             ?? NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
         return new PersistentPolicyAdministrationPoint(
-            store, logger, provider.GetRequiredService<IServiceScopeFactory>(), accessor, time);
+            provider.GetRequiredService<IServiceScopeFactory>(), logger, accessor, time);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -597,27 +598,6 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     }
 
     [Fact]
-    public async Task NoScopeFactory_AppliesChangeAndWarnsOncePerInstance()
-    {
-        // Arrange
-        var store = Substitute.For<IPolicyStore>();
-        store.ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, bool>>(Either<EncinaError, bool>.Right(false)));
-        store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
-                Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
-        var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
-        var sut = new PersistentPolicyAdministrationPoint(store, logger, scopeFactory: null, _requestContextAccessor);
-
-        // Act
-        (await sut.AddPolicySetAsync(CreatePolicySet("a"))).IsRight.ShouldBeTrue();
-        (await sut.AddPolicySetAsync(CreatePolicySet("b"))).IsRight.ShouldBeTrue();
-
-        // Assert
-        logger.Events.Count(e => e.Id == 9097 && e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).ShouldBe(1);
-    }
-
-    [Fact]
     public async Task NoAuditStoreRegistered_AppliesChangeAndWarnsOncePerInstance()
     {
         // Arrange
@@ -628,9 +608,9 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
             .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
                 Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
         var logger = new CapturingLogger<PersistentPolicyAdministrationPoint>();
-        var provider = new ServiceCollection().BuildServiceProvider();
+        var provider = new ServiceCollection().AddScoped(_ => store).BuildServiceProvider();
         var sut = new PersistentPolicyAdministrationPoint(
-            store, logger, provider.GetRequiredService<IServiceScopeFactory>(), _requestContextAccessor);
+            provider.GetRequiredService<IServiceScopeFactory>(), logger, _requestContextAccessor);
 
         // Act
         (await sut.AddPolicySetAsync(CreatePolicySet("a"))).IsRight.ShouldBeTrue();
@@ -696,12 +676,12 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     {
         // Arrange — a scoped audit store whose construction throws
         var services = new ServiceCollection();
+        services.AddScoped(_ => _store);
         services.AddScoped<IAuditStore>(_ => throw new InvalidOperationException("no connection"));
         var provider = services.BuildServiceProvider();
         var sut = new PersistentPolicyAdministrationPoint(
-            _store,
-            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>(),
             provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>(),
             _requestContextAccessor);
         var ps = CreatePolicySet("ps-unresolvable");
         SetupStoreExistsPolicySet("ps-unresolvable", false);
