@@ -39,7 +39,7 @@ A cost plan with budget numbers, and the private details of the first applicatio
 | watch-dependabot-prs | Migrated by #1736 | [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), standing rule 6 |
 | pr-watching-realtime | Migrated by #1736 | [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), standing rule 7; scripting details in [`powershell-gh-gotchas.md`](powershell-gh-gotchas.md) |
 | method-applies-to-all-work | Not yet migrated | To be classified |
-| orchestrator-mode | Already versioned (the delegation model; some operating details are not yet migrated) | [`CLAUDE.md`](../../CLAUDE.md) ("Orchestration and delegation") and [`.claude/agents/README.md`](../../.claude/agents/README.md) |
+| orchestrator-mode | Not yet migrated (the delegation model is already versioned; the operating details are not) | [`CLAUDE.md`](../../CLAUDE.md) ("Orchestration and delegation") and [`.claude/agents/README.md`](../../.claude/agents/README.md) |
 | issue-format | Already versioned | [`.github/ISSUE_TEMPLATE`](../../.github/ISSUE_TEMPLATE), [`AGENTS.md`](../../AGENTS.md) §11, [`prompts/implementation-plan-prompt.md`](prompts/implementation-plan-prompt.md) |
 | spec-002-decisions and the other maintainer decisions | Not yet migrated | [#1737](https://github.com/dlrivada/Encina/issues/1737) (decisions log) |
 | control-board-artifact | Not yet migrated | To be classified |
@@ -49,8 +49,6 @@ A cost plan with budget numbers, and the private details of the first applicatio
 | local-ai-off-temperature | Not yet migrated | To be classified |
 | session-start-llama | Not yet migrated | To be classified |
 | docs-strategy-diataxis | Not yet migrated | To be classified |
-| ai-task-routing (the private note) | Not yet migrated | To be classified; the versioned page is [`ai-task-routing.md`](ai-task-routing.md) |
-| handoff-2026-09-21 | Not yet migrated | To be classified |
 | brief-1368-1380 (historical) | Not yet migrated | To be classified |
 
-The list covers the topics classified for #1736; other private notes exist and are classified the same way as they are reviewed. Topics marked "To be classified" get their own issue once someone has decided whether they are private by design, already versioned or to be migrated; no issue exists for them yet.
+The list covers the topics classified for #1736. The remaining private notes, and every topic marked "To be classified", are classified in a follow-up issue drafted by #1736 (its number is added here when it is opened); until then they count as not yet migrated. Only #1737 (the decisions log) is already tracked.

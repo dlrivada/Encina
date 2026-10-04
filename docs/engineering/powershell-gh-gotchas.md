@@ -20,7 +20,7 @@ gh api ... -f $ta
 
 Two incidents:
 
-- 2026-09-22: the bare form renamed 25 milestones to object dumps. A repair script (`artifacts/tools/renumber-milestones-repair.ps1`) fixed them; the issue moves failed with HTTP 422 instead of moving wrongly.
+- 2026-09-22: the bare form renamed 25 milestones to object dumps. A repair script (`tools/ai/renumber-milestones-repair.ps1`) fixed them; the issue moves failed with HTTP 422 instead of moving wrongly.
 - 2026-09-26: `-f body=$answers[$k]` inside a `foreach` over an `[ordered]` hashtable posted `System.Collections.Specialized.OrderedDictionary[PRRT_...]` as the reply to 7 CodeRabbit threads, and the bot answered confused.
 
 The rule has no exception: before any `gh` argument, copy the value into a plain variable and pass the variable, then check the first result before looping:

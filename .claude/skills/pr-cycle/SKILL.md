@@ -56,7 +56,7 @@ Mechanical follow-ups (formatting, a config exclusion, replying to threads with 
 
 ## 3. Merge
 
-The orchestrator arms auto-merge itself, once the reviews say merge and every review thread (bots included) is fixed or answered and resolved (the maintainer's standing authorisation of 2026-10-02: handing over the command added latency and no decision). A PR that needs a maintainer decision (design, scope, a breaking choice) goes to them first. Changes to branch protection stay the maintainer's. The command:
+The orchestrator arms auto-merge itself, once the reviews say merge (`pr-reviewer`, plus `adversarial-reviewer` for gates, CI, workflows, `.github/scripts` and hooks) and every review thread (bots included) is fixed or answered and resolved (the maintainer's standing authorisation of 2026-10-02: handing over the command added latency and no decision). A PR that needs a maintainer decision (design, scope, a breaking choice) goes to them first. Changes to branch protection stay the maintainer's. Name the PRs you armed in the summary to the maintainer. The command:
 
 ```powershell
 gh pr merge <n> --repo dlrivada/Encina --auto --squash

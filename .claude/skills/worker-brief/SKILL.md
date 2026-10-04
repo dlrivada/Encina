@@ -47,12 +47,13 @@ Rules:
   When a docs-writer closes the issue, this brief's variable part says who writes the record (#1379).
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
-  touched methods, untested ones that a mechanical sync-to-async change re-touched). Collect local Cobertura
-  coverage for the changed files, then run
-  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/crap-gate.cs -- --report ... --diff <the output of
-  git -C <wt> diff origin/main...HEAD>
-  (flags and design: docs/engineering/crap-gate-design.md), paste the table in the report, and make every touched
-  method CRAP <= 10 by lowering its complexity or adding tests.
+  touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
+  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage (every
+  flag that exercises them: unit, guard, contract, property, integration), write the diff to a file with
+  git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, then run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/crap-gate.cs -- --report --diff <wt>\artifacts\crap-gate\diff.patch <each coverage.cobertura.xml>
+  (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
+  table in the report, and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.
