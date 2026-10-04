@@ -112,6 +112,14 @@ Agent-scoped hooks are wired in the `hooks:` frontmatter of the agents that need
 
 Every hook lets the call through if the hook itself fails (fail open). `pwsh -NoProfile -File <checkout>\.claude\hooks\tests\Test-Hooks.ps1` runs their regression suite; run it after changing a hook.
 
+### Where hooks load from
+
+Claude Code loads the project hooks once per session from the main checkout (`$CLAUDE_PROJECT_DIR/.claude/hooks`), never from a worktree. Consequences for anyone changing a hook (learned in #1345):
+
+- A hook fix made in a worktree is not live, for that session or for any subagent, until its branch is merged and the main checkout pulled. A worker editing a hook keeps running under the unfixed copy.
+- Only `Test-Hooks.ps1` proves the fix before the merge, because it invokes the worktree's own copies. Run `Set-Location <worktree>` as its own tool call first (the PowerShell tool keeps the working directory between calls), then run `pwsh -NoProfile -File <worktree>\.claude\hooks\tests\Test-Hooks.ps1`. Chaining `Set-Location <worktree>;` in the same statement from a main-checkout cwd is still judged by the live copy of `block-main-checkout-writes`, which can block it.
+- The orchestrator cannot run the suite at all, because `guard-orchestrator-writes` blocks it whatever the cwd; a hook brief therefore says: "run `Set-Location <wt>` as a separate call before Test-Hooks; the live hooks are main's copies".
+
 ### Limits
 
 What the hooks do not enforce, so the agent definitions still say it in words:

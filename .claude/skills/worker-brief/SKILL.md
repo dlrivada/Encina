@@ -11,17 +11,18 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
 ## 1. Before writing
 
-1. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
-2. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
-3. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
-4. List what the worker must not touch: the shared hot spots of the moment (always `.github/workflows/*`; anything another open PR edits).
+1. Read the issue with its comments before writing the brief: `gh issue view <n> --repo dlrivada/Encina --comments`. Audit and decision comments add acceptance items that "Closes #<n>" silently drops (PR #1598 missed a SPEC-003 audit comment's scanning test and cost a review round); carry every one into the brief's Acceptance list.
+2. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
+3. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
+4. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
+5. List what the worker must not touch: the shared hot spots of the moment (always `.github/workflows/*`; anything another open PR edits).
 
 ## 2. Fixed part (copy it)
 
 `<wt>` is the worktree's absolute path. Every command in the brief names it: the hooks and several scripts resolve relative paths against the current directory, and the worker's shell starts in the main checkout.
 
 ```text
-Issue #<n> (read it: gh issue view <n> --repo dlrivada/Encina). Worktree <wt>, branch <branch>, base <base>.
+Issue #<n> (read it with its comments: gh issue view <n> --repo dlrivada/Encina --comments). Worktree <wt>, branch <branch>, base <base>.
 
 Rules:
 - Use ABSOLUTE paths for every read and write, inside the worktree only. Your shell starts in the main
@@ -45,6 +46,13 @@ Rules:
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/knowledge-records.cs -- --check
   When a docs-writer closes the issue, this brief's variable part says who writes the record (#1379).
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
+- CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
+  touched methods, untested ones that a mechanical sync-to-async change re-touched). Collect local Cobertura
+  coverage for the changed files, then run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/crap-gate.cs -- --report ... --diff <the output of
+  git -C <wt> diff origin/main...HEAD>
+  (flags and design: docs/engineering/crap-gate-design.md), paste the table in the report, and make every touched
+  method CRAP <= 10 by lowering its complexity or adding tests.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.

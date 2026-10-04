@@ -56,7 +56,7 @@ Mechanical follow-ups (formatting, a config exclusion, replying to threads with 
 
 ## 3. Merge
 
-Auto-merge and branch protection changes are the maintainer's. Hand them one line:
+The orchestrator arms auto-merge itself, once the reviews say merge and every review thread (bots included) is fixed or answered and resolved (the maintainer's standing authorisation of 2026-10-02: handing over the command added latency and no decision). A PR that needs a maintainer decision (design, scope, a breaking choice) goes to them first. Changes to branch protection stay the maintainer's. The command:
 
 ```powershell
 gh pr merge <n> --repo dlrivada/Encina --auto --squash
@@ -71,7 +71,7 @@ gh api graphql -f query='mutation { resolveReviewThread(input: { threadId: "<id>
 
 Resolve a thread only after its point is fixed or answered.
 
-Changing a PR's base (for example after the PR it was stacked on merges) **drops auto-merge**. Ask the maintainer to arm it again.
+Changing a PR's base (for example after the PR it was stacked on merges) **drops auto-merge**. Arm it again with the command above once the reviews still say merge.
 
 ## 4. After the merge
 
