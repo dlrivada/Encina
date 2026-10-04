@@ -29,6 +29,7 @@ jobs:
       tests-contract: ${{ steps.filter.outputs.tests-contract }}
       tests-property: ${{ steps.filter.outputs.tests-property }}
       tests-ef: ${{ steps.filter.outputs.tests-ef }}
+      tests-other: ${{ steps.filter.outputs.tests-other }}
       infra: ${{ steps.filter.outputs.infra }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
@@ -59,7 +60,11 @@ jobs:
               - 'tests/Encina.PropertyTests/**'
             tests-ef:
               - 'src/**'
-              - 'tests/Encina.IntegrationTests/**/EntityFrameworkCore/**'
+              - 'tests/Encina.IntegrationTests/**'
+            # Any other file under tests/ (benchmarks, load tests, examples, ...): compiled by the build
+            # (-warnaserror, format check) but it runs no test job of this workflow.
+            tests-other:
+              - 'tests/**'
             infra:
               - '.github/**'
             # Inputs that can change the result of any test suite without touching src/ or a suite's own folder
@@ -82,6 +87,8 @@ jobs:
               - 'tests/appsettings.Testing.json'
               - 'tests/Encina.TestInfrastructure/**'
               - '.github/workflows/ci.yml'
+              # Templates read by tests/Encina.UnitTests/Workflows/WorkflowTemplateTests.cs.
+              - '.github/workflows/templates/**'
 
   # Build job - quality checks, build, and artifact creation
   build:
@@ -92,7 +99,7 @@ jobs:
     # versions, SDK and NuGet config, shared test settings and infrastructure, this workflow: #1721)
     # runs the build and every test job. Every test job below repeats the `shared` term, because a
     # job whose own filter is false would otherwise be skipped while the change could break it.
-    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.src == 'true' || needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.src == 'true' || needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.tests-other == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -517,9 +524,10 @@ jobs:
   crap-gate:
     needs: [changes, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
     # Runs only for a PR that touches src/ (same `changes.src` filter `build` uses). `always()`
-    # plus the explicit failure/cancelled check (mirrors ci-result below) is required because
-    # test-ef-providers is legitimately skipped for a non-EF PR — the job's default implicit
-    # `success()` condition would treat that skip as "do not run" and the gate would never fire.
+    # plus the explicit failure/cancelled check (mirrors ci-result below) keeps the gate independent of
+    # the default implicit `success()` condition, which would treat any skipped upstream job as "do not
+    # run". A PR that touches src/ runs all six test jobs (every tests-* filter matches src/**), so the
+    # gate sees the coverage of all of them.
     if: |
       always() &&
       github.event_name == 'pull_request' &&
