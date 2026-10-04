@@ -198,8 +198,13 @@ internal static class CryptoShreddedContractRules
         && jsonProperty.AttributeProvider is PropertyInfo property
         && shape.Members.Any(m => m.Property.Name == property.Name);
 
+    // A context generated in Serialization mode writes the type through its fast path from an empty property list,
+    // so the modifier cannot wrap anything; a metadata-mode context exposes its properties and is modified normally.
     private static CryptoShreddedPropertyProblems SourceGeneratedProblem(JsonTypeInfo typeInfo) =>
         typeInfo.OriginatingResolver is JsonSerializerContext
+        && typeInfo.Kind == JsonTypeInfoKind.Object
+        && typeInfo.Properties.Count == 0
+        && CryptoShreddedPropertyClassifier.ComponentTypes(typeInfo.Type).Any()
             ? CryptoShreddedPropertyProblems.SourceGeneratedContract
             : CryptoShreddedPropertyProblems.None;
 
