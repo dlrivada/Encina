@@ -20,7 +20,7 @@ Check each item; do not continue if one fails.
    gh run list --repo dlrivada/Encina --branch main --workflow ci.yml --limit 3
    ```
 
-   Every row shows `completed` and `success`. A green `ci.yml` run can still have skipped its test jobs, for example when the change touched only documentation, so it does not prove the tests passed. Step 2 requires a green `CI Full` run on the commit you tag.
+   Every row shows `completed` and `success`. A green `ci.yml` run can still have skipped its test jobs, for example when the change touched only documentation, so it does not prove the tests passed. The section "Step 2: tag the merge commit" requires a green `CI Full` run on the commit you tag.
 
 2. The milestone has no open issue that blocks the release. Issues you decide to leave out are moved to another milestone first:
 
@@ -116,7 +116,7 @@ How to check it worked: the PR passes the same required checks as any other PR a
 
 Tag the commit that the release PR created on `main`, not a branch tip. Branch protection covers branches, so the tag push is not blocked.
 
-First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a green run started with `workflow_dispatch` on the commit to tag is the evidence that the tests pass:
+First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a green run started with `workflow_dispatch` on the commit to tag is the evidence that the tests pass. The guide asks for `workflow_dispatch` because it is a deliberate run on the exact commit; a scheduled run on the same `headSha` is equal evidence:
 
 ```powershell
 git switch main
@@ -129,9 +129,11 @@ A row must have `event` `workflow_dispatch`, `status` `completed`, `conclusion` 
 
 ```powershell
 gh workflow run ci-full.yml --repo dlrivada/Encina --ref main
-gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 1 --json databaseId
+gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 3 --json databaseId,headSha,event,status
 gh run watch <run-id> --repo dlrivada/Encina
 ```
+
+Before you use a run id, check that its `headSha` equals the `git rev-parse HEAD` output and that its `status` is the run you just started (`queued` or `in_progress`), not an older one.
 
 Then confirm that no job of that run, test shards included, ended in anything but `success` (the output must be empty):
 
@@ -177,7 +179,7 @@ Both `CI Full` and `SBOM` appear; wait until each shows `completed`. Then confir
 gh run view <run-id> --repo dlrivada/Encina --json jobs --jq '.jobs[] | select(.name=="pack") | .steps[] | select(.name=="Publish to GitHub Packages") | .conclusion'
 ```
 
-The output is `success`. For v0.13.0 it was `failure` (the push got a 403 before the job-level `packages: write` permission was added), and nothing else in the run showed it. If it fails, open the run with `gh run view <run-id> --repo dlrivada/Encina --log-failed`. Nothing in these workflows publishes to NuGet.org or creates the GitHub Release.
+The output is `success`. Empty output means `pack` was blocked by a red or skipped job. If a test shard flakes on the tag-triggered `CI Full`, `pack` is skipped and nothing publishes; rerun the failed jobs with `gh run rerun <run-id> --repo dlrivada/Encina --failed`. For v0.13.0 it was `failure` (the push got a 403 before the job-level `packages: write` permission was added), and nothing else in the run showed it. If it fails, open the run with `gh run view <run-id> --repo dlrivada/Encina --log-failed`. Nothing in these workflows publishes to NuGet.org or creates the GitHub Release.
 
 ## Step 4: create the GitHub Release from the changelog
 
