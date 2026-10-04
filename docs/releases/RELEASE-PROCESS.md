@@ -20,7 +20,7 @@ Check each item; do not continue if one fails.
    gh run list --repo dlrivada/Encina --branch main --workflow ci.yml --limit 3
    ```
 
-   Every row shows `completed` and `success`.
+   Every row shows `completed` and `success`. A green `ci.yml` run can still have skipped its test jobs, for example when the change touched only documentation, so it does not prove the tests passed. Step 2 requires a green `CI Full` run on the commit you tag.
 
 2. The milestone has no open issue that blocks the release. Issues you decide to leave out are moved to another milestone first:
 
@@ -116,9 +116,32 @@ How to check it worked: the PR passes the same required checks as any other PR a
 
 Tag the commit that the release PR created on `main`, not a branch tip. Branch protection covers branches, so the tag push is not blocked.
 
+First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a green run started with `workflow_dispatch` on the commit to tag is the evidence that the tests pass:
+
 ```powershell
 git switch main
 git pull --ff-only
+git rev-parse HEAD
+gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 5 --json databaseId,headSha,status,conclusion,event
+```
+
+A row must have `event` `workflow_dispatch`, `status` `completed`, `conclusion` `success` and a `headSha` equal to the `git rev-parse HEAD` output. If no row matches, start a run on `main` and wait for it, then list again:
+
+```powershell
+gh workflow run ci-full.yml --repo dlrivada/Encina --ref main
+gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 1 --json databaseId
+gh run watch <run-id> --repo dlrivada/Encina
+```
+
+Then confirm that no job of that run, test shards included, ended in anything but `success` (the output must be empty):
+
+```powershell
+gh run view <run-id> --repo dlrivada/Encina --json jobs --jq '.jobs[] | select(.conclusion != "success") | .name'
+```
+
+Do not tag until this passes. Then tag:
+
+```powershell
 git log --oneline -1
 git tag -a v0.14.0 -m "Release v0.14.0 — Hardening"
 git push origin v0.14.0
@@ -139,7 +162,7 @@ The first command prints the tag's object id and `refs/tags/v0.14.0`; the second
 
 Two workflows start on any tag matching `v*`:
 
-- [`ci-full.yml`](../../.github/workflows/ci-full.yml) (`CI Full`, trigger `push: tags: ["v*"]`) builds and runs the full test suite. Its `pack` job packs `src/Encina/Encina.csproj` and, because the ref is a `v*` tag, pushes the package to GitHub Packages with `dotnet nuget push`. The `pack` job declares `needs:` the six `test-*` jobs and `if: always() && needs.build.result == 'success'` (`ci-full.yml` lines 532-541), so by its condition it is not skipped when a test job fails; that was never exercised, so check every job of the run, not only the push.
+- [`ci-full.yml`](../../.github/workflows/ci-full.yml) (`CI Full`, trigger `push: tags: ["v*"]`) builds and runs the full test suite. Its `pack` job packs `src/Encina/Encina.csproj` and, because the ref is a `v*` tag, pushes the package to GitHub Packages with `dotnet nuget push`. The `pack` job runs only when `build` and all six `test-*` jobs concluded `success` (#1745), so a failed, skipped or cancelled test job blocks the publish. The gate exists because CI Full run 35652357800 (`workflow_dispatch`, 2026-09-21) ran `pack` to success while 18 test jobs had failed; it was not a tag push, so nothing was published.
 - [`sbom.yml`](../../.github/workflows/sbom.yml) (`SBOM`, trigger `push: tags: ["v*"]`) generates the software bill of materials.
 
 How to check it worked:
