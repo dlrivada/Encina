@@ -85,7 +85,7 @@ gh api ... -f body=$b
 
 In auto mode the permission classifier has refused: dismissing a PR review, a `PUT` on branch protection, the `git push` of some commands, and once even a read-only `gh pr view` ("Self-Approval"). Commands whose text contains `'\'` or `"/c` were blocked by a hook.
 
-**Working form.** Use `gh api repos/.../pulls/N` for reads, and hand the maintainer a one-line command for the rest. A hook that blocks a command is never worked around; see [`.claude/agents/README.md`](../../.claude/agents/README.md).
+**Working form.** Choose the read-only route before the first attempt (for example `gh api repos/.../pulls/N` for reads), and hand the maintainer a one-line command for the rest. Never retry a refused or blocked command in another form to get past a hook or the classifier: stop and report it. A hook that blocks a command is never worked around; see [`.claude/agents/README.md`](../../.claude/agents/README.md).
 
 ## Hooks and the working directory
 

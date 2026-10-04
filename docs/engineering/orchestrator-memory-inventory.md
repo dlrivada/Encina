@@ -38,17 +38,24 @@ A cost plan with budget numbers, and the private details of the first applicatio
 | workflow-agents-cannot-spawn | Migrated by #1736 | [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), standing rule 5 |
 | watch-dependabot-prs | Migrated by #1736 | [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), standing rule 6 |
 | pr-watching-realtime | Migrated by #1736 | [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), standing rule 7; scripting details in [`powershell-gh-gotchas.md`](powershell-gh-gotchas.md) |
-| method-applies-to-all-work | Not yet migrated | To be classified |
+| method-applies-to-all-work | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
 | orchestrator-mode | Not yet migrated (the delegation model is already versioned; the operating details are not) | [`CLAUDE.md`](../../CLAUDE.md) ("Orchestration and delegation") and [`.claude/agents/README.md`](../../.claude/agents/README.md) |
 | issue-format | Already versioned | [`.github/ISSUE_TEMPLATE`](../../.github/ISSUE_TEMPLATE), [`AGENTS.md`](../../AGENTS.md) §11, [`prompts/implementation-plan-prompt.md`](prompts/implementation-plan-prompt.md) |
 | spec-002-decisions and the other maintainer decisions | Not yet migrated | [#1737](https://github.com/dlrivada/Encina/issues/1737) (decisions log) |
-| control-board-artifact | Not yet migrated | To be classified |
-| board-assessments | Not yet migrated | To be classified |
-| knowledge-migration-spec003 | Not yet migrated | To be classified |
-| local-ai-llama-server | Not yet migrated | To be classified |
-| local-ai-off-temperature | Not yet migrated | To be classified |
-| session-start-llama | Not yet migrated | To be classified |
-| docs-strategy-diataxis | Not yet migrated | To be classified |
-| brief-1368-1380 (historical) | Not yet migrated | To be classified |
+| control-board-artifact | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| board-assessments | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| knowledge-migration-spec003 | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| local-ai-llama-server | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| local-ai-off-temperature | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| session-start-llama | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| docs-strategy-diataxis | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| brief-1368-1380 (historical) | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| coverage-obligations-model | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| sqlite-patterns | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| sunday-week-report-request | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| draft-crap-rule-agents-md | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| plan-audit-aidev | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| plan-audit-rest | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
+| plugin-usage-feedback | Not yet migrated | To be classified in [#1753](https://github.com/dlrivada/Encina/issues/1753) |
 
-The list covers the topics classified for #1736. The remaining private notes, and every topic marked "To be classified", are classified in a follow-up issue drafted by #1736 (its number is added here when it is opened); until then they count as not yet migrated. Only #1737 (the decisions log) is already tracked.
+The list covers the topics classified for #1736. The remaining private notes, and every topic marked "To be classified", are classified in the follow-up issue [#1753](https://github.com/dlrivada/Encina/issues/1753); until then they count as not yet migrated. Besides #1753, only #1737 (the decisions log) is tracked.

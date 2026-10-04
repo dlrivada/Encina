@@ -811,20 +811,20 @@ A review of the 2026-09-22 and 2026-09-23 sessions (about 20 PRs and 40 issues r
 The maintainer approved these defaults to keep the cost of the agent system low and measurable:
 
 - Workers (`issue-worker`, `docs-writer`) run on Sonnet; Opus only when the brief carries a one-line justification (an unknown root cause, a design-heavy task). `adversarial-reviewer` runs on Sonnet too, and the orchestrator passes Opus only for security, personal-data or design-changing PRs. `mechanical-fixer` and `pr-watcher` run on Haiku.
-- The local model (llama-server, which the orchestrator starts at the beginning of a session) takes drafts, classification and summaries through the `local-ai-task` skill.
+- The local model (llama-server, which the orchestrator starts at the beginning of a session) takes drafts, classification and summaries through the `local-ai-task` skill, but only where it is reliable (standing rule 4 below).
 - Briefs stay small: the fixed part of the `worker-brief` skill plus a closed variable part, so a worker finishes within its turn limit; a resume re-reads the whole context it had already paid for.
 - Every worker run appends a line to `artifacts/agent-usage/ledger.csv` in its worktree (`timestampUtc,agent,task,model,subagentTokens,notes`), so the effect of these choices shows in the numbers.
 
-#### Standing rules from the maintainer (2026-09 and 2026-10)
+### Standing rules from the maintainer (2026-09 and 2026-10)
 
 These rules were given in conversation and had lived only in the orchestrator's private memory ([#1736](https://github.com/dlrivada/Encina/issues/1736)); the inventory of what is where is in [`orchestrator-memory-inventory.md`](orchestrator-memory-inventory.md).
 
 1. **Reviews are never thinned to save tokens.** Review and verification depth stays full everywhere. The 2026-10-03 retrospective proposed scaling depth to risk (full multi-agent review only for security, design and personal data); the maintainer rejected it and approved the other improvements ([#1729](https://github.com/dlrivada/Encina/issues/1729) to [#1733](https://github.com/dlrivada/Encina/issues/1733), with gate integrity first: [#1721](https://github.com/dlrivada/Encina/issues/1721)). Context: the same retrospective found defects in the assurance system itself (CI skipping tests, an audit pack not gated on tests, reflection-only contract tests), which full-depth review and audit are what surface.
 2. **Work is never limited, delayed or sized by the weekly plan budget.** Maintainer, 2026-09-26: "forget the weekly budget". Token costs are still reported as metrics (per-audit cost, the control board's Week tab) because they measure the system, not because they gate work.
-3. **Pre-1.0, the best solution always** (`AGENTS.md` §1). Options are compared on design merit only; "does not break", compatibility, a smaller public API change or "the gap stays open meanwhile" are never reasons. Corrections of 2026-10-02 and 2026-10-03 after decisions that kept a dead public property ([#1301](https://github.com/dlrivada/Encina/issues/1301)), kept an inaccurate parameter name ([#1469](https://github.com/dlrivada/Encina/issues/1469)) and proposed deferring the full fix of nested crypto-shredding ([#1698](https://github.com/dlrivada/Encina/issues/1698)).
+3. **Pre-1.0, the best solution always** (`AGENTS.md` §1). Options are compared on design merit only; "does not break", compatibility, a smaller public API change or "the gap stays open meanwhile" are never reasons. Scope may still be bounded for the size of the front when that is stated as the reason and a follow-up issue is opened; bounding limits the extent of the work, never the quality of the fix inside that extent. Corrections of 2026-10-02 and 2026-10-03 after decisions that kept a dead public property ([#1301](https://github.com/dlrivada/Encina/issues/1301)), kept an inaccurate parameter name ([#1469](https://github.com/dlrivada/Encina/issues/1469)) and proposed deferring the full fix of nested crypto-shredding ([#1698](https://github.com/dlrivada/Encina/issues/1698)).
 4. **The local model only where it is reliable** (maintainer, 2026-10-02). Fact-dense drafts that a verifier will check (remediation issues, decisions) go to Claude, because review and rework of weak drafts cost more than writing them directly; remediation drafting moved to a Claude agent. The local model keeps formatting from a facts file, intake summaries and mechanical conversions ([`ai-task-routing.md`](ai-task-routing.md)).
 5. **Workflow-tool subagents cannot spawn.** Found on 2026-10-03: workers run inside a Workflow had no Agent tool, and could not reach their specialists. Run `issue-worker` and `docs-writer` with the Agent tool; use a Workflow for research, review and verification fan-outs.
-6. **Dependabot PRs are triaged every session** (2026-09-29). The orchestrator arms auto-merge for patch and minor updates with green CI under the conditions of the `pr-cycle` skill, duplicates are closed with a reference, and a major version of a tool with a plan stays open linked to that plan.
+6. **Dependabot PRs are triaged every session** (2026-09-29). Each one is merged, closed as a duplicate, or (a major) tied to its plan, and it is merged under the same rule as any PR: the orchestrator arms auto-merge only after a `pr-reviewer` verdict of merge and with every review thread resolved; otherwise the maintainer gets the command.
 7. **A pull request is watched event by event, never reported on at the end** (2026-09-22). A failed check or a bot reply is answered within minutes; pushes are batched, reactions are not. The scripting pitfalls of that watching are in [`powershell-gh-gotchas.md`](powershell-gh-gotchas.md).
 8. **Durable method lessons go to the repository in the same PR** (maintainer, 2026-09-24). Private memory is a pointer, never the only copy.
 
@@ -920,6 +920,8 @@ Extract the actual rules from:
 Inspect representative GitHub issues, pull requests and discussions.
 
 Do not attempt to read every historical issue indiscriminately.
+
+Closed issues now get a knowledge record each (§18, [SPEC-003](../specifications/SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md)), so this pass reads those records first, not GitHub history.
 
 Prioritize:
 
