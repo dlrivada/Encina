@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Refit.Benchmarks.RestApiRequestHandlerBenchmarks-20261004-024928</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]    : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean   </th><th>Error  </th><th>StdDev </th><th>Median </th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncinaRefitCall</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncinaRefitCall_Sequential5</td><td>6.722 &mu;s</td><td>0.0620 &mu;s</td><td>0.0889 &mu;s</td><td>6.722 &mu;s</td><td>0.000</td><td>0.00</td><td>1</td><td>0.4349</td><td>7.15 KB</td><td>0.75</td>
+</tr><tr><td>EncinaRefitCall_Batch10</td><td>18.482 &mu;s</td><td>1.0647 &mu;s</td><td>1.5936 &mu;s</td><td>18.945 &mu;s</td><td>0.001</td><td>0.00</td><td>2</td><td>0.9155</td><td>15.06 KB</td><td>1.58</td>
+</tr><tr><td>DirectRefitCall_Baseline</td><td>15,538.723 &mu;s</td><td>1,369.5485 &mu;s</td><td>2,007.4666 &mu;s</td><td>16,674.714 &mu;s</td><td>1.016</td><td>0.18</td><td>3</td><td>-</td><td>9.54 KB</td><td>1.00</td>
+</tr><tr><td>DirectRefitCall_Batch10</td><td>19,973.961 &mu;s</td><td>488.0034 &mu;s</td><td>699.8799 &mu;s</td><td>20,067.696 &mu;s</td><td>1.306</td><td>0.17</td><td>4</td><td>-</td><td>93.56 KB</td><td>9.80</td>
+</tr><tr><td>DirectRefitCall_Sequential5</td><td>80,699.829 &mu;s</td><td>1,958.8930 &mu;s</td><td>2,809.3860 &mu;s</td><td>81,060.385 &mu;s</td><td>5.278</td><td>0.69</td><td>5</td><td>-</td><td>46.11 KB</td><td>4.83</td>
+</tr></tbody></table>
+</body>
+</html>
