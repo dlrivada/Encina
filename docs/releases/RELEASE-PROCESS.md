@@ -116,7 +116,7 @@ How to check it worked: the PR passes the same required checks as any other PR a
 
 Tag the commit that the release PR created on `main`, not a branch tip. Branch protection covers branches, so the tag push is not blocked.
 
-First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a green run started with `workflow_dispatch` on the commit to tag is the evidence that the tests pass. The guide asks for `workflow_dispatch` because it is a deliberate run on the exact commit; a scheduled run on the same `headSha` is equal evidence:
+First require a green `CI Full` run on that exact commit. `ci.yml` may skip test jobs, while `CI Full` runs all of them, so a completed, successful run on the commit to tag, started by `schedule` or `workflow_dispatch`, is the evidence that the tests pass:
 
 ```powershell
 git switch main
@@ -125,7 +125,7 @@ git rev-parse HEAD
 gh run list --repo dlrivada/Encina --workflow ci-full.yml --limit 5 --json databaseId,headSha,status,conclusion,event
 ```
 
-A row must have `event` `workflow_dispatch`, `status` `completed`, `conclusion` `success` and a `headSha` equal to the `git rev-parse HEAD` output. If no row matches, start a run on `main` and wait for it, then list again:
+A row must have `event` `schedule` or `workflow_dispatch`, `status` `completed`, `conclusion` `success` and a `headSha` equal to the `git rev-parse HEAD` output. If no row matches, start a run on `main` and wait for it, then list again:
 
 ```powershell
 gh workflow run ci-full.yml --repo dlrivada/Encina --ref main
