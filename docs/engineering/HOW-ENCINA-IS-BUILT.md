@@ -248,7 +248,7 @@ There is no date for 1.0. The first two days show why an estimate would be disho
 
 ## Retrospective after two weeks (2026-10-03)
 
-This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh`, queried on 2026-10-04 for the window 2026-09-21 to 2026-10-03 inclusive (UTC dates as GitHub search interprets them): 469 issues created and 175 pull requests merged. They are the number of results of `gh issue list --repo dlrivada/Encina --state all --search "created:2026-09-21..2026-10-03" --limit 1000 --json number` and of `gh pr list --repo dlrivada/Encina --state merged --search "merged:2026-09-21..2026-10-03" --limit 1000 --json number`. `gh issue list` counts issues only, not pull requests: no number appears in both result sets. Section 6 covers the first two days; this one covers the whole window and does not repeat it. The audit numbers below (the 87 remediation issues, the contract-test count) were reported by the maintainer and the orchestrator from the audit artifacts on 2026-10-03 and are not re-derivable from the repository; the issue numbers are.
+This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh`, queried on 2026-10-04 for the window 2026-09-21 to 2026-10-03 inclusive (UTC dates as GitHub search interprets them): 469 issues created and 175 pull requests merged. They are the number of results of `gh issue list --repo dlrivada/Encina --state all --search "created:2026-09-21..2026-10-03" --limit 1000 --json number` and of `gh pr list --repo dlrivada/Encina --state merged --search "merged:2026-09-21..2026-10-03" --limit 1000 --json number`. `gh issue list` counts issues only, not pull requests: no number appears in both result sets. Section 6 covers the first two days; this one covers the whole window and does not repeat it. The audit and review numbers below (the 87 remediation issues, the refuter discard counts) were reported by the maintainer and the orchestrator from the audit artifacts on 2026-10-03 and are not re-derivable from the repository; the issue numbers are.
 
 ### What worked
 
@@ -275,7 +275,7 @@ Because those audits read today's code in the issue's scope, siblings included, 
 - **Pre-1.0 means best solution, no compatibility.** #1705 records the decision to remove `ISecurityContext` completely rather than keep an adapter, which [`AGENTS.md`](../../AGENTS.md) §1 and §3 require.
 - **Two independent refuters per review finding.** They discarded 9 of 10 findings on #1706 and 6 of 10 on #1727, which avoided fix rounds on non-issues.
 - **The role-lessons loop.** A mistake recorded in an agent's lessons file under `.claude/agents/lessons/` stops repeating in later audits.
-- **Resilience.** A power cut and a five-hour usage limit cost no work: workflows resumed from their journals and workers from their progress files.
+- **Resilience.** A power cut and a usage limit cost no work: workflows resumed from their journals and workers from their progress files.
 
 ### What to improve
 
