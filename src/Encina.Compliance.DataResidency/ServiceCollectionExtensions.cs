@@ -79,14 +79,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<DataResidencyOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<DataResidencyOptions>, DataResidencyOptionsValidator>();
 
@@ -111,45 +104,69 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new DataResidencyOptions();
         configure?.Invoke(optionsInstance);
 
-        // Conditional: Health check
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+        AddFluentPolicies(services, optionsInstance);
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<DataResidencyOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<DataResidencyOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, DataResidencyOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<DataResidencyHealthCheck>(
                     DataResidencyHealthCheck.DefaultName,
                     tags: DataResidencyHealthCheck.Tags);
         }
+    }
 
-        // Conditional: Auto-registration from [DataResidency] attributes
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, DataResidencyOptions options, Assembly callingAssembly)
+    {
+        // Auto-registration from [DataResidency] attributes
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new DataResidencyAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<DataResidencyAutoRegistrationHostedService>();
         }
+    }
 
+    private static void AddFluentPolicies(IServiceCollection services, DataResidencyOptions options)
+    {
         // Register fluent-configured policies for auto-creation at startup
-        if (optionsInstance.ConfiguredPolicies.Count > 0)
+        if (options.ConfiguredPolicies.Count > 0)
         {
-            services.AddSingleton(new DataResidencyFluentPolicyDescriptor(optionsInstance.ConfiguredPolicies));
+            services.AddSingleton(new DataResidencyFluentPolicyDescriptor(options.ConfiguredPolicies));
             // The auto-registration hosted service or a separate initializer will create these
-            if (!optionsInstance.AutoRegisterFromAttributes)
+            if (!options.AutoRegisterFromAttributes)
             {
                 // If auto-registration is disabled but fluent policies exist,
                 // still register the auto-registration service to process fluent policies
-                var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                    ? optionsInstance.AssembliesToScan
+                var assembliesToScan = options.AssembliesToScan.Count > 0
+                    ? options.AssembliesToScan
                     : (IReadOnlyList<Assembly>)[];
 
                 services.TryAddSingleton(new DataResidencyAutoRegistrationDescriptor(assembliesToScan));
                 services.AddHostedService<DataResidencyFluentPolicyHostedService>();
             }
         }
-
-        return services;
     }
 }

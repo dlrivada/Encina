@@ -85,14 +85,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<BreachNotificationOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<BreachNotificationOptions>, BreachNotificationOptionsValidator>();
 
@@ -120,26 +113,49 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(optionsInstance);
 
         // Register custom detection rules from fluent API
-        foreach (var ruleType in optionsInstance.DetectionRuleTypes)
+        AddCustomDetectionRules(services, optionsInstance);
+        AddHealthCheck(services, optionsInstance);
+        AddDeadlineMonitoring(services, optionsInstance);
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<BreachNotificationOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<BreachNotificationOptions>(_ => { });
+        }
+    }
+
+    private static void AddCustomDetectionRules(IServiceCollection services, BreachNotificationOptions options)
+    {
+        foreach (var ruleType in options.DetectionRuleTypes)
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton(typeof(IBreachDetectionRule), ruleType));
         }
+    }
 
-        // Conditional: Health check
-        if (optionsInstance.AddHealthCheck)
+    private static void AddHealthCheck(IServiceCollection services, BreachNotificationOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<BreachNotificationHealthCheck>(
                     BreachNotificationHealthCheck.DefaultName,
                     tags: BreachNotificationHealthCheck.Tags);
         }
+    }
 
-        // Conditional: Deadline monitoring service
-        if (optionsInstance.EnableDeadlineMonitoring)
+    private static void AddDeadlineMonitoring(IServiceCollection services, BreachNotificationOptions options)
+    {
+        if (options.EnableDeadlineMonitoring)
         {
             services.AddHostedService<BreachDeadlineMonitorService>();
         }
-
-        return services;
     }
 }

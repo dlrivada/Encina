@@ -76,14 +76,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<RetentionOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<RetentionOptions>, RetentionOptionsValidator>();
 
@@ -102,51 +95,78 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new RetentionOptions();
         configure?.Invoke(optionsInstance);
 
-        // Conditional: Health check
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutomaticEnforcement(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+        AddFluentPolicies(services, optionsInstance);
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<RetentionOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<RetentionOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, RetentionOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<RetentionHealthCheck>(
                     RetentionHealthCheck.DefaultName,
                     tags: RetentionHealthCheck.Tags);
         }
+    }
 
-        // Conditional: Automatic enforcement service
-        if (optionsInstance.EnableAutomaticEnforcement)
+    private static void AddAutomaticEnforcement(IServiceCollection services, RetentionOptions options)
+    {
+        if (options.EnableAutomaticEnforcement)
         {
             services.AddHostedService<RetentionEnforcementService>();
         }
+    }
 
-        // Conditional: Auto-registration from [RetentionPeriod] attributes
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, RetentionOptions options, Assembly callingAssembly)
+    {
+        // Auto-registration from [RetentionPeriod] attributes
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new RetentionAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<RetentionAutoRegistrationHostedService>();
         }
+    }
 
+    private static void AddFluentPolicies(IServiceCollection services, RetentionOptions options)
+    {
         // Register fluent-configured policies for auto-creation at startup
-        if (optionsInstance.ConfiguredPolicies.Count > 0)
+        if (options.ConfiguredPolicies.Count > 0)
         {
-            services.AddSingleton(new RetentionFluentPolicyDescriptor(optionsInstance.ConfiguredPolicies));
+            services.AddSingleton(new RetentionFluentPolicyDescriptor(options.ConfiguredPolicies));
             // The auto-registration hosted service or a separate initializer will create these
-            if (!optionsInstance.AutoRegisterFromAttributes)
+            if (!options.AutoRegisterFromAttributes)
             {
                 // If auto-registration is disabled but fluent policies exist,
                 // still register the auto-registration service to process fluent policies
-                var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                    ? optionsInstance.AssembliesToScan
+                var assembliesToScan = options.AssembliesToScan.Count > 0
+                    ? options.AssembliesToScan
                     : (IReadOnlyList<Assembly>)[];
 
                 services.TryAddSingleton(new RetentionAutoRegistrationDescriptor(assembliesToScan));
                 services.AddHostedService<RetentionFluentPolicyHostedService>();
             }
         }
-
-        return services;
     }
 }

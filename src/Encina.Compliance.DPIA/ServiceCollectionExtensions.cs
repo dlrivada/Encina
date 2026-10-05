@@ -104,14 +104,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<DPIAOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<DPIAOptions>, DPIAOptionsValidator>();
 
@@ -141,31 +134,54 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(optionsInstance);
 
         // Auto-registration from attributes (and optionally auto-detection)
-        if (optionsInstance.AutoRegisterFromAttributes)
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+        AddHealthCheck(services, optionsInstance);
+        AddExpirationMonitoring(services, optionsInstance);
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<DPIAOptions>? configure)
+    {
+        if (configure is not null)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<DPIAOptions>(_ => { });
+        }
+    }
+
+    private static void AddAutoRegistration(IServiceCollection services, DPIAOptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
+        {
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             services.AddSingleton(new DPIAAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<DPIAAutoRegistrationHostedService>();
         }
+    }
 
-        // Conditional: Health check
-        if (optionsInstance.AddHealthCheck)
+    private static void AddHealthCheck(IServiceCollection services, DPIAOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<DPIAHealthCheck>(
                     DPIAHealthCheck.DefaultName,
                     tags: DPIAHealthCheck.Tags);
         }
+    }
 
-        // Conditional: Expiration monitoring / review reminder service
-        if (optionsInstance.EnableExpirationMonitoring)
+    private static void AddExpirationMonitoring(IServiceCollection services, DPIAOptions options)
+    {
+        if (options.EnableExpirationMonitoring)
         {
             services.AddHostedService<DPIAReviewReminderService>();
         }
-
-        return services;
     }
 }

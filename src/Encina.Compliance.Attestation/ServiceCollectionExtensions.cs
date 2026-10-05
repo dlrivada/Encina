@@ -69,53 +69,15 @@ public static class ServiceCollectionExtensions
         // Register the selected provider
         if (options.UseInMemoryProvider)
         {
-            services.TryAddSingleton<InMemoryAttestationProvider>();
-            services.TryAddSingleton<IAuditAttestationProvider>(
-                sp => sp.GetRequiredService<InMemoryAttestationProvider>());
-            services.TryAddSingleton<IAttestationReceiptStore>(
-                sp => sp.GetRequiredService<InMemoryAttestationProvider>());
+            AddInMemoryProvider(services);
         }
         else if (options.HashChainOptions is not null)
         {
-            services.Configure<HashChainOptions>(hc =>
-            {
-                hc.StoragePath = options.HashChainOptions.StoragePath;
-                hc.HashAlgorithm = options.HashChainOptions.HashAlgorithm;
-                hc.HmacKey = options.HashChainOptions.HmacKey;
-            });
-            services.TryAddSingleton<HashChainAttestationProvider>();
-            services.TryAddSingleton<IAuditAttestationProvider>(
-                sp => sp.GetRequiredService<HashChainAttestationProvider>());
-            services.TryAddSingleton<IAttestationReceiptStore>(
-                sp => sp.GetRequiredService<HashChainAttestationProvider>());
+            AddHashChainProvider(services, options.HashChainOptions);
         }
         else if (options.HttpOptions is not null)
         {
-            if (options.HttpOptions.AttestEndpointUrl is null)
-            {
-                throw new InvalidOperationException(
-                    "HttpAttestationOptions.AttestEndpointUrl must be configured when using the HTTP attestation provider.");
-            }
-
-            services.Configure<HttpAttestationOptions>(http =>
-            {
-                http.AttestEndpointUrl = options.HttpOptions.AttestEndpointUrl;
-                http.VerifyEndpointUrl = options.HttpOptions.VerifyEndpointUrl;
-                http.AuthHeader = options.HttpOptions.AuthHeader;
-                http.AllowInsecureHttp = options.HttpOptions.AllowInsecureHttp;
-            });
-
-            // SEC-1: validate SSRF-sensitive options at startup
-            services.TryAddSingleton<IValidateOptions<HttpAttestationOptions>, HttpAttestationOptionsValidator>();
-            services.AddOptions<HttpAttestationOptions>().ValidateOnStart();
-
-            // SEC-7: cap response body size at 1 MB to prevent memory exhaustion
-            services.AddHttpClient<HttpAttestationProvider>(client =>
-            {
-                client.MaxResponseContentBufferSize = MaxHttpResponseBytes;
-            });
-
-            services.TryAddSingleton<IAuditAttestationProvider, HttpAttestationProvider>();
+            AddHttpProvider(services, options.HttpOptions);
         }
         else
         {
@@ -126,6 +88,66 @@ public static class ServiceCollectionExtensions
         // ARCH-1: register the attestation pipeline behavior (activates on [AttestDecision] attributes)
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(AttestationPipelineBehavior<,>)));
 
+        AddHealthCheck(services, options);
+
+        return services;
+    }
+
+    private static void AddInMemoryProvider(IServiceCollection services)
+    {
+        services.TryAddSingleton<InMemoryAttestationProvider>();
+        services.TryAddSingleton<IAuditAttestationProvider>(
+            sp => sp.GetRequiredService<InMemoryAttestationProvider>());
+        services.TryAddSingleton<IAttestationReceiptStore>(
+            sp => sp.GetRequiredService<InMemoryAttestationProvider>());
+    }
+
+    private static void AddHashChainProvider(IServiceCollection services, HashChainOptions hashChain)
+    {
+        services.Configure<HashChainOptions>(hc =>
+        {
+            hc.StoragePath = hashChain.StoragePath;
+            hc.HashAlgorithm = hashChain.HashAlgorithm;
+            hc.HmacKey = hashChain.HmacKey;
+        });
+        services.TryAddSingleton<HashChainAttestationProvider>();
+        services.TryAddSingleton<IAuditAttestationProvider>(
+            sp => sp.GetRequiredService<HashChainAttestationProvider>());
+        services.TryAddSingleton<IAttestationReceiptStore>(
+            sp => sp.GetRequiredService<HashChainAttestationProvider>());
+    }
+
+    private static void AddHttpProvider(IServiceCollection services, HttpAttestationOptions httpOptions)
+    {
+        if (httpOptions.AttestEndpointUrl is null)
+        {
+            throw new InvalidOperationException(
+                "HttpAttestationOptions.AttestEndpointUrl must be configured when using the HTTP attestation provider.");
+        }
+
+        services.Configure<HttpAttestationOptions>(http =>
+        {
+            http.AttestEndpointUrl = httpOptions.AttestEndpointUrl;
+            http.VerifyEndpointUrl = httpOptions.VerifyEndpointUrl;
+            http.AuthHeader = httpOptions.AuthHeader;
+            http.AllowInsecureHttp = httpOptions.AllowInsecureHttp;
+        });
+
+        // SEC-1: validate SSRF-sensitive options at startup
+        services.TryAddSingleton<IValidateOptions<HttpAttestationOptions>, HttpAttestationOptionsValidator>();
+        services.AddOptions<HttpAttestationOptions>().ValidateOnStart();
+
+        // SEC-7: cap response body size at 1 MB to prevent memory exhaustion
+        services.AddHttpClient<HttpAttestationProvider>(client =>
+        {
+            client.MaxResponseContentBufferSize = MaxHttpResponseBytes;
+        });
+
+        services.TryAddSingleton<IAuditAttestationProvider, HttpAttestationProvider>();
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, AttestationOptions options)
+    {
         if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
@@ -133,7 +155,5 @@ public static class ServiceCollectionExtensions
                     AttestationHealthCheck.DefaultName,
                     tags: AttestationHealthCheck.Tags);
         }
-
-        return services;
     }
 }

@@ -85,14 +85,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<DataSubjectRightsOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<DataSubjectRightsOptions>, DataSubjectRightsOptionsValidator>();
 
@@ -118,25 +111,46 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new DataSubjectRightsOptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<DataSubjectRightsOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<DataSubjectRightsOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, DataSubjectRightsOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<DataSubjectRightsHealthCheck>(
                     DataSubjectRightsHealthCheck.DefaultName,
                     tags: DataSubjectRightsHealthCheck.Tags);
         }
+    }
 
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, DataSubjectRightsOptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new DSRAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<DSRAutoRegistrationHostedService>();
         }
-
-        return services;
     }
 }
