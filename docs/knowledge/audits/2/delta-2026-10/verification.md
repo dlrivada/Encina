@@ -1,0 +1,22 @@
+Verdict: PASS
+## Verified claims
+Delta mode (rules-2026-10, rules (a) and (b) only; steps 1-4 and 6 over docs.md, tests.md, remediation.md), fourth verification pass, after the docs stage reworded finding 4 and the remediation stage regenerated draft docs 4. Checked inside the wia-2 worktree (branch `audit/2`); drafts read from the main checkout `artifacts\knowledge\remediation\` (the worktree has no such directory).
+
+The correction from the previous FAIL (docs finding 4 cell description):
+- `docs/testing/integration-tests.md` re-read at :421-:432. Row :426 `Dapper.Oracle` reads `✅ ✅ ✅ ✅`; row :430 `ADO.Oracle` reads `❌ ✅ ✅ ✅`; the note at :432 says ADO MySQL/Oracle use Testcontainers-based tests in the Contract, Property and Load projects instead of separate Integration projects.
+- `docs.md` finding 4 now says exactly that: a check in all four columns for `Dapper.Oracle` (:426), a cross in Integration and checks in the other three for `ADO.Oracle` (:430), explained by the note at :432. The old phrase "with check marks for integration, contract, property and load tests" no longer appears in `docs.md` or in any of the eight drafts (Select-String over the stage files and `2-*` drafts: its only remaining hit is the previous verification text, which this file replaces).
+- Draft docs 4 (regenerated 16:17:58) states the same cells, cites :80, :91, :120, :215, :221, :224, :362-:370, :381, :394, :426, :430, :432, :442 (all confirmed in the previous pass; page still 442 lines, unchanged), keeps `[DEBT]`, empty milestone, `kind: docs`, the ten technical_debt.md headers verbatim and in order, only "Documentation gap", Medium and Small ticked. Its prose (Description, Current Behavior, Root Cause, Proposed Fix) agrees with the page and with `Encina.slnx` / ADR-009.
+
+Consistency of earlier-confirmed items:
+- `docs.md`: numbered findings counted with a command: 10. The repo-wide search re-run from its parameters (regex `(?i)oracle|sqlite`, docs minus plans/ADRs/releases/specifications/knowledge plus READMEs outside docs/artifacts/.claude/.backup/.git/node_modules) gives 148 hits in 31 pages, as the stage reports (my file count is 271 against the stated 270, a one-file difference in the glob that contributes no hit; the hit and page totals match). The other findings' text is unchanged from the pass whose citations I confirmed.
+- `tests.md`: unchanged (15:54), "not measured", "- none"; manifest has no Oracle or Sqlite package entry; consistent with the earlier check.
+- `remediation.md`: lists docs 1-10 once each: drafts for 1, 2, 4, 6, 7, 8, 9, 10 (8 files counted), docs 3 merged into docs 6, docs 5 duplicate of #1177. Only draft 4 changed (other drafts unchanged since 16:08-16:09). All eight titles are `[DEBT]`, all milestones empty, all headers identical to the technical_debt.md set.
+- Issue states re-run: `gh issue view 1177` OPEN (item 6 is `docs/messaging/index.md`), `gh issue view 1372` OPEN (counts), `gh issue view 214` OPEN (feature, `ROADMAP.md:693`).
+- Duplicate search re-run on open issues (Oracle integration-tests documentation; Provider Matrix Oracle docs; integration-tests.md): no open issue covers draft 4. New since the last pass: open #1806 ("AGENTS.md cites a git-ignored .backup/ folder; CI Full and load-test profiles still run SQLite", created 2026-10-05 14:14 from this audit). It covers AGENTS.md:58, `ci-full.yml` and the `efcore-sqlite` entries of the three NBomber profiles, not the pages the drafts target; it overlaps only draft 10's Proposed Fix step 2 (remove `efcore-sqlite` from the profiles). Draft 10's main subject (the `ado-sqlite` and `dapper-sqlite` rows of `docs/testing/load-test-baselines.md`) is not in #1806, so draft 10 is not a duplicate. Recommendation for the orchestrator when opening it: add `#1806` to draft 10's Related Issues and keep step 2 as a pointer. This is not a correction.
+
+## Corrections
+(none)
+
+## Lessons for the pipeline
+- When the correction is a describing sentence that disagrees with a table cell, re-reading the cell and grepping the old phrase over the stage files and the drafts directory is enough to close it; keep that as the narrow re-check after a FAIL.
+- An issue opened by the orchestrator during the loop (here #1806, from this very audit) can overlap a draft after the remediation stage ran; the verifier's duplicate search should always list the issues created since the draft was generated and read their bodies.
