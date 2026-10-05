@@ -481,7 +481,7 @@ function Get-AuditPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
     foreach ($name in $names) {
         $f = Join-Path $StagesDir $name
-        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/stages/$name" }) }
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/stages/$name"; LinkBase = "artifacts/knowledge/stages/$name" }) }
     }
     return , $plan
 }
@@ -493,12 +493,120 @@ function Get-DeltaPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
     foreach ($name in $names) {
         $f = Join-Path $StagesDir $name
-        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/$name" }) }
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/$name"; LinkBase = "artifacts/knowledge/stages/$name" }) }
     }
+    # #1817: the scope text is copied from the original record (docs/knowledge/issues/<n>.md), so its relative
+    # links were written for that folder.
     $scope = Join-Path $AuditWorktree 'artifacts\knowledge\delta-scope.md'
-    if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md" }) }
+    if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md"; LinkBase = "docs/knowledge/issues/$Issue.md" }) }
     if ($plan.Count -eq 0) { throw "Get-DeltaPublishPlan: no delta stage file under $StagesDir." }
     return , $plan
+}
+
+# --- Relative links of published files (#1817) --------------------------------------------------------------------
+# Text copied from docs/knowledge/issues/<n>.md or a stage file keeps the relative links it was written with, which
+# break one folder deeper. Update-PublishedLinks resolves every relative Markdown link against the file's SOURCE
+# location (a repo-relative path, only its folder matters) and rewrites it relative to the DESTINATION; a link that
+# resolves from neither is reported as an error. Targets are looked up under $Root (a checkout of the repository).
+# Skipped: absolute URLs, mailto:, site-root (/x) links, anchor-only links, fenced code and inline code spans.
+
+function Test-RelativeLinkTarget([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    return ($Path -notmatch '^([a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)')
+}
+
+# The existing full path of $Decoded resolved from the repo-relative folder $BaseDir under $Root, or $null.
+function Resolve-LinkTarget([string]$Root, [string]$BaseDir, [string]$Decoded) {
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $full = [IO.Path]::GetFullPath((Join-Path $rootFull (($BaseDir + '/' + $Decoded) -replace '/', '\')))
+    if (-not $full.StartsWith($rootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if (Test-Path -LiteralPath $full) { return $full }
+    return $null
+}
+
+# The new target for one link, the same $Target when it needs no change, or $null when it does not resolve.
+function Convert-LinkTarget([string]$Target, [string]$SourceDir, [string]$DestDir, [string]$Root) {
+    $bare = $Target.Trim('<', '>')
+    $cut = $bare.IndexOfAny([char[]]@('#', '?'))
+    $path = if ($cut -ge 0) { $bare.Substring(0, $cut) } else { $bare }
+    $suffix = if ($cut -ge 0) { $bare.Substring($cut) } else { '' }
+    if (-not (Test-RelativeLinkTarget $path)) { return $Target }
+    $decoded = [uri]::UnescapeDataString($path)
+    $full = Resolve-LinkTarget $Root $SourceDir $decoded
+    if (-not $full) {
+        # Already valid from the destination: nothing to rewrite.
+        if (Resolve-LinkTarget $Root $DestDir $decoded) { return $Target }
+        return $null
+    }
+    $rel = [IO.Path]::GetRelativePath((Join-Path $Root ($DestDir -replace '/', '\')), $full) -replace '\\', '/'
+    if ($decoded.EndsWith('/') -and -not $rel.EndsWith('/')) { $rel += '/' }
+    if ($path -ne $decoded) { $rel = $rel -replace ' ', '%20' }
+    $new = $rel + $suffix
+    if ($new -eq $bare) { return $Target }
+    return $(if ($Target.StartsWith('<')) { "<$new>" } else { $new })
+}
+
+# Fence state machine: returns the new opener ('' = outside a fence) after $Line.
+function Get-FenceState([string]$Line, [string]$Opener) {
+    if ($Line -notmatch '^\s{0,3}(?<f>`{3,}|~{3,})') { return $Opener }
+    if ($Opener -eq '') { return $Matches['f'] }
+    $f = $Matches['f']
+    if ($f[0] -eq $Opener[0] -and $f.Length -ge $Opener.Length) { return '' }
+    return $Opener
+}
+
+# Rewrites the links of one non-fence line; $Errors collects 'file:line target' for the ones that do not resolve.
+function Update-LinkLine([string]$Line, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
+    $spans = @([regex]::Matches($Line, '(`+)(.+?)\1') | ForEach-Object { , @($_.Index, ($_.Index + $_.Length)) })
+    $line = Update-LinkMatches $Line '(?<pre>!?\[[^\]]*\]\(\s*)(?<t><[^>]*>|[^)\s]*)' $spans $Number $SourceDir $DestDir $Root $Label $Errors
+    return Update-LinkMatches $line '^(?<pre>\s{0,3}\[[^\]]+\]:\s*)(?<t><[^>]*>|\S+)' $spans $Number $SourceDir $DestDir $Root $Label $Errors
+}
+
+# Replaces the target of each $Pattern match (groups 'pre' and 't') outside the inline code $Spans.
+function Update-LinkMatches([string]$Line, [string]$Pattern, $Spans, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
+    $sb = [System.Text.StringBuilder]::new()
+    $pos = 0
+    foreach ($m in [regex]::Matches($Line, $Pattern)) {
+        $inCode = @($Spans | Where-Object { $m.Index -ge $_[0] -and $m.Index -lt $_[1] }).Count -gt 0
+        $target = $m.Groups['t'].Value
+        $new = if ($inCode) { $target } else { Convert-LinkTarget $target $SourceDir $DestDir $Root }
+        if ($null -eq $new) { $Errors.Add("${Label}:${Number} $target"); $new = $target }
+        $t = $m.Groups['t']
+        $null = $sb.Append($Line.Substring($pos, $t.Index - $pos)).Append($new)
+        $pos = $t.Index + $t.Length
+    }
+    return $sb.Append($Line.Substring($pos)).ToString()
+}
+
+# Returns @{ Text; Errors = @('<dest>:<line> <link>') }.
+function Update-PublishedLinks([string]$Text, [string]$SourceRel, [string]$DestRel, [string]$Root) {
+    $sourceDir = ($SourceRel -replace '\\', '/') -replace '/?[^/]*$', ''
+    $destDir = ($DestRel -replace '\\', '/') -replace '/?[^/]*$', ''
+    $errors = [System.Collections.Generic.List[string]]::new()
+    $lines = $Text.Split("`n")
+    $fence = ''
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $wasInFence = $fence -ne ''
+        $fence = Get-FenceState $lines[$i] $fence
+        if ($wasInFence -or $fence -ne '') { continue }
+        $lines[$i] = Update-LinkLine $lines[$i] ($i + 1) $sourceDir $destDir $Root $DestRel $errors
+    }
+    return @{ Text = ($lines -join "`n"); Errors = @($errors) }
+}
+
+# Applies Update-PublishedLinks to every Markdown file of the plan already written under $Tmp; returns the errors.
+function Update-PlanLinks($Plan, [string]$Tmp) {
+    $errors = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in $Plan) {
+        if ($item.Dest -notlike '*.md') { continue }
+        $file = Join-Path $Tmp ($item.Dest -replace '/', '\')
+        $base = if ($item.ContainsKey('LinkBase') -and $item.LinkBase) { $item.LinkBase } else { $item.Dest }
+        $original = [IO.File]::ReadAllText($file)
+        $result = Update-PublishedLinks $original $base $item.Dest $Tmp
+        foreach ($e in $result.Errors) { $errors.Add($e) }
+        if ($result.Text -cne $original) { [IO.File]::WriteAllText($file, $result.Text, [Text.UTF8Encoding]::new($false)) }
+    }
+    return @($errors)
 }
 
 # Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
@@ -585,6 +693,10 @@ function Publish-AuditKnowledge {
             if ($item.Source) { Copy-Item -LiteralPath $item.Source -Destination $dest -Force }
             else { [IO.File]::WriteAllText($dest, $item.Content, [Text.UTF8Encoding]::new($false)) }
         }
+
+        # #1817: rewrite relative links written for the source folder; a link that resolves nowhere fails the publish.
+        $brokenLinks = Update-PlanLinks $plan $tmp
+        if ($brokenLinks.Count -gt 0) { return (& $fail "relative Markdown links that do not resolve (file:line link), nothing was published:`n$($brokenLinks -join "`n")") }
 
         # The whole docs/knowledge tree must validate with the new files in place (schema, audit.record exists,
         # every result and stage folder has its record). The validator of the fresh origin/main checkout is used.

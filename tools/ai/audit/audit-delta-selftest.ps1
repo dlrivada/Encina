@@ -44,6 +44,21 @@ function Write-Text([string]$Path, [string]$Text) {
 }
 
 try {
+    # --- 0. Update-PublishedLinks unit cases (#1817) ----------------------------------------------------------
+    . (Join-Path $PSScriptRoot '_audit-lib.ps1')
+    $linkRoot = Join-Path $base 'linkroot'
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\target one.md') "x`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\img\pic.png') "x`n"
+    $src = "[t](../a/target%20one.md#sec) ![i](../img/pic.png) [ref][r] [b](../a/missing.md)`n[r]: ../a/target%20one.md`n[m](mailto:a@b.c) [s](/site/root.md)`n"
+    $u = Update-PublishedLinks $src 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: broken link reported with dest file:line' ($u.Errors.Count -eq 1 -and $u.Errors[0] -ceq 'docs/knowledge/audits/1/d/x.md:1 ../a/missing.md') ($u.Errors -join ';')
+    Assert-That 'unit: inline, image and reference-definition links are rewritten' ($u.Text.Contains('[t](../../../a/target%20one.md#sec)') -and $u.Text.Contains('![i](../../../img/pic.png)') -and $u.Text.Contains('[r]: ../../../a/target%20one.md')) $u.Text
+    Assert-That 'unit: mailto and site-root links stay' ($u.Text -like '*(mailto:a@b.c)*' -and $u.Text -like '*(/site/root.md)*') $u.Text
+    $same = Update-PublishedLinks "[t](../a/target%20one.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/issues/1.md' $linkRoot
+    Assert-That 'unit: source equal to destination changes nothing' ($same.Errors.Count -eq 0 -and $same.Text -ceq "[t](../a/target%20one.md)`n") $same.Text
+    $valid = Update-PublishedLinks "[t](../a/target%20one.md)`n" 'artifacts/knowledge/stages/x.md' 'docs/knowledge/audits/x.md' $linkRoot
+    Assert-That 'unit: a link already valid from the destination is kept' ($valid.Errors.Count -eq 0 -and $valid.Text -ceq "[t](../a/target%20one.md)`n") ($valid.Errors -join ';')
+
     $main = Join-Path $base 'main'
     $origin = Join-Path $base 'origin.git'
     $stubs = Join-Path $base 'stubs'
@@ -83,9 +98,16 @@ exit 0
     foreach ($spec in @(@(97, '2026-09-20'), @(96, '2026-10-06'))) {
         $n = $spec[0]
         $rec = $record.Replace("issue: $issue", "issue: $n").Replace('date: 2026-09-20', "date: $($spec[1])").Replace("issue-$issue.md", "issue-$n.md").Replace('Encina.Fixture', "Encina.Early$n").Replace('ORIGINAL RECORD', "RECORD $n")
+        if ($n -eq 97) {
+            # #1817: links written for docs/knowledge/issues/ (anchor, code fence and absolute URL stay as they are).
+            $fence = '```'
+            $tick = '`'
+            $rec += "`n## Where the knowledge lives`n`n- [ADR index](../../architecture/adr/index.md), [top](#top), [site](https://example.com/a/../b.md)`n- Inline code $tick[x](../../nope.md)$tick is not a link.`n`n$fence`n[fenced](../../nope.md)`n$fence`n"
+        }
         Write-Text (Join-Path $main "docs\knowledge\issues\$n.md") $rec
         Write-Text (Join-Path $main "docs\knowledge\audits\issue-$n.md") "# Audit of issue #$n`n`nPUBLISHED RESULT $n`n"
     }
+    Write-Text (Join-Path $main 'docs\architecture\adr\index.md') "# ADR index`n"
     Git -C $main add -A | Out-Null
     Git -C $main commit -q -m 'fixture main' | Out-Null
     Git -C $main remote add origin $origin | Out-Null
@@ -211,8 +233,17 @@ exit 0
         Git -C $wt commit -q -m "audit #97: $stage stage" -m "Stage: $stage" | Out-Null
     }
     Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons recorded across the pipeline stages for #97.`n"
+    # #1817: a broken relative link in a published file fails the publish and names file:line and the link.
+    Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons.`nSee [gone](../../missing/page.md).`n"
+    $dBad = Invoke-Script 'audit-done.ps1' @('-NoPublish')
+    Assert-That 'a broken relative link fails the publish with file:line and the link' ($dBad.Exit -ne 0 -and $dBad.Text -like "*docs/knowledge/audits/97/$folder/lessons.md:2 ../../missing/page.md*") $dBad.Text
+    Assert-That 'the failed publish pushed and opened nothing and kept the audit open' ((-not ($dBad.Log | Where-Object { $_ -match ' push ' -or $_ -match '^gh ' })) -and (Test-Path $wt) -and (Test-Path $currentAudit))
+    Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons recorded across the pipeline stages for #97.`n"
     $d3 = Invoke-Script 'audit-done.ps1' @('-NoPublish')
     Assert-That 'the delta of 97 publishes although the original audit has no stages folder (validator accepts a delta-only audit folder)' ($d3.Exit -eq 0) $d3.Text
+    $scope97Pub = (Git -C $main show "knowledge/audit-97-${folder}:docs/knowledge/audits/97/$folder/delta-scope.md") -join "`n"
+    Assert-That 'the record link was rewritten for the delta folder' $scope97Pub.Contains('[ADR index](../../../../architecture/adr/index.md)') $scope97Pub
+    Assert-That 'anchor, absolute URL, inline code and fenced code links were left untouched' ($scope97Pub.Contains('[top](#top)') -and $scope97Pub.Contains('(https://example.com/a/../b.md)') -and $scope97Pub.Contains('`[x](../../nope.md)`') -and $scope97Pub.Contains('[fenced](../../nope.md)')) $scope97Pub
     $diff97 = @(Git -C $main diff --name-only origin/main "knowledge/audit-97-$folder")
     $d3b = Invoke-Script 'audit-done.ps1' @()
     Assert-That 'the real publish of 97 then closes the audit' ($d3b.Exit -eq 0 -and -not (Test-Path $currentAudit)) $d3b.Text
