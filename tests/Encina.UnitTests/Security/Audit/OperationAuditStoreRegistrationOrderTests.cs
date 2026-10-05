@@ -134,6 +134,38 @@ public sealed class OperationAuditStoreRegistrationOrderTests
     }
 
     [Fact]
+    public void ApplicationStoreRegisteredByFactory_WrappedByOpenTelemetry_IsResolvedThroughTheFactory()
+    {
+        // Arrange
+        var services = NewServices();
+        var customStore = Substitute.For<IOperationAuditStore>();
+        services.AddSingleton<IOperationAuditStore>(_ => customStore);
+
+        // Act
+        services.AddEncinaOpenTelemetry();
+        services.AddEncinaADO(config => config.UseOperationAuditStore = true);
+
+        // Assert
+        Resolve(services).ShouldBeOfType<InstrumentedOperationAuditStore>();
+    }
+
+    [Fact]
+    public void KeyedApplicationStore_WrappedByOpenTelemetry_FailsWithAClearMessageOnResolve()
+    {
+        // Arrange
+        var services = NewServices();
+        services.AddKeyedSingleton<IOperationAuditStore>("audit", Substitute.For<IOperationAuditStore>());
+        services.AddEncinaOpenTelemetry();
+
+        // Act
+        using var provider = services.BuildServiceProvider();
+        var act = () => provider.GetRequiredService<IOperationAuditStore>();
+
+        // Assert
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("keyed service");
+    }
+
+    [Fact]
     public void IsInMemoryDefault_PlainInMemoryRegistration_ReturnsTrue()
     {
         var descriptor = ServiceDescriptor.Singleton<IOperationAuditStore, InMemoryOperationAuditStore>();

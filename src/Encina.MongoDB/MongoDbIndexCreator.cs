@@ -36,34 +36,12 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         try
         {
-            if (_options.UseOutbox)
+            foreach (var (enabled, createIndexes) in FeatureIndexCreators())
             {
-                await CreateOutboxIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseInbox)
-            {
-                await CreateInboxIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseSagas)
-            {
-                await CreateSagaIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseScheduling)
-            {
-                await CreateSchedulingIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseAuditLogStore)
-            {
-                await CreateAuditLogIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseOperationAuditStore)
-            {
-                await CreateOperationAuditIndexesAsync(database, cancellationToken).ConfigureAwait(false);
+                if (enabled)
+                {
+                    await createIndexes(database, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             Log.IndexesCreatedSuccessfully(_logger);
@@ -76,6 +54,17 @@ internal sealed class MongoDbIndexCreator : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    // One entry per feature flag, in creation order.
+    private (bool Enabled, Func<IMongoDatabase, CancellationToken, Task> CreateIndexes)[] FeatureIndexCreators() =>
+    [
+        (_options.UseOutbox, CreateOutboxIndexesAsync),
+        (_options.UseInbox, CreateInboxIndexesAsync),
+        (_options.UseSagas, CreateSagaIndexesAsync),
+        (_options.UseScheduling, CreateSchedulingIndexesAsync),
+        (_options.UseAuditLogStore, CreateAuditLogIndexesAsync),
+        (_options.UseOperationAuditStore, CreateOperationAuditIndexesAsync),
+    ];
 
     private async Task CreateOutboxIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
     {
