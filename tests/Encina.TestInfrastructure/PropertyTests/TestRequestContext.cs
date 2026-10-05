@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Encina.Testing.Identity;
 
 namespace Encina.TestInfrastructure.PropertyTests;
 
@@ -27,7 +28,7 @@ public sealed record TestRequestContext : IRequestContext
     public string CorrelationId => "test-correlation";
 
     /// <inheritdoc />
-    public string? UserId { get; init; }
+    public RequestIdentity Identity { get; init; } = RequestIdentity.Anonymous;
 
     /// <inheritdoc />
     public string? IdempotencyKey { get; init; }
@@ -39,6 +40,9 @@ public sealed record TestRequestContext : IRequestContext
     public DateTimeOffset Timestamp => FixedTimestamp;
 
     /// <inheritdoc />
+    public string? CausationId { get; init; }
+
+    /// <inheritdoc />
     public IReadOnlyDictionary<string, object?> Metadata { get; init; } = FrozenDictionary<string, object?>.Empty;
 
     /// <inheritdoc />
@@ -48,9 +52,6 @@ public sealed record TestRequestContext : IRequestContext
         var newMetadata = new Dictionary<string, object?>(Metadata) { [key] = value }.ToFrozenDictionary();
         return this with { Metadata = newMetadata };
     }
-
-    /// <inheritdoc />
-    public IRequestContext WithUserId(string? userId) => this with { UserId = userId };
 
     /// <inheritdoc />
     public IRequestContext WithIdempotencyKey(string? idempotencyKey) => this with { IdempotencyKey = idempotencyKey };

@@ -6,6 +6,7 @@ using Encina.Messaging.Serialization;
 using Encina.Testing;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
+using Encina.Testing.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -226,8 +227,9 @@ public sealed class RequestContextPropagationTests
 
         const string intendedUserId = "background-job-owner";
         const string intendedTenantId = "tenant-for-the-job";
-        var jobContext = RequestContext.Create("job-correlation")
-            .WithUserId(intendedUserId)
+        var jobContext = TestRequestContext.WithIdentity(
+            RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "job-correlation"),
+            TestIdentity.User(intendedUserId))
             .WithTenantId(intendedTenantId);
 
         await using var provider = services.BuildServiceProvider();

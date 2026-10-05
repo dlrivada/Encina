@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
+using Encina.Testing.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
@@ -761,7 +762,7 @@ public class AuditInterceptorTests
     {
         // Arrange - no IRequestContext registration: the context comes from the accessor that
         // IEncina.Send (or EncinaContextMiddleware) fills.
-        var ambient = RequestContext.CreateForTest(userId: "ambient-user", correlationId: "ambient-corr");
+        var ambient = TestRequestContext.For(TestIdentity.User("ambient-user"), correlationId: "ambient-corr");
         var serviceProvider = CreateServiceProviderWithAccessor(ambient, registeredUserId: null);
         var auditLogStore = new InMemoryAuditLogStore();
         var interceptor = new AuditInterceptor(
@@ -789,7 +790,7 @@ public class AuditInterceptorTests
     public async Task SaveChangesAsync_WithAmbientAndRegisteredRequestContext_TheAmbientOneWins()
     {
         // Arrange
-        var ambient = RequestContext.CreateForTest(userId: "ambient-user", correlationId: "ambient-corr");
+        var ambient = TestRequestContext.For(TestIdentity.User("ambient-user"), correlationId: "ambient-corr");
         var serviceProvider = CreateServiceProviderWithAccessor(ambient, registeredUserId: "registered-user");
         var auditLogStore = new InMemoryAuditLogStore();
         var interceptor = new AuditInterceptor(
@@ -854,7 +855,7 @@ public class AuditInterceptorTests
         if (userId is not null)
         {
             var requestContext = Substitute.For<IRequestContext>();
-            requestContext.UserId.Returns(userId);
+            requestContext.Identity.Returns(TestIdentity.User(userId));
             serviceProvider.GetService(typeof(IRequestContext)).Returns(requestContext);
         }
 

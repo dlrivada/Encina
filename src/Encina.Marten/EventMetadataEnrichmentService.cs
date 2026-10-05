@@ -98,9 +98,9 @@ internal sealed partial class EventMetadataEnrichmentService
         IReadOnlyCollection<object> events)
     {
         // User ID
-        if (_options.CaptureUserId && !string.IsNullOrWhiteSpace(context.UserId))
+        if (_options.CaptureUserId && context.UserId is { } userId && !string.IsNullOrWhiteSpace(userId))
         {
-            session.SetHeader("UserId", context.UserId);
+            session.SetHeader("UserId", userId);
         }
 
         // Tenant ID

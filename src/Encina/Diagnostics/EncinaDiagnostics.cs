@@ -9,7 +9,7 @@ internal static class EncinaDiagnostics
 {
     internal static readonly ActivitySource ActivitySource = new("Encina", "1.0");
 
-    internal static Activity? SendStarted(Type requestType, Type responseType, string requestKind)
+    internal static Activity? SendStarted(Type requestType, Type responseType, string requestKind, IdentityKind identityKind)
     {
         if (!ActivitySource.HasListeners())
         {
@@ -21,8 +21,20 @@ internal static class EncinaDiagnostics
         activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
         activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName);
         activity?.SetTag(ActivityTagNames.RequestKind, requestKind);
+        activity?.SetTag(ActivityTagNames.IdentityKind, ToTagValue(identityKind));
         return activity;
     }
+
+    /// <summary>
+    /// The value of the <c>encina.identity.kind</c> tag: the kind only, never the user id.
+    /// </summary>
+    // crap-exempt: single-question switch — the tag value of each identity kind.
+    internal static string ToTagValue(IdentityKind kind) => kind switch
+    {
+        IdentityKind.User => "user",
+        IdentityKind.Service => "service",
+        _ => "anonymous"
+    };
 
     internal static void SendCompleted(Activity? activity, bool isSuccess, string? errorCode = null)
     {
@@ -42,7 +54,7 @@ internal static class EncinaDiagnostics
         activity.Dispose();
     }
 
-    internal static Activity? StartStreamActivity(Type requestType, Type itemType)
+    internal static Activity? StartStreamActivity(Type requestType, Type itemType, IdentityKind identityKind)
     {
         if (!ActivitySource.HasListeners())
         {
@@ -54,6 +66,7 @@ internal static class EncinaDiagnostics
         activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
         activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName);
         activity?.SetTag(ActivityTagNames.ItemName, itemType.Name);
+        activity?.SetTag(ActivityTagNames.IdentityKind, ToTagValue(identityKind));
         return activity;
     }
 

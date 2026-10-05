@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Encina.Testing;
+using Encina.Testing.Identity;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Core;
@@ -141,7 +142,7 @@ public sealed class AmbientRequestContextTests
     }
 
     private static IRequestContext UserContext(string user, string? tenant = null)
-        => RequestContext.CreateForTest(userId: user, tenantId: tenant, correlationId: $"corr-{user}");
+        => TestRequestContext.For(TestIdentity.User(user), tenantId: tenant, correlationId: $"corr-{user}");
 
     // ── Registration ───────────────────────────────────────────────────
 
@@ -260,7 +261,7 @@ public sealed class AmbientRequestContextTests
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
-        var parent = RequestContext.CreateForTest(userId: "parent-user", tenantId: "parent-tenant", idempotencyKey: "parent-key", correlationId: "corr-parent");
+        var parent = TestRequestContext.For(TestIdentity.User("parent-user"), tenantId: "parent-tenant", idempotencyKey: "parent-key", correlationId: "corr-parent");
 
         var result = await encina.Send(new Outer(), parent);
 

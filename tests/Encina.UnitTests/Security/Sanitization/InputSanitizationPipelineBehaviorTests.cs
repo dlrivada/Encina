@@ -3,6 +3,7 @@
 using Encina.Security.Sanitization;
 using Encina.Security.Sanitization.Abstractions;
 using Encina.Security.Sanitization.Attributes;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,7 +33,7 @@ public sealed class InputSanitizationPipelineBehaviorTests : IDisposable
             _sanitizer,
             Options.Create(_options),
             NullLogger<SanitizationOrchestrator>.Instance);
-        _context = RequestContext.CreateForTest(userId: "test-user");
+        _context = TestRequestContext.For(TestIdentity.User("test-user"));
 
         SanitizationPropertyCache.ClearCache();
     }

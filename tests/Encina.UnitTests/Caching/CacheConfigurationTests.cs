@@ -1,4 +1,6 @@
 using Encina.Caching;
+using Encina.Testing.Identity;
+
 namespace Encina.UnitTests.Caching;
 
 /// <summary>
@@ -274,7 +276,7 @@ public class CacheConfigurationTests
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns(tenantId);
-        context.UserId.Returns(userId);
+        context.Identity.Returns(TestIdentity.User(userId));
         context.CorrelationId.Returns(Guid.NewGuid().ToString());
         return context;
     }

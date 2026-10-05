@@ -6,6 +6,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -105,7 +106,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         using var provider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);
         var pap = new PersistentPolicyAdministrationPoint(
@@ -147,7 +148,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         });
         var accessor = Substitute.For<IRequestContextAccessor>();
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         accessor.RequestContext.Returns(context);
         services.AddSingleton(accessor);
         services.AddEncinaABAC(options =>
@@ -225,7 +226,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             return store;
         });
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("alice");
+        context.Identity.Returns(TestIdentity.User("alice"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);
         services.AddSingleton(accessor);
@@ -321,7 +322,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             _provider = services.BuildServiceProvider(
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             var context = Substitute.For<IRequestContext>();
-            context.UserId.Returns("alice");
+            context.Identity.Returns(TestIdentity.User("alice"));
             var accessor = Substitute.For<IRequestContextAccessor>();
             accessor.RequestContext.Returns(context);
             Pap = new PersistentPolicyAdministrationPoint(

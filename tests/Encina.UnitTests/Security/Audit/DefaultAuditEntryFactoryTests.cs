@@ -1,4 +1,5 @@
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -28,8 +29,8 @@ public class DefaultAuditEntryFactoryTests
     {
         // Arrange
         var request = new CreateOrderCommand { Id = Guid.NewGuid() };
-        var context = RequestContext.CreateForTest(
-            userId: "user-123",
+        var context = TestRequestContext.For(
+            TestIdentity.User("user-123"),
             tenantId: "tenant-456",
             correlationId: "correlation-789");
 

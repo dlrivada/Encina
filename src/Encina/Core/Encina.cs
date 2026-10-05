@@ -90,8 +90,9 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
-        return new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken));
+        return AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger).Match(
+            Right: context => new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken)),
+            Left: refusal => new ValueTask<Either<EncinaError, TResponse>>(refusal));
     }
 
     private ValueTask<Either<EncinaError, Unit>> PublishCore<TNotification>(TNotification notification, IRequestContext? explicitContext, CancellationToken cancellationToken)
@@ -103,8 +104,9 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, Unit>>(error);
         }
 
-        var context = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider);
-        return new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken));
+        return AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger).Match(
+            Right: context => new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken)),
+            Left: refusal => new ValueTask<Either<EncinaError, Unit>>(refusal));
     }
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)

@@ -4,6 +4,7 @@ using Encina.Security.Audit;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -28,7 +29,7 @@ public sealed class AuditedSecretWriterDecoratorTests
         _logger = Substitute.For<ILogger<AuditedSecretWriterDecorator>>();
 
         _requestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
-        _requestContext.UserId.Returns("test-user");
+        _requestContext.Identity.Returns(TestIdentity.User("test-user"));
         _requestContext.TenantId.Returns("test-tenant");
         _requestContextAccessor.RequestContext.Returns(_requestContext);
 

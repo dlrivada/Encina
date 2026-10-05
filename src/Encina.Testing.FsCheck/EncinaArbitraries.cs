@@ -66,6 +66,11 @@ public static class EncinaArbitraries
     /// </summary>
     public static readonly string[] SagaStatuses = ["Running", "Completed", "Compensating", "Failed"];
 
+    private static readonly string[][] RoleSets =
+    [
+        [], ["reader"], ["reader", "writer"], ["admin"]
+    ];
+
     private static readonly string[] CronExpressions =
     [
         "0 * * * *", "0 0 * * *", "0 0 * * 1", "0 0 1 * *", "*/5 * * * *"
@@ -107,6 +112,38 @@ public static class EncinaArbitraries
             g => global::Encina.RequestContext.CreateForTest(
                 correlationId: g.ToString("N", CultureInfo.InvariantCulture)));
         return Arb.From(gen);
+    }
+
+    /// <summary>
+    /// Creates an arbitrary for <see cref="global::Encina.RequestIdentity"/>.
+    /// </summary>
+    /// <remarks>
+    /// Produces <see cref="IdentityKind.Anonymous"/> and <see cref="IdentityKind.User"/> identities
+    /// only (one in four is anonymous). Users get a valid user id (<c>user-&lt;guid&gt;</c>) and a
+    /// role and permission set drawn from small fixed lists. Service identities are not generated:
+    /// they exist only as declarations opened through identity scopes.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Prop.ForAll(EncinaArbitraries.RequestIdentity(), identity =>
+    ///     (identity.UserId is not null) == identity.IsAuthenticated);
+    /// </code>
+    /// </example>
+    public static Arbitrary<RequestIdentity> RequestIdentity()
+    {
+        var userGen = Gen.SelectMany(
+            ArbMap.Default.GeneratorFor<Guid>(),
+            id => Gen.Select(
+                Gen.Elements(RoleSets),
+                roles => global::Encina.RequestIdentity.ForUser(
+                    $"user-{id.ToString("N", CultureInfo.InvariantCulture)}",
+                    principal: null,
+                    roles: roles,
+                    permissions: roles.Select(static role => $"{role}:access"))));
+
+        return Arb.From(Gen.Frequency(
+            (1, Gen.Constant(global::Encina.RequestIdentity.Anonymous)),
+            (3, userGen)));
     }
 
     /// <summary>

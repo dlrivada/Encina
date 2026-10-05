@@ -1,4 +1,5 @@
 using Encina.AspNetCore;
+using Encina.Testing.Identity;
 using Shouldly;
 
 namespace Encina.UnitTests.AspNetCore;
@@ -316,8 +317,8 @@ public class HttpAuditContextExtensionsTests
     public void CombinedUsage_ShouldPreserveCoreContextProperties()
     {
         // Arrange
-        var context = RequestContext.CreateForTest(
-            userId: "user-123",
+        var context = TestRequestContext.For(
+            TestIdentity.User("user-123"),
             tenantId: "tenant-456",
             correlationId: "corr-789");
 

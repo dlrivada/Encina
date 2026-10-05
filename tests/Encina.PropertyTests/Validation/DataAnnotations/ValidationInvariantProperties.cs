@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Encina.DataAnnotations;
 using Encina.Testing.FsCheck;
+using Encina.Testing.Identity;
 using Encina.Testing.Shouldly;
 using Encina.Validation;
 using FsCheck;
@@ -67,7 +68,7 @@ public sealed class ValidationInvariantProperties : PropertyTestBase
 
     private static IRequestContext CreateContext()
     {
-        return RequestContext.Create(Guid.NewGuid().ToString());
+        return RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), Guid.NewGuid().ToString());
     }
 
     /// <summary>
@@ -408,7 +409,7 @@ public sealed class ValidationInvariantProperties : PropertyTestBase
         return Prop.ForAll(userIdGen, userId =>
         {
             var provider = CreateProvider();
-            var context = RequestContext.CreateForTest(userId: userId);
+            var context = TestRequestContext.For(TestIdentity.User(userId));
             var request = new TestUserCommand { Username = "valid", Email = "valid@test.com", Age = 25 };
 
             // DataAnnotations doesn't consume userId from context, but validation should still work
@@ -445,7 +446,7 @@ public sealed class ValidationInvariantProperties : PropertyTestBase
         return Prop.ForAll(userIdGen, tenantIdGen, (userId, tenantId) =>
         {
             var provider = CreateProvider();
-            var context = RequestContext.CreateForTest(userId: userId, tenantId: tenantId);
+            var context = TestRequestContext.For(TestIdentity.User(userId), tenantId: tenantId);
             var request = new TestUserCommand { Username = "valid", Email = "valid@test.com", Age = 25 };
 
             // DataAnnotations doesn't consume userId/tenantId from context, but validation should still work

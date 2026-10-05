@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Encina;
 using Encina.DomainModeling;
 using Encina.MongoDB.Repository;
+using Encina.Testing.Identity;
 using Encina.Testing.Time;
 using MongoDB.Driver;
 using NSubstitute;
@@ -54,7 +55,7 @@ public class FunctionalRepositoryMongoDBTests
     {
         // Arrange
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
 
         // Act
         var repository = new FunctionalRepositoryMongoDB<TestDocument, Guid>(
@@ -88,7 +89,7 @@ public class FunctionalRepositoryMongoDBTests
     {
         // Arrange
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
         var fakeTime = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(fakeTime);
 

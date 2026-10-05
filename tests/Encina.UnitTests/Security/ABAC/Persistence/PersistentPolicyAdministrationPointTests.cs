@@ -3,6 +3,7 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -26,7 +27,7 @@ public sealed class PersistentPolicyAdministrationPointTests
         _store = Substitute.For<IPolicyStore>();
         var logger = NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(requestContext);
         var provider = new ServiceCollection().AddScoped(_ => _store).BuildServiceProvider();

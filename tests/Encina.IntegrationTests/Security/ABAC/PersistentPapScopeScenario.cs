@@ -1,5 +1,6 @@
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.Persistence;
+using Encina.Testing.Identity;
 using Microsoft.Extensions.Hosting;
 
 namespace Encina.IntegrationTests.Security.ABAC;
@@ -39,7 +40,7 @@ internal static class PersistentPapScopeScenario
         services.AddLogging();
         services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("scope-test-user");
+        context.Identity.Returns(TestIdentity.User("scope-test-user"));
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);
         services.AddSingleton(accessor);

@@ -17,19 +17,24 @@ namespace Encina;
 /// <item>Distributed tracing with correlation IDs</item>
 /// <item>Multi-tenant applications (tenant isolation)</item>
 /// <item>Idempotency checking (duplicate request detection)</item>
-/// <item>User context propagation (audit logs, authorization)</item>
+/// <item>Caller identity for authorization and audit (<see cref="Identity"/>)</item>
 /// <item>Custom metadata for extensibility</item>
 /// </list>
+/// <para>
+/// The caller identity is <see cref="Identity"/>; the <c>UserId</c> extension property
+/// (<see cref="RequestContextIdentityExtensions"/>) is its projection, so a context can never
+/// report a user id that differs from the identity the gates authorized. Identities are set by
+/// Encina's entry points (request middleware, identity scopes), never by a <c>With*</c> method.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// // Creating context
-/// var context = RequestContext.Create()
-///     .WithUserId("user-123")
+/// // Creating an anonymous context
+/// var context = RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), correlationId)
 ///     .WithTenantId("tenant-abc")
 ///     .WithIdempotencyKey("idempotency-xyz");
 ///
-/// // Accessing in behaviors
+/// // Reading it in a behavior: the identity kind is safe to log, the user id is not
 /// public async ValueTask&lt;Either&lt;EncinaError, TResponse&gt;&gt; Handle(
 ///     TRequest request,
 ///     IRequestContext context,
@@ -37,9 +42,9 @@ namespace Encina;
 ///     CancellationToken cancellationToken)
 /// {
 ///     _logger.LogInformation(
-///         "Handling {Request} for user {UserId} (correlation: {CorrelationId})",
+///         "Handling {Request} for a {IdentityKind} caller (correlation: {CorrelationId})",
 ///         typeof(TRequest).Name,
-///         context.UserId,
+///         context.Identity.Kind,
 ///         context.CorrelationId);
 ///
 ///     return await nextStep();
@@ -58,13 +63,28 @@ public interface IRequestContext
     string CorrelationId { get; }
 
     /// <summary>
-    /// User ID initiating the request.
+    /// The id of the message or request that caused this request, if any.
     /// </summary>
     /// <remarks>
-    /// <c>null</c> if the request is unauthenticated.
-    /// Typically extracted from claims principal in ASP.NET Core applications.
+    /// Set when a deferred message is dispatched with its originating actor restored
+    /// (SPEC-002 REQ-015); <c>null</c> for an entry-point request. Copies of the context keep it.
     /// </remarks>
-    string? UserId { get; }
+    string? CausationId { get; }
+
+    /// <summary>
+    /// The caller identity of the request. Never <c>null</c>: a request without an authenticated
+    /// caller carries <see cref="RequestIdentity.Anonymous"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Gates read it with the pattern <c>context.Identity is { IsAuthenticated: true } identity</c>,
+    /// so a non-conforming implementation that returns <c>null</c> denies instead of throwing.
+    /// </para>
+    /// <para>
+    /// <c>context.UserId</c> (an extension property) is <c>Identity.UserId</c>.
+    /// </para>
+    /// </remarks>
+    RequestIdentity Identity { get; }
 
     /// <summary>
     /// Idempotency key for duplicate detection.
@@ -134,17 +154,6 @@ public interface IRequestContext
     /// Follows immutable pattern - original context is not modified.
     /// </remarks>
     IRequestContext WithMetadata(string key, object? value);
-
-    /// <summary>
-    /// Creates a new context with updated user ID.
-    /// </summary>
-    /// <param name="userId">User ID to set.</param>
-    /// <returns>New context instance with the user ID updated.</returns>
-    /// <remarks>
-    /// Follows immutable pattern - original context is not modified.
-    /// Useful in pre-processors that extract user identity.
-    /// </remarks>
-    IRequestContext WithUserId(string? userId);
 
     /// <summary>
     /// Creates a new context with updated idempotency key.

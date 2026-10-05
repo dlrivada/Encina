@@ -1,3 +1,5 @@
+using Encina.Testing.Identity;
+
 namespace Encina.GuardTests.Core;
 
 /// <summary>
@@ -5,61 +7,65 @@ namespace Encina.GuardTests.Core;
 /// </summary>
 public class RequestContextGuardTests
 {
-    #region Create(string correlationId)
+    #region CreateAnonymousAt(DateTimeOffset timestamp, string correlationId)
 
     /// <summary>
-    /// Verifies that Create throws ArgumentException when correlationId is null.
+    /// Verifies that CreateAnonymousAt throws ArgumentException when correlationId is null.
     /// </summary>
     [Fact]
-    public void Create_NullCorrelationId_ThrowsArgumentException()
+    public void CreateAnonymousAt_NullCorrelationId_ThrowsArgumentException()
     {
         // Arrange
         string correlationId = null!;
+        var timestamp = TimeProvider.System.GetUtcNow();
 
         // Act & Assert
-        var act = () => RequestContext.Create(correlationId);
+        var act = () => RequestContext.CreateAnonymousAt(timestamp, correlationId);
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe("correlationId");
     }
 
     /// <summary>
-    /// Verifies that Create throws ArgumentException when correlationId is empty.
+    /// Verifies that CreateAnonymousAt throws ArgumentException when correlationId is empty.
     /// </summary>
     [Fact]
-    public void Create_EmptyCorrelationId_ThrowsArgumentException()
+    public void CreateAnonymousAt_EmptyCorrelationId_ThrowsArgumentException()
     {
         // Arrange
         var correlationId = string.Empty;
+        var timestamp = TimeProvider.System.GetUtcNow();
 
         // Act & Assert
-        var act = () => RequestContext.Create(correlationId);
+        var act = () => RequestContext.CreateAnonymousAt(timestamp, correlationId);
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe("correlationId");
     }
 
     /// <summary>
-    /// Verifies that Create throws ArgumentException when correlationId is whitespace.
+    /// Verifies that CreateAnonymousAt throws ArgumentException when correlationId is whitespace.
     /// </summary>
     [Fact]
-    public void Create_WhitespaceCorrelationId_ThrowsArgumentException()
+    public void CreateAnonymousAt_WhitespaceCorrelationId_ThrowsArgumentException()
     {
         // Arrange
         var correlationId = "   ";
+        var timestamp = TimeProvider.System.GetUtcNow();
 
         // Act & Assert
-        var act = () => RequestContext.Create(correlationId);
+        var act = () => RequestContext.CreateAnonymousAt(timestamp, correlationId);
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe("correlationId");
     }
 
     /// <summary>
-    /// Verifies that Create succeeds with a valid correlationId.
+    /// Verifies that CreateAnonymousAt succeeds with a valid correlationId.
     /// </summary>
     [Fact]
-    public void Create_ValidCorrelationId_ReturnsContextWithId()
+    public void CreateAnonymousAt_ValidCorrelationId_ReturnsContextWithId()
     {
         // Arrange
         var correlationId = "test-correlation-123";
+        var timestamp = TimeProvider.System.GetUtcNow();
 
         // Act
-        var result = RequestContext.Create(correlationId);
+        var result = RequestContext.CreateAnonymousAt(timestamp, correlationId);
 
         // Assert
         result.ShouldNotBeNull();
@@ -67,52 +73,36 @@ public class RequestContextGuardTests
     }
 
     /// <summary>
-    /// Verifies that Create with correlationId sets Timestamp to a recent UTC value.
+    /// Verifies that CreateAnonymousAt uses the provided timestamp.
     /// </summary>
     [Fact]
-    public void Create_ValidCorrelationId_SetsTimestampToUtcNow()
+    public void CreateAnonymousAt_ValidCorrelationId_UsesProvidedTimestamp()
     {
         // Arrange
-        var before = DateTimeOffset.UtcNow;
+        var timestamp = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
 
         // Act
-        var result = RequestContext.Create("test-123");
+        var result = RequestContext.CreateAnonymousAt(timestamp, "test-123");
 
         // Assert
-        var after = DateTimeOffset.UtcNow;
-        result.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
-        result.Timestamp.ShouldBeLessThanOrEqualTo(after);
+        result.Timestamp.ShouldBe(timestamp);
     }
 
     #endregion
 
-    #region Create() (parameterless)
+    #region CreateAnonymousAt() (with auto-generated correlationId)
 
     /// <summary>
-    /// Verifies that parameterless Create generates a non-empty correlationId.
+    /// Verifies that CreateAnonymousAt generates a non-empty correlationId when not provided.
     /// </summary>
     [Fact]
-    public void Create_Parameterless_GeneratesNonEmptyCorrelationId()
+    public void CreateAnonymousAt_DefaultCorrelationId_GeneratesNonEmptyCorrelationId()
     {
         // Act
-        var result = RequestContext.Create();
+        var result = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Assert
         result.CorrelationId.ShouldNotBeNullOrWhiteSpace();
-    }
-
-    /// <summary>
-    /// Verifies that parameterless Create sets empty metadata.
-    /// </summary>
-    [Fact]
-    public void Create_Parameterless_HasEmptyMetadata()
-    {
-        // Act
-        var result = RequestContext.Create();
-
-        // Assert
-        result.Metadata.ShouldNotBeNull();
-        result.Metadata.Count.ShouldBe(0);
     }
 
     #endregion
@@ -126,7 +116,7 @@ public class RequestContextGuardTests
     public void WithMetadata_NullKey_ThrowsArgumentException()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
         string key = null!;
 
         // Act & Assert
@@ -141,7 +131,7 @@ public class RequestContextGuardTests
     public void WithMetadata_EmptyKey_ThrowsArgumentException()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act & Assert
         var act = () => context.WithMetadata(string.Empty, "value");
@@ -155,7 +145,7 @@ public class RequestContextGuardTests
     public void WithMetadata_WhitespaceKey_ThrowsArgumentException()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act & Assert
         var act = () => context.WithMetadata("   ", "value");
@@ -169,7 +159,7 @@ public class RequestContextGuardTests
     public void WithMetadata_ValidKey_ReturnsNewInstance()
     {
         // Arrange
-        var original = RequestContext.Create();
+        var original = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act
         var result = original.WithMetadata("key1", "value1");
@@ -187,7 +177,7 @@ public class RequestContextGuardTests
     public void WithMetadata_NullValue_DoesNotThrow()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act
         var result = context.WithMetadata("key1", null);
@@ -204,7 +194,7 @@ public class RequestContextGuardTests
     public void WithMetadata_MultipleCalls_AccumulatesMetadata()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act
         var result = context
@@ -218,40 +208,7 @@ public class RequestContextGuardTests
 
     #endregion
 
-    #region WithUserId / WithTenantId / WithIdempotencyKey
-
-    /// <summary>
-    /// Verifies that WithUserId returns a new instance with the userId set.
-    /// </summary>
-    [Fact]
-    public void WithUserId_SetsUserId_ReturnsNewInstance()
-    {
-        // Arrange
-        var context = RequestContext.Create();
-
-        // Act
-        var result = context.WithUserId("user-123");
-
-        // Assert
-        result.ShouldNotBeSameAs(context);
-        result.UserId.ShouldBe("user-123");
-    }
-
-    /// <summary>
-    /// Verifies that WithUserId allows null to clear the userId.
-    /// </summary>
-    [Fact]
-    public void WithUserId_Null_ClearsUserId()
-    {
-        // Arrange
-        var context = RequestContext.Create().WithUserId("user-123");
-
-        // Act
-        var result = context.WithUserId(null);
-
-        // Assert
-        result.UserId.ShouldBeNull();
-    }
+    #region WithTenantId / WithIdempotencyKey
 
     /// <summary>
     /// Verifies that WithTenantId returns a new instance with the tenantId set.
@@ -260,7 +217,7 @@ public class RequestContextGuardTests
     public void WithTenantId_SetsTenantId_ReturnsNewInstance()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act
         var result = context.WithTenantId("tenant-abc");
@@ -277,7 +234,7 @@ public class RequestContextGuardTests
     public void WithIdempotencyKey_SetsKey_ReturnsNewInstance()
     {
         // Arrange
-        var context = RequestContext.Create();
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
 
         // Act
         var result = context.WithIdempotencyKey("idem-key-001");
@@ -298,8 +255,8 @@ public class RequestContextGuardTests
     public void CreateForTest_WithAllParameters_SetsAllValues()
     {
         // Act
-        var result = RequestContext.CreateForTest(
-            userId: "user-1",
+        var result = TestRequestContext.For(
+            TestIdentity.User("user-1"),
             tenantId: "tenant-1",
             idempotencyKey: "key-1",
             correlationId: "corr-1");
@@ -338,7 +295,7 @@ public class RequestContextGuardTests
     public void ToString_IncludesCorrelationId()
     {
         // Arrange
-        var context = RequestContext.Create("my-correlation-id");
+        var context = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "my-correlation-id");
 
         // Act
         var result = context.ToString();

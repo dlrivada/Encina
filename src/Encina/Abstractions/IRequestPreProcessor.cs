@@ -10,17 +10,15 @@ namespace Encina;
 /// </remarks>
 /// <example>
 /// <code>
-/// public sealed class UserContextEnricher&lt;TRequest&gt; : IRequestPreProcessor&lt;TRequest&gt;
+/// public sealed class RequestStartLogger&lt;TRequest&gt;(ILogger&lt;RequestStartLogger&lt;TRequest&gt;&gt; logger)
+///     : IRequestPreProcessor&lt;TRequest&gt;
 /// {
-///     private readonly IHttpContextAccessor _httpContextAccessor;
-///
 ///     public Task Process(TRequest request, IRequestContext context, CancellationToken cancellationToken)
 ///     {
-///         var userId = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-///         if (userId is not null)
-///         {
-///             context = context.WithUserId(userId);
-///         }
+///         logger.LogDebug(
+///             "Starting {Request} (correlation: {CorrelationId})",
+///             typeof(TRequest).Name,
+///             context.CorrelationId);
 ///         return Task.CompletedTask;
 ///     }
 /// }

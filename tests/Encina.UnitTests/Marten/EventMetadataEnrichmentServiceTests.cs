@@ -1,4 +1,5 @@
 using Encina.Marten;
+using Encina.Testing.Identity;
 using Marten;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -415,33 +416,31 @@ public sealed class EventMetadataEnrichmentServiceTests
             IDictionary<string, object?> metadata)
         {
             CorrelationId = correlationId;
-            UserId = userId;
+            Identity = userId is null ? RequestIdentity.Anonymous : TestIdentity.User(userId);
             TenantId = tenantId;
             Timestamp = timestamp;
             _metadata = new Dictionary<string, object?>(metadata);
         }
 
         public string CorrelationId { get; }
-        public string? UserId { get; }
+        public RequestIdentity Identity { get; }
         public string? IdempotencyKey => null;
         public string? TenantId { get; }
         public DateTimeOffset Timestamp { get; }
+        public string? CausationId { get; }
         public IReadOnlyDictionary<string, object?> Metadata => _metadata;
 
         public IRequestContext WithMetadata(string key, object? value)
         {
             var newMetadata = new Dictionary<string, object?>(_metadata) { [key] = value };
-            return new TestRequestContext(CorrelationId, UserId, TenantId, Timestamp, newMetadata);
+            return new TestRequestContext(CorrelationId, Identity.UserId, TenantId, Timestamp, newMetadata);
         }
-
-        public IRequestContext WithUserId(string? userId)
-            => new TestRequestContext(CorrelationId, userId, TenantId, Timestamp, _metadata);
 
         public IRequestContext WithIdempotencyKey(string? idempotencyKey)
             => this; // Not used in tests
 
         public IRequestContext WithTenantId(string? tenantId)
-            => new TestRequestContext(CorrelationId, UserId, tenantId, Timestamp, _metadata);
+            => new TestRequestContext(CorrelationId, Identity.UserId, tenantId, Timestamp, _metadata);
     }
 
     #region Additional Coverage — Negative Paths

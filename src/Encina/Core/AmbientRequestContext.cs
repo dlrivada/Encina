@@ -1,4 +1,7 @@
 using System.Runtime.CompilerServices;
+using LanguageExt;
+using Microsoft.Extensions.Logging;
+using static LanguageExt.Prelude;
 
 namespace Encina;
 
@@ -33,34 +36,71 @@ internal static class AmbientRequestContext
     /// </summary>
     /// <remarks>
     /// <list type="number">
-    /// <item><description>An explicit context is used as-is.</description></item>
-    /// <item><description>With no ambient context, a fresh one is created (correlation id from
-    /// <see cref="System.Diagnostics.Activity.Current"/>).</description></item>
+    /// <item><description>An explicit context is checked against the ambient identity (see below)
+    /// and, when accepted, used as-is.</description></item>
+    /// <item><description>With no ambient context, a fresh anonymous one is created (correlation id
+    /// from <see cref="System.Diagnostics.Activity.Current"/>).</description></item>
     /// <item><description>An ambient context seen while no dispatch is in flight belongs to an entry
     /// point and is used as-is, idempotency key included.</description></item>
     /// <item><description>An ambient context seen while another dispatch is in flight is inherited
     /// from that outer dispatch: the nested dispatch gets a derived context with the same
-    /// correlation id, user, tenant and metadata, its own timestamp, and <b>no</b> idempotency
+    /// correlation id, identity, tenant and metadata, its own timestamp, and <b>no</b> idempotency
     /// key, so it never collides with the outer request in the idempotency stores.</description></item>
     /// </list>
+    /// <para>
+    /// <b>Explicit-context rule.</b> An explicit context whose identity is authenticated and differs
+    /// (kind or user id) from the ambient identity logs Warning 165 with both kinds (never ids). When
+    /// the ambient identity is a <see cref="IdentityKind.User"/>, the dispatch is refused with
+    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>: a dispatch cannot run a user's request
+    /// under someone else's identity. An explicit anonymous context, or one with the ambient
+    /// identity, is accepted silently.
+    /// </para>
     /// </remarks>
-    public static IRequestContext Resolve(IRequestContextAccessor accessor, IRequestContext? explicitContext, TimeProvider timeProvider)
+    public static Either<EncinaError, IRequestContext> Resolve(
+        IRequestContextAccessor accessor,
+        IRequestContext? explicitContext,
+        TimeProvider timeProvider,
+        ILogger logger)
     {
+        var ambient = accessor.RequestContext;
         if (explicitContext is not null)
         {
-            return explicitContext;
+            return CheckExplicitContext(explicitContext, ambient, logger);
         }
 
-        var ambient = accessor.RequestContext;
         if (ambient is null)
         {
-            return RequestContext.CreateAt(timeProvider.GetUtcNow());
+            return Right<EncinaError, IRequestContext>(
+                RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), RequestContext.NewCorrelationId()));
         }
 
-        return DispatchInFlight.Value
+        return Right<EncinaError, IRequestContext>(DispatchInFlight.Value
             ? RequestContext.ForNestedDispatch(ambient, timeProvider.GetUtcNow())
-            : ambient;
+            : ambient);
     }
+
+    private static Either<EncinaError, IRequestContext> CheckExplicitContext(
+        IRequestContext explicitContext,
+        IRequestContext? ambient,
+        ILogger logger)
+    {
+        var requested = explicitContext.Identity ?? RequestIdentity.Anonymous;
+        var current = ambient?.Identity ?? RequestIdentity.Anonymous;
+        if (!requested.IsAuthenticated || IsSameIdentity(requested, current))
+        {
+            return Right<EncinaError, IRequestContext>(explicitContext);
+        }
+
+        var refused = current.Kind == IdentityKind.User;
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, refused ? "refused" : "accepted");
+
+        return refused
+            ? Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind))
+            : Right<EncinaError, IRequestContext>(explicitContext);
+    }
+
+    private static bool IsSameIdentity(RequestIdentity left, RequestIdentity right) =>
+        left.Kind == right.Kind && string.Equals(left.UserId, right.UserId, StringComparison.Ordinal);
 
     /// <summary>
     /// Makes <paramref name="context"/> the ambient context and marks a dispatch as in flight until

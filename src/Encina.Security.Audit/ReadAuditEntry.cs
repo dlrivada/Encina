@@ -84,7 +84,7 @@ public sealed record ReadAuditEntry
     /// </summary>
     /// <remarks>
     /// <c>null</c> for system-initiated or background access.
-    /// Propagated from <see cref="IRequestContext.UserId"/>.
+    /// Propagated from <see cref="RequestIdentity.UserId"/>.
     /// Critical for answering "who accessed this data?" queries required by GDPR Art. 15.
     /// </remarks>
     public string? UserId { get; init; }
