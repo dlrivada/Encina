@@ -125,13 +125,13 @@ public sealed class TenantResolutionMiddleware
 
     private static IRequestContext CreateRequestContext(HttpContext context)
     {
-        var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
-        if (string.IsNullOrWhiteSpace(correlationId))
-        {
-            correlationId = Guid.NewGuid().ToString("N");
-        }
-
         var timeProvider = context.RequestServices?.GetService<TimeProvider>() ?? TimeProvider.System;
-        return RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), correlationId);
+        return RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), ResolveCorrelationId(context));
+    }
+
+    private static string ResolveCorrelationId(HttpContext context)
+    {
+        var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
+        return string.IsNullOrWhiteSpace(correlationId) ? Guid.NewGuid().ToString("N") : correlationId;
     }
 }

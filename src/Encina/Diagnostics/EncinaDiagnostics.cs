@@ -9,20 +9,30 @@ internal static class EncinaDiagnostics
 {
     internal static readonly ActivitySource ActivitySource = new("Encina", "1.0");
 
-    internal static Activity? SendStarted(Type requestType, Type responseType, string requestKind, IdentityKind identityKind)
+    internal static Activity? SendStarted(Type requestType, Type responseType, string requestKind)
+    {
+        var activity = StartActivity("Encina.Send", requestType);
+        activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName)
+            .SetTag(ActivityTagNames.RequestKind, requestKind);
+        return activity;
+    }
+
+    /// <summary>
+    /// Starts a dispatch activity tagged with the request type and the identity kind of the
+    /// dispatch in flight (<c>encina.identity.kind</c>; never the user id), or returns
+    /// <see langword="null"/> when nobody listens.
+    /// </summary>
+    private static Activity? StartActivity(string name, Type requestType)
     {
         if (!ActivitySource.HasListeners())
         {
             return null;
         }
 
-        var activity = ActivitySource.StartActivity("Encina.Send", ActivityKind.Internal);
-        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
-        activity?.SetTag(ActivityTagNames.ResponseType, responseType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestKind, requestKind);
-        activity?.SetTag(ActivityTagNames.IdentityKind, ToTagValue(identityKind));
-        return activity;
+        return ActivitySource.StartActivity(name, ActivityKind.Internal)
+            ?.SetTag(ActivityTagNames.RequestType, requestType.FullName)
+            .SetTag(ActivityTagNames.RequestName, requestType.Name)
+            .SetTag(ActivityTagNames.IdentityKind, ToTagValue(AmbientRequestContext.DispatchIdentityKind));
     }
 
     /// <summary>
@@ -54,19 +64,11 @@ internal static class EncinaDiagnostics
         activity.Dispose();
     }
 
-    internal static Activity? StartStreamActivity(Type requestType, Type itemType, IdentityKind identityKind)
+    internal static Activity? StartStreamActivity(Type requestType, Type itemType)
     {
-        if (!ActivitySource.HasListeners())
-        {
-            return null;
-        }
-
-        var activity = ActivitySource.StartActivity("Encina.Stream", ActivityKind.Internal);
-        activity?.SetTag(ActivityTagNames.RequestType, requestType.FullName);
-        activity?.SetTag(ActivityTagNames.RequestName, requestType.Name);
-        activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName);
-        activity?.SetTag(ActivityTagNames.ItemName, itemType.Name);
-        activity?.SetTag(ActivityTagNames.IdentityKind, ToTagValue(identityKind));
+        var activity = StartActivity("Encina.Stream", requestType);
+        activity?.SetTag(ActivityTagNames.ItemType, itemType.FullName)
+            .SetTag(ActivityTagNames.ItemName, itemType.Name);
         return activity;
     }
 

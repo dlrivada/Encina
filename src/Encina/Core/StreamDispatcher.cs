@@ -25,7 +25,7 @@ internal static class StreamDispatcher
         var requestType = request.GetType();
         var itemType = typeof(TItem);
 
-        using var activity = EncinaDiagnostics.StartStreamActivity(requestType, itemType, context.Identity?.Kind ?? IdentityKind.Anonymous);
+        using var activity = EncinaDiagnostics.StartStreamActivity(requestType, itemType);
 
         var handlerWrapper = StreamHandlerCache.GetOrAdd(
             (requestType, itemType),

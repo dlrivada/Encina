@@ -55,7 +55,7 @@ public sealed partial class Encina
             var requestType = request.GetType();
             var requestKind = GetRequestKind(requestType); // Determine if Command, Query, or generic Request
             var stopwatch = Stopwatch.StartNew();
-            using var activity = EncinaDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind, context.Identity?.Kind ?? IdentityKind.Anonymous);
+            using var activity = EncinaDiagnostics.SendStarted(requestType, typeof(TResponse), requestKind);
 
             // --- HANDLER RESOLUTION PHASE ---
             // Get or create a cached dispatcher wrapper that knows how to invoke the handler

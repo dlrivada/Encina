@@ -31,6 +31,16 @@ internal static class AmbientRequestContext
     /// </summary>
     internal static bool IsDispatchInFlight => DispatchInFlight.Value;
 
+    // The identity kind of the dispatch running in this logical call, read by the dispatch activity
+    // (encina.identity.kind). Kept here so the activity tag does not depend on the accessor implementation.
+    private static readonly AsyncLocal<IdentityKind> DispatchIdentity = new();
+
+    /// <summary>
+    /// Gets the identity kind of the dispatch in flight in the current logical call
+    /// (<see cref="IdentityKind.Anonymous"/> when none).
+    /// </summary>
+    internal static IdentityKind DispatchIdentityKind => DispatchIdentity.Value;
+
     /// <summary>
     /// Resolves the context a dispatch runs with.
     /// </summary>
@@ -84,20 +94,37 @@ internal static class AmbientRequestContext
         IRequestContext? ambient,
         ILogger logger)
     {
-        var requested = explicitContext.Identity ?? RequestIdentity.Anonymous;
-        var current = ambient?.Identity ?? RequestIdentity.Anonymous;
+        var requested = IdentityOf(explicitContext);
+        var current = IdentityOf(ambient);
         if (!requested.IsAuthenticated || IsSameIdentity(requested, current))
         {
             return Right<EncinaError, IRequestContext>(explicitContext);
         }
 
-        var refused = current.Kind == IdentityKind.User;
-        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, refused ? "refused" : "accepted");
-
-        return refused
-            ? Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind))
-            : Right<EncinaError, IRequestContext>(explicitContext);
+        return current.Kind == IdentityKind.User
+            ? Refuse(requested, current, logger)
+            : Accept(explicitContext, requested, current, logger);
     }
+
+    private static Either<EncinaError, IRequestContext> Refuse(RequestIdentity requested, RequestIdentity current, ILogger logger)
+    {
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused");
+        return Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind));
+    }
+
+    private static Either<EncinaError, IRequestContext> Accept(
+        IRequestContext explicitContext,
+        RequestIdentity requested,
+        RequestIdentity current,
+        ILogger logger)
+    {
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "accepted");
+        return Right<EncinaError, IRequestContext>(explicitContext);
+    }
+
+    // A missing context, or a non-conforming one whose Identity is null, reads as anonymous.
+    private static RequestIdentity IdentityOf(IRequestContext? context) =>
+        context?.Identity ?? RequestIdentity.Anonymous;
 
     private static bool IsSameIdentity(RequestIdentity left, RequestIdentity right) =>
         left.Kind == right.Kind && string.Equals(left.UserId, right.UserId, StringComparison.Ordinal);
@@ -124,7 +151,10 @@ internal static class AmbientRequestContext
             DispatchInFlight.Value = true;
         }
 
-        return new Scope(setContext ? accessor : null, previous, enterDispatch);
+        var previousKind = DispatchIdentity.Value;
+        DispatchIdentity.Value = IdentityOf(context).Kind;
+
+        return new Scope(setContext ? accessor : null, previous, enterDispatch, previousKind);
     }
 
     /// <summary>
@@ -178,19 +208,21 @@ internal static class AmbientRequestContext
     }
 
     /// <summary>
-    /// Restores the previous ambient context and dispatch flag on disposal.
+    /// Restores the previous ambient context, dispatch flag and dispatch identity kind on disposal.
     /// </summary>
     internal readonly struct Scope : IDisposable
     {
         private readonly IRequestContextAccessor? _accessor;
         private readonly IRequestContext? _previous;
         private readonly bool _leaveDispatch;
+        private readonly IdentityKind _previousKind;
 
-        internal Scope(IRequestContextAccessor? accessor, IRequestContext? previous, bool leaveDispatch)
+        internal Scope(IRequestContextAccessor? accessor, IRequestContext? previous, bool leaveDispatch, IdentityKind previousKind)
         {
             _accessor = accessor;
             _previous = previous;
             _leaveDispatch = leaveDispatch;
+            _previousKind = previousKind;
         }
 
         /// <inheritdoc />
@@ -206,6 +238,8 @@ internal static class AmbientRequestContext
             {
                 DispatchInFlight.Value = false;
             }
+
+            DispatchIdentity.Value = _previousKind;
         }
     }
 }
