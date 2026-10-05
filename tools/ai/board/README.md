@@ -72,7 +72,8 @@ It needs PowerShell 7.5+ (`ConvertFrom-Json -DateKind`).
 | --- | --- | --- | --- |
 | `-CurrentDir` | yes | — | The folder an `ArtifactData list ... out_dir` call produced: `work/*.json`, `flow/*.json`, `audits/*.json`, `meta/board.json`. Each file holds a document's data only; the file name is the `doc_id`. |
 | `-Versions` | yes | — | The versions sidecar (see below). |
-| `-Out` | yes | — | The batch file to write. |
+| `-Out` | yes, unless `-DryRun` | — | The batch file to write. |
+| `-DryRun` | no | off | List the drift without writing or deleting anything (see below). |
 | `-Repo` | no | `dlrivada/Encina` | The GitHub repository queried through `gh`. |
 | `-MainRoot` | no | derived from `git rev-parse --git-common-dir` | The main checkout, where the audit progress files are read. |
 | `-NowUtc` | no | the current UTC time | The reference time (tests pass a fixed value). |
@@ -87,6 +88,33 @@ whose data differ. At most 50 writes go in one file: when there are more, `-Out`
 file paths, one per line. ArtifactData batch ops are `set` (replace/create), `update` (merges fields
 into an existing document) and `delete` (never used); because `update` merges, the reconciler sends
 only the changed top-level fields for existing documents and the full document (`set`) for new ones.
+
+### Dry run
+
+With `-DryRun`, `-Out` is not required. The script computes exactly the same changes as a normal run
+and prints one line per drifting document, `DRIFT <collection>/<id>: <comma-separated changed fields>`
+(`new` for a document that does not exist yet), then `DRY-RUN: <n> documents drift, nothing written`.
+It writes no file and deletes no file: old batch files are kept. Without `-DryRun` and without `-Out`
+the script fails with `-Out is required (or pass -DryRun ...)`.
+
+```powershell
+pwsh -NoProfile -File tools/ai/board/reconcile-board.ps1 -CurrentDir <tmp> -Versions <tmp>/versions.json -DryRun
+```
+
+```text
+DRIFT work/1732: new
+DRIFT meta/board: status, updatedUtc
+DRY-RUN: 2 documents drift, nothing written
+```
+
+### Deviation from #1732
+
+The issue says audits come from "archived stage files". The reconciler derives them instead from
+`artifacts/knowledge/progress.csv` and `current-audit.json` (`Get-BoardFacts` in `reconcile-board.ps1`).
+`progress.csv` is the audit queue's status record, written by the audit scripts (`audit-done.ps1`
+appends a `done` row when an audit completes), and `current-audit.json` marks the open audit. The
+stage files are archived per audit and do not carry a single status, so they cannot say whether an
+audit is open or closed.
 
 ### The versions sidecar
 
