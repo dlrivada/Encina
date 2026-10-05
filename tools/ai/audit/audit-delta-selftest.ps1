@@ -59,6 +59,14 @@ try {
     $valid = Update-PublishedLinks "[t](../a/target%20one.md)`n" 'artifacts/knowledge/stages/x.md' 'docs/knowledge/audits/x.md' $linkRoot
     Assert-That 'unit: a link already valid from the destination is kept' ($valid.Errors.Count -eq 0 -and $valid.Text -ceq "[t](../a/target%20one.md)`n") ($valid.Errors -join ';')
 
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\foo(1).md') "x`n"
+    $adv = Update-PublishedLinks "[![badge](https://img/x.svg)](../a/target%20one.md) [a [b] c](../a/foo(1).md) [![i](../img/pic.png)](../a/nope.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: linked image, nested brackets and parentheses are rewritten, the broken outer link is reported' ($adv.Text.Contains('(https://img/x.svg)](../../../a/target%20one.md)') -and $adv.Text.Contains('[a [b] c](../../../a/foo(1).md)') -and $adv.Text.Contains('[![i](../../../img/pic.png)](../a/nope.md)') -and $adv.Errors.Count -eq 1 -and $adv.Errors[0].EndsWith(':1 ../a/nope.md')) ($adv.Errors -join ';') + $adv.Text
+    $case = Update-PublishedLinks "[c](../A/target%20one.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: a link that differs only in case is reported (the link checker is case-sensitive)' ($case.Errors.Count -eq 1) $case.Text
+    $fenceInfo = Update-PublishedLinks "``````text`n[x](../a/nope.md)`n``````js`n[y](../a/nope2.md)`n``````n`[z](../a/nope3.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: a fence line with an info string does not close the fence' ($fenceInfo.Errors.Count -eq 0) ($fenceInfo.Errors -join ';')
+
     $main = Join-Path $base 'main'
     $origin = Join-Path $base 'origin.git'
     $stubs = Join-Path $base 'stubs'

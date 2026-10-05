@@ -520,8 +520,19 @@ function Resolve-LinkTarget([string]$Root, [string]$BaseDir, [string]$Decoded) {
     $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
     $full = [IO.Path]::GetFullPath((Join-Path $rootFull (($BaseDir + '/' + $Decoded) -replace '/', '\')))
     if (-not $full.StartsWith($rootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { return $null }
-    if (Test-Path -LiteralPath $full) { return $full }
+    if ((Test-Path -LiteralPath $full) -and (Test-ExactCasePath $rootFull $full)) { return $full }
     return $null
+}
+
+# Test-Path ignores case on Windows but the link checker (Linux) does not: every segment must match the name on disk.
+function Test-ExactCasePath([string]$RootFull, [string]$Full) {
+    $current = $RootFull
+    foreach ($segment in $Full.Substring($RootFull.Length).Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $names = [IO.Directory]::EnumerateFileSystemEntries($current) | ForEach-Object { [IO.Path]::GetFileName($_) }
+        if ($names -cnotcontains $segment) { return $false }
+        $current = Join-Path $current $segment
+    }
+    return $true
 }
 
 # The new target for one link, the same $Target when it needs no change, or $null when it does not resolve.
@@ -551,22 +562,31 @@ function Get-FenceState([string]$Line, [string]$Opener) {
     if ($Line -notmatch '^\s{0,3}(?<f>`{3,}|~{3,})') { return $Opener }
     if ($Opener -eq '') { return $Matches['f'] }
     $f = $Matches['f']
-    if ($f[0] -eq $Opener[0] -and $f.Length -ge $Opener.Length) { return '' }
+    # A closing fence carries no info string.
+    if ($f[0] -eq $Opener[0] -and $f.Length -ge $Opener.Length -and $Line -match '^\s{0,3}(`{3,}|~{3,})\s*$') { return '' }
     return $Opener
 }
 
 # Rewrites the links of one non-fence line; $Errors collects 'file:line target' for the ones that do not resolve.
 function Update-LinkLine([string]$Line, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
     $spans = @([regex]::Matches($Line, '(`+)(.+?)\1') | ForEach-Object { , @($_.Index, ($_.Index + $_.Length)) })
-    $line = Update-LinkMatches $Line '(?<pre>!?\[[^\]]*\]\(\s*)(?<t><[^>]*>|[^)\s]*)' $spans $Number $SourceDir $DestDir $Root $Label $Errors
-    return Update-LinkMatches $line '^(?<pre>\s{0,3}\[[^\]]+\]:\s*)(?<t><[^>]*>|\S+)' $spans $Number $SourceDir $DestDir $Root $Label $Errors
+    # The target allows one level of balanced parentheses; the link text allows one level of nested brackets, so a
+    # linked image [![a](img)](page) yields two matches (outer link and inner image), both checked.
+    $target = '(?<t><[^>]*>|(?:[^()\s]|\([^()\s]*\))*)'
+    $patterns = @(
+        ('(?<pre>!?\[[^\]]*\]\(\s*)' + $target),
+        ('(?<pre>!?\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*)' + $target),
+        ('^(?<pre>\s{0,3}\[[^\]]+\]:\s*)(?<t><[^>]*>|\S+)'))
+    return Update-LinkMatches $Line $patterns $spans $Number $SourceDir $DestDir $Root $Label $Errors
 }
 
-# Replaces the target of each $Pattern match (groups 'pre' and 't') outside the inline code $Spans.
-function Update-LinkMatches([string]$Line, [string]$Pattern, $Spans, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
+# Replaces the target (group 't') of each distinct link matched by $Patterns outside the inline code $Spans.
+function Update-LinkMatches([string]$Line, [string[]]$Patterns, $Spans, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
     $sb = [System.Text.StringBuilder]::new()
     $pos = 0
-    foreach ($m in [regex]::Matches($Line, $Pattern)) {
+    $seen = [System.Collections.Generic.HashSet[int]]::new()
+    $matchesFound = @($Patterns | ForEach-Object { [regex]::Matches($Line, $_) } | Where-Object { $seen.Add($_.Groups['t'].Index) } | Sort-Object { $_.Groups['t'].Index })
+    foreach ($m in $matchesFound) {
         $inCode = @($Spans | Where-Object { $m.Index -ge $_[0] -and $m.Index -lt $_[1] }).Count -gt 0
         $target = $m.Groups['t'].Value
         $new = if ($inCode) { $target } else { Convert-LinkTarget $target $SourceDir $DestDir $Root }
