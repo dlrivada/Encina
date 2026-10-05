@@ -168,16 +168,66 @@ Limiting threads does not lower the peak meaningfully and slows the run.
 
 Stryker.NET 5.0.0 has no option to recycle the test server: the pool resets only after the initial test run and after coverage capture, and servers are replaced only on timeout, crash or exit. Research is in the [#1441 comment thread](https://github.com/dlrivada/Encina/issues/1441); the upstream issue is [stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742).
 
-### 6.6 Phase 2f plan (decision for the orchestrator, not implemented)
+### 6.6 Phase 2f plan
 
-| Step | Action | Why |
-| --- | --- | --- |
-| 1 | Set `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` in the mutation job environment; they reach the test host | Removes cause (a) |
-| 2 | Fix the EEL tests to share one compiler (follow-up debt issue) | Removes the cost at its source |
-| 3 | Keep option A of the #1441 research as a safety net: an MTP `ITestSessionLifetimeHandler` in `Encina.UnitTests`, active only when `STRYKER_MUTANT_FILE` is set, that exits at session start above a private-memory threshold so Stryker reruns the mutant on a fresh server | Bounds cause (b) |
-| 4 | Comment on stryker-net#3742 with these figures | Gives upstream the evidence |
+| Step | Action | Why | Status |
+| --- | --- | --- | --- |
+| 1 | Set `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` in the mutation job environment; they reach the test host | Removes cause (a) | Done (commit 38f741ff: the mutation workflow sets both to 131072) |
+| 2 | Fix the EEL tests to share one compiler | Removes the cost at its source | In progress as [#1858](https://github.com/dlrivada/Encina/issues/1858) |
+| 3 | Keep option A of the #1441 research as a safety net: an MTP `ITestSessionLifetimeHandler` in `Encina.UnitTests`, active only when `STRYKER_MUTANT_FILE` is set, that exits at session start above a private-memory threshold so Stryker reruns the mutant on a fresh server | Bounds cause (b) | Implemented in phase 2f (see 6.7) |
+| 4 | Comment on stryker-net#3742 with these figures | Gives upstream the evidence | Open |
 
 A fresh server's first run is 2-3x slower than a warm one (70-122 s against 31-44 s locally), so recycling should be rare, not per mutant.
+
+### 6.7 Phase 2f: test server recycler
+
+The recycler is the safety net of step 3. It ends the test server when its private memory is too high, so that Stryker reruns the mutant on a fresh server.
+
+#### Implementation
+
+| Item | Detail |
+| --- | --- |
+| Files | `tests/Encina.UnitTests/TestHost/StrykerServerRecycleBuilderHook.cs` and `tests/Encina.UnitTests/TestHost/StrykerServerRecycler.cs` |
+| Registration | A `TestingPlatformBuilderHook` item in `tests/Encina.UnitTests/Encina.UnitTests.csproj`, so the generated `SelfRegisteredExtensions` calls it. The xunit.v3 generated entry point uses Microsoft.Testing.Platform (1.9.1) only for `--server`, which is how Stryker starts the test server; other runs use xUnit's console runner and never reach the hook. |
+| Activation | Registers an `ITestSessionLifetimeHandler` only when `STRYKER_MUTANT_FILE` is set (Stryker sets it on every test server it starts) |
+| Trigger | At the start of each test session after the first one in the process, if `Process.PrivateMemorySize64` is above `ENCINA_MTP_RECYCLE_MB` (default 6144 MB) |
+| Action | Writes one line starting with `[encina-mtp-recycle]` and kills its own process with `Process.Kill`, not `Environment.Exit`, so no `ProcessExit` handler can delay the exit |
+| First session | Never recycles, so the fresh server of the retry cannot be ended by the hook |
+| Metric | `PrivateMemorySize64` is private bytes on Windows and `VmData` on Linux (dotnet/runtime `ProcessManager.Linux.cs`: `PrivateBytes = (long)procFsStatus.VmData`), the same metric as the 6.2 measurements |
+| Log | Stryker 5.0.0 sends the test server's stdout and stderr to `Stream.Null` unless `--log-to-file` is set, so the line is also appended to the file named by `ENCINA_MTP_RECYCLE_LOG` when that variable is set. Stryker itself logs the recycle only at debug level, as "Test run for Encina.UnitTests.dll failed on attempt 1/2; discarding crashed server". |
+
+#### Why the mutant's verdict is unaffected
+
+All links pin Stryker.NET 5.0.0 at commit `6e77a3451bac4793e9c839c3ff4055c1b30ca3af`.
+
+- [`RunAssemblyTestsInternalAsync`](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L1184-L1244) runs up to two attempts. Any exception from the run discards the server and retries on a fresh one; only when both attempts fail does the mutant become RuntimeError.
+- [A host that exits during the run](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/AssemblyTestServer.cs#L134-L197) surfaces as an exception (the JSON-RPC connection is lost, or `ThrowIfHostCrashed` throws), never as a timeout or a result.
+- [The retry starts a new server without rediscovering tests](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L773-L814), so its run is that process's first session.
+- [The active mutant id stays in the memory-mapped file](https://github.com/stryker-mutator/stryker-net/blob/6e77a3451bac4793e9c839c3ff4055c1b30ca3af/src/Stryker.TestRunner.MicrosoftTestPlatform/MicrosoftTestingPlatformRunner.cs#L131-L157), so the fresh server activates the same mutant.
+- The hook ends the process at session start, before any test runs, so the first attempt reports no test result.
+
+#### Measured
+
+Measured on 2026-10-05 on Windows, Debug build, Stryker 5.0.0 at concurrency 1 with coverage analysis off, scope `**/Sharding/ReplicaSelection/RoundRobinShardReplicaSelector.cs{874..1005}`. The scope holds two mutants: 4377 (statement removal) and 4378 (string mutation).
+
+| Run | `ENCINA_MTP_RECYCLE_MB` | Recycles | 4377 | 4378 | Wall time |
+| --- | --- | --- | --- | --- | --- |
+| Hook never recycles | 1000000 | 0 | Killed | Survived | 676 s |
+| Hook on | 3000 | 0 (private memory was below 3000 MB at session 2) | Killed | Survived | 568 s |
+| Hook on | 1000 | 1 | Killed | Survived | 552 s |
+| Hook on | 3000 | 1 | Killed | Killed by an unrelated test (see below) | 696 s |
+
+- No mutant was RuntimeError or Timeout in any run; 4377 was killed by the same test in every run.
+- The odd kill in the last row came from `EncinaFakerTests.RecentUtc_ShouldReturnUtcDate`, which fails at random outside UTC because `RecentUtc` labels a local time as UTC (`src/Encina.Testing.Bogus/EncinaFaker.cs` line 224, `DateTime.SpecifyKind(date.Recent(days), DateTimeKind.Utc)`). It is a test-helper bug unrelated to the hook (follow-up issue to be opened). CI runs in UTC, where it does not fail.
+- Mutant 4378 took 43 s on the warm server and 62 s when retried on a fresh one; the test-run timeout was about 116-129 s.
+- A server-mode check of the whole unit suite (JSON-RPC harness, `STRYKER_MUTANT_FILE` set, threshold 3000 MB): run 1 completed with 22,382 tests passed and 1 skipped at 5,016 MB private memory; run 2's request ended 0.8 s later with the server gone, zero test updates and the `[encina-mtp-recycle]` line. Without `STRYKER_MUTANT_FILE` (threshold 100 MB), three runs completed with no line.
+
+#### Limits
+
+- Not yet exercised on Linux: SIGKILL on itself and the `VmData` reading are untested there until a custom-shard CI run.
+- The retry is a cold run with the timeout computed from the initial run. The initial run is itself cold and mutant 1 after the pool reset always runs cold, so the margin is the same as for every first mutant, but a slower runner narrows it.
+- Without the two `MALLOC_*` thresholds, private memory after one run is about 7.3 GB on Linux (6.2), above the 6,144 MB default, so every mutant after the first on a server would recycle: correct but slower.
+- Remove the hook once Stryker can recycle the server ([stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742)) or #1858 removes the growth and a custom-shard run confirms it.
 
 ## See also
 
