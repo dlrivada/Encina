@@ -614,6 +614,13 @@ jobs:
       - name: Check for src files missing from the coverage manifest
         run: dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest
 
+      # #1762: per-file targets and justifications are consistent (every target justified, no orphan),
+      # and the script's own per-file logic passes its self-test. Diff-aware enforcement is #1651.
+      - name: Check coverage-report self-test and per-file justifications
+        run: |
+          dotnet run .github/scripts/coverage-report.cs -- --self-test
+          dotnet run .github/scripts/coverage-report.cs -- --check-justifications
+
   # Every fragment under changelog.d/ must have a valid name, section and entry content
   # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
   # unreleased-unchanged check below the base commit to diff against.
