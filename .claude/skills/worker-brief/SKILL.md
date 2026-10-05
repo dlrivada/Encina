@@ -48,8 +48,10 @@ Rules:
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
   touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
-  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage (every
-  flag that exercises them: unit, guard, contract, property, integration), create the folder and write the diff to a file with
+  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage\<Flag>Tests
+  (every flag that exercises them, one folder per flag: UnitTests, GuardTests, ContractTests, PropertyTests,
+  IntegrationTests; coverage-report.cs classifies its inputs by these names, so one set of runs feeds both
+  this gate and the per-file table below), create the folder and write the diff to a file with
   New-Item -ItemType Directory -Force <wt>\artifacts\crap-gate | Out-Null (a fresh worktree has no
   git-ignored folders and the redirect does not create them), then
   git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, list the inputs with
@@ -59,11 +61,15 @@ Rules:
   (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
   script output in the report (it prints only the violations: an empty table means no touched method is over
   the threshold), and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
-- Obligations (AGENTS.md §9, #1762): every new or touched src/ file gets per-flag "targets" and one-sentence
-  "justifications" in its package manifest's per-file entry (demanding and realistic; a 0 only with a reason);
-  mechanical-fixer writes them (you decide the numbers). Measure the per-flag coverage of those files, report
-  it against the targets, and run
+- Obligations (AGENTS.md §9, #1762): every new file, and every file a PR touches, under src/ gets per-flag
+  "targets" and one-sentence "justifications" in its package manifest's per-file entry (demanding and
+  realistic; a 0 only with a reason); mechanical-fixer writes them (you decide the numbers). Measure the
+  per-flag coverage of those files with the per-flag runs of the CRAP step above, then run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --input <wt>\artifacts\coverage --output <wt>\artifacts\coverage-report
+  and paste the "Per-file targets" table of <wt>\artifacts\coverage-report\encina-coverage-report.md (measured
+  against target), and run
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --check-justifications
+  (exit 0). A flag with no data for a file reads "no data" and counts as below any target above 0.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.
