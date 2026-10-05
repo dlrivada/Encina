@@ -1,6 +1,6 @@
 #nullable enable
 Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler
-Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! propertyName, System.Type! eventType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! fieldPath, System.Type! documentType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
 Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.SubjectEncryptionKey!>>
@@ -12,15 +12,6 @@ Encina.Marten.GDPR.CryptoShreddedAttribute
 Encina.Marten.GDPR.CryptoShreddedAttribute.CryptoShreddedAttribute() -> void
 Encina.Marten.GDPR.CryptoShreddedAttribute.SubjectIdProperty.get -> string!
 Encina.Marten.GDPR.CryptoShreddedAttribute.SubjectIdProperty.set -> void
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.Category.get -> Encina.Compliance.DataSubjectRights.PersonalDataCategory
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.Category.init -> void
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.DeclaringType.get -> System.Type!
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.DeclaringType.init -> void
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.PropertyName.get -> string!
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.PropertyName.init -> void
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.SubjectIdProperty.get -> string!
-Encina.Marten.GDPR.CryptoShreddedFieldMetadata.SubjectIdProperty.init -> void
 Encina.Marten.GDPR.CryptoShreddingErrors
 const Encina.Marten.GDPR.CryptoShreddingErrors.AttributeMisconfiguredCode = "crypto.attribute_misconfigured" -> string!
 const Encina.Marten.GDPR.CryptoShreddingErrors.DecryptionFailedCode = "crypto.decryption_failed" -> string!
@@ -41,14 +32,15 @@ static Encina.Marten.GDPR.CryptoShreddingErrors.KeyStoreError(string! operation,
 static Encina.Marten.GDPR.CryptoShreddingErrors.SerializationError(System.Type! eventType, System.Exception? exception = null) -> Encina.EncinaError
 static Encina.Marten.GDPR.CryptoShreddingErrors.SubjectForgotten(string! subjectId) -> Encina.EncinaError
 Encina.Marten.GDPR.CryptoShreddingEncryptionException
-Encina.Marten.GDPR.CryptoShreddingEncryptionException.CryptoShreddingEncryptionException(System.Type! eventType, string! propertyName, Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason reason, string? errorCode = null) -> void
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.CryptoShreddingEncryptionException(System.Type? documentType, System.Type! declaringType, string! propertyName, Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason reason, string? errorCode = null) -> void
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.DeclaringTypeName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingEncryptionException.DocumentTypeName.get -> string!
 Encina.Marten.GDPR.CryptoShreddingEncryptionException.ErrorCode.get -> string?
-Encina.Marten.GDPR.CryptoShreddingEncryptionException.EventTypeName.get -> string!
 Encina.Marten.GDPR.CryptoShreddingEncryptionException.PropertyName.get -> string!
 Encina.Marten.GDPR.CryptoShreddingEncryptionException.Reason.get -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
 Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
-Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.KeyUnavailable = 1 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
-Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.PropertyMisconfigured = 2 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.KeyUnavailable = 2 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.SubjectIdInvalid = 1 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
 Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason.SubjectIdMissing = 0 -> Encina.Marten.GDPR.CryptoShreddingEncryptionFailureReason
 Encina.Marten.GDPR.CryptoShreddingResult
 Encina.Marten.GDPR.CryptoShreddingResult.FieldsAffected.get -> int
@@ -72,16 +64,6 @@ Encina.Marten.GDPR.KeyRotationResult.RotatedAtUtc.get -> System.DateTimeOffset
 Encina.Marten.GDPR.KeyRotationResult.RotatedAtUtc.init -> void
 Encina.Marten.GDPR.KeyRotationResult.SubjectId.get -> string!
 Encina.Marten.GDPR.KeyRotationResult.SubjectId.init -> void
-Encina.Marten.GDPR.PiiEncryptionFailedEvent
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.ErrorMessage.get -> string!
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.ErrorMessage.init -> void
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.OccurredAtUtc.get -> System.DateTimeOffset
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.OccurredAtUtc.init -> void
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.PiiEncryptionFailedEvent(string! SubjectId, string! PropertyName, string! ErrorMessage, System.DateTimeOffset OccurredAtUtc) -> void
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.PropertyName.get -> string!
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.PropertyName.init -> void
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.SubjectId.get -> string!
-Encina.Marten.GDPR.PiiEncryptionFailedEvent.SubjectId.init -> void
 Encina.Marten.GDPR.SubjectEncryptionInfo
 Encina.Marten.GDPR.SubjectEncryptionInfo.ActiveKeyVersion.get -> int
 Encina.Marten.GDPR.SubjectEncryptionInfo.ActiveKeyVersion.init -> void
@@ -143,8 +125,8 @@ Encina.Marten.GDPR.SubjectStatus.Active = 0 -> Encina.Marten.GDPR.SubjectStatus
 Encina.Marten.GDPR.SubjectStatus.Forgotten = 1 -> Encina.Marten.GDPR.SubjectStatus
 Encina.Marten.GDPR.SubjectStatus.PendingDeletion = 2 -> Encina.Marten.GDPR.SubjectStatus
 Encina.Marten.GDPR.CryptoShredderSerializer
+Encina.Marten.GDPR.CryptoShredderSerializer.CryptoShredderSerializer(Marten.Services.SystemTextJsonSerializer! inner, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
 Encina.Marten.GDPR.CryptoShredderSerializer.Casing.get -> Weasel.Core.Casing
-Encina.Marten.GDPR.CryptoShredderSerializer.CryptoShredderSerializer(Marten.ISerializer! inner, Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler! forgottenSubjectHandler, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
 Encina.Marten.GDPR.CryptoShredderSerializer.EnumStorage.get -> Weasel.Core.EnumStorage
 Encina.Marten.GDPR.CryptoShredderSerializer.FromJson(System.Type! type, System.Data.Common.DbDataReader! reader, int index) -> object!
 Encina.Marten.GDPR.CryptoShredderSerializer.FromJson(System.Type! type, System.IO.Stream! stream) -> object!
@@ -165,13 +147,13 @@ Encina.Marten.GDPR.CryptoShredderSerializer.WriteToParameter(Npgsql.NpgsqlParame
 Encina.Marten.GDPR.CryptoShredderSerializer.WriteToParameter(System.Data.Common.DbParameter! parameter, object? value) -> void
 Encina.Marten.GDPR.CryptoShredderSerializerFactory
 const Encina.Marten.GDPR.CryptoShredderSerializerFactory.DefaultAnonymizedPlaceholder = "[REDACTED]" -> string!
-static Encina.Marten.GDPR.CryptoShredderSerializerFactory.Apply(Marten.StoreOptions! options, Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Encina.Marten.GDPR.Abstractions.IForgottenSubjectHandler! forgottenSubjectHandler, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
+static Encina.Marten.GDPR.CryptoShredderSerializerFactory.Apply(Marten.StoreOptions! options, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredderSerializer!>! logger, string! anonymizedPlaceholder = "[REDACTED]") -> void
 Encina.Marten.GDPR.CryptoShredErasureStrategy
 Encina.Marten.GDPR.CryptoShredErasureStrategy.CryptoShredErasureStrategy(Encina.Marten.GDPR.Abstractions.ISubjectKeyProvider! subjectKeyProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.CryptoShredErasureStrategy!>! logger) -> void
 Encina.Marten.GDPR.CryptoShredErasureStrategy.EraseFieldAsync(Encina.Compliance.DataSubjectRights.PersonalDataLocation! location, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>
 Encina.Marten.GDPR.DefaultForgottenSubjectHandler
 Encina.Marten.GDPR.DefaultForgottenSubjectHandler.DefaultForgottenSubjectHandler(Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.DefaultForgottenSubjectHandler!>! logger) -> void
-Encina.Marten.GDPR.DefaultForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! propertyName, System.Type! eventType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+Encina.Marten.GDPR.DefaultForgottenSubjectHandler.HandleForgottenSubjectAsync(string! subjectId, string! fieldPath, System.Type! documentType, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 Encina.Marten.GDPR.InMemorySubjectKeyProvider
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.Clear() -> void
 Encina.Marten.GDPR.InMemorySubjectKeyProvider.DeleteSubjectKeysAsync(string! subjectId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, Encina.Marten.GDPR.CryptoShreddingResult!>>
@@ -200,14 +182,88 @@ Encina.Marten.GDPR.CryptoShreddingOptions.AddHealthCheck.set -> void
 Encina.Marten.GDPR.CryptoShreddingOptions.AnonymizedPlaceholder.get -> string!
 Encina.Marten.GDPR.CryptoShreddingOptions.AnonymizedPlaceholder.set -> void
 Encina.Marten.GDPR.CryptoShreddingOptions.AssembliesToScan.get -> System.Collections.Generic.List<System.Reflection.Assembly!>!
-Encina.Marten.GDPR.CryptoShreddingOptions.AutoRegisterFromAttributes.get -> bool
-Encina.Marten.GDPR.CryptoShreddingOptions.AutoRegisterFromAttributes.set -> void
 Encina.Marten.GDPR.CryptoShreddingOptions.KeyRotationDays.get -> int
 Encina.Marten.GDPR.CryptoShreddingOptions.KeyRotationDays.set -> void
 Encina.Marten.GDPR.CryptoShreddingOptions.PublishEvents.get -> bool
 Encina.Marten.GDPR.CryptoShreddingOptions.PublishEvents.set -> void
 Encina.Marten.GDPR.CryptoShreddingOptions.UsePostgreSqlKeyStore.get -> bool
 Encina.Marten.GDPR.CryptoShreddingOptions.UsePostgreSqlKeyStore.set -> void
+Encina.Marten.GDPR.CryptoShreddingOptions.ValidateOnStartup.get -> bool
+Encina.Marten.GDPR.CryptoShreddingOptions.ValidateOnStartup.set -> void
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.ContractModifierMissing = 3 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.ErasureStrategyBypassed = 5 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.MisconfiguredProperties = 0 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.PersonalDataLocatorBypassed = 6 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.ProjectionSkipsSerializationErrors = 4 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.SerializerNotSupported = 1 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationProblem.SerializerNotWrapped = 2 -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddingConfigurationException
+Encina.Marten.GDPR.CryptoShreddingConfigurationException.CryptoShreddingConfigurationException(Encina.Marten.GDPR.CryptoShreddingConfigurationProblem problem, System.Collections.Generic.IReadOnlyList<Encina.Marten.GDPR.CryptoShreddedPropertyIssue!>! issues, string? componentType = null) -> void
+Encina.Marten.GDPR.CryptoShreddingConfigurationException.ComponentType.get -> string?
+Encina.Marten.GDPR.CryptoShreddingConfigurationException.Issues.get -> System.Collections.Generic.IReadOnlyList<Encina.Marten.GDPR.CryptoShreddedPropertyIssue!>!
+Encina.Marten.GDPR.CryptoShreddingConfigurationException.Problem.get -> Encina.Marten.GDPR.CryptoShreddingConfigurationProblem
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.AttributeOnlyOnInterface = 128 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.BoundToConstructorParameter = 1024 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.ComputedMemberBesideCryptoShredded = 524288 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.ComputedMemberOverCryptoGraph = 1048576 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.ConverterOverCryptoGraph = 16384 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.CustomConverterOnProperty = 262144 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.DeclaredOnInterface = 64 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.DeclaredOnValueType = 32 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.DictionaryKeyCarriesCryptoShredded = 2097152 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.HiddenByDerivedProperty = 512 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.ImplementsUnattributedMember = 256 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.Indexer = 8 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.MissingPersonalData = 2 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.None = 0 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.NotDeserializable = 131072 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.NotReadable = 4 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.NotSerialized = 65536 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.NotString = 1 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.OwnerImplementsOnDeserialized = 2048 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.OwnerInHashedCollection = 4096 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.OwnerNotSerializedAsObject = 8192 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.NoSetter = 16 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SourceGeneratedContract = 32768 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SubjectIdPropertyIsCryptoShredded = 67108864 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SubjectIdPropertyNotFound = 4194304 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SubjectIdPropertyNotReadable = 8388608 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SubjectIdPropertyNotRoundTripped = 33554432 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyProblems.SubjectIdTypeUnsupported = 16777216 -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.CryptoShreddedPropertyIssue(string! DeclaringTypeName, string! PropertyName, Encina.Marten.GDPR.CryptoShreddedPropertyProblems Problems) -> void
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.DeclaringTypeName.get -> string!
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.DeclaringTypeName.init -> void
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.Problems.get -> Encina.Marten.GDPR.CryptoShreddedPropertyProblems
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.Problems.init -> void
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.PropertyName.get -> string!
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.PropertyName.init -> void
+Encina.Marten.GDPR.CryptoShreddedPropertyIssue.Describe() -> string!
+override Encina.Marten.GDPR.CryptoShreddedPropertyIssue.ToString() -> string!
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.EnvelopeMalformed = 4 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.IntegrityCheckFailed = 3 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.KeyUnavailable = 2 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.PropertyNotWritable = 5 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.SubjectIdInvalid = 1 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason.SubjectIdMissing = 0 -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+Encina.Marten.GDPR.CryptoShreddingDecryptionException
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.CryptoShreddingDecryptionException(System.Type? documentType, System.Type! declaringType, string! propertyName, Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason reason, string? errorCode = null) -> void
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.DeclaringTypeName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.DocumentTypeName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.ErrorCode.get -> string?
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.PropertyName.get -> string!
+Encina.Marten.GDPR.CryptoShreddingDecryptionException.Reason.get -> Encina.Marten.GDPR.CryptoShreddingDecryptionFailureReason
+const Encina.Marten.GDPR.CryptoShreddingErrors.EnvelopeMalformedCode = "crypto.envelope_malformed" -> string!
+static Encina.Marten.GDPR.CryptoShreddingErrors.EnvelopeMalformed(string! propertyName) -> Encina.EncinaError
+const Encina.Marten.GDPR.CryptoShreddingErrors.ErasureStrategyMissingCode = "crypto.erasure_strategy_missing" -> string!
+static Encina.Marten.GDPR.CryptoShreddingErrors.ErasureStrategyMissing(System.Type! entityType) -> Encina.EncinaError
+const Encina.Marten.GDPR.CryptoShreddingErrors.IntegrityCheckFailedCode = "crypto.integrity_check_failed" -> string!
+static Encina.Marten.GDPR.CryptoShreddingErrors.IntegrityCheckFailed(string! propertyName) -> Encina.EncinaError
+const Encina.Marten.GDPR.CryptoShreddingErrors.SerializerUnsupportedCode = "crypto.serializer_unsupported" -> string!
+static Encina.Marten.GDPR.CryptoShreddingErrors.SerializerUnsupported(System.Type! serializerType) -> Encina.EncinaError
 Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck
 Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck.CryptoShreddingHealthCheck(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Encina.Marten.GDPR.Health.CryptoShreddingHealthCheck!>! logger) -> void

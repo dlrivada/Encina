@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace Encina.DomainModeling;
 
@@ -50,6 +51,11 @@ public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     /// <summary>
     /// Gets the unique identifier for this entity.
     /// </summary>
+    /// <remarks>
+    /// <c>[JsonInclude]</c> lets System.Text.Json restore the protected <c>init</c> accessor, so a serialized entity
+    /// keeps its id.
+    /// </remarks>
+    [JsonInclude]
     public TId Id { get; protected init; }
 
     /// <summary>
@@ -61,7 +67,9 @@ public abstract class Entity<TId> : IEntity<TId>, IEquatable<Entity<TId>>
     /// consistency. The persistence layer (e.g., EF Core SaveChanges interceptor)
     /// should collect and dispatch these events after the transaction commits.
     /// </para>
+    /// <para>Not serialized: pending domain events belong to the unit of work, not to the entity's state.</para>
     /// </remarks>
+    [JsonIgnore]
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     /// <summary>
@@ -359,12 +367,15 @@ public abstract class SoftDeletableEntity<TId> : AuditedEntity<TId>, ISoftDeleta
     where TId : notnull
 {
     /// <inheritdoc />
+    [JsonInclude]
     public bool IsDeleted { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public DateTime? DeletedAtUtc { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public string? DeletedBy { get; private set; }
 
     /// <summary>

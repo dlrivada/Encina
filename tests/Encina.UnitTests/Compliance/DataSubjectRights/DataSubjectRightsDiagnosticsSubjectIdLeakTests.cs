@@ -365,7 +365,7 @@ public sealed class DataSubjectRightsDiagnosticsSubjectIdLeakTests
 
         var result = await DiagnosticsCapture.CaptureAsync(() => sut.LocateAllDataAsync(SubjectId).AsTask());
 
-        result.IsRight.ShouldBeTrue();
+        result.IsLeft.ShouldBeTrue();
         var logs = logger.Collector.GetSnapshot();
         logs.ShouldAllBe(r => !r.Message.Contains(SubjectId, StringComparison.Ordinal));
     }

@@ -1,35 +1,40 @@
-using Encina.Marten.GDPR.Abstractions;
 using Encina.Marten.GDPR.Diagnostics;
 
 using Marten;
+using Marten.Services;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Marten.GDPR;
 
 /// <summary>
-/// Factory helper that configures Marten's <see cref="StoreOptions"/> to use the
-/// <see cref="CryptoShredderSerializer"/> as a decorator around the existing serializer.
+/// Installs crypto-shredding on Marten's <see cref="StoreOptions"/>: wraps Marten's System.Text.Json serializer
+/// with a <see cref="CryptoShredderSerializer"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This factory preserves all existing serializer settings (enum storage, casing, value casting)
-/// by wrapping the current <see cref="ISerializer"/> rather than replacing it. Call
-/// <see cref="Apply"/> during Marten configuration to enable transparent crypto-shredding.
+/// Only Marten's <see cref="SystemTextJsonSerializer"/> is supported. Any other serializer (for example
+/// <c>Marten.Newtonsoft</c>) fails closed with <see cref="CryptoShreddingConfigurationException"/>; it is never
+/// passed through unencrypted.
 /// </para>
 /// <para>
-/// Typically invoked from <c>ServiceCollectionExtensions</c> via <c>ConfigureMarten</c>
-/// callback or from an <see cref="Microsoft.Extensions.Options.IConfigureOptions{StoreOptions}"/>
-/// implementation.
+/// Call it after the serializer configuration (<c>UseSystemTextJsonForSerialization</c>) and after any
+/// <c>UseTypeInfoResolver(context)</c>: Marten puts a resolver installed later ahead of the modifier, which the
+/// installation check then reports. <c>AddEncinaMartenGdpr</c> calls it through an <c>IConfigureOptions</c>.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// services.AddMarten(opts =>
+/// services.AddMarten(sp =>
 /// {
+///     var opts = new StoreOptions();
 ///     opts.Connection(connectionString);
 ///     CryptoShredderSerializerFactory.Apply(
-///         opts, subjectKeyProvider, forgottenSubjectHandler, logger);
+///         opts,
+///         sp.GetRequiredService&lt;IServiceScopeFactory&gt;(),
+///         sp.GetRequiredService&lt;ILogger&lt;CryptoShredderSerializer&gt;&gt;());
+///     return opts;
 /// });
 /// </code>
 /// </example>
@@ -41,53 +46,42 @@ public static class CryptoShredderSerializerFactory
     public const string DefaultAnonymizedPlaceholder = "[REDACTED]";
 
     /// <summary>
-    /// Wraps the current serializer in Marten's <see cref="StoreOptions"/> with a
-    /// <see cref="CryptoShredderSerializer"/> that provides transparent PII encryption.
+    /// Wraps the store serializer with a <see cref="CryptoShredderSerializer"/>. Calling it again on options that
+    /// are already wrapped does nothing.
     /// </summary>
     /// <param name="options">The Marten store options to configure.</param>
-    /// <param name="subjectKeyProvider">The provider for per-subject encryption keys.</param>
-    /// <param name="forgottenSubjectHandler">
-    /// The handler invoked when a forgotten subject's data is encountered during deserialization.
-    /// </param>
+    /// <param name="scopeFactory">Creates the per-call DI scope that resolves the key provider and the forgotten-subject handler.</param>
     /// <param name="logger">Logger for structured diagnostic logging.</param>
-    /// <param name="anonymizedPlaceholder">
-    /// The placeholder value for PII of forgotten subjects. Defaults to <c>"[REDACTED]"</c>.
-    /// </param>
-    /// <remarks>
-    /// <para>
-    /// This method retrieves the current serializer from <paramref name="options"/> via
-    /// <c>options.Serializer()</c>, wraps it with <see cref="CryptoShredderSerializer"/>,
-    /// and sets the wrapped instance back via <c>options.Serializer(wrapper)</c>.
-    /// </para>
-    /// <para>
-    /// Must be called <b>after</b> any other serializer configuration (e.g.,
-    /// <c>UseSystemTextJsonForSerialization</c> or <c>UseNewtonsoftForSerialization</c>)
-    /// to ensure the crypto-shredding wrapper decorates the final serializer.
-    /// </para>
-    /// </remarks>
+    /// <param name="anonymizedPlaceholder">The placeholder for PII of forgotten subjects. Defaults to <c>"[REDACTED]"</c>.</param>
+    /// <exception cref="CryptoShreddingConfigurationException">
+    /// The serializer is not Marten's System.Text.Json serializer, or its options are already read-only.
+    /// </exception>
     public static void Apply(
         StoreOptions options,
-        ISubjectKeyProvider subjectKeyProvider,
-        IForgottenSubjectHandler forgottenSubjectHandler,
+        IServiceScopeFactory scopeFactory,
         ILogger<CryptoShredderSerializer> logger,
         string anonymizedPlaceholder = DefaultAnonymizedPlaceholder)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(subjectKeyProvider);
-        ArgumentNullException.ThrowIfNull(forgottenSubjectHandler);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(anonymizedPlaceholder);
 
-        var innerSerializer = options.Serializer();
+        var current = options.Serializer();
+        if (current is CryptoShredderSerializer)
+        {
+            return;
+        }
 
-        var wrapper = new CryptoShredderSerializer(
-            innerSerializer,
-            subjectKeyProvider,
-            forgottenSubjectHandler,
-            logger,
-            anonymizedPlaceholder);
+        if (current is not SystemTextJsonSerializer systemTextJson)
+        {
+            var componentType = current.GetType().FullName ?? current.GetType().Name;
+            logger.CryptoShreddingInfrastructureInvalid(nameof(CryptoShreddingConfigurationProblem.SerializerNotSupported), componentType);
+            throw new CryptoShreddingConfigurationException(CryptoShreddingConfigurationProblem.SerializerNotSupported, [], componentType);
+        }
 
+        var wrapper = new CryptoShredderSerializer(systemTextJson, scopeFactory, logger, anonymizedPlaceholder);
         options.Serializer(wrapper);
-
-        logger.SerializerWrapped(innerSerializer.GetType().Name);
+        logger.SerializerWrapped(wrapper.InstalledOptionsCount);
     }
 }

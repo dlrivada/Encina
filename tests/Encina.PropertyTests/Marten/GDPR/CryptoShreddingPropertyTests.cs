@@ -33,7 +33,6 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
     public void Dispose()
     {
         _keyProvider.Clear();
-        CryptoShreddedPropertyCache.ClearCache();
     }
 
     #region Key Roundtrip Invariants
@@ -228,7 +227,7 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
 
     #endregion
 
-    #region EncryptedFieldJsonConverter Roundtrip Invariants
+    #region v2 Token and Cipher Invariants
 
     [Property(MaxTest = 100)]
     public bool Serialize_ThenParse_RestoresAllFields(NonEmptyString keyId, byte[] ciphertextRaw)
@@ -242,67 +241,31 @@ public sealed class CryptoShreddingPropertyTests : IDisposable
         var tag = new byte[16];
         RandomNumberGenerator.Fill(tag);
 
-        var original = new EncryptedValue
-        {
-            KeyId = kid,
-            Ciphertext = ImmutableArray.Create(ct),
-            Nonce = ImmutableArray.Create(nonce),
-            Tag = ImmutableArray.Create(tag),
-            Algorithm = EncryptionAlgorithm.Aes256Gcm
-        };
+        var token = CryptoShreddingToken.Format(1, nonce, ct, tag);
 
-        var json = EncryptedFieldJsonConverter.Serialize(original);
-        var parsed = EncryptedFieldJsonConverter.TryParse(json);
+        // The v2 token carries only the version and the payload: no subject id or key id (#1698).
+        _ = kid;
+        return CryptoShreddingToken.TryParse(token, out var parsed)
+            && parsed.Version == 1
+            && parsed.Ciphertext.SequenceEqual(ct)
+            && parsed.Nonce.SequenceEqual(nonce)
+            && parsed.Tag.SequenceEqual(tag);
+    }
 
-        if (parsed is null) return false;
+    [Property(MaxTest = 50)]
+    public bool Cipher_RoundTripsAnyPlaintext_AndBindsTheSubject(NonEmptyString plaintext, NonEmptyString subject)
+    {
+        using var aes = CryptoShreddingFieldCipher.CreateAes(RandomNumberGenerator.GetBytes(32))!;
+        var token = CryptoShreddingFieldCipher.Encrypt(aes, subject.Get, 1, plaintext.Get);
+        CryptoShreddingToken.TryParse(token, out var parsed).ShouldBeTrue();
 
-        return parsed.Value.KeyId == original.KeyId
-            && parsed.Value.Ciphertext.SequenceEqual(original.Ciphertext)
-            && parsed.Value.Nonce.SequenceEqual(original.Nonce)
-            && parsed.Value.Tag.SequenceEqual(original.Tag)
-            && parsed.Value.Algorithm == original.Algorithm;
+        Should.Throw<AuthenticationTagMismatchException>(() => CryptoShreddingFieldCipher.Decrypt(aes, subject.Get + "x", parsed));
+        return CryptoShreddingFieldCipher.Decrypt(aes, subject.Get, parsed) == plaintext.Get;
     }
 
     [Property(MaxTest = 100)]
-    public bool EncryptedOutput_AlwaysStartsWithMarker(NonEmptyString keyId)
-    {
-        var value = new EncryptedValue
-        {
-            KeyId = keyId.Get,
-            Ciphertext = ImmutableArray.Create<byte>(1, 2, 3),
-            Nonce = ImmutableArray.Create(new byte[12]),
-            Tag = ImmutableArray.Create(new byte[16]),
-            Algorithm = EncryptionAlgorithm.Aes256Gcm
-        };
-
-        var json = EncryptedFieldJsonConverter.Serialize(value);
-        return json.StartsWith("{\"__enc\":true", StringComparison.Ordinal);
-    }
-
-    [Property(MaxTest = 100)]
-    public bool IsEncryptedField_Matches_Serialize(NonEmptyString keyId)
-    {
-        var value = new EncryptedValue
-        {
-            KeyId = keyId.Get,
-            Ciphertext = ImmutableArray.Create<byte>(42),
-            Nonce = ImmutableArray.Create(new byte[12]),
-            Tag = ImmutableArray.Create(new byte[16]),
-            Algorithm = EncryptionAlgorithm.Aes256Gcm
-        };
-
-        var json = EncryptedFieldJsonConverter.Serialize(value);
-        return EncryptedFieldJsonConverter.IsEncryptedField(json);
-    }
-
-    [Property(MaxTest = 100)]
-    public bool IsEncryptedField_RegularString_ReturnsFalse(NonEmptyString input)
-    {
-        var str = input.Get;
-        // Skip strings that happen to start with the marker
-        if (str.StartsWith("{\"__enc\":true", StringComparison.Ordinal)) return true;
-        return !EncryptedFieldJsonConverter.IsEncryptedField(str);
-    }
+    public bool RegularString_IsNeverAToken(NonEmptyString input) =>
+        input.Get.StartsWith(CryptoShreddingToken.Prefix, StringComparison.Ordinal) || !CryptoShreddingToken.TryParse(input.Get, out _);
 
     #endregion
 

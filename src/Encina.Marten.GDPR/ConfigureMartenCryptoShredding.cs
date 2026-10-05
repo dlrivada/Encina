@@ -1,61 +1,54 @@
-using Encina.Marten.GDPR.Abstractions;
-
 using Marten;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Marten.GDPR;
 
 /// <summary>
-/// Configures Marten's <see cref="StoreOptions"/> to wrap the active serializer with
-/// <see cref="CryptoShredderSerializer"/> for transparent PII encryption.
+/// Configures Marten's <see cref="StoreOptions"/> for crypto-shredding: wraps the System.Text.Json serializer with
+/// <see cref="CryptoShredderSerializer"/> and turns off the async daemon's <c>SkipSerializationErrors</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implements <see cref="IConfigureOptions{StoreOptions}"/> so that the serializer wrapping
-/// occurs during DI container build, after all other Marten serializer configuration
-/// (e.g., <c>UseSystemTextJsonForSerialization</c>) has been applied.
+/// It takes only <see cref="IServiceScopeFactory"/>: keys are resolved in a DI scope per serializer call, so the
+/// scoped <see cref="PostgreSqlSubjectKeyProvider"/> is never captured by this singleton and its session never
+/// needs the document store being built.
 /// </para>
 /// <para>
-/// This ensures the crypto-shredding wrapper decorates the final serializer, preserving
-/// all existing serializer settings (enum storage, casing, value casting).
+/// Marten's continuous projections skip serialization errors by default, which would dead-letter an event whose
+/// personal data cannot be decrypted (for example during a key-store outage) and make the projection miss it for
+/// good. With <c>SkipSerializationErrors = false</c> the shard pauses and resumes after recovery. The startup
+/// validator fails if a later configuration turns it back on.
 /// </para>
 /// </remarks>
 internal sealed class ConfigureMartenCryptoShredding : IConfigureOptions<StoreOptions>
 {
-    private readonly ISubjectKeyProvider _subjectKeyProvider;
-    private readonly IForgottenSubjectHandler _forgottenSubjectHandler;
-    private readonly ILogger<CryptoShredderSerializer> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<CryptoShreddingOptions> _options;
+    private readonly ILogger<CryptoShredderSerializer> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConfigureMartenCryptoShredding"/> class.
     /// </summary>
-    /// <param name="subjectKeyProvider">The provider for per-subject encryption keys.</param>
-    /// <param name="forgottenSubjectHandler">The handler for forgotten subject encounters.</param>
-    /// <param name="logger">Logger for the crypto shredder serializer.</param>
+    /// <param name="scopeFactory">Creates the per-call DI scopes of the serializer.</param>
     /// <param name="options">The crypto-shredding options.</param>
+    /// <param name="logger">Logger for the crypto shredder serializer.</param>
     public ConfigureMartenCryptoShredding(
-        ISubjectKeyProvider subjectKeyProvider,
-        IForgottenSubjectHandler forgottenSubjectHandler,
-        ILogger<CryptoShredderSerializer> logger,
-        IOptions<CryptoShreddingOptions> options)
+        IServiceScopeFactory scopeFactory,
+        IOptions<CryptoShreddingOptions> options,
+        ILogger<CryptoShredderSerializer> logger)
     {
-        _subjectKeyProvider = subjectKeyProvider;
-        _forgottenSubjectHandler = forgottenSubjectHandler;
-        _logger = logger;
+        _scopeFactory = scopeFactory;
         _options = options;
+        _logger = logger;
     }
 
     /// <inheritdoc />
     public void Configure(StoreOptions options)
     {
-        CryptoShredderSerializerFactory.Apply(
-            options,
-            _subjectKeyProvider,
-            _forgottenSubjectHandler,
-            _logger,
-            _options.Value.AnonymizedPlaceholder);
+        CryptoShredderSerializerFactory.Apply(options, _scopeFactory, _logger, _options.Value.AnonymizedPlaceholder);
+        options.Projections.Errors.SkipSerializationErrors = false;
     }
 }

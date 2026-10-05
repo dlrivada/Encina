@@ -34,7 +34,6 @@ public sealed class ForgetSubjectIntegrationTests : IDisposable
     public void Dispose()
     {
         _keyProvider.Clear();
-        CryptoShreddedPropertyCache.ClearCache();
     }
 
     [Fact]
@@ -172,9 +171,7 @@ public sealed class ForgetSubjectIntegrationTests : IDisposable
 
             CryptoShredderSerializerFactory.Apply(
                 opts,
-                _keyProvider,
-                new DefaultForgottenSubjectHandler(
-                    NullLogger<DefaultForgottenSubjectHandler>.Instance),
+                CryptoShreddingTestServices.ScopeFactory(_keyProvider),
                 NullLogger<CryptoShredderSerializer>.Instance);
         });
     }

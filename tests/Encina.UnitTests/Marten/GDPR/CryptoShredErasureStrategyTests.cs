@@ -63,8 +63,33 @@ public sealed class CryptoShredErasureStrategyTests
     }
 
     [Fact]
-    public async Task EraseFieldAsync_WhenKeyProviderFails_ReturnsError()
+    public async Task EraseFieldAsync_WhenKeyStoreFails_ReturnsError()
     {
+        _mockKeyProvider
+            .DeleteSubjectKeysAsync("user-42", Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, CryptoShreddingResult>(CryptoShreddingErrors.KeyStoreError("DeleteKeys")));
+        var location = new PersonalDataLocation
+        {
+            EntityType = typeof(string),
+            EntityId = "user-42",
+            FieldName = "Email",
+            Category = PersonalDataCategory.Contact,
+            IsErasable = true,
+            IsPortable = false,
+            HasLegalRetention = false
+        };
+
+        var result = await _sut.EraseFieldAsync(location);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(CryptoShreddingErrors.KeyStoreErrorCode));
+    }
+
+    [Fact]
+    public async Task EraseFieldAsync_SubjectAlreadyForgotten_SucceedsAndLogs8480()
+    {
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<CryptoShredErasureStrategy>();
+        var sut = new CryptoShredErasureStrategy(_mockKeyProvider, logger);
         // Arrange
         var location = new PersonalDataLocation
         {
@@ -83,10 +108,12 @@ public sealed class CryptoShredErasureStrategyTests
             .Returns(Left<EncinaError, CryptoShreddingResult>(error));
 
         // Act
-        var result = await _sut.EraseFieldAsync(location);
+        var result = await sut.EraseFieldAsync(location);
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
+        result.IsRight.ShouldBeTrue();
+        logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 8480);
+        logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains("user-42"));
     }
 
     [Fact]
