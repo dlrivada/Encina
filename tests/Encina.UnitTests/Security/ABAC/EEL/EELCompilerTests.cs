@@ -10,11 +10,12 @@ namespace Encina.UnitTests.Security.ABAC.EEL;
 /// Unit tests for <see cref="EELCompiler"/>: compilation, caching, evaluation,
 /// and error handling of Encina Expression Language expressions.
 /// </summary>
-public sealed class EELCompilerTests : IDisposable
+[Collection(EELCompilerFixture.Name)]
+public sealed class EELCompilerTests(EELCompilerFixture fixture)
 {
-    private readonly EELCompiler _compiler = new();
-
-    public void Dispose() => _compiler.Dispose();
+    // Shared compiler: every test here asserts on its own distinct expression or on behavior that
+    // holds with a warm cache. Tests that need a fresh instance create it locally.
+    private readonly EELCompiler _compiler = fixture.Compiler;
 
     private static EELGlobals MakeGlobals(
         Action<IDictionary<string, object?>>? configureUser = null,
@@ -81,8 +82,9 @@ public sealed class EELCompilerTests : IDisposable
     [Fact]
     public async Task CompileAsync_CachesCompiledExpressions()
     {
-        var result1 = await _compiler.CompileAsync("1 == 1");
-        var result2 = await _compiler.CompileAsync("1 == 1");
+        using var compiler = new EELCompiler(); // fresh: the test asserts on the cache itself
+        var result1 = await compiler.CompileAsync("1 == 1");
+        var result2 = await compiler.CompileAsync("1 == 1");
 
         // Both should succeed
         result1.IsRight.ShouldBeTrue();
@@ -267,11 +269,12 @@ public sealed class EELCompilerTests : IDisposable
     [Fact]
     public async Task EvaluateAsync_SameExpressionDifferentGlobals_UsesCachedCompilation()
     {
+        using var compiler = new EELCompiler(); // fresh: the test asserts on the cache itself
         var globals1 = MakeGlobals(configureUser: u => u["department"] = "Finance");
         var globals2 = MakeGlobals(configureUser: u => u["department"] = "Engineering");
 
-        var result1 = await _compiler.EvaluateAsync("user.department == \"Finance\"", globals1);
-        var result2 = await _compiler.EvaluateAsync("user.department == \"Finance\"", globals2);
+        var result1 = await compiler.EvaluateAsync("user.department == \"Finance\"", globals1);
+        var result2 = await compiler.EvaluateAsync("user.department == \"Finance\"", globals2);
 
         AssertRight(result1).ShouldBeTrue();
         AssertRight(result2).ShouldBeFalse();
@@ -284,8 +287,9 @@ public sealed class EELCompilerTests : IDisposable
     [Fact]
     public async Task CompileAsync_ConcurrentCalls_AllSucceed()
     {
+        using var compiler = new EELCompiler(); // fresh: a cold cache is what makes the calls race
         var tasks = Enumerable.Range(0, 10)
-            .Select(i => _compiler.CompileAsync($"{i} < 100").AsTask())
+            .Select(i => compiler.CompileAsync($"{i} < 100").AsTask())
             .ToList();
 
         var results = await Task.WhenAll(tasks);
