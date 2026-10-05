@@ -46,7 +46,10 @@ $n = [string]$audit.issue
 $wt = [string]$audit.worktree
 $branch = [string]$audit.branch
 $stagesDir = Get-StagesDir $wt
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipeline = Get-AuditPipeline $audit
+$isDelta = Test-DeltaAudit $audit
+$deltaSet = if ($isDelta) { [string]$audit.set } else { '' }
+$deltaFolder = if ($isDelta) { [string]$pipeline.delta.folder } else { '' }
 
 $reasons = [System.Collections.Generic.List[string]]::new()
 
@@ -85,7 +88,11 @@ if ($lessonsReason) { $reasons.Add($lessonsReason) }
 $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
 $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
 $rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
-if (Test-Path -LiteralPath $knowledgeScript) {
+if ($isDelta) {
+    # #1763: a delta audit writes no knowledge record (the original record stays as published); the full
+    # docs/knowledge check runs on the publication checkout.
+}
+elseif (Test-Path -LiteralPath $knowledgeScript) {
     # --skip-audit-links: the audit result is not in docs/knowledge yet; the full check runs on the publication checkout.
     $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir --skip-audit-links 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -116,7 +123,8 @@ if ($reasons.Count -gt 0) {
 
 $remediationDrafts = @((Join-Path $knowledgeRoot 'remediation'), (Join-Path $wt 'artifacts\knowledge\remediation'), (Join-Path $wt 'artifacts\issues'))
 $publish = Publish-AuditKnowledge -Issue ([int]$n) -MainRoot $mainRoot -AuditWorktree $wt -StagesDir $stagesDir -Pipeline $pipeline `
-    -DraftDirs $remediationDrafts -OpenedCsv (Join-Path $knowledgeRoot 'remediation\opened.csv') -NoPublish:$NoPublish
+    -DraftDirs $remediationDrafts -OpenedCsv (Join-Path $knowledgeRoot 'remediation\opened.csv') -NoPublish:$NoPublish `
+    -DeltaFolder $deltaFolder -DeltaSet $deltaSet
 if (-not $publish.Ok) {
     Write-Error "audit-done: publishing the audit of #$n failed; the audit worktree, branch $branch and current-audit.json are kept, nothing else was changed:`n$($publish.Message)"
     exit 1
@@ -142,7 +150,8 @@ if ($strayDrafts.Count -gt 0) {
     $strayDrafts | Copy-Item -Destination (Join-Path $knowledgeRoot 'remediation') -Force
 }
 
-$stagesDest = Join-Path $knowledgeRoot "stages\$n"
+# A delta audit archives next to, never over, the original audit's stages (stages\<n>-<delta folder>).
+$stagesDest = if ($isDelta) { Join-Path $knowledgeRoot "stages\$n-$deltaFolder" } else { Join-Path $knowledgeRoot "stages\$n" }
 New-Item -ItemType Directory -Force $stagesDest | Out-Null
 Copy-Item (Join-Path $stagesDir '*') -Destination $stagesDest -Recurse -Force
 
@@ -174,7 +183,13 @@ $ledger = Join-Path $wt 'artifacts\agent-usage\ledger.csv'
 if (Test-Path -LiteralPath $ledger) { Get-Content -LiteralPath $ledger | Select-Object -Skip 1 | Add-Content (Join-Path $knowledgeRoot 'agent-ledger.csv') }
 
 $remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$n-*.md" -ErrorAction SilentlyContinue).Count
-Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`""
+if ($isDelta) {
+    # The delta set has its own progress file; progress.csv (the original audits) is never touched.
+    Add-Content (Get-DeltaProgressPath $knowledgeRoot $deltaSet) "$n,done,$remCount,$($publish.PrUrl)"
+}
+else {
+    Add-Content (Join-Path $knowledgeRoot 'progress.csv') "$n,done,,,,$remCount,`"`""
+}
 
 $rmOut = & git -C $mainRoot worktree remove $wt --force 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Error "audit-done: git worktree remove $wt failed: $rmOut"; exit 1 }

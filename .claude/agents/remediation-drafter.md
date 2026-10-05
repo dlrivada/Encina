@@ -54,6 +54,10 @@ You are the remediation stage of the SPEC-003 audit pipeline (#1345, #1572), for
 5. Write `stages\remediation.md` at the manifest's `stageFile` (see Output).
 6. Re-read every draft once against the Rules before you finish.
 
+### Routing of rules (a) and (b) (from audit #30 on; #1763)
+
+A finding from the docs stage (rule (a): a page that is not visual or scannable, a wrong `csharp` sample, a hand-typed figure, wrong placement, a feature missing from the tutorials and learning paths) is a documentation gap: its draft uses `technical_debt.md` (`[DEBT]`, with `area-documentation`) and ticks the Type option `Documentation gap`. A finding from the tests stage about obligations (rule (b): a file without per-flag targets in `.github/coverage-manifest/{Package}.json`, an unjustified or too low target) uses `test_implementation.md` (`[TEST]`, `area-testing`); the draft carries the proposed target per flag and its justification, taken from the finding. In a delta audit (prompt says `delta: rules-2026-10`) the findings of these two stages are the only input; there is no `code.md`.
+
 ## Draft format
 
 The draft starts with this header block, then the template body:

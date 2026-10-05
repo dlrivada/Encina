@@ -70,6 +70,10 @@ Re-check every claim against its source; do not trust a prior stage's wording.
    reason — a finding with none of the three is itself a correction against the remediation stage.
 5. **Coverage measured, not assumed.** Confirm `tests.md` reports an actual measured percentage per applicable flag, not an estimate. Re-run the same `--collect "XPlat Code Coverage"` command tests.md's flag used, with `--results-directory <wt>\artifacts\audit\coverage\verify-<flag>` (your own subdirectory, never test-auditor's), and compare the result against the reported number yourself; a mismatch is a correction against the `tests` stage.
 
+6. **Rules (a) and (b) (from audit #30 on; #1763).** Verify the docs-rule and obligations-rule findings like any other claim, by re-checking them against the files: a rule-(a) finding in `docs.md` (page not visual or scannable, a `csharp` sample that does not match `src/`, a hand-typed figure, wrong placement, a feature missing from the tutorials and learning paths) must be reproducible on the page it names; a rule-(b) finding in `tests.md` (a scoped file with no per-flag targets, an unjustified target, a target clearly below what is demanding and realistic, a 0 without justification) must match the real `.github/coverage-manifest/{Package}.json` entry, and the proposed target and justification must be consistent with the measured coverage. Also check the other direction: a scoped file that has no per-flag targets, or a page that is a wall of text, and that the stage reported nothing about, is a correction against that stage.
+
+**Delta mode.** When your prompt says `delta: rules-2026-10, verify only rules (a) and (b)`, the pipeline is `tools/ai/audit/pipeline-delta.json`: verify only `docs.md`, `tests.md` and `remediation.md` (steps 1-4 and 6 over those artifacts; step 5 only when you need a measured value to judge a rule-(b) target). There are no `archivist.md` or `code.md` in that audit.
+
 ## Output
 
 `artifacts\knowledge\stages\verification.md`:

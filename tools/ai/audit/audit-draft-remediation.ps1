@@ -153,7 +153,8 @@ $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
 $pipelineDir = Join-Path $wt 'tools\ai\audit'
-try { $pipeline = Get-Pipeline $pipelineDir } catch { Stop-Remediation "cannot read $pipelineDir\pipeline.json: $($_.Exception.Message)" }
+$pipelineFile = Get-AuditPipelineFile $audit
+try { $pipeline = Get-Pipeline $pipelineDir $pipelineFile } catch { Stop-Remediation "cannot read $pipelineDir\$($pipelineFile): $($_.Exception.Message)" }
 
 function Get-StageFile([string]$Name) {
     $def = $pipeline.stages | Where-Object { $_.stage -eq $Name }
@@ -183,6 +184,8 @@ function Get-AllFindings {
     $script:SplitFindingsNotes = [System.Collections.Generic.List[string]]::new()
     $found = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($stageName in 'code', 'tests', 'docs') {
+        # A delta pipeline (#1763) has no code stage: only the finding stages the pipeline defines are read.
+        if ($null -eq ($pipeline.stages | Where-Object { $_.stage -eq $stageName })) { continue }
         $stageFile = Get-StageFile $stageName
         if (-not (Test-FindingsHeaderPresent $stageFile)) { Stop-Remediation "stages\$(Split-Path -Leaf $stageFile) has no '## Findings' header; the stage must write one (with '- none' when there are no findings)." }
         try { foreach ($f in (Split-Findings $stageName (Get-StageSection $stageFile 'Findings'))) { $found.Add($f) } }

@@ -46,10 +46,86 @@ function Get-StagesDir([string]$Worktree) { Join-Path $Worktree 'artifacts\knowl
 # keeps the pipeline version it started with even if main later reorders it; callers pass the worktree's
 # tools\ai\audit, or their own $PSScriptRoot when no worktree is known yet, e.g. audit-next.ps1 before the
 # worktree exists).
-function Get-Pipeline([string]$ToolsAuditDir) {
-    $p = Join-Path $ToolsAuditDir 'pipeline.json'
-    if (-not (Test-Path -LiteralPath $p)) { throw "Get-Pipeline: pipeline.json not found at '$p'." }
+function Get-Pipeline([string]$ToolsAuditDir, [string]$File = 'pipeline.json') {
+    $p = Join-Path $ToolsAuditDir $File
+    if (-not (Test-Path -LiteralPath $p)) { throw "Get-Pipeline: $File not found at '$p'." }
     return Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Delta mode (#1763): a re-check of an audit already published, for the rules decided after it ran, with the
+# pipeline tools/ai/audit/pipeline-delta.json instead of pipeline.json. current-audit.json then carries
+# `mode = 'delta'` and `set = '<name>'`; every script and hook that reads the pipeline asks the open audit which
+# file to read (the hooks inline the same one-line decision, since they depend on nothing here).
+# ---------------------------------------------------------------------------------------------------------------
+
+# 'pipeline-delta.json' when the open audit is a delta audit, 'pipeline.json' otherwise (also for a
+# current-audit.json written before delta mode existed, which has no `mode`).
+function Get-AuditPipelineFile($Audit) {
+    $mode = if ($null -ne $Audit -and $null -ne $Audit.PSObject.Properties['mode']) { [string]$Audit.mode } else { '' }
+    if ($mode -eq 'delta') { return 'pipeline-delta.json' }
+    return 'pipeline.json'
+}
+
+# The pipeline of the open audit, read from the audit worktree's own tools\ai\audit (the worktree keeps the
+# version it started with).
+function Get-AuditPipeline($Audit) {
+    return Get-Pipeline (Join-Path ([string]$Audit.worktree) 'tools\ai\audit') (Get-AuditPipelineFile $Audit)
+}
+
+# True when the open audit is a delta audit.
+function Test-DeltaAudit($Audit) { return (Get-AuditPipelineFile $Audit) -eq 'pipeline-delta.json' }
+
+# The delta progress file of one delta set, in the git-ignored knowledge working area: one `<issue>,done` line
+# per issue whose delta audit was published.
+function Get-DeltaProgressPath([string]$KnowledgeRoot, [string]$Set) { Join-Path $KnowledgeRoot "delta-progress-$Set.csv" }
+
+# The issues a delta set re-checks, in audit order: the distinct issue numbers of progress.csv (the audits
+# #1..#29 that ran before the rules), first occurrence wins (a redone audit appears twice).
+function Get-DeltaCandidates([string]$KnowledgeRoot) {
+    $progress = Join-Path $KnowledgeRoot 'progress.csv'
+    if (-not (Test-Path -LiteralPath $progress)) { return @() }
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    $ordered = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in (Get-Content -LiteralPath $progress | Select-Object -Skip 1)) {
+        $id = ($line -split ',')[0].Trim()
+        if ($id -match '^\d+$' -and $seen.Add($id)) { $ordered.Add($id) }
+    }
+    return @($ordered)
+}
+
+# The issues of the set already done: the delta progress file's first column.
+function Get-DeltaDone([string]$KnowledgeRoot, [string]$Set) {
+    $p = Get-DeltaProgressPath $KnowledgeRoot $Set
+    if (-not (Test-Path -LiteralPath $p)) { return @() }
+    return @(Get-Content -LiteralPath $p | Where-Object { $_ -match '\S' } | ForEach-Object { ($_ -split ',')[0].Trim() })
+}
+
+# The scope the original audit recorded, as the text of artifacts\knowledge\delta-scope.md: the packages and
+# title of the knowledge record docs/knowledge/issues/<n>.md plus, when published, the archivist and code stage
+# files under docs/knowledge/audits/<n>/stages/ (their scope lists are the audit's own scope). Read from the
+# audit worktree, which is based on origin/main and therefore holds the published knowledge. Returns $null
+# when the record does not exist (the delta cannot run without the original audit's record).
+function New-DeltaScopeText([int]$Issue, [string]$Worktree, [string]$Set) {
+    $record = Join-Path $Worktree "docs\knowledge\issues\$Issue.md"
+    if (-not (Test-Path -LiteralPath $record)) { return $null }
+    $sb = [System.Text.StringBuilder]::new()
+    $null = $sb.Append("# Delta scope of issue #$Issue (set $Set)`n`n")
+    $null = $sb.Append("Reused from the original audit; do not re-derive it. Rules in this delta: see tools/ai/audit/pipeline-delta.json.`n`n")
+    $null = $sb.Append("## Knowledge record (docs/knowledge/issues/$Issue.md)`n`n")
+    $recordText = Get-Content -LiteralPath $record -Raw
+    $front = [regex]::Match($recordText, '(?s)\A---\r?\n(?<fm>.*?)\r?\n---')
+    $null = $sb.Append('```yaml' + "`n" + $(if ($front.Success) { $front.Groups['fm'].Value } else { $recordText }) + "`n" + '```' + "`n`n")
+    foreach ($name in 'archivist.md', 'code.md') {
+        $stageFile = Join-Path $Worktree "docs\knowledge\audits\$Issue\stages\$name"
+        if (-not (Test-Path -LiteralPath $stageFile)) { continue }
+        $text = (Get-Content -LiteralPath $stageFile -Raw)
+        $section = [regex]::Match($text, '(?ims)^##\s*(Scope|Files in scope|Scope list)[^\r\n]*\r?\n(?<body>.*?)(?=^##\s|\z)')
+        $null = $sb.Append("## From the original $name (docs/knowledge/audits/$Issue/stages/$name)`n`n")
+        if ($section.Success) { $null = $sb.Append($section.Groups['body'].Value.Trim() + "`n`n") }
+        else { $null = $sb.Append("(no Scope section; the whole stage file is the reference)`n`n" + $text.Trim() + "`n`n") }
+    }
+    return $sb.ToString()
 }
 
 # True when a commit on the branch checked out at $Worktree carries the trailer 'Stage: <StageName>' AND the
@@ -387,6 +463,21 @@ function Get-AuditPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     return , $plan
 }
 
+# The files to publish for a delta audit (#1763): the delta stage files, lessons and the scope the delta reused,
+# all under docs/knowledge/audits/<n>/<DeltaFolder>/. The original record and audit result are never touched.
+function Get-DeltaPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$StagesDir, $Pipeline, [string]$DeltaFolder) {
+    $plan = [System.Collections.Generic.List[hashtable]]::new()
+    $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
+    foreach ($name in $names) {
+        $f = Join-Path $StagesDir $name
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/$name" }) }
+    }
+    $scope = Join-Path $AuditWorktree 'artifacts\knowledge\delta-scope.md'
+    if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md" }) }
+    if ($plan.Count -eq 0) { throw "Get-DeltaPublishPlan: no delta stage file under $StagesDir." }
+    return , $plan
+}
+
 # Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
 #   -NoPublish: prepares the branch locally (layout, validation, commit) and records the push and
 #   'gh pr create' commands in Planned without running them.
@@ -403,10 +494,15 @@ function Publish-AuditKnowledge {
         [string]$OpenedCsv = '',
         [switch]$NoPublish,
         [string]$TempRoot = ([IO.Path]::GetTempPath()),
-        [string]$Repo = 'dlrivada/Encina'
+        [string]$Repo = 'dlrivada/Encina',
+        # Delta audit (#1763): the folder under docs/knowledge/audits/<n>/ the delta stage files go to
+        # (pipeline-delta.json `delta.folder`) and the set name for the title. Empty = the normal publication.
+        [string]$DeltaFolder = '',
+        [string]$DeltaSet = ''
     )
-    $branch = "knowledge/audit-$Issue"
-    $title = "docs(knowledge): SPEC-003 audit of #$Issue"
+    $isDelta = -not [string]::IsNullOrWhiteSpace($DeltaFolder)
+    $branch = if ($isDelta) { "knowledge/audit-$Issue-$DeltaFolder" } else { "knowledge/audit-$Issue" }
+    $title = if ($isDelta) { "docs(knowledge): SPEC-003 delta $DeltaSet audit of #$Issue" } else { "docs(knowledge): SPEC-003 audit of #$Issue" }
     $planned = [System.Collections.Generic.List[string]]::new()
     $tmp = Join-Path $TempRoot ("audit-publish-$Issue-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     $created = $false
@@ -414,26 +510,33 @@ function Publish-AuditKnowledge {
     $fail = { param($msg) @{ Ok = $false; Message = $msg; Branch = $branch; PrUrl = ''; Planned = @($planned) } }
 
     try {
-        $passes = Get-AuditPassCount $AuditWorktree
-        $fromText = $false
-        if ($passes -eq 0) {
-            $verifier = $Pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
-            $passes = Get-VerificationPassCountFromText (Join-Path $StagesDir $verifier.artifact)
-            $fromText = $true
-        }
         $remediation = Get-AuditRemediation $Issue $DraftDirs $OpenedCsv
-        # The result names the issues the audit opened, so they must exist first (F2 of the #1766 review).
+        # The result names the issues the audit opened, so they must exist first (F2 of the #1766 review); the
+        # same gate applies to the remediation drafts of a delta audit (#1763).
         $unopened = @($remediation | Where-Object { -not $_.Url })
         if ($unopened.Count -gt 0) {
             return (& $fail "remediation drafts exist that are not opened yet ($(($unopened | ForEach-Object { $_.Draft }) -join ', ')); run open-remediation.ps1 -Issue $Issue first, then audit-done.ps1.")
         }
-        $summary = New-AuditResultSummary $Issue $StagesDir $Pipeline $passes $remediation -PassCountFromText:$fromText
-        $plan = Get-AuditPublishPlan $Issue $AuditWorktree $StagesDir $Pipeline $summary
-        $outcome = if (@($remediation).Count -gt 0) { 'findings-tracked' } else { 'conforms' }
-        foreach ($item in $plan) {
-            if ($item.Dest -eq "docs/knowledge/issues/$Issue.md") {
-                $item.Content = Set-AuditBlockOutcome (Get-Content -LiteralPath $item.Source -Raw) $Issue $outcome
-                $item.Source = $null
+        if ($isDelta) {
+            # A delta never rewrites the original record's audit block or the original result.
+            $plan = Get-DeltaPublishPlan $Issue $AuditWorktree $StagesDir $Pipeline $DeltaFolder
+        }
+        else {
+            $passes = Get-AuditPassCount $AuditWorktree
+            $fromText = $false
+            if ($passes -eq 0) {
+                $verifier = $Pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
+                $passes = Get-VerificationPassCountFromText (Join-Path $StagesDir $verifier.artifact)
+                $fromText = $true
+            }
+            $summary = New-AuditResultSummary $Issue $StagesDir $Pipeline $passes $remediation -PassCountFromText:$fromText
+            $plan = Get-AuditPublishPlan $Issue $AuditWorktree $StagesDir $Pipeline $summary
+            $outcome = if (@($remediation).Count -gt 0) { 'findings-tracked' } else { 'conforms' }
+            foreach ($item in $plan) {
+                if ($item.Dest -eq "docs/knowledge/issues/$Issue.md") {
+                    $item.Content = Set-AuditBlockOutcome (Get-Content -LiteralPath $item.Source -Raw) $Issue $outcome
+                    $item.Source = $null
+                }
             }
         }
 
