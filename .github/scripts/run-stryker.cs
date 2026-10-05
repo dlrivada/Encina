@@ -30,7 +30,9 @@ try
         "--output",
         outputPath,
         "--verbosity",
-        "info"
+        // STRYKER_VERBOSITY=debug is set by the workflow for a custom-scope
+        // dispatch, so the log names the mutant under test (#1441 phase 2c).
+        Environment.GetEnvironmentVariable("STRYKER_VERBOSITY") is { Length: > 0 } verbosity ? verbosity : "info"
     };
 
     // Without -c/--configuration Stryker builds the project's default

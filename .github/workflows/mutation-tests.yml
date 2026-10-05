@@ -15,8 +15,9 @@ on:
         description: "Override mutation scope: one glob, or several separated by ';' with '!' for exclusions (collapses matrix to 1 shard). e.g. **/Pipeline/Behaviors/*.cs"
         type: string
         default: ""
-  # Weekly schedule paused (#1441): the Stryker 4 VsTest runner kills 0 mutants under xUnit v3 and would publish 0 % results.
-  # #1441 restores it: PR #1713 must re-add the schedule block before it merges.
+  schedule:
+    # Weekly, Friday 03:00 UTC (restored by #1441 with the MTP runner)
+    - cron: "0 3 * * 5"
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -444,6 +445,22 @@ jobs:
           # hosts running mutated code never see it; only the gh calls get it.
           TELEMETRY_TOKEN: ${{ github.token }}
           DOTNET_GCHeapHardLimit: "0x100000000"
+          # Run 37285914861 (#1441 phase 2c): the MTP test server
+          # (Encina.UnitTests.dll --server) had the 4 GiB limit above in its
+          # environment, yet reached 8.8 GB of anonymous memory and was killed
+          # at 11.05 GB by the cap below, so the managed-heap limit alone does
+          # not bound it. Workstation, non-concurrent GC is forced so no
+          # per-core server heaps or background GC threads are added on the
+          # 4-vCPU runner (the hard limit stays; HeapHardLimitPercent would
+          # be ignored next to it). Whether the server still grows is read
+          # from the gc_server and anon columns of the process telemetry.
+          DOTNET_gcServer: "0"
+          DOTNET_gcConcurrent: "0"
+          # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
+          # logs at debug level so the log names the mutant under test when
+          # a test host starts to grow; scheduled and full-matrix runs stay
+          # at info (debug logs of 150-mutant shards are large).
+          STRYKER_VERBOSITY: ${{ (github.event_name == 'workflow_dispatch' && inputs.custom_scope != '') && 'debug' || 'info' }}
           # 12 GiB in bytes, for the cgroup's memory.max (see above).
           STRYKER_MEMORY_MAX: "12884901888"
         run: |
@@ -548,7 +565,7 @@ jobs:
           # be installed and would attach one more .NET process every minute
           # to a VM that is short of memory.
           processes() {
-            local pid ppid rss args kind gclimit split
+            local pid ppid rss args kind gclimit gcserver split
             echo "processes over 200 MB (MB; gc_limit = DOTNET_GCHeapHardLimit at process start):"
             ps -eo pid=,ppid=,rss=,args= --sort=-rss | while read -r pid ppid rss args; do
               [ "$rss" -gt 204800 ] || break
@@ -559,6 +576,8 @@ jobs:
                 if [ -r "/proc/$pid/environ" ]; then
                   gclimit=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DOTNET_GCHeapHardLimit=//p')
                   gclimit=${gclimit:-absent}
+                  gcserver=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DOTNET_gcServer=//p')
+                  gclimit="$gclimit gc_server=${gcserver:-absent}"
                 else
                   gclimit=unreadable
                 fi
