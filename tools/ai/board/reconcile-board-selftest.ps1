@@ -230,6 +230,7 @@ try {
 
     # ---- dry run: lists the drift, writes and deletes nothing; no -Out and no -DryRun is an error
     $snapshot = { @(Get-ChildItem $outDir -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash $_.FullName).Hash)" }) -join '|' }
+    [IO.File]::WriteAllText((Join-Path $outDir 'batch-009.json'), '[]')
     $before = & $snapshot
     $dry = @(& $scriptPath -CurrentDir $export -Versions $versionsFile -DryRun -Out (Join-Path $outDir 'batch.json') -Repo 'o/r' -MainRoot $main -NowUtc '2026-10-05T11:00:00Z')
     $probe = $changes[0]
