@@ -69,7 +69,7 @@ knowledge:
 
 ## Where the knowledge lives (record)
 
-- Workaround env var: [docs/testing/load-tests-known-issues.md](../../testing/load-tests-known-issues.md) — present, but never mentions the Stream case and lists unrelated projects only.
+- Workaround env var: [docs/testing/load-tests-known-issues.md](../../../../testing/load-tests-known-issues.md) — present, but never mentions the Stream case and lists unrelated projects only.
 - CI exclusion rationale: `CLAUDE.md:1386` ("project history: #5, #496") — present but overgeneralized (see audit AUD-01, AUD-11).
 - Stream/StreamDispatcher load-test justification: **missing** — no `.cs` or `.md` under `tests/Encina.LoadTests/` for this feature today.
 
