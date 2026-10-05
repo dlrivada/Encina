@@ -114,6 +114,71 @@ Commands (all paths relative to the worktree root `<wt>`, `<suffix>` is the comm
 - **Consequences:** #1026 stays open; every mutation score produced by the current VsTest workflow is 0 % by construction. Follow-up work: (a) switch the mutation workflow to the MTP runner with coverage off in project mode and re-design sharding ([#1441](https://github.com/dlrivada/Encina/issues/1441), workflow change, owned by the maintainer); (b) [make the Verify snapshot tests pass when the same test process runs them repeatedly](https://github.com/dlrivada/Encina/issues/1442); (c) the Pipeline/Behaviors second shard was not measured.
 - The second shard (`Pipeline/Behaviors`) was not run for lack of time box.
 
+## 6. Phase 2e: native memory
+
+This section records what holds memory across mutant runs in the reused MTP test server, a question left open by the preceding phase 2d investigation of the reused server (phases 2a-2d are tracked in the [#1441 comment thread](https://github.com/dlrivada/Encina/issues/1441), not on this page), which saw about 5 GB retained per full-suite run and an out-of-memory kill at 12 GiB. All values were measured on 2026-10-05 on the Debug build of `Encina.UnitTests`, MTP server mode (`--server --client-port`), repeating the full suite in the same process through a JSON-RPC harness. Linux runs used the `mcr.microsoft.com/dotnet/sdk:10.0` container with `--memory 12g --cpus 4` and `DOTNET_GCHeapHardLimit=0x100000000`, `DOTNET_gcServer=0`, `DOTNET_gcConcurrent=0`, like the CI job. Verify snapshot tests error in the container because the binaries were built on Windows; this is unrelated to memory.
+
+### 6.1 Bisection by namespace (Windows, one process per namespace)
+
+Only two namespaces exceed 1 GB peak working set (WS) in a single run:
+
+| Namespace | Peak WS | GC heap | Nature |
+| --- | --- | --- | --- |
+| `Testing` | 4.5 GB | `Testing.Architecture`: 2.8 GB WS with 2.4 GB heap; `Testing.Base` and `Testing.Modules`: about 1.1 GB, mostly heap | Managed, released after the run |
+| `Security` | 3.3-3.8 GB | `Security.ABAC`: 2.35 GB WS with about 140 MB heap; `Security.ABAC.EEL`: 3.3 GB WS with about 180 MB heap | Native, outside the GC heap |
+
+Inside `Security.ABAC.EEL`, `EELCompilerTests` peaks at 1.8 GB and `EELConformanceTests` at 2.2 GB working set, each with about 1.3 GB outside the GC heap.
+
+### 6.2 Repeated runs in one server (Linux)
+
+Idle private memory in MB after runs 1-4:
+
+| Configuration | Run 1 peak WS (GB) | Idle private MB after run 1 / 2 / 3 / 4 | Outcome |
+| --- | --- | --- | --- |
+| Full suite | 7.6 GB | 7,286 / 10,087 / 11,454 / killed | Out of memory (12 GiB) in run 4 |
+| Full suite, `MALLOC_ARENA_MAX=2` | 7.6 GB | 7,628 / 9,779 / 9,723 / 9,378 | Reaches the 12 GiB cgroup peak in run 2; no improvement |
+| Full suite, `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` | 4.9 GB | 3,956 / 4,205 / 4,420 / 4,670 | About +230 MB per run; cgroup peak 8.9 GB after 4 runs |
+| Without `Encina.UnitTests.Security.ABAC*` | 4.4 GB | 3,877 / 3,848 / 3,913 / 3,961 | Flat |
+| Without ABAC and with the two malloc thresholds | 4.7 GB | 3,616 / 3,180 / 3,247 / 3,985 | Flat |
+
+On Windows, the same harness over 6 runs shows idle private memory oscillating between 3.0 and 6.1 GB with no trend: the Windows heap returns freed native memory to the OS, glibc does not.
+
+### 6.3 Parallelism (single Linux run, xUnit `--max-threads`)
+
+| Threads | Peak WS | Duration |
+| --- | --- | --- |
+| 1 | 7.4 GB | 190 s |
+| 2 | 6.7 GB | 102 s |
+| 4 (equals the default on 4 CPUs) | 7.4 GB | 124 s |
+| Default | 7.6 GB | 111-122 s |
+
+Limiting threads does not lower the peak meaningfully and slows the run.
+
+### 6.4 Root cause
+
+- `src/Encina.Security.ABAC/EEL/EELCompiler.cs` compiles each expression with Roslyn scripting (`CSharpScript.Create` at line 105, `CreateDelegate` at line 127) and caches the result per compiler instance.
+- `tests/Encina.UnitTests/Security/ABAC/EEL/EELCompilerTests.cs:15` and `EELConformanceTests.cs:16` hold the compiler in an instance field. xUnit creates one class instance per test, so every run recompiles the expressions of each test (the phase 2e harness counted about 76 compilations per run, including the cases of the parameterised conformance tests; the count was not re-derived from the source).
+- Each compilation leaves two kinds of memory:
+  - (a) Transient native memory that only finalizers release. glibc's dynamic mmap threshold keeps it in its arenas instead of returning it to the OS. This is the roughly 2.7 GB per-run amplification that the fixed thresholds remove.
+  - (b) A script assembly that Roslyn scripting never unloads. This is the residual growth of about 230 MB per run.
+- Classes that share a static compiler (`ABACPipelineBehaviorTests.cs:32`, `ABACRequirementEnforcementTests.cs:34`) compile once per process and do not regrow.
+- Confidence: high for the location (excluding `Encina.UnitTests.Security.ABAC*`, which includes `Security.ABAC.EEL`, removes the growth), medium for the exact split between (a) and (b).
+
+### 6.5 Stryker 5.0.0 cannot recycle the server
+
+Stryker.NET 5.0.0 has no option to recycle the test server: the pool resets only after the initial test run and after coverage capture, and servers are replaced only on timeout, crash or exit. Research is in the [#1441 comment thread](https://github.com/dlrivada/Encina/issues/1441); the upstream issue is [stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742).
+
+### 6.6 Phase 2f plan (decision for the orchestrator, not implemented)
+
+| Step | Action | Why |
+| --- | --- | --- |
+| 1 | Set `MALLOC_MMAP_THRESHOLD_=131072` and `MALLOC_TRIM_THRESHOLD_=131072` in the mutation job environment; they reach the test host | Removes cause (a) |
+| 2 | Fix the EEL tests to share one compiler (follow-up debt issue) | Removes the cost at its source |
+| 3 | Keep option A of the #1441 research as a safety net: an MTP `ITestSessionLifetimeHandler` in `Encina.UnitTests`, active only when `STRYKER_MUTANT_FILE` is set, that exits at session start above a private-memory threshold so Stryker reruns the mutant on a fresh server | Bounds cause (b) |
+| 4 | Comment on stryker-net#3742 with these figures | Gives upstream the evidence |
+
+A fresh server's first run is 2-3x slower than a warm one (70-122 s against 31-44 s locally), so recycling should be rare, not per mutant.
+
 ## See also
 
 - [Stryker.NET and xUnit v3: status for Encina 1.0](Stryker-xUnit-v3.md) - the status note this spike updates.
