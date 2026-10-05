@@ -4093,6 +4093,47 @@ The fluent builder chain described in the documentation is fictional. The parame
     }
     # ---- end #1368/#1380 block ----
 
+    # ================================================================================================
+    # #1854: reviewer probe scripts. A read-only reviewer (adversarial-reviewer, pr-reviewer) runs a throwaway
+    # `gh` stub through the call operator, `dotnet run probe.cs` with a relative path, or creates a script and
+    # runs it in the same command. Payload shape as the real one: agent_id, agent_type, cwd = a scratch folder
+    # under %TEMP%. Causes found by reproduction: an existing script resolved against the payload cwd was
+    # already allowed; every real denial was a script that did not exist at hook time (created by the same
+    # command, or not there at all), which the hook reported as "could not read" without the tried path.
+    # ================================================================================================
+    $scratch1854 = Join-Path ([IO.Path]::GetTempPath()) ("hooks-1854-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force $scratch1854 | Out-Null
+    $stub1854 = Join-Path $scratch1854 'gh-stub.ps1'
+    Set-Content -LiteralPath $stub1854 -Value "param([Parameter(ValueFromRemainingArguments)]`$a)`nSet-Content -LiteralPath (Join-Path `$PSScriptRoot 'gh.log') -Value (`$a -join ' ')`n"
+    Set-Content -LiteralPath (Join-Path $scratch1854 'probe.cs') -Value "System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), `"probe.txt`"), `"x`");`n"
+    Set-Content -LiteralPath (Join-Path $scratch1854 'evil.ps1') -Value "Set-Content -LiteralPath 'src/Encina/X.cs' -Value 'x'`n"
+    function Invoke-Probe1854([string]$Agent, [string]$Command, [int]$Expected, [string]$Label, [string]$Pattern) {
+        $json = @{ tool_name = 'PowerShell'; agent_id = 'a1854'; agent_type = $Agent; cwd = $scratch1854; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
+        $out = $json | pwsh -NoProfile -File $orchestrator 2>&1
+        $code = $LASTEXITCODE
+        $flat = Get-FlatOutput $out
+        $ok = ($code -eq $Expected) -and (-not $Pattern -or $flat -match $Pattern)
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected {2}] guard-orchestrator-writes.ps1: {3}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $Expected, $Label
+        if (-not $ok) { "      output: $flat" }
+    }
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-Probe1854 $agent "& '$stub1854' issue create --title x" 0 "$agent`: a scratch gh stub through the call operator is allowed (#1854)"
+        Invoke-Probe1854 $agent "dotnet run probe.cs" 0 "$agent`: dotnet run probe.cs with a relative path in the payload cwd is allowed (#1854)"
+    }
+    Invoke-Probe1854 'pr-reviewer' "dotnet run --file probe.cs -- arg" 0 'pr-reviewer: dotnet run --file probe.cs (relative) is allowed (#1854)'
+    Invoke-Probe1854 'adversarial-reviewer' "Set-Location '$scratch1854'; dotnet run probe.cs" 0 'adversarial-reviewer: Set-Location into the scratch folder then dotnet run probe.cs is allowed (#1854)'
+    Invoke-Probe1854 'adversarial-reviewer' "Set-Content -LiteralPath '$scratch1854\made.ps1' -Value 'Write-Output 1'; & '$scratch1854\made.ps1'" 0 'adversarial-reviewer: a script written and run in one command, with no src/ or tests/ in it, is allowed (#1854)'
+    Invoke-Probe1854 'adversarial-reviewer' "'Write-Output 1' | Set-Content -LiteralPath '$scratch1854\made2.ps1'; pwsh -NoProfile -File '$scratch1854\made2.ps1'" 0 'adversarial-reviewer: a script written through the pipeline and run with pwsh -File in one command is allowed (#1854)'
+    Invoke-Probe1854 'adversarial-reviewer' "Set-Content -LiteralPath '$scratch1854\made3.ps1' -Value 'Set-Content src/Encina/X.cs 1'; & '$scratch1854\made3.ps1'" 2 'adversarial-reviewer: a script written and run in one command that writes src/ is still blocked (#1854)' 'which the same command creates'
+    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\evil.ps1'" 2 'adversarial-reviewer: an existing script that references src/ and writes files is still blocked (#1854)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\missing.ps1'" 2 'adversarial-reviewer: a script that does not exist and is not created by the command is blocked, naming the tried path (#1854)' 'which does not exist \(resolved from .*missing\.ps1.* against base'
+    Invoke-Probe1854 'pr-reviewer' "dotnet run absent.cs" 2 'pr-reviewer: dotnet run of a relative script missing from the payload cwd is blocked, naming the tried path (#1854)' 'hooks-1854-[0-9a-f]+\\absent\.cs'
+    Invoke-Probe1854 'pr-reviewer' 'dotnet run $unknownDir\probe.cs' 2 'pr-reviewer: dotnet run of a script path that depends on an unknown variable is blocked, naming the raw argument (#1854)' 'cannot resolve \(tried .\$unknownDir'
+    Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
+    # ---- end #1854 block ----
+
     # board-event-reminder.ps1 (#1732): a PostToolUse reminder, never blocks (exit 0 always).
     $boardHook = Join-Path $hooks 'board-event-reminder.ps1'
     $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now \(or let the 30-minute reconciler do it\)"'

@@ -22,9 +22,15 @@
 #   - `git apply` / `git am` whose patch names a file there, or whose patch cannot be read (stdin, a variable);
 #   - `dotnet run <file>.cs` / `dotnet run --file <file>.cs` / `pwsh`/`powershell -File <file>.ps1`: the hook
 #     reads the named script's own text and denies when it both references src/ or tests/ and contains a
-#     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath); a script path the
-#     hook cannot resolve, or cannot read, is denied too, since it cannot rule out a write there (#1181; this
-#     only partially closes the gap, since it is a text heuristic, not an execution of the script). Exempt: a
+#     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
+#     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the
+#     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that does not exist
+#     yet but is created by the same command (a Set-Content/redirection target that resolves to the same file)
+#     is judged from that command's own text instead (#1854). A script path the hook cannot resolve, a script
+#     that does not exist and is not created by the same command, and one that exists but cannot be read are
+#     denied, since they cannot rule out a write there; the message names the path tried, the raw argument
+#     and the base directory (#1181; this only partially closes the gap, since it is a text heuristic, not an
+#     execution of the script). Exempt: a
 #     script matching Test-ScriptIsSanctioned (_write-targets.ps1) — the pipeline's own tooling
 #     (.claude/hooks/tests/Test-Hooks.ps1, tools/ai/audit/*.ps1, tools/ai/*.ps1, .github/scripts/*.cs), which the
 #     orchestrator runs by design and which legitimately mentions src/ or tests/ in template guidance or search
@@ -110,10 +116,25 @@ try {
     # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: read the script's own text, since the analysis above
     # only sees the invoking statement, not what the launched script does (#1181).
     foreach ($s in $scan.Scripts) {
-        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve, so it cannot rule out writes to src/ or tests/; pass its literal path" }
+        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; pass its literal path" }
         $text = $null
-        try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { }
-        if ($null -eq $text) { Write-Block "runs '$($s.Full)' ($($s.Kind)), which the hook could not read, so it cannot rule out writes to src/ or tests/" }
+        $readError = $null
+        try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { $readError = $_.Exception.GetType().Name }
+        if ($null -eq $text -and $null -eq $readError) { $text = '' }
+        if ($null -eq $text -and $null -ne $readError -and -not (Test-Path -LiteralPath $s.Full -PathType Leaf)) {
+            # The script does not exist yet. When the same command creates it, the text that command carries
+            # (the content it writes) is what the script will hold, so analyse that instead of denying (#1854).
+            $created = $false
+            foreach ($w in $scan.Writes) { if ($w.Full -and [string]::Equals($w.Full, $s.Full, [StringComparison]::OrdinalIgnoreCase)) { $created = $true; break } }
+            if ($created) {
+                if ((Test-ScriptHasWriteApi $command) -and (Test-ScriptReferencesPath $command @('src/', 'src\', 'tests/', 'tests\'))) {
+                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, and that command references src/ or tests/ and writes files; create the script in one call and run it in the next"
+                }
+                continue
+            }
+            Write-Block "runs '$($s.Full)' ($($s.Kind)), which does not exist (resolved from '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/"
+        }
+        if ($null -eq $text) { Write-Block "runs '$($s.Full)' ($($s.Kind)), which the hook could not read ($readError), so it cannot rule out writes to src/ or tests/" }
         $scriptLocation = Get-RepoLocation $s.Full $layout
         $sanctioned = $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
         if (-not $sanctioned -and (Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
