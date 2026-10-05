@@ -102,7 +102,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IConsentValidator, DefaultConsentValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ConsentRequiredPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ConsentRequiredPipelineBehavior<,>)));
 
         // Auto-register from attributes if enabled
         var optionsInstance = new ConsentOptions();

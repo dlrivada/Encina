@@ -75,7 +75,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEncryptionOrchestrator, EncryptionOrchestrator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncryptionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(EncryptionPipelineBehavior<,>)));
 
         // Register health check if enabled
         var optionsInstance = new EncryptionOptions();

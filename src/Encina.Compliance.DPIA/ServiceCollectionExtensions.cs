@@ -134,7 +134,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRiskCriterion, VulnerableSubjectsCriterion>());
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(DPIARequiredPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(DPIARequiredPipelineBehavior<,>)));
 
         // Evaluate conditional features from a local options instance
         var optionsInstance = new DPIAOptions();

@@ -113,7 +113,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IPrivacyByDesignValidator, DefaultPrivacyByDesignValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(DataMinimizationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(DataMinimizationPipelineBehavior<,>)));
 
         // Evaluate conditional features from a local options instance
         var optionsInstance = new PrivacyByDesignOptions();

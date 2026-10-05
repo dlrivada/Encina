@@ -112,7 +112,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<XmlExportFormatWriter>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ProcessingRestrictionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ProcessingRestrictionPipelineBehavior<,>)));
 
         // Instantiate options to inspect flags for health check and auto-registration
         var optionsInstance = new DataSubjectRightsOptions();

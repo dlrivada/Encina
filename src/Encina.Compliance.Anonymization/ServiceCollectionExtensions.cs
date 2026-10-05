@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ITokenizer"/> → <see cref="DefaultTokenizer"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IRiskAssessor"/> → <see cref="DefaultRiskAssessor"/> (Singleton, using TryAdd)</item>
     /// <item>All five <see cref="IAnonymizationTechnique"/> implementations (Singleton)</item>
-    /// <item><see cref="AnonymizationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="AnonymizationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -113,7 +113,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAnonymizationTechnique, DataMaskingTechnique>());
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(AnonymizationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(AnonymizationPipelineBehavior<,>)));
 
         // Instantiate options to inspect flags for health check and auto-registration
         var optionsInstance = new AnonymizationOptions();

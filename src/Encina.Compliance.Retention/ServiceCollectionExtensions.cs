@@ -96,7 +96,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ILegalHoldService, DefaultLegalHoldService>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(RetentionValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(RetentionValidationPipelineBehavior<,>)));
 
         // Instantiate options to inspect flags for conditional registrations
         var optionsInstance = new RetentionOptions();

@@ -105,7 +105,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IRegionRouter, DefaultRegionRouter>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(DataResidencyPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(DataResidencyPipelineBehavior<,>)));
 
         // Instantiate options to inspect flags for conditional registrations
         var optionsInstance = new DataResidencyOptions();

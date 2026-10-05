@@ -61,7 +61,7 @@ public static class ServiceCollectionExtensions
         // Register the validation infrastructure
         services.TryAddScoped<EncinaValidation.IValidationProvider, FluentValidationProvider>();
         services.TryAddScoped<EncinaValidation.ValidationOrchestrator>();
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>)));
 
         // Scan and register all validators from the provided assemblies
         RegisterValidators(services, assemblies);
@@ -103,7 +103,7 @@ public static class ServiceCollectionExtensions
         // Register the validation infrastructure
         services.TryAddScoped<EncinaValidation.IValidationProvider, FluentValidationProvider>();
         services.TryAddScoped<EncinaValidation.ValidationOrchestrator>();
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(EncinaValidation.ValidationPipelineBehavior<,>)));
 
         // Scan and register all validators with the specified lifetime
         RegisterValidators(services, assemblies, lifetime);

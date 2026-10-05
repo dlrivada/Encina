@@ -134,7 +134,7 @@ public static class ServiceCollectionExtensions
         // ---------------------------------------------------------------
         // 5. Register pipeline behavior
         // ---------------------------------------------------------------
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(NIS2CompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(NIS2CompliancePipelineBehavior<,>)));
 
         // ---------------------------------------------------------------
         // 6. Conditional registrations

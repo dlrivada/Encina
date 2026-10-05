@@ -98,7 +98,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IDPAService, DefaultDPAService>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ProcessorValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ProcessorValidationPipelineBehavior<,>)));
 
         // Register expiration monitoring handler (always available for manual invocation)
         services.TryAddTransient<ICommandHandler<CheckDPAExpirationCommand, LanguageExt.Unit>, CheckDPAExpirationHandler>();

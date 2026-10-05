@@ -124,7 +124,7 @@ public static class ServiceCollectionExtensions
         }
 
         // ARCH-1: register the attestation pipeline behavior (activates on [AttestDecision] attributes)
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(AttestationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(AttestationPipelineBehavior<,>)));
 
         if (options.AddHealthCheck)
         {

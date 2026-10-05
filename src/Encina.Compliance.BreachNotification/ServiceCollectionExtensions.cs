@@ -107,7 +107,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IBreachNotifier, DefaultBreachNotifier>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(BreachDetectionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(BreachDetectionPipelineBehavior<,>)));
 
         // Register built-in detection rules
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IBreachDetectionRule, UnauthorizedAccessRule>());

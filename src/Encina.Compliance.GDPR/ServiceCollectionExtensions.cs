@@ -91,7 +91,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IGDPRComplianceValidator, DefaultGDPRComplianceValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(GDPRCompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(GDPRCompliancePipelineBehavior<,>)));
 
         // Register RoPA exporters (TryAdd allows override)
         services.TryAddSingleton<JsonRoPAExporter>();

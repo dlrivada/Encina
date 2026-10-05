@@ -1,0 +1,1 @@
+- Pipeline behaviors registered by the Security, ABAC, Encryption, AntiTampering, validation (DataAnnotations, FluentValidation, MiniValidator), OpenTelemetry and Compliance packages are no longer silently skipped when another package registered a behavior first; every package's behavior is now in the pipeline in any registration order (#1635).

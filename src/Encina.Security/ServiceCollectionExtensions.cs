@@ -78,7 +78,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IResourceOwnershipEvaluator, DefaultResourceOwnershipEvaluator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(SecurityPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(SecurityPipelineBehavior<,>)));
 
         // Register health check if enabled
         var optionsInstance = new SecurityOptions();

@@ -31,7 +31,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDataQualityValidator"/> → <see cref="DefaultDataQualityValidator"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAIActDocumentation"/> → <see cref="DefaultAIActDocumentation"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAIActComplianceValidator"/> → <see cref="DefaultAIActComplianceValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="AIActCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="AIActCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -95,7 +95,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAIActComplianceValidator, DefaultAIActComplianceValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(AIActCompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(AIActCompliancePipelineBehavior<,>)));
 
         // Auto-register from attributes if enabled
         var optionsInstance = new AIActOptions();
