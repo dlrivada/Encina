@@ -286,7 +286,7 @@ flowchart LR
 - Response is `Either.Left` (error path)
 - Response type has no PII attributes and no sensitive field matches
 
-**Failure behavior (fail closed)**: when masking the response fails, the behavior returns an `EncinaError` with code `pii.masking_failed` (`PIIErrors.MaskingFailed`) instead of the unmasked response. Likewise `IPIIMasker.MaskObject<T>` throws on a serialization or masking failure rather than returning the unmasked object (EventId 8015, exception redacted). A PII-marked get-only string property is no longer skipped silently; masking throws `InvalidOperationException` when a masked value cannot be applied to the copy.
+**Failure behavior (fail closed)**: when masking the response fails, the behavior returns an `EncinaError` with code `pii.masking_failed` (`PIIErrors.MaskingFailed`) instead of the unmasked response. Likewise `IPIIMasker.MaskObject<T>` throws on a serialization or masking failure rather than returning the unmasked object (EventId 8015 for serialization failures, 8012 for other masking failures; the exception is redacted). A PII-marked get-only string property is no longer skipped silently; masking throws `InvalidOperationException` when a masked value cannot be applied to the copy.
 
 ---
 
