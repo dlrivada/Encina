@@ -53,8 +53,19 @@ if ($Delta) {
     $candidates = @(Get-DeltaCandidates $knowledgeRoot)
     if ($candidates.Count -eq 0) { Write-Error "audit-next: no audited issue in artifacts/knowledge/progress.csv; nothing to re-check."; exit 1 }
     $deltaDone = @(Get-DeltaDone $knowledgeRoot $Delta)
-    $pendingDelta = @($candidates | Where-Object { $deltaDone -notcontains $_ })
-    if ($pendingDelta.Count -eq 0) { Write-Error "audit-next: every audited issue already has a '$Delta' delta."; exit 1 }
+    $fetchOutput = & git -C $mainRoot fetch origin main 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: git fetch origin main failed: $fetchOutput"; exit 1 }
+    # A delta publishes next to the original audit's published stage files: the issue needs its record and its
+    # docs/knowledge/audits/<n>/stages folder on origin/main (knowledge-records --check requires that folder).
+    $unfit = [System.Collections.Generic.List[string]]::new()
+    $pendingDelta = @($candidates | Where-Object { $deltaDone -notcontains $_ } | Where-Object {
+            $hasStages = [bool](& git -C $mainRoot ls-tree origin/main -- "docs/knowledge/audits/$_/stages" 2>$null)
+            $hasRecord = [bool](& git -C $mainRoot ls-tree origin/main -- "docs/knowledge/issues/$_.md" 2>$null)
+            if (-not ($hasStages -and $hasRecord)) { $unfit.Add($_) }
+            $hasStages -and $hasRecord
+        })
+    if ($unfit.Count -gt 0) { Write-Warning "audit-next: skipped (original audit not published on origin/main with record and stages): $($unfit -join ', ')." }
+    if ($pendingDelta.Count -eq 0) { Write-Error "audit-next: no audited issue left without a '$Delta' delta that has its original audit published."; exit 1 }
     if ($Issue) {
         if ($pendingDelta -notcontains [string]$Issue) {
             Write-Error "audit-next: -Issue $Issue is not an audited issue without a '$Delta' delta (pending: $($pendingDelta -join ', '))."
@@ -64,8 +75,6 @@ if ($Delta) {
     }
     else { $n = [int]$pendingDelta[0] }
 
-    $fetchOutput = & git -C $mainRoot fetch origin main 2>&1
-    if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: git fetch origin main failed: $fetchOutput"; exit 1 }
     $wt = Join-Path $worktreesRoot "wia-$n"
     $branch = "audit/$n"
     $addOutput = & git -C $mainRoot worktree add -b $branch $wt origin/main 2>&1
@@ -98,7 +107,7 @@ if ($Delta) {
     $audit | ConvertTo-Json | Set-Content -LiteralPath $currentAuditPath -Encoding utf8
 
     "Delta audit $Delta of #$n (pending deltas: $($pendingDelta.Count)); scope reused from the original audit: $wt\artifacts\knowledge\delta-scope.md"
-    $deltaPipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit') 'pipeline-delta.json'
+    $deltaPipeline = $deltaPipelineSource
     $marker = [string]$deltaPipeline.delta.promptMarker
     $nextDelta = Get-NextStage (Get-StagesDir $wt) $wt $deltaPipeline
     if ($null -eq $nextDelta) { 'All stages already complete. Run audit-done.ps1.' }

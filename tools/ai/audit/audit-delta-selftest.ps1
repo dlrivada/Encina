@@ -161,7 +161,7 @@ exit 0
     Assert-That 'the delta progress file records 99 and progress.csv is untouched' (((Get-Content $deltaProgress) -match '^99,done') -and ((Get-Content (Join-Path $knowledge 'progress.csv') -Raw) -ceq $progressBefore))
     Assert-That 'the delta stages were archived next to, not over, the originals' ((Test-Path (Join-Path $knowledge "stages\99-$folder\docs.md")) -and -not (Test-Path (Join-Path $knowledge 'stages\99')))
     $r3 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
-    Assert-That 'with every audited issue done the next audit-next -Delta says so' ($r3.Exit -ne 0 -and $r3.Text -like '*already has a*delta*') $r3.Text
+    Assert-That 'with every audited issue done the next audit-next -Delta says so' ($r3.Exit -ne 0 -and $r3.Text -like '*no audited issue left*') $r3.Text
 }
 finally {
     Set-Location $PSScriptRoot
