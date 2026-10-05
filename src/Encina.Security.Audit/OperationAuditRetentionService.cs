@@ -118,7 +118,7 @@ public sealed class OperationAuditRetentionService : BackgroundService
 
             Log.AuditRetentionPurgeStarted(_logger, cutoffDate);
 
-            using var scope = _scopeFactory.CreateScope();
+            await using var scope = _scopeFactory.CreateAsyncScope();
             var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
 
             var result = await auditStore.PurgeEntriesAsync(cutoffDate, cancellationToken).ConfigureAwait(false);

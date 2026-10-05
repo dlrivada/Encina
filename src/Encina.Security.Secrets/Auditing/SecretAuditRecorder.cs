@@ -51,7 +51,7 @@ internal static class SecretAuditRecorder
                 requestContext, action, secretName, isSuccess, errorCode, startedAt, completedAt);
 
             // The decorators are singletons and database stores are scoped: resolve per write.
-            using var scope = scopeFactory.CreateScope();
+            await using var scope = scopeFactory.CreateAsyncScope();
             var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
 
             var auditResult = await auditStore.RecordAsync(entry, cancellationToken).ConfigureAwait(false);

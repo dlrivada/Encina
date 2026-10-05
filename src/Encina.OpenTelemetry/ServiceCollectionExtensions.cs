@@ -223,7 +223,8 @@ public static class ServiceCollectionExtensions
         Func<TService, TService> decoratorFactory)
         where TService : class
     {
-        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(TService));
+        // A keyed registration is a different service and is left untouched.
+        var descriptor = services.FirstOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(TService));
         if (descriptor is null)
         {
             return;

@@ -122,9 +122,9 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
             AddParameter(command, "@EntityId", entry.EntityId);
             AddParameter(command, "@Outcome", (int)entry.Outcome);
             AddParameter(command, "@ErrorMessage", entry.ErrorMessage);
-            AddParameter(command, "@TimestampUtc", entry.TimestampUtc);
-            AddParameter(command, "@StartedAtUtc", entry.StartedAtUtc);
-            AddParameter(command, "@CompletedAtUtc", entry.CompletedAtUtc);
+            AddParameter(command, "@TimestampUtc", AsUtc(entry.TimestampUtc));
+            AddParameter(command, "@StartedAtUtc", entry.StartedAtUtc.ToUniversalTime());
+            AddParameter(command, "@CompletedAtUtc", entry.CompletedAtUtc.ToUniversalTime());
             AddParameter(command, "@IpAddress", entry.IpAddress);
             AddParameter(command, "@UserAgent", entry.UserAgent);
             AddParameter(command, "@RequestPayloadHash", entry.RequestPayloadHash);
@@ -193,8 +193,8 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
             using var command = _connection.CreateCommand();
             command.CommandText = _selectByUserSql;
             AddParameter(command, "@UserId", userId);
-            AddParameter(command, "@FromUtc", fromUtc);
-            AddParameter(command, "@ToUtc", toUtc);
+            AddParameter(command, "@FromUtc", AsUtc(fromUtc));
+            AddParameter(command, "@ToUtc", AsUtc(toUtc));
 
             var entries = new List<OperationAuditEntry>();
 
@@ -358,7 +358,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         {
             using var command = _connection.CreateCommand();
             command.CommandText = _purgeSql;
-            AddParameter(command, "@OlderThanUtc", olderThanUtc);
+            AddParameter(command, "@OlderThanUtc", AsUtc(olderThanUtc));
 
             if (_connection.State != ConnectionState.Open)
                 await OpenConnectionAsync(cancellationToken);
@@ -385,8 +385,8 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         AddText(whereClause, command, "Action", query.Action);
         AddCriterion(whereClause, command, "Outcome", "=", "Outcome", query.Outcome is { } outcome ? (int)outcome : null);
         AddText(whereClause, command, "CorrelationId", query.CorrelationId);
-        AddCriterion(whereClause, command, "TimestampUtc", ">=", "FromUtc", query.FromUtc);
-        AddCriterion(whereClause, command, "TimestampUtc", "<=", "ToUtc", query.ToUtc);
+        AddCriterion(whereClause, command, "TimestampUtc", ">=", "FromUtc", AsUtc(query.FromUtc));
+        AddCriterion(whereClause, command, "TimestampUtc", "<=", "ToUtc", AsUtc(query.ToUtc));
         AddText(whereClause, command, "IpAddress", query.IpAddress);
 
         return (whereClause.ToString(), command);
@@ -457,6 +457,17 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         ResponsePayload = GetNullableString(reader, "ResponsePayload"),
         Metadata = DeserializeMetadata(GetNullableString(reader, "Metadata"))
     };
+
+    // Npgsql rejects a non-UTC DateTime for timestamptz, and an Unspecified one is ambiguous: a Local value is
+    // converted, an Unspecified value is taken as UTC (the column and the property are UTC by contract).
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static DateTime? AsUtc(DateTime? value) => value.HasValue ? AsUtc(value.Value) : null;
 
     private static DateTimeOffset GetDateTimeOffset(IDataReader reader, int ordinal)
     {

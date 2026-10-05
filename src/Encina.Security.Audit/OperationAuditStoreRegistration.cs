@@ -3,23 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Encina.Security.Audit;
 
 /// <summary>
-/// Implemented by a service factory that wraps another registration (a decorator), so registration
-/// code can look through the wrapper and see what it decorates.
-/// </summary>
-/// <remarks>
-/// A decorating registration is a factory descriptor whose <see cref="ServiceDescriptor.ImplementationFactory"/>
-/// is a method of an object implementing this interface; the descriptor itself no longer names the
-/// decorated implementation type.
-/// </remarks>
-public interface IDecoratedServiceFactory
-{
-    /// <summary>
-    /// Gets the registration this factory decorates, as it was before it was wrapped.
-    /// </summary>
-    ServiceDescriptor Decorated { get; }
-}
-
-/// <summary>
 /// Registration helpers shared by the database providers that supply an <see cref="IOperationAuditStore"/>.
 /// </summary>
 public static class OperationAuditStoreRegistration
@@ -67,12 +50,21 @@ public static class OperationAuditStoreRegistration
             return false;
         }
 
+        // Walk the decorator chain; every level is checked against keyed registrations (whose
+        // implementation getters throw) and a visited set stops a cyclic chain.
+        var visited = new HashSet<ServiceDescriptor>(ReferenceEqualityComparer.Instance);
         var current = descriptor;
-        while (current.ImplementationFactory?.Target is IDecoratedServiceFactory decorating)
+        while (!current.IsKeyedService
+            && current.ImplementationFactory?.Target is IDecoratedServiceFactory decorating)
         {
+            if (!visited.Add(current))
+            {
+                return false;
+            }
+
             current = decorating.Decorated;
         }
 
-        return current.ImplementationType == typeof(InMemoryOperationAuditStore);
+        return !current.IsKeyedService && current.ImplementationType == typeof(InMemoryOperationAuditStore);
     }
 }

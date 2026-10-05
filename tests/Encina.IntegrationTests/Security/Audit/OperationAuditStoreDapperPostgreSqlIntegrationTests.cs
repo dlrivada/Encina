@@ -365,4 +365,74 @@ public class OperationAuditStoreDapperPostgreSqlIntegrationTests : IAsyncLifetim
         result.IsRight.ShouldBeTrue();
         result.IfRight(count => count.ShouldBe(0));
     }
+
+    private static DateTime TruncatedUtcNow()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - (now.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public async Task RecordAsync_NonUtcKinds_StoreTheSameInstantAndMapTimestamptzToDateTimeOffset(DateTimeKind kind)
+    {
+        await ClearDataAsync();
+        var instant = TruncatedUtcNow();
+        var timestamp = kind == DateTimeKind.Local
+            ? instant.ToLocalTime()
+            : DateTime.SpecifyKind(instant, DateTimeKind.Unspecified);
+        var started = new DateTimeOffset(instant.AddMilliseconds(-100)).ToOffset(TimeSpan.FromHours(5));
+        var entry = CreateTestEntry(timestampUtc: timestamp) with { StartedAtUtc = started, CompletedAtUtc = started.AddMilliseconds(100) };
+
+        var recorded = await _store.RecordAsync(entry);
+        var read = await _store.GetByEntityAsync(entry.EntityType, entry.EntityId!);
+
+        recorded.IsRight.ShouldBeTrue();
+        read.IsRight.ShouldBeTrue();
+        read.IfRight(entries =>
+        {
+            var stored = entries.ShouldHaveSingleItem();
+            stored.TimestampUtc.ShouldBe(instant);
+            stored.StartedAtUtc.UtcDateTime.ShouldBe(instant.AddMilliseconds(-100));
+            stored.CompletedAtUtc.UtcDateTime.ShouldBe(instant);
+        });
+    }
+
+    [Fact]
+    public async Task QueryAsync_LocalAndUnspecifiedBounds_FilterByInstant()
+    {
+        await ClearDataAsync();
+        var now = TruncatedUtcNow();
+        await _store.RecordAsync(CreateTestEntry(timestampUtc: now.AddHours(-3)));
+        var recent = CreateTestEntry(timestampUtc: now);
+        await _store.RecordAsync(recent);
+
+        var query = new OperationAuditQuery
+        {
+            FromUtc = now.AddHours(-1).ToLocalTime(),
+            ToUtc = DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified)
+        };
+        var result = await _store.QueryAsync(query);
+        var byUser = await _store.GetByUserAsync("test-user", now.AddHours(-1).ToLocalTime(), DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified));
+
+        result.IsRight.ShouldBeTrue();
+        byUser.IsRight.ShouldBeTrue();
+        result.IfRight(page => page.Items.ShouldHaveSingleItem().Id.ShouldBe(recent.Id));
+        byUser.IfRight(entries => entries.ShouldHaveSingleItem().Id.ShouldBe(recent.Id));
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_LocalCutoff_PurgesByInstant()
+    {
+        await ClearDataAsync();
+        var now = TruncatedUtcNow();
+        await _store.RecordAsync(CreateTestEntry(timestampUtc: now.AddDays(-100)));
+        await _store.RecordAsync(CreateTestEntry(timestampUtc: now));
+
+        var result = await _store.PurgeEntriesAsync(now.AddDays(-30).ToLocalTime());
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(1));
+    }
 }

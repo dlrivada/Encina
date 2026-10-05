@@ -21,9 +21,9 @@ namespace Encina.Security.Audit;
 /// </remarks>
 /// <example>
 /// <code>
-/// var startedAt = DateTimeOffset.UtcNow;
+/// var startedAt = timeProvider.GetUtcNow();
 /// // ... execute operation ...
-/// var completedAt = DateTimeOffset.UtcNow;
+/// var completedAt = timeProvider.GetUtcNow();
 ///
 /// var entry = new OperationAuditEntry
 /// {

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
 using static LanguageExt.Prelude;
@@ -15,6 +16,15 @@ namespace Encina.UnitTests.Security.Audit;
 /// </summary>
 public class OperationAuditRetentionServiceTests
 {
+    // Event ids of the retention purge log messages (see Log.cs).
+    private const int PurgeCompletedEvent = 5006;
+    private const int NothingToPurgeEvent = 5007;
+    private const int PurgeFailedEvent = 5008;
+    private const int PurgeCancelledEvent = 5009;
+    private const int PurgeErrorEvent = 5010;
+
+    private static readonly DateTimeOffset Start = new(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+
     private readonly IOperationAuditStore _mockAuditStore;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OperationAuditRetentionService> _logger;
@@ -27,6 +37,78 @@ public class OperationAuditRetentionServiceTests
             .BuildServiceProvider()
             .GetRequiredService<IServiceScopeFactory>();
         _logger = NullLogger<OperationAuditRetentionService>.Instance;
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        private readonly List<int> _events = [];
+
+        public List<int> Events
+        {
+            get
+            {
+                lock (_events)
+                {
+                    return [.. _events];
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (_events)
+            {
+                _events.Add(eventId.Id);
+            }
+        }
+    }
+
+    // Models a purge still running when the host stops: blocks until the stopping token fires, then cancels.
+    private static Either<EncinaError, int> BlockUntilCancelled(CancellationToken token)
+    {
+        token.WaitHandle.WaitOne();
+        token.ThrowIfCancellationRequested();
+        return Right<EncinaError, int>(0);
+    }
+
+    private static OperationAuditOptions Enabled(int retentionDays = 30) => new()
+    {
+        EnableAutoPurge = true,
+        RetentionDays = retentionDays,
+        PurgeIntervalHours = 1
+    };
+
+    private int PurgeCalls() => _mockAuditStore.ReceivedCalls()
+        .Count(c => c.GetMethodInfo().Name == nameof(IOperationAuditStore.PurgeEntriesAsync));
+
+    private static async Task AdvanceUntilAsync(FakeTimeProvider clock, Func<bool> condition)
+    {
+        for (var i = 0; i < 300 && !condition(); i++)
+        {
+            clock.Advance(TimeSpan.FromHours(1));
+            await Task.Delay(10);
+        }
+
+        condition().ShouldBeTrue("the retention service did not reach the expected state in time");
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 300 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        condition().ShouldBeTrue("the expected log entry was not written in time");
     }
 
     #region Disabled Service Tests
@@ -45,9 +127,7 @@ public class OperationAuditRetentionServiceTests
         await service.StopAsync(cts.Token);
 
         // Assert - PurgeEntriesAsync should never be called
-        _mockAuditStore.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IOperationAuditStore.PurgeEntriesAsync))
-            .ShouldBeEmpty();
+        PurgeCalls().ShouldBe(0);
     }
 
     #endregion
@@ -94,136 +174,64 @@ public class OperationAuditRetentionServiceTests
     }
 
     [Fact]
-    public void Constructor_WithNullTimeProvider_ShouldUseSystemTimeProvider()
+    public async Task Constructor_WithNullTimeProvider_UsesTheSystemClockAndDoesNotPurgeBeforeTheInterval()
     {
         // Arrange
-        var options = Options.Create(new OperationAuditOptions());
-
-        // Act - Should not throw
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger, null);
-
-        // Assert
-        service.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void Constructor_WithValidParameters_ShouldSucceed()
-    {
-        // Arrange
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = true,
-            RetentionDays = 30,
-            PurgeIntervalHours = 24
-        });
+        var options = Options.Create(Enabled());
+        using var service = new OperationAuditRetentionService(_scopeFactory, options, _logger, null);
 
         // Act
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
+        await service.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
+        await service.StopAsync(CancellationToken.None);
 
-        // Assert
-        service.ShouldNotBeNull();
+        // Assert: the first purge is one interval (1 hour of real time) away
+        PurgeCalls().ShouldBe(0);
     }
 
     #endregion
 
-    #region Options Configuration Tests
-
-    [Fact]
-    public void Service_ShouldReadRetentionDaysFromOptions()
-    {
-        // Arrange
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = true,
-            RetentionDays = 365,
-            PurgeIntervalHours = 12
-        });
-
-        // Act - Create service (doesn't throw)
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
-
-        // Assert
-        service.ShouldNotBeNull();
-        // Options are read at execution time, not construction
-    }
-
-    [Fact]
-    public void Service_ShouldReadPurgeIntervalFromOptions()
-    {
-        // Arrange
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = true,
-            RetentionDays = 30,
-            PurgeIntervalHours = 6 // Custom interval
-        });
-
-        // Act - Create service (doesn't throw)
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
-
-        // Assert
-        service.ShouldNotBeNull();
-    }
+    #region Cutoff Date Tests
 
     [Theory]
     [InlineData(7)]     // 1 week
     [InlineData(30)]    // 1 month
     [InlineData(365)]   // 1 year
     [InlineData(2555)]  // 7 years (SOX)
-    public void Service_ShouldAcceptVariousRetentionDays(int retentionDays)
+    public async Task ExecuteAsync_PurgesEntriesOlderThanNowMinusRetentionDays(int retentionDays)
     {
         // Arrange
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = true,
-            RetentionDays = retentionDays,
-            PurgeIntervalHours = 24
-        });
+        var clock = new FakeTimeProvider(Start);
+        var purgedWith = new List<DateTime>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                lock (purgedWith)
+                {
+                    purgedWith.Add(call.Arg<DateTime>());
+                }
 
-        // Act - Should not throw
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
-
-        // Assert
-        service.ShouldNotBeNull();
-    }
-
-    #endregion
-
-    #region Cutoff Date Calculation Tests
-
-    [Fact]
-    public void CutoffDateCalculation_ShouldSubtractRetentionDays()
-    {
-        // This test verifies the expected calculation logic
-        // cutoffDate = UtcNow.AddDays(-RetentionDays)
-
-        // Arrange
-        var now = DateTime.UtcNow;
-        var retentionDays = 30;
-        var expectedCutoff = now.AddDays(-retentionDays);
-
-        // Act - Calculate what the service should use
-        var actualCutoff = now.AddDays(-retentionDays);
-
-        // Assert
-        actualCutoff.Date.ShouldBe(expectedCutoff.Date);
-    }
-
-    [Theory]
-    [InlineData(7, -7)]
-    [InlineData(30, -30)]
-    [InlineData(365, -365)]
-    public void CutoffDateCalculation_ShouldBeCorrectForVariousRetentionPeriods(int retentionDays, int expectedDaysOffset)
-    {
-        // Arrange
-        var baseDate = new DateTime(2024, 6, 15, 12, 0, 0, DateTimeKind.Utc);
-        var expectedCutoff = baseDate.AddDays(expectedDaysOffset);
+                return Right<EncinaError, int>(0);
+            });
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled(retentionDays)), _logger, clock);
 
         // Act
-        var actualCutoff = baseDate.AddDays(-retentionDays);
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => { lock (purgedWith) { return purgedWith.Count > 0; } });
+        await service.StopAsync(CancellationToken.None);
 
-        // Assert
-        actualCutoff.ShouldBe(expectedCutoff);
+        // Assert: cutoff + RetentionDays is a clock reading (Start plus a whole number of one-hour
+        // advances); a sign mutation would put it retentionDays * 2 days away from the clock.
+        DateTime cutoff;
+        lock (purgedWith)
+        {
+            cutoff = purgedWith[0];
+        }
+
+        cutoff.Kind.ShouldBe(DateTimeKind.Utc);
+        var clockReading = cutoff.AddDays(retentionDays) - Start.UtcDateTime;
+        clockReading.TotalHours.ShouldBeInRange(1, 300);
+        (clockReading.TotalHours % 1).ShouldBe(0);
     }
 
     #endregion
@@ -234,16 +242,10 @@ public class OperationAuditRetentionServiceTests
     public async Task ExecuteAsync_EveryPurgeRun_ResolvesTheScopedStoreFromItsOwnScope()
     {
         // Arrange: a scoped store (as every database provider registers it) and a fake clock
-        var start = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
-        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(start);
-        var purged = new TaskCompletionSource<DateTime>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clock = new FakeTimeProvider(Start);
         var resolutions = 0;
         _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                purged.TrySetResult(call.Arg<DateTime>());
-                return Right<EncinaError, int>(0);
-            });
+            .Returns(Right<EncinaError, int>(0));
 
         var services = new ServiceCollection();
         services.AddScoped(_ =>
@@ -253,33 +255,170 @@ public class OperationAuditRetentionServiceTests
         });
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = true,
-            RetentionDays = 30,
-            PurgeIntervalHours = 1
-        });
         using var service = new OperationAuditRetentionService(
-            provider.GetRequiredService<IServiceScopeFactory>(), options, _logger, clock);
+            provider.GetRequiredService<IServiceScopeFactory>(), Options.Create(Enabled()), _logger, clock);
 
-        // Act: advance the clock until the service's delay fires and the purge runs once
+        // Act
         await service.StartAsync(CancellationToken.None);
-        for (var i = 0; i < 200 && !purged.Task.IsCompleted; i++)
-        {
-            clock.Advance(TimeSpan.FromHours(1));
-            await Task.Delay(10);
-        }
-
-        var cutoff = await purged.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await AdvanceUntilAsync(clock, () => PurgeCalls() >= 1);
         await service.StopAsync(CancellationToken.None);
 
-        // Assert: exactly one store resolution (one scope) per purge run, and a UTC cutoff derived from the fake clock
-        var purgeRuns = _mockAuditStore.ReceivedCalls()
-            .Count(c => c.GetMethodInfo().Name == nameof(IOperationAuditStore.PurgeEntriesAsync));
-        purgeRuns.ShouldBeGreaterThanOrEqualTo(1);
-        Volatile.Read(ref resolutions).ShouldBe(purgeRuns);
-        cutoff.Kind.ShouldBe(DateTimeKind.Utc);
-        cutoff.ShouldBeGreaterThan(start.UtcDateTime.AddDays(-30));
+        // Assert: exactly one store resolution (one scope) per purge run
+        Volatile.Read(ref resolutions).ShouldBe(PurgeCalls());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenEntriesWerePurged_LogsCompletion()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(3));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => logger.Events.Contains(PurgeCompletedEvent));
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        logger.Events.ShouldNotContain(NothingToPurgeEvent);
+        logger.Events.ShouldNotContain(PurgeFailedEvent);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenNothingWasPurged_LogsNothingToPurge()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, int>(0));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => logger.Events.Contains(NothingToPurgeEvent));
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        logger.Events.ShouldNotContain(PurgeCompletedEvent);
+    }
+
+    #endregion
+
+    #region Error Handling Tests
+
+    [Fact]
+    public async Task ExecuteAsync_WhenTheStoreReturnsLeft_ReportsFailureNotSuccessAndKeepsRunning()
+    {
+        // Arrange: the first run fails with a Left, the next one succeeds
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Left<EncinaError, int>(EncinaErrors.Create("audit.store_failure", "store failed")),
+                Right<EncinaError, int>(2));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => logger.Events.Contains(PurgeCompletedEvent));
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert: the Left is logged as a failure (never as completion) and the loop survived it
+        var events = logger.Events;
+        events.ShouldContain(PurgeFailedEvent);
+        events.IndexOf(PurgeFailedEvent).ShouldBeLessThan(events.IndexOf(PurgeCompletedEvent));
+        events.Count(e => e == PurgeCompletedEvent).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenTheStoreReturnsLeftOnly_NeverLogsCompletion()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, int>(EncinaErrors.Create("audit.store_failure", "store failed")));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => logger.Events.Contains(PurgeFailedEvent));
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        logger.Events.ShouldNotContain(PurgeCompletedEvent);
+        logger.Events.ShouldNotContain(NothingToPurgeEvent);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenTheStoreThrows_LogsTheErrorAndKeepsRunning()
+    {
+        // Arrange: the first run throws, the next one succeeds
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        var calls = 0;
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Interlocked.Increment(ref calls) == 1
+                ? throw new InvalidOperationException("boom")
+                : Right<EncinaError, int>(1));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => logger.Events.Contains(PurgeCompletedEvent));
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        logger.Events.ShouldContain(PurgeErrorEvent);
+        logger.Events.IndexOf(PurgeErrorEvent).ShouldBeLessThan(logger.Events.IndexOf(PurgeCompletedEvent));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenStoppedMidPurge_LogsCancellationAndNeitherSuccessNorFailure()
+    {
+        // Arrange: the store blocks until the service's stopping token is cancelled
+        var clock = new FakeTimeProvider(Start);
+        var logger = new CapturingLogger<OperationAuditRetentionService>();
+        _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call => BlockUntilCancelled(call.Arg<CancellationToken>()));
+        using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(clock, () => PurgeCalls() >= 1);
+        await service.StopAsync(CancellationToken.None);
+        await WaitUntilAsync(() => logger.Events.Contains(PurgeCancelledEvent));
+
+        // Assert
+        logger.Events.ShouldNotContain(PurgeCompletedEvent);
+        logger.Events.ShouldNotContain(NothingToPurgeEvent);
+        logger.Events.ShouldNotContain(PurgeFailedEvent);
+        logger.Events.ShouldNotContain(PurgeErrorEvent);
+    }
+
+    [Fact]
+    public async Task Service_WhenAutoPurgeDisabled_ShouldNotCallPurge()
+    {
+        // Arrange
+        var options = Options.Create(new OperationAuditOptions
+        {
+            EnableAutoPurge = false
+        });
+
+        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
+        using var cts = new CancellationTokenSource();
+
+        // Act
+        await service.StartAsync(cts.Token);
+        await Task.Delay(150); // Wait a bit
+        await service.StopAsync(cts.Token);
+
+        // Assert - Purge should never be called
+        PurgeCalls().ShouldBe(0);
     }
 
     #endregion
@@ -336,33 +475,6 @@ public class OperationAuditRetentionServiceTests
 
         // Assert - Should not throw
         await Should.NotThrowAsync(async () => await service.StopAsync(CancellationToken.None));
-    }
-
-    #endregion
-
-    #region Error Handling Tests
-
-    [Fact]
-    public async Task Service_WhenAutoPurgeDisabled_ShouldNotCallPurge()
-    {
-        // Arrange
-        var options = Options.Create(new OperationAuditOptions
-        {
-            EnableAutoPurge = false
-        });
-
-        var service = new OperationAuditRetentionService(_scopeFactory, options, _logger);
-        using var cts = new CancellationTokenSource();
-
-        // Act
-        await service.StartAsync(cts.Token);
-        await Task.Delay(150); // Wait a bit
-        await service.StopAsync(cts.Token);
-
-        // Assert - Purge should never be called
-        _mockAuditStore.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IOperationAuditStore.PurgeEntriesAsync))
-            .ShouldBeEmpty();
     }
 
     #endregion

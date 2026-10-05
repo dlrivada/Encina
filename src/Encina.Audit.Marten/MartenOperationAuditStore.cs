@@ -55,7 +55,7 @@ namespace Encina.Audit.Marten;
 /// var result = await auditStore.RecordAsync(entry, cancellationToken);
 ///
 /// // Crypto-shredding old entries
-/// var purged = await auditStore.PurgeEntriesAsync(DateTime.UtcNow.AddYears(-7), cancellationToken);
+/// var purged = await auditStore.PurgeEntriesAsync(timeProvider.GetUtcNow().UtcDateTime.AddYears(-7), cancellationToken);
 /// </code>
 /// </example>
 public sealed class MartenOperationAuditStore : IOperationAuditStore

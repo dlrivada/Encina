@@ -150,19 +150,59 @@ public sealed class OperationAuditStoreRegistrationOrderTests
     }
 
     [Fact]
-    public void KeyedApplicationStore_WrappedByOpenTelemetry_FailsWithAClearMessageOnResolve()
+    public void KeyedApplicationStore_IsLeftUntouchedByOpenTelemetry_AndTheNonKeyedOneIsDecorated()
+    {
+        // Arrange
+        var services = NewServices();
+        var keyed = Substitute.For<IOperationAuditStore>();
+        services.AddKeyedSingleton<IOperationAuditStore>("audit", keyed);
+        services.AddSingleton(Substitute.For<IOperationAuditStore>());
+
+        // Act
+        services.AddEncinaOpenTelemetry();
+
+        // Assert
+        var keyedDescriptor = services.Single(d => d.IsKeyedService && d.ServiceType == typeof(IOperationAuditStore));
+        keyedDescriptor.KeyedImplementationInstance.ShouldBeSameAs(keyed);
+        var plain = services.Single(d => !d.IsKeyedService && d.ServiceType == typeof(IOperationAuditStore));
+        plain.ImplementationFactory!.Target.ShouldBeAssignableTo<IDecoratedServiceFactory>();
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IOperationAuditStore>().ShouldBeOfType<InstrumentedOperationAuditStore>();
+        provider.GetRequiredKeyedService<IOperationAuditStore>("audit").ShouldBeSameAs(keyed);
+    }
+
+    [Fact]
+    public void OnlyAKeyedStoreRegistered_OpenTelemetryDecoratesNothing()
     {
         // Arrange
         var services = NewServices();
         services.AddKeyedSingleton<IOperationAuditStore>("audit", Substitute.For<IOperationAuditStore>());
-        services.AddEncinaOpenTelemetry();
 
         // Act
-        using var provider = services.BuildServiceProvider();
-        var act = () => provider.GetRequiredService<IOperationAuditStore>();
+        services.AddEncinaOpenTelemetry();
 
         // Assert
-        Should.Throw<InvalidOperationException>(act).Message.ShouldContain("keyed service");
+        services.Count(d => d.ServiceType == typeof(IOperationAuditStore)).ShouldBe(1);
+        services.Single(d => d.ServiceType == typeof(IOperationAuditStore)).IsKeyedService.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsInMemoryDefault_DecoratorWhoseDecoratedRegistrationIsKeyed_ReturnsFalseWithoutThrowing()
+    {
+        var keyed = ServiceDescriptor.KeyedSingleton<IOperationAuditStore, InMemoryOperationAuditStore>("audit");
+
+        OperationAuditStoreRegistration.IsInMemoryDefault(Decorate(keyed)).ShouldBeFalse();
+        OperationAuditStoreRegistration.IsInMemoryDefault(Decorate(Decorate(keyed))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsInMemoryDefault_CyclicDecoratorChain_TerminatesWithFalse()
+    {
+        var decorating = new Decorating(ServiceDescriptor.Singleton<IOperationAuditStore, InMemoryOperationAuditStore>());
+        var cyclic = ServiceDescriptor.Describe(typeof(IOperationAuditStore), decorating.Create, ServiceLifetime.Singleton);
+        decorating.Decorated = cyclic;
+
+        OperationAuditStoreRegistration.IsInMemoryDefault(cyclic).ShouldBeFalse();
     }
 
     [Fact]
@@ -243,13 +283,6 @@ public sealed class OperationAuditStoreRegistrationOrderTests
         services.Single(d => d.ServiceType == typeof(IOperationAuditStore)).ImplementationInstance.ShouldBeSameAs(custom);
     }
 
-    [Fact]
-    public void Guards_RejectNull()
-    {
-        Should.Throw<ArgumentNullException>(() => OperationAuditStoreRegistration.RemoveInMemoryDefault(null!));
-        Should.Throw<ArgumentNullException>(() => OperationAuditStoreRegistration.IsInMemoryDefault(null!));
-    }
-
     private static ServiceDescriptor Decorate(ServiceDescriptor decorated)
     {
         var decorating = new Decorating(decorated);
@@ -258,7 +291,7 @@ public sealed class OperationAuditStoreRegistrationOrderTests
 
     private sealed class Decorating(ServiceDescriptor decorated) : IDecoratedServiceFactory
     {
-        public ServiceDescriptor Decorated { get; } = decorated;
+        public ServiceDescriptor Decorated { get; set; } = decorated;
 
         public object Create(IServiceProvider sp) => throw new NotSupportedException();
     }

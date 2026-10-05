@@ -158,6 +158,8 @@ services.AddSingleton<IRequestContext, YourRequestContext>();
 
 Each audit entry captures: action (`SecretAccess`, `SecretWrite`, `SecretRotation`), entity, user, tenant, timing, and outcome. Audit failures are logged but **never** block secret operations.
 
+The audited reader decorator runs above the caching decorator, so a cached read is audited too. The audit write uses the caller's `CancellationToken`: a cancellation that arrives after the secret was read can lose the audit row, and the failure to record is logged and never fails the secret operation.
+
 ## Rotation Coordinator
 
 `SecretRotationCoordinator` orchestrates the full rotation workflow — generate → rotate → notify:
