@@ -24,19 +24,24 @@
 #     reads the named script's own text and denies when it both references src/ or tests/ and contains a
 #     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
 #     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the
-#     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that does not exist
-#     yet but is created by the same command with literal content (a Set-Content/Add-Content/Out-File/
-#     redirection target that resolves to the same file) is allowed unless the command mentions src/ or tests/
-#     or sources the content from elsewhere (Get-Content, a download, a copy), which the hook cannot see
-#     (#1854). A script path the hook cannot resolve, a script
-#     that does not exist and is not created by the same command, and one that exists but cannot be read are
-#     denied, since they cannot rule out a write there; the message names the path tried, the raw argument
-#     and the base directory (#1181; this only partially closes the gap, since it is a text heuristic, not an
-#     execution of the script). Exempt: a
-#     script matching Test-ScriptIsSanctioned (_write-targets.ps1) — the pipeline's own tooling
-#     (.claude/hooks/tests/Test-Hooks.ps1, tools/ai/audit/*.ps1, tools/ai/*.ps1, .github/scripts/*.cs), which the
-#     orchestrator runs by design and which legitimately mentions src/ or tests/ in template guidance or search
-#     regexes while writing only under artifacts/ or its own temp workspace (#1368, #1380).
+#     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that the same
+#     command creates or overwrites is trusted only when every write to it is a literal in the command text: a
+#     quoted or here-string -Value/-InputObject of Set-Content/Add-Content/Out-File/Tee-Object/New-Item, a
+#     literal piped into them, or `'literal' > file`. Every literal such a command writes must not reference
+#     src/ or tests/ or launch another script, and the old text of an existing script is judged like any
+#     script text. Every other way of creating it (git or native output, a download, a copy, a file read, a
+#     variable or a subexpression, a wildcard target) is denied, naming the creating statement, and so is any
+#     other statement the hook cannot name while a script is created (a rename, a copy, a .NET call; #1854).
+#     A script path the hook cannot resolve, a script that does not exist and is not created by the same
+#     command, and one that exists but cannot be read are denied, since they cannot rule out a write there; a
+#     `& $variable` launch counts as unresolvable only when the same command writes a file. The message names
+#     the path tried, the raw argument and the base directory (#1181; this only partially closes the gap,
+#     since it is a text heuristic, not an execution of the script).
+#     Exempt: a script matching Test-ScriptIsSanctioned (_write-targets.ps1), unless the command writes it:
+#     the pipeline's own tooling (.claude/hooks/tests/Test-Hooks.ps1, tools/ai/audit/*.ps1, tools/ai/*.ps1,
+#     .github/scripts/*.cs), which the orchestrator runs by design and which legitimately mentions src/ or
+#     tests/ in template guidance or search regexes while writing only under artifacts/ or its own temp
+#     workspace (#1368, #1380).
 # The commands of a `pwsh -Command` / `bash -c` wrapper are analysed like the others.
 # Not seen: targets that depend on a variable, deletions, and writes by other programs (dotnet run of a script
 # that is not itself a bare or `--file` .cs argument, compiled tools, ...).
@@ -118,35 +123,90 @@ try {
     # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: read the script's own text, since the analysis above
     # only sees the invoking statement, not what the launched script does (#1181).
     foreach ($s in $scan.Scripts) {
+        # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
+        # unresolvable only when the same command also writes a file, which could have created the script (#1854).
+        if ($null -eq $s.Full -and $s.Dynamic -and @($scan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
         if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; pass its literal path" }
+        # What this same command writes to the script (a script created or overwritten before it runs). The
+        # hook trusts only text it can read in the command: a quoted or here-string literal written by
+        # Set-Content/Add-Content/Out-File/Tee-Object/New-Item -Value, a literal piped into them, or
+        # `'literal' > file`. Anything else that creates or changes the script (git or native output, a
+        # download, a copy, a file read, a variable, a subexpression) is content the hook cannot see (#1854).
+        $guardedTokens = @('src/', 'src\', 'tests/', 'tests\')
+        $wildcard = '[*?\[]'
+        # A write whose target holds a wildcard may land on the script: it counts as one, and never as a literal.
+        # (an invalid wildcard pattern throws in -like: it is treated as a hit, never as a reason to allow)
+        function Test-WriteHitsScript($Write, [string]$Full) {
+            if (-not $Write.Full) { return $false }
+            if ([string]::Equals($Write.Full, $Full, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+            if ($Write.Full -notmatch $wildcard) { return $false }
+            try { return [bool]($Full -like $Write.Full) } catch { return $true }
+        }
+        $own = @($scan.Writes | Where-Object { Test-WriteHitsScript $_ $s.Full })
+        $newText = $null
+        if ($own.Count -gt 0) {
+            $opaque = @($own | Where-Object { $null -eq $_.Literal -or $_.Full -match $wildcard })
+            if ($opaque.Count -gt 0) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates or changes with '$($opaque[0].What)' from content that is not a quoted literal in the command (git or native output, a download, a copy, a file read, a variable or a subexpression), so it cannot rule out writes to src/ or tests/; write the script with a quoted or here-string literal (-Value, -InputObject, a literal piped in, or 'literal' > file), or create it in one call and run it in the next"
+            }
+            $unresolved = @($scan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory })
+            if ($unresolved.Count -gt 0) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command writes, next to '$($unresolved[0].What)' to '$($unresolved[0].Target.Value)', a target the hook cannot resolve and which may be the same script, so it cannot rule out writes to src/ or tests/; pass literal paths"
+            }
+            # While a script is created by this command, every other statement must be one the hook understands: a
+            # program that copies, links, extracts, renames or calls a .NET method could replace the script's
+            # content with text the hook never saw. Writers the hook models (Set-Content, ...) are judged above.
+            $known = @('script', 'variable', 'set-content', 'add-content', 'ac', 'out-file', 'tee-object', 'tee', 'new-item', 'ni', 'mkdir', 'md',
+                'set-location', 'cd', 'sl', 'chdir', 'push-location', 'pushd', 'pop-location', 'popd',
+                'write-output', 'write-host', 'echo', 'get-content', 'gc', 'cat', 'type', 'test-path', 'get-childitem', 'gci', 'ls', 'dir', 'get-item', 'gi',
+                'select-string', 'sls', 'remove-item', 'rm', 'del', 'ri', 'erase', 'rd', 'rmdir', 'out-null', 'select-object', 'select', 'where-object', 'where',
+                'foreach-object', '%', '?', 'sort-object', 'measure-object', 'format-table', 'ft', 'format-list', 'fl', 'out-string', 'convertfrom-json', 'convertto-json',
+                'get-location', 'pwd', 'join-path', 'split-path', 'resolve-path', 'start-sleep', 'pwsh', 'powershell', 'dotnet',
+                'if', 'else', 'elseif', 'try', 'catch', 'finally', 'foreach', 'while', 'for', 'switch', 'exit', 'return', 'param')
+            $unknown = @($scan.Executables | Where-Object { $_ -notin $known })
+            if ($unknown.Count -gt 0) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, next to a statement running '$($unknown[0])', a program the hook does not understand and which may copy, link, extract or rewrite files, so it cannot rule out writes to src/ or tests/; create the script in one call and run it in the next"
+            }
+            # Every literal the command writes anywhere is judged: a script written here may launch another one
+            # also written here, and neither may name src/ or tests/ or launch a third script the hook cannot read.
+            foreach ($literal in @($scan.Writes | Where-Object { $null -ne $_.Literal } | ForEach-Object { $_.Literal })) {
+                if (Test-ScriptReferencesPath $literal $guardedTokens) {
+                    Write-Block "runs '$($s.Full)' ($($s.Kind)), and the same command writes a literal that references src/ or tests/ (a script or a file), so it cannot rule out writes there; create the script in one call and run it in the next"
+                }
+                if ($literal -match '(?i)\.(ps1|psm1)\b|(^|[;&|(\s])[&.]\s*[''"`$\w.\\/:~-]|\s-File\s|\bdotnet\s+run\b|\b(Invoke-Expression|iex|Import-Module|Start-Process|Invoke-Command|icm)\b') {
+                    Write-Block "runs '$($s.Full)' ($($s.Kind)), whose literal content written by the same command launches or imports another script, which the hook cannot analyse; create the script in one call and run it in the next"
+                }
+            }
+            $newText = (@($own | ForEach-Object { $_.Literal }) -join "`n")
+        }
+
         $text = $null
         $readError = $null
         try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { $readError = $_.Exception.GetType().Name }
         if ($null -eq $text -and $null -eq $readError) { $text = '' }
-        if ($null -eq $text -and $null -ne $readError -and -not (Test-Path -LiteralPath $s.Full -PathType Leaf)) {
-            # The script does not exist yet. When the same command creates it with literal content (a
-            # Set-Content/Add-Content/Out-File/redirection write to the same file), the command's own text carries
-            # what the script will hold. The creating statement is itself a write, so the usual write-API test
-            # would always match: judge the path reference alone. Content that comes from elsewhere (a file, the
-            # network, a copy) is not in the text, so it is denied like an unreadable script (#1854).
-            $created = $false
-            foreach ($w in $scan.Writes) { if ($w.Content -and $w.Full -and [string]::Equals($w.Full, $s.Full, [StringComparison]::OrdinalIgnoreCase)) { $created = $true; break } }
-            if ($created) {
-                if ($command -match '(?i)\b(Get-Content|gc|cat|type|Invoke-WebRequest|iwr|Invoke-RestMethod|irm|Copy-Item|Move-Item|Expand-Archive|ReadAll\w*|curl|wget)\b|\b(cp|mv|copy|move)\s') {
-                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates from content the hook cannot see (a file, a download or a copy), so it cannot rule out writes to src/ or tests/; write the script with a literal here-string or -Value"
-                }
-                if (Test-ScriptReferencesPath $command @('src/', 'src\', 'tests/', 'tests\')) {
-                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, and that command references src/ or tests/; create the script in one call and run it in the next"
-                }
-                continue
+        $exists = Test-Path -LiteralPath $s.Full -PathType Leaf
+        if ($null -eq $text -and -not $exists) {
+            if ($null -eq $newText) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which does not exist (resolved from '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/"
             }
-            Write-Block "runs '$($s.Full)' ($($s.Kind)), which does not exist (resolved from '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/"
+            $text = ''
         }
         if ($null -eq $text) { Write-Block "runs '$($s.Full)' ($($s.Kind)), which the hook could not read ($readError), so it cannot rule out writes to src/ or tests/" }
+
+        # The script's own text and, when the command writes it, the literal the command puts there: both run (the
+        # command may run the old text before it rewrites it, or append to it), so each is judged; a script the
+        # command writes is never sanctioned, since the sanction covers the repository's own file, not new text.
         $scriptLocation = Get-RepoLocation $s.Full $layout
-        $sanctioned = $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
-        if (-not $sanctioned -and (Test-ScriptHasWriteApi $text) -and (Test-ScriptReferencesPath $text @('src/', 'src\', 'tests/', 'tests\'))) {
-            Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files"
+        $sanctioned = $own.Count -eq 0 -and $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
+        # An append leaves the old text in place, so old and new are judged as one script too (two harmless halves
+        # can write src/ together).
+        $candidates = [System.Collections.Generic.List[string]]::new()
+        if (-not $sanctioned) { $candidates.Add($text) }
+        if (@($own | Where-Object { $_.Append }).Count -gt 0 -and $null -ne $newText) { $candidates.Add($text + "`n" + $newText) }
+        foreach ($candidate in $candidates) {
+            if ((Test-ScriptHasWriteApi $candidate) -and (Test-ScriptReferencesPath $candidate $guardedTokens)) {
+                Write-Block "runs '$($s.Full)' ($($s.Kind)), which references src/ or tests/ and writes files$(if ($own.Count -gt 0) { ' (the text the same command writes into it is judged too)' })"
+            }
         }
     }
     exit 0
