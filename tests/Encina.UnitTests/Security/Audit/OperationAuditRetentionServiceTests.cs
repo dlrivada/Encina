@@ -203,12 +203,14 @@ public class OperationAuditRetentionServiceTests
         // Arrange
         var clock = new FakeTimeProvider(Start);
         var purgedWith = new List<DateTime>();
+        var calledAt = new List<DateTime>();
         _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 lock (purgedWith)
                 {
                     purgedWith.Add(call.Arg<DateTime>());
+                    calledAt.Add(clock.GetUtcNow().UtcDateTime);
                 }
 
                 return Right<EncinaError, int>(0);
@@ -220,18 +222,22 @@ public class OperationAuditRetentionServiceTests
         await AdvanceUntilAsync(clock, () => { lock (purgedWith) { return purgedWith.Count > 0; } });
         await service.StopAsync(CancellationToken.None);
 
-        // Assert: cutoff + RetentionDays is a clock reading (Start plus a whole number of one-hour
-        // advances); a sign mutation would put it retentionDays * 2 days away from the clock.
+        // Assert: cutoff + RetentionDays is the clock reading the service took (Start plus a whole number of
+        // one-hour advances), at most a few advances before the store call. A sign mutation or an off-by-one-day
+        // mutation moves it by at least 24 hours and fails.
         DateTime cutoff;
+        DateTime at;
         lock (purgedWith)
         {
             cutoff = purgedWith[0];
+            at = calledAt[0];
         }
 
         cutoff.Kind.ShouldBe(DateTimeKind.Utc);
-        var clockReading = cutoff.AddDays(retentionDays) - Start.UtcDateTime;
-        clockReading.TotalHours.ShouldBeInRange(1, 300);
-        (clockReading.TotalHours % 1).ShouldBe(0);
+        var reading = cutoff.AddDays(retentionDays);
+        (reading - Start.UtcDateTime).TotalHours.ShouldBeGreaterThanOrEqualTo(1);
+        ((reading - Start.UtcDateTime).TotalHours % 1).ShouldBe(0);
+        (at - reading).TotalHours.ShouldBeInRange(0, 3);
     }
 
     #endregion
@@ -383,14 +389,28 @@ public class OperationAuditRetentionServiceTests
         // Arrange: the store blocks until the service's stopping token is cancelled
         var clock = new FakeTimeProvider(Start);
         var logger = new CapturingLogger<OperationAuditRetentionService>();
+        using var storeEntered = new ManualResetEventSlim(false);
         _mockAuditStore.PurgeEntriesAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
-            .Returns(call => BlockUntilCancelled(call.Arg<CancellationToken>()));
+            .Returns(call =>
+            {
+                storeEntered.Set();
+                return BlockUntilCancelled(call.Arg<CancellationToken>());
+            });
         using var service = new OperationAuditRetentionService(_scopeFactory, Options.Create(Enabled()), logger, clock);
 
-        // Act
+        // Act: the clock advances on a pool thread because the timer callback may run the blocked store call inline
         await service.StartAsync(CancellationToken.None);
-        await AdvanceUntilAsync(clock, () => PurgeCalls() >= 1);
+        var advancing = Task.Run(() =>
+        {
+            while (!storeEntered.IsSet)
+            {
+                clock.Advance(TimeSpan.FromHours(1));
+                Thread.Sleep(10);
+            }
+        });
+        storeEntered.Wait(TimeSpan.FromSeconds(30)).ShouldBeTrue("the purge never reached the store");
         await service.StopAsync(CancellationToken.None);
+        await advancing.WaitAsync(TimeSpan.FromSeconds(30));
         await WaitUntilAsync(() => logger.Events.Contains(PurgeCancelledEvent));
 
         // Assert

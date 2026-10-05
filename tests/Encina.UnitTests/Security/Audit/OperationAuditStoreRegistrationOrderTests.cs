@@ -172,6 +172,23 @@ public sealed class OperationAuditStoreRegistrationOrderTests
     }
 
     [Fact]
+    public void FactoryRegisteredStore_WrappedByOpenTelemetry_IsInstrumentedAndNotTheInMemoryDefault()
+    {
+        // Arrange
+        var services = NewServices();
+        var custom = Substitute.For<IOperationAuditStore>();
+        services.AddSingleton<IOperationAuditStore>(_ => custom);
+        services.AddEncinaOpenTelemetry();
+
+        // Act
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+
+        // Assert: the application's factory registration survives and is the decorated store
+        var resolved = Resolve(services);
+        resolved.ShouldBeOfType<InstrumentedOperationAuditStore>();
+    }
+
+    [Fact]
     public void OnlyAKeyedStoreRegistered_OpenTelemetryDecoratesNothing()
     {
         // Arrange

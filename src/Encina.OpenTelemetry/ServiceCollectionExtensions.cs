@@ -252,13 +252,7 @@ public static class ServiceCollectionExtensions
     private static T ResolveFromDescriptor<T>(IServiceProvider sp, ServiceDescriptor descriptor)
         where T : class
     {
-        // The implementation getters of a keyed descriptor throw, so it is rejected first.
-        if (descriptor.IsKeyedService)
-        {
-            throw new InvalidOperationException(
-                $"Cannot decorate keyed service {typeof(T).Name}.");
-        }
-
+        // DecorateService never selects a keyed descriptor, whose implementation getters would throw.
         if (descriptor.ImplementationInstance is T instance)
         {
             return instance;

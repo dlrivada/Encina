@@ -44,27 +44,31 @@ public static class OperationAuditStoreRegistration
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        // A keyed registration is never the default, and its implementation getters throw.
-        if (descriptor.IsKeyedService || descriptor.ServiceType != typeof(IOperationAuditStore))
-        {
-            return false;
-        }
+        return descriptor.ServiceType == typeof(IOperationAuditStore) && UnwrapsToInMemoryDefault(descriptor);
+    }
 
-        // Walk the decorator chain; every level is checked against keyed registrations (whose
-        // implementation getters throw) and a visited set stops a cyclic chain.
+    // Walks the decorator chain. Every level is checked against keyed registrations (a keyed registration is
+    // never the default and its implementation getters throw), and a visited set stops a cyclic chain.
+    private static bool UnwrapsToInMemoryDefault(ServiceDescriptor descriptor)
+    {
         var visited = new HashSet<ServiceDescriptor>(ReferenceEqualityComparer.Instance);
         var current = descriptor;
-        while (!current.IsKeyedService
-            && current.ImplementationFactory?.Target is IDecoratedServiceFactory decorating)
+
+        while (visited.Add(current))
         {
-            if (!visited.Add(current))
+            if (current.IsKeyedService)
             {
                 return false;
+            }
+
+            if (current.ImplementationFactory?.Target is not IDecoratedServiceFactory decorating)
+            {
+                return current.ImplementationType == typeof(InMemoryOperationAuditStore);
             }
 
             current = decorating.Decorated;
         }
 
-        return !current.IsKeyedService && current.ImplementationType == typeof(InMemoryOperationAuditStore);
+        return false;
     }
 }
