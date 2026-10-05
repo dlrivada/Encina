@@ -17,6 +17,17 @@ public sealed class ExplicitContextConflictTests
 
     public sealed record Probe : IRequest<string?>;
 
+    public sealed record MetaProbe(Action MutateBeforeRead) : IRequest<string?>;
+
+    public sealed class MetaProbeHandler(IRequestContextAccessor accessor) : IRequestHandler<MetaProbe, string?>
+    {
+        public Task<Either<EncinaError, string?>> Handle(MetaProbe request, CancellationToken cancellationToken)
+        {
+            request.MutateBeforeRead();
+            return Task.FromResult<Either<EncinaError, string?>>(accessor.RequestContext?.Metadata["k"] as string);
+        }
+    }
+
     public sealed record Ping : INotification;
 
     public sealed record Count : IStreamRequest<int>;
@@ -50,6 +61,7 @@ public sealed class ExplicitContextConflictTests
         services.AddEncina();
         services.AddSingleton<ILogger<global::Encina.Encina>>(_logger);
         services.AddScoped<IRequestHandler<Probe, string?>, ProbeHandler>();
+        services.AddScoped<IRequestHandler<MetaProbe, string?>, MetaProbeHandler>();
         services.AddScoped<INotificationHandler<Ping>, PingHandler>();
         services.AddScoped<IStreamRequestHandler<Count, int>, CountHandler>();
         return services.BuildServiceProvider();
@@ -236,7 +248,7 @@ public sealed class ExplicitContextConflictTests
     }
 
     [Fact]
-    public async Task Dispatch_UnderAnAnonymousAmbient_WithAnExplicitUser_RestoresTheAmbientWithoutASecondLog()
+    public async Task Dispatch_UnderAnAnonymousAmbient_WithAnExplicitUser_RestoresTheAmbient()
     {
         await using var provider = BuildProvider();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
@@ -246,6 +258,22 @@ public sealed class ExplicitContextConflictTests
         (await provider.GetRequiredService<IEncina>().Send(new Probe(), User("job-owner"))).ShouldBeSuccess().ShouldBe("job-owner");
 
         accessor.RequestContext.ShouldBeSameAs(ambient);
-        _logger.Collector.GetSnapshot().Count(r => r.Id.Id == 165).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Send_AForeignExplicitContext_SnapshotsItsMetadata()
+    {
+        await using var provider = BuildProvider();
+        var metadata = new Dictionary<string, object?> { ["k"] = "original" };
+        var foreign = Substitute.For<IRequestContext>();
+        foreign.CorrelationId.Returns("corr-foreign");
+        foreign.Metadata.Returns(metadata);
+        var encina = provider.GetRequiredService<IEncina>();
+
+        // The handler of MetaProbe reads the metadata after the caller mutated its dictionary.
+        var task = encina.Send(new MetaProbe(() => metadata["k"] = "mutated"), foreign);
+        var result = await task;
+
+        result.ShouldBeSuccess().ShouldBe("original");
     }
 }

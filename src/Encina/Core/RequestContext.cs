@@ -185,7 +185,7 @@ public sealed class RequestContext : IRequestContext
             IdempotencyKey = source.IdempotencyKey,
             TenantId = source.TenantId,
             Timestamp = source.Timestamp,
-            Metadata = source.Metadata
+            Metadata = source.Metadata.ToImmutableDictionary()
         };
     }
 
