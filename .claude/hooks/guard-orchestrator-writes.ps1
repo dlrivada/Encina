@@ -25,8 +25,10 @@
 #     file-write API (_write-targets.ps1, Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
 #     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the
 #     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that does not exist
-#     yet but is created by the same command (a Set-Content/redirection target that resolves to the same file)
-#     is judged from that command's own text instead (#1854). A script path the hook cannot resolve, a script
+#     yet but is created by the same command with literal content (a Set-Content/Add-Content/Out-File/
+#     redirection target that resolves to the same file) is allowed unless the command mentions src/ or tests/
+#     or sources the content from elsewhere (Get-Content, a download, a copy), which the hook cannot see
+#     (#1854). A script path the hook cannot resolve, a script
 #     that does not exist and is not created by the same command, and one that exists but cannot be read are
 #     denied, since they cannot rule out a write there; the message names the path tried, the raw argument
 #     and the base directory (#1181; this only partially closes the gap, since it is a text heuristic, not an
@@ -122,13 +124,19 @@ try {
         try { $text = Get-Content -LiteralPath $s.Full -Raw -ErrorAction Stop } catch { $readError = $_.Exception.GetType().Name }
         if ($null -eq $text -and $null -eq $readError) { $text = '' }
         if ($null -eq $text -and $null -ne $readError -and -not (Test-Path -LiteralPath $s.Full -PathType Leaf)) {
-            # The script does not exist yet. When the same command creates it, the text that command carries
-            # (the content it writes) is what the script will hold, so analyse that instead of denying (#1854).
+            # The script does not exist yet. When the same command creates it with literal content (a
+            # Set-Content/Add-Content/Out-File/redirection write to the same file), the command's own text carries
+            # what the script will hold. The creating statement is itself a write, so the usual write-API test
+            # would always match: judge the path reference alone. Content that comes from elsewhere (a file, the
+            # network, a copy) is not in the text, so it is denied like an unreadable script (#1854).
             $created = $false
-            foreach ($w in $scan.Writes) { if ($w.Full -and [string]::Equals($w.Full, $s.Full, [StringComparison]::OrdinalIgnoreCase)) { $created = $true; break } }
+            foreach ($w in $scan.Writes) { if ($w.Content -and $w.Full -and [string]::Equals($w.Full, $s.Full, [StringComparison]::OrdinalIgnoreCase)) { $created = $true; break } }
             if ($created) {
-                if ((Test-ScriptHasWriteApi $command) -and (Test-ScriptReferencesPath $command @('src/', 'src\', 'tests/', 'tests\'))) {
-                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, and that command references src/ or tests/ and writes files; create the script in one call and run it in the next"
+                if ($command -match '(?i)\b(Get-Content|gc|cat|type|Invoke-WebRequest|iwr|Invoke-RestMethod|irm|Copy-Item|Move-Item|Expand-Archive|ReadAll\w*|curl|wget)\b|\b(cp|mv|copy|move)\s') {
+                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates from content the hook cannot see (a file, a download or a copy), so it cannot rule out writes to src/ or tests/; write the script with a literal here-string or -Value"
+                }
+                if (Test-ScriptReferencesPath $command @('src/', 'src\', 'tests/', 'tests\')) {
+                    Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, and that command references src/ or tests/; create the script in one call and run it in the next"
                 }
                 continue
             }
