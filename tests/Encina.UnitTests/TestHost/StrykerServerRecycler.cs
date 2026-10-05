@@ -1,70 +1,13 @@
-using System.Diagnostics;
 using System.Globalization;
-using Microsoft.Testing.Platform.Builder;
 using Microsoft.Testing.Platform.Extensions.TestHost;
 using Microsoft.Testing.Platform.TestHost;
 
 namespace Encina.UnitTests.TestHost;
 
 /// <summary>
-/// Microsoft.Testing.Platform builder hook that registers <see cref="StrykerServerRecycler"/> during
-/// Stryker mutation runs only. It is wired in by the <c>TestingPlatformBuilderHook</c> item of
-/// <c>Encina.UnitTests.csproj</c>, which makes the generated <c>SelfRegisteredExtensions</c> call
-/// <see cref="AddExtensions"/> whenever the test application starts in MTP server mode.
-/// </summary>
-/// <remarks>
-/// Why it exists: Stryker.NET 5.0.0 reuses one MTP test server for every mutant and the unit suite
-/// leaves native memory behind on each run, so the server eventually hits the job's memory cap
-/// (#1441 phase 2e, <c>docs/engineering/stryker-5-mtp-spike-1087.md</c> section 6). Remove this hook
-/// once Stryker can recycle the server itself (stryker-mutator/stryker-net#3742).
-/// </remarks>
-internal static class StrykerServerRecycleBuilderHook
-{
-    /// <summary>
-    /// Adds the recycler as a test session lifetime handler when <c>STRYKER_MUTANT_FILE</c> is set.
-    /// Normal test runs, which never set that variable, are left untouched.
-    /// </summary>
-    /// <param name="testApplicationBuilder">The MTP test application builder.</param>
-    /// <param name="args">The command-line arguments of the test application (unused).</param>
-    public static void AddExtensions(ITestApplicationBuilder testApplicationBuilder, string[] args)
-    {
-        ArgumentNullException.ThrowIfNull(testApplicationBuilder);
-        _ = args;
-
-        if (!StrykerServerRecycler.IsMutationRun(Environment.GetEnvironmentVariable))
-        {
-            return;
-        }
-
-        var thresholdMb = StrykerServerRecycler.ParseThresholdMb(
-            Environment.GetEnvironmentVariable(StrykerServerRecycler.ThresholdVariable));
-
-        testApplicationBuilder.TestHost.AddTestSessionLifetimeHandle(_ => new StrykerServerRecycler(
-            thresholdMb,
-            StrykerServerRecycler.ProcessSessionCounter,
-            ReadPrivateBytes,
-            Console.Error,
-            TerminateProcess));
-    }
-
-    private static long ReadPrivateBytes()
-    {
-        using var process = Process.GetCurrentProcess();
-        return process.PrivateMemorySize64;
-    }
-
-    // Kill rather than Environment.Exit: no ProcessExit handler can hang the exit, so Stryker always
-    // sees the same abrupt host loss it already handles for a crashed or OOM-killed test server.
-    private static void TerminateProcess()
-    {
-        using var process = Process.GetCurrentProcess();
-        process.Kill();
-    }
-}
-
-/// <summary>
 /// Ends the MTP test server at the start of a test session when its private memory is above a
 /// threshold, so Stryker discards the server and reruns the same mutant on a fresh one.
+/// Registered by <see cref="StrykerServerRecycleBuilderHook"/> during Stryker runs only.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -77,6 +20,10 @@ internal static class StrykerServerRecycleBuilderHook
 /// The first session of a process never recycles. A fresh server is therefore never ended by this
 /// handler, so the retry attempt cannot fail because of it and turn the mutant into a RuntimeError.
 /// </para>
+/// <para>
+/// Private memory is <see cref="System.Diagnostics.Process.PrivateMemorySize64"/>: private bytes on
+/// Windows and <c>VmData</c> on Linux, the metric of the phase 2e measurements.
+/// </para>
 /// </remarks>
 internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
 {
@@ -86,15 +33,21 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
     /// <summary>The variable that overrides the private-memory threshold, in megabytes.</summary>
     public const string ThresholdVariable = "ENCINA_MTP_RECYCLE_MB";
 
+    /// <summary>The variable that names a file the recycle line is also appended to.</summary>
+    public const string LogFileVariable = "ENCINA_MTP_RECYCLE_LOG";
+
     /// <summary>The default private-memory threshold: 6 GB.</summary>
     public const long DefaultThresholdMb = 6144;
 
     private const long BytesPerMb = 1024L * 1024L;
 
+    /// <summary>The largest threshold whose byte count fits in a <see cref="long"/>.</summary>
+    internal const long MaxThresholdMb = long.MaxValue / BytesPerMb;
+
     private readonly long _thresholdMb;
     private readonly SessionCounter _sessions;
     private readonly Func<long> _readPrivateBytes;
-    private readonly TextWriter _error;
+    private readonly Action<string> _report;
     private readonly Action _terminate;
 
     /// <summary>
@@ -103,25 +56,26 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
     /// <param name="thresholdMb">The private-memory threshold in megabytes.</param>
     /// <param name="sessions">The per-process session counter.</param>
     /// <param name="readPrivateBytes">Reads the current private memory of the process, in bytes.</param>
-    /// <param name="error">The writer that receives the recycle line (stderr in production).</param>
+    /// <param name="report">Receives the recycle line (stderr and the optional log file in production).</param>
     /// <param name="terminate">Ends the process.</param>
     public StrykerServerRecycler(
         long thresholdMb,
         SessionCounter sessions,
         Func<long> readPrivateBytes,
-        TextWriter error,
+        Action<string> report,
         Action terminate)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(thresholdMb);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(thresholdMb, MaxThresholdMb);
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(readPrivateBytes);
-        ArgumentNullException.ThrowIfNull(error);
+        ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(terminate);
 
         _thresholdMb = thresholdMb;
         _sessions = sessions;
         _readPrivateBytes = readPrivateBytes;
-        _error = error;
+        _report = report;
         _terminate = terminate;
     }
 
@@ -156,14 +110,21 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
     }
 
     /// <summary>
-    /// Parses the threshold variable. A missing, non-numeric or non-positive value gives the default.
+    /// Parses the threshold variable. A missing, non-numeric or non-positive value gives the default;
+    /// a value too large to express in bytes is capped at <see cref="MaxThresholdMb"/>, which never
+    /// recycles in practice.
     /// </summary>
     /// <param name="value">The raw value of <c>ENCINA_MTP_RECYCLE_MB</c>.</param>
     /// <returns>The threshold in megabytes.</returns>
-    public static long ParseThresholdMb(string? value) =>
-        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) && mb > 0
-            ? mb
-            : DefaultThresholdMb;
+    public static long ParseThresholdMb(string? value)
+    {
+        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) || mb <= 0)
+        {
+            return DefaultThresholdMb;
+        }
+
+        return Math.Min(mb, MaxThresholdMb);
+    }
 
     /// <summary>
     /// Returns whether a session should end the process: never for the first session of a process,
@@ -171,10 +132,10 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
     /// </summary>
     /// <param name="sessionNumber">The 1-based number of the session in this process.</param>
     /// <param name="privateBytes">The current private memory, in bytes.</param>
-    /// <param name="thresholdMb">The threshold, in megabytes.</param>
+    /// <param name="thresholdMb">The threshold, in megabytes, at most <see cref="MaxThresholdMb"/>.</param>
     /// <returns><see langword="true"/> when the process should be recycled.</returns>
     public static bool ShouldRecycle(int sessionNumber, long privateBytes, long thresholdMb) =>
-        sessionNumber > 1 && privateBytes > thresholdMb * BytesPerMb;
+        sessionNumber > 1 && privateBytes > Math.Min(thresholdMb, MaxThresholdMb) * BytesPerMb;
 
     /// <inheritdoc />
     public Task<bool> IsEnabledAsync() => Task.FromResult(true);
@@ -187,10 +148,9 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
 
         if (ShouldRecycle(sessionNumber, privateBytes, _thresholdMb))
         {
-            _error.WriteLine(string.Create(
+            _report(string.Create(
                 CultureInfo.InvariantCulture,
                 $"[encina-mtp-recycle] Test server private memory is {privateBytes / BytesPerMb} MB, above the {_thresholdMb} MB threshold ({ThresholdVariable}), at the start of session {sessionNumber}; exiting so Stryker reruns this mutant on a fresh test server."));
-            _error.Flush();
             _terminate();
         }
 
