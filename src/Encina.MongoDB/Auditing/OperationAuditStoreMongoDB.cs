@@ -189,28 +189,16 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         {
             var pageNumber = Math.Max(1, query.PageNumber);
             var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
-            var skip = (pageNumber - 1) * pageSize;
 
             // Build filter from query
             var filter = BuildFilter(query);
 
-            // Get total count
-            var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            var page = query.MinDuration.HasValue || query.MaxDuration.HasValue
+                ? await QueryFilteredByDurationAsync(filter, query, pageNumber, pageSize, cancellationToken)
+                    .ConfigureAwait(false)
+                : await QueryPageAsync(filter, pageNumber, pageSize, cancellationToken).ConfigureAwait(false);
 
-            // Get paginated results
-            var documents = await _collection
-                .Find(filter)
-                .SortByDescending(d => d.TimestampUtc)
-                .Skip(skip)
-                .Limit(pageSize)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var entries = ApplyDurationFilter(documents.Select(d => d.ToEntry()), query);
-
-            var result = PagedResult<OperationAuditEntry>.Create(entries, (int)totalCount, pageNumber, pageSize);
-            return Right(result);
+            return Right(page);
         }
         catch (Exception ex)
         {
@@ -218,6 +206,47 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
             return Left<EncinaError, PagedResult<OperationAuditEntry>>(
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
+    }
+
+    private async Task<PagedResult<OperationAuditEntry>> QueryPageAsync(
+        FilterDefinition<OperationAuditEntryDocument> filter,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        var documents = await _collection
+            .Find(filter)
+            .SortByDescending(d => d.TimestampUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var entries = documents.Select(d => d.ToEntry()).ToList();
+        return PagedResult<OperationAuditEntry>.Create(entries, (int)totalCount, pageNumber, pageSize);
+    }
+
+    // Duration is computed (CompletedAtUtc - StartedAtUtc), not stored, so it is filtered in memory
+    // before paging: the page and the total count are those of the filtered set, as in the other providers.
+    private async Task<PagedResult<OperationAuditEntry>> QueryFilteredByDurationAsync(
+        FilterDefinition<OperationAuditEntryDocument> filter,
+        OperationAuditQuery query,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var documents = await _collection
+            .Find(filter)
+            .SortByDescending(d => d.TimestampUtc)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var matching = ApplyDurationFilter(documents.Select(d => d.ToEntry()), query);
+        var items = matching.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        return PagedResult<OperationAuditEntry>.Create(items, matching.Count, pageNumber, pageSize);
     }
 
     /// <inheritdoc/>

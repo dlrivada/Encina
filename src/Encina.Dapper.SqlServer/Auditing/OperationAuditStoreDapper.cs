@@ -129,7 +129,8 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                 Metadata = SerializeMetadata(entry.Metadata)
             };
 
-            await _connection.ExecuteAsync(_insertSql, parameters);
+            await _connection.ExecuteAsync(
+                new CommandDefinition(_insertSql, parameters, cancellationToken: cancellationToken));
             return Right(unit);
         }
         catch (Exception ex)
@@ -149,8 +150,10 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         try
         {
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
-                _selectByEntitySql,
-                new { EntityType = entityType, EntityId = entityId });
+                new CommandDefinition(
+                    _selectByEntitySql,
+                    new { EntityType = entityType, EntityId = entityId },
+                    cancellationToken: cancellationToken));
 
             var entries = rows.Select(MapToEntry).ToList();
             return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
@@ -174,8 +177,10 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         try
         {
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
-                _selectByUserSql,
-                new { UserId = userId, FromUtc = fromUtc, ToUtc = toUtc });
+                new CommandDefinition(
+                    _selectByUserSql,
+                    new { UserId = userId, FromUtc = fromUtc, ToUtc = toUtc },
+                    cancellationToken: cancellationToken));
 
             var entries = rows.Select(MapToEntry).ToList();
             return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
@@ -197,8 +202,10 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         try
         {
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
-                _selectByCorrelationIdSql,
-                new { CorrelationId = correlationId });
+                new CommandDefinition(
+                    _selectByCorrelationIdSql,
+                    new { CorrelationId = correlationId },
+                    cancellationToken: cancellationToken));
 
             var entries = rows.Select(MapToEntry).ToList();
             return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
@@ -221,31 +228,14 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         {
             var pageNumber = Math.Max(1, query.PageNumber);
             var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
-            var offset = (pageNumber - 1) * pageSize;
 
             var (whereClauseStr, parameters) = BuildWhereClause(query);
 
-            // Get total count
-            var countSql = $"SELECT COUNT(*) FROM [{_tableName}] {whereClauseStr}";
-            var totalCount = await _connection.ExecuteScalarAsync<int>(countSql, parameters);
+            var page = HasDurationFilter(query)
+                ? await QueryFilteredByDurationAsync(whereClauseStr, parameters, query, pageNumber, pageSize, cancellationToken)
+                : await QueryPageAsync(whereClauseStr, parameters, pageNumber, pageSize, cancellationToken);
 
-            // Get paginated results
-            var selectSql = $@"
-                SELECT [Id], [CorrelationId], [UserId], [TenantId], [Action], [EntityType], [EntityId],
-                       [Outcome], [ErrorMessage], [TimestampUtc], [StartedAtUtc], [CompletedAtUtc],
-                       [IpAddress], [UserAgent], [RequestPayloadHash], [RequestPayload], [ResponsePayload], [Metadata]
-                FROM [{_tableName}]
-                {whereClauseStr}
-                ORDER BY [TimestampUtc] DESC
-                OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-
-            parameters.Add("Offset", offset);
-            parameters.Add("PageSize", pageSize);
-
-            var rows = await _connection.QueryAsync<OperationAuditEntryRow>(selectSql, parameters);
-            var entries = ApplyDurationFilter(rows.Select(MapToEntry), query);
-
-            return Right(PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize));
+            return Right(page);
         }
         catch (Exception ex)
         {
@@ -253,6 +243,62 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
     }
+
+    private async Task<PagedResult<OperationAuditEntry>> QueryPageAsync(
+        string whereClause,
+        DynamicParameters parameters,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var countSql = $"SELECT COUNT(*) FROM [{_tableName}] {whereClause}";
+        var totalCount = await _connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken));
+
+        parameters.Add("Offset", (pageNumber - 1) * pageSize);
+        parameters.Add("PageSize", pageSize);
+
+        var entries = await SelectEntriesAsync(whereClause, parameters, " OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY", cancellationToken);
+        return PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize);
+    }
+
+    // Duration is computed (CompletedAtUtc - StartedAtUtc), not stored, so it is filtered in memory
+    // before paging: the page and the total count are those of the filtered set, as in the other providers.
+    private async Task<PagedResult<OperationAuditEntry>> QueryFilteredByDurationAsync(
+        string whereClause,
+        DynamicParameters parameters,
+        OperationAuditQuery query,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var matching = ApplyDurationFilter(
+            await SelectEntriesAsync(whereClause, parameters, string.Empty, cancellationToken), query);
+        var items = matching.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        return PagedResult<OperationAuditEntry>.Create(items, matching.Count, pageNumber, pageSize);
+    }
+
+    private async Task<List<OperationAuditEntry>> SelectEntriesAsync(
+        string whereClause,
+        DynamicParameters parameters,
+        string pagingClause,
+        CancellationToken cancellationToken)
+    {
+        var selectSql = $@"
+                SELECT [Id], [CorrelationId], [UserId], [TenantId], [Action], [EntityType], [EntityId],
+                       [Outcome], [ErrorMessage], [TimestampUtc], [StartedAtUtc], [CompletedAtUtc],
+                       [IpAddress], [UserAgent], [RequestPayloadHash], [RequestPayload], [ResponsePayload], [Metadata]
+                FROM [{_tableName}]
+                {whereClause}
+                ORDER BY [TimestampUtc] DESC{pagingClause}";
+
+        var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
+            new CommandDefinition(selectSql, parameters, cancellationToken: cancellationToken));
+        return rows.Select(MapToEntry).ToList();
+    }
+
+    private static bool HasDurationFilter(OperationAuditQuery query) =>
+        query.MinDuration.HasValue || query.MaxDuration.HasValue;
 
     /// <inheritdoc/>
     public async ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
@@ -262,8 +308,10 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         try
         {
             var purgedCount = await _connection.ExecuteScalarAsync<int>(
-                _purgeSql,
-                new { OlderThanUtc = olderThanUtc });
+                new CommandDefinition(
+                    _purgeSql,
+                    new { OlderThanUtc = olderThanUtc },
+                    cancellationToken: cancellationToken));
 
             return Right(purgedCount);
         }
@@ -313,8 +361,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         parameters.Add(parameterName, value);
     }
 
-    // Duration is computed, not stored, so it is filtered in memory. totalCount might therefore be
-    // inaccurate when a duration filter is applied: filtering in SQL would be complex.
+    // Duration is computed, not stored, so it is filtered in memory.
     private static List<OperationAuditEntry> ApplyDurationFilter(IEnumerable<OperationAuditEntry> entries, OperationAuditQuery query) =>
         entries
             .Where(e => !query.MinDuration.HasValue || e.Duration >= query.MinDuration.Value)

@@ -256,49 +256,20 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         {
             var pageNumber = Math.Max(1, query.PageNumber);
             var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
-            var offset = (pageNumber - 1) * pageSize;
 
-            // Build dynamic WHERE clause
-            var (whereClauseStr, countCommand) = BuildWhereClauseAndCommand(query);
-
-            // Get total count
-            var countSql = $"SELECT COUNT(*) FROM `{_tableName}` {whereClauseStr}";
-            countCommand.CommandText = countSql;
-
-            if (_connection.State != ConnectionState.Open)
-                await OpenConnectionAsync(cancellationToken);
-
-            var totalCount = Convert.ToInt32(await ExecuteScalarAsync(countCommand, cancellationToken), CultureInfo.InvariantCulture);
-
-            // Get paginated results using LIMIT/OFFSET
-            var selectSql = $@"
-                SELECT `Id`, `CorrelationId`, `UserId`, `TenantId`, `Action`, `EntityType`, `EntityId`,
-                       `Outcome`, `ErrorMessage`, `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc`,
-                       `IpAddress`, `UserAgent`, `RequestPayloadHash`, `RequestPayload`, `ResponsePayload`, `Metadata`
-                FROM `{_tableName}`
-                {whereClauseStr}
-                ORDER BY `TimestampUtc` DESC
-                LIMIT @PageSize OFFSET @Offset";
-
-            using var selectCommand = _connection.CreateCommand();
-            selectCommand.CommandText = selectSql;
-
-            // Copy parameters from count command
-            CopyParameters(countCommand, selectCommand);
-            AddParameter(selectCommand, "@Offset", offset);
-            AddParameter(selectCommand, "@PageSize", pageSize);
-
-            var entries = new List<OperationAuditEntry>();
-            using var reader = await ExecuteReaderAsync(selectCommand, cancellationToken);
-            while (await ReadAsync(reader, cancellationToken))
+            // Build dynamic WHERE clause; the command only carries the criteria parameters
+            var (whereClauseStr, criteria) = BuildWhereClauseAndCommand(query);
+            using (criteria)
             {
-                entries.Add(MapToEntry(reader));
+                if (_connection.State != ConnectionState.Open)
+                    await OpenConnectionAsync(cancellationToken);
+
+                var page = HasDurationFilter(query)
+                    ? await QueryFilteredByDurationAsync(whereClauseStr, criteria, query, pageNumber, pageSize, cancellationToken)
+                    : await QueryPageAsync(whereClauseStr, criteria, pageNumber, pageSize, cancellationToken);
+
+                return Right(page);
             }
-
-            entries = ApplyDurationFilter(entries, query);
-
-            countCommand.Dispose();
-            return Right(PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize));
         }
         catch (Exception ex)
         {
@@ -306,6 +277,73 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
                 EncinaError.New($"Failed to query audit entries: {ex.Message}"));
         }
     }
+
+    private async Task<PagedResult<OperationAuditEntry>> QueryPageAsync(
+        string whereClause,
+        IDbCommand criteria,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        criteria.CommandText = $"SELECT COUNT(*) FROM `{_tableName}` {whereClause}";
+        var totalCount = Convert.ToInt32(await ExecuteScalarAsync(criteria, cancellationToken), CultureInfo.InvariantCulture);
+
+        var entries = await SelectEntriesAsync(whereClause, criteria, (pageNumber - 1) * pageSize, pageSize, cancellationToken);
+        return PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize);
+    }
+
+    // Duration is computed (CompletedAtUtc - StartedAtUtc), not stored, so it is filtered in memory
+    // before paging: the page and the total count are those of the filtered set, as in the other providers.
+    private async Task<PagedResult<OperationAuditEntry>> QueryFilteredByDurationAsync(
+        string whereClause,
+        IDbCommand criteria,
+        OperationAuditQuery query,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var matching = ApplyDurationFilter(await SelectEntriesAsync(whereClause, criteria, null, null, cancellationToken), query);
+        var items = matching.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        return PagedResult<OperationAuditEntry>.Create(items, matching.Count, pageNumber, pageSize);
+    }
+
+    private async Task<List<OperationAuditEntry>> SelectEntriesAsync(
+        string whereClause,
+        IDbCommand criteria,
+        int? offset,
+        int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        var paging = offset.HasValue ? " LIMIT @PageSize OFFSET @Offset" : string.Empty;
+        var selectSql = $@"
+                SELECT `Id`, `CorrelationId`, `UserId`, `TenantId`, `Action`, `EntityType`, `EntityId`,
+                       `Outcome`, `ErrorMessage`, `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc`,
+                       `IpAddress`, `UserAgent`, `RequestPayloadHash`, `RequestPayload`, `ResponsePayload`, `Metadata`
+                FROM `{_tableName}`
+                {whereClause}
+                ORDER BY `TimestampUtc` DESC{paging}";
+
+        using var selectCommand = _connection.CreateCommand();
+        selectCommand.CommandText = selectSql;
+        CopyParameters(criteria, selectCommand);
+        if (offset.HasValue)
+        {
+            AddParameter(selectCommand, "@Offset", offset.Value);
+            AddParameter(selectCommand, "@PageSize", pageSize!.Value);
+        }
+
+        var entries = new List<OperationAuditEntry>();
+        using var reader = await ExecuteReaderAsync(selectCommand, cancellationToken);
+        while (await ReadAsync(reader, cancellationToken))
+        {
+            entries.Add(MapToEntry(reader));
+        }
+
+        return entries;
+    }
+
+    private static bool HasDurationFilter(OperationAuditQuery query) =>
+        query.MinDuration.HasValue || query.MaxDuration.HasValue;
 
     /// <inheritdoc/>
     public async ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(

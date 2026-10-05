@@ -303,6 +303,45 @@ public class OperationAuditStoreDapperPostgreSqlIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
+    public async Task QueryAsync_WithDurationFilter_FiltersBeforePagingAndCountsTheFilteredSet()
+    {
+        await ClearDataAsync();
+        var now = DateTime.UtcNow;
+
+        // 5 fast entries are the newest and 3 slow ones are older: filtering after paging would return an empty first page
+        for (var i = 0; i < 3; i++)
+        {
+            var slow = CreateTestEntry(timestampUtc: now.AddMinutes(-20 - i));
+            await _store.RecordAsync(slow with { CompletedAtUtc = slow.StartedAtUtc.AddMilliseconds(500) });
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            var fast = CreateTestEntry(timestampUtc: now.AddMinutes(-i));
+            await _store.RecordAsync(fast with { CompletedAtUtc = fast.StartedAtUtc.AddMilliseconds(10) });
+        }
+
+        var slowPage1 = await _store.QueryAsync(new OperationAuditQuery { MinDuration = TimeSpan.FromMilliseconds(200), PageNumber = 1, PageSize = 2 });
+        var slowPage2 = await _store.QueryAsync(new OperationAuditQuery { MinDuration = TimeSpan.FromMilliseconds(200), PageNumber = 2, PageSize = 2 });
+        var fastOnly = await _store.QueryAsync(new OperationAuditQuery { MaxDuration = TimeSpan.FromMilliseconds(100), PageNumber = 1, PageSize = 10 });
+
+        slowPage1.IsRight.ShouldBeTrue();
+        slowPage1.IfRight(page =>
+        {
+            page.TotalCount.ShouldBe(3);
+            page.TotalPages.ShouldBe(2);
+            page.Items.Count.ShouldBe(2);
+            page.Items.ShouldAllBe(e => e.Duration >= TimeSpan.FromMilliseconds(200));
+        });
+        slowPage2.IfRight(page => page.Items.Count.ShouldBe(1));
+        fastOnly.IfRight(page =>
+        {
+            page.TotalCount.ShouldBe(5);
+            page.Items.ShouldAllBe(e => e.Duration <= TimeSpan.FromMilliseconds(100));
+        });
+    }
+
+    [Fact]
     public async Task PurgeEntriesAsync_ShouldDeleteOldEntries()
     {
         await ClearDataAsync();
