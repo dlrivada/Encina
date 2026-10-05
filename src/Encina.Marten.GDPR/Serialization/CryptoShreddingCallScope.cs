@@ -101,6 +101,7 @@ internal sealed class CryptoShreddingFrame : IDisposable, IAsyncDisposable
     private readonly HashSet<object> _pendingSet = new(ReferenceEqualityComparer.Instance);
     private IServiceScope? _scope;
     private bool _disposed;
+    private bool _touchedCryptoField;
 
     internal CryptoShreddingFrame(IServiceScopeFactory scopeFactory, CryptoOperation operation, Type? rootType, string? subjectFilter)
     {
@@ -152,10 +153,13 @@ internal sealed class CryptoShreddingFrame : IDisposable, IAsyncDisposable
     }
 
     /// <summary>Starts the call's activity on the first crypto field (documents without PII get none).</summary>
-    internal Activity? EnsureActivity() =>
-        Activity ??= Operation == CryptoOperation.Encrypt
+    internal Activity? EnsureActivity()
+    {
+        _touchedCryptoField = true;
+        return Activity ??= Operation == CryptoOperation.Encrypt
             ? CryptoShreddingDiagnostics.StartEncryption(RootTypeName)
             : CryptoShreddingDiagnostics.StartDecryption(RootTypeName);
+    }
 
     /// <summary>Marks the call's activity as failed with a low-cardinality reason (never a message).</summary>
     internal void RecordFailure(string reason) => CryptoShreddingDiagnostics.RecordFailed(EnsureActivity(), reason);
@@ -214,23 +218,34 @@ internal sealed class CryptoShreddingFrame : IDisposable, IAsyncDisposable
         }
     }
 
+    // The duration is recorded for every call that touched a crypto field, with or without a trace listener.
     private void FinishActivity()
     {
-        if (Activity is null)
+        if (!_touchedCryptoField)
         {
             return;
-        }
-
-        if (Activity.Status == ActivityStatusCode.Unset)
-        {
-            CryptoShreddingDiagnostics.RecordSuccess(Activity);
         }
 
         var histogram = Operation == CryptoOperation.Encrypt
             ? CryptoShreddingDiagnostics.EncryptionDuration
             : CryptoShreddingDiagnostics.DecryptionDuration;
         histogram.Record(Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds);
-        Activity.Dispose();
+        CompleteActivity(Activity);
+    }
+
+    private static void CompleteActivity(Activity? activity)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (activity.Status == ActivityStatusCode.Unset)
+        {
+            CryptoShreddingDiagnostics.RecordSuccess(activity);
+        }
+
+        activity.Dispose();
     }
 }
 

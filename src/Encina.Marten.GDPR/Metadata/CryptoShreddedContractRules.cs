@@ -239,7 +239,8 @@ internal static class CryptoShreddedContractRules
     /// </summary>
     internal static bool HasValueEquality(Type type)
     {
-        return CryptoShreddedPropertyClassifier.IsOwner(type) && (OverridesEquality(type) || IsComparable(type));
+        // A value-equality wrapper of an owner is affected too: decrypting the nested owner changes its hash.
+        return ReachesOrIsOwner(type) && (OverridesEquality(type) || IsComparable(type));
     }
 
     private static bool OverridesEquality(Type type) =>

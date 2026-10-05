@@ -64,12 +64,15 @@ public static class ServiceCollectionExtensions
     /// </code>
     /// </example>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public static IServiceCollection AddEncinaMartenGdpr(
         this IServiceCollection services,
         Action<CryptoShreddingOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Captured here: inside a private helper the calling assembly would be this package.
+        var callingAssembly = Assembly.GetCallingAssembly();
         services.Configure(configure ?? (_ => { }));
         services.TryAddSingleton<IValidateOptions<CryptoShreddingOptions>, CryptoShreddingOptionsValidator>();
 
@@ -99,7 +102,7 @@ public static class ServiceCollectionExtensions
                     tags: CryptoShreddingHealthCheck.Tags);
         }
 
-        RegisterStartupValidation(services, optionsInstance.AssembliesToScan);
+        RegisterStartupValidation(services, optionsInstance.AssembliesToScan, callingAssembly);
         return services;
     }
 
@@ -115,11 +118,11 @@ public static class ServiceCollectionExtensions
         }
     }
 
-    private static void RegisterStartupValidation(IServiceCollection services, List<Assembly> configured)
+    private static void RegisterStartupValidation(IServiceCollection services, List<Assembly> configured, Assembly callingAssembly)
     {
         IReadOnlyList<Assembly> assembliesToScan = configured.Count > 0
             ? configured
-            : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            : [Assembly.GetEntryAssembly() ?? callingAssembly];
         services.TryAddSingleton(new CryptoShreddingValidationDescriptor(assembliesToScan));
         services.AddHostedService<CryptoShreddingStartupValidationHostedService>();
     }

@@ -225,7 +225,7 @@ internal sealed partial class CryptoShreddingEngine
                 .HandleForgottenSubjectAsync(subjectId, fieldPath, documentType, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // A notification hook must not break reads; the subject id is never logged.
             _logger.ForgottenSubjectHandlerFailed(ex.ForLogging(), documentType.Name);

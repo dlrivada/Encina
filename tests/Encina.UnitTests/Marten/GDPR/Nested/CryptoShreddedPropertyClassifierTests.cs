@@ -40,6 +40,8 @@ public sealed class CryptoShreddedPropertyClassifierTests
         { typeof(ConverterOwner), "Email", CryptoShreddedPropertyProblems.OwnerNotSerializedAsObject },
         { typeof(ConverterContainer), "(type)", CryptoShreddedPropertyProblems.ConverterOverCryptoGraph },
         { typeof(PropertyConverterContainer), "Contact", CryptoShreddedPropertyProblems.ConverterOverCryptoGraph },
+        { typeof(ConvertedContactList), "(type)", CryptoShreddedPropertyProblems.ConverterOverCryptoGraph },
+        { typeof(HashedWrapperHolder), nameof(HashedWrapperHolder.Wrappers), CryptoShreddedPropertyProblems.OwnerInHashedCollection },
         { typeof(PropertyConverterOwner), "Email", CryptoShreddedPropertyProblems.CustomConverterOnProperty },
         { typeof(NotSerializedOwner), "Email", CryptoShreddedPropertyProblems.NotSerialized },
         { typeof(IgnoredOwner), "Email", CryptoShreddedPropertyProblems.NotSerialized },

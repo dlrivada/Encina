@@ -57,6 +57,8 @@ public sealed class CryptoShredderSerializer : ISerializer
     [ThreadStatic]
     private static bool t_stagingInUse;
 
+    private const int MaxRetainedStagingBytes = 1024 * 1024;
+
     private static readonly ConditionalWeakTable<Type, StrongBox<bool>> StagingNeeded = new();
 
     private readonly SystemTextJsonSerializer _inner;
@@ -267,7 +269,9 @@ public sealed class CryptoShredderSerializer : ISerializer
         }
         finally
         {
-            staging.ResetWrittenCount();
+            // Clear zeroes the staged JSON; an oversized buffer is dropped so a thread does not keep it.
+            staging.Clear();
+            t_staging = staging.Capacity > MaxRetainedStagingBytes ? null : staging;
             t_stagingInUse = false;
         }
     }

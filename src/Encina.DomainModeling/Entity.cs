@@ -367,12 +367,15 @@ public abstract class SoftDeletableEntity<TId> : AuditedEntity<TId>, ISoftDeleta
     where TId : notnull
 {
     /// <inheritdoc />
+    [JsonInclude]
     public bool IsDeleted { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public DateTime? DeletedAtUtc { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public string? DeletedBy { get; private set; }
 
     /// <summary>

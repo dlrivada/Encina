@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.DomainModeling;
 
 /// <summary>
@@ -114,15 +116,19 @@ public abstract class AuditableAggregateRoot<TId> : AggregateRoot<TId>, IAuditab
     protected TimeProvider TimeProvider { get; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public DateTime CreatedAtUtc { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public string? CreatedBy { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public DateTime? ModifiedAtUtc { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public string? ModifiedBy { get; private set; }
 
     /// <summary>
@@ -164,12 +170,15 @@ public abstract class SoftDeletableAggregateRoot<TId> : AuditableAggregateRoot<T
     where TId : notnull
 {
     /// <inheritdoc />
+    [JsonInclude]
     public bool IsDeleted { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public DateTime? DeletedAtUtc { get; private set; }
 
     /// <inheritdoc />
+    [JsonInclude]
     public string? DeletedBy { get; private set; }
 
     /// <summary>

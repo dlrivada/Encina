@@ -81,8 +81,19 @@ internal static class CryptoShreddedPropertyClassifier
     private static bool IsShapeless(Type type) =>
         type.IsPrimitive || type.IsEnum || type.IsPointer || type.IsGenericParameter || ShapelessTypes.Contains(type);
 
+    // Both the namespace and the defining assembly must be the framework's, so a user type declared in a
+    // System.* namespace is still classified (fail closed).
     private static bool IsNonGenericSystemType(Type type) =>
-        !type.IsGenericType && !type.IsArray && IsSystemNamespace(type);
+        !type.IsGenericType && !type.IsArray && IsSystemNamespace(type) && IsFrameworkAssembly(type.Assembly);
+
+    private static readonly ConcurrentDictionary<Assembly, bool> FrameworkAssemblies = new();
+
+    private static bool IsFrameworkAssembly(Assembly assembly) =>
+        FrameworkAssemblies.GetOrAdd(assembly, static a => IsFrameworkAssemblyName(a.GetName().Name));
+
+    private static bool IsFrameworkAssemblyName(string? name) =>
+        name is "System" or "mscorlib" or "netstandard"
+        || (name is not null && name.StartsWith("System.", StringComparison.Ordinal));
 
     private static bool IsSystemNamespace(Type type) =>
         type.Namespace is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal));
@@ -423,7 +434,7 @@ internal static class CryptoShreddedPropertyClassifier
             yield return element;
         }
 
-        foreach (var argument in type.IsGenericType ? type.GetGenericArguments() : [])
+        foreach (var argument in GenericArgumentsOf(type))
         {
             yield return argument;
         }
@@ -438,6 +449,13 @@ internal static class CryptoShreddedPropertyClassifier
             yield return property.PropertyType;
         }
     }
+
+    // A non-generic subclass of a generic collection (class OwnerList : List<Owner>) reaches its elements through
+    // the generic interfaces it implements.
+    private static IEnumerable<Type> GenericArgumentsOf(Type type) =>
+        type.IsGenericType
+            ? type.GetGenericArguments()
+            : type.GetInterfaces().Where(i => i.IsGenericType).SelectMany(i => i.GetGenericArguments());
 
     private static IEnumerable<PropertyInfo> SerializedProperties(Type type)
     {

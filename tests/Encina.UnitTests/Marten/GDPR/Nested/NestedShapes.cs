@@ -450,6 +450,16 @@ public sealed class ConverterContainer
     public ContactInfo? Contact { get; set; }
 }
 
+[JsonConverter(typeof(OpaqueConverter<ConvertedContactList>))]
+public sealed class ConvertedContactList : List<ContactInfo>;
+
+public sealed record ContactWrapper(RecordContact Contact);
+
+public sealed class HashedWrapperHolder
+{
+    public System.Collections.Generic.HashSet<ContactWrapper> Wrappers { get; set; } = [];
+}
+
 public sealed class PropertyConverterContainer
 {
     [JsonConverter(typeof(OpaqueConverter<ContactInfo>))]
