@@ -59,6 +59,11 @@ Rules:
   (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
   script output in the report (it prints only the violations: an empty table means no touched method is over
   the threshold), and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
+- Obligations (AGENTS.md §9, #1762): every new or touched src/ file gets per-flag "targets" and one-sentence
+  "justifications" in its package manifest's per-file entry (demanding and realistic; a 0 only with a reason);
+  mechanical-fixer writes them (you decide the numbers). Measure the per-flag coverage of those files, report
+  it against the targets, and run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --check-justifications
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.

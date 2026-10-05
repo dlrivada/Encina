@@ -13,7 +13,13 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": { "unit": 90, "property": 90, "guard": 0 },
+      "justifications": {
+        "unit": "Validation paths and the attribute-error mapping are pure logic that unit tests already cover above 90%.",
+        "property": "Property tests exercise the provider with generated models and already reach full coverage of this file.",
+        "guard": "No guard tests exist for this provider yet, so the flag cannot exercise the file until they are written."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -26,7 +32,13 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 100, "property": 90, "guard": 0 },
+      "justifications": {
+        "unit": "The registration method is five lines and every one is covered by DI unit tests.",
+        "property": "Property tests build the provider through this registration, so the file is fully exercised.",
+        "guard": "No guard tests exist for this registration yet, so the flag cannot exercise the file until they are written."
+      }
     }
   }
 }

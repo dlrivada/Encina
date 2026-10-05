@@ -68,6 +68,10 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    check, §7 EventIds, §9 testing obligations, as applicable to the files actually touched.
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
+   Also check the per-file obligations (`AGENTS.md` §9, #1762): every new or touched `src/` file has per-flag
+   `targets` with one-sentence `justifications` in its package manifest (a 0 only with a reason), the targets
+   are plausible (demanding, not a copy of the current number), and the PR reports measured per-flag coverage
+   that meets them; a missing, unjustified or unmet target is a finding.
 4. Write the security section: secrets or personal data reaching logs, activity tags, health-check results
    or plaintext storage; injection; fail-open gates instead of fail-closed. Known failure patterns to check
    (project history, same list `adversarial-reviewer` carries, since the underlying rules are the same
