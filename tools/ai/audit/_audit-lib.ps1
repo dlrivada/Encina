@@ -143,10 +143,25 @@ function New-DeltaScopeText([int]$Issue, [string]$Worktree, [string]$Set) {
         $text = (Get-Content -LiteralPath $stageFile -Raw)
         $section = [regex]::Match($text, '(?ims)^##\s*(Scope|Files in scope|Scope list)[^\r\n]*\r?\n(?<body>.*?)(?=^##\s|\z)')
         $null = $sb.Append("## From the original $name (docs/knowledge/audits/$Issue/stages/$name)`n`n")
-        if ($section.Success) { $null = $sb.Append($section.Groups['body'].Value.Trim() + "`n`n") }
-        else { $null = $sb.Append("(no Scope section; the whole stage file is the reference)`n`n" + $text.Trim() + "`n`n") }
+        if ($section.Success) { $null = $sb.Append((ConvertTo-PlainTextLinks $section.Groups['body'].Value.Trim()) + "`n`n") }
+        else { $null = $sb.Append("(no Scope section; the whole stage file is the reference)`n`n" + (ConvertTo-PlainTextLinks $text.Trim()) + "`n`n") }
     }
     return $sb.ToString()
+}
+
+# Turns the relative Markdown links of $Text into plain text 'text (path)' (fenced code and absolute, site-root and
+# anchor links stay), so text copied from a deeper folder cannot be re-resolved against the wrong base (#1817).
+function ConvertTo-PlainTextLinks([string]$Text) {
+    $lines = $Text.Split("`n")
+    $fence = ''
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $wasInFence = $fence -ne ''
+        $fence = Get-FenceState $lines[$i] $fence
+        if ($wasInFence -or $fence -ne '') { continue }
+        $lines[$i] = [regex]::Replace($lines[$i], '!?\[(?<t>[^\]]*)\]\((?<p>(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)[^()\s]+)\)', '${t} (${p})')
+        $lines[$i] = [regex]::Replace($lines[$i], '^\s{0,3}\[(?!\^)(?<t>[^\]]+)\]:\s*(?<p>(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)\S+)\s*$', '${t}: ${p}')
+    }
+    return ($lines -join "`n")
 }
 
 # True when a commit on the branch checked out at $Worktree carries the trailer 'Stage: <StageName>' AND the
@@ -497,6 +512,9 @@ function Get-DeltaPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     }
     # #1817: the scope text is copied from the original record (docs/knowledge/issues/<n>.md), so its relative
     # links were written for that folder.
+    # Assumption behind LinkBase: the record and result sections of delta-scope.md come from docs/knowledge/issues and
+    # docs/knowledge/audits, which sit at the same depth. The stage excerpts come from audits/<n>/stages, one level
+    # deeper, and are expected to carry no relative links: New-DeltaScopeText turns them into plain text.
     $scope = Join-Path $AuditWorktree 'artifacts\knowledge\delta-scope.md'
     if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md"; LinkBase = "docs/knowledge/issues/$Issue.md" }) }
     if ($plan.Count -eq 0) { throw "Get-DeltaPublishPlan: no delta stage file under $StagesDir." }
@@ -551,10 +569,15 @@ function Convert-LinkTarget([string]$Target, [string]$SourceDir, [string]$DestDi
     }
     $rel = [IO.Path]::GetRelativePath((Join-Path $Root ($DestDir -replace '/', '\')), $full) -replace '\\', '/'
     if ($decoded.EndsWith('/') -and -not $rel.EndsWith('/')) { $rel += '/' }
-    if ($path -ne $decoded) { $rel = $rel -replace ' ', '%20' }
-    $new = $rel + $suffix
-    if ($new -eq $bare) { return $Target }
+    # The relative path did not change: keep the original text byte for byte (its own encoding included).
+    if ($rel -ceq $decoded) { return $Target }
+    $new = (ConvertTo-LinkPath $rel) + $suffix
     return $(if ($Target.StartsWith('<')) { "<$new>" } else { $new })
+}
+
+# Percent-encodes the characters that would end or alter a Markdown link path: % # ? ( ) and space.
+function ConvertTo-LinkPath([string]$Path) {
+    return $Path.Replace('%', '%25').Replace('#', '%23').Replace('?', '%3F').Replace(' ', '%20').Replace('(', '%28').Replace(')', '%29')
 }
 
 # Fence state machine: returns the new opener ('' = outside a fence) after $Line.
@@ -576,7 +599,9 @@ function Update-LinkLine([string]$Line, [int]$Number, [string]$SourceDir, [strin
     $patterns = @(
         ('(?<pre>!?\[[^\]]*\]\(\s*)' + $target),
         ('(?<pre>!?\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*)' + $target),
-        ('^(?<pre>\s{0,3}\[[^\]]+\]:\s*)(?<t><[^>]*>|\S+)'))
+        # A reference definition: not a footnote ([^1]:), and nothing after the target but an optional quoted or
+        # parenthesised title, so prose such as "[HIGH]: this is bad" is not mistaken for one.
+        ('^(?<pre>\s{0,3}\[(?!\^)[^\]]+\]:\s*)(?<t><[^>]*>|\S+)(?=\s*$|\s+(?:"[^"]*"|''[^'']*''|\([^)]*\))\s*$)'))
     return Update-LinkMatches $Line $patterns $spans $Number $SourceDir $DestDir $Root $Label $Errors
 }
 

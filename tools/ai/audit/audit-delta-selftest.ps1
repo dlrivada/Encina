@@ -61,11 +61,35 @@ try {
 
     Write-Text (Join-Path $linkRoot 'docs\knowledge\a\foo(1).md') "x`n"
     $adv = Update-PublishedLinks "[![badge](https://img/x.svg)](../a/target%20one.md) [a [b] c](../a/foo(1).md) [![i](../img/pic.png)](../a/nope.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
-    Assert-That 'unit: linked image, nested brackets and parentheses are rewritten, the broken outer link is reported' ($adv.Text.Contains('(https://img/x.svg)](../../../a/target%20one.md)') -and $adv.Text.Contains('[a [b] c](../../../a/foo(1).md)') -and $adv.Text.Contains('[![i](../../../img/pic.png)](../a/nope.md)') -and $adv.Errors.Count -eq 1 -and $adv.Errors[0].EndsWith(':1 ../a/nope.md')) ($adv.Errors -join ';') + $adv.Text
+    Assert-That 'unit: linked image, nested brackets and parentheses are rewritten, the broken outer link is reported' ($adv.Text.Contains('(https://img/x.svg)](../../../a/target%20one.md)') -and $adv.Text.Contains('[a [b] c](../../../a/foo%281%29.md)') -and $adv.Text.Contains('[![i](../../../img/pic.png)](../a/nope.md)') -and $adv.Errors.Count -eq 1 -and $adv.Errors[0].EndsWith(':1 ../a/nope.md')) ($adv.Errors -join ';') + $adv.Text
     $case = Update-PublishedLinks "[c](../A/target%20one.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
     Assert-That 'unit: a link that differs only in case is reported (the link checker is case-sensitive)' ($case.Errors.Count -eq 1) $case.Text
     $fenceInfo = Update-PublishedLinks "``````text`n[x](../a/nope.md)`n``````js`n[y](../a/nope2.md)`n``````n`[z](../a/nope3.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
     Assert-That 'unit: a fence line with an info string does not close the fence' ($fenceInfo.Errors.Count -eq 0) ($fenceInfo.Errors -join ';')
+
+    # Decision 1: footnotes and prose with a colon are not reference definitions.
+    $prose = "[^1]: See the thing.`n[HIGH]: this is bad`n[ok]: ../a/target%20one.md `"Title`"`n[nope]: ../a/missing.md`n"
+    $p = Update-PublishedLinks $prose 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: footnotes and prose with a colon are left alone and do not fail' ($p.Text.StartsWith("[^1]: See the thing.`n[HIGH]: this is bad`n") -and $p.Text.Contains('[ok]: ../../../a/target%20one.md "Title"') -and $p.Errors.Count -eq 1 -and $p.Errors[0].EndsWith(':4 ../a/missing.md')) ($p.Errors -join ';') + $p.Text
+
+    # Decision 2: percent-encoding round-trips to an equivalent, resolvable link.
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\foo#bar.md') "x`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\f%25.md') "x`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\q%3F.md') "x`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\un(bal.md') "x`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\a\un)bal.md') "x`n"
+    $enc = Update-PublishedLinks "[a](../a/foo%23bar.md) [b](../a/f%2525.md) [c](../a/q%253F.md) [d](../a/un%28bal.md) [e](../a/un%29bal.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/audits/1/d/x.md' $linkRoot
+    Assert-That 'unit: encoded names round-trip to resolvable links' ($enc.Errors.Count -eq 0 -and $enc.Text -ceq "[a](../../../a/foo%23bar.md) [b](../../../a/f%2525.md) [c](../../../a/q%253F.md) [d](../../../a/un%28bal.md) [e](../../../a/un%29bal.md)`n") ($enc.Errors -join ';') + $enc.Text
+    $keep = Update-PublishedLinks "[a](../a/foo%23bar.md)`n[b](../a/f%2525.md)`n" 'docs/knowledge/issues/1.md' 'docs/knowledge/issues/2.md' $linkRoot
+    Assert-That 'unit: an unchanged relative path keeps the original text byte for byte' ($keep.Text -ceq "[a](../a/foo%23bar.md)`n[b](../a/f%2525.md)`n") $keep.Text
+
+    # Decision 3: stage excerpts lose their relative links (plain text), other links stay.
+    $plain = ConvertTo-PlainTextLinks "- [Widget](../../../src/W.cs) [web](https://e.com/x) [top](#top)`n``````text`n[f](../x.md)`n```````n[r]: ../y.md"
+    Assert-That 'unit: relative links become plain text, others and fences stay' ($plain -ceq "- Widget (../../../src/W.cs) [web](https://e.com/x) [top](#top)`n``````text`n[f](../x.md)`n```````nr: ../y.md") $plain
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\issues\7.md') "---`nx: 1`n---`n"
+    Write-Text (Join-Path $linkRoot 'docs\knowledge\audits\7\stages\archivist.md') "## Scope`n- [Widget](../../../../src/W.cs)`n"
+    $scopeText = New-DeltaScopeText 7 $linkRoot 'set'
+    Assert-That 'unit: New-DeltaScopeText strips relative links from stage excerpts' ($scopeText.Contains('- Widget (../../../../src/W.cs)') -and -not $scopeText.Contains('](../../../../src')) $scopeText
 
     $main = Join-Path $base 'main'
     $origin = Join-Path $base 'origin.git'
