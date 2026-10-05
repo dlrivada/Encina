@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | **APPROVED (2026-09-28)**. **DEC-001 … DEC-003 are DECIDED (maintainer, 2026-09-28)**: no commit-count staleness threshold (every stage re-checks its input against current `main` on entry instead, §4); the WIP limit is fixed at 4-5 fronts, not a pilot-tunable parameter (§5); the pipeline is maintainer/orchestrator-directed, not a fully autonomous scheduled dispatcher (§8). §12 records the three decisions taken. **Amended 2026-10-05 (DEC-004, maintainer)**: the WIP limit counts every front past intake, urgent-lane fronts included (REQ-011). |
+| **Status** | **APPROVED (2026-09-28; amended 2026-10-05)**. **DEC-001 … DEC-003 are DECIDED (maintainer, 2026-09-28)**: no commit-count staleness threshold (every stage re-checks its input against current `main` on entry instead, §4); the WIP limit is fixed at 4-5 fronts, not a pilot-tunable parameter (§5); the pipeline is maintainer/orchestrator-directed, not a fully autonomous scheduled dispatcher (§8). §12 records the four decisions taken. **Amended 2026-10-05 (DEC-004, maintainer)**: the WIP limit counts every front past intake, urgent-lane fronts included (REQ-011). |
 | **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-28 and issue #1554 |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-09-28; amended 2026-10-05 |
 | **Refines** | [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §9 (Historian), §10 (Auditor), §22 (audit passes), and the `worker-brief` / `pr-cycle` skills that the orchestrator runs by hand today |
 | **Evidence** | Issue #1554 ("[SPIKE] Bounded-WIP stage pipeline for issue delivery (SPEC-004)"); #1552 (scored priority list); #1551 (worker-brief CRAP rule); #1540 (a `-DryRun` deleted an open audit's real stage drafts); #1534 (a duplicate finding could not be recorded against a multi-item issue); #1386 (a Pages deploy could revert another dashboard's fresh data or be cancelled mid-flight); [SPEC-003](SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md) (the audit pipeline this specification generalises) |
 | **Supersedes** | — |
@@ -46,7 +46,7 @@ Three problems this specification addresses:
 | Stage | One step of a front's life with a single owner and one input and one output document (§3). |
 | Stage document | The file at `artifacts/flow/<issue>/<stage>.md` that records a stage's status, verdict and provenance (§4). |
 | Stale document | A stage document whose input no longer holds against the current `main`; there is no commit-count threshold — the consuming stage discovers staleness by re-checking the document on entry (§4, DEC-001). |
-| WIP limit | The maximum number of fronts open at once: 4-5, fixed by DEC-002 (§5, §12), not a pilot-tunable parameter. Every front past intake counts, urgent-lane fronts included (REQ-011, DEC-004). |
+| WIP limit | The maximum number of fronts open at once: 4-5, fixed by DEC-002 (§5, §12), not a pilot-tunable parameter. Every front past intake counts, urgent-lane fronts included; an urgent-lane item may still start when the limit is full (REQ-011, DEC-004). |
 | Urgent lane | Work that is dispatched ahead of the queued fronts because it blocks other fronts or the pipeline itself (§7). It counts against the WIP limit like any other front (REQ-011, DEC-004); only its order changes. |
 | Dispatcher | The free PowerShell script that computes which stages are ready to run, respecting WIP limits and file conflicts (§8). |
 
@@ -91,9 +91,9 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 5. Bounded WIP
 
-**REQ-005** No more than 4-5 fronts (§2.3) are open at once. A derived PR or a small follow-up that a front's implementation or review stage spawns counts inside the front that created it, not as a new front against the limit.
+**REQ-005** No more than 4-5 fronts (§2.3) are open at once, except that an urgent-lane item may start when the limit is full (REQ-011). A derived PR or a small follow-up that a front's implementation or review stage spawns counts inside the front that created it, not as a new front against the limit.
 
-**REQ-006** A new front is not opened while the WIP limit is at capacity; the dispatcher (§8) reports the queue instead of starting intake on more issues than the limit allows to be *in flight past intake* (§6 bounds intake specifically).
+**REQ-006** A new front is not opened while the WIP limit is at capacity, except an urgent-lane item, which may start when the limit is full (REQ-011); the dispatcher (§8) reports the queue instead of starting intake on more issues than the limit allows to be *in flight past intake* (§6 bounds intake specifically).
 
 ## 6. Intake order and just-in-time intake
 
@@ -111,7 +111,7 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 8. Dispatcher
 
-**REQ-012** A free PowerShell script (no model) computes, from the stage documents under `artifacts/flow/`, which stages are ready to run: a stage is ready when its input document exists with `status: done` and is not stale (§4), and starting it would not exceed the WIP limit (§5) or create a file conflict with another in-progress front (§6, §8.1).
+**REQ-012** A free PowerShell script (no model) computes, from the stage documents under `artifacts/flow/`, which stages are ready to run: a stage is ready when its input document exists with `status: done` and is not stale (§4), and starting it would not exceed the WIP limit (§5; except an urgent-lane item, which may start when the limit is full, REQ-011) or create a file conflict with another in-progress front (§6, §8.1).
 
 **REQ-013** Local-model stages (intake, §3 stage 1) are run directly by the dispatcher. Paid-agent stages (verification, decisions, spec/plan, implementation, review) are reported as ready by the dispatcher and dispatched by the orchestrator session (Option B of issue #1554); the dispatcher itself never spawns a paid agent. This is the pipeline's decided degree of automation (DEC-003, §12): not fully automatic. The maintainer and the orchestrator choose which fronts open (§6); the orchestrator dispatches every paid-agent stage; each front moves through its stages the way a SPEC-003 audit moves from the archivist onward, each stage producing exactly the document the next stage needs.
 
@@ -131,7 +131,7 @@ returns-to-reason: <one sentence, or "n/a">
 
 **REQ-018** The pilot measures, per issue, against the baseline week of 2026-09-22: lead time (intake to merge), rework loops (count of `returns-to` events), tokens spent (from `artifacts/agent-usage/ledger.csv` and `artifacts/local-ai/ledger.csv`), and maintainer interruptions (decisions or unblocks the maintainer had to make outside the batched decisions stage).
 
-**REQ-019** The pilot's measurements (REQ-018) are reported to the maintainer, who decides whether the pipeline continues past the pilot set or needs revision. The staleness handling (§4, DEC-001), the WIP limit (§5, DEC-002) and the degree of automation (§8, DEC-003) are already decided and are not among the pilot's open questions; if the pilot's measurements suggest one of them should change, that is a new amendment to this specification, not a default outcome of running the pilot.
+**REQ-019** The pilot's measurements (REQ-018) are reported to the maintainer, who decides whether the pipeline continues past the pilot set or needs revision. The staleness handling (§4, DEC-001), the WIP limit (§5, DEC-002) the degree of automation (§8, DEC-003) and the counting of urgent-lane fronts against the limit (§7, DEC-004) are already decided and are not among the pilot's open questions; if the pilot's measurements suggest one of them should change, that is a new amendment to this specification, not a default outcome of running the pilot.
 
 ## 11. Risks and mitigations
 
@@ -148,7 +148,7 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 12. Decisions for the maintainer
 
-Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14). DEC-001 … DEC-003 were DECIDED by the maintainer on 2026-09-28, ahead of the rest of this draft's review; they are recorded here in the same format SPEC-003 uses for its own decided items (SPEC-003 §12).
+Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14). DEC-001 … DEC-003 were DECIDED by the maintainer on 2026-09-28, ahead of the rest of this draft's review; DEC-004 was DECIDED on 2026-10-05 as an amendment. They are recorded here in the same format SPEC-003 uses for its own decided items (SPEC-003 §12).
 
 | ID | Decision | Options | Recommendation | Consequences | Status |
 |---|---|---|---|---|---|
