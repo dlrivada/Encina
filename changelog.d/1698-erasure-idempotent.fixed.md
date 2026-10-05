@@ -1,2 +1,1 @@
 - **Crypto-shredding erasure is idempotent** (#1698). Erasing a subject that is already forgotten succeeds, so a data subject request with several locations of one subject no longer reports failures.
-- **Aggregate and entity snapshots keep their id** (#1698). `AggregateBase.Id` and `Entity<TId>.Id` are serialized with `[JsonInclude]`, and `UncommittedEvents`/`DomainEvents` are no longer serialized, so a snapshot round-trips through System.Text.Json with its id.
