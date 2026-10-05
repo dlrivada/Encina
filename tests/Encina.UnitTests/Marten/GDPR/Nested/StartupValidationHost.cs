@@ -67,7 +67,7 @@ internal sealed class StartupValidationHost : IDisposable
     internal IReadOnlyList<FakeLogRecord> Logs => LoggerProvider.Collector.GetSnapshot();
 
     internal Task StartAsync() =>
-        Provider.GetServices<IHostedService>().OfType<CryptoShreddingStartupValidationHostedService>().Single().StartAsync(CancellationToken.None);
+        Provider.GetServices<IHostedService>().OfType<CryptoShreddingStartupValidationHostedService>().Single().StartingAsync(CancellationToken.None);
 
     public void Dispose() => Provider.Dispose();
 }

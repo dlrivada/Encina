@@ -166,6 +166,53 @@ public sealed class CryptoShreddingStartupValidationHostedServiceTests(Misconfig
     }
 
     [Fact]
+    public async Task Validation_RunsInStartingAsync_BeforeAnyHostedServiceStarts()
+    {
+        var started = new StartRecorder();
+        using var setup = new StartupValidationHost(
+            typeof(MisconfiguredScanFixture).Assembly,
+            before: s => s.AddSingleton<Microsoft.Extensions.Hosting.IHostedService>(started));
+        var hostedServices = setup.Provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().ToList();
+        var lifecycle = hostedServices.OfType<Microsoft.Extensions.Hosting.IHostedLifecycleService>().ToList();
+
+        // The generic host runs every StartingAsync before any StartAsync.
+        var ex = await Should.ThrowAsync<CryptoShreddingConfigurationException>(async () =>
+        {
+            foreach (var service in lifecycle)
+            {
+                await service.StartingAsync(CancellationToken.None);
+            }
+
+            foreach (var service in hostedServices)
+            {
+                await service.StartAsync(CancellationToken.None);
+            }
+        });
+
+        ex.Problem.ShouldBe(CryptoShreddingConfigurationProblem.MisconfiguredProperties);
+        started.Started.ShouldBeFalse();
+        var validator = lifecycle.OfType<CryptoShreddingStartupValidationHostedService>().Single();
+        await validator.StartAsync(CancellationToken.None);
+        await validator.StartedAsync(CancellationToken.None);
+        await validator.StoppingAsync(CancellationToken.None);
+        await validator.StopAsync(CancellationToken.None);
+        await validator.StoppedAsync(CancellationToken.None);
+    }
+
+    private sealed class StartRecorder : Microsoft.Extensions.Hosting.IHostedService
+    {
+        internal bool Started { get; private set; }
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            Started = true;
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    [Fact]
     public void IncludesMartenLocator_RecognisesTheLocatorAndComposites()
     {
         var marten = new MartenEventPersonalDataLocator(Substitute.For<IDocumentSession>(),

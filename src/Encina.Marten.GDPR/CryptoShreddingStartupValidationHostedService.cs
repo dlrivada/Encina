@@ -33,7 +33,7 @@ namespace Encina.Marten.GDPR;
 /// reflection rules only; their subject-id type check is deferred to the closed types (event 8473).
 /// </para>
 /// </remarks>
-internal sealed class CryptoShreddingStartupValidationHostedService : IHostedService
+internal sealed class CryptoShreddingStartupValidationHostedService : IHostedLifecycleService
 {
     private readonly CryptoShreddingValidationDescriptor _descriptor;
     private readonly IServiceProvider _services;
@@ -52,7 +52,11 @@ internal sealed class CryptoShreddingStartupValidationHostedService : IHostedSer
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Validates before any hosted service starts (<see cref="IHostedLifecycleService.StartingAsync"/> runs before every
+    /// <c>StartAsync</c>), so a misconfiguration stops the host before Marten's async daemon processes an event.
+    /// </summary>
+    public Task StartingAsync(CancellationToken cancellationToken)
     {
         if (!_options.ValidateOnStartup)
         {
@@ -70,7 +74,15 @@ internal sealed class CryptoShreddingStartupValidationHostedService : IHostedSer
         return Task.CompletedTask;
     }
 
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private CryptoShredderSerializer RequireWrappedSerializer(IDocumentStore store)
     {

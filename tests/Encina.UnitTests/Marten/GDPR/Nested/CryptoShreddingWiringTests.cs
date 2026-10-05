@@ -134,6 +134,29 @@ public sealed class CryptoShreddingWiringTests
     }
 
     [Fact]
+    public async Task Router_CopiedMartenLocationWithoutTheMarker_IsStillCryptoShredded()
+    {
+        var keys = Substitute.For<ISubjectKeyProvider>();
+        keys.DeleteSubjectKeysAsync(Subject, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, CryptoShreddingResult>(new CryptoShreddingResult { SubjectId = Subject, KeysDeleted = 1, FieldsAffected = 0, ShreddedAtUtc = DateTimeOffset.UnixEpoch }));
+        var inner = new ApplicationErasureStrategy();
+        var router = new CryptoShredRoutingErasureStrategy(
+            new CryptoShredErasureStrategy(keys, NullLogger<CryptoShredErasureStrategy>.Instance), [inner]);
+        var original = Location(typeof(NestedEvent));
+        CryptoShredRoutingErasureStrategy.MarkMartenLocation(original);
+        var clone = original with { FieldName = original.FieldName };
+
+        ReferenceEquals(clone, original).ShouldBeFalse();
+        CryptoShredRoutingErasureStrategy.IsMartenLocation(clone).ShouldBeFalse();
+        (await router.EraseFieldAsync(clone)).IsRight.ShouldBeTrue();
+
+        await keys.Received(1).DeleteSubjectKeysAsync(Subject, Arg.Any<CancellationToken>());
+        inner.Received.ShouldBeEmpty();
+        CryptoShredRoutingErasureStrategy.Route(Location(typeof(TopLevelOwner))).ShouldBe(CryptoShredRoutingErasureStrategy.ErasureRoute.CryptoShredding);
+        CryptoShredRoutingErasureStrategy.Route(Location()).ShouldBe(CryptoShredRoutingErasureStrategy.ErasureRoute.Inner);
+    }
+
+    [Fact]
     public async Task Router_WithoutInnerStrategy_FailsForNonMartenLocations()
     {
         var router = new CryptoShredRoutingErasureStrategy(
@@ -268,9 +291,9 @@ public sealed class CryptoShreddingWiringTests
         logger.Collector.GetSnapshot().ShouldAllBe(r => !r.Message.Contains(Subject));
     }
 
-    private static PersonalDataLocation Location() => new()
+    private static PersonalDataLocation Location(Type? entityType = null) => new()
     {
-        EntityType = typeof(TopLevelOwner),
+        EntityType = entityType ?? typeof(NoPiiEvent),
         EntityId = Subject,
         FieldName = "Email",
         Category = PersonalDataCategory.Contact,

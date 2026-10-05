@@ -21,8 +21,10 @@ namespace Encina.Marten.GDPR;
 /// decryptable (Art. 17 fail-open), and crypto-shredding would report success for locations of other locators.
 /// </para>
 /// <para>
-/// Provenance is by reference identity: the Marten locator records each location it produces, and the executor
-/// passes those instances unchanged.
+/// Provenance is first by reference identity: the Marten locator records each location it produces. A location
+/// without that marker (copied or rehydrated between locate and erase) whose entity type is or reaches a
+/// crypto-shredded owner is crypto-shredded too, and one whose entity type cannot be classified fails, so a
+/// Marten location never falls through to a strategy that reports success without erasing it.
 /// </para>
 /// </remarks>
 internal sealed class CryptoShredRoutingErasureStrategy : IDataErasureStrategy
@@ -60,13 +62,50 @@ internal sealed class CryptoShredRoutingErasureStrategy : IDataErasureStrategy
     {
         ArgumentNullException.ThrowIfNull(location);
 
+        return Route(location) switch
+        {
+            ErasureRoute.CryptoShredding => _cryptoShredding.EraseFieldAsync(location, cancellationToken),
+            ErasureRoute.Inner when _inner is not null => _inner.EraseFieldAsync(location, cancellationToken),
+            ErasureRoute.Undetermined => ValueTask.FromResult<Either<EncinaError, Unit>>(CryptoShreddingErrors.SerializationError(location.EntityType)),
+            _ => ValueTask.FromResult<Either<EncinaError, Unit>>(CryptoShreddingErrors.ErasureStrategyMissing(location.EntityType)),
+        };
+    }
+
+    /// <summary>
+    /// Decides where a location goes. The provenance marker is only a fast path: a copied or rehydrated location
+    /// loses it, so a location whose entity type is or reaches a crypto-shredded owner is still crypto-shredded
+    /// (fail closed). When the entity type cannot be classified, the location is not erased at all.
+    /// </summary>
+    internal static ErasureRoute Route(PersonalDataLocation location)
+    {
         if (IsMartenLocation(location))
         {
-            return _cryptoShredding.EraseFieldAsync(location, cancellationToken);
+            return ErasureRoute.CryptoShredding;
         }
 
-        return _inner is null
-            ? ValueTask.FromResult<Either<EncinaError, Unit>>(CryptoShreddingErrors.ErasureStrategyMissing(location.EntityType))
-            : _inner.EraseFieldAsync(location, cancellationToken);
+        try
+        {
+            return IsCryptoShreddedEntity(location.EntityType) ? ErasureRoute.CryptoShredding : ErasureRoute.Inner;
+        }
+        catch (Exception ex) when (ex is TypeLoadException or NotSupportedException or ArgumentException or InvalidOperationException)
+        {
+            return ErasureRoute.Undetermined;
+        }
+    }
+
+    private static bool IsCryptoShreddedEntity(Type entityType) =>
+        CryptoShreddedPropertyClassifier.IsOwner(entityType) || CryptoShreddedPropertyClassifier.ReachesCryptoOwner(entityType);
+
+    /// <summary>Where a location is erased.</summary>
+    internal enum ErasureRoute
+    {
+        /// <summary>Crypto-shredding (delete the subject's keys).</summary>
+        CryptoShredding,
+
+        /// <summary>The strategy registered before <c>AddEncinaMartenGdpr</c>.</summary>
+        Inner,
+
+        /// <summary>The entity type could not be classified; the location fails.</summary>
+        Undetermined,
     }
 }
