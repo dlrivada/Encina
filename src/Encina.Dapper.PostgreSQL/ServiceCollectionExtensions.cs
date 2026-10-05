@@ -64,6 +64,25 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
         }
 
+        // Register operation audit store if enabled
+        if (config.UseOperationAuditStore)
+        {
+            // Remove the in-memory default from Encina.Security.Audit so the database-backed
+            // store wins regardless of the order in which AddEncinaAudit and this provider run.
+            // A custom IOperationAuditStore the application registered itself is never removed
+            // here, so it keeps winning (#1269).
+            for (var i = services.Count - 1; i >= 0; i--)
+            {
+                if (services[i].ServiceType == typeof(IOperationAuditStore) &&
+                    services[i].ImplementationType == typeof(InMemoryOperationAuditStore))
+                {
+                    services.RemoveAt(i);
+                }
+            }
+
+            services.TryAddScoped<IOperationAuditStore, Auditing.OperationAuditStoreDapper>();
+        }
+
         // Register read audit store if enabled
         if (config.UseReadAuditStore)
         {

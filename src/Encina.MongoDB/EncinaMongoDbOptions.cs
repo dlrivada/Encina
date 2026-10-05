@@ -79,14 +79,14 @@ public sealed class EncinaMongoDbOptions
     public bool UseAuditLogStore { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether to use the Security Audit Store.
+    /// Gets or sets a value indicating whether to use the Operation Audit Store.
     /// </summary>
     /// <remarks>
     /// <para>
     /// When enabled, registers IOperationAuditStore implemented by OperationAuditStoreMongoDB.
     /// </para>
     /// <para>
-    /// The security audit store provides comprehensive audit trail for operations
+    /// The operation audit store provides comprehensive audit trail for operations
     /// including request/response payloads, outcome tracking, and compliance features.
     /// </para>
     /// </remarks>
