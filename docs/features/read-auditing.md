@@ -59,7 +59,7 @@ services.AddEncinaReadAuditing(options =>
     // GDPR Art. 15 compliance
     options.RequirePurpose = true;
 
-    // Skip background jobs
+    // Skip reads made under a service identity (excludes nothing until service identities exist; anonymous reads are still audited)
     options.ExcludeSystemAccess = true;
 
     // Retention policy
@@ -89,7 +89,7 @@ public class GetPatientHandler
 | Option | Default | Description |
 |--------|---------|-------------|
 | `Enabled` | `true` | Global kill switch for read auditing |
-| `ExcludeSystemAccess` | `false` | Skip auditing when no UserId in request context |
+| `ExcludeSystemAccess` | `false` | Skip auditing only for reads made under a service identity; anonymous reads are still audited. Until Phase 2 of [#1705](https://github.com/dlrivada/Encina/issues/1705) introduces service identities, it excludes nothing |
 | `RequirePurpose` | `false` | Log warning when purpose is not declared |
 | `BatchSize` | `1` | Entries to batch before writing (provider-dependent) |
 | `RetentionDays` | `365` | Days to retain audit entries |
