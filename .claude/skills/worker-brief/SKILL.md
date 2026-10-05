@@ -48,8 +48,9 @@ Rules:
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
 - CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
   touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
-  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage\<Flag>Tests
-  (every flag that exercises them, one folder per flag: UnitTests, GuardTests, ContractTests, PropertyTests,
+  the changed files, one project per flag: dotnet test <wt>\tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"
+  --results-directory <wt>\artifacts\coverage\<Flag>Tests (naming the project matters: without it every test
+  project writes to one folder and is counted as one flag; every flag that exercises them, one folder per flag: UnitTests, GuardTests, ContractTests, PropertyTests,
   IntegrationTests; coverage-report.cs classifies its inputs by these names, so one set of runs feeds both
   this gate and the per-file table below), create the folder and write the diff to a file with
   New-Item -ItemType Directory -Force <wt>\artifacts\crap-gate | Out-Null (a fresh worktree has no

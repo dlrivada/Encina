@@ -70,7 +70,7 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    per-flag `targets` with one-sentence `justifications` in its package manifest (a 0 only with a reason),
    the targets are plausible (demanding, not a copy of the current number), and the PR reports measured
    per-flag coverage that meets them (run `dotnet run --file .github/scripts/coverage-report.cs --
-   --check-justifications` and read the "Per-file targets" table of the report); a missing, unjustified or
+   --check-justifications` and read the "Per-file targets" table the PR reports, or regenerate it from the per-flag runs); a missing, unjustified or
    unmet target is a finding in section (b).
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
