@@ -76,7 +76,7 @@ It needs PowerShell 7.5+ (`ConvertFrom-Json -DateKind`).
 | `-Repo` | no | `dlrivada/Encina` | The GitHub repository queried through `gh`. |
 | `-MainRoot` | no | derived from `git rev-parse --git-common-dir` | The main checkout, where the audit progress files are read. |
 | `-NowUtc` | no | the current UTC time | The reference time (tests pass a fixed value). |
-| `-CreateOp` | no | `create` | The batch operation name for a new document. |
+| `-CreateOp` | no | `set` | The batch operation name for a new document. |
 | `-UpdateOp` | no | `update` | The batch operation name for an existing document. |
 | `-MergedDays` | no | `14` | How far back merged PRs and closed issues are read. |
 | `-MaxWrites` | no | `50` | Writes per batch file. |
@@ -84,9 +84,9 @@ It needs PowerShell 7.5+ (`ConvertFrom-Json -DateKind`).
 The output is a JSON array of `{ op, collection, doc_id, if_version?, data }`, only for documents
 whose data differ. At most 50 writes go in one file: when there are more, `-Out` becomes
 `<name>-001.json`, `<name>-002.json` and so on. Stdout prints `WRITES <n> SKIPPED <m>` followed by the
-file paths, one per line. The `create`/`update` operation names are an assumption: confirm them
-against the `ArtifactData` batch contract on the first real run and pass `-CreateOp`/`-UpdateOp` if
-they differ.
+file paths, one per line. ArtifactData batch ops are `set` (replace/create), `update` (merges fields
+into an existing document) and `delete` (never used); because `update` merges, the reconciler sends
+only the changed top-level fields for existing documents and the full document (`set`) for new ones.
 
 ### The versions sidecar
 
@@ -110,8 +110,8 @@ New documents carry no version.
 | Card or flow front with a merged PR | Card `merged` (flow `merged` + stage `done`), with the merge time. |
 | Open PR | Card `pr-open`; flow `in-progress` + stage `review`. |
 | Draft open PR | A running card stays `running` and flow is left alone; only the PR number is recorded. |
-| Worktree with commits ahead of main and no PR | Card `running`. |
-| `running` worker card with no worktree and no PR | Card `stopped`, with a note. |
+| a `queued` or `running` card with a worktree ahead of main and no PR | Card `running`. |
+| `running` worker card with no worktree and no PR | Card `stopped`, with a note. Only when its startedUtc is more than 2 hours old; a freshly spawned worker may not have a worktree yet. |
 | PR closed without merging | Card `stopped`, with a note. |
 | Card that groups several issues | Finished only by a PR that closes all of them. |
 | PR older than the window | Resolved with `gh pr view`. |
@@ -120,7 +120,7 @@ New documents carry no version.
 | `progress.csv` row `done` | Audit `closed` / `done`. |
 | Audit missing from the board | Created. |
 | Audit in `current-audit.json` | Audit `open`. |
-| `meta/board` status | Regenerated: open audit, open PRs, PRs merged in the last 48 hours (capped at 12), card counts. Hand-written text after ` Notes: ` is preserved. |
+| `meta/board` status | Regenerated: open audit, open PRs, PRs merged in the last 48 hours (capped at 12), card counts. Hand-written text after ` Notes: ` is preserved. On the first run an existing hand-written status that is not a generated one moves, whole, behind ` Notes: ` automatically. |
 
 The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
