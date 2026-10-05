@@ -19,19 +19,21 @@ The spike evaluated three options (details in #1674):
 
 - **A: three purpose-named, coherent stores** (chosen).
 - **B: two stores**, entity changes folded into the operation store (rejected: nullable columns on `AuditEntry`, unredacted entity JSON next to redacted payloads, 1+N rows per command).
-- **C: one store with record kinds** (rejected: about 24 provider classes and all schemas change, it contradicts the read-audit decision of #573 and SPEC-002 REQ-007's per-category retention, and it delays #1633 and #751).
+- **C: one store with record kinds** (rejected: every store class of the 10 database providers and Marten and all schemas change, it contradicts the read-audit decision of #573 and SPEC-002 REQ-007's per-category retention, and it delays #1633 and #751).
 
 External practice agrees with A: read-access audit is a separate opt-in stream in ABP, Azure, Dataverse, Django and Envers, and no standard cited by the spike (ISO 27002 8.15, NIST AU-2, HIPAA 164.312(b)) prescribes one store or several.
 
 ## Decision
 
-Encina keeps exactly three audit stores. Each is named after its purpose, and the same naming line applies to its interface, entry record, table, MongoDB collection, configuration flag and implementations (`{Pattern}Store{Provider}`, AGENTS.md section 4; the Marten implementation keeps its existing `Marten` prefix). All three live in the `Encina.Security.Audit` namespace and package, return `Either<EncinaError, T>`, take `TimeProvider`, record `TenantId`, and share one query and paging model.
+Encina keeps exactly three audit stores. Each is named after its purpose, and the same naming line applies to its interface, entry record, table, MongoDB collection, configuration flag and implementations (`{Pattern}Store{Provider}`, AGENTS.md section 4; the Marten and InMemory implementations keep their existing `Marten` and `InMemory` prefixes, as `InMemoryOutboxStore` does). All three live in the `Encina.Security.Audit` namespace and package, return `Either<EncinaError, T>`, take `TimeProvider`, record `TenantId`, and share one paging shape (`PagedResult<T>`); each keeps its own query type, because the filters differ (see the table).
+
+**Naming rule.** Every type, table, collection, option, health check, instrumentation decorator, retention service, factory, read model and event of a store takes that store's prefix: `OperationAudit`, `EntityChangeAudit` or `ReadAudit`. The rule settles the satellites listed below, so #1633 and the follow-up issues do not decide them ad hoc.
 
 | | Operation audit | Entity-change audit | Read-access audit |
 | --- | --- | --- | --- |
 | Interface | `IOperationAuditStore` (was `IAuditStore`) | `IEntityChangeAuditStore` (was `IAuditLogStore`) | `IReadAuditStore` (unchanged) |
 | Entry record | `OperationAuditEntry` (was `AuditEntry`) | `EntityChangeAuditEntry` (was `AuditLogEntry`) | `ReadAuditEntry` (unchanged) |
-| Action enum | existing `AuditOutcome` stays | `EntityChangeAction` (was `AuditAction`) | existing `ReadAccessMethod` stays |
+| Enums | `AuditEntry.Action` is a string and stays one; `AuditOutcome` (the outcome) stays | `EntityChangeAction` (was `AuditAction`) | `ReadAccessMethod` stays |
 | Query | `OperationAuditQuery` (was `AuditQuery`) | `EntityChangeAuditQuery` (new) | `ReadAuditQuery` (unchanged) |
 | Table | `OperationAuditEntries` (was `SecurityAuditEntries`) | `EntityChangeAuditEntries` (was `AuditLogs`) | `ReadAuditEntries` (unchanged) |
 | MongoDB collection (property of `EncinaMongoDbOptions` collections, default) | `OperationAuditEntries`, default `operation_audit_entries` (was `SecurityAuditEntries`, `security_audit_entries`) | `EntityChangeAuditEntries`, default `entity_change_audit_entries` (was `AuditLogs`, `audit_logs`) | `ReadAuditEntries`, default `read_audit_entries` (unchanged) |
@@ -39,12 +41,29 @@ Encina keeps exactly three audit stores. Each is named after its purpose, and th
 | Options | `OperationAuditOptions` (was `AuditOptions`) | `EntityChangeAuditOptions` (new, retention) | `ReadAuditOptions` (unchanged) |
 | Providers | `OperationAuditStoreEF`, `OperationAuditStoreADO`, `OperationAuditStoreDapper`, `OperationAuditStoreMongoDB`, `MartenOperationAuditStore`, `InMemoryOperationAuditStore` | `EntityChangeAuditStoreEF`, `...ADO`, `...Dapper`, `...MongoDB`, `InMemoryEntityChangeAuditStore` | `ReadAuditStoreEF`, `...ADO`, `...Dapper`, `...MongoDB`, `MartenReadAuditStore`, `InMemoryReadAuditStore` (unchanged) |
 
+Satellite types renamed by the naming rule (all other types of the same kind in the packages named here follow the same prefix):
+
+| Kind | Operation audit | Entity-change audit | Read-access audit |
+| --- | --- | --- | --- |
+| Marten event | `OperationAuditEntryRecordedEvent` (was `AuditEntryRecordedEvent`) | none (no Marten store, decision 6) | `ReadAuditEntryRecordedEvent` (unchanged) |
+| Marten projection and read model | `OperationAuditEntryProjection`, `OperationAuditEntryReadModel` (were `AuditEntryProjection`, `AuditEntryReadModel`) | none | `ReadAuditEntryProjection`, `ReadAuditEntryReadModel` (unchanged) |
+| Marten options and registration | `MartenOperationAuditOptions` (was `MartenAuditOptions`); `MartenOperationAuditRetentionService`, `MartenOperationAuditHealthCheck`, `ConfigureMartenOperationAuditProjections` (were `MartenAuditRetentionService`, `MartenAuditHealthCheck`, `ConfigureMartenAuditProjections`) | none | read-audit counterparts, where missing, named `MartenReadAudit...` |
+| EF Core entity and configuration | `OperationAuditEntryEntity`, `OperationAuditEntryEntityConfiguration` (were `AuditEntryEntity`, `AuditEntryEntityConfiguration`) | `EntityChangeAuditEntryEntity` and its configuration (were `AuditLogEntryEntity`, `AuditLogEntryEntityConfiguration`) | `ReadAuditEntryEntity` and its configuration (unchanged) |
+| MongoDB document | `OperationAuditEntryDocument` (was `AuditEntryDocument`) | `EntityChangeAuditEntryDocument` (was `AuditLogDocument`) | `ReadAuditEntryDocument` (unchanged) |
+| Instrumentation decorator | `InstrumentedOperationAuditStore` (was `InstrumentedAuditStore`) | `InstrumentedEntityChangeAuditStore` (new) | `InstrumentedReadAuditStore` (new) |
+| Health check | `OperationAuditStoreHealthCheck` (was `AuditStoreHealthCheck`) | `EntityChangeAuditStoreHealthCheck` (new) | `ReadAuditStoreHealthCheck` (unchanged) |
+| Retention service | `OperationAuditRetentionService` (was `AuditRetentionService`) | `EntityChangeAuditRetentionService` (new) | `ReadAuditRetentionService` (unchanged) |
+| Factory | `IOperationAuditEntryFactory`, `DefaultOperationAuditEntryFactory` (were `IAuditEntryFactory`, `DefaultAuditEntryFactory`) | none | none |
+| Writer | `AuditPipelineBehavior` stays (it audits the pipeline, not a store) | `EntityChangeAuditInterceptor`, `EntityChangeAuditInterceptorOptions` (were `AuditInterceptor`, `AuditInterceptorOptions`) | `AuditedRepository` and `AuditedReadOnlyRepository` stay (they are repository decorators) |
+
+The Marten files of the operation store are the ones that exist today under `src/Encina.Audit.Marten`; the exact file list is each implementation issue's checklist, not this ADR's.
+
 Further decisions:
 
-1. **Entity-change store contract.** `IEntityChangeAuditStore` moves from `Encina.DomainModeling` to `Encina.Security.Audit`, returns `Either`, takes `TimeProvider`, carries `TenantId` and `ModuleId`, offers `PurgeEntriesAsync` like the other two, and gives the writer a redaction hook for old and new values so a sensitive property never reaches the table in clear. It gets integration tests on all 10 database providers (AGENTS.md section 5). The EF Core `AuditInterceptor` stays its only writer and stays off by default.
+1. **Entity-change store contract.** `IEntityChangeAuditStore` moves from `Encina.DomainModeling` to `Encina.Security.Audit`, returns `Either`, takes `TimeProvider`, carries `TenantId` and `ModuleId`, offers `PurgeEntriesAsync` like the other two, and gives the writer a redaction hook for old and new values so a sensitive property never reaches the table in clear. Its entry timestamp follows AGENTS.md section 4: `TimestampUtc` (a `DateTime`) becomes `ChangedAtUtc` (a `DateTimeOffset`), as the operation entry uses `StartedAtUtc` and the read entry `AccessedAtUtc`. `EntityChangeAuditOptions` sets a default retention of 2555 days, configurable, like the operation store, so old and new values of entities are never kept indefinitely by default. A failed entity-change write fails the unit of work (fail closed, AGENTS.md section 3); the only opt-out is explicit and logged. It gets integration tests on all 10 database providers (AGENTS.md section 5). The EF Core interceptor (renamed above) stays its only writer and stays off by default.
 2. **Operation store is the general write sink.** The `AuditPipelineBehavior`, NIS2, ABAC policy administration, Secrets and the planned ABAC decision audit (#751) keep writing to `IOperationAuditStore`, distinguished by `Action` and `Metadata`. Anonymization writes there as well.
 3. **`IAnonymizationAuditStore` is deleted**, with `InMemoryAnonymizationAuditStore` and its registration, option and health-check references. Anonymization records its operations in the operation store.
-4. **Dead per-module leftovers are deleted**: the unread `TrackAuditTrail` options of BreachNotification, DSR, PrivacyByDesign and ProcessorAgreements, the unreferenced `DSRAuditEntry`, `BreachAuditEntry` and `ProcessorAgreementAuditEntry`, the never-populated `DPIAAssessment.AuditTrail`, and the stale comments on removed stores in `MessagingConfiguration`. The two unrelated public types named `AuditRecord` are renamed in the same cleanup so that "audit" names mean one thing.
+4. **Dead per-module leftovers are deleted**: the unread `TrackAuditTrail` options of BreachNotification, DSR, PrivacyByDesign and ProcessorAgreements, the unreferenced `DSRAuditEntry`, `BreachAuditEntry` and `ProcessorAgreementAuditEntry`, the never-populated `DPIAAssessment.AuditTrail`, the five unused collection-name properties of `EncinaMongoDbOptions` (`RetentionAuditEntries`, `ResidencyAuditEntries`, `BreachAuditEntries`, `ProcessorAgreementAuditEntries`, `DPIAAuditEntries`), and the stale comments on removed stores in `MessagingConfiguration`. The two unrelated public types named `AuditRecord` are renamed in the same cleanup so that "audit" names mean one thing.
 5. **The "CUD" mislabel is fixed** in the XML documentation of `IReadAuditStore` and in `docs/features/read-auditing.md`.
 6. **A Marten implementation of the entity-change store is not part of 1.0.** Marten is the event-sourcing provider (ADR-027) and its audit stores exist for the compliance modules (ADR-019); the entity-change interceptor is EF Core only. The decision is revisited if a non-EF writer appears.
 7. **No compatibility layer.** The old names are removed in the same change that introduces the new ones (pre-1.0, AGENTS.md section 1).
@@ -88,7 +107,7 @@ flowchart LR
 | Question it answers | Who ran which operation, with what outcome | What did this entity look like before and after each change | Who read which data, when and for which purpose |
 | Entry fields | Correlation id, user, tenant, action, entity type and id, outcome, error message, start and end time, IP address, user agent, payload hash, redacted payloads, metadata (`AuditEntry`) | Entity type and id, change action, user, timestamp, old and new values (`AuditLogEntry`), plus tenant and module after this ADR | Entity type and id, user, tenant, access time, correlation id, purpose, access method, entity count, metadata (`ReadAuditEntry`) |
 | Volume | One row per audited operation | One row per changed entity per save | One row per read of an audited entity; the highest |
-| Retention default | `AuditOptions.RetentionDays`, 2555 days | Set by `EntityChangeAuditOptions` (new); no default today | `ReadAuditOptions.RetentionDays`, 365 days; SPEC-002 REQ-007 makes it settable per data category |
+| Retention default | `AuditOptions.RetentionDays`, 2555 days | `EntityChangeAuditOptions.RetentionDays` (new), 2555 days, configurable; none today | `ReadAuditOptions.RetentionDays`, 365 days; SPEC-002 REQ-007 makes it settable per data category |
 | Write path | Pipeline behaviors and services, fail behavior per writer | EF Core `AuditInterceptor`, off by default | `AuditedRepository` and `AuditedReadOnlyRepository` decorators, opt-in |
 | Providers today | EF Core x3 and Marten register it; ADO.NET x3, Dapper x3 and MongoDB have implementations without DI registration or DDL (#1633) | ADO.NET x3, Dapper x3, EF Core x3, MongoDB and in-memory; no Marten; no integration tests | ADO.NET x3, Dapper x3, EF Core x3, MongoDB, Marten and in-memory |
 | Providers required | 10 database providers, plus Marten | 10 database providers | 10 database providers, plus Marten |
@@ -106,13 +125,16 @@ The retention defaults are the values of the `RetentionDays` properties in `src/
 
 - **Positive**: every audit question has exactly one store; the names say what each store is for; the entity-change store joins the ROP, tenancy and `TimeProvider` rules; the backlog for more backends (#575-#582, #875) replicates a sound contract instead of the accidental one; #1633 creates its table once.
 - **Negative**: three tables to explain, so the documentation needs a page that tells a reader which store to enable; the renames are breaking, accepted pre-1.0 with no compatibility alias.
-- **Neutral**: the read-audit design is untouched apart from the shared query and paging model and the documentation fix; event-sourced compliance audit (ADR-019, ADR-020) stays separate.
+- **Neutral**: the read-audit design is untouched apart from the shared paging shape and the documentation fix; event-sourced compliance audit (ADR-019, ADR-020) stays separate.
 
 ## Related
 
 - [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md), REQ-007 (read audit as evidence of access)
 - [ADR-018](018-cross-cutting-integration-principle.md) (audit trail as cross-cutting function 12)
+- [ADR-001](001-railway-oriented-programming.md) and [ADR-006](006-pure-rop-exception-handling.md) (`Either` contracts)
 - [ADR-019](019-compliance-event-sourcing-marten.md) (per-module audit stores removed)
+- [ADR-020](020-temporal-crypto-shredding-audit-store.md) (temporal crypto-shredding audit store)
+- [ADR-027](027-marten-as-the-event-sourcing-provider.md) (Marten is the event-sourcing provider)
 - Issues: #1674 (this spike), #1633 (registration and DDL), #751 (ABAC decision audit), #1193 (evidential read audit) and #1270 (dead soft-delete and read-audit code), #1203 (missing READMEs), #574-#582 and #875 (entity-change backlog)
 
 ## Date
