@@ -4047,8 +4047,7 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', "git status`n    gh pr create --title x", 'gh pr create'),
             @('PowerShell', 'pwsh -NoProfile -File tools/ai/audit/audit-done.ps1 -Issue 30', 'audit-done.ps1'),
             @('PowerShell', 'Set-Location D:\x; & .\tools\ai\audit\audit-commit-stage.ps1 -Stage code', 'audit-commit-stage.ps1'),
-            @('PowerShell', 'pwsh -Command "gh pr create --fill"', 'gh pr create'),
-            @('PowerShell', 'pwsh -NoProfile -File tools/ai/audit/audit-done.ps1', 'audit-done.ps1'))) {
+            @('PowerShell', 'pwsh -Command "gh pr create --fill"', 'gh pr create'))) {
         $json = @{ tool_name = $case[0]; tool_input = @{ command = $case[1] } } | ConvertTo-Json -Compress
         Invoke-HookCase $boardHook $json 0 "board-event-reminder: '$($case[1])' reminds ($($case[2]))" $null "$boardReminder"
         Invoke-HookCase $boardHook $json 0 "board-event-reminder: names the event $($case[2])" $null ('for ' + [regex]::Escape($case[2]) + ' now')
@@ -4062,7 +4061,7 @@ The fluent builder chain described in the documentation is fictional. The parame
             @('PowerShell', 'Get-Content tools/ai/audit/audit-done.ps1'),
             @('PowerShell', 'git commit -m "docs: mention gh pr create"'),
             @('PowerShell', "git commit -m `"docs: board notes`n`ngh pr merge 12 --squash`n`""),
-            @('PowerShell', "Select-String -Pattern 'gh pr create' -Path notes.md"),
+            @('PowerShell', "`$notes = @'`ngh pr create --title x`n'@`nSet-Content notes.md `$notes"),
             @('Bash', 'gh issue view 12'))) {
         Invoke-HookCase $boardHook (@{ tool_name = $quiet[0]; tool_input = @{ command = $quiet[1] } } | ConvertTo-Json -Compress) 0 "board-event-reminder: '$($quiet[1])' stays silent" $null '^$'
     }

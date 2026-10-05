@@ -231,12 +231,19 @@ try {
     # ---- dry run: lists the drift, writes and deletes nothing; no -Out and no -DryRun is an error
     $snapshot = { @(Get-ChildItem $outDir -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash $_.FullName).Hash)" }) -join '|' }
     $before = & $snapshot
-    $dry = @(& $scriptPath -CurrentDir $export -Versions $versionsFile -DryRun -Repo 'o/r' -MainRoot $main -NowUtc '2026-10-05T11:00:00Z')
+    $dry = @(& $scriptPath -CurrentDir $export -Versions $versionsFile -DryRun -Out (Join-Path $outDir 'batch.json') -Repo 'o/r' -MainRoot $main -NowUtc '2026-10-05T11:00:00Z')
     $probe = $changes[0]
     $driftLines = @($dry | Where-Object { $_ -like 'DRIFT *' })
+    $skipLines = @($driftLines | Where-Object { $_ -like '*(would skip: no version)' })
     Assert-That (@($driftLines -match "^DRIFT $([regex]::Escape("$($probe.Collection)/$($probe.Id)")): \S").Count -eq 1) "dry run: a DRIFT line names $($probe.Collection)/$($probe.Id) with its changed fields"
-    Assert-That ($dry[-1] -eq "DRY-RUN: $($driftLines.Count) documents drift, nothing written") "dry run: summary line ($($dry[-1]))"
-    Assert-That ((& $snapshot) -eq $before) 'dry run: the out directory is byte-for-byte unchanged (no new file, no deleted batch)'
+    Assert-That ($dry[-1] -eq "DRY-RUN: $($driftLines.Count) documents drift ($($skipLines.Count) would be skipped), nothing written") "dry run: summary line ($($dry[-1]))"
+    Assert-That ($dry -contains 'DRY-RUN: -Out ignored') 'dry run: -Out together with -DryRun prints that -Out is ignored'
+    Assert-That ((& $snapshot) -eq $before) 'dry run with -Out into the seeded out directory (stale batch-009.json present): file set and hashes unchanged'
+    $null = $lines[0] -match '^WRITES (\d+) SKIPPED (\d+)$'
+    $realWrites = [int]$Matches[1]; $realSkipped = [int]$Matches[2]
+    Assert-That ($driftLines.Count -eq @($changes).Count) "dry run: DRIFT lines ($($driftLines.Count)) equal the changes a real run computes ($(@($changes).Count))"
+    Assert-That ($skipLines.Count -eq $realSkipped -and ($driftLines.Count - $skipLines.Count) -eq $realWrites) "dry run: would-skip count ($($skipLines.Count)) equals the real SKIPPED ($realSkipped) and drift minus skipped equals the real WRITES ($realWrites)"
+    Assert-That (@($skipLines | Where-Object { $_ -like 'DRIFT work/103:*' }).Count -eq 1) 'dry run: the document without a version (work/103) is the one marked would skip'
     $threw = $false
     try { & $scriptPath -CurrentDir $export -Versions $versionsFile -Repo 'o/r' -MainRoot $main | Out-Null } catch { $threw = $_.Exception.Message -match '-Out is required' }
     Assert-That $threw 'main block: neither -Out nor -DryRun fails with a clear error'

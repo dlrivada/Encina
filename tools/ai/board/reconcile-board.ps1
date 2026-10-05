@@ -18,8 +18,10 @@
 #   -Out         a JSON array of writes [{op, collection, doc_id, if_version?, data}], only for documents
 #                whose data differ, at most 50 per file (-Out itself when it fits, else <name>-001.json,
 #                <name>-002.json ...). The paths are printed one per line after "WRITES <n>".
-#   -DryRun      instead of -Out: prints "DRIFT <collection>/<id>: <fields>" per drifting document and
-#                "DRY-RUN: <n> documents drift, nothing written"; writes and deletes no file.
+#   -DryRun      instead of -Out: prints "DRIFT <collection>/<id>: <fields>" per drifting document (with
+#                " (would skip: no version)" when a real run would skip it) and "DRY-RUN: <n> documents drift
+#                (<k> would be skipped), nothing written"; writes and deletes no file. -Out is ignored
+#                (one line says so).
 #   -CreateOp / -UpdateOp  the batch operation names for a new / an existing document.
 #
 # Rules (see tools/ai/board/README.md): work card or flow front with a merged PR -> merged / done with the
@@ -454,11 +456,15 @@ if ($MyInvocation.InvocationName -ne '.') {
     $facts = Get-BoardFacts $docs $Repo $MainRoot $now $MergedDays
     $changes = Get-BoardChanges $docs $facts $now
     if ($DryRun) {
+        if ($Out) { 'DRY-RUN: -Out ignored' }
+        $wouldSkip = 0
         foreach ($c in $changes) {
             $fields = if ($c.Exists) { @($c.Data.Keys | Where-Object { -not $c.Old.ContainsKey($_) -or (ConvertTo-CanonicalJson $c.Old[$_]) -ne (ConvertTo-CanonicalJson $c.Data[$_]) }) -join ', ' } else { 'new' }
-            "DRIFT $($c.Collection)/$($c.Id): $fields"
+            $mark = ''
+            if ($c.Exists -and -not $versionMap.ContainsKey("$($c.Collection)/$($c.Id)")) { $mark = ' (would skip: no version)'; $wouldSkip++ }
+            "DRIFT $($c.Collection)/$($c.Id): $fields$mark"
         }
-        "DRY-RUN: $(@($changes).Count) documents drift, nothing written"
+        "DRY-RUN: $(@($changes).Count) documents drift ($wouldSkip would be skipped), nothing written"
         return
     }
     $batch = ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
