@@ -446,7 +446,9 @@ public sealed class CryptoShredderSerializerFailClosedTests : IDisposable
         using var writer = new CryptoHarness(real);
         var json = writer.Serializer.ToJson(new TwoSubjectEvent
         {
-            PatientId = Subject, PatientEmail = Secret, Therapist = new ContactInfo { SubjectId = "therapist", Email = "t@example.com" },
+            PatientId = Subject,
+            PatientEmail = Secret,
+            Therapist = new ContactInfo { SubjectId = "therapist", Email = "t@example.com" },
         });
         var material = real.GetSubjectKeyAsync(Subject, 1).AsTask().Result.Match(k => k, _ => []);
         _keys.GetSubjectKeyAsync(Subject, 1, Arg.Any<CancellationToken>()).Returns(Right<EncinaError, byte[]>(material));

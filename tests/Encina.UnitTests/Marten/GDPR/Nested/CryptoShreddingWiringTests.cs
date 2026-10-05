@@ -221,7 +221,9 @@ public sealed class CryptoShreddingWiringTests
         harness.Serializer.ToJson(new TwoSubjectEvent());
         var body = new TwoSubjectEvent
         {
-            PatientId = Subject, PatientEmail = "p@example.com", Therapist = new ContactInfo { SubjectId = "therapist", Email = "t@example.com" },
+            PatientId = Subject,
+            PatientEmail = "p@example.com",
+            Therapist = new ContactInfo { SubjectId = "therapist", Email = "t@example.com" },
         };
 
         var patient = MartenEventPersonalDataLocator.LocateFieldsInEvent(body, Subject, harness.Serializer.WalkOptions!, harness.Serializer.Registry).ToList();
