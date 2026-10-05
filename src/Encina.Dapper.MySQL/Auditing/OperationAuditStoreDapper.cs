@@ -117,9 +117,9 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                 entry.EntityId,
                 Outcome = (int)entry.Outcome,
                 entry.ErrorMessage,
-                entry.TimestampUtc,
-                entry.StartedAtUtc,
-                entry.CompletedAtUtc,
+                TimestampUtc = AsUtc(entry.TimestampUtc),
+                StartedAtUtc = entry.StartedAtUtc.UtcDateTime,
+                CompletedAtUtc = entry.CompletedAtUtc.UtcDateTime,
                 entry.IpAddress,
                 entry.UserAgent,
                 entry.RequestPayloadHash,
@@ -178,7 +178,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
                 new CommandDefinition(
                     _selectByUserSql,
-                    new { UserId = userId, FromUtc = fromUtc, ToUtc = toUtc },
+                    new { UserId = userId, FromUtc = AsUtc(fromUtc), ToUtc = AsUtc(toUtc) },
                     cancellationToken: cancellationToken));
 
             var entries = rows.Select(MapToEntry).ToList();
@@ -296,6 +296,16 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         return rows.Select(MapToEntry).ToList();
     }
 
+    // A Local value is converted and an Unspecified value is taken as UTC (the columns and properties are UTC by contract).
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static DateTime? AsUtc(DateTime? value) => value.HasValue ? AsUtc(value.Value) : null;
+
     private static bool HasDurationFilter(OperationAuditQuery query) =>
         query.MinDuration.HasValue || query.MaxDuration.HasValue;
 
@@ -310,7 +320,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             var purgedCount = await _connection.ExecuteAsync(
                 new CommandDefinition(
                     _purgeSql,
-                    new { OlderThanUtc = olderThanUtc },
+                    new { OlderThanUtc = AsUtc(olderThanUtc) },
                     cancellationToken: cancellationToken));
 
             return Right(purgedCount);
@@ -334,8 +344,8 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         AddText(where, parameters, "Action", query.Action);
         AddCriterion(where, parameters, "Outcome", "=", "Outcome", query.Outcome is { } outcome ? (int)outcome : null);
         AddText(where, parameters, "CorrelationId", query.CorrelationId);
-        AddCriterion(where, parameters, "TimestampUtc", ">=", "FromUtc", query.FromUtc);
-        AddCriterion(where, parameters, "TimestampUtc", "<=", "ToUtc", query.ToUtc);
+        AddCriterion(where, parameters, "TimestampUtc", ">=", "FromUtc", AsUtc(query.FromUtc));
+        AddCriterion(where, parameters, "TimestampUtc", "<=", "ToUtc", AsUtc(query.ToUtc));
         AddText(where, parameters, "IpAddress", query.IpAddress);
 
         return (where.ToString(), parameters);
@@ -380,8 +390,9 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         Outcome = (AuditOutcome)row.Outcome,
         ErrorMessage = row.ErrorMessage,
         TimestampUtc = row.TimestampUtc,
-        StartedAtUtc = row.StartedAtUtc,
-        CompletedAtUtc = row.CompletedAtUtc,
+        // MySQL DATETIME carries no zone: Dapper would read it as local time, so it is taken as UTC explicitly.
+        StartedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(row.StartedAtUtc, DateTimeKind.Utc)),
+        CompletedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(row.CompletedAtUtc, DateTimeKind.Utc)),
         IpAddress = row.IpAddress,
         UserAgent = row.UserAgent,
         RequestPayloadHash = row.RequestPayloadHash,
@@ -435,8 +446,8 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         public int Outcome { get; init; }
         public string? ErrorMessage { get; init; }
         public DateTime TimestampUtc { get; init; }
-        public DateTimeOffset StartedAtUtc { get; init; }
-        public DateTimeOffset CompletedAtUtc { get; init; }
+        public DateTime StartedAtUtc { get; init; }
+        public DateTime CompletedAtUtc { get; init; }
         public string? IpAddress { get; init; }
         public string? UserAgent { get; init; }
         public string? RequestPayloadHash { get; init; }

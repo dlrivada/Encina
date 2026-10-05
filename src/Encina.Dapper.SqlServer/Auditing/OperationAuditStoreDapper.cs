@@ -118,9 +118,9 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                 entry.EntityId,
                 Outcome = (int)entry.Outcome,
                 entry.ErrorMessage,
-                entry.TimestampUtc,
-                entry.StartedAtUtc,
-                entry.CompletedAtUtc,
+                TimestampUtc = AsUtc(entry.TimestampUtc),
+                StartedAtUtc = entry.StartedAtUtc.ToUniversalTime(),
+                CompletedAtUtc = entry.CompletedAtUtc.ToUniversalTime(),
                 entry.IpAddress,
                 entry.UserAgent,
                 entry.RequestPayloadHash,
@@ -179,7 +179,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(
                 new CommandDefinition(
                     _selectByUserSql,
-                    new { UserId = userId, FromUtc = fromUtc, ToUtc = toUtc },
+                    new { UserId = userId, FromUtc = AsUtc(fromUtc), ToUtc = AsUtc(toUtc) },
                     cancellationToken: cancellationToken));
 
             var entries = rows.Select(MapToEntry).ToList();
@@ -297,6 +297,16 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         return rows.Select(MapToEntry).ToList();
     }
 
+    // A Local value is converted and an Unspecified value is taken as UTC (the columns and properties are UTC by contract).
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static DateTime? AsUtc(DateTime? value) => value.HasValue ? AsUtc(value.Value) : null;
+
     private static bool HasDurationFilter(OperationAuditQuery query) =>
         query.MinDuration.HasValue || query.MaxDuration.HasValue;
 
@@ -310,7 +320,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             var purgedCount = await _connection.ExecuteScalarAsync<int>(
                 new CommandDefinition(
                     _purgeSql,
-                    new { OlderThanUtc = olderThanUtc },
+                    new { OlderThanUtc = AsUtc(olderThanUtc) },
                     cancellationToken: cancellationToken));
 
             return Right(purgedCount);
@@ -334,8 +344,8 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
         AddText(where, parameters, "Action", query.Action);
         AddCriterion(where, parameters, "Outcome", "=", "Outcome", query.Outcome is { } outcome ? (int)outcome : null);
         AddText(where, parameters, "CorrelationId", query.CorrelationId);
-        AddCriterion(where, parameters, "TimestampUtc", ">=", "FromUtc", query.FromUtc);
-        AddCriterion(where, parameters, "TimestampUtc", "<=", "ToUtc", query.ToUtc);
+        AddCriterion(where, parameters, "TimestampUtc", ">=", "FromUtc", AsUtc(query.FromUtc));
+        AddCriterion(where, parameters, "TimestampUtc", "<=", "ToUtc", AsUtc(query.ToUtc));
         AddText(where, parameters, "IpAddress", query.IpAddress);
 
         return (where.ToString(), parameters);
