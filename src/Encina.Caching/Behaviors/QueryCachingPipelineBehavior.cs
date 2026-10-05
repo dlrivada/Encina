@@ -78,16 +78,8 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        // Check if caching is enabled and request has [Cache] attribute
-        if (!_options.EnableQueryCaching || CacheAttribute is null)
+        if (!ShouldUseCache(context))
         {
-            return await nextStep().ConfigureAwait(false);
-        }
-
-        // A per-user entry needs a user: any other identity bypasses the cache (no read, no write).
-        if (CacheAttribute.VaryByUser && !CacheUserIdentity.IsUser(context))
-        {
-            LogVaryByUserBypassed(_logger, typeof(TRequest).Name, CacheUserIdentity.KindOf(context));
             return await nextStep().ConfigureAwait(false);
         }
 
@@ -112,6 +104,24 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         }
 
         return result;
+    }
+
+    // Caching is enabled, the request has [Cache], and a per-user entry has a user: any other
+    // identity bypasses the cache (no read, no write).
+    private bool ShouldUseCache(IRequestContext context)
+    {
+        if (!_options.EnableQueryCaching || CacheAttribute is null)
+        {
+            return false;
+        }
+
+        if (!CacheAttribute.VaryByUser || CacheUserIdentity.IsUser(context))
+        {
+            return true;
+        }
+
+        LogVaryByUserBypassed(_logger, typeof(TRequest).Name, CacheUserIdentity.KindOf(context));
+        return false;
     }
 
     private async ValueTask<(bool Found, TResponse? Value)> TryGetFromCacheAsync(

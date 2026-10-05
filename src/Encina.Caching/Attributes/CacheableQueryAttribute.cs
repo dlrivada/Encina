@@ -130,22 +130,30 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
         }
 
         // Default key generation
-        var typeName = typeof(TRequest).Name;
         var hash = request?.GetHashCode() ?? 0;
 
+        var parts = ScopeParts(context);
+        parts.Add(typeof(TRequest).Name);
+        parts.Add(hash.ToString("x8", System.Globalization.CultureInfo.InvariantCulture));
+
+        return string.Join(":", parts);
+    }
+
+    // The tenant and user segments of the default key.
+    private List<string> ScopeParts(IRequestContext context)
+    {
         var parts = new List<string>();
         if (VaryByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
             parts.Add($"t:{context.TenantId}");
         }
+
         // A non-user identity has no VaryByUser key: the caller bypasses the cache.
         if (VaryByUser)
         {
             parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
         }
-        parts.Add(typeName);
-        parts.Add(hash.ToString("x8", System.Globalization.CultureInfo.InvariantCulture));
 
-        return string.Join(":", parts);
+        return parts;
     }
 }
