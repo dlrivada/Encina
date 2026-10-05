@@ -10,7 +10,7 @@
     "property": 5
   },
   "files": {
-    "Repository/SpecificationEvaluatorMongoDB.cs": {
+    "ABAC/ABACBsonClassMapRegistration.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -18,29 +18,29 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Tenancy/TenancyServiceCollectionExtensions.cs": {
+    "ABAC/PolicyDocument.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Inbox/InboxMessage.cs": {
+    "ABAC/PolicySetDocument.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Modules/ModuleAwareMongoCollectionFactory.cs": {
+    "ABAC/PolicyStoreMongo.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
     "Aggregation/AggregationPipelineBuilder.cs": {
       "defaultTests": [
@@ -50,43 +50,6 @@
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation"
     },
-    "Tenancy/IMongoCollectionFactory.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Sharding/Migrations/MongoMigrationHistoryStore.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
-    },
-    "Outbox/OutboxProcessor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Tenancy/TenantAwareMongoCollectionFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "UnitOfWork/UnitOfWorkMongoDB.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
     "Anonymization/TokenMappingDocument.cs": {
       "defaultTests": [
         "unit",
@@ -95,79 +58,28 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Modules/IModuleAwareMongoCollectionFactory.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "SoftDelete/SoftDeleteEntityMappingBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "Repository/MongoDbRepositoryOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "ABAC/ABACBsonClassMapRegistration.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Scheduling/ScheduledMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "BulkOperations/BulkOperationsMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
-    },
-    "Auditing/AuditLogStoreMongoDB.cs": {
+    "Anonymization/TokenMappingStoreMongoDB.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB"
     },
-    "Outbox/OutboxMessage.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
-    },
-    "ReadWriteSeparation/MongoReadPreference.cs": {
+    "Auditing/OperationAuditEntryDocument.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Scheduling/ScheduledMessage.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The mapping tests run the entry-to-document conversions (measured 85%).",
+        "guard": "A document POCO has no parameters to guard."
+      }
     },
     "Auditing/AuditLogDocument.cs": {
       "defaultTests": [
@@ -177,13 +89,61 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Sharding/Migrations/MongoMigrationExecutor.cs": {
+    "Auditing/AuditLogStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
+    },
+    "Auditing/OperationAuditStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The integration tests on a real MongoDB run every query path (measured 82%); only the driver-failure branches stay uncovered."
+      }
+    },
+    "Auditing/ReadAuditEntryDocument.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Auditing/ReadAuditStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
+    },
+    "BulkOperations/BulkOperationsMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "EncinaMongoDbOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "EntityMappingErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Error code constants"
     },
     "Extensions/AuditExtensions.cs": {
       "defaultTests": [
@@ -193,14 +153,44 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
-    "Outbox/OutboxStoreMongoDB.cs": {
+    "Extensions/CursorPaginationExtensions.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
-    "ReadWriteSeparation/IReadWriteMongoCollectionFactory.cs": {
+    "GlobalSuppressions.cs": {
+      "defaultTests": [],
+      "defaultRule": "GlobalSuppressions.cs",
+      "reason": "Only [SuppressMessage] attributes"
+    },
+    "Health/MongoDbDatabaseHealthMonitor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Health/MongoDbHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies"
+    },
+    "Inbox/InboxMessage.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
+    },
+    "Inbox/InboxMessageFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -208,27 +198,101 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "ReadWriteSeparation/MongoReadWriteSeparationOptions.cs": {
+    "Inbox/InboxStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
+    },
+    "Log.cs": {
+      "defaultTests": [],
+      "defaultRule": "Log.cs",
+      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+    },
+    "Modules/IModuleAwareMongoCollectionFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Modules/ModuleAwareMongoCollectionFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Modules/MongoDbModuleIsolationOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
     },
-    "Tenancy/TenantEntityMappingBuilder.cs": {
+    "MongoDbErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Error code constants"
+    },
+    "MongoDbIndexCreator.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Sharding/IShardedMongoCollectionFactory.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+    "Outbox/OutboxMessage.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
     },
-    "ReadWriteSeparation/ReadWriteMongoCollectionFactory.cs": {
+    "Outbox/OutboxMessageFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Outbox/OutboxProcessor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Outbox/OutboxStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
+    },
+    "ProcessingActivity/ProcessingActivityDocument.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ProcessingActivity/ProcessingActivityRegistryMongoDB.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ReadWriteSeparation/IReadWriteMongoCollectionFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -244,61 +308,36 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Extensions/CursorPaginationExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Serializers/UuidV7IdSerializer.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "property"
-      ],
-      "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
-    },
-    "Tenancy/MongoDbTenancyOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Serializers/UlidIdSerializer.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "property"
-      ],
-      "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
-    },
-    "Sagas/SagaStoreMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
-    },
-    "Health/MongoDbDatabaseHealthMonitor.cs": {
+    "ReadWriteSeparation/MongoReadPreference.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "ReadWriteSeparation/MongoReadWriteSeparationOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "ReadWriteSeparation/ReadWriteMongoCollectionFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "ReadWriteSeparation/ReadWriteMongoHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies"
     },
     "ReadWriteSeparation/ReadWriteRoutingPipelineBehavior.cs": {
       "defaultTests": [
@@ -309,18 +348,27 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate"
     },
-    "GlobalSuppressions.cs": {
-      "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
+    "Repository/FunctionalRepositoryMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryMongoDB.cs",
+      "reason": "MongoDB repository — needs real MongoDB"
     },
-    "Sharding/ShardedReadWriteMongoCollectionFactory.cs": {
+    "Repository/MongoDbRepositoryOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Repository/SpecificationEvaluatorMongoDB.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
     "Repository/SpecificationFilterBuilder.cs": {
       "defaultTests": [
@@ -330,13 +378,13 @@
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation"
     },
-    "ProcessingActivity/ProcessingActivityDocument.cs": {
+    "Sagas/SagaState.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*State.cs",
+      "reason": "Saga/aggregate state with transitions"
     },
     "Sagas/SagaStateFactory.cs": {
       "defaultTests": [
@@ -346,89 +394,22 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "MongoDbErrorCodes.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
-    },
-    "Auditing/ReadAuditEntryDocument.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Serializers/SnowflakeIdSerializer.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "property"
-      ],
-      "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
-    },
-    "Repository/FunctionalRepositoryMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
-    },
-    "Sharding/ShardingServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "UnitOfWork/UnitOfWorkRepositoryMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
-    },
-    "SoftDelete/SoftDeletableFunctionalRepositoryMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
-    },
-    "Inbox/InboxStoreMongoDB.cs": {
+    "Sagas/SagaStoreMongoDB.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB"
     },
-    "Scheduling/ScheduledMessageStoreMongoDB.cs": {
+    "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
     },
-    "Tenancy/TenantAwareFunctionalRepositoryMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryMongoDB.cs",
-      "reason": "MongoDB repository — needs real MongoDB"
-    },
-    "Outbox/OutboxMessageFactory.cs": {
+    "Scheduling/ScheduledMessageFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -436,49 +417,12 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "ProcessingActivity/ProcessingActivityRegistryMongoDB.cs": {
+    "Scheduling/ScheduledMessageStoreMongoDB.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "integration"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "SoftDelete/ISoftDeleteEntityMapping.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "EncinaMongoDbOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Tenancy/TenantAwareSpecificationFilterBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "ABAC/PolicyDocument.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Health/MongoDbHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
     },
     "Serializers/IdGenerationSerializerRegistration.cs": {
       "defaultTests": [
@@ -497,124 +441,40 @@
       "defaultRule": "*Serializer.cs",
       "reason": "Serialization with round-trip invariant"
     },
-    "Auditing/ReadAuditStoreMongoDB.cs": {
+    "Serializers/SnowflakeIdSerializer.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard",
+        "property"
       ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "defaultRule": "*Serializer.cs",
+      "reason": "Serialization with round-trip invariant"
     },
-    "Auditing/OperationAuditStoreMongoDB.cs": {
+    "Serializers/UlidIdSerializer.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard",
+        "property"
       ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "defaultRule": "*Serializer.cs",
+      "reason": "Serialization with round-trip invariant"
     },
-    "Anonymization/TokenMappingStoreMongoDB.cs": {
+    "Serializers/UuidV7IdSerializer.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard",
+        "property"
       ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "defaultRule": "*Serializer.cs",
+      "reason": "Serialization with round-trip invariant"
     },
-    "Auditing/OperationAuditEntryDocument.cs": {
+    "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sagas/SagaState.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*State.cs",
-      "reason": "Saga/aggregate state with transitions"
-    },
-    "Sharding/MongoDbShardingOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreMongoDB.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
-    },
-    "Tenancy/ITenantEntityMapping.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Modules/MongoDbModuleIsolationOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Sharding/Migrations/MongoSchemaIntrospector.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreFactoryMongoDB.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Inbox/InboxMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "ReadWriteSeparation/ReadWriteMongoHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
-    },
-    "Sharding/ShardedMongoDbDatabaseHealthMonitor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ABAC/PolicySetDocument.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "SoftDelete/SoftDeleteSpecificationFilterBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
     "Sharding/FunctionalShardedRepositoryMongoDB.cs": {
       "defaultTests": [
@@ -623,26 +483,10 @@
       "defaultRule": "*RepositoryMongoDB.cs",
       "reason": "MongoDB repository — needs real MongoDB"
     },
-    "Log.cs": {
+    "Sharding/IShardedMongoCollectionFactory.cs": {
       "defaultTests": [],
-      "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
-    },
-    "ABAC/PolicyStoreMongo.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sharding/ShardedMongoCollectionFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
     },
     "Sharding/IShardedReadWriteMongoCollectionFactory.cs": {
       "defaultTests": [
@@ -652,20 +496,190 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "EntityMappingErrorCodes.cs": {
+    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
-    "MongoDbIndexCreator.cs": {
+    "Sharding/Migrations/MongoMigrationExecutor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/Migrations/MongoMigrationHistoryStore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Store.cs",
+      "reason": "Abstract/base store with mockeable deps"
+    },
+    "Sharding/Migrations/MongoSchemaIntrospector.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/MongoDbShardingOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Sharding/ReferenceTables/ReferenceTableStoreFactoryMongoDB.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/ReferenceTables/ReferenceTableStoreMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreMongoDB.cs",
+      "reason": "MongoDB store — needs real MongoDB"
+    },
+    "Sharding/ShardedMongoCollectionFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sharding/ShardedMongoDbDatabaseHealthMonitor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/ShardedReadWriteMongoCollectionFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sharding/ShardingServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "SoftDelete/ISoftDeleteEntityMapping.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "SoftDelete/SoftDeletableFunctionalRepositoryMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryMongoDB.cs",
+      "reason": "MongoDB repository — needs real MongoDB"
+    },
+    "SoftDelete/SoftDeleteEntityMappingBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "SoftDelete/SoftDeleteSpecificationFilterBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Tenancy/IMongoCollectionFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Tenancy/ITenantEntityMapping.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Tenancy/MongoDbTenancyOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Tenancy/TenancyServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "Tenancy/TenantAwareFunctionalRepositoryMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryMongoDB.cs",
+      "reason": "MongoDB repository — needs real MongoDB"
+    },
+    "Tenancy/TenantAwareMongoCollectionFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Tenancy/TenantAwareSpecificationFilterBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Tenancy/TenantEntityMappingBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "UnitOfWork/UnitOfWorkMongoDB.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "UnitOfWork/UnitOfWorkRepositoryMongoDB.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryMongoDB.cs",
+      "reason": "MongoDB repository — needs real MongoDB"
     }
   }
 }

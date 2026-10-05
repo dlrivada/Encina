@@ -9,7 +9,62 @@
     "unit": 30
   },
   "files": {
-    "ServiceCollectionExtensions.cs": {
+    "ABAC/PolicyStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "Anonymization/TokenMappingStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "Auditing/AuditLogStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "Auditing/OperationAuditStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 85
+      },
+      "justifications": {
+        "integration": "The shipped-script integration tests on a real PostgreSQL database run every query path (measured 91%); only the driver-failure branches stay uncovered."
+      }
+    },
+    "Auditing/ReadAuditStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "BulkOperations/BulkOperationsDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "EntityMappingErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Error code constants"
+    },
+    "Extensions/AuditExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -17,18 +72,84 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
-    "Repository/IEntityMapping.cs": {
+    "GlobalSuppressions.cs": {
       "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "defaultRule": "GlobalSuppressions.cs",
+      "reason": "Only [SuppressMessage] attributes"
     },
-    "Repository/EntityMappingBuilder.cs": {
+    "Health/DapperPostgreSqlDatabaseHealthMonitor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Health/PostgreSqlHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies"
+    },
+    "Inbox/InboxMessage.cs": {
+      "defaultTests": [],
+      "defaultRule": "*Message.cs",
+      "reason": "Interface — no implementation to test"
+    },
+    "Inbox/InboxMessageFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "*Factory.cs",
+      "reason": "Interface — no implementation to test"
+    },
+    "Inbox/InboxStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "Modules/ModuleAwareConnectionFactory.cs": {
+      "defaultTests": [
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
+    },
+    "Modules/SchemaValidatingCommand.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Command.cs",
+      "reason": "Command DTO"
+    },
+    "Modules/SchemaValidatingConnection.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*SchemaValidating*.cs",
+      "reason": "Schema validation needs real DB connection"
+    },
+    "Outbox/OutboxMessage.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
+    },
+    "Outbox/OutboxMessageFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
     },
     "Outbox/OutboxProcessor.cs": {
       "defaultTests": [
@@ -38,28 +159,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "EntityMappingErrorCodes.cs": {
+    "Outbox/OutboxStoreDapper.cs": {
       "defaultTests": [
-        "unit"
+        "integration"
       ],
-      "defaultRule": "*ErrorCodes.cs",
-      "reason": "Error code constants"
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
     },
-    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
+    "Pagination/CursorPaginationHelper.cs": {
       "defaultTests": [
-        "unit",
         "guard"
       ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Modules/SchemaValidatingCommand.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Command.cs",
-      "reason": "Command DTO"
+      "defaultRule": "*.cs",
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
     },
     "ProcessingActivity/ProcessingActivityRegistryDapper.cs": {
       "defaultTests": [
@@ -81,189 +196,6 @@
         "integration"
       ]
     },
-    "SoftDelete/SoftDeleteSpecificationSqlBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "Inbox/InboxMessageFactory.cs": {
-      "defaultTests": [],
-      "defaultRule": "*Factory.cs",
-      "reason": "Interface — no implementation to test"
-    },
-    "UnitOfWork/UnitOfWorkDapper.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ReadWriteSeparation/ReadWriteSeparationHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
-    },
-    "TypeHandlers/UlidIdTypeHandler.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
-    },
-    "Auditing/AuditLogStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Tenancy/TenantEntityMappingBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "Modules/SchemaValidatingConnection.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*SchemaValidating*.cs",
-      "reason": "Schema validation needs real DB connection"
-    },
-    "Sharding/ShardedReadWriteConnectionFactory.cs": {
-      "defaultTests": [
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
-      "override": [
-        "integration"
-      ]
-    },
-    "Tenancy/ITenantConnectionFactory.cs": {
-      "defaultTests": [
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
-      "override": [
-        "integration"
-      ]
-    },
-    "Sagas/SagaState.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*State.cs",
-      "reason": "Saga/aggregate state with transitions"
-    },
-    "TypeHandlers/SnowflakeIdTypeHandler.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
-    },
-    "Outbox/OutboxMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "Scheduling/ScheduledMessageStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "GlobalSuppressions.cs": {
-      "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Anonymization/TokenMappingStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Health/PostgreSqlHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
-    },
-    "SoftDelete/ISoftDeleteEntityMapping.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Inbox/InboxStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Tenancy/ITenantEntityMapping.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Sagas/SagaStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Auditing/OperationAuditStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Temporal/TemporalEntityMappingBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "BulkOperations/BulkOperationsDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
-    },
     "ReadWriteSeparation/ReadWriteConnectionFactory.cs": {
       "defaultTests": [
         "guard"
@@ -274,138 +206,6 @@
         "integration"
       ]
     },
-    "Temporal/TemporalRepositoryDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryDapper.cs",
-      "reason": "Dapper repository — needs real database"
-    },
-    "Temporal/ITemporalEntityMapping.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*EntityMapping*.cs",
-      "reason": "Column/table mapping metadata"
-    },
-    "Outbox/OutboxStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "ABAC/PolicyStoreDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreFactoryDapper.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Repository/SpecificationSqlBuilder.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
-    },
-    "Outbox/OutboxMessage.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
-    },
-    "Health/DapperPostgreSqlDatabaseHealthMonitor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Extensions/AuditExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Tenancy/TenancyServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Repository/FunctionalRepositoryDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryDapper.cs",
-      "reason": "Dapper repository — needs real database"
-    },
-    "Sharding/ShardingServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Tenancy/TenantConnectionFactory.cs": {
-      "defaultTests": [
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
-      "override": [
-        "integration"
-      ]
-    },
-    "Tenancy/DapperTenancyOptions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Scheduling/ScheduledMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "TypeHandlers/ShardPrefixedIdTypeHandler.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
-    },
-    "UnitOfWork/UnitOfWorkRepositoryDapper.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryDapper.cs",
-      "reason": "Dapper repository — needs real database"
-    },
     "ReadWriteSeparation/ReadWriteRoutingPipelineBehavior.cs": {
       "defaultTests": [
         "unit",
@@ -415,7 +215,59 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate"
     },
-    "Auditing/ReadAuditStoreDapper.cs": {
+    "ReadWriteSeparation/ReadWriteSeparationHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies"
+    },
+    "Repository/EntityMappingBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Repository/FunctionalRepositoryDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryDapper.cs",
+      "reason": "Dapper repository — needs real database"
+    },
+    "Repository/IEntityMapping.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Repository/SpecificationSqlBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Sagas/SagaState.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*State.cs",
+      "reason": "Saga/aggregate state with transitions"
+    },
+    "Sagas/SagaStateFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sagas/SagaStoreDapper.cs": {
       "defaultTests": [
         "integration"
       ],
@@ -430,22 +282,7 @@
       "defaultRule": "*Message.cs",
       "reason": "Domain entity with serialization/validation logic"
     },
-    "Inbox/InboxMessage.cs": {
-      "defaultTests": [],
-      "defaultRule": "*Message.cs",
-      "reason": "Interface — no implementation to test"
-    },
-    "Pagination/CursorPaginationHelper.cs": {
-      "defaultTests": [
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
-      "override": [
-        "integration"
-      ]
-    },
-    "Sagas/SagaStateFactory.cs": {
+    "Scheduling/ScheduledMessageFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -453,15 +290,20 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "Modules/ModuleAwareConnectionFactory.cs": {
+    "Scheduling/ScheduledMessageStoreDapper.cs": {
       "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "ServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
         "guard"
       ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
-      "override": [
-        "integration"
-      ]
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
     "Sharding/FunctionalShardedRepositoryDapper.cs": {
       "defaultTests": [
@@ -470,13 +312,120 @@
       "defaultRule": "*RepositoryDapper.cs",
       "reason": "Dapper repository — needs real database"
     },
-    "TypeHandlers/UuidV7IdTypeHandler.cs": {
+    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Handler.cs",
-      "reason": "Handler with mockeable dependencies"
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "Sharding/ReferenceTables/ReferenceTableStoreDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreDapper.cs",
+      "reason": "Dapper store with raw SQL — needs real database"
+    },
+    "Sharding/ReferenceTables/ReferenceTableStoreFactoryDapper.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/ShardedReadWriteConnectionFactory.cs": {
+      "defaultTests": [
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
+    },
+    "Sharding/ShardingServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "SoftDelete/ISoftDeleteEntityMapping.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "SoftDelete/SoftDeleteEntityMappingBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "SoftDelete/SoftDeleteSpecificationSqlBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Temporal/ITemporalEntityMapping.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*EntityMapping*.cs",
+      "reason": "Column/table mapping metadata"
+    },
+    "Temporal/TemporalEntityMappingBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Fluent builder with validation"
+    },
+    "Temporal/TemporalRepositoryDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryDapper.cs",
+      "reason": "Dapper repository — needs real database"
+    },
+    "Tenancy/DapperTenancyOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Tenancy/ITenantConnectionFactory.cs": {
+      "defaultTests": [
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
+    },
+    "Tenancy/ITenantEntityMapping.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Tenancy/TenancyServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
     "Tenancy/TenantAwareFunctionalRepositoryDapper.cs": {
       "defaultTests": [
@@ -493,13 +442,70 @@
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation"
     },
-    "SoftDelete/SoftDeleteEntityMappingBuilder.cs": {
+    "Tenancy/TenantConnectionFactory.cs": {
+      "defaultTests": [
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
+      "override": [
+        "integration"
+      ]
+    },
+    "Tenancy/TenantEntityMappingBuilder.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation"
+    },
+    "TypeHandlers/ShardPrefixedIdTypeHandler.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Handler.cs",
+      "reason": "Handler with mockeable dependencies"
+    },
+    "TypeHandlers/SnowflakeIdTypeHandler.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Handler.cs",
+      "reason": "Handler with mockeable dependencies"
+    },
+    "TypeHandlers/UlidIdTypeHandler.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Handler.cs",
+      "reason": "Handler with mockeable dependencies"
+    },
+    "TypeHandlers/UuidV7IdTypeHandler.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Handler.cs",
+      "reason": "Handler with mockeable dependencies"
+    },
+    "UnitOfWork/UnitOfWorkDapper.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "UnitOfWork/UnitOfWorkRepositoryDapper.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryDapper.cs",
+      "reason": "Dapper repository — needs real database"
     }
   }
 }

@@ -9,6 +9,185 @@
     "unit": 40
   },
   "files": {
+    "ABAC/ABACModelBuilderExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "ABAC/PolicyEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "ABAC/PolicySetEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "ABAC/PolicyStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "Anonymization/TokenMappingStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "Auditing/OperationAuditEntryEntity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Domain entity",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Plain entity, fully exercised by the mapping tests.",
+        "guard": "A plain entity has no parameters to guard."
+      }
+    },
+    "Auditing/OperationAuditEntryEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The model-building tests run every property and index configuration."
+      }
+    },
+    "Auditing/AuditInterceptor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Interceptor.cs",
+      "reason": "EF interceptor with mockeable context"
+    },
+    "Auditing/AuditInterceptorOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Auditing/AuditLogEntryEntity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Domain entity"
+    },
+    "Auditing/AuditLogEntryEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "Auditing/AuditLogStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "Auditing/OperationAuditStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The integration tests on real SQL Server and PostgreSQL databases run every query path (measured 85%); EF Core MySQL is skipped until Pomelo supports EF Core 10."
+      }
+    },
+    "Auditing/IndexFilters.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Pure static helper, no DB dependency — fully exercised by unit tests"
+    },
+    "Auditing/ReadAuditEntryEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "Auditing/ReadAuditStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "Auditing/StoreExceptionMessages.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Pure static helper, no DB dependency — fully exercised by unit tests"
+    },
+    "BulkOperations/BulkOperationsEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "BulkOperations/BulkOperationsEFMySql.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "BulkOperations/BulkOperationsEFPostgreSql.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "BulkOperations/BulkOperationsEFSqlServer.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*BulkOperations*.cs",
+      "reason": "Bulk operations need real DB"
+    },
+    "Caching/CachedDataReader.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
     "Caching/CachedQueryResult.cs": {
       "defaultTests": [
         "unit",
@@ -17,30 +196,13 @@
       "defaultRule": "*Result.cs",
       "reason": "Result type"
     },
-    "Inbox/InboxMessage.cs": {
+    "Caching/DefaultQueryCacheKeyGenerator.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
-    },
-    "TransactionPipelineBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
-    },
-    "DomainEvents/DomainEventDispatcherExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
     "Caching/QueryCacheInterceptor.cs": {
       "defaultTests": [
@@ -50,43 +212,12 @@
       "defaultRule": "*Interceptor.cs",
       "reason": "EF interceptor with mockeable context"
     },
-    "Outbox/OutboxProcessor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Auditing/AuditLogEntryEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Tenancy/EfCoreTenancyOptions.cs": {
+    "Caching/QueryCacheOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
-    },
-    "TransactionAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Extensions/QueryableCursorExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
     },
     "Caching/SqlTableExtractor.cs": {
       "defaultTests": [
@@ -96,113 +227,13 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "ProcessingActivity/ProcessingActivityModelBuilderExtensions.cs": {
+    "Configuration/EntityConfigurationExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Auditing/OperationAuditStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "BulkOperations/BulkOperationsEFSqlServer.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
-    },
-    "Scheduling/IMessageScheduler.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ABAC/PolicyStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "Converters/SnowflakeIdConverter.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Tenancy/ITenantSchemaConfigurator.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Log.cs": {
-      "defaultTests": [],
-      "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
-    },
-    "Sharding/ShardedReadWriteDbContextFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Sagas/SagaStateConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Sharding/ShardingServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Auditing/IndexFilters.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Pure static helper, no DB dependency — fully exercised by unit tests"
-    },
-    "Scheduling/ScheduledMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
     },
     "Converters/IdGenerationModelConfigurationExtensions.cs": {
       "defaultTests": [
@@ -212,43 +243,6 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
-    "Resilience/EfCoreDatabaseHealthMonitor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sharding/Migrations/EfCoreMigrationExecutor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ProcessingActivity/ProcessingActivityEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Caching/QueryCacheOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Auditing/ReadAuditEntryEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
     "Converters/ShardPrefixedIdConverter.cs": {
       "defaultTests": [
         "unit",
@@ -257,7 +251,7 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Repository/SpecificationEvaluator.cs": {
+    "Converters/SnowflakeIdConverter.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -265,45 +259,106 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Outbox/OutboxMessage.cs": {
+    "Converters/UlidIdConverter.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Scheduling/ScheduledMessage.cs": {
+    "Converters/UuidV7IdConverter.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Message.cs",
-      "reason": "Domain entity with serialization/validation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Auditing/ReadAuditStoreEF.cs": {
+    "Diagnostics/QueryCacheActivitySource.cs": {
       "defaultTests": [
-        "integration"
+        "unit"
       ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "defaultRule": "*ActivitySource.cs",
+      "reason": "Activity/span wrapper — verify creation and tags"
     },
-    "Scheduling/ScheduledMessageStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "Sagas/SagaState.cs": {
+    "Diagnostics/QueryCacheLog.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*State.cs",
-      "reason": "Saga/aggregate state with transitions"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Diagnostics/QueryCacheMetrics.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Meter/counter wrapper — verify tags and recording"
+    },
+    "Diagnostics/SoftDeleteActivitySource.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ActivitySource.cs",
+      "reason": "Activity/span wrapper — verify creation and tags"
+    },
+    "Diagnostics/SoftDeleteLog.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Diagnostics/SoftDeleteMetrics.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Metrics.cs",
+      "reason": "Meter/counter wrapper — verify tags and recording"
+    },
+    "DomainEvents/DomainEventDispatcherExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "DomainEvents/DomainEventDispatcherInterceptor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Interceptor.cs",
+      "reason": "EF interceptor with mockeable context"
+    },
+    "DomainEvents/DomainEventDispatcherOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Extensions/DbContextKeyExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
     "Extensions/ImmutableUpdateExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "Extensions/QueryableCursorExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -319,6 +374,27 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
+    "Extensions/QueryCachingExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "GlobalSuppressions.cs": {
+      "defaultTests": [],
+      "defaultRule": "GlobalSuppressions.cs",
+      "reason": "Only [SuppressMessage] attributes"
+    },
+    "Health/EntityFrameworkCoreHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies"
+    },
     "Health/ReadWriteSeparationHealthCheck.cs": {
       "defaultTests": [
         "unit",
@@ -327,72 +403,35 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
-    "Temporal/TemporalRepositoryEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryEF.cs",
-      "reason": "EF Core repository — needs real DbContext"
-    },
-    "Tenancy/TenantDbContext.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*DbContext.cs",
-      "reason": "DbContext needs real database"
-    },
-    "Sagas/SagaStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "Auditing/OperationAuditEntryEntity.cs": {
+    "Inbox/InboxMessage.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Entity.cs",
-      "reason": "Domain entity"
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
     },
-    "Outbox/OutboxMessageConfiguration.cs": {
+    "Inbox/InboxMessageConfiguration.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Configuration.cs",
       "reason": "EF entity type configuration"
     },
-    "Auditing/StoreExceptionMessages.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Pure static helper, no DB dependency — fully exercised by unit tests"
-    },
-    "Converters/UlidIdConverter.cs": {
+    "Inbox/InboxMessageFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
     },
-    "Extensions/DbContextKeyExtensions.cs": {
+    "Inbox/InboxStoreEF.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "integration"
       ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "Modules/ModuleSchemaValidationInterceptor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
     },
     "ITransactionalCommand.cs": {
       "defaultTests": [
@@ -402,7 +441,43 @@
       "defaultRule": "*Command.cs",
       "reason": "Command DTO"
     },
-    "Sharding/ShardedDbContextFactory.cs": {
+    "Log.cs": {
+      "defaultTests": [],
+      "defaultRule": "Log.cs",
+      "reason": "Source-generated [LoggerMessage] delegates, no logic"
+    },
+    "Modules/ModuleExecutionContextBehavior.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Behavior.cs",
+      "reason": "Behavioral component"
+    },
+    "Modules/ModuleSchemaValidationInterceptor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Interceptor.cs",
+      "reason": "EF interceptor with mockeable context"
+    },
+    "Outbox/OutboxMessage.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
+    },
+    "Outbox/OutboxMessageConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "Outbox/OutboxMessageFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -410,15 +485,29 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "ReadWriteSeparation/ReadWriteDbContextFactory.cs": {
+    "Outbox/OutboxProcessor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Extensions/QueryCachingExtensions.cs": {
+    "Outbox/OutboxStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "ProcessingActivity/ProcessingActivityEntityConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "ProcessingActivity/ProcessingActivityModelBuilderExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -426,14 +515,7 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
-    "ABAC/PolicyEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Converters/UuidV7IdConverter.cs": {
+    "ProcessingActivity/ProcessingActivityRegistryEF.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -442,6 +524,14 @@
       "reason": "Default: assume testable with mocks"
     },
     "ReadWriteSeparation/IReadWriteDbContextFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "ReadWriteSeparation/ReadWriteDbContextFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -458,47 +548,20 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate"
     },
-    "GlobalSuppressions.cs": {
-      "defaultTests": [],
-      "defaultRule": "GlobalSuppressions.cs",
-      "reason": "Only [SuppressMessage] attributes"
-    },
-    "BulkOperations/BulkOperationsEFPostgreSql.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
-    },
-    "Auditing/OperationAuditEntryEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Caching/CachedDataReader.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Sagas/SagaStateFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
     "Repository/FunctionalRepositoryEF.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*RepositoryEF.cs",
       "reason": "EF Core repository — needs real DbContext"
+    },
+    "Repository/SpecificationEvaluator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
     "Resilience/ConnectionPoolMonitoringInterceptor.cs": {
       "defaultTests": [
@@ -508,120 +571,13 @@
       "defaultRule": "*Interceptor.cs",
       "reason": "EF interceptor with mockeable context"
     },
-    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "BulkOperations/BulkOperationsEFMySql.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
-    },
-    "ABAC/PolicySetEntityConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Auditing/AuditInterceptor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
-    },
-    "Sharding/FunctionalShardedRepositoryEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryEF.cs",
-      "reason": "EF Core repository — needs real DbContext"
-    },
-    "Sharding/Migrations/EfCoreSchemaIntrospector.cs": {
+    "Resilience/EfCoreDatabaseHealthMonitor.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
-    },
-    "Configuration/EntityConfigurationExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "UnitOfWork/UnitOfWorkEF.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Outbox/OutboxStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "Diagnostics/QueryCacheLog.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ProcessingActivity/ProcessingActivityRegistryEF.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Caching/DefaultQueryCacheKeyGenerator.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Outbox/OutboxMessageFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "SoftDelete/SoftDeleteRepositoryEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*RepositoryEF.cs",
-      "reason": "EF Core repository — needs real DbContext"
-    },
-    "Auditing/AuditLogEntryEntity.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Entity.cs",
-      "reason": "Domain entity"
     },
     "Sagas/Saga.cs": {
       "defaultTests": [
@@ -631,7 +587,37 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Temporal/TemporalRepositoryPostgreSqlEF.cs": {
+    "Sagas/SagaState.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*State.cs",
+      "reason": "Saga/aggregate state with transitions"
+    },
+    "Sagas/SagaStateConfiguration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
+    },
+    "Sagas/SagaStateFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sagas/SagaStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "Scheduling/IMessageScheduler.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -639,45 +625,37 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "DomainEvents/DomainEventDispatcherInterceptor.cs": {
+    "Scheduling/ScheduledMessage.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "defaultRule": "*Message.cs",
+      "reason": "Domain entity with serialization/validation logic"
     },
-    "Modules/ModuleExecutionContextBehavior.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Behavior.cs",
-      "reason": "Behavioral component"
-    },
-    "Health/EntityFrameworkCoreHealthCheck.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
-    },
-    "Diagnostics/SoftDeleteActivitySource.cs": {
+    "Scheduling/ScheduledMessageConfiguration.cs": {
       "defaultTests": [
         "unit"
       ],
-      "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
+      "defaultRule": "*Configuration.cs",
+      "reason": "EF entity type configuration"
     },
-    "Diagnostics/QueryCacheMetrics.cs": {
+    "Scheduling/ScheduledMessageFactory.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*Metrics.cs",
-      "reason": "Meter/counter wrapper — verify tags and recording"
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
     },
-    "ABAC/ABACModelBuilderExtensions.cs": {
+    "Scheduling/ScheduledMessageStoreEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreEF.cs",
+      "reason": "EF Core store — needs real DbContext"
+    },
+    "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -685,7 +663,14 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
-    "Diagnostics/SoftDeleteLog.cs": {
+    "Sharding/FunctionalShardedRepositoryEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryEF.cs",
+      "reason": "EF Core repository — needs real DbContext"
+    },
+    "Sharding/Migrations/EfCoreMigrationExecutor.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -701,40 +686,67 @@
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps"
     },
-    "Scheduling/ScheduledMessageConfiguration.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
-    },
-    "Auditing/AuditInterceptorOptions.cs": {
+    "Sharding/Migrations/EfCoreMigrationOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
     },
-    "Diagnostics/SoftDeleteMetrics.cs": {
+    "Sharding/Migrations/EfCoreSchemaIntrospector.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*Metrics.cs",
-      "reason": "Meter/counter wrapper — verify tags and recording"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
-    "Auditing/AuditLogStoreEF.cs": {
+    "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "Sharding/ReferenceTables/ReferenceTableStoreEF.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
-    "Anonymization/TokenMappingStoreEF.cs": {
+    "Sharding/ReferenceTables/ReferenceTableStoreFactoryEF.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Sharding/ShardedDbContextFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sharding/ShardedReadWriteDbContextFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic"
+    },
+    "Sharding/ShardingServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
     },
     "SoftDelete/SoftDeleteInterceptor.cs": {
       "defaultTests": [
@@ -751,12 +763,46 @@
       "defaultRule": "*Options.cs",
       "reason": "Configuration POCO with defaults and validation"
     },
-    "Inbox/InboxMessageConfiguration.cs": {
+    "SoftDelete/SoftDeleteRepositoryEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryEF.cs",
+      "reason": "EF Core repository — needs real DbContext"
+    },
+    "Temporal/TemporalRepositoryEF.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*RepositoryEF.cs",
+      "reason": "EF Core repository — needs real DbContext"
+    },
+    "Temporal/TemporalRepositoryPostgreSqlEF.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Tenancy/EfCoreTenancyOptions.cs": {
       "defaultTests": [
         "unit"
       ],
-      "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "Tenancy/ITenantSchemaConfigurator.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Tenancy/TenantDbContext.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*DbContext.cs",
+      "reason": "DbContext needs real database"
     },
     "Tenancy/TenantDbContextFactory.cs": {
       "defaultTests": [
@@ -766,14 +812,7 @@
       "defaultRule": "*Factory.cs",
       "reason": "Factory with creation logic"
     },
-    "Sharding/Migrations/EfCoreMigrationOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Sharding/ReferenceTables/ReferenceTableStoreFactoryEF.cs": {
+    "TransactionAttribute.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -781,41 +820,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "BulkOperations/BulkOperationsEF.cs": {
+    "TransactionPipelineBehavior.cs": {
       "defaultTests": [
-        "integration"
+        "unit",
+        "guard",
+        "contract"
       ],
-      "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
+      "defaultRule": "*PipelineBehavior.cs",
+      "reason": "Mediator pipeline with mockeable next delegate"
     },
-    "DomainEvents/DomainEventDispatcherOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Diagnostics/QueryCacheActivitySource.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
-    },
-    "Inbox/InboxStoreEF.cs": {
-      "defaultTests": [
-        "integration"
-      ],
-      "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
-    },
-    "Inbox/InboxMessageFactory.cs": {
+    "UnitOfWork/UnitOfWorkEF.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
     },
     "UnitOfWork/UnitOfWorkRepositoryEF.cs": {
       "defaultTests": [

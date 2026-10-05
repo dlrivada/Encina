@@ -1,19 +1,60 @@
 {
   "package": "Encina.Security.Audit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 38,
+  "totalFiles": 39,
   "targets": {
     "contract": 15,
     "guard": 20,
     "unit": 70
   },
   "files": {
-    "ReadAuditErrors.cs": {
+    "Abstractions/IOperationAuditEntryFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/IOperationAuditStore.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/IPiiMasker.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
-      "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "Abstractions/IReadAuditContext.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Abstractions/IReadAuditStore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Store.cs",
+      "reason": "Abstract/base store with mockeable deps"
+    },
+    "AuditableAttribute.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "AuditedReadOnlyRepository.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Repository.cs",
+      "reason": "Abstract/base repository"
     },
     "AuditedRepository.cs": {
       "defaultTests": [
@@ -24,45 +65,34 @@
       "defaultRule": "*Repository.cs",
       "reason": "Abstract/base repository"
     },
-    "ServiceCollectionExtensions.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
-    },
-    "OperationAuditQuery.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Query.cs",
-      "reason": "Query DTO"
-    },
-    "ReadAuditEntry.cs": {
+    "OperationAuditEntry.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The entry record and its duration calculation are fully unit-tested.",
+        "guard": "Guard tests assert the required properties (measured 94%)."
+      }
     },
-    "ReadAuditContext.cs": {
+    "OperationAuditOptions.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Abstractions/IPiiMasker.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The options defaults and helpers are fully unit-tested."
+      }
     },
     "AuditOutcome.cs": {
       "defaultTests": [
@@ -72,6 +102,63 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "AuditPipelineBehavior.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*PipelineBehavior.cs",
+      "reason": "Mediator pipeline with mockeable next delegate"
+    },
+    "OperationAuditQuery.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Query.cs",
+      "reason": "Query DTO",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run every filter builder and paging helper.",
+        "guard": "The query DTO has no guarded parameters."
+      }
+    },
+    "OperationAuditRetentionService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests run the purge loop with a fake clock and a scoped store (measured 85%).",
+        "guard": "Guard tests assert only the constructor null checks (measured 14%)."
+      }
+    },
+    "DefaultOperationAuditEntryFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 80,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests cover payload, metadata and identity steps (measured 86%).",
+        "guard": "Guard tests cover the argument validation (measured 82%)."
+      }
+    },
     "DefaultSensitiveDataRedactor.cs": {
       "defaultTests": [
         "unit",
@@ -80,15 +167,14 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Health/ReadAuditStoreHealthCheck.cs": {
+    "Diagnostics/ReadAuditActivitySource.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
-      "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "defaultRule": "*ActivitySource.cs",
+      "reason": "Activity/span wrapper — verify creation and tags"
     },
-    "NullPiiMasker.cs": {
+    "Diagnostics/ReadAuditLog.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -104,68 +190,23 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Diagnostics/ReadAuditActivitySource.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*ActivitySource.cs",
-      "reason": "Activity/span wrapper — verify creation and tags"
-    },
-    "OperationAuditEntry.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "InMemoryReadAuditStore.cs": {
-      "defaultTests": [],
-      "defaultRule": "*Store.cs",
-      "reason": "Interface — no implementation"
-    },
-    "ReadAccessMethod.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Log.cs": {
-      "defaultTests": [],
-      "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates, no logic"
-    },
-    "DefaultOperationAuditEntryFactory.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
-    },
-    "OperationAuditOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Abstractions/IOperationAuditEntryFactory.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "ReadAuditEntryEntity.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Entity.cs",
-      "reason": "Domain entity"
-    },
     "Health/OperationAuditStoreHealthCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*HealthCheck.cs",
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 95,
+        "guard": 25
+      },
+      "justifications": {
+        "unit": "Unit tests run the healthy and failing paths.",
+        "guard": "Guard tests assert only the constructor null checks (measured 26%)."
+      }
+    },
+    "Health/ReadAuditStoreHealthCheck.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -173,56 +214,27 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
-    "OperationAuditRetentionService.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Abstractions/IReadAuditContext.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "Diagnostics/ReadAuditLog.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
     "InMemoryOperationAuditStore.cs": {
+      "defaultTests": [],
+      "defaultRule": "*Store.cs",
+      "reason": "Interface — no implementation",
+      "override": ["unit"],
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "The in-memory store's filter, paging and purge logic is pure and fully unit-testable (measured 84%)."
+      }
+    },
+    "InMemoryReadAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "*Store.cs",
       "reason": "Interface — no implementation"
     },
-    "RequestMetadataExtractor.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Abstractions/IReadAuditStore.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
-    },
-    "AuditedReadOnlyRepository.cs": {
-      "defaultTests": [
-        "unit",
-        "guard",
-        "contract"
-      ],
-      "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+    "Log.cs": {
+      "defaultTests": [],
+      "defaultRule": "Log.cs",
+      "reason": "Source-generated [LoggerMessage] delegates, no logic"
     },
     "Notifications/SensitiveDataAccessedNotification.cs": {
       "defaultTests": [
@@ -232,35 +244,7 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "ReadAuditQuery.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*Query.cs",
-      "reason": "Query DTO"
-    },
-    "ReadAuditOptions.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
-    },
-    "Abstractions/IOperationAuditStore.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
-    },
-    "AuditableAttribute.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "ReadAuditRetentionService.cs": {
+    "NullPiiMasker.cs": {
       "defaultTests": [
         "unit",
         "guard"
@@ -276,6 +260,38 @@
       "defaultRule": "*Result.cs",
       "reason": "Result type"
     },
+    "ReadAccessMethod.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ReadAuditContext.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ReadAuditEntry.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ReadAuditEntryEntity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Domain entity"
+    },
     "ReadAuditEntryMapper.cs": {
       "defaultTests": [
         "unit",
@@ -284,14 +300,64 @@
       "defaultRule": "*Mapper.cs",
       "reason": "Data mapping logic"
     },
-    "AuditPipelineBehavior.cs": {
+    "ReadAuditErrors.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory methods"
+    },
+    "ReadAuditOptions.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Configuration POCO with defaults and validation"
+    },
+    "ReadAuditQuery.cs": {
       "defaultTests": [
         "unit",
-        "guard",
-        "contract"
+        "guard"
       ],
-      "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "defaultRule": "*Query.cs",
+      "reason": "Query DTO"
+    },
+    "ReadAuditRetentionService.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "RequestMetadataExtractor.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
+    "ServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "OperationAuditStoreRegistration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static registration helper with pure logic; null guards are asserted by unit tests",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover every branch of the in-memory default detection, including decorated and keyed registrations."
+      }
     }
   }
 }
