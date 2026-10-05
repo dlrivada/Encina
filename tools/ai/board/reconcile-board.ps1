@@ -18,6 +18,8 @@
 #   -Out         a JSON array of writes [{op, collection, doc_id, if_version?, data}], only for documents
 #                whose data differ, at most 50 per file (-Out itself when it fits, else <name>-001.json,
 #                <name>-002.json ...). The paths are printed one per line after "WRITES <n>".
+#   -DryRun      instead of -Out: prints "DRIFT <collection>/<id>: <fields>" per drifting document and
+#                "DRY-RUN: <n> documents drift, nothing written"; writes and deletes no file.
 #   -CreateOp / -UpdateOp  the batch operation names for a new / an existing document.
 #
 # Rules (see tools/ai/board/README.md): work card or flow front with a merged PR -> merged / done with the
@@ -459,7 +461,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         "DRY-RUN: $(@($changes).Count) documents drift, nothing written"
         return
     }
-    $batch =ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
+    $batch = ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
     foreach ($s in $batch.Skipped) { [Console]::Error.WriteLine("WARN: $s changed but has no version in the sidecar; skipped (never written unpinned).") }
     $outDir = Split-Path -Parent $Out
     if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
