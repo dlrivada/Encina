@@ -24,4 +24,4 @@ public sealed class EELCompilerFixture : IDisposable
 /// Collection definition that makes the EEL test classes share one <see cref="EELCompilerFixture"/>.
 /// </summary>
 [CollectionDefinition(EELCompilerFixture.Name)]
-public sealed class EELCompilerSharedDefinition :ICollectionFixture<EELCompilerFixture>;
+public sealed class EELCompilerSharedDefinition : ICollectionFixture<EELCompilerFixture>;
