@@ -7,19 +7,19 @@ Crypto-shredding for GDPR compliance in Marten event-sourced systems. Encrypts P
 
 ## Features
 
-- **`[CryptoShredded]` Attribute** — Declarative PII marking on domain event properties with subject binding
-- **Transparent Serializer Interception** — Automatic encrypt on save, decrypt on load via Marten `ISerializer` wrapping
-- **Reuses `IFieldEncryptor` (AES-256-GCM)** — Zero crypto code duplication from `Encina.Security.Encryption`
-- **Per-Subject Key Management** — InMemory (testing) and PostgreSQL (production) key providers
-- **Key Rotation** — Forward-only encryption with versioned keys; old events decrypt with original key version
+- **`[CryptoShredded]` Attribute** — Declarative PII marking with subject binding, on events, snapshots, read models and the objects nested in them (nested objects, collection elements, dictionary values)
+- **System.Text.Json contract modifier** — Encrypts on save and decrypts on load inside Marten's System.Text.Json serializer (`CryptoShredderSerializer`); the caller's objects are not mutated. System.Text.Json only
+- **AES-256-GCM v2 token** — `cs2:{version}:{payload}`; no subject id is stored, the subject is bound as associated data
+- **Per-Subject Key Management** — InMemory (testing) and PostgreSQL (production) key providers, reached through `IServiceScopeFactory`
+- **Key Rotation** — Forward-only encryption with versioned keys; old events decrypt with the version in their token
 - **Right to be Forgotten** — Delete all subject keys to crypto-shred PII permanently
-- **DSR Integration** — `CryptoShredErasureStrategy` plugs into `Encina.Compliance.DataSubjectRights` erasure workflow
-- **PII Discovery** — `MartenEventPersonalDataLocator` discovers PII in Marten event streams
+- **Fail-closed reads** — Only a forgotten subject reads as the placeholder; every other failure throws
+- **DSR Integration** — `CryptoShredErasureStrategy` plugs into the `Encina.Compliance.DataSubjectRights` erasure workflow through a routing strategy
+- **PII Discovery** — `MartenEventPersonalDataLocator` discovers PII in Marten event streams and reports nested paths
 - **Configurable Placeholder** — Forgotten data replaced with `[REDACTED]` (customizable)
-- **Auto-Registration** — Scan assemblies at startup to validate `[CryptoShredded]` configurations
+- **Startup validation** — Classifies every `[CryptoShredded]` type and checks the installation and the wiring; the host does not start when anything is wrong
 - **Full Observability** — OpenTelemetry tracing, structured logging, metrics
-- **Health Check** — Verifies encryption services, key provider, and configuration
-- **Railway Oriented Programming** — All operations return `Either<EncinaError, T>`, no exceptions
+- **Health Check** — Verifies the serializer installation and the key provider
 - **.NET 10 Compatible** — Built with latest C# features
 
 ## Installation
@@ -33,7 +33,7 @@ dotnet add package Encina.Marten.GDPR
 This package requires `Encina.Security.Encryption` to be configured first:
 
 ```csharp
-// Required: provides IFieldEncryptor (AES-256-GCM) and IKeyProvider
+// Required: Encina.Security.Encryption infrastructure
 services.AddEncinaEncryption();
 
 // Optional: enables DSR erasure workflows and PII discovery
@@ -71,7 +71,9 @@ public sealed record UserEmailChangedEvent
 
 The `[CryptoShredded]` attribute requires:
 - A co-located `[PersonalData]` attribute (from `Encina.Compliance.DataSubjectRights`)
-- A `SubjectIdProperty` pointing to the sibling property containing the data subject's ID: `string`, `Guid`, an integer type, or a strongly-typed id (an `IFormattable` type or a wrapper with a public `Value` of those types). Any other type is rejected by the startup scan when its type is in the scanned assemblies (`AutoRegisterFromAttributes`, `AssembliesToScan`), and serialization throws otherwise. Erase with the id's string form (`Guid` as `ToString("D")`)
+- A `SubjectIdProperty` pointing to the sibling property **on the same declaring object** (at every depth; a nested value object carries its own subject-id property) containing the data subject's ID: `string`, `Guid`, an integer type, or a strongly-typed id (an `IFormattable` type or a wrapper with a public `Value` of those types). Any other type is rejected by the startup validation when its type is in the scanned assemblies (`ValidateOnStartup`, `AssembliesToScan`), and by the contract modifier on first use otherwise. Erase with the id's string form (`Guid` as `ToString("D")`)
+
+Call Marten's `UseTypeInfoResolver(context)` (a source-generated `JsonSerializerContext`) **before** `AddEncinaMartenGdpr`: a context added later is placed ahead of the modifier and its types would be written unencrypted. Startup detects this and stops the host.
 
 ### 3. Events Are Encrypted Transparently
 
@@ -101,7 +103,7 @@ result.Match(
     Right: r => Console.WriteLine($"Forgotten: {r.KeysDeleted} keys deleted"),
     Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 
-// After forgetting: Email fields show "[REDACTED]" instead of encrypted data
+// After forgetting: Email fields read as "[REDACTED]" instead of the encrypted token
 ```
 
 ## Configuration Options
@@ -111,16 +113,16 @@ result.Match(
 | `UsePostgreSqlKeyStore` | `bool` | `false` | Use PostgreSQL-backed key storage (required for production) |
 | `AnonymizedPlaceholder` | `string` | `"[REDACTED]"` | Placeholder for forgotten subjects' PII |
 | `KeyRotationDays` | `int` | `90` | Recommended key rotation interval (informational) |
-| `AutoRegisterFromAttributes` | `bool` | `true` | Scan assemblies at startup to validate configurations |
+| `ValidateOnStartup` | `bool` | `true` | Validate `[CryptoShredded]` types and the wiring at startup; `false` is a logged opt-out (EventId 8462) |
 | `AddHealthCheck` | `bool` | `false` | Register `encina-crypto-shredding` health check |
-| `PublishEvents` | `bool` | `true` | Publish domain events for key lifecycle operations |
-| `AssembliesToScan` | `List<Assembly>` | `[]` | Assemblies for auto-registration scanning |
+| `PublishEvents` | `bool` | `true` | Reserved: the key lifecycle events are not published yet |
+| `AssembliesToScan` | `List<Assembly>` | `[]` | Assemblies for the startup validation (the entry assembly when empty) |
 
 ## Key Provider Selection
 
 | Provider | Scope | Persistence | Use Case |
 |----------|-------|-------------|----------|
-| `InMemorySubjectKeyProvider` | Singleton | Process lifetime | Testing, development |
+| `InMemorySubjectKeyProvider` | Singleton | Process lifetime (every key is lost on restart and older data then fails to read; warning 8484) | Testing, development |
 | `PostgreSqlSubjectKeyProvider` | Scoped | Marten document store | Production |
 
 - `PostgreSqlSubjectKeyProvider` serializes key creation, rotation and erasure of one subject with `pg_advisory_xact_lock` (keyed by the Marten tenant and the subject id) inside the transaction that checks the forgotten marker and writes, so concurrent first writers receive the one stored key and no key is created after an erasure commits.
@@ -156,7 +158,7 @@ result.Match(
 
 After rotation:
 - **New events** are encrypted with the latest key version
-- **Existing events** are decrypted with the key version stored in their `kid` field
+- **Existing events** are decrypted with the key version stored in their token
 - Old key versions transition to `Rotated` status but remain retrievable
 
 ## DSR Integration
@@ -177,7 +179,9 @@ var scope = new ErasureScope { Reason = ErasureReason.ConsentWithdrawn };
 await erasureService.EraseSubjectDataAsync("user-123", scope);
 ```
 
-`MartenEventPersonalDataLocator` discovers all PII locations in the Marten event stream for the specified subject.
+`MartenEventPersonalDataLocator` discovers all PII locations in the Marten event stream for the specified subject. `PersonalDataLocation.FieldName` is the path of the field (`Email`, `Contact.Email`, `Items[].Note`). Erasure is subject-wide: it shreds every crypto-shredded field of the subject whatever `FieldName` or `ErasureScope.SpecificFields` say (#1144).
+
+`AddEncinaMartenGdpr` registers a routing `IDataErasureStrategy`: Marten locations always reach `CryptoShredErasureStrategy`, every other location goes to the strategy registered **before** `AddEncinaMartenGdpr`. A strategy registered after it, or an `IPersonalDataLocator` that is not a `CompositePersonalDataLocator` containing the Marten locator, stops the host at startup.
 
 ## Projection Handling
 
@@ -194,7 +198,7 @@ public class UserProjection : SingleStreamProjection<UserView>
 }
 ```
 
-The serializer automatically substitutes the `AnonymizedPlaceholder` during deserialization when a subject's keys have been deleted.
+The serializer automatically substitutes the `AnonymizedPlaceholder` during deserialization when a subject's keys have been deleted. Any other read failure (key-store outage, tampering) throws `CryptoShreddingDecryptionException`; the configurator turns off Marten's `SkipSerializationErrors` so the async daemon pauses the shard instead of dead-lettering the event.
 
 ## Error Codes
 
@@ -209,24 +213,27 @@ The serializer automatically substitutes the `AnonymizedPlaceholder` during dese
 | `crypto.key_already_exists` | Active key already exists (use rotation instead) |
 | `crypto.serialization_error` | Crypto-shredding serialization/deserialization error |
 | `crypto.attribute_misconfigured` | `[CryptoShredded]` attribute is misconfigured |
+| `crypto.envelope_malformed` | A stored value is neither a `cs2` token nor the tombstone |
+| `crypto.integrity_check_failed` | Authentication tag or associated data did not match |
+| `crypto.serializer_unsupported` | The Marten store serializer is not the crypto-shredding serializer |
+| `crypto.erasure_strategy_missing` | A non-Marten location reached the erasure router and no other strategy is registered |
 
-## Fail-Closed Serialization
+## Fail-Closed Serialization and Reads
 
-The event store is append-only, so personal data written in plaintext can never be crypto-shredded. When a non-null `[CryptoShredded]` value cannot be encrypted, `CryptoShredderSerializer` throws `CryptoShreddingEncryptionException` (derives from `InvalidOperationException`) before the inner serializer runs (compliance gates fail closed, [SPEC-002](../../docs/specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006; a misconfigured property throws whatever its value): Marten's append or `SaveChangesAsync` fails and nothing is stored. There is no opt-out. A null value is left null without a key lookup.
+The event store is append-only, so personal data written in plaintext can never be crypto-shredded. The package throws three exceptions, all deriving from `InvalidOperationException`, whose messages carry type names, property names, reasons and error codes only (never a subject id, a value or an inner exception message; compliance gates fail closed, [SPEC-002](../../docs/specifications/SPEC-002-eu-regulatory-readiness.md) DEC-006). There is no opt-out. A null value is left null without a key lookup.
 
-| Member | Meaning |
-|--------|---------|
-| `EventTypeName`, `PropertyName` | The event type and `[CryptoShredded]` property that failed |
-| `Reason` | `CryptoShreddingEncryptionFailureReason`: `SubjectIdMissing`, `KeyUnavailable`, `PropertyMisconfigured` |
-| `ErrorCode` | The key-provider error code for `KeyUnavailable` (for example `crypto.key_store_error`, `crypto.subject_forgotten`, `crypto.encryption_failed`, also used for a `Left` with no code); otherwise `null` |
+| Exception | Thrown when | Key members |
+|-----------|-------------|-------------|
+| `CryptoShreddingConfigurationException` | A type or the wiring is wrong: at startup (the host does not start) or on the first use of a misconfigured type, before any byte is written | `Problem` (`CryptoShreddingConfigurationProblem`), `Issues` (per property, with `CryptoShreddedPropertyProblems` flags), `ComponentType` |
+| `CryptoShreddingEncryptionException` | A non-null value cannot be encrypted while serializing; Marten's append or `SaveChangesAsync` fails and nothing is stored | `DocumentTypeName`, `DeclaringTypeName`, `PropertyName`, `Reason` (`SubjectIdMissing`, `SubjectIdInvalid`, `KeyUnavailable`), `ErrorCode` |
+| `CryptoShreddingDecryptionException` | A stored value cannot be read and the subject is not forgotten | `DocumentTypeName`, `DeclaringTypeName`, `PropertyName`, `Reason` (`SubjectIdMissing`, `SubjectIdInvalid`, `KeyUnavailable`, `IntegrityCheckFailed`, `EnvelopeMalformed`, `PropertyNotWritable`), `ErrorCode` |
 
 - `SubjectIdMissing`: the subject id is `null`, `Guid.Empty`, or an empty or whitespace string (logged as EventId 8466).
-- `KeyUnavailable`: `GetOrCreateSubjectKeyAsync` returned `Left` (a forgotten subject included), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) (logged as EventId 8455).
-- `PropertyMisconfigured`: the property is getter-only or declared on a struct or `record struct` event (events must be classes or record classes), not a `string`, lacks `[PersonalData]`, or references a missing or unreadable subject-id property (logged at error level as EventId 8459, naming every misconfigured property). Positional records and `init`-only properties work; the startup scan also rejects a getter-only `[CryptoShredded]` property and a struct event.
+- `KeyUnavailable` on write: `GetOrCreateSubjectKeyAsync` returned `Left` (a forgotten subject included), threw, or returned an unusable key (version below 1, or key material that is not 32 bytes) (logged as EventId 8455). On read: any `Left` other than `crypto.subject_forgotten`, or a provider that threw (EventId 8456).
+- A tombstone (`cs2:erased`, written when the placeholder of a forgotten subject is saved again) is accepted on read only after `IsSubjectForgottenAsync` confirms the subject is forgotten.
+- Misconfigured properties are logged at error level as EventId 8459, once per issue, and the startup summary as 8470.
 
-Limitation: `[CryptoShredded]` is discovered only on the top-level event type, so a property on a type nested inside an event (or in a collection on it) is stored in plaintext; put every `[CryptoShredded]` property directly on the event type. Tracked by a follow-up issue.
-
-The message names the event type and property only; it never carries the subject id, the value or an inner exception message. See the [crypto-shredding feature page](../../docs/features/crypto-shredding.md#fail-closed-serialization).
+Reference for the flags, the configuration problems, the read semantics and the limits (Marten `Patch`, duplicated fields, raw `JsonDocument` upcasters, string collections, personal data on interfaces): [crypto-shredding feature page](../../docs/features/crypto-shredding.md#validation). Design reasons: [ADR-034](../../docs/architecture/adr/034-crypto-shredding-through-the-stj-contract.md).
 
 ## Observability
 
@@ -261,11 +268,7 @@ The message names the event type and property only; it never carries the subject
 
 ### Health Check
 
-When `AddHealthCheck = true`, the `encina-crypto-shredding` health check verifies:
-- Encryption services (`IFieldEncryptor`) are registered
-- Key provider is accessible
-- Options are valid
-- Auto-registration has discovered event types (if enabled)
+When `AddHealthCheck = true`, the `encina-crypto-shredding` health check is Unhealthy when the Marten serializer is not the crypto-shredding serializer, when the installation check fails (resolver replaced or bypassed, nested canary not encrypted) or when `ISubjectKeyProvider` cannot be resolved. Its data: `keyProviderType`, `cryptoContractCount`, `misconfiguredTypeCount`.
 
 ## Custom Implementations
 
@@ -278,23 +281,17 @@ services.AddSingleton<ISubjectKeyProvider, MyVaultKeyProvider>();
 // Custom forgotten subject handler
 services.AddSingleton<IForgottenSubjectHandler, CustomForgottenSubjectHandler>();
 
-// Custom erasure strategy
+// Custom erasure strategy: becomes the inner strategy of the crypto-shredding router
 services.AddScoped<IDataErasureStrategy, CustomErasureStrategy>();
 
 services.AddEncinaMartenGdpr(); // Won't override your registrations
 ```
 
-A custom `ISubjectKeyProvider` implements `GetOrCreateSubjectKeyAsync` with the return type `ValueTask<Either<EncinaError, SubjectEncryptionKey>>`. `SubjectEncryptionKey` carries `Version` and `KeyMaterial`, which must come from one read of the key store so the key id `subject:{subjectId}:v{version}` names the version that encrypted the value. Return `Left` (for example `crypto.subject_forgotten`) when no key can be provided; the serializer then refuses to store the event.
+A custom `ISubjectKeyProvider` implements `GetOrCreateSubjectKeyAsync` with the return type `ValueTask<Either<EncinaError, SubjectEncryptionKey>>`. `SubjectEncryptionKey` carries `Version` and `KeyMaterial`, which must come from one read of the key store so the version in the token names the key that encrypted the value. Return `Left` (for example `crypto.subject_forgotten`) when no key can be provided; the serializer then refuses to store the event.
 
 ## Domain Events
 
-When `PublishEvents = true` (default), the following events are published:
-
-| Event | Trigger |
-|-------|---------|
-| `SubjectForgottenEvent` | After successful key deletion |
-| `SubjectKeyRotatedEvent` | After successful key rotation |
-| `PiiEncryptionFailedEvent` | When PII encryption fails during serialization |
+`SubjectForgottenEvent` and `SubjectKeyRotatedEvent` exist as types, but nothing publishes them yet, whatever `PublishEvents` says. Wiring them is a follow-up.
 
 ## Performance
 

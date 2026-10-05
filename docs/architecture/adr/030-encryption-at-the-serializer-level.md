@@ -4,6 +4,8 @@
 
 **Accepted** - decided in issues #129 and #396 (2026); recorded as an ADR on 2026-09-22 from the project history.
 
+**Superseded in part by [ADR-034](034-crypto-shredding-through-the-stj-contract.md)**: for Marten crypto-shredding the encryption mechanism is a System.Text.Json contract modifier and the field format is the v2 token, not the `ENC:v1` format below. The algorithm and key-management decisions stand.
+
 ## Context
 
 Two needs arrived separately: encrypting whole messages at rest and in transit through the Outbox and transports, and encrypting individual PII fields inside documents and events (a prerequisite for crypto-shredding under GDPR, ADR-020). Doing either inside handlers or stores would have meant one implementation per provider and per transport, and a format nobody could read back outside Encina.

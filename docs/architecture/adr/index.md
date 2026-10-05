@@ -40,6 +40,7 @@ has_children: true
 | [029](029-recoverability-error-classification.md) | Recoverability Error Classification |
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
+| [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
 
 ## Reserved numbers
 
@@ -50,4 +51,3 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 026 | [otlp-exporter-implementation-plan-1043.md](../../plans/otlp-exporter-implementation-plan-1043.md) (#1043) | OTLP exporter opt-in decision | Reserved, ADR not written |
 | 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
 | 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
-| 034 | [crypto-shredding-nested-implementation-plan-1698.md](../../plans/crypto-shredding-nested-implementation-plan-1698.md) (#1698) | Crypto-shredding through the System.Text.Json contract | Reserved, ADR not written |
