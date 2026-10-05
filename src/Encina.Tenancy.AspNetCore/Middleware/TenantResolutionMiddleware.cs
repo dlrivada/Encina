@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Tenancy.AspNetCore;
@@ -124,10 +125,13 @@ public sealed class TenantResolutionMiddleware
 
     private static IRequestContext CreateRequestContext(HttpContext context)
     {
-        var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
+        var timeProvider = context.RequestServices?.GetService<TimeProvider>() ?? TimeProvider.System;
+        return RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), ResolveCorrelationId(context));
+    }
 
-        return string.IsNullOrWhiteSpace(correlationId)
-            ? RequestContext.Create()
-            : RequestContext.Create(correlationId);
+    private static string ResolveCorrelationId(HttpContext context)
+    {
+        var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
+        return string.IsNullOrWhiteSpace(correlationId) ? Guid.NewGuid().ToString("N") : correlationId;
     }
 }

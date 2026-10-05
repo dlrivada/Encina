@@ -53,7 +53,7 @@ public sealed class SoftDeleteInterceptorOptions
     /// <remarks>
     /// When <see langword="true"/>, entities implementing <see cref="Encina.DomainModeling.ISoftDeletableEntity"/>
     /// will have their <c>DeletedBy</c> property automatically set to the current user ID
-    /// from <see cref="IRequestContext.UserId"/> when the entity is soft-deleted.
+    /// from <see cref="RequestIdentity.UserId"/> when the entity is soft-deleted.
     /// </remarks>
     /// <value>Default: <see langword="true"/></value>
     public bool TrackDeletedBy { get; set; } = true;

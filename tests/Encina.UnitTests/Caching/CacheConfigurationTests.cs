@@ -1,4 +1,6 @@
 using Encina.Caching;
+using Encina.Testing.Identity;
+
 namespace Encina.UnitTests.Caching;
 
 /// <summary>
@@ -169,9 +171,9 @@ public class CacheConfigurationTests
     }
 
     [Fact]
-    public void GenerateKey_WithEmptyUserId_DoesNotIncludeUserPart()
+    public void GenerateKey_WithVaryByUser_AndAnAnonymousIdentity_Throws()
     {
-        // Arrange
+        // Arrange: a VaryByUser key must never be shared across non-user callers.
         var config = new CacheConfiguration<TestQuery>
         {
             VaryByTenant = false,
@@ -180,11 +182,9 @@ public class CacheConfigurationTests
         var query = new TestQuery(Guid.NewGuid());
         var context = CreateRequestContext(userId: string.Empty);
 
-        // Act
-        var key = config.GenerateKey(query, context);
-
-        // Assert
-        key.ShouldNotContain("u:");
+        // Act & Assert
+        Should.Throw<InvalidOperationException>(() => config.GenerateKey(query, context))
+            .Message.ShouldContain("Anonymous");
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class CacheConfigurationTests
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns(tenantId);
-        context.UserId.Returns(userId);
+        context.Identity.Returns(string.IsNullOrWhiteSpace(userId) ? TestIdentity.Anonymous : TestIdentity.User(userId));
         context.CorrelationId.Returns(Guid.NewGuid().ToString());
         return context;
     }

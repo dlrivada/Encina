@@ -121,14 +121,14 @@ public sealed class SoftDeleteQueryFilterBehaviorGuardTests
     private sealed class TestRequestContext : IRequestContext
     {
         public string CorrelationId => Guid.NewGuid().ToString();
-        public string? UserId => null;
         public string? IdempotencyKey => null;
         public string? TenantId => null;
         public DateTimeOffset Timestamp => DateTimeOffset.UtcNow;
+        public RequestIdentity Identity { get; init; } = RequestIdentity.Anonymous;
+        public string? CausationId { get; init; }
         public IReadOnlyDictionary<string, object?> Metadata => new Dictionary<string, object?>();
 
         public IRequestContext WithMetadata(string key, object? value) => this;
-        public IRequestContext WithUserId(string? userId) => this;
         public IRequestContext WithIdempotencyKey(string? idempotencyKey) => this;
         public IRequestContext WithTenantId(string? tenantId) => this;
     }

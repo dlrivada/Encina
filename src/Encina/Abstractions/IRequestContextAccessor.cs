@@ -22,11 +22,23 @@ namespace Encina;
 /// <para>
 /// A dispatch that starts while another one is running (a handler sending a nested request,
 /// publishing a notification or domain events, or enumerating a stream) does not reuse the outer
-/// context unchanged: it gets a derived context with the same correlation id, user id, tenant id
+/// context unchanged: it gets a derived context with the same correlation id, identity, tenant id
 /// and metadata, its own <see cref="IRequestContext.Timestamp"/>, and no
 /// <see cref="IRequestContext.IdempotencyKey"/>. The key identifies the entry point's logical
 /// request; passing it on would make idempotency behaviors treat the nested request as a duplicate
-/// of the outer one. A context passed explicitly to an overload is always used as-is.
+/// of the outer one. A context passed explicitly to an overload is snapshotted (a foreign
+/// implementation is copied into an immutable <see cref="global::Encina.RequestContext"/>) and the snapshot
+/// is used, unless its authenticated identity (kind, user id, roles or permissions) differs from an
+/// ambient <see cref="IdentityKind.User"/> identity, in which case the dispatch is refused with
+/// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>.
+/// </para>
+/// <para>
+/// The setter is host infrastructure (request middleware, circuit handlers, identity scopes and
+/// the dispatcher itself). Application code reads the context; it never sets an identity. The
+/// default implementation applies the same rule to the setter: replacing an ambient user with a
+/// different authenticated identity throws <see cref="InvalidOperationException"/>. The rule guards
+/// against a direct overwrite of the current value; identity scopes are what bind an identity to
+/// a region of code.
 /// </para>
 /// <para>
 /// The default implementation (<see cref="RequestContextAccessor"/>) stores the value in an
@@ -41,5 +53,9 @@ public interface IRequestContextAccessor
     /// <summary>
     /// Gets or sets the ambient request context, or <c>null</c> when no context is in flight.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// (Default implementation, on set.) The value would replace an ambient user with a different
+    /// authenticated identity.
+    /// </exception>
     IRequestContext? RequestContext { get; set; }
 }

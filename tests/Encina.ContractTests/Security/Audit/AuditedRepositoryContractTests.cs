@@ -1,5 +1,6 @@
 using Encina.DomainModeling;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -213,7 +214,7 @@ public sealed class AuditedRepositoryContractTests
     {
         var store = auditStore ?? Substitute.For<IReadAuditStore>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
         requestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
         var auditContext = Substitute.For<IReadAuditContext>();
         var options = new ReadAuditOptions();
@@ -231,7 +232,7 @@ public sealed class AuditedRepositoryContractTests
     {
         var store = auditStore ?? Substitute.For<IReadAuditStore>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("test-user");
+        requestContext.Identity.Returns(TestIdentity.User("test-user"));
         requestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
         var auditContext = Substitute.For<IReadAuditContext>();
         var options = new ReadAuditOptions();

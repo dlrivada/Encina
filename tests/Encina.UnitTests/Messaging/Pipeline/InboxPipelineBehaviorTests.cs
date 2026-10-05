@@ -1,5 +1,6 @@
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Serialization;
+using Encina.Testing.Identity;
 
 using LanguageExt;
 
@@ -227,7 +228,7 @@ public sealed class InboxPipelineBehaviorTests
         var context = Substitute.For<IRequestContext>();
         context.IdempotencyKey.Returns(idempotencyKey);
         context.CorrelationId.Returns(correlationId);
-        context.UserId.Returns(userId);
+        context.Identity.Returns(userId == null ? TestIdentity.Anonymous : TestIdentity.User(userId));
         context.TenantId.Returns(tenantId);
         context.Timestamp.Returns(timestamp ?? DateTime.UtcNow);
         return context;

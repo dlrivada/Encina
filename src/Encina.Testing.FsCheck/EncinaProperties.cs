@@ -195,20 +195,26 @@ public static class EncinaProperties
     }
 
     /// <summary>
-    /// Verifies that WithUserId creates a new context with the updated value.
+    /// Verifies that giving a context an identity creates a new context whose <c>UserId</c> projects
+    /// that identity, and leaves the original context unchanged.
     /// </summary>
     /// <param name="context">The context to test.</param>
-    /// <param name="userId">The new user ID.</param>
-    /// <returns>A property that passes if user ID is updated in new context.</returns>
-    public static Property WithUserIdCreatesNewContext(IRequestContext context, NonEmptyString userId)
+    /// <param name="identity">The new identity (see <see cref="EncinaArbitraries.RequestIdentity"/>).</param>
+    /// <returns>A property that passes if the new context carries the identity and the original is unchanged.</returns>
+    public static Property WithIdentityCreatesNewContext(IRequestContext context, RequestIdentity identity)
     {
-        var originalUserId = context.UserId;
-        var newContext = context.WithUserId(userId.Get);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(identity);
 
-        return (context.UserId == originalUserId &&
-                 newContext.UserId == userId.Get)
+        var originalIdentity = context.Identity;
+        var newContext = global::Encina.RequestContext.CopyOf(context).WithIdentity(identity);
+
+        return (ReferenceEquals(context.Identity, originalIdentity) &&
+                 ReferenceEquals(newContext.Identity, identity) &&
+                 newContext.UserId == identity.UserId &&
+                 newContext.CorrelationId == context.CorrelationId)
             .ToProperty()
-            .Label("WithUserId should create new context with updated UserId");
+            .Label("Giving a context an identity should create a new context whose UserId projects that identity");
     }
 
     #endregion

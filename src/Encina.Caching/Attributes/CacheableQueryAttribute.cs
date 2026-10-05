@@ -118,6 +118,10 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
     public Func<TRequest, IRequestContext, string>? KeyGenerator { get; init; }
 
     /// <inheritdoc/>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="VaryByUser"/> is set and the request identity is not an authenticated user; such a
+    /// request must bypass the cache instead of sharing one key across callers.
+    /// </exception>
     public string GenerateKey(TRequest request, IRequestContext context)
     {
         if (KeyGenerator is not null)
@@ -126,21 +130,30 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
         }
 
         // Default key generation
-        var typeName = typeof(TRequest).Name;
         var hash = request?.GetHashCode() ?? 0;
 
+        var parts = ScopeParts(context);
+        parts.Add(typeof(TRequest).Name);
+        parts.Add(hash.ToString("x8", System.Globalization.CultureInfo.InvariantCulture));
+
+        return string.Join(":", parts);
+    }
+
+    // The tenant and user segments of the default key.
+    private List<string> ScopeParts(IRequestContext context)
+    {
         var parts = new List<string>();
         if (VaryByTenant && !string.IsNullOrEmpty(context.TenantId))
         {
             parts.Add($"t:{context.TenantId}");
         }
-        if (VaryByUser && !string.IsNullOrEmpty(context.UserId))
-        {
-            parts.Add($"u:{context.UserId}");
-        }
-        parts.Add(typeName);
-        parts.Add(hash.ToString("x8", System.Globalization.CultureInfo.InvariantCulture));
 
-        return string.Join(":", parts);
+        // A non-user identity has no VaryByUser key: the caller bypasses the cache.
+        if (VaryByUser)
+        {
+            parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
+        }
+
+        return parts;
     }
 }

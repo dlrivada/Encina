@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Encina.Testing.Fakes;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using static LanguageExt.Prelude;
@@ -23,7 +24,7 @@ public abstract class EncinaExplicitContextContract
     protected abstract IEncina CreateSut();
 
     private static IRequestContext JobContext()
-        => RequestContext.CreateForTest(userId: "job-user", tenantId: "job-tenant", correlationId: "job-correlation");
+        => TestRequestContext.For(TestIdentity.User("job-user"), tenantId: "job-tenant", correlationId: "job-correlation");
 
     [Fact]
     public async Task Send_WithExplicitContext_ReturnsTheSameOutcomeAsTheAmbientOverload()
@@ -95,7 +96,8 @@ public abstract class EncinaExplicitContextContract
     {
         var sut = CreateSut();
         var accessor = new RequestContextAccessor();
-        var callerContext = RequestContext.CreateForTest(userId: "caller");
+        // An anonymous caller: over an ambient user a different explicit identity is refused (#1705).
+        var callerContext = RequestContext.CreateForTest(correlationId: "caller");
         accessor.RequestContext = callerContext;
 
         await sut.Send(new ContractPing("a"), JobContext());
@@ -189,7 +191,7 @@ public sealed class EncinaMediatorExplicitContextContractTests : EncinaExplicitC
     public async Task Send_WithExplicitContext_ThePipelineReceivesThatContext()
     {
         var sut = CreateSut();
-        var context = RequestContext.CreateForTest(userId: "explicit-user", tenantId: "explicit-tenant");
+        var context = TestRequestContext.For(TestIdentity.User("explicit-user"), tenantId: "explicit-tenant");
 
         await sut.Send(new ContractPing("x"), context);
 
@@ -212,7 +214,7 @@ public sealed class FakeEncinaExplicitContextContractTests : EncinaExplicitConte
     public async Task ExplicitOverloads_AreRecordedLikeTheAmbientOnes()
     {
         var fake = (FakeEncina)CreateSut();
-        var context = RequestContext.CreateForTest(userId: "u");
+        var context = TestRequestContext.For(TestIdentity.User("u"));
 
         await fake.Send(new ContractPing("a"), context);
         await fake.Publish(new ContractNotification(), context);

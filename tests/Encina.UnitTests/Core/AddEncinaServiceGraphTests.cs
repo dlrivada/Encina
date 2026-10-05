@@ -27,6 +27,10 @@ public sealed class AddEncinaServiceGraphTests
         typeof(IFunctionalFailureDetector),
         typeof(IModuleHandlerRegistry),
         typeof(IOptions<NotificationDispatchOptions>),
+        typeof(TimeProvider),
+        typeof(IRequestIdentityFactory),
+        typeof(IOptions<RequestIdentityOptions>),
+        typeof(IStartupValidator),
     ];
 
     // Open generics the closing helpers genuinely cannot close. Empty on purpose: add a type here

@@ -1,8 +1,10 @@
 using System.Data.Common;
 using Encina.Caching;
 using Encina.EntityFrameworkCore.Caching;
+using Encina.Testing.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using NSubstitute;
 
 namespace Encina.UnitTests.EntityFrameworkCore.Caching;
 
@@ -429,7 +431,7 @@ public class DefaultQueryCacheKeyGeneratorTests
     {
         var requestContext = Substitute.For<IRequestContext>();
         requestContext.TenantId.Returns(tenantId ?? string.Empty);
-        requestContext.UserId.Returns(userId ?? string.Empty);
+        requestContext.Identity.Returns(userId is null ? TestIdentity.Anonymous : TestIdentity.User(userId));
         requestContext.CorrelationId.Returns("test-correlation");
         return requestContext;
     }

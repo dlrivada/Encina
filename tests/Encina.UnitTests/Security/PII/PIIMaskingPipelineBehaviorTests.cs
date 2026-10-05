@@ -4,6 +4,7 @@ using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Internal;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,7 @@ public sealed class PIIMaskingPipelineBehaviorTests : IDisposable
 
     public PIIMaskingPipelineBehaviorTests()
     {
-        _context = RequestContext.CreateForTest(userId: "user-1");
+        _context = TestRequestContext.For(TestIdentity.User("user-1"));
         PIIPropertyScanner.ClearCache();
     }
 

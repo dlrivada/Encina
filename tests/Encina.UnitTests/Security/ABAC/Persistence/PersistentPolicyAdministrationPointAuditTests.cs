@@ -4,6 +4,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,7 +33,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
 
-        _requestContext.UserId.Returns("test-user");
+        _requestContext.Identity.Returns(TestIdentity.User("test-user"));
         _requestContext.CorrelationId.Returns("corr-123");
         _requestContext.TenantId.Returns("tenant-abc");
         _requestContextAccessor.RequestContext.Returns(_requestContext);

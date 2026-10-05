@@ -55,7 +55,7 @@ public sealed class AuditingOptions
     /// <remarks>
     /// When <see langword="true"/>, entities implementing <see cref="Encina.DomainModeling.ICreatedBy"/>
     /// will have their <c>CreatedBy</c> property automatically set to the current user ID
-    /// from <see cref="IRequestContext.UserId"/> when the entity is first added to the database.
+    /// from <see cref="RequestIdentity.UserId"/> when the entity is first added to the database.
     /// </remarks>
     /// <value>Default: <see langword="true"/></value>
     public bool TrackCreatedBy { get; set; } = true;
@@ -77,7 +77,7 @@ public sealed class AuditingOptions
     /// <remarks>
     /// When <see langword="true"/>, entities implementing <see cref="Encina.DomainModeling.IModifiedBy"/>
     /// will have their <c>ModifiedBy</c> property automatically set to the current user ID
-    /// from <see cref="IRequestContext.UserId"/> when the entity is modified in the database.
+    /// from <see cref="RequestIdentity.UserId"/> when the entity is modified in the database.
     /// </remarks>
     /// <value>Default: <see langword="true"/></value>
     public bool TrackModifiedBy { get; set; } = true;

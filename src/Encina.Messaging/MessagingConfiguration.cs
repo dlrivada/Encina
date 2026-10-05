@@ -361,7 +361,7 @@ public sealed class MessagingConfiguration
     /// <list type="bullet">
     /// <item><description>Automatic <c>CreatedAtUtc</c> and <c>CreatedBy</c> on entity creation</description></item>
     /// <item><description>Automatic <c>ModifiedAtUtc</c> and <c>ModifiedBy</c> on entity modification</description></item>
-    /// <item><description>User ID resolution from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>User ID resolution from <see cref="RequestIdentity.UserId"/></description></item>
     /// <item><description>Granular control via <see cref="AuditingOptions"/></description></item>
     /// </list>
     /// </para>
@@ -421,7 +421,7 @@ public sealed class MessagingConfiguration
     /// <list type="bullet">
     /// <item><description>Automatic conversion of delete to soft delete on <c>SaveChanges</c></description></item>
     /// <item><description>Automatic <c>DeletedAtUtc</c> timestamp population</description></item>
-    /// <item><description>Automatic <c>DeletedBy</c> user tracking from <see cref="IRequestContext.UserId"/></description></item>
+    /// <item><description>Automatic <c>DeletedBy</c> user tracking from <see cref="RequestIdentity.UserId"/></description></item>
     /// <item><description>Global query filters to exclude soft-deleted entities from queries</description></item>
     /// </list>
     /// </para>

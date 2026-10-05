@@ -3,7 +3,9 @@ using Encina.Tenancy;
 using Encina.Tenancy.AspNetCore;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 
@@ -156,6 +158,59 @@ public sealed class TenantResolutionMiddlewareTests
         // Assert
         _nextCalled.ShouldBeTrue();
         requestContext.Received(1).WithTenantId("tenant-abc");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_TenantResolved_WithoutAContext_StampsTheNewContextFromTheRequestTimeProvider()
+    {
+        // Arrange
+        var now = new DateTimeOffset(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
+        var (middleware, accessor, captured) = ArrangeTenantResolvedWithoutContext();
+        var context = CreateHttpContext();
+        context.RequestServices = new ServiceCollection()
+            .AddSingleton<TimeProvider>(new FakeTimeProvider(now))
+            .BuildServiceProvider();
+
+        // Act
+        await middleware.InvokeAsync(context, accessor);
+
+        // Assert
+        captured().ShouldNotBeNull();
+        captured()!.Timestamp.ShouldBe(now);
+        captured()!.TenantId.ShouldBe("tenant-abc");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_TenantResolved_WithoutAContextOrRequestServices_FallsBackToTheSystemClock()
+    {
+        // Arrange
+        var (middleware, accessor, captured) = ArrangeTenantResolvedWithoutContext();
+        var context = CreateHttpContext();
+        context.RequestServices = null!;
+        var before = TimeProvider.System.GetUtcNow();
+
+        // Act
+        await middleware.InvokeAsync(context, accessor);
+
+        // Assert
+        captured().ShouldNotBeNull();
+        captured()!.Timestamp.ShouldBeInRange(before, TimeProvider.System.GetUtcNow());
+    }
+
+    private (TenantResolutionMiddleware Middleware, IRequestContextAccessor Accessor, Func<IRequestContext?> Captured) ArrangeTenantResolvedWithoutContext()
+    {
+        var resolver = Substitute.For<ITenantResolver>();
+        resolver.Priority.Returns(100);
+        resolver.ResolveAsync(Arg.Any<HttpContext>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<string?>("tenant-abc"));
+        _tenantStore.AddTenant("tenant-abc");
+
+        IRequestContext? set = null;
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns((IRequestContext?)null);
+        accessor.When(a => a.RequestContext = Arg.Any<IRequestContext?>()).Do(ci => set = ci.Arg<IRequestContext?>());
+
+        return (CreateMiddleware(resolvers: [resolver]), accessor, () => set);
     }
 
     #endregion

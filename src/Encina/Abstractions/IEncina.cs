@@ -52,7 +52,9 @@ public interface IEncina
     /// <param name="request">Request to process.</param>
     /// <param name="context">
     /// Context the pipeline runs with. It takes precedence over the ambient context and becomes
-    /// the ambient context for the duration of the call, so nested requests see it too.
+    /// the ambient context for the duration of the call, so nested requests see it too. A context
+    /// whose authenticated identity differs from an ambient user identity is refused with
+    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the operation.</param>
     /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
@@ -83,7 +85,9 @@ public interface IEncina
     /// <param name="notification">Instance to propagate.</param>
     /// <param name="context">
     /// Context the handlers run with. It takes precedence over the ambient context and is the
-    /// ambient context for the duration of the dispatch.
+    /// ambient context for the duration of the dispatch. A context whose authenticated identity
+    /// differs from an ambient user identity is refused with
+    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
     /// <exception cref="ArgumentNullException"><paramref name="context"/> is <c>null</c>.</exception>
@@ -132,7 +136,9 @@ public interface IEncina
     /// <param name="request">Stream request to process.</param>
     /// <param name="context">
     /// Context the stream pipeline runs with. It takes precedence over the ambient context and is
-    /// the ambient context while the stream is enumerated.
+    /// the ambient context while the stream is enumerated. A context whose authenticated identity
+    /// differs from an ambient user identity is refused with
+    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
     /// <returns>

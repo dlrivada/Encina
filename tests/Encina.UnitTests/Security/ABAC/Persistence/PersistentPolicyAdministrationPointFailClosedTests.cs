@@ -4,6 +4,7 @@ using Encina.Security.ABAC;
 using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,7 +46,7 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     private static IRequestContextAccessor CreateAccessor(string? userId)
     {
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns(userId);
+        context.Identity.Returns(userId == null ? TestIdentity.Anonymous : TestIdentity.User(userId));
         context.CorrelationId.Returns("corr-1");
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(context);

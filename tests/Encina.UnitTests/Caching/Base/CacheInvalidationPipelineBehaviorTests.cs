@@ -1,5 +1,6 @@
 using Encina.Caching;
 using Encina.Testing.Bogus;
+using Encina.Testing.Identity;
 using Encina.Testing.Shouldly;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -386,7 +387,7 @@ public class CacheInvalidationPipelineBehaviorTests : IDisposable
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns(_faker.Random.TenantId());
-        context.UserId.Returns(_faker.Random.UserId());
+        context.Identity.Returns(TestIdentity.User(_faker.Random.UserId()));
         context.CorrelationId.Returns(_faker.Random.CorrelationId().ToString());
         return context;
     }

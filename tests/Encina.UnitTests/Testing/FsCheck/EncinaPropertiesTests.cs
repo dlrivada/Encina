@@ -3,6 +3,7 @@ using Encina.Messaging.Outbox;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Testing.FsCheck;
+using Encina.Testing.Identity;
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
@@ -86,14 +87,14 @@ public class EncinaPropertiesTests : PropertyTestBase
         return EncinaProperties.WithMetadataIsImmutable(context, key, 42);
     }
 
-    [Property]
-    public Property WithUserIdCreatesNewContext_WorksCorrectly(NonEmptyString userId)
+    [Property(Arbitrary = new[] { typeof(EncinaArbitraryProvider) })]
+    public Property WithIdentityCreatesNewContext_WorksCorrectly(RequestIdentity identity)
     {
         // Arrange
         var context = RequestContext.CreateForTest();
 
         // Act & Assert
-        return EncinaProperties.WithUserIdCreatesNewContext(context, userId);
+        return EncinaProperties.WithIdentityCreatesNewContext(context, identity);
     }
 
     #endregion

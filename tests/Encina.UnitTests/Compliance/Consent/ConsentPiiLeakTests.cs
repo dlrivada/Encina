@@ -9,6 +9,7 @@ using Encina.Compliance.Consent.ReadModels;
 using Encina.Compliance.Consent.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
+using Encina.Testing.Identity;
 
 using LanguageExt;
 
@@ -48,7 +49,7 @@ public sealed class ConsentPiiLeakTests
         var behavior = CreateBehavior(validator, ConsentEnforcementMode.Block, out var logger);
         using var capture = new DiagnosticsCapture();
 
-        var context = RequestContext.CreateForTest(userId: SubjectId);
+        var context = TestRequestContext.For(TestIdentity.User(SubjectId));
         var result = await behavior.Handle(
             new PiiRequest(SubjectId), context,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
@@ -68,7 +69,7 @@ public sealed class ConsentPiiLeakTests
         var behavior = CreateBehavior(validator, ConsentEnforcementMode.Block, out var logger);
         using var capture = new DiagnosticsCapture();
 
-        var context = RequestContext.CreateForTest(userId: SubjectId);
+        var context = TestRequestContext.For(TestIdentity.User(SubjectId));
         var result = await behavior.Handle(
             new PiiRequest(SubjectId), context,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
@@ -88,7 +89,7 @@ public sealed class ConsentPiiLeakTests
         var behavior = CreateBehavior(validator, ConsentEnforcementMode.Warn, out var logger);
         using var capture = new DiagnosticsCapture();
 
-        var context = RequestContext.CreateForTest(userId: SubjectId);
+        var context = TestRequestContext.For(TestIdentity.User(SubjectId));
         var result = await behavior.Handle(
             new PiiRequest(SubjectId), context,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);
@@ -107,7 +108,7 @@ public sealed class ConsentPiiLeakTests
         // No SubjectIdProperty is configured on PiiRequest and the context has no UserId, so the
         // subject cannot be resolved — the check must fail closed without ever having logged the
         // (unresolved) subject id.
-        var context = RequestContext.CreateForTest(userId: null);
+        var context = RequestContext.CreateForTest();
         var result = await behavior.Handle(
             new PiiRequest(SubjectId), context,
             () => ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default), CancellationToken.None);

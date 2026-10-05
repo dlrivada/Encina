@@ -1,5 +1,6 @@
 using Encina;
 using Encina.EntityFrameworkCore.SoftDelete;
+using Encina.Testing.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -154,7 +155,7 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
     {
         // Arrange
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
 
         var options = CreateDbContextOptions(requestContext: requestContext);
         await using var context = new SoftDeleteTestDbContext(options);
@@ -202,7 +203,7 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        new RequestContextAccessor().RequestContext = RequestContext.CreateForTest(userId: "ambient-user");
+        new RequestContextAccessor().RequestContext = TestRequestContext.For(TestIdentity.User("ambient-user"));
 
         // Act
         context.Orders.Remove(order);
@@ -222,7 +223,7 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
     {
         // Arrange
         var options = CreateDbContextOptions(
-            requestContext: RequestContext.CreateForTest(userId: "registered-user"),
+            requestContext: TestRequestContext.For(TestIdentity.User("registered-user")),
             registerAccessor: true);
         await using var context = new SoftDeleteTestDbContext(options);
         await context.Database.EnsureCreatedAsync();
@@ -237,7 +238,7 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        new RequestContextAccessor().RequestContext = RequestContext.CreateForTest(userId: "ambient-user");
+        new RequestContextAccessor().RequestContext = TestRequestContext.For(TestIdentity.User("ambient-user"));
 
         // Act
         context.Orders.Remove(order);
@@ -319,7 +320,7 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
     {
         // Arrange
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
 
         var options = CreateDbContextOptions(trackDeletedBy: false, requestContext: requestContext);
         await using var context = new SoftDeleteTestDbContext(options);

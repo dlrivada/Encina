@@ -17,7 +17,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// (configuration error).</item>
 /// <item>Look for a property named <c>SubjectId</c> on the request type.</item>
 /// <item>Look for a property named <c>UserId</c> on the request type.</item>
-/// <item>Fall back to <see cref="IRequestContext.UserId"/>.</item>
+/// <item>Fall back to <see cref="RequestIdentity.UserId"/>.</item>
 /// </list>
 /// </para>
 /// <para>
@@ -27,7 +27,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// exposing a public <c>Value</c> property of one of those primitive types, which is unwrapped.
 /// </para>
 /// <para>
-/// The fallback to <see cref="IRequestContext.UserId"/> only happens when <em>no</em> matching
+/// The fallback to <see cref="RequestIdentity.UserId"/> only happens when <em>no</em> matching
 /// property exists at all. A matching property whose value is <c>null</c>, <see cref="Guid.Empty"/>
 /// or an empty string is a missing subject (returns <c>null</c>); numeric <c>0</c> is a valid id.
 /// A matching property of an unsupported type (for example <see cref="double"/>, an enum, or a

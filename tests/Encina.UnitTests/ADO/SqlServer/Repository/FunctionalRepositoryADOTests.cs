@@ -2,6 +2,7 @@ using System.Data;
 using System.Linq.Expressions;
 using Encina.ADO.SqlServer.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Identity;
 using Encina.Testing.Shouldly;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Time.Testing;
@@ -97,7 +98,7 @@ public class FunctionalRepositoryADOTests : IDisposable
         // Arrange
         var connection = Substitute.For<IDbConnection>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
 
         // Act
         var repository = new FunctionalRepositoryADO<TestEntityADO, Guid>(
@@ -128,7 +129,7 @@ public class FunctionalRepositoryADOTests : IDisposable
         // Arrange
         var connection = Substitute.For<IDbConnection>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
         var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
 
         // Act

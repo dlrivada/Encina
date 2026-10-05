@@ -1,4 +1,5 @@
 using Encina.Compliance.Consent;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -89,7 +90,7 @@ public class ConsentRequiredPipelineBehaviorTests
         // Arrange
         var behavior = CreateConsentBehavior();
         var request = new SampleConsentRequest("user-42");
-        var context = RequestContext.CreateForTest(userId: "context-user-1");
+        var context = TestRequestContext.For(TestIdentity.User("context-user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -111,7 +112,7 @@ public class ConsentRequiredPipelineBehaviorTests
         // Arrange
         var behavior = CreateCustomSubjectBehavior();
         var request = new SampleCustomSubjectRequest("customer-99");
-        var context = RequestContext.CreateForTest(userId: "context-user-1");
+        var context = TestRequestContext.For(TestIdentity.User("context-user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -138,7 +139,7 @@ public class ConsentRequiredPipelineBehaviorTests
             Options.Create(options),
             Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleMisconfiguredSubjectRequest, Unit>>>());
         var request = new SampleMisconfiguredSubjectRequest("customer-1");
-        var context = RequestContext.CreateForTest(userId: "context-user-1");
+        var context = TestRequestContext.For(TestIdentity.User("context-user-1"));
 
         // Act
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await behavior.Handle(
@@ -158,7 +159,7 @@ public class ConsentRequiredPipelineBehaviorTests
         // Arrange
         var behavior = CreateConsentBehavior();
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: null);
+        var context = RequestContext.CreateForTest();
 
         // Act
         var result = await behavior.Handle(
@@ -176,7 +177,7 @@ public class ConsentRequiredPipelineBehaviorTests
         var behavior = CreateGuidSubjectBehavior();
         var patientId = Guid.NewGuid();
         var request = new SampleGuidSubjectRequest(patientId);
-        var context = RequestContext.CreateForTest(userId: "professional-42");
+        var context = TestRequestContext.For(TestIdentity.User("professional-42"));
 
         // Act
         var result = await behavior.Handle(
@@ -201,7 +202,7 @@ public class ConsentRequiredPipelineBehaviorTests
             _validator, Options.Create(options),
             Substitute.For<ILogger<ConsentRequiredPipelineBehavior<SampleStronglyTypedSubjectRequest, Unit>>>());
         var patientId = Guid.NewGuid();
-        var context = RequestContext.CreateForTest(userId: "professional-42");
+        var context = TestRequestContext.For(TestIdentity.User("professional-42"));
 
         // Act
         var result = await behavior.Handle(
@@ -223,7 +224,7 @@ public class ConsentRequiredPipelineBehaviorTests
     {
         // Arrange: Guid.Empty is a missing subject; the behavior must not fall back to the caller.
         var behavior = CreateGuidSubjectBehavior();
-        var context = RequestContext.CreateForTest(userId: "professional-42");
+        var context = TestRequestContext.For(TestIdentity.User("professional-42"));
 
         // Act
         var result = await behavior.Handle(
@@ -248,7 +249,7 @@ public class ConsentRequiredPipelineBehaviorTests
         // Arrange
         var behavior = CreateConsentBehavior(o => o.EnforcementMode = ConsentEnforcementMode.Block);
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -276,7 +277,7 @@ public class ConsentRequiredPipelineBehaviorTests
 
         var behavior = CreateConsentBehavior(o => o.EnforcementMode = ConsentEnforcementMode.Block);
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -302,7 +303,7 @@ public class ConsentRequiredPipelineBehaviorTests
 #pragma warning restore CA2012
 
         var behavior = CreateCustomErrorBehavior();
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -330,7 +331,7 @@ public class ConsentRequiredPipelineBehaviorTests
 
         var behavior = CreateConsentBehavior(o => o.EnforcementMode = ConsentEnforcementMode.Warn);
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -356,7 +357,7 @@ public class ConsentRequiredPipelineBehaviorTests
 
         var behavior = CreateConsentBehavior();
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(
@@ -384,7 +385,7 @@ public class ConsentRequiredPipelineBehaviorTests
 
         var behavior = CreateConsentBehavior();
         var request = new SampleConsentRequest("user-1");
-        var context = RequestContext.CreateForTest(userId: "user-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"));
 
         // Act
         var result = await behavior.Handle(

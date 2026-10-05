@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Testing.Identity;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Caching.Base;
@@ -256,7 +257,7 @@ public class DefaultCacheKeyGeneratorTests
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns(tenantId ?? string.Empty);
-        context.UserId.Returns(userId ?? string.Empty);
+        context.Identity.Returns(string.IsNullOrEmpty(userId) ? TestIdentity.Anonymous : TestIdentity.User(userId));
         context.CorrelationId.Returns(correlationId);
         return context;
     }

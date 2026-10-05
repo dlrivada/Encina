@@ -15,6 +15,9 @@ internal static class ActivityTagNames
     internal const string RequestName = "Encina.request_name";
     internal const string ResponseType = "Encina.response_type";
 
+    // Identity tags: the kind only (anonymous, user, service), never the user id
+    internal const string IdentityKind = "encina.identity.kind";
+
     // Handler tags
     internal const string Handler = "Encina.handler";
     internal const string HandlerCount = "Encina.handler_count";

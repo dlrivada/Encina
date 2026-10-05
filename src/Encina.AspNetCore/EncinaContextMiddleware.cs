@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Encina.AspNetCore;
@@ -18,7 +19,7 @@ namespace Encina.AspNetCore;
 /// Extracted information:
 /// <list type="bullet">
 /// <item><description><b>CorrelationId</b>: From X-Correlation-ID header or generates new from Activity.Current</description></item>
-/// <item><description><b>UserId</b>: From ClaimsPrincipal (configurable claim type)</description></item>
+/// <item><description><b>Identity</b>: anonymous; the request identity is built by the identity scope factory (#1705)</description></item>
 /// <item><description><b>TenantId</b>: From claims or X-Tenant-ID header</description></item>
 /// <item><description><b>IdempotencyKey</b>: From X-Idempotency-Key header</description></item>
 /// <item><description><b>IpAddress</b>: From X-Forwarded-For header or Connection.RemoteIpAddress (for audit)</description></item>
@@ -64,9 +65,6 @@ public sealed class EncinaContextMiddleware
         // Extract correlation ID from header or Activity
         var correlationId = ExtractCorrelationId(context);
 
-        // Extract user ID from claims
-        var userId = ExtractUserId(context);
-
         // Extract tenant ID from claims or header
         var tenantId = ExtractTenantId(context);
 
@@ -80,12 +78,15 @@ public sealed class EncinaContextMiddleware
         // Extract data region hint (optional, for data residency module)
         var dataRegion = ExtractDataRegion(context);
 
-        // Create enriched request context
-        var requestContext = RequestContext.CreateForTest(
-            userId: userId,
-            tenantId: tenantId,
-            idempotencyKey: idempotencyKey,
-            correlationId: correlationId)
+        // Create enriched request context. The caller identity is anonymous here: the request
+        // identity model (#1705) builds it through the identity scope factory, which replaces this
+        // construction.
+        var timeProvider = context.RequestServices?.GetService<TimeProvider>() ?? TimeProvider.System;
+        var requestContext = RequestContext.CreateAnonymousAt(
+            timeProvider.GetUtcNow(),
+            correlationId,
+            tenantId,
+            idempotencyKey)
             .WithIpAddress(ipAddress)
             .WithUserAgent(userAgent);
 
@@ -124,39 +125,6 @@ public sealed class EncinaContextMiddleware
 
         // 3. Generate new
         return Activity.Current?.RootId ?? Guid.NewGuid().ToString();
-    }
-
-    private string? ExtractUserId(HttpContext context)
-    {
-        var user = context.User;
-        if (user?.Identity?.IsAuthenticated is not true)
-        {
-            return null;
-        }
-
-        // Try configured claim type first
-        var userIdClaim = user.FindFirst(_options.UserIdClaimType);
-        if (userIdClaim != null)
-        {
-            return userIdClaim.Value;
-        }
-
-        // Fallback: try common claim types
-        // "sub" is the standard OIDC subject claim
-        userIdClaim = user.FindFirst("sub");
-        if (userIdClaim != null)
-        {
-            return userIdClaim.Value;
-        }
-
-        // Azure AD object identifier
-        userIdClaim = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
-        if (userIdClaim != null)
-        {
-            return userIdClaim.Value;
-        }
-
-        return null;
     }
 
     private string? ExtractTenantId(HttpContext context)

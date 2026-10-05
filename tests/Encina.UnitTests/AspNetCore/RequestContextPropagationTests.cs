@@ -6,6 +6,7 @@ using Encina.Messaging.Serialization;
 using Encina.Testing;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
+using Encina.Testing.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -126,9 +127,11 @@ public sealed class RequestContextPropagationTests
         // Assert
         response.EnsureSuccessStatusCode();
         capture.BehaviorInvoked.ShouldBeTrue();
-        capture.AccessorUserId.ShouldBe("user-123");
+        // #1705 interim (phases 1-2): the middleware context is anonymous; phase 3 builds the user
+        // identity through the identity scope factory and restores "user-123" here.
+        capture.AccessorUserId.ShouldBeNull();
         capture.AccessorTenantId.ShouldBe("tenant-abc");
-        capture.BehaviorContextUserId.ShouldBe("user-123");
+        capture.BehaviorContextUserId.ShouldBeNull();
         capture.BehaviorContextTenantId.ShouldBe("tenant-abc");
     }
 
@@ -159,7 +162,7 @@ public sealed class RequestContextPropagationTests
 
         // Assert
         response.EnsureSuccessStatusCode();
-        capture.BehaviorContextUserId.ShouldBe("user-123");
+        capture.BehaviorContextUserId.ShouldBeNull(); // #1705 interim: anonymous until phase 3
         capture.BehaviorContextTenantId.ShouldBe("tenant-abc");
         capture.BehaviorContextIdempotencyKey.ShouldBe("idem-42");
         capture.BehaviorContextCorrelationId.ShouldBe("corr-7");
@@ -226,8 +229,9 @@ public sealed class RequestContextPropagationTests
 
         const string intendedUserId = "background-job-owner";
         const string intendedTenantId = "tenant-for-the-job";
-        var jobContext = RequestContext.Create("job-correlation")
-            .WithUserId(intendedUserId)
+        var jobContext = TestRequestContext.WithIdentity(
+            RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "job-correlation"),
+            TestIdentity.User(intendedUserId))
             .WithTenantId(intendedTenantId);
 
         await using var provider = services.BuildServiceProvider();

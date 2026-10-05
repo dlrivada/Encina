@@ -1,3 +1,4 @@
+using Encina.Testing.Identity;
 using FsCheck;
 using FsCheck.Xunit;
 
@@ -169,22 +170,22 @@ public sealed class CacheKeyGeneratorPropertyTests
 
     private sealed class TestRequestContext : IRequestContext
     {
-        public TestRequestContext(string tenantId, string userId)
+        public TestRequestContext(string tenantId, string? userId)
         {
             TenantId = tenantId;
-            UserId = userId;
+            Identity = userId is null ? RequestIdentity.Anonymous : TestIdentity.User(userId);
         }
 
         public string? TenantId { get; }
-        public string? UserId { get; }
+        public RequestIdentity Identity { get; }
         public string CorrelationId => "test-correlation";
         public string? IdempotencyKey => null;
         public DateTimeOffset Timestamp => DateTimeOffset.UtcNow;
+        public string? CausationId => null;
         public IReadOnlyDictionary<string, object?> Metadata => new Dictionary<string, object?>();
 
         public IRequestContext WithMetadata(string key, object? value) => this;
-        public IRequestContext WithUserId(string? userId) => new TestRequestContext(TenantId!, userId!);
         public IRequestContext WithIdempotencyKey(string? idempotencyKey) => this;
-        public IRequestContext WithTenantId(string? tenantId) => new TestRequestContext(tenantId!, UserId!);
+        public IRequestContext WithTenantId(string? tenantId) => new TestRequestContext(tenantId!, Identity.UserId);
     }
 }

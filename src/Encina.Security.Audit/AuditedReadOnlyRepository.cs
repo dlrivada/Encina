@@ -210,7 +210,8 @@ public sealed class AuditedReadOnlyRepository<TEntity, TId> : IReadOnlyRepositor
 
     private bool ShouldAudit()
     {
-        if (_options.ExcludeSystemAccess && _requestContext.UserId is null)
+        // Only a declared service identity is system access; an anonymous or unknown caller is audited.
+        if (_options.ExcludeSystemAccess && _requestContext.Identity?.Kind == IdentityKind.Service)
         {
             return false;
         }

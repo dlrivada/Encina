@@ -5,6 +5,7 @@ using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Internal;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -125,7 +126,7 @@ public sealed class PIIMaskingFailureRedactionTests : IDisposable
 
         var result = await sut.Handle(
             new TestRequest(),
-            RequestContext.CreateForTest(userId: "user-1"),
+            TestRequestContext.For(TestIdentity.User("user-1")),
             () => ValueTask.FromResult<Either<EncinaError, EmailDto>>(response),
             CancellationToken.None);
 
