@@ -68,19 +68,58 @@ public sealed class EncinaContextMiddlewareTests
 
     #endregion
 
-    #region UserId
+    #region Timestamp
 
     [Fact]
-    public async Task InvokeAsync_AuthenticatedUser_ShouldExtractUserId()
+    public async Task InvokeAsync_StampsTheContextFromTheRequestTimeProvider()
     {
+        var now = new DateTimeOffset(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
         var middleware = CreateMiddleware();
-        var context = new DefaultHttpContext();
-        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, "user-42") };
-        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<TimeProvider>(new Microsoft.Extensions.Time.Testing.FakeTimeProvider(now))
+                .BuildServiceProvider()
+        };
 
         await middleware.InvokeAsync(context, _accessor);
 
-        _capturedContext!.UserId.ShouldBe("user-42");
+        _capturedContext.ShouldNotBeNull();
+        _capturedContext!.Timestamp.ShouldBe(now);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithoutRequestServices_FallsBackToTheSystemClock()
+    {
+        var middleware = CreateMiddleware();
+        var context = new DefaultHttpContext { RequestServices = null! };
+        var before = TimeProvider.System.GetUtcNow();
+
+        await middleware.InvokeAsync(context, _accessor);
+
+        _capturedContext.ShouldNotBeNull();
+        _capturedContext!.Timestamp.ShouldBeInRange(before, TimeProvider.System.GetUtcNow());
+    }
+
+    #endregion
+
+    #region UserId
+
+    // Interim (#1705 phase 1): the middleware no longer maps claims itself; the identity is built
+    // by the identity scope factory in phase 3, and the claim mapping is covered by
+    // ClaimsRequestIdentityFactoryTests. Until then an authenticated request is anonymous here.
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedUser_IsAnonymousUntilTheScopeFactoryBuildsTheIdentity()
+    {
+        var middleware = CreateMiddleware();
+        var context = new DefaultHttpContext();
+        var claims = new[] { new Claim("sub", "oidc-user-1") };
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "oidc"));
+
+        await middleware.InvokeAsync(context, _accessor);
+
+        _capturedContext!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        _capturedContext.UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -92,19 +131,6 @@ public sealed class EncinaContextMiddlewareTests
         await middleware.InvokeAsync(context, _accessor);
 
         _capturedContext!.UserId.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_SubClaim_ShouldExtractUserId()
-    {
-        var middleware = CreateMiddleware();
-        var context = new DefaultHttpContext();
-        var claims = new[] { new Claim("sub", "oidc-user-1") };
-        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "oidc"));
-
-        await middleware.InvokeAsync(context, _accessor);
-
-        _capturedContext!.UserId.ShouldBe("oidc-user-1");
     }
 
     #endregion

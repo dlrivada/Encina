@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
 using Encina.Security.Encryption.Health;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -68,7 +69,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
 
         using var scope = provider.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IEncryptionOrchestrator>();
-        var context = RequestContext.CreateForTest(userId: "user-1", tenantId: "tenant-1");
+        var context = TestRequestContext.For(TestIdentity.User("user-1"), tenantId: "tenant-1");
 
         var command = new TestUserCommand { Email = "user@example.com", Phone = "+1234567890", Name = "John" };
 
@@ -369,7 +370,7 @@ public sealed class EncryptionPipelineIntegrationTests : IDisposable
             {
                 using var scope = provider.CreateScope();
                 var orchestrator = scope.ServiceProvider.GetRequiredService<IEncryptionOrchestrator>();
-                var context = RequestContext.CreateForTest(userId: $"user-{index}");
+                var context = TestRequestContext.For(TestIdentity.User($"user-{index}"));
 
                 var email = $"user{index}@test.com";
                 var phone = $"+100000{index:D4}";

@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Encina.Dapper.SqlServer;
 using Encina.Dapper.SqlServer.Repository;
 using Encina.DomainModeling;
+using Encina.Testing.Identity;
 using Encina.Testing.Shouldly;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -75,7 +76,7 @@ public class FunctionalRepositoryDapperTests
         // Arrange
         var connection = Substitute.For<IDbConnection>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
 
         // Act
         var repository = new FunctionalRepositoryDapper<TestEntityDapper, Guid>(
@@ -106,7 +107,7 @@ public class FunctionalRepositoryDapperTests
         // Arrange
         var connection = Substitute.For<IDbConnection>();
         var requestContext = Substitute.For<IRequestContext>();
-        requestContext.UserId.Returns("user-123");
+        requestContext.Identity.Returns(TestIdentity.User("user-123"));
         var fakeTime = new FakeTimeProvider(new DateTimeOffset(2024, 1, 15, 10, 30, 0, TimeSpan.Zero));
 
         // Act

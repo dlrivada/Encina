@@ -22,9 +22,9 @@ namespace Encina;
 ///         CancellationToken cancellationToken)
 ///     {
 ///         logger.LogInformation(
-///             "Handling {Request} for user {UserId} (correlation: {CorrelationId})",
+///             "Handling {Request} as {IdentityKind} (correlation: {CorrelationId})",
 ///             typeof(TRequest).Name,
-///             context.UserId,
+///             context.Identity.Kind,
 ///             context.CorrelationId);
 ///         var response = await nextStep().ConfigureAwait(false);
 ///         logger.LogInformation("Handled {Request}", typeof(TRequest).Name);

@@ -25,7 +25,7 @@ namespace Encina.EntityFrameworkCore.SoftDelete;
 /// <see cref="ISoftDeletable"/> (getter-only) should handle soft delete via domain methods.
 /// </para>
 /// <para>
-/// <b>User Resolution</b>: The current user is resolved from <see cref="IRequestContext.UserId"/>
+/// <b>User Resolution</b>: The current user is resolved from <see cref="RequestIdentity.UserId"/>
 /// via the service provider. If no user context is available, the <c>DeletedBy</c> property
 /// is left as <c>null</c>.
 /// </para>

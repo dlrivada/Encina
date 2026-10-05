@@ -24,8 +24,9 @@
 // Ownership (#1542): the generator owns only the package-level keys package, generated,
 // totalFiles and files, and inside each file entry only defaultTests, defaultRule and
 // reason. When the output manifest already exists it is read as a JSON object and every
-// other key (targets, reviewed, per-file override, any future key) is written back
-// unchanged and in its original position.
+// other key (targets, reviewed, per-file override, per-file targets and justifications
+// (#1762), any future key) is written back unchanged and in its original position. The
+// generator never invents per-file targets or justifications.
 //
 // Modes:
 //   (default)    append-only: adds an entry for every source file that has none (and creates
@@ -552,7 +553,9 @@ int RunSelfTest()
                   "note": "keep me",
                   "defaultRule": "stale",
                   "reason": "stale",
-                  "override": [ "integration" ]
+                  "override": [ "integration" ],
+                  "targets": { "unit": 80, "integration": 0 },
+                  "justifications": { "unit": "Pure logic.", "integration": "No external dependency." }
                 },
                 "Gone.cs": { "defaultTests": [ "unit" ], "defaultRule": "*.cs", "reason": "r" }
               }
@@ -572,7 +575,13 @@ int RunSelfTest()
         Check(a["note"]?.GetValue<string>() == "keep me", "full: unknown per-file key kept");
         Check(a["defaultRule"]?.GetValue<string>() == "*.cs" && a["defaultTests"]![0]!.GetValue<string>() == "unit",
             "full: computed keys recomputed");
-        Check(a.Select(kv => kv.Key).SequenceEqual(["defaultTests", "note", "defaultRule", "reason", "override"]),
+        Check(a["targets"]?["unit"]?.GetValue<int>() == 80 && a["targets"]?["integration"]?.GetValue<int>() == 0
+              && a["justifications"]?["unit"]?.GetValue<string>() == "Pure logic."
+              && a["justifications"]?["integration"]?.GetValue<string>() == "No external dependency.",
+            "full: per-file targets and justifications kept (#1762)");
+        Check(full["files"]!["B.cs"]!.AsObject().ContainsKey("targets") == false,
+            "full: no per-file target invented for a new file (#1762)");
+        Check(a.Select(kv => kv.Key).SequenceEqual(["defaultTests", "note", "defaultRule", "reason", "override", "targets", "justifications"]),
             "full: per-file key order kept");
         Check(full["files"]!.AsObject().ContainsKey("B.cs"), "full: new file added");
         Check(!full["files"]!.AsObject().ContainsKey("Gone.cs"), "full: deleted file removed");

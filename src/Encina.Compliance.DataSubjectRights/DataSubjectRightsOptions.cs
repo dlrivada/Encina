@@ -56,7 +56,7 @@ public sealed class DataSubjectRightsOptions
     /// <remarks>
     /// <para>
     /// When the subject id is missing (the subject-id property is <c>null</c>, <see cref="Guid.Empty"/>
-    /// or empty, or no property exists and <see cref="IRequestContext.UserId"/> is not set), the
+    /// or empty, or no property exists and <see cref="RequestIdentity.UserId"/> is not set), the
     /// restriction status of the data subject is unknown:
     /// </para>
     /// <list type="bullet">

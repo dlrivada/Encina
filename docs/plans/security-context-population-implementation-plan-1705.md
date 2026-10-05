@@ -484,6 +484,7 @@ src/Encina.Security/SecurityContext.cs (role/permission extraction to port), src
 8. Logs (append to `RequestIdentityLog.cs`, packed after Phase 1's 162-165): 166 `ServiceIdentityScopeOpened` (Information: service name, tenant present, correlation id; Warning instead when it replaces another ambient service identity or runs over an inbound request), 167 `IdentityScopeRefused` (Warning: error code, requested kind), 168 `IdentityScopeClosed` (Debug), 169 `PrincipalScopeOpened` (Information; Warning when it opens a User identity over a Service ambient), 170 `IdentityScopeDisposedOutOfOrder` (Warning: kinds), 171 `IdentityRestored` (Information: kind, correlation id). The packed core range is 162-171.
 9. Holder-based `RequestContextAccessor`, the internal typed `RequestContext.Origin` flag, `BeginInbound`/`InboundRequestInfo`, `BeginRestored` and `PersistedRequestIdentity` validation (Design 1), tenant rules and metadata carry-over (Design 3). Add the architecture test (`Encina.Testing.Architecture` rule in `tests/Encina.UnitTests/Testing/Architecture`) asserting that, in production assemblies, only `RequestContextScopeFactory` references `RequestIdentity.ForUser/ForService` and `RequestContext.CreateAt`.
 10. PublicAPI, tests (including tenant, origin, out-of-order disposal, dead-flow `Task.Run`, built-in refusal, idempotent declaration, `BeginRestored` tamper cases).
+11. Decide whether `IsSameAs` counts claims beyond roles and permissions (step-up amr/acr), and route claims/role refresh through a scope (the setter throws when roles change) — see #1705 comments.
 
 </details>
 
@@ -631,7 +632,7 @@ Administration/PersistentPolicyAdministrationPoint.cs:627-640,818; ABACPolicySee
 6. **`ServiceCollectionExtensions.cs`** — no accessor; `TryAddEnumerable` for `SecurityPipelineBehavior<,>`.
 7. **`Health/SecurityHealthCheck.cs`** — drop the accessor check.
 8. Attribute XML docs that `cref` `ISecurityContext` → `RequestIdentity`.
-9. **`src/Encina.Security.Audit/AuditedRepository.cs:253`, `AuditedReadOnlyRepository.cs:213`** — `ExcludeSystemAccess` predicate becomes `_requestContext.Identity is not { Kind: IdentityKind.User }` (service and anonymous access are "system"; keeps the option's meaning now that services have a subject). Rewrite the XML docs of `ReadAuditOptions.cs:60-72` accordingly.
+9. **`src/Encina.Security.Audit/AuditedRepository.cs:253`, `AuditedReadOnlyRepository.cs:213`** — `ExcludeSystemAccess` predicate becomes `Identity is { Kind: IdentityKind.Service }` (service only; anonymous reads are audited), already implemented in Phase 1 by #1824. Rewrite the XML docs of `ReadAuditOptions.cs:60-72` accordingly.
 10. Coverage manifests (all of Encina, Encina.Security, Encina.Security.ABAC, Encina.AspNetCore, Encina.AspNetCore.Blazor and the other touched packages): moved to Phase 6 (final), with a check command.
 11. Tests: `SecurityPipelineBehaviorTests`, `EvaluatorTests`, `ServiceCollectionExtensionsTests`, `ObservabilityTests` rewritten; `SecurityContextTests` deleted (covered by core identity tests); `BehaviorRegistrationOrderTests` (asserts Security then ABAC for that call order, both present in the reverse order and with `AddEncina` configuring a behavior); Security.Audit tests rebuilt on real contexts: `AuditedRepositoryTests.cs:552-582,662,674` and `AuditedReadOnlyRepositoryTests.cs:441-471,572,584` (`ExcludeSystemAccess_*` currently use `UserId.Returns` on a substitute), plus new user/service/anonymous cases; `Security/SecurityPipelineBehaviorContractTests` and the guard tests listed in the Testing section; an ABAC-only request with an anonymous identity (denied by the pre-check) and with a user (passed to the PEP).
 12. **Compliance extractors (blocker fix, Design 6).** `DefaultDataSubjectIdExtractor.cs:71-75`, `ConsentRequiredPipelineBehavior.cs:223-224` and `ILawfulBasisSubjectIdExtractor.cs:55-59`: the `context.UserId` fallback applies only when `context.Identity.Kind == IdentityKind.User`; otherwise the subject is missing and the existing fail-closed path runs. Unit tests per extractor and gate with Service and Anonymous identities; the end-to-end case lives in `RequestIdentityEndToEndTests`.
@@ -658,7 +659,7 @@ Delete ISecurityContext, ISecurityContextAccessor, SecurityContext, SecurityCont
 ThrowOnMissingSecurityContext, SecurityErrors.MissingContext, log 8004. SecurityPipelineBehavior and the evaluators work on
 RequestIdentity from the IRequestContext passed to Handle; anonymous denies wherever an attribute requires a caller.
 TryAddEnumerable for SecurityPipelineBehavior<,>. SecurityHealthCheck drops the accessor check. AuditedRepository /
-AuditedReadOnlyRepository ExcludeSystemAccess -> Identity.Kind != User. RS0017: delete the lines of removed symbols from
+AuditedReadOnlyRepository ExcludeSystemAccess -> Identity is { Kind: IdentityKind.Service } (already done in Phase 1, #1824). RS0017: delete the lines of removed symbols from
 PublicAPI.Unshipped.txt (that is where all of them are). Also tasks 12-13 (compliance extractors, sweep) and the SecurityDiagnostics
 user-id removal.
 Tests: every attribute against Anonymous/User/Service identities; AddEncinaSecurity alone and Security+ABAC+AddEncina(with a
@@ -760,7 +761,7 @@ English only; Diátaxis; no coverage figures by hand; no AI attribution. PowerSh
 | #751 decision audit plan | Subject from `context.Identity`; `IdentityKind` recorded; stale accessor references and #1635 prerequisites rewritten |
 | `SecurityPipelineBehavior`, `DefaultPermissionEvaluator`, `DefaultResourceOwnershipEvaluator` | Evaluate `RequestIdentity`; null-context branch deleted; anonymous pre-check; user id removed from tag and logs 8001/8002 |
 | `SecurityHealthCheck` | Accessor check removed |
-| `AuditedRepository`, `AuditedReadOnlyRepository` | `ExcludeSystemAccess` = identity is not a user |
+| `AuditedRepository`, `AuditedReadOnlyRepository` | `ExcludeSystemAccess` = identity is a service (anonymous reads are audited; Phase 1, #1824) |
 | `EncinaContextMiddleware` | Builds identity through the factory; TimeProvider; holder scope invalidated in `finally`; origin `inbound` |
 | `AuthorizationPipelineBehavior` | Evaluates `context.Identity.Principal`; denies unauthenticated; `IPrincipalResolver` deleted |
 | Blazor `AuthenticationStatePrincipalResolver` | Replaced by `RequestIdentityCircuitHandler` |

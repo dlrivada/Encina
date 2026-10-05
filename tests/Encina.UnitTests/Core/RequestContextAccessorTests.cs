@@ -1,4 +1,5 @@
 using Encina.Testing;
+using Encina.Testing.Identity;
 using Shouldly;
 using Xunit;
 
@@ -85,7 +86,7 @@ public class RequestContextAccessorTests
     {
         // Arrange
         var accessor = new RequestContextAccessor();
-        var context = RequestContext.CreateForTest(userId: "user-123");
+        var context = TestRequestContext.For(TestIdentity.User("user-123"));
 
         // Act
         accessor.RequestContext = context;
@@ -124,7 +125,7 @@ public class RequestContextAccessorTests
     {
         // Arrange
         var accessor = new RequestContextAccessor();
-        var context = RequestContext.CreateForTest(userId: "outer-user");
+        var context = TestRequestContext.For(TestIdentity.User("outer-user"));
 
         async Task<string?> InnerAsyncMethod()
         {

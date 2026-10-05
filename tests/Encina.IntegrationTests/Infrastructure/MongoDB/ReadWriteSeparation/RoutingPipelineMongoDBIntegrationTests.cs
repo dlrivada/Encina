@@ -2,6 +2,7 @@ using Encina.Messaging.ReadWriteSeparation;
 using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -665,10 +666,11 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
     private sealed class TestRequestContext : IRequestContext
     {
         public string CorrelationId { get; } = Guid.NewGuid().ToString();
-        public string? UserId { get; private set; } = "test-user";
+        public RequestIdentity Identity { get; private set; } = TestIdentity.User("test-user");
         public string? IdempotencyKey { get; private set; }
         public string? TenantId { get; private set; }
         public DateTimeOffset Timestamp { get; } = DateTimeOffset.UtcNow;
+        public string? CausationId { get; private set; }
         public IReadOnlyDictionary<string, object?> Metadata { get; private set; } =
             new Dictionary<string, object?>();
 
@@ -677,9 +679,6 @@ public sealed class RoutingPipelineMongoDBIntegrationTests : IAsyncLifetime
             var newMetadata = new Dictionary<string, object?>(Metadata) { [key] = value };
             return new TestRequestContext { Metadata = newMetadata };
         }
-
-        public IRequestContext WithUserId(string? userId) =>
-            new TestRequestContext { UserId = userId };
 
         public IRequestContext WithIdempotencyKey(string? idempotencyKey) =>
             new TestRequestContext { IdempotencyKey = idempotencyKey };

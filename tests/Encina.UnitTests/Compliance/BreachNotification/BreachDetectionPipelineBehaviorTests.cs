@@ -4,6 +4,7 @@ using Encina.Compliance.BreachNotification;
 using Encina.Compliance.BreachNotification.Abstractions;
 using Encina.Compliance.BreachNotification.Detection;
 using Encina.Compliance.BreachNotification.Model;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -487,7 +488,7 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Act
         await behavior.Handle(
-            request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
+            request, TestRequestContext.For(TestIdentity.User("user-1")), Next(Unit.Default), CancellationToken.None);
 
         // Assert
         capturedEvent.ShouldNotBeNull();
@@ -517,7 +518,7 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Act
         await behavior.Handle(
-            request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
+            request, TestRequestContext.For(TestIdentity.User("user-1")), Next(Unit.Default), CancellationToken.None);
 
         // Assert
         capturedEvent.ShouldNotBeNull();
@@ -544,7 +545,7 @@ public class BreachDetectionPipelineBehaviorTests
 
         // Act
         await behavior.Handle(
-            request, RequestContext.CreateForTest(userId: "user-1"), Next(Unit.Default), CancellationToken.None);
+            request, TestRequestContext.For(TestIdentity.User("user-1")), Next(Unit.Default), CancellationToken.None);
 
         // Assert
         capturedEvent.ShouldNotBeNull();

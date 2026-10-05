@@ -85,10 +85,11 @@ public sealed record ProductResult(Guid Id, string Name, decimal Price);
 public sealed class BenchmarkRequestContext : IRequestContext
 {
     public string? TenantId => "benchmark-tenant";
-    public string? UserId => "benchmark-user";
     public string CorrelationId => "bench-corr-001";
     public string? IdempotencyKey => null;
     public DateTimeOffset Timestamp => DateTimeOffset.UtcNow;
+    public RequestIdentity Identity { get; init; } = RequestIdentity.Anonymous;
+    public string? CausationId { get; init; }
     public IReadOnlyDictionary<string, object?> Metadata => _metadata;
 
     private readonly Dictionary<string, object?> _metadata = new();
@@ -104,7 +105,6 @@ public sealed class BenchmarkRequestContext : IRequestContext
         return clone;
     }
 
-    public IRequestContext WithUserId(string? userId) => this;
     public IRequestContext WithIdempotencyKey(string? idempotencyKey) => this;
     public IRequestContext WithTenantId(string? tenantId) => this;
 }

@@ -4,6 +4,7 @@ using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Internal;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,7 @@ public sealed class PIIMaskingPipelineBehaviorTests : IDisposable
 
     public PIIMaskingPipelineBehaviorTests()
     {
-        _context = RequestContext.CreateForTest(userId: "user-1");
+        _context = TestRequestContext.For(TestIdentity.User("user-1"));
         PIIPropertyScanner.ClearCache();
     }
 
@@ -184,7 +185,7 @@ public sealed class PIIMaskingPipelineBehaviorTests : IDisposable
     }
 
     [Fact]
-    public async Task Handle_MaskingFails_ReturnsOriginalResponse()
+    public async Task Handle_MaskingFails_ReturnsMaskingFailedErrorNotTheResponse()
     {
         // Arrange - use a mock masker that throws
         var mockMasker = Substitute.For<IPIIMasker>();
@@ -200,15 +201,11 @@ public sealed class PIIMaskingPipelineBehaviorTests : IDisposable
         // Act
         var result = await sut.Handle(request, _context, nextStep, CancellationToken.None);
 
-        // Assert - original response is returned (masking failure does not cause request failure)
-        result.IsRight.ShouldBeTrue();
+        // Assert - fails closed: the unmasked response is never returned
+        result.IsLeft.ShouldBeTrue();
         result.Match(
-            Right: r =>
-            {
-                r.Email.ShouldBe("test@example.com");
-                r.NonPii.ShouldBe("safe");
-            },
-            Left: _ => throw new InvalidOperationException("Expected Right but got Left"));
+            Right: _ => throw new InvalidOperationException("Expected Left but got Right"),
+            Left: e => e.GetCode().IfNone(string.Empty).ShouldBe(PIIErrors.MaskingFailedCode));
     }
 
     [Fact]

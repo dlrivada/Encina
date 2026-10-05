@@ -1,4 +1,5 @@
 using Encina.Compliance.Consent;
+using Encina.Testing.Identity;
 
 namespace Encina.GuardTests.Compliance.Consent;
 
@@ -118,7 +119,7 @@ public class ConsentRequiredPipelineBehaviorGuardTests
     private static IRequestContext CreateContext()
     {
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("user-1");
+        context.Identity.Returns(TestIdentity.User("user-1"));
         context.TenantId.Returns("tenant-1");
         context.CorrelationId.Returns("corr-123");
         return context;

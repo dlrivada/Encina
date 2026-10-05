@@ -3,6 +3,8 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
 
+using Encina.Testing.Identity;
+
 using LanguageExt;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -99,7 +101,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     {
         var options = new SecretsOptions { EnableAccessAuditing = true };
         _requestContext.CorrelationId.Returns("corr-123");
-        _requestContext.UserId.Returns("user-1");
+        _requestContext.Identity.Returns(TestIdentity.User("user-1"));
         _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
 

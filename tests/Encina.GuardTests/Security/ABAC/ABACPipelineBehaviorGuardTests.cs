@@ -2,6 +2,7 @@
 
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.EEL;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

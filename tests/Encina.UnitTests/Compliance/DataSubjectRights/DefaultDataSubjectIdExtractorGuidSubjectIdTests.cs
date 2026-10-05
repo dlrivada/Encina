@@ -1,4 +1,5 @@
 using Encina.Compliance.DataSubjectRights;
+using Encina.Testing.Identity;
 
 using NSubstitute;
 
@@ -33,7 +34,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
         var patientId = Guid.NewGuid();
         var request = new RequestWithGuidSubjectIdViaAttribute(patientId);
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42"); // the clinician making the request, NOT the data subject
+        context.Identity.Returns(TestIdentity.User("professional-42")); // the clinician making the request, NOT the data subject
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -50,7 +51,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
         var patientId = Guid.NewGuid();
         var request = new RequestWithGuidSubjectIdProperty(patientId);
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -67,7 +68,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
         var subjectUserId = Guid.NewGuid();
         var request = new RequestWithGuidUserIdProperty(subjectUserId);
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -84,7 +85,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
     {
         var request = new RequestWithNullableGuidSubjectId(null);
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -101,7 +102,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
     {
         var request = new RequestWithUnconvertibleSubjectId(new object());
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         Should.Throw<InvalidOperationException>(() => _sut.ExtractSubjectId(request, context));
     }
@@ -116,7 +117,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
         var patientId = Guid.NewGuid();
         var request = new RequestWithStronglyTypedSubjectId(new PatientId(patientId));
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         var result = _sut.ExtractSubjectId(request, context);
 
@@ -131,7 +132,7 @@ public class DefaultDataSubjectIdExtractorGuidSubjectIdTests
     {
         var request = new RequestWithNumericSubjectId(0);
         var context = Substitute.For<IRequestContext>();
-        context.UserId.Returns("professional-42");
+        context.Identity.Returns(TestIdentity.User("professional-42"));
 
         _sut.ExtractSubjectId(request, context).ShouldBe("0");
     }

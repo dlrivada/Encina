@@ -6,6 +6,24 @@ namespace Encina.UnitTests.Security.PII.Diagnostics;
 public sealed class PIIDiagnosticsTests
 {
     [Fact]
+    public void RecordFailure_SetsStatusDescriptionToExceptionTypeNotMessage()
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = s => s.Name == PIIDiagnostics.SourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
+        };
+        ActivitySource.AddActivityListener(listener);
+        using var activity = PIIDiagnostics.ActivitySource.StartActivity("test");
+        activity.ShouldNotBeNull();
+
+        PIIDiagnostics.RecordFailure(activity, new InvalidOperationException("message-sentinel-1793"));
+
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
+        activity.StatusDescription.ShouldBe(nameof(InvalidOperationException));
+    }
+
+    [Fact]
     public void ActivitySource_HasCorrectName()
     {
         PIIDiagnostics.SourceName.ShouldBe("Encina.Security.PII");

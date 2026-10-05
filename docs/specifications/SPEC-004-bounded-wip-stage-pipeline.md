@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | **APPROVED (2026-09-28)**. **DEC-001 … DEC-003 are DECIDED (maintainer, 2026-09-28)**: no commit-count staleness threshold (every stage re-checks its input against current `main` on entry instead, §4); the WIP limit is fixed at 4-5 fronts, not a pilot-tunable parameter (§5); the pipeline is maintainer/orchestrator-directed, not a fully autonomous scheduled dispatcher (§8). §12 records the three decisions taken. |
-| **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-28 and issue #1554 |
-| **Date** | 2026-09-28 |
+| **Status** | **APPROVED (2026-09-28; amended 2026-10-05)**. **DEC-001 … DEC-003 are DECIDED (maintainer, 2026-09-28; DEC-004 on 2026-10-05)**: no commit-count staleness threshold (every stage re-checks its input against current `main` on entry instead, §4); the WIP limit is fixed at 4-5 fronts, not a pilot-tunable parameter (§5); the pipeline is maintainer/orchestrator-directed, not a fully autonomous scheduled dispatcher (§8). §12 records the four decisions taken. **Amended 2026-10-05 (DEC-004, maintainer)**: the WIP limit counts every front past intake, urgent-lane fronts included (REQ-011). |
+| **Author** | Specifier (Claude), from the maintainer's brief of 2026-09-28 and issue #1554; amended 2026-10-05 from the maintainer's decision (DEC-004) |
+| **Date** | 2026-09-28; amended 2026-10-05 |
 | **Refines** | [AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §9 (Historian), §10 (Auditor), §22 (audit passes), and the `worker-brief` / `pr-cycle` skills that the orchestrator runs by hand today |
 | **Evidence** | Issue #1554 ("[SPIKE] Bounded-WIP stage pipeline for issue delivery (SPEC-004)"); #1552 (scored priority list); #1551 (worker-brief CRAP rule); #1540 (a `-DryRun` deleted an open audit's real stage drafts); #1534 (a duplicate finding could not be recorded against a multi-item issue); #1386 (a Pages deploy could revert another dashboard's fresh data or be cancelled mid-flight); [SPEC-003](SPEC-003-closed-issue-knowledge-migration-and-quality-audit.md) (the audit pipeline this specification generalises) |
 | **Supersedes** | — |
@@ -46,8 +46,8 @@ Three problems this specification addresses:
 | Stage | One step of a front's life with a single owner and one input and one output document (§3). |
 | Stage document | The file at `artifacts/flow/<issue>/<stage>.md` that records a stage's status, verdict and provenance (§4). |
 | Stale document | A stage document whose input no longer holds against the current `main`; there is no commit-count threshold — the consuming stage discovers staleness by re-checking the document on entry (§4, DEC-001). |
-| WIP limit | The maximum number of fronts open at once: 4-5, fixed by DEC-002 (§5, §12), not a pilot-tunable parameter. |
-| Urgent lane | Work that bypasses the bounded-WIP queue because it blocks other fronts or the pipeline itself (§7). |
+| WIP limit | The number of fronts open at once (4-5) at which no new non-urgent front starts: fixed by DEC-002 (§5, §12), not a pilot-tunable parameter. Every front past intake counts, urgent-lane fronts included; an urgent-lane item may still start when the limit is full (REQ-011, DEC-004). |
+| Urgent lane | Work that is dispatched ahead of the queued fronts because it blocks other fronts or the pipeline itself (§7). It counts against the WIP limit like any other front (REQ-011, DEC-004); only its order changes. |
 | Dispatcher | The free PowerShell script that computes which stages are ready to run, respecting WIP limits and file conflicts (§8). |
 
 ## 3. Stages
@@ -91,9 +91,9 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 5. Bounded WIP
 
-**REQ-005** No more than 4-5 fronts (§2.3) are open at once. A derived PR or a small follow-up that a front's implementation or review stage spawns counts inside the front that created it, not as a new front against the limit.
+**REQ-005** No more than 4-5 fronts (§2.3) are open at once, except that an urgent-lane item may start when the limit is full, so only urgent fronts can take the count above the limit (REQ-011). A derived PR or a small follow-up that a front's implementation or review stage spawns counts inside the front that created it, not as a new front against the limit.
 
-**REQ-006** A new front is not opened while the WIP limit is at capacity; the dispatcher (§8) reports the queue instead of starting intake on more issues than the limit allows to be *in flight past intake* (§6 bounds intake specifically).
+**REQ-006** A new front is not opened while the WIP limit is at capacity, except an urgent-lane item, which may start when the limit is full (REQ-011); the dispatcher (§8) reports the queue instead of starting intake on more issues than the limit allows to be *in flight past intake* (§6 bounds intake specifically).
 
 ## 6. Intake order and just-in-time intake
 
@@ -105,13 +105,13 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 7. Urgent lane
 
-**REQ-010** An urgent lane exists outside the bounded-WIP queue for: a broken CI check on `main`, an audit blocker (a defect that stops the SPEC-003 pipeline from progressing), or a defect that blocks other open fronts. The examples the maintainer named on 2026-09-28 are #1534 (a duplicate finding could not be recorded against a multi-item issue, blocking that audit), #1540 (a `-DryRun` run deleted an open audit's real stage drafts, corrupting live state), and #1386 (a Pages deploy could revert another dashboard's fresh data or be cancelled mid-flight, an infra defect blocking other dashboards' visibility).
+**REQ-010** An urgent lane exists ahead of the bounded-WIP queue (it changes order, not the count, REQ-011) for: a broken CI check on `main`, an audit blocker (a defect that stops the SPEC-003 pipeline from progressing), or a defect that blocks other open fronts. The examples the maintainer named on 2026-09-28 are #1534 (a duplicate finding could not be recorded against a multi-item issue, blocking that audit), #1540 (a `-DryRun` run deleted an open audit's real stage drafts, corrupting live state), and #1386 (a Pages deploy could revert another dashboard's fresh data or be cancelled mid-flight, an infra defect blocking other dashboards' visibility).
 
-**REQ-011** An urgent-lane item does not count against the WIP limit of §5 and is dispatched by the orchestrator session as soon as it is found, ahead of the queued fronts.
+**REQ-011** An urgent-lane item counts against the WIP limit of §5 like any other front (DEC-004, §12). The urgent lane changes only the order: the orchestrator session dispatches an urgent item as soon as it is found, ahead of the queued fronts. When the limit is full an urgent item may still start, and no new non-urgent front starts until the count is back under the limit. The rule is one: the count includes urgent fronts; an urgent front may start at or above the limit, so only urgent fronts can take the count above 4-5; no non-urgent front starts while the count is at or above the limit.
 
 ## 8. Dispatcher
 
-**REQ-012** A free PowerShell script (no model) computes, from the stage documents under `artifacts/flow/`, which stages are ready to run: a stage is ready when its input document exists with `status: done` and is not stale (§4), and starting it would not exceed the WIP limit (§5) or create a file conflict with another in-progress front (§6, §8.1).
+**REQ-012** A free PowerShell script (no model) computes, from the stage documents under `artifacts/flow/`, which stages are ready to run: a stage is ready when its input document exists with `status: done` and is not stale (§4), and starting it would not exceed the WIP limit (§5; except an urgent-lane item, which may start when the limit is full, REQ-011) or create a file conflict with another in-progress front (§6, §8.1).
 
 **REQ-013** Local-model stages (intake, §3 stage 1) are run directly by the dispatcher. Paid-agent stages (verification, decisions, spec/plan, implementation, review) are reported as ready by the dispatcher and dispatched by the orchestrator session (Option B of issue #1554); the dispatcher itself never spawns a paid agent. This is the pipeline's decided degree of automation (DEC-003, §12): not fully automatic. The maintainer and the orchestrator choose which fronts open (§6); the orchestrator dispatches every paid-agent stage; each front moves through its stages the way a SPEC-003 audit moves from the archivist onward, each stage producing exactly the document the next stage needs.
 
@@ -131,7 +131,7 @@ returns-to-reason: <one sentence, or "n/a">
 
 **REQ-018** The pilot measures, per issue, against the baseline week of 2026-09-22: lead time (intake to merge), rework loops (count of `returns-to` events), tokens spent (from `artifacts/agent-usage/ledger.csv` and `artifacts/local-ai/ledger.csv`), and maintainer interruptions (decisions or unblocks the maintainer had to make outside the batched decisions stage).
 
-**REQ-019** The pilot's measurements (REQ-018) are reported to the maintainer, who decides whether the pipeline continues past the pilot set or needs revision. The staleness handling (§4, DEC-001), the WIP limit (§5, DEC-002) and the degree of automation (§8, DEC-003) are already decided and are not among the pilot's open questions; if the pilot's measurements suggest one of them should change, that is a new amendment to this specification, not a default outcome of running the pilot.
+**REQ-019** The pilot's measurements (REQ-018) are reported to the maintainer, who decides whether the pipeline continues past the pilot set or needs revision. The staleness handling (§4, DEC-001), the WIP limit (§5, DEC-002), the degree of automation (§8, DEC-003) and the counting of urgent-lane fronts against the limit (§7, DEC-004) are already decided and are not among the pilot's open questions; if the pilot's measurements suggest one of them should change, that is a new amendment to this specification, not a default outcome of running the pilot.
 
 ## 11. Risks and mitigations
 
@@ -148,13 +148,14 @@ returns-to-reason: <one sentence, or "n/a">
 
 ## 12. Decisions for the maintainer
 
-Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14). DEC-001 … DEC-003 were DECIDED by the maintainer on 2026-09-28, ahead of the rest of this draft's review; they are recorded here in the same format SPEC-003 uses for its own decided items (SPEC-003 §12).
+Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL.md) §14). DEC-001 … DEC-003 were DECIDED by the maintainer on 2026-09-28, ahead of the rest of this draft's review; DEC-004 was DECIDED on 2026-10-05 as an amendment. They are recorded here in the same format SPEC-003 uses for its own decided items (SPEC-003 §12).
 
 | ID | Decision | Options | Recommendation | Consequences | Status |
 |---|---|---|---|---|---|
 | **DEC-001** | How a stage document's staleness is detected and handled (REQ-003) | (a) stamp a `main` SHA and treat the document stale once it is more than a fixed number of commits behind; (b) no commit-count threshold: every stage re-checks its input document against the current `main` on entry, the way SPEC-003's `audit-verifier` re-checks every claim of the stages before it, and returns the work to the stage that produced the document when it no longer holds | (b) | Under (a) the threshold number is arbitrary and needs recalibrating as the repository's commit cadence changes; under (b) every stage carries its own small, bounded re-check instead of trusting an artifact because it is recent enough | DECIDED (b): maintainer, 2026-09-28 |
 | **DEC-002** | The WIP limit (REQ-005) | (a) fix a single number; (b) a band of 4-5 fronts open at once plus the PRs they spawn, with derived PRs and small follow-ups counted inside the front that created them | (b) | (b) is not treated as a pilot-tunable parameter (REQ-019); the maintainer keeps day-to-day judgement within the band instead of a rigid single number | DECIDED (b): maintainer, 2026-09-28 |
 | **DEC-003** | Degree of automation (REQ-012, REQ-013) | (a) a fully autonomous scheduled dispatcher (Option C of issue #1554) that opens and runs fronts without an active session; (b) the maintainer and the orchestrator choose which fronts open, the orchestrator dispatches every paid-agent stage, each front moves through its stages the way a SPEC-003 audit moves from the archivist onward — each stage producing the document the next needs — and the dispatcher script may run local-model stages | (b) | Under (a) cost control and debuggability are harder (issue #1554, Option C cons); under (b) the pipeline needs an active maintainer/orchestrator session, which is accepted rather than left as an open question (§2.2) | DECIDED (b): maintainer, 2026-09-28 |
+| **DEC-004** | Whether urgent-lane fronts count against the WIP limit (REQ-011, amends the original REQ-011) | (a) urgent items do not count against the limit; (b) the limit counts every front past intake, urgent-lane fronts included; the urgent lane only changes order (dispatched first, ahead of queued fronts) | (b) | Under (a) the counter hid real fronts: on 2026-10-05 six real fronts showed as fewer because three were urgent, and the maintainer did not trust a WIP counter that excluded half of them. Under (b) the count is the true number of open fronts; when the limit is full an urgent item may still start, and no new non-urgent front starts until the count is back under the limit | DECIDED (b): maintainer, 2026-10-05 (amendment) |
 
 ## 13. Related documents
 
@@ -173,3 +174,4 @@ Class C decisions ([AI-DEVELOPMENT-MODEL.md](../engineering/AI-DEVELOPMENT-MODEL
 | 2026-09-28 | DRAFT created from issue #1554 and the maintainer's brief of 2026-09-28: stages, stage documents, bounded WIP, intake order, urgent lane, dispatcher, visibility, pilot and risks stated as REQ items; DEC-001 … DEC-003 opened for review. |
 | 2026-09-28 | DEC-001 … DEC-003 DECIDED (maintainer, 2026-09-28), after review of PR #1559: no commit-count staleness threshold — every stage re-checks its input against current `main` on entry and returns the work to the producing stage when it no longer holds (DEC-001, REQ-003); the WIP limit is a fixed band of 4-5 fronts, not a pilot-tunable parameter (DEC-002, REQ-005); the pipeline is maintainer/orchestrator-directed — the maintainer and orchestrator choose which fronts open, the orchestrator dispatches every paid-agent stage, and each front moves through its stages the way a SPEC-003 audit moves from the archivist onward — with a fully autonomous scheduled dispatcher (Option C of issue #1554) staying out of scope with no open question (DEC-003, REQ-012, REQ-013). REQ-019 reworded so the pilot no longer treats these as tunable. |
 | 2026-09-28 | Approved by the maintainer. |
+| 2026-10-05 | Amendment, DEC-004 DECIDED (maintainer, 2026-10-05, 19:19): REQ-011 changed so urgent-lane items count against the WIP limit like any other front; the urgent lane only changes order, an urgent item may start when the limit is full, and no new non-urgent front starts until the count is back under the limit. REQ-005, REQ-006, REQ-010, REQ-012, REQ-019, the §12 intro, the Glossary rows "Urgent lane" and "WIP limit", the Status and Date rows and the README index row made consistent; the count includes urgent fronts and only urgent fronts can take it above 4-5. Reason: six real fronts were shown as fewer on 2026-10-05 because three were urgent, and the maintainer did not trust a counter that excluded half of them. |

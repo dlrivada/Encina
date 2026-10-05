@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using Encina.Messaging;
+using Encina.Testing.Identity;
 using LanguageExt;
 
 namespace Encina.UnitTests.Messaging.Behaviors;
@@ -384,7 +385,7 @@ public sealed class TransactionPipelineBehaviorTests
     {
         var context = Substitute.For<IRequestContext>();
         context.CorrelationId.Returns(Guid.NewGuid().ToString());
-        context.UserId.Returns("test-user");
+        context.Identity.Returns(TestIdentity.User("test-user"));
         context.Timestamp.Returns(DateTimeOffset.UtcNow);
         return context;
     }

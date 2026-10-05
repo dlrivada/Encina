@@ -50,9 +50,13 @@ public interface IPiiMasker
     /// <typeparam name="T">The type of the request object.</typeparam>
     /// <param name="request">The request object potentially containing PII.</param>
     /// <returns>
-    /// A sanitized copy of the request with PII masked, or the original object if no masking is needed.
+    /// A sanitized copy of the request with PII masked, or the original object if masking is disabled.
     /// </returns>
     /// <remarks>
+    /// <para>
+    /// Implementations fail closed: when masking cannot be completed they throw instead of returning
+    /// the unmasked request. Callers must handle the exception.
+    /// </para>
     /// <para>
     /// The returned object is used for:
     /// <list type="bullet">
@@ -77,10 +81,11 @@ public interface IPiiMasker
     /// </summary>
     /// <param name="request">The request object potentially containing PII.</param>
     /// <returns>
-    /// A sanitized copy of the request with PII masked, or the original object if no masking is needed.
+    /// A sanitized copy of the request with PII masked, or the original object if masking is disabled.
     /// </returns>
     /// <remarks>
     /// Non-generic overload for scenarios where the type is not known at compile time.
+    /// Like the generic overload it throws when masking cannot be completed.
     /// </remarks>
     object MaskForAudit(object request);
 }

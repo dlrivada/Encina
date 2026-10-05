@@ -39,6 +39,11 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
     }
 
     /// <inheritdoc/>
+    /// <exception cref="InvalidOperationException">
+    /// The request's <see cref="CacheAttribute.VaryByUser"/> is set and the request identity is not an
+    /// authenticated user; such a request is never cached (<see cref="QueryCachingPipelineBehavior{TRequest, TResponse}"/>
+    /// bypasses the cache before asking for a key).
+    /// </exception>
     public string GenerateKey<TRequest, TResponse>(TRequest request, IRequestContext context)
         where TRequest : IRequest<TResponse>
     {
@@ -113,11 +118,10 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
             parts.Add($"t:{context.TenantId}");
         }
 
-        // User isolation (default: false)
-        var varyByUser = cacheAttribute?.VaryByUser ?? false;
-        if (varyByUser && !string.IsNullOrEmpty(context.UserId))
+        // User isolation (default: false). A non-user identity has no key: the caller bypasses the cache.
+        if (cacheAttribute?.VaryByUser == true)
         {
-            parts.Add($"u:{context.UserId}");
+            parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
         }
 
         // Request type
@@ -150,11 +154,11 @@ public sealed class DefaultCacheKeyGenerator : ICacheKeyGenerator
             result.Append(':');
         }
 
-        // User
-        if (cacheAttribute.VaryByUser && !string.IsNullOrEmpty(context.UserId))
+        // User. A non-user identity has no key: the caller bypasses the cache.
+        if (cacheAttribute.VaryByUser)
         {
             result.Append("u:");
-            result.Append(context.UserId);
+            result.Append(CacheUserIdentity.RequireUserId(context));
             result.Append(':');
         }
 

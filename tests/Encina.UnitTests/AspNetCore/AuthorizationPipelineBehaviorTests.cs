@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Encina.AspNetCore;
 using Encina.AspNetCore.Authorization;
 using Encina.Testing;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -315,7 +316,7 @@ public class AuthorizationPipelineBehaviorTests
 
         var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
         var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest(userId: "blazor-user-1");
+        var context = TestRequestContext.For(TestIdentity.User("blazor-user-1"));
         var nextStepCalled = false;
 
         RequestHandlerCallback<Unit> nextStep = () =>

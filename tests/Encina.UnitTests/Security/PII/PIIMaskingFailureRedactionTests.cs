@@ -5,6 +5,7 @@ using Encina.Security.PII;
 using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Internal;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -114,7 +115,7 @@ public sealed class PIIMaskingFailureRedactionTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Handle_MaskerThrows_ReturnsOriginalAndLogsRedactedException(bool metrics)
+    public async Task Handle_MaskerThrows_ReturnsErrorAndLogsRedactedException(bool metrics)
     {
         var masker = Substitute.For<IPIIMasker>();
         masker.MaskObject(Arg.Any<EmailDto>()).Throws(new InvalidOperationException(Sentinel));
@@ -125,12 +126,16 @@ public sealed class PIIMaskingFailureRedactionTests : IDisposable
 
         var result = await sut.Handle(
             new TestRequest(),
-            RequestContext.CreateForTest(userId: "user-1"),
+            TestRequestContext.For(TestIdentity.User("user-1")),
             () => ValueTask.FromResult<Either<EncinaError, EmailDto>>(response),
             CancellationToken.None);
 
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(r => r.ShouldBeSameAs(response));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e =>
+        {
+            e.GetCode().IfNone(string.Empty).ShouldBe(PIIErrors.MaskingFailedCode);
+            e.Message.ShouldNotContain(Sentinel);
+        });
         AssertLoggedRedacted(logger);
     }
 }

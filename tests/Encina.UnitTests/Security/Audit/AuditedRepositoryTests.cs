@@ -3,6 +3,7 @@
 using System.Linq.Expressions;
 using Encina.DomainModeling;
 using Encina.Security.Audit;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -549,11 +550,12 @@ public sealed class AuditedRepositoryTests
     // ── ShouldAudit sampling / exclusion logic ──────────────────────────
 
     [Fact]
-    public async Task ExcludeSystemAccess_NoUserId_DoesNotAudit()
+    public async Task ExcludeSystemAccess_AnonymousIdentity_StillAudits()
     {
+        // Only a declared service identity is system access: an anonymous read is audited (fail closed).
         var harness = new Harness(samplingRate: 1.0);
         harness.Options.ExcludeSystemAccess = true;
-        harness.RequestContext.UserId.Returns((string?)null);
+        harness.RequestContext.Identity.Returns(TestIdentity.Anonymous);
 
         harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<AuditedTestEntity>().AsReadOnly());
@@ -561,7 +563,8 @@ public sealed class AuditedRepositoryTests
         var sut = harness.CreateRepository();
         await sut.GetAllAsync();
 
-        harness.LoggedEntries.ShouldBeEmpty();
+        harness.LoggedEntries.Count.ShouldBe(1);
+        harness.LoggedEntries[0].UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -569,7 +572,7 @@ public sealed class AuditedRepositoryTests
     {
         var harness = new Harness(samplingRate: 1.0);
         harness.Options.ExcludeSystemAccess = true;
-        harness.RequestContext.UserId.Returns("user-42");
+        harness.RequestContext.Identity.Returns(TestIdentity.User("user-42"));
 
         harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<AuditedTestEntity>().AsReadOnly());
@@ -671,7 +674,7 @@ public sealed class AuditedRepositoryTests
 
         public Harness(double? samplingRate = null)
         {
-            RequestContext.UserId.Returns("test-user");
+            RequestContext.Identity.Returns(TestIdentity.User("test-user"));
             RequestContext.TenantId.Returns("tenant-1");
             RequestContext.CorrelationId.Returns("corr-id");
 

@@ -19,7 +19,6 @@ public class RequestContextAccessorBenchmarks
         _accessor = new RequestContextAccessor();
         _context = RequestContext.CreateForTest(
             correlationId: "benchmark-correlation",
-            userId: "benchmark-user",
             tenantId: "benchmark-tenant");
     }
 

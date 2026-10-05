@@ -143,10 +143,25 @@ function New-DeltaScopeText([int]$Issue, [string]$Worktree, [string]$Set) {
         $text = (Get-Content -LiteralPath $stageFile -Raw)
         $section = [regex]::Match($text, '(?ims)^##\s*(Scope|Files in scope|Scope list)[^\r\n]*\r?\n(?<body>.*?)(?=^##\s|\z)')
         $null = $sb.Append("## From the original $name (docs/knowledge/audits/$Issue/stages/$name)`n`n")
-        if ($section.Success) { $null = $sb.Append($section.Groups['body'].Value.Trim() + "`n`n") }
-        else { $null = $sb.Append("(no Scope section; the whole stage file is the reference)`n`n" + $text.Trim() + "`n`n") }
+        if ($section.Success) { $null = $sb.Append((ConvertTo-PlainTextLinks $section.Groups['body'].Value.Trim()) + "`n`n") }
+        else { $null = $sb.Append("(no Scope section; the whole stage file is the reference)`n`n" + (ConvertTo-PlainTextLinks $text.Trim()) + "`n`n") }
     }
     return $sb.ToString()
+}
+
+# Turns the relative Markdown links of $Text into plain text 'text (path)' (fenced code and absolute, site-root and
+# anchor links stay), so text copied from a deeper folder cannot be re-resolved against the wrong base (#1817).
+function ConvertTo-PlainTextLinks([string]$Text) {
+    $lines = $Text.Split("`n")
+    $fence = ''
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $wasInFence = $fence -ne ''
+        $fence = Get-FenceState $lines[$i] $fence
+        if ($wasInFence -or $fence -ne '') { continue }
+        $lines[$i] = [regex]::Replace($lines[$i], '!?\[(?<t>[^\]]*)\]\((?<p>(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)[^()\s]+)\)', '${t} (${p})')
+        $lines[$i] = [regex]::Replace($lines[$i], '^\s{0,3}\[(?!\^)(?<t>[^\]]+)\]:\s*(?<p>(?![a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)\S+)\s*$', '${t}: ${p}')
+    }
+    return ($lines -join "`n")
 }
 
 # True when a commit on the branch checked out at $Worktree carries the trailer 'Stage: <StageName>' AND the
@@ -481,7 +496,7 @@ function Get-AuditPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
     foreach ($name in $names) {
         $f = Join-Path $StagesDir $name
-        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/stages/$name" }) }
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/stages/$name"; LinkBase = "artifacts/knowledge/stages/$name" }) }
     }
     return , $plan
 }
@@ -493,12 +508,150 @@ function Get-DeltaPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$Stag
     $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
     foreach ($name in $names) {
         $f = Join-Path $StagesDir $name
-        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/$name" }) }
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/$name"; LinkBase = "artifacts/knowledge/stages/$name" }) }
     }
+    # #1817: the scope text is copied from the original record (docs/knowledge/issues/<n>.md), so its relative
+    # links were written for that folder.
+    # Assumption behind LinkBase: the record and result sections of delta-scope.md come from docs/knowledge/issues and
+    # docs/knowledge/audits, which sit at the same depth. The stage excerpts come from audits/<n>/stages, one level
+    # deeper, and are expected to carry no relative links: New-DeltaScopeText turns them into plain text.
     $scope = Join-Path $AuditWorktree 'artifacts\knowledge\delta-scope.md'
-    if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md" }) }
+    if (Test-Path -LiteralPath $scope) { $plan.Add(@{ Source = $scope; Content = $null; Dest = "docs/knowledge/audits/$Issue/$DeltaFolder/delta-scope.md"; LinkBase = "docs/knowledge/issues/$Issue.md" }) }
     if ($plan.Count -eq 0) { throw "Get-DeltaPublishPlan: no delta stage file under $StagesDir." }
     return , $plan
+}
+
+# --- Relative links of published files (#1817) --------------------------------------------------------------------
+# Text copied from docs/knowledge/issues/<n>.md or a stage file keeps the relative links it was written with, which
+# break one folder deeper. Update-PublishedLinks resolves every relative Markdown link against the file's SOURCE
+# location (a repo-relative path, only its folder matters) and rewrites it relative to the DESTINATION; a link that
+# resolves from neither is reported as an error. Targets are looked up under $Root (a checkout of the repository).
+# Skipped: absolute URLs, mailto:, site-root (/x) links, anchor-only links, fenced code and inline code spans.
+
+function Test-RelativeLinkTarget([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    return ($Path -notmatch '^([a-zA-Z][a-zA-Z0-9+.-]*:|//|/|#)')
+}
+
+# The existing full path of $Decoded resolved from the repo-relative folder $BaseDir under $Root, or $null.
+function Resolve-LinkTarget([string]$Root, [string]$BaseDir, [string]$Decoded) {
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $full = [IO.Path]::GetFullPath((Join-Path $rootFull (($BaseDir + '/' + $Decoded) -replace '/', '\')))
+    if (-not $full.StartsWith($rootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if ((Test-Path -LiteralPath $full) -and (Test-ExactCasePath $rootFull $full)) { return $full }
+    return $null
+}
+
+# Test-Path ignores case on Windows but the link checker (Linux) does not: every segment must match the name on disk.
+function Test-ExactCasePath([string]$RootFull, [string]$Full) {
+    $current = $RootFull
+    foreach ($segment in $Full.Substring($RootFull.Length).Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $names = [IO.Directory]::EnumerateFileSystemEntries($current) | ForEach-Object { [IO.Path]::GetFileName($_) }
+        if ($names -cnotcontains $segment) { return $false }
+        $current = Join-Path $current $segment
+    }
+    return $true
+}
+
+# The new target for one link, the same $Target when it needs no change, or $null when it does not resolve.
+function Convert-LinkTarget([string]$Target, [string]$SourceDir, [string]$DestDir, [string]$Root) {
+    $bare = $Target.Trim('<', '>')
+    $cut = $bare.IndexOfAny([char[]]@('#', '?'))
+    $path = if ($cut -ge 0) { $bare.Substring(0, $cut) } else { $bare }
+    $suffix = if ($cut -ge 0) { $bare.Substring($cut) } else { '' }
+    if (-not (Test-RelativeLinkTarget $path)) { return $Target }
+    $decoded = [uri]::UnescapeDataString($path)
+    $full = Resolve-LinkTarget $Root $SourceDir $decoded
+    if (-not $full) {
+        # Already valid from the destination: nothing to rewrite.
+        if (Resolve-LinkTarget $Root $DestDir $decoded) { return $Target }
+        return $null
+    }
+    $rel = [IO.Path]::GetRelativePath((Join-Path $Root ($DestDir -replace '/', '\')), $full) -replace '\\', '/'
+    if ($decoded.EndsWith('/') -and -not $rel.EndsWith('/')) { $rel += '/' }
+    # The relative path did not change: keep the original text byte for byte (its own encoding included).
+    if ($rel -ceq $decoded) { return $Target }
+    $new = (ConvertTo-LinkPath $rel) + $suffix
+    return $(if ($Target.StartsWith('<')) { "<$new>" } else { $new })
+}
+
+# Percent-encodes the characters that would end or alter a Markdown link path: % # ? ( ) and space.
+function ConvertTo-LinkPath([string]$Path) {
+    return $Path.Replace('%', '%25').Replace('#', '%23').Replace('?', '%3F').Replace(' ', '%20').Replace('(', '%28').Replace(')', '%29')
+}
+
+# Fence state machine: returns the new opener ('' = outside a fence) after $Line.
+function Get-FenceState([string]$Line, [string]$Opener) {
+    if ($Line -notmatch '^\s{0,3}(?<f>`{3,}|~{3,})') { return $Opener }
+    if ($Opener -eq '') { return $Matches['f'] }
+    $f = $Matches['f']
+    # A closing fence carries no info string.
+    if ($f[0] -eq $Opener[0] -and $f.Length -ge $Opener.Length -and $Line -match '^\s{0,3}(`{3,}|~{3,})\s*$') { return '' }
+    return $Opener
+}
+
+# Rewrites the links of one non-fence line; $Errors collects 'file:line target' for the ones that do not resolve.
+function Update-LinkLine([string]$Line, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
+    $spans = @([regex]::Matches($Line, '(`+)(.+?)\1') | ForEach-Object { , @($_.Index, ($_.Index + $_.Length)) })
+    # The target allows one level of balanced parentheses; the link text allows one level of nested brackets, so a
+    # linked image [![a](img)](page) yields two matches (outer link and inner image), both checked.
+    $target = '(?<t><[^>]*>|(?:[^()\s]|\([^()\s]*\))*)'
+    $patterns = @(
+        ('(?<pre>!?\[[^\]]*\]\(\s*)' + $target),
+        ('(?<pre>!?\[(?:[^\[\]]|\[[^\[\]]*\])*\]\(\s*)' + $target),
+        # A reference definition: not a footnote ([^1]:), and nothing after the target but an optional quoted or
+        # parenthesised title, so prose such as "[HIGH]: this is bad" is not mistaken for one.
+        ('^(?<pre>\s{0,3}\[(?!\^)[^\]]+\]:\s*)(?<t><[^>]*>|\S+)(?=\s*$|\s+(?:"[^"]*"|''[^'']*''|\([^)]*\))\s*$)'))
+    return Update-LinkMatches $Line $patterns $spans $Number $SourceDir $DestDir $Root $Label $Errors
+}
+
+# Replaces the target (group 't') of each distinct link matched by $Patterns outside the inline code $Spans.
+function Update-LinkMatches([string]$Line, [string[]]$Patterns, $Spans, [int]$Number, [string]$SourceDir, [string]$DestDir, [string]$Root, [string]$Label, $Errors) {
+    $sb = [System.Text.StringBuilder]::new()
+    $pos = 0
+    $seen = [System.Collections.Generic.HashSet[int]]::new()
+    $matchesFound = @($Patterns | ForEach-Object { [regex]::Matches($Line, $_) } | Where-Object { $seen.Add($_.Groups['t'].Index) } | Sort-Object { $_.Groups['t'].Index })
+    foreach ($m in $matchesFound) {
+        $inCode = @($Spans | Where-Object { $m.Index -ge $_[0] -and $m.Index -lt $_[1] }).Count -gt 0
+        $target = $m.Groups['t'].Value
+        $new = if ($inCode) { $target } else { Convert-LinkTarget $target $SourceDir $DestDir $Root }
+        if ($null -eq $new) { $Errors.Add("${Label}:${Number} $target"); $new = $target }
+        $t = $m.Groups['t']
+        $null = $sb.Append($Line.Substring($pos, $t.Index - $pos)).Append($new)
+        $pos = $t.Index + $t.Length
+    }
+    return $sb.Append($Line.Substring($pos)).ToString()
+}
+
+# Returns @{ Text; Errors = @('<dest>:<line> <link>') }.
+function Update-PublishedLinks([string]$Text, [string]$SourceRel, [string]$DestRel, [string]$Root) {
+    $sourceDir = ($SourceRel -replace '\\', '/') -replace '/?[^/]*$', ''
+    $destDir = ($DestRel -replace '\\', '/') -replace '/?[^/]*$', ''
+    $errors = [System.Collections.Generic.List[string]]::new()
+    $lines = $Text.Split("`n")
+    $fence = ''
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $wasInFence = $fence -ne ''
+        $fence = Get-FenceState $lines[$i] $fence
+        if ($wasInFence -or $fence -ne '') { continue }
+        $lines[$i] = Update-LinkLine $lines[$i] ($i + 1) $sourceDir $destDir $Root $DestRel $errors
+    }
+    return @{ Text = ($lines -join "`n"); Errors = @($errors) }
+}
+
+# Applies Update-PublishedLinks to every Markdown file of the plan already written under $Tmp; returns the errors.
+function Update-PlanLinks($Plan, [string]$Tmp) {
+    $errors = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in $Plan) {
+        if ($item.Dest -notlike '*.md') { continue }
+        $file = Join-Path $Tmp ($item.Dest -replace '/', '\')
+        $base = if ($item.ContainsKey('LinkBase') -and $item.LinkBase) { $item.LinkBase } else { $item.Dest }
+        $original = [IO.File]::ReadAllText($file)
+        $result = Update-PublishedLinks $original $base $item.Dest $Tmp
+        foreach ($e in $result.Errors) { $errors.Add($e) }
+        if ($result.Text -cne $original) { [IO.File]::WriteAllText($file, $result.Text, [Text.UTF8Encoding]::new($false)) }
+    }
+    return @($errors)
 }
 
 # Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
@@ -585,6 +738,10 @@ function Publish-AuditKnowledge {
             if ($item.Source) { Copy-Item -LiteralPath $item.Source -Destination $dest -Force }
             else { [IO.File]::WriteAllText($dest, $item.Content, [Text.UTF8Encoding]::new($false)) }
         }
+
+        # #1817: rewrite relative links written for the source folder; a link that resolves nowhere fails the publish.
+        $brokenLinks = Update-PlanLinks $plan $tmp
+        if ($brokenLinks.Count -gt 0) { return (& $fail "relative Markdown links that do not resolve (file:line link), nothing was published:`n$($brokenLinks -join "`n")") }
 
         # The whole docs/knowledge tree must validate with the new files in place (schema, audit.record exists,
         # every result and stage folder has its record). The validator of the fresh origin/main checkout is used.

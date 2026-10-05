@@ -614,6 +614,13 @@ jobs:
       - name: Check for src files missing from the coverage manifest
         run: dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest
 
+      # #1762: per-file targets and justifications are consistent (every target justified, no orphan),
+      # and the script's own per-file logic passes its self-test. Diff-aware enforcement is #1651.
+      - name: Check coverage-report self-test and per-file justifications
+        run: |
+          dotnet run .github/scripts/coverage-report.cs -- --self-test
+          dotnet run .github/scripts/coverage-report.cs -- --check-justifications
+
   # Every fragment under changelog.d/ must have a valid name, section and entry content
   # (#1097). Runs on every PR, docs-only included, needs no build. fetch-depth: 0 also gives the
   # unreleased-unchanged check below the base commit to diff against.
@@ -675,12 +682,40 @@ jobs:
       - name: Self-test the audit delta mode (git and gh stubbed)
         run: pwsh -NoProfile -File tools/ai/audit/audit-delta-selftest.ps1
 
+  # #1817: internal links of the whole site (no anchors: .github/lychee.toml leaves fragments off), offline (deterministic, seconds long), as a
+  # merge gate through ci-result. link-check.yml keeps the online and changed-file scans; before this
+  # job a red internal-link check could merge because it was not required (PR #1815).
+  internal-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check internal markdown links (whole site, offline)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress
+            --offline
+            --config '.github/lychee.toml'
+            'docs/**/*.md'
+            '.github/**/*.md'
+            'README.md'
+            'CHANGELOG.md'
+            'changelog.d/**/*.md'
+            'CONTRIBUTING.md'
+            'ROADMAP.md'
+          fail: true
+
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records, internal-links]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

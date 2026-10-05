@@ -13,7 +13,7 @@ namespace Encina.Compliance.DataSubjectRights;
 /// The default implementation, <see cref="DefaultDataSubjectIdExtractor"/>, reads a <c>SubjectId</c>
 /// or <c>UserId</c> property of the request (or the property named by
 /// <see cref="RestrictProcessingAttribute.SubjectIdProperty"/>, which must exist) and falls back to
-/// <see cref="IRequestContext.UserId"/> only when no property is configured and the request has no
+/// <see cref="RequestIdentity.UserId"/> only when no property is configured and the request has no
 /// <c>SubjectId</c> or <c>UserId</c> property.
 /// </para>
 /// <para>

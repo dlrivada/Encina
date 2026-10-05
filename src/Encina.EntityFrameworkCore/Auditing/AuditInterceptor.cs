@@ -34,7 +34,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </list>
 /// </para>
 /// <para>
-/// <b>User Resolution</b>: The current user is resolved from <see cref="IRequestContext.UserId"/>
+/// <b>User Resolution</b>: The current user is resolved from <see cref="RequestIdentity.UserId"/>
 /// via <see cref="IRequestContextAccessor"/>. If no user context is available, the user properties
 /// are left as <c>null</c>.
 /// </para>

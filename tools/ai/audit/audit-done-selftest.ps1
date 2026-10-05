@@ -122,7 +122,16 @@ exit 0
 
     # --- 1. -NoPublish ----------------------------------------------------------------------------------------
     $env:AUDIT_STUB_FAIL_PUSH = '0'
+    # #1817: a broken relative link in a stage file fails the publish; a link written for the stage's source folder
+    # (artifacts/knowledge/stages/, three levels below the repository root) is rewritten for its destination.
+    $lessonsPath = Join-Path $wt 'artifacts\knowledge\stages\lessons.md'
+    Write-Text $lessonsPath "# Lessons`n- see [gone](../../../docs/missing.md)`n"
+    $rBad = Invoke-AuditDone @('-NoPublish')
+    Assert-That 'a broken relative link in a stage file fails the publish with file:line and the link' ($rBad.Exit -eq 1 -and $rBad.Text -like "*docs/knowledge/audits/$issue/stages/lessons.md:2 ../../../docs/missing.md*") $rBad.Text
+    Write-Text $lessonsPath "# Lessons`n- see [old](../../../docs/knowledge/issues/98.md)`n"
     $r1 = Invoke-AuditDone @('-NoPublish')
+    $lessonsPub = (Git -C $main show "knowledge/audit-${issue}:docs/knowledge/audits/$issue/stages/lessons.md") -join "`n"
+    Assert-That 'a stage-file link is rewritten from its source folder to the destination folder' ($lessonsPub.Contains('[old](../../../issues/98.md)')) $lessonsPub
     Assert-That 'NoPublish exits 0' ($r1.Exit -eq 0) $r1.Text
     $diff = @(Git -C $main diff --name-status origin/main "knowledge/audit-$issue" | ForEach-Object { ($_ -replace '\s+', ' ').Trim() } | Sort-Object)
     $expected = @("M docs/knowledge/issues/$issue.md", "A docs/knowledge/audits/issue-$issue.md") +

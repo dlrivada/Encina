@@ -366,7 +366,7 @@ public sealed class FluentValidationProviderTests
         using var serviceProvider = services.BuildServiceProvider();
         var provider = new FluentValidationProvider(serviceProvider);
         var request = new RequiredFieldRequest("John");
-        var context = new TestRequestContext { UserId = "user-123", TenantId = "tenant-abc" };
+        var context = new TestRequestContext { Identity = global::Encina.Testing.Identity.TestIdentity.User("user-123"), TenantId = "tenant-abc" };
 
         // Act
         await provider.ValidateAsync(request, context, CancellationToken.None);

@@ -61,8 +61,9 @@ public sealed class ReadAuditOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is <c>false</c>. When <c>true</c>, read operations without a
-    /// <c>UserId</c> in the request context are not audited.
+    /// Default is <c>false</c>. When <c>true</c>, read operations whose request identity is a
+    /// <see cref="IdentityKind.Service"/> are not audited. Anonymous and user reads are always
+    /// audited: a missing identity is never treated as system access.
     /// </para>
     /// <para>
     /// Useful for reducing noise from background jobs, health checks, and

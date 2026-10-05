@@ -2,6 +2,7 @@
 
 using Encina.Security.Encryption;
 using Encina.Security.Encryption.Abstractions;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
@@ -23,7 +24,7 @@ public sealed class EncryptionPipelineBehaviorRedactionTests : IDisposable
         Options.Create(new EncryptionOptions { EnableTracing = true, EnableMetrics = true });
 
     private readonly IEncryptionOrchestrator _orchestrator = Substitute.For<IEncryptionOrchestrator>();
-    private readonly IRequestContext _context = RequestContext.CreateForTest(userId: "user-1");
+    private readonly IRequestContext _context = TestRequestContext.For(TestIdentity.User("user-1"));
 
     public EncryptionPipelineBehaviorRedactionTests() => EncryptedPropertyCache.ClearCache();
 

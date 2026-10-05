@@ -10,7 +10,7 @@ namespace Encina.Compliance.GDPR;
 /// mechanism for extracting the subject identifier from the request or pipeline context.
 /// </para>
 /// <para>
-/// The default implementation falls back to <see cref="IRequestContext.UserId"/> when no
+/// The default implementation falls back to <see cref="RequestIdentity.UserId"/> when no
 /// custom extractor is registered.
 /// </para>
 /// </remarks>
@@ -47,7 +47,7 @@ public interface ILawfulBasisSubjectIdExtractor
 
 /// <summary>
 /// Default implementation of <see cref="ILawfulBasisSubjectIdExtractor"/> that returns
-/// <see cref="IRequestContext.UserId"/>.
+/// <see cref="RequestIdentity.UserId"/>.
 /// </summary>
 public sealed class DefaultLawfulBasisSubjectIdExtractor : ILawfulBasisSubjectIdExtractor
 {

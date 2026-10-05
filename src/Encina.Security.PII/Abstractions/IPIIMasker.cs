@@ -59,6 +59,10 @@ public interface IPIIMasker
     /// Matched groups are replaced with the configured mask character.
     /// </param>
     /// <returns>The masked value.</returns>
+    /// <remarks>
+    /// Fails closed: when the pattern is invalid or matching exceeds the configured regex timeout,
+    /// the whole value is masked instead of being returned unchanged.
+    /// </remarks>
     /// <example>
     /// <code>
     /// string masked = masker.Mask("License: ABC-12345", @"\d+");
@@ -86,7 +90,18 @@ public interface IPIIMasker
     /// Property metadata is cached after the first invocation for each type to avoid
     /// repeated reflection overhead.
     /// </para>
+    /// <para>
+    /// Fails closed: when masking cannot be completed (a strategy throws, the object cannot be
+    /// serialized, or a masked property cannot be written to the copy, for example a get-only property),
+    /// the method throws instead of returning an unmasked object.
+    /// </para>
+    /// <para>
+    /// <see cref="Attributes.MaskInLogsAttribute"/> is not honoured by this method yet
+    /// (see https://github.com/dlrivada/Encina/issues/1839).
+    /// </para>
     /// </remarks>
+    /// <exception cref="InvalidOperationException">Masking failed.</exception>
+    /// <exception cref="System.Text.Json.JsonException">The object could not be serialized or deserialized.</exception>
     /// <example>
     /// <code>
     /// var user = new UserDto
