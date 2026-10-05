@@ -1074,10 +1074,35 @@ try {
     Remove-Item -LiteralPath (Join-Path $wt 'tools\ai\audit\pipeline.json') -Force
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\code.md" } } | ConvertTo-Json -Compress) 2 'a missing pipeline.json denies a stage-artifact write too (#1572, fail closed)' 'issue-auditor'
     Set-Content (Join-Path $wt 'tools\ai\audit\pipeline.json') $ownershipPipelineJson
+
+    # #1763: in a delta audit (current-audit.json mode = delta, worktree = this tree) the stage artifacts belong
+    # to the agents tools/ai/audit/pipeline-delta.json assigns; that file has no archivist or code stage.
+    $deltaOwnershipPipelineJson = '{"delta":{"set":"rules-2026-10","folder":"delta-2026-10","promptMarker":"delta: rules-2026-10"},"stages":[{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS"}'
+    Set-Content (Join-Path $wt 'tools\ai\audit\pipeline-delta.json') $deltaOwnershipPipelineJson
+    @{ issue = 777; worktree = $wt; branch = 'audit/777'; startedUtc = '2026-01-01T00:00:00Z'; mode = 'delta'; set = 'rules-2026-10' } | ConvertTo-Json | Set-Content -LiteralPath $draftAuditPath
+    $deltaOwnershipCases = @(
+        @('docs-reviewer', "$wt\artifacts\knowledge\stages\docs.md", 0, 'delta: docs-reviewer writes its own stage artifact (#1763)'),
+        @('test-auditor', "$wt\artifacts\knowledge\stages\docs.md", 2, 'delta: test-auditor writing docs.md is denied (#1763)'),
+        @($null, "$wt\artifacts\knowledge\stages\tests.md", 2, 'delta: the orchestrator writing tests.md is denied (#1763)'),
+        @('test-auditor', "$wt\artifacts\knowledge\stages\tests.md", 0, 'delta: test-auditor writes its own stage artifact (#1763)'),
+        @('audit-verifier', "$wt\artifacts\knowledge\stages\verification.md", 0, 'delta: audit-verifier writes its own stage artifact (#1763)'),
+        @('remediation-drafter', "$wt\artifacts\knowledge\stages\remediation.md", 0, 'delta: remediation-drafter writes its own stage artifact (#1763)'),
+        @('issue-auditor', "$wt\artifacts\knowledge\stages\code.md", 2, 'delta: issue-auditor writing code.md is denied, the delta pipeline has no code stage (#1763)'),
+        @('issue-archivist', "$wt\artifacts\knowledge\stages\archivist.md", 2, 'delta: issue-archivist writing archivist.md is denied, the delta pipeline has no archivist stage (#1763)')
+    )
+    foreach ($case in $deltaOwnershipCases) {
+        $hookAgent, $path, $expected, $label = $case
+        Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = $path } } | ConvertTo-Json -Compress) $expected $label $hookAgent
+    }
+    Remove-Item -LiteralPath (Join-Path $wt 'tools\ai\audit\pipeline-delta.json') -Force
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\docs.md" } } | ConvertTo-Json -Compress) 2 'delta: a missing pipeline-delta.json denies a stage-artifact write (#1763, fail closed)' 'docs-reviewer'
+    @{ issue = 777; worktree = (Join-Path $main '.claude\worktrees\wia-777'); branch = 'audit/777'; startedUtc = '2026-01-01T00:00:00Z' } | ConvertTo-Json | Set-Content -LiteralPath $draftAuditPath
+
     # Fail closed: an unreadable current-audit.json leaves no caller able to write any draft.
     Set-Content -LiteralPath $draftAuditPath -Value '{ not json'
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main; tool_input = @{ file_path = $openDraft } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies even the orchestrator a draft write (#1572, fail closed)' $null
     Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main; tool_input = @{ file_path = $openDraft } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies remediation-drafter a draft write too (#1572, fail closed)' 'remediation-drafter'
+    Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $wt; tool_input = @{ file_path = "$wt\artifacts\knowledge\stages\docs.md" } } | ConvertTo-Json -Compress) 2 'an unreadable current-audit.json denies even the assigned stage agent a stage-artifact write (#1763, fail closed)' 'docs-reviewer'
     Remove-Item -LiteralPath $draftAuditPath -Force
 
     # #1345: every allowed stage-artifact write above recorded its author in the sidecar, and the sidecar
@@ -1425,6 +1450,36 @@ try {
         Remove-Item -Force (Join-Path $auditWt 'tools\ai\audit\pipeline.json')
         Invoke-AuditCase 'issue-auditor' "Audit #$auditN in worktree wia-$auditN, code stage (no pipeline.json)." $null 2 'audit-stage-guard: a missing pipeline.json denies the stage spawn (#1572, fail closed)'
         Invoke-AuditCase 'general-purpose' 'Unrelated research, no audit context.' $null 0 'audit-stage-guard: an unrelated spawn is unaffected by a broken audit pipeline.json'
+
+        # #1763: a delta audit (current-audit.json mode = delta) runs tools/ai/audit/pipeline-delta.json:
+        # docs -> tests -> remediation -> verification, no archivist or code stage, and the prompt carries the marker.
+        $deltaPipelineJson = '{"delta":{"set":"rules-2026-10","folder":"delta-2026-10","promptMarker":"delta: rules-2026-10"},"stages":[{"stage":"docs","agent":"docs-reviewer","model":"sonnet","artifact":"docs.md","rule":"a"},{"stage":"tests","agent":"test-auditor","model":"sonnet","artifact":"tests.md","rule":"b"},{"stage":"remediation","agent":"remediation-drafter","model":"sonnet","artifact":"remediation.md"},{"stage":"verification","agent":"audit-verifier","model":"sonnet","artifact":"verification.md"}],"forbiddenModels":["haiku"],"verdictLine":"Verdict: PASS","lessonsHeading":"## Lessons for the pipeline"}'
+        Initialize-AuditWorktree $defaultPipelineJson
+        Set-Content (Join-Path $auditWt 'tools\ai\audit\pipeline-delta.json') $deltaPipelineJson
+        New-Item -ItemType Directory -Force (Split-Path -Parent $auditCurrentPath) | Out-Null
+        @{ issue = $auditN; worktree = $auditWt; branch = "audit/$auditN"; startedUtc = '2026-01-01T00:00:00Z'; mode = 'delta'; set = 'rules-2026-10' } | ConvertTo-Json | Set-Content $auditCurrentPath
+        $deltaPrompt = "Audit #$auditN in worktree wia-$auditN, delta: rules-2026-10, check only rule"
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (a)." $null 0 'audit-stage-guard (delta): docs-reviewer is the first stage (#1763)'
+        Invoke-AuditCase 'docs-reviewer' "Audit #$auditN in worktree wia-$auditN, docs stage." $null 2 'audit-stage-guard (delta): a prompt without the delta marker is denied (#1763)'
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (b)." $null 2 'audit-stage-guard (delta): the docs stage must say check only rule (a), not (b) (#1763)'
+        Invoke-AuditCase 'issue-auditor' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): the code stage is denied (#1763)'
+        Invoke-AuditCase 'issue-archivist' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): the archivist stage is denied (#1763)'
+        Invoke-AuditCase 'test-auditor' "$deltaPrompt (b)." $null 2 'audit-stage-guard (delta): tests before docs is denied (#1763)'
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (a)." 'haiku' 2 'audit-stage-guard (delta): haiku is denied (#1763)'
+        Write-AuditStage 'docs' 'docs.md' -Commit
+        Invoke-AuditCase 'test-auditor' "$deltaPrompt (b)." $null 0 'audit-stage-guard (delta): tests after docs is committed (#1763)'
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): docs again once committed is out of order (#1763)'
+        Invoke-AuditCase 'remediation-drafter' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): remediation before tests is denied (#1763)'
+        Write-AuditStage 'tests' 'tests.md' -Commit
+        Invoke-AuditCase 'remediation-drafter' "$deltaPrompt." $null 0 'audit-stage-guard (delta): remediation after tests (#1763)'
+        Write-AuditStage 'remediation' 'remediation.md' -Commit
+        Set-Content (Join-Path $auditWt 'artifacts\knowledge\stages\verification.md') "Verdict: FAIL`n## Lessons for the pipeline`n- none`n"
+        Invoke-AuditCase 'issue-auditor' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): even after a FAIL verdict the code stage agent stays denied (#1763)'
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (a)." $null 0 'audit-stage-guard (delta): after a FAIL verdict a delta stage may be re-run (#1763)'
+        Remove-Item -Force (Join-Path $auditWt 'tools\ai\audit\pipeline-delta.json')
+        Invoke-AuditCase 'docs-reviewer' "$deltaPrompt (a)." $null 2 'audit-stage-guard (delta): a missing pipeline-delta.json denies the stage spawn (fail closed, #1763)'
+
+        Set-AuditOpen $true
         Initialize-AuditWorktree $defaultPipelineJson
         $savedProjectDir = $env:CLAUDE_PROJECT_DIR
         $env:CLAUDE_PROJECT_DIR = ''

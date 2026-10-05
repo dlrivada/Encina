@@ -396,6 +396,29 @@ Update the board: `audits/<n>.status=closed`, its `outcome` (from the knowledge 
 remediation issue numbers from step 5, and `meta/board.pipeline="v2"`.
 
 
+## 7. Delta mode: re-check audits #1-#29 for the 2026-10-05 rules (#1763)
+
+Audits #1 to #29 ran before two rules were decided (audit #30 on applies them in the normal pipeline):
+
+- **Rule (a), documentation** (`docs-reviewer`, audit mode checklist): pages are visual and scannable (Mermaid, UML or C4 diagrams, charts, tables, code and terminal snippets where they help; no walls of text; professional, no emojis); `csharp` samples are correct against `src/`; figures are cited, never hand-typed; the page is placed as the `encina-docs` skill says; a feature in scope has adequate docs and appears in the tutorials and learning paths. Each gap is a finding.
+- **Rule (b), obligations** (`test-auditor`, step 7): every file in the audit scope has per-flag targets in `.github/coverage-manifest/{Package}.json`; a missing set of targets, an unjustified target or one clearly below what is demanding and realistic for that file is a finding, and a 0 is acceptable only with a justification. Until the manifest schema gains a justification field (#1762), the finding proposes the target and its justification.
+
+`audit-verifier` checks both rules like any other claim; `remediation-drafter` routes rule-(a) findings to `technical_debt.md` (Documentation gap) and rule-(b) findings to `test_implementation.md`.
+
+The delta pipeline is `tools/ai/audit/pipeline-delta.json`: **docs** (`docs-reviewer`, rule (a) only) -> **tests** (`test-auditor`, rule (b) only) -> **remediation** (`remediation-drafter`) -> **verification** (`audit-verifier`). There is no archivist or code stage: the delta reuses the scope the original audit recorded. Start one with:
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-next.ps1 -Delta rules-2026-10
+```
+
+(`-Issue <n>` picks a specific audited issue that has no delta yet; without it the script takes the first one.)
+
+- **Which issue.** The set covers exactly the audits done before the rules: the candidates are the distinct issues of `artifacts/knowledge/progress.csv`, in order, whose published record does not date its audit on or after the set's cut-off (`delta.cutOff` in `pipeline-delta.json`, 2026-10-05; audits #30 and later already apply the rules and never enter the queue). An issue with no published record `docs/knowledge/issues/<n>.md` on `origin/main` is skipped with a warning (#4; the pilot-format #11-#15 and #20 until #1765 lands). Progress is kept in `artifacts/knowledge/delta-progress-rules-2026-10.csv` (git-ignored), so `progress.csv` and the original audit are never touched.
+- **What it does.** It creates `wia-<n>` on `audit/<n>` from `origin/main` as in step 1 (there is no pre-draft), writes the reused scope to `artifacts/knowledge/delta-scope.md` in that worktree (the front matter of `docs/knowledge/issues/<n>.md` plus the scope lists of the published `docs/knowledge/audits/<n>/stages/archivist.md` and `code.md`; when `docs/knowledge/audits/<n>/stages/` is not published, it is built from the record and the published result `docs/knowledge/audits/issue-<n>.md`, and says which source was used; `knowledge-records.cs` accepts an `audits/<n>/` folder that holds only `delta-*` folders), records `mode: delta` and `set: rules-2026-10` in `current-audit.json`, and prints the first stage.
+- **Stage prompts.** Spawn each agent in the foreground, naming `#<n>` and `wia-<n>` as always, and say `delta: rules-2026-10, check only rule (a)` for the docs stage, `delta: rules-2026-10, check only rule (b)` for the tests stage, and `delta: rules-2026-10, verify only rules (a) and (b)` for the verifier. `audit-stage-guard.ps1` reads `pipeline-delta.json` for order and agent, denies the full pipeline's other agents (`issue-archivist`, `issue-auditor`) and a prompt without the marker; `enforce-path-ownership.ps1` applies the same ownership to the delta stage files. Commit stages, run `audit-lessons.ps1` and `audit-commit-stage.ps1 -Lessons` as in steps 2 to 4; the remediation stage (`-Prepare`, spawn, `-Finalize`) reads only the stages the delta pipeline has.
+- **Close.** `audit-done.ps1` works as in step 5 but publishes to `docs/knowledge/audits/<n>/delta-2026-10/` (the delta stage files, `lessons.md` and `delta-scope.md`) on the branch `knowledge/audit-<n>-delta-2026-10` through the same pull request mechanism (`Refs #1345`); it does not replace the original record or audit result, and appends `<n>,done` to the delta progress file. Then step 6 (`open-remediation.ps1 -Issue <n>`) as usual.
+- **Self-test.** `pwsh -NoProfile -File tools/ai/audit/audit-delta-selftest.ps1` runs `audit-next.ps1 -Delta` against a fixture with stubbed `git push` and `gh` and asserts the scope reuse, the stage order and the publish layout.
+
 ## Rules
 
 - One audit open at a time; `audit-next.ps1` refuses a second one, and a stray `wia-*` worktree without

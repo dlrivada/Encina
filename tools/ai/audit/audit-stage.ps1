@@ -86,7 +86,7 @@ if (-not $Next) { 'Usage: audit-stage.ps1 -Next | -RepairAuthors'; exit 0 }
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipeline = Get-AuditPipeline $audit
 # Named $dueStage, not $next: the -Next switch parameter above already owns $Next, and PowerShell variable
 # names are case-insensitive, so `$next = <object>` would try to convert the result into a SwitchParameter.
 $dueStage = Get-NextStage $stagesDir $wt $pipeline

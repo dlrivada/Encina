@@ -228,6 +228,26 @@ try {
         return $script:OpenAuditIssue
     }
 
+    # #1763: the pipeline file that assigns the stage artifacts of the tree at $Root. A delta audit (the MAIN
+    # checkout's current-audit.json has `mode = 'delta'`) runs tools/ai/audit/pipeline-delta.json in ITS OWN
+    # worktree, so its stage files (docs.md, tests.md, remediation.md, verification.md) belong to the agents that
+    # file assigns; any other tree keeps pipeline.json. Unreadable current-audit.json: $null, and the caller denies
+    # the stage write (fail closed).
+    function Get-StagePipelineFileName([string]$Root) {
+        $currentAuditPath = Join-Path $layout.MainRoot 'artifacts\knowledge\current-audit.json'
+        if (-not (Test-Path -LiteralPath $currentAuditPath)) { return 'pipeline.json' }
+        try {
+            $open = Get-Content -LiteralPath $currentAuditPath -Raw | ConvertFrom-Json
+            $isDelta = ($null -ne $open.PSObject.Properties['mode']) -and ([string]$open.mode -eq 'delta')
+            if ($isDelta -and [string]$open.worktree -and
+                [IO.Path]::GetFullPath([string]$open.worktree).TrimEnd('\', '/') -ieq [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')) {
+                return 'pipeline-delta.json'
+            }
+        }
+        catch { return $null }
+        return 'pipeline.json'
+    }
+
     # Checks one resolved absolute path against every ownership rule. Returns $true (allowed) or $false
     # (blocked; the reason is already on stderr). A path outside the project is always allowed.
     function Test-PathOwnership([string]$Full) {
@@ -273,7 +293,12 @@ try {
         # 'artifacts/knowledge/stages/code.md' and must not evade this check by casing alone.
         $stageArtifactMatch = [regex]::Match($relative, '^artifacts/knowledge/stages/(?<file>[^/]+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if ($stageArtifactMatch.Success) {
-            $pipelinePath = Join-Path $location.Root 'tools\ai\audit\pipeline.json'
+            $pipelineFileName = Get-StagePipelineFileName $location.Root
+            if ($null -eq $pipelineFileName) {
+                [Console]::Error.WriteLine("Blocked: '$relative' is under artifacts/knowledge/stages/, but artifacts/knowledge/current-audit.json exists and cannot be read, so it cannot be decided whether the open audit is a delta audit (pipeline-delta.json) or a full one (pipeline.json); repair current-audit.json first (#1763, fail closed).")
+                return $false
+            }
+            $pipelinePath = Join-Path $location.Root ('tools\ai\audit\' + $pipelineFileName)
             # #1572 review: a missing or unreadable pipeline.json must not fall through to the default allow --
             # nobody may write a stage artifact whose owner cannot be decided (fail closed, AGENTS.md §3).
             $pipeline = $null

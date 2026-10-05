@@ -109,6 +109,16 @@ try {
     Add-File $r 'docs\knowledge\audits\13\stages\code.md' "x`n"
     Assert-Case 'stage folder without a record fails' (Invoke-Check $r) $false 'no matching record issues/13.md'
 
+    $r = New-Fixture 'delta-only'
+    Add-File $r 'docs\knowledge\issues\17.md' (Get-Record 1 17 (Get-AuditBlock 'not-audited' 'not written yet'))
+    Add-File $r 'docs\knowledge\audits\17\delta-2026-10\docs.md' "x`n"
+    Assert-Case 'an audit folder holding only a delta folder is valid (#1763)' (Invoke-Check $r) $true ''
+
+    $r = New-Fixture 'no-stages-no-delta'
+    Add-File $r 'docs\knowledge\issues\18.md' (Get-Record 1 18 (Get-AuditBlock 'not-audited' 'not written yet'))
+    Add-File $r 'docs\knowledge\audits\18\notes.md' "x`n"
+    Assert-Case 'an audit folder with neither stages nor a delta folder fails (#1763)' (Invoke-Check $r) $false 'missing stages folder'
+
     $r = New-Fixture 'other-issue-target'
     Add-File $r 'docs\knowledge\issues\15.md' (Get-Record 1 15 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-16.md'))
     Add-File $r 'docs\knowledge\issues\16.md' (Get-Record 1 16 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-16.md'))

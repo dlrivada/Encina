@@ -49,8 +49,8 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 
 ## Inputs
 
-- `artifacts\knowledge\stages\archivist.md` (the scope list) and `artifacts\knowledge\issues\<n>.md`.
-- `artifacts\knowledge\stages\code.md`, for the bugs `issue-auditor` found (each needs a regression-test check).
+- `artifacts\knowledge\stages\archivist.md` (the scope list) and `artifacts\knowledge\issues\<n>.md`. In a delta audit neither exists in the worktree's `stages\`: the scope is `artifacts\knowledge\delta-scope.md`.
+- `artifacts\knowledge\stages\code.md`, for the bugs `issue-auditor` found (each needs a regression-test check); absent in a delta audit.
 - `.github/coverage-manifest/{Package}.json` for the per-flag targets of the scoped files.
 - `AGENTS.md` §9 (Testing obligations: obligations model, test quality standards, provider/integration rules).
 
@@ -62,6 +62,13 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 4. **Test quality.** Reflection-only tests (`typeof(...).GetMethod(...)` with no instantiation), asserts that cannot fail, `Thread.Sleep`, shared mutable state across tests, non-deterministic generators.
 5. **Real infrastructure.** For a database or Marten feature, confirm integration tests run against Testcontainers, not an in-memory substitute.
 6. **CRAP.** Mention CRAP score coverage as pending once #1346 lands; do not compute it yourself until then.
+7. **Obligations (rule (b), from audit #30 on; #1763, decided 2026-10-05).** For every file in the audit scope, read its entry in `.github/coverage-manifest/{Package}.json` and report as a finding:
+   - a file with no per-flag targets in the manifest (name the file, the package and the flags that apply to it);
+   - a target that is unjustified, or clearly below what is demanding and realistic for that file (compare with the measured coverage, the file's size and branching, and its siblings in the manifest);
+   - a target of 0 that carries no justification (a 0 is acceptable only with one).
+   Read the manifest as it is today: a file's targets are the package-level `targets` (per flag) combined with the file's own entry (`defaultTests`, `defaultRule`, `reason`, `override`); "no per-flag targets" means the file has no entry in `files`, an empty `defaultTests` with no `reason`/`override` justifying it, or a package without `targets` for a flag that applies to the file.
+   The manifest schema has no justification field yet (#1762), so each finding text proposes the target for every applicable flag and its justification (one sentence tied to the file's code). A finding in this class is Major when the file has no targets at all, Minor when a target is only too low.
+   **Delta mode.** When your prompt says `delta: rules-2026-10, check only rule (b)`, run only this step 7 (no coverage runs unless the measured value is needed to judge a target, no steps 1-6) on the scope recorded by the original audit (`artifacts\knowledge\delta-scope.md` of the audit worktree, `tools/ai/audit/pipeline-delta.json`), and write `tests.md` in the same shape below (`## Coverage measured` may say "not measured: delta rule (b)").
 
 ## Output
 

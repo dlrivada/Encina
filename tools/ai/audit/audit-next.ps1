@@ -12,7 +12,17 @@
 # artifacts/knowledge/current-audit.json, and makes sure a local-model pre-draft
 # (artifacts/knowledge/predraft/<n>.md) exists before the archivist stage starts.
 
-param([int]$Issue)
+# -Delta <set> (#1763): starts a DELTA audit instead, a re-check of an audit already published, for the rules
+# decided after it ran only (set rules-2026-10: docs rule (a), tests rule (b)). It takes the next of the
+# audited issues (the distinct issues of progress.csv, in order) that has no delta in the set's progress file
+# (artifacts/knowledge/delta-progress-<set>.csv) -- or -Issue n, any issue of that list not yet done --, reuses
+# the scope the original audit recorded (the knowledge record and the published archivist/code stage files in
+# docs/knowledge, written to artifacts/knowledge/delta-scope.md of the new worktree; no pre-draft, no
+# classify-scope), creates the audit worktree as today, records `mode: delta` and `set` in current-audit.json
+# and prints the first stage of tools/ai/audit/pipeline-delta.json.
+#   pwsh -NoProfile -File tools/ai/audit/audit-next.ps1 -Delta rules-2026-10 [-Issue n]
+
+param([int]$Issue, [string]$Delta = '')
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
@@ -32,6 +42,82 @@ if ($existingWia.Count -gt 0) {
     $names = ($existingWia | ForEach-Object { $_.Name }) -join ', '
     Write-Error "audit-next: no current-audit.json, but a wia-* worktree already exists ($names). Remove it (git worktree remove) or restore artifacts/knowledge/current-audit.json before starting a new audit."
     exit 1
+}
+
+if ($Delta) {
+    $deltaPipelineSource = Get-Pipeline $PSScriptRoot 'pipeline-delta.json'
+    if ([string]$deltaPipelineSource.delta.set -ne $Delta) {
+        Write-Error "audit-next: unknown delta set '$Delta' (tools/ai/audit/pipeline-delta.json defines '$($deltaPipelineSource.delta.set)')."
+        exit 1
+    }
+    $candidates = @(Get-DeltaCandidates $knowledgeRoot)
+    if ($candidates.Count -eq 0) { Write-Error "audit-next: no audited issue in artifacts/knowledge/progress.csv; nothing to re-check."; exit 1 }
+    $deltaDone = @(Get-DeltaDone $knowledgeRoot $Delta)
+    $fetchOutput = & git -C $mainRoot fetch origin main 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: git fetch origin main failed: $fetchOutput"; exit 1 }
+    # The set covers exactly the audits done BEFORE its rules (pipeline-delta.json delta.cutOff): an issue whose
+    # published record says its audit ran on or after the cut-off already applied the rules and never enters the
+    # queue. A record without an audit date predates the rules. The delta needs the published record on
+    # origin/main (its scope source); an issue without one is skipped with a warning. Published stage files are
+    # NOT required: without them the scope is built from the record and the published result.
+    $cutOff = [string]$deltaPipelineSource.delta.cutOff
+    $unfit = [System.Collections.Generic.List[string]]::new()
+    $afterCutOff = [System.Collections.Generic.List[string]]::new()
+    $pendingDelta = @($candidates | Where-Object { $deltaDone -notcontains $_ } | Where-Object {
+            $recordText = (& git -C $mainRoot show "origin/main:docs/knowledge/issues/$_.md" 2>$null) -join "`n"
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($recordText)) { $unfit.Add($_); return $false }
+            $auditDate = Get-RecordAuditDate $recordText
+            if ($auditDate -and $cutOff -and [string]::CompareOrdinal($auditDate, $cutOff) -ge 0) { $afterCutOff.Add($_); return $false }
+            $true
+        })
+    if ($unfit.Count -gt 0) { Write-Warning "audit-next: skipped (no published record docs/knowledge/issues/<n>.md on origin/main): $($unfit -join ', ')." }
+    if ($afterCutOff.Count -gt 0) { Write-Host "audit-next: not in the '$Delta' set (audit dated on or after $cutOff): $($afterCutOff -join ', ')." }
+    if ($pendingDelta.Count -eq 0) { Write-Error "audit-next: no audited issue left without a '$Delta' delta that has a published record."; exit 1 }
+    if ($Issue) {
+        if ($pendingDelta -notcontains [string]$Issue) {
+            Write-Error "audit-next: -Issue $Issue is not an audited issue without a '$Delta' delta (pending: $($pendingDelta -join ', '))."
+            exit 1
+        }
+        $n = $Issue
+    }
+    else { $n = [int]$pendingDelta[0] }
+
+    $wt = Join-Path $worktreesRoot "wia-$n"
+    $branch = "audit/$n"
+    $addOutput = & git -C $mainRoot worktree add -b $branch $wt origin/main 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Error "audit-next: failed to create worktree $wt on branch $branch`: $addOutput"; exit 1 }
+
+    $scopeText = New-DeltaScopeText $n $wt $Delta
+    if ($null -eq $scopeText) {
+        $rmOut = & git -C $mainRoot worktree remove $wt --force 2>&1
+        $brOut = & git -C $mainRoot branch -D $branch 2>&1
+        Write-Error "audit-next: docs/knowledge/issues/$n.md does not exist on origin/main, so the scope the original audit recorded cannot be reused; worktree and branch removed, no audit left open. Publish that audit's record first (audit-done.ps1)."
+        exit 1
+    }
+    New-Item -ItemType Directory -Force (Get-StagesDir $wt) | Out-Null
+    Set-Content -LiteralPath (Join-Path $wt 'artifacts\knowledge\delta-scope.md') -Value $scopeText -Encoding utf8
+
+    $audit = [ordered]@{
+        issue      = $n
+        worktree   = $wt
+        branch     = $branch
+        startedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        mode       = 'delta'
+        set        = $Delta
+    }
+    New-Item -ItemType Directory -Force $knowledgeRoot | Out-Null
+    $audit | ConvertTo-Json | Set-Content -LiteralPath $currentAuditPath -Encoding utf8
+
+    "Delta audit $Delta of #$n (pending deltas: $($pendingDelta.Count)); scope reused from the original audit: $wt\artifacts\knowledge\delta-scope.md"
+    $deltaPipeline = $deltaPipelineSource
+    $marker = [string]$deltaPipeline.delta.promptMarker
+    $nextDelta = Get-NextStage (Get-StagesDir $wt) $wt $deltaPipeline
+    if ($null -eq $nextDelta) { 'All stages already complete. Run audit-done.ps1.' }
+    else {
+        $ruleHint = if ($nextDelta.PSObject.Properties['rule']) { "check only rule ($($nextDelta.rule))" } else { 'delta stage' }
+        "Next stage: $($nextDelta.stage) (spawn $($nextDelta.agent) -- issue #$n, worktree $wt, branch $branch; the prompt says `"$marker, $ruleHint`")"
+    }
+    exit 0
 }
 
 # The pending queue entry, computed the same way whether -Issue is given or not: the first

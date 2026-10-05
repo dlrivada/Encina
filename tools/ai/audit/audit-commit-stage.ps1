@@ -80,7 +80,7 @@ if ($Lessons) {
     exit 0
 }
 
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipeline = Get-AuditPipeline $audit
 $stageDef = $pipeline.stages | Where-Object { $_.stage -eq $Stage }
 if ($null -eq $stageDef) {
     $names = ($pipeline.stages | ForEach-Object { $_.stage }) -join ', '

@@ -16,7 +16,7 @@ if ($null -eq $audit) { Write-Error 'audit-lessons: no open audit (artifacts/kno
 $wt = [string]$audit.worktree
 $n = [string]$audit.issue
 $stagesDir = Get-StagesDir $wt
-$pipeline = Get-Pipeline (Join-Path $wt 'tools\ai\audit')
+$pipeline = Get-AuditPipeline $audit
 
 $lines = [System.Collections.Generic.List[string]]::new()
 $count = 0

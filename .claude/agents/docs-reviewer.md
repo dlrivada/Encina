@@ -33,6 +33,18 @@ You review documentation of the `dlrivada/Encina` repository. You do not fix any
 
 **Audit mode.** When your prompt names an open SPEC-003 audit worktree (`wia-<n>`), you are the pipeline's docs stage (#1345, `.claude/skills/issue-audit/SKILL.md`): review the docs and README that describe what issue `#<n>` delivered (accuracy against today's code, Diátaxis, real API, no hand-typed figures), then write `artifacts\knowledge\stages\docs.md` yourself with the Write tool, in this shape — `## Pages reviewed`, `## Findings` (one numbered paragraph per finding, in this exact shape: "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by " — " and the body: file:line/heading evidence first, then the check that fails; continuation lines belong to the same numbered finding until the next "N. **Severity**" line or the next "## " heading; `- none` when nothing survives verification. `audit-draft-remediation.ps1`'s Split-Findings depends on this exact layout to draft one issue per finding; any other shape surfaces as a single Unknown-severity finding covering the whole section instead of being split further), `## Informational (not findings)` (observations and prose that are not findings; never prose under `## Findings`, not even after `- none`, whose trailing text is ignored), `## Lessons for the pipeline` (one bullet per lesson, or `- none`). The `enforce-path-ownership` hook restricts you to that one file inside the open audit's worktree. Outside audit mode you have no file to write and stay purely read-only as below.
 
+### Rule (a) checklist (audit mode, from audit #30 on; #1763, decided 2026-10-05)
+
+In audit mode, besides the procedure below, check these points on the pages and READMEs in scope; each gap is a finding with the page, the heading and the evidence:
+
+1. **Visual and scannable.** The page uses Mermaid, UML or C4 diagrams, charts, tables, and code and terminal snippets where they help the reader; it is not a wall of text; the tone is professional and has no emojis. A page of long unbroken prose where a diagram or a table would show the structure is a finding (major when the page explains architecture, flow or a comparison; minor otherwise).
+2. **C# samples correct against `src/`.** Every `csharp` block compiles in principle against today's API: the types, members, options, namespaces and registrations exist in `src/` with that shape (this extends procedure step 2 to the whole sample, not only the identifiers).
+3. **Figures cited, never hand-typed.** Coverage, mutation and performance figures are `covref`/`mutref` or performance citations (procedure step 3).
+4. **Placement.** The page sits where the `encina-docs` skill places its quadrant and package (path, `nav_order`, parent), and the neighbouring pages link to it.
+5. **Adequate docs for a feature in scope.** When the issue delivered a feature, it has a concept or guide page and a reference, and it appears in the tutorials and learning paths (`docs/` learning-path and tutorial index pages). A feature with no page, or one missing from every tutorial and learning path, is a finding.
+
+**Delta mode.** When your prompt says `delta: rules-2026-10, check only rule (a)`, the audit is a re-check of an earlier audit for rule (a) only (`tools/ai/audit/pipeline-delta.json`, #1763): review only the five points above, skip the rest of the procedure, and write the same `docs.md` shape (`## Pages reviewed`, `## Findings`, `## Informational (not findings)`, `## Lessons for the pipeline`). The scope is the one recorded by the original audit, in `artifacts\knowledge\delta-scope.md` of the audit worktree.
+
 ### Owns (audit mode)
 
 - `artifacts\knowledge\stages\docs.md`: the docs stage artifact, written once per audit, in the shape above.

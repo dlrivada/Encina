@@ -29,6 +29,10 @@
 # only way to run the audit now. Mentioning the audit by name alone does not deny, so a brief that works on
 # the audit tooling is allowed (#1744).
 #
+# Delta audits (#1763): when current-audit.json has `mode = 'delta'`, the pipeline file read is
+# tools/ai/audit/pipeline-delta.json (docs -> tests -> remediation -> verification), only its agents may be
+# spawned and the prompt must carry the delta marker (pipeline-delta.json `delta.promptMarker`).
+#
 # pipeline.json is read from the OPEN AUDIT'S OWN worktree (not this hook's checkout), so a fixture or a
 # later reorder of the file changes the stage this hook expects without redeploying the hook.
 # Exit code 2 blocks the call and shows stderr to Claude. A failure of the hook itself allows an unrelated call
@@ -98,7 +102,12 @@ try {
         exit 2
     }
 
-    $pipelinePath = Join-Path $wt 'tools\ai\audit\pipeline.json'
+    # #1763: a delta audit (current-audit.json `mode = 'delta'`) runs tools/ai/audit/pipeline-delta.json instead
+    # of pipeline.json; the same file decides the order and the agent of every stage. Inlined on purpose (this
+    # hook depends on nothing but the pipeline file), same decision as _audit-lib.ps1's Get-AuditPipelineFile.
+    $deltaMode = ($null -ne $audit.PSObject.Properties['mode']) -and ([string]$audit.mode -eq 'delta')
+    $pipelineFileName = if ($deltaMode) { 'pipeline-delta.json' } else { 'pipeline.json' }
+    $pipelinePath = Join-Path $wt "tools\ai\audit\$pipelineFileName"
     $pipeline = $null
     if (Test-Path -LiteralPath $pipelinePath) {
         try { $pipeline = Get-Content -LiteralPath $pipelinePath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { $pipeline = $null }
@@ -108,7 +117,32 @@ try {
         exit 2
     }
 
-    $model = [string]$payload.tool_input.model
+    if ($deltaMode) {
+        # Only the agents of the delta pipeline may be spawned (none of the full pipeline's other stage agents,
+        # not even for the FAIL re-run exception below), and the prompt must carry the delta marker so the agent
+        # checks only the delta's rule (pipeline-delta.json `delta.promptMarker`).
+        $deltaAgents = @(@($pipeline.stages) | ForEach-Object { [string]$_.agent })
+        if ($subagent -notin $deltaAgents) {
+            [Console]::Error.WriteLine("Blocked: the open audit of #$n is a delta audit (${pipelineFileName}: stages $((@($pipeline.stages) | ForEach-Object { $_.stage }) -join ' -> ')); a $subagent spawn is not one of its stages (#1763).")
+            exit 2
+        }
+        $deltaMarker = if ($pipeline.delta -and $pipeline.delta.promptMarker) { [string]$pipeline.delta.promptMarker } else { "delta: $([string]$audit.set)" }
+        if ($prompt.IndexOf($deltaMarker, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            [Console]::Error.WriteLine("Blocked: the open audit of #$n is a delta audit; the prompt must say '$deltaMarker, check only rule (a|b)' so the agent checks only the delta's rule (#1763).")
+            exit 2
+        }
+        # A stage with a `rule` in pipeline-delta.json (docs: a, tests: b) also needs "check only rule (<rule>)".
+        $ownStage = @($pipeline.stages) | Where-Object { [string]$_.agent -eq $subagent } | Select-Object -First 1
+        if ($null -ne $ownStage -and $null -ne $ownStage.PSObject.Properties['rule']) {
+            $ruleText = "check only rule ($([string]$ownStage.rule))"
+            if ($prompt.IndexOf($ruleText, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                [Console]::Error.WriteLine("Blocked: the '$($ownStage.stage)' stage of a delta audit checks rule ($($ownStage.rule)) only; the prompt must say '$deltaMarker, $ruleText' (#1763).")
+                exit 2
+            }
+        }
+    }
+
+    $model =[string]$payload.tool_input.model
     if ($model -and $pipeline.forbiddenModels -and $model -in @($pipeline.forbiddenModels)) {
         [Console]::Error.WriteLine("Blocked: an audit-stage agent may not run on '$model' (#1345, tools/ai/audit/pipeline.json forbiddenModels). Use the agent's own default model or Sonnet.")
         exit 2
