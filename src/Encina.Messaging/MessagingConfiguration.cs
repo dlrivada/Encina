@@ -976,6 +976,35 @@ public sealed class MessagingConfiguration
     /// <summary>
     /// Gets a value indicating whether any messaging patterns are enabled.
     /// </summary>
-    public bool IsAnyPatternEnabled =>
-        UseTransactions || UseOutbox || UseInbox || UseSagas || UseRoutingSlips || UseScheduling || UseRecoverability || UseDeadLetterQueue || UseContentRouter || UseScatterGather || UseTenancy || UseModuleIsolation || UseReadWriteSeparation || UseDomainEvents || UseAuditing || UseAuditLogStore || UseOperationAuditStore || UseReadAuditStore || UseSoftDelete || UseTemporalTables || UseQueryCache || UseAnonymization || UseRetention || UseDataResidency || UseCrossBorderTransfer || UseBreachNotification;
+    public bool IsAnyPatternEnabled => Array.IndexOf(PatternFlags(), true) >= 0;
+
+    private bool[] PatternFlags() =>
+    [
+        UseTransactions,
+        UseOutbox,
+        UseInbox,
+        UseSagas,
+        UseRoutingSlips,
+        UseScheduling,
+        UseRecoverability,
+        UseDeadLetterQueue,
+        UseContentRouter,
+        UseScatterGather,
+        UseTenancy,
+        UseModuleIsolation,
+        UseReadWriteSeparation,
+        UseDomainEvents,
+        UseAuditing,
+        UseAuditLogStore,
+        UseOperationAuditStore,
+        UseReadAuditStore,
+        UseSoftDelete,
+        UseTemporalTables,
+        UseQueryCache,
+        UseAnonymization,
+        UseRetention,
+        UseDataResidency,
+        UseCrossBorderTransfer,
+        UseBreachNotification
+    ];
 }

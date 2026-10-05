@@ -37,20 +37,32 @@ internal sealed class EffectivenessAssessmentEvaluator : INIS2MeasureEvaluator
 
         if (hasAssessment)
         {
-            var details = "Effectiveness assessment procedures are in place.";
-            if (hasAuditStore && hasReadAudit)
-            {
-                details += " Audit infrastructure (IOperationAuditStore, IReadAuditStore) provides evidence collection for security control assessment.";
-            }
-            else if (hasAuditStore)
-            {
-                details += " Audit trail (IOperationAuditStore) is available for security control assessment.";
-            }
-
             return ValueTask.FromResult(Right<EncinaError, NIS2MeasureResult>(
-                NIS2MeasureResult.Satisfied(Measure, details)));
+                NIS2MeasureResult.Satisfied(Measure, BuildSatisfiedDetails(hasAuditStore, hasReadAudit))));
         }
 
+        return ValueTask.FromResult(Right<EncinaError, NIS2MeasureResult>(
+            NIS2MeasureResult.NotSatisfied(Measure,
+                "No effectiveness assessment procedures configured.",
+                BuildRecommendations(hasAuditStore, hasReadAudit))));
+    }
+
+    private static string BuildSatisfiedDetails(bool hasAuditStore, bool hasReadAudit)
+    {
+        const string baseDetails = "Effectiveness assessment procedures are in place.";
+
+        if (hasAuditStore && hasReadAudit)
+        {
+            return baseDetails + " Audit infrastructure (IOperationAuditStore, IReadAuditStore) provides evidence collection for security control assessment.";
+        }
+
+        return hasAuditStore
+            ? baseDetails + " Audit trail (IOperationAuditStore) is available for security control assessment."
+            : baseDetails;
+    }
+
+    private static List<string> BuildRecommendations(bool hasAuditStore, bool hasReadAudit)
+    {
         var recommendations = new List<string>
         {
             "Establish regular security audits",
@@ -68,9 +80,6 @@ internal sealed class EffectivenessAssessmentEvaluator : INIS2MeasureEvaluator
             recommendations.Add("Register Encina.Security.Audit (IReadAuditStore) for data access tracking and compliance monitoring");
         }
 
-        return ValueTask.FromResult(Right<EncinaError, NIS2MeasureResult>(
-            NIS2MeasureResult.NotSatisfied(Measure,
-                "No effectiveness assessment procedures configured.",
-                recommendations)));
+        return recommendations;
     }
 }

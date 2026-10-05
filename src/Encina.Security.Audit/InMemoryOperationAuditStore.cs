@@ -150,67 +150,7 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
         var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
 
         // Apply all filters
-        var filtered = _entries.Values.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(query.UserId))
-        {
-            filtered = filtered.Where(e => e.UserId == query.UserId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.TenantId))
-        {
-            filtered = filtered.Where(e => e.TenantId == query.TenantId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityType))
-        {
-            filtered = filtered.Where(e => e.EntityType.Equals(query.EntityType, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityId))
-        {
-            filtered = filtered.Where(e => e.EntityId == query.EntityId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Action))
-        {
-            filtered = filtered.Where(e => e.Action.Equals(query.Action, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (query.Outcome.HasValue)
-        {
-            filtered = filtered.Where(e => e.Outcome == query.Outcome.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-        {
-            filtered = filtered.Where(e => e.CorrelationId == query.CorrelationId);
-        }
-
-        if (query.FromUtc.HasValue)
-        {
-            filtered = filtered.Where(e => e.TimestampUtc >= query.FromUtc.Value);
-        }
-
-        if (query.ToUtc.HasValue)
-        {
-            filtered = filtered.Where(e => e.TimestampUtc <= query.ToUtc.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.IpAddress))
-        {
-            filtered = filtered.Where(e => e.IpAddress == query.IpAddress);
-        }
-
-        if (query.MinDuration.HasValue)
-        {
-            filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
-        }
-
-        if (query.MaxDuration.HasValue)
-        {
-            filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
-        }
+        var filtered = ApplyFilters(_entries.Values, query);
 
         // Get total count before pagination
         var allResults = filtered.ToList();
@@ -226,6 +166,31 @@ public sealed class InMemoryOperationAuditStore : IOperationAuditStore
         var result = PagedResult<OperationAuditEntry>.Create(items, totalCount, pageNumber, pageSize);
         return ValueTask.FromResult<Either<EncinaError, PagedResult<OperationAuditEntry>>>(Right(result));
     }
+
+    private static IEnumerable<OperationAuditEntry> ApplyFilters(
+        IEnumerable<OperationAuditEntry> entries,
+        OperationAuditQuery query)
+    {
+        var filtered = entries;
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.UserId), e => e.UserId == query.UserId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.TenantId), e => e.TenantId == query.TenantId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.EntityType), e => e.EntityType.Equals(query.EntityType, StringComparison.OrdinalIgnoreCase));
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.EntityId), e => e.EntityId == query.EntityId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.Action), e => e.Action.Equals(query.Action, StringComparison.OrdinalIgnoreCase));
+        filtered = WhereIf(filtered, query.Outcome.HasValue, e => e.Outcome == query.Outcome!.Value);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.CorrelationId), e => e.CorrelationId == query.CorrelationId);
+        filtered = WhereIf(filtered, query.FromUtc.HasValue, e => e.TimestampUtc >= query.FromUtc!.Value);
+        filtered = WhereIf(filtered, query.ToUtc.HasValue, e => e.TimestampUtc <= query.ToUtc!.Value);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.IpAddress), e => e.IpAddress == query.IpAddress);
+        filtered = WhereIf(filtered, query.MinDuration.HasValue, e => e.Duration >= query.MinDuration!.Value);
+        return WhereIf(filtered, query.MaxDuration.HasValue, e => e.Duration <= query.MaxDuration!.Value);
+    }
+
+    private static IEnumerable<OperationAuditEntry> WhereIf(
+        IEnumerable<OperationAuditEntry> source,
+        bool condition,
+        Func<OperationAuditEntry, bool> predicate) =>
+        condition ? source.Where(predicate) : source;
 
     /// <inheritdoc/>
     public ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(

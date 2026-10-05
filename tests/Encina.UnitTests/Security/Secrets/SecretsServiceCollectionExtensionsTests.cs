@@ -1,11 +1,14 @@
 using Encina.Caching;
+using Encina.Security.Audit;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
+using Encina.Security.Secrets.Auditing;
 using Encina.Security.Secrets.Caching;
 using Encina.Security.Secrets.Diagnostics;
 using Encina.Security.Secrets.Health;
 using Encina.Security.Secrets.Injection;
 using Encina.Security.Secrets.Providers;
+using Encina.Security.Secrets.Resilience;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -144,6 +147,61 @@ public sealed class SecretsServiceCollectionExtensionsTests
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("services");
+    }
+
+    #endregion
+
+    #region Decorator chain
+
+    [Fact]
+    public void AddEncinaSecrets_EnableResilience_WrapsReaderInResilienceDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(global::Polly.ResiliencePipeline.Empty);
+
+        services.AddEncinaSecrets(o =>
+        {
+            o.EnableCaching = false;
+            o.EnableResilience = true;
+        });
+
+        var reader = services.BuildServiceProvider().GetRequiredService<ISecretReader>();
+        reader.ShouldBeOfType<ResilientSecretReaderDecorator>();
+    }
+
+    [Fact]
+    public void AddEncinaSecrets_EnableAccessAuditing_WithStoreAndAccessor_WrapsReaderInAuditDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(NSubstitute.Substitute.For<IOperationAuditStore>());
+        services.AddSingleton(NSubstitute.Substitute.For<IRequestContextAccessor>());
+
+        services.AddEncinaSecrets(o =>
+        {
+            o.EnableCaching = false;
+            o.EnableAccessAuditing = true;
+        });
+
+        var reader = services.BuildServiceProvider().GetRequiredService<ISecretReader>();
+        reader.ShouldBeOfType<AuditedSecretReaderDecorator>();
+    }
+
+    [Fact]
+    public void AddEncinaSecrets_EnableAccessAuditing_WithoutAuditStore_LeavesReaderUndecorated()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddEncinaSecrets(o =>
+        {
+            o.EnableCaching = false;
+            o.EnableAccessAuditing = true;
+        });
+
+        var reader = services.BuildServiceProvider().GetRequiredService<ISecretReader>();
+        reader.ShouldBeOfType<EnvironmentSecretProvider>();
     }
 
     #endregion

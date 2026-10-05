@@ -89,9 +89,7 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
         var auditableAttribute = requestType.GetCustomAttribute<AuditableAttribute>();
 
         // Extract entity type and action
-        var (conventionEntity, conventionAction) = RequestMetadataExtractor.ExtractFromTypeName(requestType);
-        var entityType = auditableAttribute?.EntityType ?? conventionEntity;
-        var action = auditableAttribute?.Action ?? conventionAction;
+        var (entityType, action) = ResolveEntityTypeAndAction(requestType, auditableAttribute);
 
         // Extract entity ID
         var entityId = RequestMetadataExtractor.TryExtractEntityId(request);
@@ -100,8 +98,7 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
         var sensitiveFields = auditableAttribute?.SensitiveFields;
 
         // Compute payload hash if enabled
-        var includePayloadHash = auditableAttribute?.IncludePayload ?? _options.IncludePayloadHash;
-        var payloadHash = includePayloadHash ? ComputePayloadHash(request, sensitiveFields) : null;
+        var payloadHash = ComputePayloadHashIfEnabled(request, auditableAttribute, sensitiveFields);
 
         // Serialize request payload if enabled
         var requestPayload = _options.IncludeRequestPayload
@@ -109,9 +106,7 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
             : null;
 
         // Serialize response payload if enabled and operation was successful
-        var responsePayload = _options.IncludeResponsePayload && outcome == AuditOutcome.Success && response is not null
-            ? SerializeAndRedactPayload(response, sensitiveFields)
-            : null;
+        var responsePayload = SerializeResponseIfEnabled(response, outcome, sensitiveFields);
 
         // Build metadata
         var metadata = BuildMetadata(context, auditableAttribute);
@@ -138,6 +133,31 @@ public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFact
             Metadata = metadata
         };
     }
+
+    private static (string EntityType, string Action) ResolveEntityTypeAndAction(
+        Type requestType,
+        AuditableAttribute? auditableAttribute)
+    {
+        var (conventionEntity, conventionAction) = RequestMetadataExtractor.ExtractFromTypeName(requestType);
+        return (auditableAttribute?.EntityType ?? conventionEntity, auditableAttribute?.Action ?? conventionAction);
+    }
+
+    private string? ComputePayloadHashIfEnabled(
+        object request,
+        AuditableAttribute? auditableAttribute,
+        string[]? sensitiveFields)
+    {
+        var includePayloadHash = auditableAttribute?.IncludePayload ?? _options.IncludePayloadHash;
+        return includePayloadHash ? ComputePayloadHash(request, sensitiveFields) : null;
+    }
+
+    private string? SerializeResponseIfEnabled<TResponse>(
+        TResponse? response,
+        AuditOutcome outcome,
+        string[]? sensitiveFields) =>
+        _options.IncludeResponsePayload && outcome == AuditOutcome.Success && response is not null
+            ? SerializeAndRedactPayload(response, sensitiveFields)
+            : null;
 
     private string? ComputePayloadHash(object request, string[]? additionalSensitiveFields)
     {

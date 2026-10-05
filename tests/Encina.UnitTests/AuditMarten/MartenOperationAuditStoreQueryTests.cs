@@ -200,4 +200,61 @@ public sealed class MartenOperationAuditStoreQueryTests
         result.IsLeft.ShouldBeTrue();
         RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, Sentinel);
     }
+
+    [Fact]
+    public void MapToAuditEntry_CopiesEveryFieldAndDeserializesMetadata()
+    {
+        var model = Model(user: "alice", entityId: "e9", tenant: "t9", ip: "10.1.1.1");
+        model.MetadataJson = "{\"key\":\"value\"}";
+        model.ErrorMessage = "boom";
+        model.RequestPayload = "req";
+        model.ResponsePayload = "resp";
+        model.RequestPayloadHash = "hash";
+        model.UserAgent = "agent";
+
+        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+
+        entry.Id.ShouldBe(model.Id);
+        entry.UserId.ShouldBe("alice");
+        entry.EntityId.ShouldBe("e9");
+        entry.TenantId.ShouldBe("t9");
+        entry.IpAddress.ShouldBe("10.1.1.1");
+        entry.ErrorMessage.ShouldBe("boom");
+        entry.RequestPayload.ShouldBe("req");
+        entry.ResponsePayload.ShouldBe("resp");
+        entry.RequestPayloadHash.ShouldBe("hash");
+        entry.UserAgent.ShouldBe("agent");
+        entry.CompletedAtUtc.ShouldBe(model.CompletedAtUtc);
+        entry.Metadata.ShouldContainKey("key");
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithoutMetadata_ReturnsEmptyMetadata()
+    {
+        var entry = MartenOperationAuditStore.MapToAuditEntry(Model());
+
+        entry.Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithShreddedMetadataPlaceholder_ReturnsEmptyMetadata()
+    {
+        var model = Model();
+        model.MetadataJson = MartenOperationAuditOptions.DefaultShreddedPlaceholder;
+
+        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+
+        entry.Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToAuditEntry_WithJsonNullMetadata_ReturnsEmptyMetadata()
+    {
+        var model = Model();
+        model.MetadataJson = "null";
+
+        var entry = MartenOperationAuditStore.MapToAuditEntry(model);
+
+        entry.Metadata.ShouldBeEmpty();
+    }
 }

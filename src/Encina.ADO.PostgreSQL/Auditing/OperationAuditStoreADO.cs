@@ -299,23 +299,7 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
                 entries.Add(MapToEntry(reader));
             }
 
-            // Apply duration filter in memory (Duration is computed, not stored)
-            if (query.MinDuration.HasValue || query.MaxDuration.HasValue)
-            {
-                var filtered = entries.AsEnumerable();
-
-                if (query.MinDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
-                }
-
-                if (query.MaxDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
-                }
-
-                entries = filtered.ToList();
-            }
+            entries = ApplyDurationFilter(entries, query);
 
             countCommand.Dispose();
             return Right(PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize));
@@ -356,67 +340,51 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
         var whereClause = new StringBuilder("WHERE 1=1");
         var command = _connection.CreateCommand();
 
-        if (!string.IsNullOrWhiteSpace(query.UserId))
-        {
-            whereClause.Append(@" AND ""UserId"" = @UserId");
-            AddParameter(command, "@UserId", query.UserId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.TenantId))
-        {
-            whereClause.Append(@" AND ""TenantId"" = @TenantId");
-            AddParameter(command, "@TenantId", query.TenantId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityType))
-        {
-            whereClause.Append(@" AND ""EntityType"" = @EntityType");
-            AddParameter(command, "@EntityType", query.EntityType);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityId))
-        {
-            whereClause.Append(@" AND ""EntityId"" = @EntityId");
-            AddParameter(command, "@EntityId", query.EntityId);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Action))
-        {
-            whereClause.Append(@" AND ""Action"" = @Action");
-            AddParameter(command, "@Action", query.Action);
-        }
-
-        if (query.Outcome.HasValue)
-        {
-            whereClause.Append(@" AND ""Outcome"" = @Outcome");
-            AddParameter(command, "@Outcome", (int)query.Outcome.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-        {
-            whereClause.Append(@" AND ""CorrelationId"" = @CorrelationId");
-            AddParameter(command, "@CorrelationId", query.CorrelationId);
-        }
-
-        if (query.FromUtc.HasValue)
-        {
-            whereClause.Append(@" AND ""TimestampUtc"" >= @FromUtc");
-            AddParameter(command, "@FromUtc", query.FromUtc.Value);
-        }
-
-        if (query.ToUtc.HasValue)
-        {
-            whereClause.Append(@" AND ""TimestampUtc"" <= @ToUtc");
-            AddParameter(command, "@ToUtc", query.ToUtc.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.IpAddress))
-        {
-            whereClause.Append(@" AND ""IpAddress"" = @IpAddress");
-            AddParameter(command, "@IpAddress", query.IpAddress);
-        }
+        AddText(whereClause, command, "UserId", query.UserId);
+        AddText(whereClause, command, "TenantId", query.TenantId);
+        AddText(whereClause, command, "EntityType", query.EntityType);
+        AddText(whereClause, command, "EntityId", query.EntityId);
+        AddText(whereClause, command, "Action", query.Action);
+        AddCriterion(whereClause, command, "Outcome", "=", "Outcome", query.Outcome is { } outcome ? (int)outcome : null);
+        AddText(whereClause, command, "CorrelationId", query.CorrelationId);
+        AddCriterion(whereClause, command, "TimestampUtc", ">=", "FromUtc", query.FromUtc);
+        AddCriterion(whereClause, command, "TimestampUtc", "<=", "ToUtc", query.ToUtc);
+        AddText(whereClause, command, "IpAddress", query.IpAddress);
 
         return (whereClause.ToString(), command);
+    }
+
+    private static void AddText(StringBuilder whereClause, IDbCommand command, string column, string? value) =>
+        AddCriterion(whereClause, command, column, "=", column, string.IsNullOrWhiteSpace(value) ? null : value);
+
+    private static void AddCriterion(
+        StringBuilder whereClause,
+        IDbCommand command,
+        string column,
+        string comparison,
+        string parameterName,
+        object? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        whereClause.Append(" AND \"").Append(column).Append("\" ").Append(comparison).Append(" @").Append(parameterName);
+        AddParameter(command, "@" + parameterName, value);
+    }
+
+    // Duration is computed, not stored, so it is filtered in memory.
+    private static List<OperationAuditEntry> ApplyDurationFilter(IEnumerable<OperationAuditEntry> entries, OperationAuditQuery query) =>
+        entries
+            .Where(e => !query.MinDuration.HasValue || e.Duration >= query.MinDuration.Value)
+            .Where(e => !query.MaxDuration.HasValue || e.Duration <= query.MaxDuration.Value)
+            .ToList();
+
+    private static string? GetNullableString(IDataReader reader, string column)
+    {
+        var ordinal = reader.GetOrdinal(column);
+        return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     }
 
     private static void CopyParameters(IDbCommand source, IDbCommand destination)
@@ -434,43 +402,22 @@ public sealed class OperationAuditStoreADO : IOperationAuditStore
     {
         Id = reader.GetGuid(reader.GetOrdinal("Id")),
         CorrelationId = reader.GetString(reader.GetOrdinal("CorrelationId")),
-        UserId = reader.IsDBNull(reader.GetOrdinal("UserId"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("UserId")),
-        TenantId = reader.IsDBNull(reader.GetOrdinal("TenantId"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("TenantId")),
+        UserId = GetNullableString(reader, "UserId"),
+        TenantId = GetNullableString(reader, "TenantId"),
         Action = reader.GetString(reader.GetOrdinal("Action")),
         EntityType = reader.GetString(reader.GetOrdinal("EntityType")),
-        EntityId = reader.IsDBNull(reader.GetOrdinal("EntityId"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("EntityId")),
+        EntityId = GetNullableString(reader, "EntityId"),
         Outcome = (AuditOutcome)reader.GetInt32(reader.GetOrdinal("Outcome")),
-        ErrorMessage = reader.IsDBNull(reader.GetOrdinal("ErrorMessage"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("ErrorMessage")),
+        ErrorMessage = GetNullableString(reader, "ErrorMessage"),
         TimestampUtc = reader.GetDateTime(reader.GetOrdinal("TimestampUtc")),
         StartedAtUtc = GetDateTimeOffset(reader, reader.GetOrdinal("StartedAtUtc")),
         CompletedAtUtc = GetDateTimeOffset(reader, reader.GetOrdinal("CompletedAtUtc")),
-        IpAddress = reader.IsDBNull(reader.GetOrdinal("IpAddress"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("IpAddress")),
-        UserAgent = reader.IsDBNull(reader.GetOrdinal("UserAgent"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("UserAgent")),
-        RequestPayloadHash = reader.IsDBNull(reader.GetOrdinal("RequestPayloadHash"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("RequestPayloadHash")),
-        RequestPayload = reader.IsDBNull(reader.GetOrdinal("RequestPayload"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("RequestPayload")),
-        ResponsePayload = reader.IsDBNull(reader.GetOrdinal("ResponsePayload"))
-            ? null
-            : reader.GetString(reader.GetOrdinal("ResponsePayload")),
-        Metadata = DeserializeMetadata(
-            reader.IsDBNull(reader.GetOrdinal("Metadata"))
-                ? null
-                : reader.GetString(reader.GetOrdinal("Metadata")))
+        IpAddress = GetNullableString(reader, "IpAddress"),
+        UserAgent = GetNullableString(reader, "UserAgent"),
+        RequestPayloadHash = GetNullableString(reader, "RequestPayloadHash"),
+        RequestPayload = GetNullableString(reader, "RequestPayload"),
+        ResponsePayload = GetNullableString(reader, "ResponsePayload"),
+        Metadata = DeserializeMetadata(GetNullableString(reader, "Metadata"))
     };
 
     private static DateTimeOffset GetDateTimeOffset(IDataReader reader, int ordinal)

@@ -56,6 +56,15 @@ public static class ServiceCollectionExtensions
             ScheduledMessageFactory,
             OutboxProcessor>(config);
 
+        RegisterAuditStores(services, config);
+        RegisterAnonymizationAndPolicyStores(services, config);
+        RegisterHealthServices(services, config);
+
+        return services;
+    }
+
+    private static void RegisterAuditStores(IServiceCollection services, MessagingConfiguration config)
+    {
         // Register audit log store if enabled
         if (config.UseAuditLogStore)
         {
@@ -67,38 +76,21 @@ public static class ServiceCollectionExtensions
         // Register read audit store if enabled
         if (config.UseReadAuditStore)
         {
-            // Remove the in-memory default from Encina.Security.Audit so the database-backed
-            // store wins regardless of the order in which AddEncinaReadAuditing and this
-            // provider run. A custom IReadAuditStore the application registered itself is
-            // never removed here, so it keeps winning (#1269).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(IReadAuditStore) &&
-                    services[i].ImplementationType == typeof(InMemoryReadAuditStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
+            // The database-backed store wins regardless of registration order; a custom
+            // IReadAuditStore the application registered itself is never removed (#1269).
+            RemoveInMemoryDefault<IReadAuditStore, InMemoryReadAuditStore>(services);
             services.TryAddScoped<IReadAuditStore, Auditing.ReadAuditStoreADO>();
         }
+    }
 
+    private static void RegisterAnonymizationAndPolicyStores(IServiceCollection services, MessagingConfiguration config)
+    {
         // Register Anonymization token mapping store if enabled
         if (config.UseAnonymization)
         {
-            // Remove the in-memory default from Encina.Compliance.Anonymization so the database-backed
-            // store wins regardless of the order in which AddEncinaAnonymization and this
-            // provider run. A custom ITokenMappingStore the application registered itself is
-            // never removed here, so it keeps winning (#1295).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(ITokenMappingStore) &&
-                    services[i].ImplementationType == typeof(InMemoryTokenMappingStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
+            // The database-backed store wins regardless of registration order; a custom
+            // ITokenMappingStore the application registered itself is never removed (#1295).
+            RemoveInMemoryDefault<ITokenMappingStore, InMemoryTokenMappingStore>(services);
             services.TryAddScoped<ITokenMappingStore, Anonymization.TokenMappingStoreADO>();
         }
 
@@ -109,7 +101,10 @@ public static class ServiceCollectionExtensions
         {
             services.TryAddScoped<IPolicyStore, ABAC.PolicyStoreADO>();
         }
+    }
 
+    private static void RegisterHealthServices(IServiceCollection services, MessagingConfiguration config)
+    {
         // Register provider health check if enabled
         if (config.ProviderHealthCheck.Enabled)
         {
@@ -120,8 +115,18 @@ public static class ServiceCollectionExtensions
         // Register database health monitor for resilience infrastructure
         services.TryAddSingleton<IDatabaseHealthMonitor>(sp =>
             new PostgreSqlDatabaseHealthMonitor(sp));
+    }
 
-        return services;
+    private static void RemoveInMemoryDefault<TService, TInMemory>(IServiceCollection services)
+    {
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            if (services[i].ServiceType == typeof(TService) &&
+                services[i].ImplementationType == typeof(TInMemory))
+            {
+                services.RemoveAt(i);
+            }
+        }
     }
 
     /// <summary>
@@ -433,15 +438,7 @@ public static class ServiceCollectionExtensions
         // store wins regardless of the order in which AddEncinaAudit and this provider run.
         // A custom IOperationAuditStore the application registered itself is never removed
         // here, so it keeps winning (#1269).
-        for (var i = services.Count - 1; i >= 0; i--)
-        {
-            if (services[i].ServiceType == typeof(IOperationAuditStore) &&
-                services[i].ImplementationType == typeof(InMemoryOperationAuditStore))
-            {
-                services.RemoveAt(i);
-            }
-        }
-
+        RemoveInMemoryDefault<IOperationAuditStore, InMemoryOperationAuditStore>(services);
         services.TryAddScoped<IOperationAuditStore, Auditing.OperationAuditStoreADO>();
     }
 }

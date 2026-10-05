@@ -223,71 +223,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
             var offset = (pageNumber - 1) * pageSize;
 
-            // Build dynamic WHERE clause
-            var whereClause = new StringBuilder("WHERE 1=1");
-            var parameters = new DynamicParameters();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                whereClause.Append(" AND [UserId] = @UserId");
-                parameters.Add("UserId", query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                whereClause.Append(" AND [TenantId] = @TenantId");
-                parameters.Add("TenantId", query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                whereClause.Append(" AND [EntityType] = @EntityType");
-                parameters.Add("EntityType", query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                whereClause.Append(" AND [EntityId] = @EntityId");
-                parameters.Add("EntityId", query.EntityId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Action))
-            {
-                whereClause.Append(" AND [Action] = @Action");
-                parameters.Add("Action", query.Action);
-            }
-
-            if (query.Outcome.HasValue)
-            {
-                whereClause.Append(" AND [Outcome] = @Outcome");
-                parameters.Add("Outcome", (int)query.Outcome.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                whereClause.Append(" AND [CorrelationId] = @CorrelationId");
-                parameters.Add("CorrelationId", query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                whereClause.Append(" AND [TimestampUtc] >= @FromUtc");
-                parameters.Add("FromUtc", query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                whereClause.Append(" AND [TimestampUtc] <= @ToUtc");
-                parameters.Add("ToUtc", query.ToUtc.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.IpAddress))
-            {
-                whereClause.Append(" AND [IpAddress] = @IpAddress");
-                parameters.Add("IpAddress", query.IpAddress);
-            }
-
-            var whereClauseStr = whereClause.ToString();
+            var (whereClauseStr, parameters) = BuildWhereClause(query);
 
             // Get total count
             var countSql = $"SELECT COUNT(*) FROM [{_tableName}] {whereClauseStr}";
@@ -307,27 +243,7 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
             parameters.Add("PageSize", pageSize);
 
             var rows = await _connection.QueryAsync<OperationAuditEntryRow>(selectSql, parameters);
-            var entries = rows.Select(MapToEntry).ToList();
-
-            // Apply duration filter in memory (Duration is computed, not stored)
-            if (query.MinDuration.HasValue || query.MaxDuration.HasValue)
-            {
-                var filtered = entries.AsEnumerable();
-
-                if (query.MinDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
-                }
-
-                if (query.MaxDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
-                }
-
-                entries = filtered.ToList();
-                // Note: totalCount might be inaccurate when duration filter is applied
-                // This is a tradeoff for performance - duration filtering in SQL would be complex
-            }
+            var entries = ApplyDurationFilter(rows.Select(MapToEntry), query);
 
             return Right(PagedResult<OperationAuditEntry>.Create(entries, totalCount, pageNumber, pageSize));
         }
@@ -357,6 +273,53 @@ public sealed class OperationAuditStoreDapper : IOperationAuditStore
                 EncinaError.New($"Failed to purge audit entries: {ex.Message}"));
         }
     }
+
+    private static (string WhereClause, DynamicParameters Parameters) BuildWhereClause(OperationAuditQuery query)
+    {
+        var where = new StringBuilder("WHERE 1=1");
+        var parameters = new DynamicParameters();
+
+        AddText(where, parameters, "UserId", query.UserId);
+        AddText(where, parameters, "TenantId", query.TenantId);
+        AddText(where, parameters, "EntityType", query.EntityType);
+        AddText(where, parameters, "EntityId", query.EntityId);
+        AddText(where, parameters, "Action", query.Action);
+        AddCriterion(where, parameters, "Outcome", "=", "Outcome", query.Outcome is { } outcome ? (int)outcome : null);
+        AddText(where, parameters, "CorrelationId", query.CorrelationId);
+        AddCriterion(where, parameters, "TimestampUtc", ">=", "FromUtc", query.FromUtc);
+        AddCriterion(where, parameters, "TimestampUtc", "<=", "ToUtc", query.ToUtc);
+        AddText(where, parameters, "IpAddress", query.IpAddress);
+
+        return (where.ToString(), parameters);
+    }
+
+    private static void AddText(StringBuilder where, DynamicParameters parameters, string column, string? value) =>
+        AddCriterion(where, parameters, column, "=", column, string.IsNullOrWhiteSpace(value) ? null : value);
+
+    private static void AddCriterion(
+        StringBuilder where,
+        DynamicParameters parameters,
+        string column,
+        string comparison,
+        string parameterName,
+        object? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        where.Append(" AND [").Append(column).Append("] ").Append(comparison).Append(" @").Append(parameterName);
+        parameters.Add(parameterName, value);
+    }
+
+    // Duration is computed, not stored, so it is filtered in memory. totalCount might therefore be
+    // inaccurate when a duration filter is applied: filtering in SQL would be complex.
+    private static List<OperationAuditEntry> ApplyDurationFilter(IEnumerable<OperationAuditEntry> entries, OperationAuditQuery query) =>
+        entries
+            .Where(e => !query.MinDuration.HasValue || e.Duration >= query.MinDuration.Value)
+            .Where(e => !query.MaxDuration.HasValue || e.Duration <= query.MaxDuration.Value)
+            .ToList();
 
     private static OperationAuditEntry MapToEntry(OperationAuditEntryRow row) => new()
     {

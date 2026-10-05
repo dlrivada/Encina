@@ -532,7 +532,7 @@ public sealed class MartenOperationAuditStore : IOperationAuditStore
     /// Maps an <see cref="OperationAuditEntryReadModel"/> projected document to an <see cref="OperationAuditEntry"/>
     /// domain record.
     /// </summary>
-    private static OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
+    internal static OperationAuditEntry MapToAuditEntry(OperationAuditEntryReadModel model)
     {
         IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
                 && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder

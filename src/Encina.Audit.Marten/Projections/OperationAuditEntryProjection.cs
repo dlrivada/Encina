@@ -269,16 +269,19 @@ public sealed partial class OperationAuditEntryProjection : EventProjection
             TenantId = @event.TenantId,
 
             // PII fields (decrypted or shredded)
-            UserId = @event.EncryptedUserId?.DecryptOrPlaceholder(keyMaterial, placeholder),
-            IpAddress = @event.EncryptedIpAddress?.DecryptOrPlaceholder(keyMaterial, placeholder),
-            UserAgent = @event.EncryptedUserAgent?.DecryptOrPlaceholder(keyMaterial, placeholder),
-            RequestPayload = @event.EncryptedRequestPayload?.DecryptOrPlaceholder(keyMaterial, placeholder),
-            ResponsePayload = @event.EncryptedResponsePayload?.DecryptOrPlaceholder(keyMaterial, placeholder),
-            MetadataJson = @event.EncryptedMetadata?.DecryptOrPlaceholder(keyMaterial, placeholder),
+            UserId = Decrypt(@event.EncryptedUserId, keyMaterial, placeholder),
+            IpAddress = Decrypt(@event.EncryptedIpAddress, keyMaterial, placeholder),
+            UserAgent = Decrypt(@event.EncryptedUserAgent, keyMaterial, placeholder),
+            RequestPayload = Decrypt(@event.EncryptedRequestPayload, keyMaterial, placeholder),
+            ResponsePayload = Decrypt(@event.EncryptedResponsePayload, keyMaterial, placeholder),
+            MetadataJson = Decrypt(@event.EncryptedMetadata, keyMaterial, placeholder),
 
             // Crypto-shredding tracking
             IsShredded = isShredded,
             TemporalKeyPeriod = @event.TemporalKeyPeriod
         };
     }
+
+    private static string? Decrypt(EncryptedField? field, byte[]? keyMaterial, string placeholder) =>
+        field?.DecryptOrPlaceholder(keyMaterial, placeholder);
 }

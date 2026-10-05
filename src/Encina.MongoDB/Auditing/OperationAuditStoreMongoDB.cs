@@ -207,25 +207,7 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var entries = documents.Select(d => d.ToEntry()).ToList();
-
-            // Apply duration filter in memory (Duration is computed, not stored)
-            if (query.MinDuration.HasValue || query.MaxDuration.HasValue)
-            {
-                var filtered = entries.AsEnumerable();
-
-                if (query.MinDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
-                }
-
-                if (query.MaxDuration.HasValue)
-                {
-                    filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
-                }
-
-                entries = filtered.ToList();
-            }
+            var entries = ApplyDurationFilter(documents.Select(d => d.ToEntry()), query);
 
             var result = PagedResult<OperationAuditEntry>.Create(entries, (int)totalCount, pageNumber, pageSize);
             return Right(result);
@@ -265,58 +247,37 @@ public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
         var builder = Builders<OperationAuditEntryDocument>.Filter;
         var filters = new List<FilterDefinition<OperationAuditEntryDocument>>();
 
-        if (!string.IsNullOrWhiteSpace(query.UserId))
-        {
-            filters.Add(builder.Eq(d => d.UserId, query.UserId));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.TenantId))
-        {
-            filters.Add(builder.Eq(d => d.TenantId, query.TenantId));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityType))
-        {
-            filters.Add(builder.Eq(d => d.EntityType, query.EntityType));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.EntityId))
-        {
-            filters.Add(builder.Eq(d => d.EntityId, query.EntityId));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Action))
-        {
-            filters.Add(builder.Eq(d => d.Action, query.Action));
-        }
-
-        if (query.Outcome.HasValue)
-        {
-            filters.Add(builder.Eq(d => d.Outcome, (int)query.Outcome.Value));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-        {
-            filters.Add(builder.Eq(d => d.CorrelationId, query.CorrelationId));
-        }
-
-        if (query.FromUtc.HasValue)
-        {
-            filters.Add(builder.Gte(d => d.TimestampUtc, query.FromUtc.Value));
-        }
-
-        if (query.ToUtc.HasValue)
-        {
-            filters.Add(builder.Lte(d => d.TimestampUtc, query.ToUtc.Value));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.IpAddress))
-        {
-            filters.Add(builder.Eq(d => d.IpAddress, query.IpAddress));
-        }
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.UserId), () => builder.Eq(d => d.UserId, query.UserId));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.TenantId), () => builder.Eq(d => d.TenantId, query.TenantId));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.EntityType), () => builder.Eq(d => d.EntityType, query.EntityType));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.EntityId), () => builder.Eq(d => d.EntityId, query.EntityId));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.Action), () => builder.Eq(d => d.Action, query.Action));
+        AddIf(filters, query.Outcome.HasValue, () => builder.Eq(d => d.Outcome, (int)query.Outcome!.Value));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.CorrelationId), () => builder.Eq(d => d.CorrelationId, query.CorrelationId));
+        AddIf(filters, query.FromUtc.HasValue, () => builder.Gte(d => d.TimestampUtc, query.FromUtc!.Value));
+        AddIf(filters, query.ToUtc.HasValue, () => builder.Lte(d => d.TimestampUtc, query.ToUtc!.Value));
+        AddIf(filters, !string.IsNullOrWhiteSpace(query.IpAddress), () => builder.Eq(d => d.IpAddress, query.IpAddress));
 
         return filters.Count == 0
             ? builder.Empty
             : builder.And(filters);
     }
+
+    private static void AddIf(
+        List<FilterDefinition<OperationAuditEntryDocument>> filters,
+        bool condition,
+        Func<FilterDefinition<OperationAuditEntryDocument>> createFilter)
+    {
+        if (condition)
+        {
+            filters.Add(createFilter());
+        }
+    }
+
+    // Duration is computed, not stored, so it is filtered in memory.
+    private static List<OperationAuditEntry> ApplyDurationFilter(IEnumerable<OperationAuditEntry> entries, OperationAuditQuery query) =>
+        entries
+            .Where(e => !query.MinDuration.HasValue || e.Duration >= query.MinDuration.Value)
+            .Where(e => !query.MaxDuration.HasValue || e.Duration <= query.MaxDuration.Value)
+            .ToList();
 }

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Linq.Expressions;
 using System.Text.Json;
 using Encina.Security.Audit;
 using LanguageExt;
@@ -184,113 +185,86 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
             var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
 
             // Build query with filters
-            var dbQuery = _dbContext.Set<OperationAuditEntryEntity>().AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-            {
-                dbQuery = dbQuery.Where(e => e.UserId == query.UserId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.TenantId))
-            {
-                dbQuery = dbQuery.Where(e => e.TenantId == query.TenantId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityType))
-            {
-                dbQuery = dbQuery.Where(e => e.EntityType == query.EntityType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.EntityId))
-            {
-                dbQuery = dbQuery.Where(e => e.EntityId == query.EntityId);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.Action))
-            {
-                dbQuery = dbQuery.Where(e => e.Action == query.Action);
-            }
-
-            if (query.Outcome.HasValue)
-            {
-                dbQuery = dbQuery.Where(e => e.Outcome == query.Outcome.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.CorrelationId))
-            {
-                dbQuery = dbQuery.Where(e => e.CorrelationId == query.CorrelationId);
-            }
-
-            if (query.FromUtc.HasValue)
-            {
-                dbQuery = dbQuery.Where(e => e.TimestampUtc >= query.FromUtc.Value);
-            }
-
-            if (query.ToUtc.HasValue)
-            {
-                dbQuery = dbQuery.Where(e => e.TimestampUtc <= query.ToUtc.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(query.IpAddress))
-            {
-                dbQuery = dbQuery.Where(e => e.IpAddress == query.IpAddress);
-            }
+            var dbQuery = ApplyFilters(_dbContext.Set<OperationAuditEntryEntity>().AsQueryable(), query);
 
             // Duration filtering - must be done in memory since Duration is computed
-            // Get entities first, then filter by duration if needed
             var needsDurationFilter = query.MinDuration.HasValue || query.MaxDuration.HasValue;
 
-            if (needsDurationFilter)
-            {
-                // Fetch all matching entities and filter by duration in memory
-                var allEntities = await dbQuery
-                    .OrderByDescending(e => e.TimestampUtc)
-                    .ToListAsync(cancellationToken);
-
-                var filteredEntries = allEntities
-                    .Select(MapToRecord)
-                    .AsEnumerable();
-
-                if (query.MinDuration.HasValue)
-                {
-                    filteredEntries = filteredEntries.Where(e => e.Duration >= query.MinDuration.Value);
-                }
-
-                if (query.MaxDuration.HasValue)
-                {
-                    filteredEntries = filteredEntries.Where(e => e.Duration <= query.MaxDuration.Value);
-                }
-
-                var filteredList = filteredEntries.ToList();
-                var totalCount = filteredList.Count;
-
-                var items = filteredList
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToList();
-
-                return Right(PagedResult<OperationAuditEntry>.Create(items, totalCount, pageNumber, pageSize));
-            }
-            else
-            {
-                // Get total count
-                var totalCount = await dbQuery.CountAsync(cancellationToken);
-
-                // Apply pagination
-                var entities = await dbQuery
-                    .OrderByDescending(e => e.TimestampUtc)
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToListAsync(cancellationToken);
-
-                var items = entities.Select(MapToRecord).ToList();
-                return Right(PagedResult<OperationAuditEntry>.Create(items, totalCount, pageNumber, pageSize));
-            }
+            return needsDurationFilter
+                ? await QueryWithDurationFilterAsync(dbQuery, query, pageNumber, pageSize, cancellationToken)
+                : await QueryPageAsync(dbQuery, pageNumber, pageSize, cancellationToken);
         }
         catch (OperationCanceledException)
         {
             return Left<EncinaError, PagedResult<OperationAuditEntry>>(EncinaError.New("Operation was cancelled"));
         }
+    }
+
+    private static IQueryable<OperationAuditEntryEntity> ApplyFilters(
+        IQueryable<OperationAuditEntryEntity> dbQuery,
+        OperationAuditQuery query)
+    {
+        var filtered = dbQuery;
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.UserId), e => e.UserId == query.UserId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.TenantId), e => e.TenantId == query.TenantId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.EntityType), e => e.EntityType == query.EntityType);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.EntityId), e => e.EntityId == query.EntityId);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.Action), e => e.Action == query.Action);
+        filtered = WhereIf(filtered, query.Outcome.HasValue, e => e.Outcome == query.Outcome!.Value);
+        filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.CorrelationId), e => e.CorrelationId == query.CorrelationId);
+        filtered = WhereIf(filtered, query.FromUtc.HasValue, e => e.TimestampUtc >= query.FromUtc!.Value);
+        filtered = WhereIf(filtered, query.ToUtc.HasValue, e => e.TimestampUtc <= query.ToUtc!.Value);
+        return WhereIf(filtered, !string.IsNullOrWhiteSpace(query.IpAddress), e => e.IpAddress == query.IpAddress);
+    }
+
+    private static IQueryable<OperationAuditEntryEntity> WhereIf(
+        IQueryable<OperationAuditEntryEntity> source,
+        bool condition,
+        Expression<Func<OperationAuditEntryEntity, bool>> predicate) =>
+        condition ? source.Where(predicate) : source;
+
+    private static async ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryWithDurationFilterAsync(
+        IQueryable<OperationAuditEntryEntity> dbQuery,
+        OperationAuditQuery query,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        // Fetch all matching entities and filter by duration in memory
+        var allEntities = await dbQuery
+            .OrderByDescending(e => e.TimestampUtc)
+            .ToListAsync(cancellationToken);
+
+        var filteredList = allEntities
+            .Select(MapToRecord)
+            .Where(e => !query.MinDuration.HasValue || e.Duration >= query.MinDuration.Value)
+            .Where(e => !query.MaxDuration.HasValue || e.Duration <= query.MaxDuration.Value)
+            .ToList();
+
+        var items = filteredList
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return Right(PagedResult<OperationAuditEntry>.Create(items, filteredList.Count, pageNumber, pageSize));
+    }
+
+    private static async ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryPageAsync(
+        IQueryable<OperationAuditEntryEntity> dbQuery,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var totalCount = await dbQuery.CountAsync(cancellationToken);
+
+        var entities = await dbQuery
+            .OrderByDescending(e => e.TimestampUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = entities.Select(MapToRecord).ToList();
+        return Right(PagedResult<OperationAuditEntry>.Create(items, totalCount, pageNumber, pageSize));
     }
 
     /// <inheritdoc/>
