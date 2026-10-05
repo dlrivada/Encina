@@ -648,9 +648,10 @@ jobs:
   # front-matter fields, enum values, schema version), every `done` destination must point at a
   # file that exists, and every knowledge item marked current: yes must have a destination other
   # than `none` (REQ-005). Runs on every PR, docs-only included, needs no build (#1311).
+  # The job runs on Windows because the audit tooling (tools/ai/audit) and its self-test use Windows paths (#1735).
   knowledge-records:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: windows-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -664,6 +665,12 @@ jobs:
 
       - name: Check knowledge records
         run: dotnet run .github/scripts/knowledge-records.cs -- --check
+
+      - name: Self-test the knowledge record validator
+        run: pwsh -NoProfile -File .github/scripts/knowledge-records-selftest.ps1
+
+      - name: Self-test audit-done publishing (git and gh stubbed)
+        run: pwsh -NoProfile -File tools/ai/audit/audit-done-selftest.ps1
 
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped

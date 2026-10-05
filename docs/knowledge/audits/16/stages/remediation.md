@@ -1,0 +1,49 @@
+Remediation for #16:
+- code 1 (Blocker): draft 16-code-1-src-encina-messaging-choreography-cs-all-8-files.md
+- code 2 (Blocker): draft 16-code-2-src-encina-opentelemetry-messagingstores-instrumentedsagasto.md (removed unverified related issue #1435, #1454)
+- code 3 (Blocker): draft 16-code-3-src-encina-messaging-sagas-lowceremony-sagarunner-cs-165.md
+- code 4 (Blocker): duplicate of #1170
+- code 5 (Major): draft 16-code-5-src-encina-mongodb-sagas-sagastoremongodb-cs-129-132.md
+- tests 1 (Blocker): draft 16-tests-1-src-encina-messaging-sagas-saganotfounddispatcher-cs-28-line.md (removed unverified related issue #1327)
+- tests 2 (Major): draft 16-tests-2-src-encina-messaging-sagas-saganotfoundcontext-cs-0-guard.md
+- tests 3 (Major): draft 16-tests-3-no-regression-test-exists-for-the-code-stage.md
+- tests 4 (Major): draft 16-tests-4-no-regression-test-exists-for-the-code-stage.md (removed unverified related issue #1134, #1322, #1343, #1301, #185, #1435, #1454, #1433, #1348, #1396)
+- tests 5 (Major): draft 16-tests-5-no-regression-test-exists-for-the-code-stage.md
+- tests 6 (Major): draft 16-tests-6-no-regression-test-exists-for-the-code-stage.md
+- tests 7 (Major): draft 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md (removed unverified related issue #696, #450, #246, #456, #1237)
+- tests 8 (Minor): draft 16-tests-8-load-and-benchmark-test-types-for-sagas-have.md
+- docs 1 (Blocker): draft 16-docs-1-docs-messaging-sagas-md-291-300-choreography-configuration.md
+- docs 2 (Blocker): draft 16-docs-2-docs-messaging-sagas-md-241-415-the-entire.md
+- docs 3 (Blocker): draft 16-docs-3-docs-messaging-sagas-md-132-135-orchestration-configuration.md
+- docs 4 (Blocker): draft 16-docs-4-src-encina-messaging-readme-md-505-521-fluent.md
+- docs 5 (Major): draft 16-docs-5-docs-messaging-sagas-md-the-decision-that-orchestration.md
+- docs 6 (Major): draft 16-docs-6-docs-messaging-sagas-md-sagas-is-a-provider.md
+- docs 7 (Major): draft 16-docs-7-docs-messaging-sagas-md-mixes-di-taxis-quadrants.md
+- docs 8 (Minor): draft 16-docs-8-docs-messaging-sagas-md-no-link-to-any.md
+- docs 9 (Minor): draft 16-docs-9-docs-messaging-index-md-14-24-messaging-transports.md
+
+## Lessons for the pipeline
+- code 2 (Blocker): removed unverified related issue #1435 from 16-code-2-src-encina-opentelemetry-messagingstores-instrumentedsagasto.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- code 2 (Blocker): removed unverified related issue #1454 from 16-code-2-src-encina-opentelemetry-messagingstores-instrumentedsagasto.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- code 3 (Blocker): local model named duplicate-of #1343, but the evidence check found no matching file anchor and symbol anchor in #1343's title/body; drafting as new instead.
+- code 3 (Blocker): could not find a Related Issues section in 16-code-3-src-encina-messaging-sagas-lowceremony-sagarunner-cs-165.md to append the rejected duplicate note; appended it at the end of the file instead.
+- tests 1 (Blocker): removed unverified related issue #1327 from 16-tests-1-src-encina-messaging-sagas-saganotfounddispatcher-cs-28-line.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 2 (Major): local model named duplicate-of #1389, but the evidence check found no matching file anchor and symbol anchor in #1389's title/body; drafting as new instead.
+- tests 4 (Major): removed unverified related issue #1134 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1322 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1343 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1301 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #185 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1435 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1454 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1433 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1348 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 4 (Major): removed unverified related issue #1396 from 16-tests-4-no-regression-test-exists-for-the-code-stage.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 7 (Major): removed unverified related issue #696 from 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 7 (Major): removed unverified related issue #450 from 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 7 (Major): removed unverified related issue #246 from 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 7 (Major): removed unverified related issue #456 from 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- tests 7 (Major): removed unverified related issue #1237 from 16-tests-7-contract-test-coverage-for-isagastore-is-0-for.md's Related Issues section (not in the finding, the candidates offered, or the script's own notes).
+- docs 4 (Blocker): local model named duplicate-of #1323, but the evidence check found no matching file anchor and symbol anchor in #1323's title/body; drafting as new instead.
+- docs 4 (Blocker): could not find a Related Issues section in 16-docs-4-src-encina-messaging-readme-md-505-521-fluent.md to append the rejected duplicate note; appended it at the end of the file instead.
+- docs 9 (Minor): local model named duplicate-of #1177, but the evidence check found no matching file anchor and symbol anchor in #1177's title/body; drafting as new instead.

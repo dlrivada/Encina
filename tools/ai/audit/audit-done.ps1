@@ -13,12 +13,25 @@
 #     writes artifacts/knowledge/stages/.rerun-archivist, letting audit-stage-guard.ps1 allow a re-spawn of
 #     issue-archivist to fix the record even though every stage is already committed).
 #
-# Otherwise it copies the collected records, audit results, remediation drafts, stage artifacts and ledger
-# lines into the main artifacts/knowledge, appends artifacts/knowledge/progress.csv, appends any role-tagged
-# lesson (stages/lessons.md 'Applied: role:<agent>' line) to .claude/agents/lessons/<agent>.md (#1345), removes
-# the wia-<n> worktree AND its audit/<n> branch, and deletes current-audit.json.
+# Otherwise (#1735) it PUBLISHES the audit first: in a temporary worktree it creates the branch
+# knowledge/audit-<n> from origin/main, copies the record to docs/knowledge/issues/<n>.md (replacing a record
+# already there), the audit result to docs/knowledge/audits/issue-<n>.md (generated from the verification
+# stage when the pipeline wrote none) and the stage files to docs/knowledge/audits/<n>/stages/, validates the
+# whole docs/knowledge tree with knowledge-records.cs --check, commits "docs(knowledge): SPEC-003 audit of #<n>",
+# pushes and opens a pull request with "Refs #1345" (Publish-AuditKnowledge in _audit-lib.ps1). When publishing fails, NOTHING else
+# happens: the audit worktree, the audit/<n> branch and current-audit.json stay, and the script can be re-run.
+#
+# Only after the pull request exists it copies the collected records, audit results, remediation drafts, stage
+# artifacts and ledger lines into the main artifacts/knowledge (still git-ignored), appends
+# artifacts/knowledge/progress.csv, appends any role-tagged lesson (stages/lessons.md 'Applied: role:<agent>'
+# line) to .claude/agents/lessons/<agent>.md (#1345), removes the wia-<n> worktree AND its audit/<n> branch,
+# and deletes current-audit.json.
+#
+# -NoPublish: runs every check, builds and commits the publication branch locally, prints the push and
+# 'gh pr create' commands it would run, and stops. It does not push, open a pull request or close the audit
+# (the audit worktree, branch and current-audit.json stay).
 
-param()
+param([switch]$NoPublish)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_audit-lib.ps1')
@@ -73,7 +86,8 @@ $recordsDir = Join-Path $wt 'artifacts\knowledge\issues'
 $knowledgeScript = Join-Path $wt '.github\scripts\knowledge-records.cs'
 $rerunArchivistMarker = Join-Path $stagesDir '.rerun-archivist'
 if (Test-Path -LiteralPath $knowledgeScript) {
-    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir 2>&1
+    # --skip-audit-links: the audit result is not in docs/knowledge yet; the full check runs on the publication checkout.
+    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir --skip-audit-links 2>&1
     if ($LASTEXITCODE -ne 0) {
         $checkText = ($checkOutput -join "`n")
         $reasons.Add("knowledge-records --check failed:`n$checkText")
@@ -99,6 +113,20 @@ if ($reasons.Count -gt 0) {
     Write-Error "audit-done: audit for #$n is incomplete:`n$bulleted$markerHint"
     exit 1
 }
+
+$remediationDrafts = @((Join-Path $knowledgeRoot 'remediation'), (Join-Path $wt 'artifacts\knowledge\remediation'), (Join-Path $wt 'artifacts\issues'))
+$publish = Publish-AuditKnowledge -Issue ([int]$n) -MainRoot $mainRoot -AuditWorktree $wt -StagesDir $stagesDir -Pipeline $pipeline `
+    -DraftDirs $remediationDrafts -OpenedCsv (Join-Path $knowledgeRoot 'remediation\opened.csv') -NoPublish:$NoPublish
+if (-not $publish.Ok) {
+    Write-Error "audit-done: publishing the audit of #$n failed; the audit worktree, branch $branch and current-audit.json are kept, nothing else was changed:`n$($publish.Message)"
+    exit 1
+}
+if ($NoPublish) {
+    "audit-done -NoPublish: publication branch $($publish.Branch) prepared locally; the audit of #$n stays open. Commands that would run:"
+    $publish.Planned | ForEach-Object { "  $_" }
+    exit 0
+}
+"audit-done: published $($publish.Branch): $($publish.PrUrl)"
 
 foreach ($sub in 'issues', 'audits', 'remediation') { New-Item -ItemType Directory -Force (Join-Path $knowledgeRoot $sub) | Out-Null }
 $src = Join-Path $wt 'artifacts\knowledge'
@@ -156,4 +184,4 @@ if ($branch) {
 }
 Remove-Item -LiteralPath $currentAuditPath -Force
 
-"audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed)"
+"audit-done: closed audit for #$n (remediation drafts: $remCount; role lessons applied: $appliedRoles; stages archived to artifacts\knowledge\stages\$n; branch $branch removed; pull request: $($publish.PrUrl))"

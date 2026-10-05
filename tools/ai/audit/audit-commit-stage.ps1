@@ -142,7 +142,7 @@ if ($Stage -eq 'archivist') {
         Write-Error "audit-commit-stage: refusing to commit 'archivist' for #${n}: $knowledgeScript not found in $wt; cannot validate the knowledge record."
         exit 1
     }
-    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir 2>&1
+    $checkOutput = & dotnet run --file $knowledgeScript -- --check --dir $recordsDir --skip-audit-links 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "audit-commit-stage: refusing to commit 'archivist' for #${n}: the knowledge record under $recordsDir does not pass 'knowledge-records --check':`n$($checkOutput -join "`n")"
         exit 1

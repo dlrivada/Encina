@@ -25,7 +25,7 @@ spawn a stage agent out of order or for the wrong issue; `enforce-path-ownership
 but the assigned agent write a stage's artifact (#1345's fabrication gap).
 
 **Feed the system.** Every stage ends with "## Lessons for the pipeline". You resolve every lesson before
-`audit-done.ps1` will close the audit (see step 8) — apply it now, or say explicitly why not.
+`audit-done.ps1` will close the audit (see step 6) — apply it now, or say explicitly why not.
 
 **Siblings and successor states (the #20 and #26 lessons).** `issue-auditor` audits the copies of a pattern
 the issue's own fix did not reach, not only the files the issue's PRs touched. `issue-archivist` re-verifies
@@ -76,7 +76,7 @@ pwsh -NoProfile -File tools/ai/audit/audit-next.ps1
 ```
 
 With no `-Issue`, it takes the next entry of `artifacts/knowledge/audit-queue.txt` not already in
-`progress.csv`. It refuses when an audit is already open — close it first (step 8) — creates
+`progress.csv`. It refuses when an audit is already open — close it first (step 6) — creates
 `.claude/worktrees/wia-<n>` on branch `audit/<n>` from `origin/main`, writes
 `artifacts/knowledge/current-audit.json`, ensures the local-model pre-draft exists, and prints the next stage
 to run.
@@ -348,31 +348,53 @@ is blocked by `enforce-path-ownership.ps1` for every caller inside an open audit
 the one authorized way to commit it. It runs the same lessons-resolved check as `audit-done.ps1` and refuses
 if any lesson still has `Applied: TODO`.
 
-## 5. Close the audit
-
-```powershell
-pwsh -NoProfile -File tools/ai/audit/audit-done.ps1
-```
-
-Refuses when any stage artifact is missing or uncommitted, the verification verdict is not PASS, any lesson
-still says `Applied: TODO`, or the worktree's `knowledge-records --check` fails on `artifacts/knowledge/issues`.
-Otherwise it copies the records, audits, remediation drafts, stage artifacts and the ledger into the main
-`artifacts/knowledge/`, appends `progress.csv`, appends every `role:<agent>` lesson to that agent's memory
-file, removes the `wia-<n>` worktree and its `audit/<n>` branch, and deletes `current-audit.json`.
-
-Update the board: `audits/<n>.status=closed`, its `outcome` (from the knowledge record), `opened=[...]`
-remediation issue numbers once step 6 runs, and `meta/board.pipeline="v2"`.
-
-## 6. Open remediation
+## 5. Open remediation
 
 ```powershell
 pwsh -NoProfile -File tools/ai/audit/open-remediation.ps1 -Issue <n>
 ```
 
 Opens every `artifacts/knowledge/remediation/<n>-*.md` draft as a real issue (title/labels/milestone from its
-header block; unknown labels are dropped; bugs default to the Hardening milestone). This is the one script in
-the pipeline that publishes — run it only after `audit-done.ps1` has closed the audit and `audit-verifier`
-has checked each draft for duplicates. Record the opened issue numbers on the board (`audits/<n>.opened`).
+header block; unknown labels are dropped; bugs default to the Hardening milestone) and records each in
+`artifacts/knowledge/remediation/opened.csv`. This is the one script in the pipeline that opens issues. Run it
+once `audit-verifier` has PASSed and checked each draft for duplicates, and **before** `audit-done.ps1`
+(#1735): the published audit result names the opened issues, and `audit-done.ps1` refuses while a draft has no
+row in `opened.csv`. Record the opened issue numbers on the board (`audits/<n>.opened`).
+
+## 6. Close the audit
+
+```powershell
+pwsh -NoProfile -File tools/ai/audit/audit-done.ps1
+```
+
+Refuses when any stage artifact is missing or uncommitted, the verification verdict is not PASS, any lesson
+still says `Applied: TODO`, the worktree's `knowledge-records --check` fails on `artifacts/knowledge/issues`, or a
+remediation draft is not opened yet (step 5). Otherwise it first **publishes the audit to the repository** (#1735):
+in a temporary worktree it creates the branch `knowledge/audit-<n>` from `origin/main`, puts the record in
+`docs/knowledge/issues/<n>.md` (replacing a fix PR's schema 1 record; its `audit.verdict` becomes
+`findings-tracked` when remediation issues were opened, else `conforms`, and `audit.record` becomes
+`docs/knowledge/audits/issue-<n>.md`), the audit result in `docs/knowledge/audits/issue-<n>.md` and the stage
+files in `docs/knowledge/audits/<n>/stages/`, validates the whole `docs/knowledge` tree with
+`knowledge-records.cs --check`, commits `docs(knowledge): SPEC-003 audit of #<n>`, pushes (a force-push to that
+script-owned branch, so a retry replaces an earlier attempt) and opens a pull request whose body is `Refs #1345`
+(never `Fixes`), or reuses the one already open. When the pipeline wrote no audit result (it does not for the six
+stages), the script generates a short one: the verdict line and pass count of the verification stage, one line per
+stage with a link to its stage file, the remediation issues (from `opened.csv`) and the duplicates the
+remediation stage noted. Remediation drafts are not published. If publishing fails, nothing else happens (the
+`wia-<n>` worktree, the `audit/<n>` branch and `current-audit.json` stay) and the script can be run again; when the
+publication is already on `origin/main` (the pull request was merged) a retry counts as published and closes the
+audit. After publishing it deletes the local `knowledge/audit-<n>` branch. `-NoPublish` prepares the branch and
+prints the push and `gh pr create` commands without running them, and leaves the audit open. Merge the knowledge
+pull request like any other (`pr-cycle`).
+
+Only after the pull request exists it copies the records, audits, remediation drafts, stage artifacts and the
+ledger into the main `artifacts/knowledge/` (still git-ignored, the working area), appends `progress.csv`,
+appends every `role:<agent>` lesson to that agent's memory file, removes the `wia-<n>` worktree and its
+`audit/<n>` branch, and deletes `current-audit.json`.
+
+Update the board: `audits/<n>.status=closed`, its `outcome` (from the knowledge record), `opened=[...]`
+remediation issue numbers from step 5, and `meta/board.pipeline="v2"`.
+
 
 ## Rules
 
