@@ -4039,6 +4039,30 @@ The fluent builder chain described in the documentation is fictional. The parame
     # ---- end #1368/#1380 block ----
 
     # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
+    # board-event-reminder.ps1 (#1732): a PostToolUse reminder, never blocks (exit 0 always).
+    $boardHook = Join-Path $hooks 'board-event-reminder.ps1'
+    $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now \(or let the 30-minute reconciler do it\)"'
+    foreach ($case in @(
+            @('PowerShell', 'gh pr create --title x --body y', 'gh pr create'),
+            @('Bash', 'gh pr merge 12 --squash --auto', 'gh pr merge'),
+            @('PowerShell', 'pwsh -NoProfile -File tools/ai/audit/audit-done.ps1 -Issue 30', 'audit-done.ps1'),
+            @('PowerShell', 'Set-Location D:\x; & .\tools\ai\audit\audit-commit-stage.ps1 -Stage code', 'audit-commit-stage.ps1'))) {
+        $json = @{ tool_name = $case[0]; tool_input = @{ command = $case[1] } } | ConvertTo-Json -Compress
+        Invoke-HookCase $boardHook $json 0 "board-event-reminder: '$($case[1])' reminds ($($case[2]))" $null "$boardReminder"
+        Invoke-HookCase $boardHook $json 0 "board-event-reminder: names the event $($case[2])" $null ('for ' + [regex]::Escape($case[2]) + ' now')
+    }
+    foreach ($agent in 'issue-worker', 'docs-writer') {
+        Invoke-HookCase $boardHook (@{ tool_name = 'Agent'; tool_input = @{ subagent_type = $agent; prompt = 'x' } } | ConvertTo-Json -Compress) 0 "board-event-reminder: $agent spawn reminds" $null $boardReminder
+    }
+    foreach ($quiet in @(
+            @('PowerShell', 'gh pr list --state open'),
+            @('PowerShell', 'git status'),
+            @('Bash', 'gh issue view 12'))) {
+        Invoke-HookCase $boardHook (@{ tool_name = $quiet[0]; tool_input = @{ command = $quiet[1] } } | ConvertTo-Json -Compress) 0 "board-event-reminder: '$($quiet[1])' stays silent" $null '^$'
+    }
+    Invoke-HookCase $boardHook (@{ tool_name = 'Agent'; tool_input = @{ subagent_type = 'adversarial-reviewer'; prompt = 'x' } } | ConvertTo-Json -Compress) 0 'board-event-reminder: another agent spawn stays silent' $null '^$'
+    Invoke-HookCase $boardHook 'not json' 0 'board-event-reminder: malformed payload stays silent and does not block' $null '^$'
+
     function Test-Wiring([string]$Label, [string[]]$Problems) {
         $script:total++
         if ($Problems.Count -gt 0) { $script:failed++; "FAIL $Label`: $($Problems -join '; ')" } else { "PASS $Label" }
@@ -4073,7 +4097,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     $settingsProblems = [System.Collections.Generic.List[string]]::new()
     try {
         $settings = Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json
-        $commands = @($settings.hooks.PreToolUse | ForEach-Object { $_.hooks } | ForEach-Object { $_.command })
+        $commands = @(@($settings.hooks.PreToolUse) + @($settings.hooks.PostToolUse) | ForEach-Object { $_.hooks } | ForEach-Object { $_.command })
         foreach ($c in $commands) {
             $m = [regex]::Match($c, '\.claude/hooks/(?<h>[\w-]+\.ps1)')
             if (-not $m.Success -or -not (Test-Path (Join-Path $hooks $m.Groups['h'].Value))) { $settingsProblems.Add("missing hook in '$c'") }
