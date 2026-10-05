@@ -6,6 +6,7 @@ using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
 using Encina.Testing.Identity;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -16,6 +17,7 @@ public sealed class AuditedSecretWriterDecoratorTests
 {
     private readonly ISecretWriter _innerWriter;
     private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<AuditedSecretWriterDecorator> _logger;
@@ -24,6 +26,10 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         _innerWriter = Substitute.For<ISecretWriter>();
         _auditStore = Substitute.For<IOperationAuditStore>();
+        _scopeFactory = new ServiceCollection()
+            .AddSingleton(_auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _logger = Substitute.For<ILogger<AuditedSecretWriterDecorator>>();
@@ -44,21 +50,21 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(null!, _auditStore, _requestContextAccessor, options, _logger);
+        var act = () => new AuditedSecretWriterDecorator(null!, _scopeFactory, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("inner");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var options = CreateOptions(true);
 
         var act = () => new AuditedSecretWriterDecorator(_innerWriter, null!, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("auditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -66,7 +72,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, null!, options, _logger);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, null!, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("requestContextAccessor");
@@ -75,7 +81,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, _requestContextAccessor, null!, _logger);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, _requestContextAccessor, null!, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("options");
@@ -86,7 +92,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _auditStore, _requestContextAccessor, options, null!);
+        var act = () => new AuditedSecretWriterDecorator(_innerWriter, _scopeFactory, _requestContextAccessor, options, null!);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("logger");
@@ -217,7 +223,7 @@ public sealed class AuditedSecretWriterDecoratorTests
     #region Helpers
 
     private AuditedSecretWriterDecorator CreateDecorator(bool enableAuditing) =>
-        new(_innerWriter, _auditStore, _requestContextAccessor,
+        new(_innerWriter, _scopeFactory, _requestContextAccessor,
             CreateOptions(enableAuditing), _logger);
 
     private static SecretsOptions CreateOptions(bool enableAuditing) =>

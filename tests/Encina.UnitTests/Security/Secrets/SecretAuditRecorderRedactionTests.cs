@@ -5,6 +5,7 @@ using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -20,11 +21,16 @@ public sealed class SecretAuditRecorderRedactionTests
     private const string Code = "secrets.sentinel.code";
 
     private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContextAccessor _accessor = Substitute.For<IRequestContextAccessor>();
     private readonly SecretsOptions _options = new() { EnableAccessAuditing = true };
 
     public SecretAuditRecorderRedactionTests()
     {
+        _scopeFactory = new ServiceCollection()
+            .AddSingleton(_auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
@@ -48,7 +54,7 @@ public sealed class SecretAuditRecorderRedactionTests
         inner.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>(SentinelError()));
         var sut = new AuditedSecretReaderDecorator(
-            inner, _auditStore, _accessor, _options, Substitute.For<ILogger<AuditedSecretReaderDecorator>>());
+            inner, _scopeFactory, _accessor, _options, Substitute.For<ILogger<AuditedSecretReaderDecorator>>());
 
         await sut.GetSecretAsync("key");
 
@@ -64,7 +70,7 @@ public sealed class SecretAuditRecorderRedactionTests
         _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("audit.store.code", Sentinel)));
         var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<AuditedSecretReaderDecorator>();
-        var sut = new AuditedSecretReaderDecorator(inner, _auditStore, _accessor, _options, logger);
+        var sut = new AuditedSecretReaderDecorator(inner, _scopeFactory, _accessor, _options, logger);
 
         await sut.GetSecretAsync("key");
 
@@ -80,7 +86,7 @@ public sealed class SecretAuditRecorderRedactionTests
         inner.SetSecretAsync("key", "value", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(SentinelError()));
         var sut = new AuditedSecretWriterDecorator(
-            inner, _auditStore, _accessor, _options, Substitute.For<ILogger<AuditedSecretWriterDecorator>>());
+            inner, _scopeFactory, _accessor, _options, Substitute.For<ILogger<AuditedSecretWriterDecorator>>());
 
         await sut.SetSecretAsync("key", "value");
 
@@ -94,7 +100,7 @@ public sealed class SecretAuditRecorderRedactionTests
         inner.RotateSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(SentinelError()));
         var sut = new AuditedSecretRotatorDecorator(
-            inner, _auditStore, _accessor, _options, Substitute.For<ILogger<AuditedSecretRotatorDecorator>>());
+            inner, _scopeFactory, _accessor, _options, Substitute.For<ILogger<AuditedSecretRotatorDecorator>>());
 
         await sut.RotateSecretAsync("key");
 

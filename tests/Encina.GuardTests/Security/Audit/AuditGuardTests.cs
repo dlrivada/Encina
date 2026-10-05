@@ -1,4 +1,5 @@
 using Encina.Security.Audit;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -299,7 +300,7 @@ public class AuditGuardTests
     #region OperationAuditRetentionService Guard Tests
 
     [Fact]
-    public void OperationAuditRetentionService_Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void OperationAuditRetentionService_Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         // Arrange
         var options = Options.Create(new OperationAuditOptions());
@@ -310,7 +311,7 @@ public class AuditGuardTests
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("auditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -318,10 +319,14 @@ public class AuditGuardTests
     {
         // Arrange
         var auditStore = Substitute.For<IOperationAuditStore>();
+        var scopeFactory = new ServiceCollection()
+            .AddSingleton(auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         var logger = Substitute.For<ILogger<OperationAuditRetentionService>>();
 
         // Act
-        var act = () => new OperationAuditRetentionService(auditStore, null!, logger);
+        var act = () => new OperationAuditRetentionService(scopeFactory, null!, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -333,10 +338,14 @@ public class AuditGuardTests
     {
         // Arrange
         var auditStore = Substitute.For<IOperationAuditStore>();
+        var scopeFactory = new ServiceCollection()
+            .AddSingleton(auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         var options = Options.Create(new OperationAuditOptions());
 
         // Act
-        var act = () => new OperationAuditRetentionService(auditStore, options, null!);
+        var act = () => new OperationAuditRetentionService(scopeFactory, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)

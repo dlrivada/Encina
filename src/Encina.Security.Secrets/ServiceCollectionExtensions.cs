@@ -350,16 +350,20 @@ public static class ServiceCollectionExtensions
             return reader;
         }
 
-        var auditStore = sp.GetService<IOperationAuditStore>();
+        // The reader is a singleton and database audit stores are scoped, so the store is never
+        // resolved here: the decorator takes the scope factory and resolves it once per audit write.
+        // IServiceProviderIsService answers "is it registered" without creating the service.
+        var registration = sp.GetService<IServiceProviderIsService>();
         var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
 
-        return auditStore is not null && requestContextAccessor is not null
+        return registration?.IsService(typeof(IOperationAuditStore)) == true && requestContextAccessor is not null
             ? new AuditedSecretReaderDecorator(
                 reader,
-                auditStore,
+                sp.GetRequiredService<IServiceScopeFactory>(),
                 requestContextAccessor,
                 options,
-                sp.GetRequiredService<ILogger<AuditedSecretReaderDecorator>>())
+                sp.GetRequiredService<ILogger<AuditedSecretReaderDecorator>>(),
+                sp.GetService<TimeProvider>())
             : reader;
     }
 

@@ -7,6 +7,7 @@ using Encina.Testing.Identity;
 
 using LanguageExt;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,6 +22,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
 {
     private readonly ISecretReader _inner = Substitute.For<ISecretReader>();
     private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContext _requestContext = Substitute.For<IRequestContext>();
     private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
     private readonly SecretsOptions _options = new();
@@ -28,6 +30,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
     public AuditedSecretReaderDecoratorGuardTests()
     {
         _requestContextAccessor.RequestContext.Returns(_requestContext);
+        _scopeFactory = new ServiceCollection().AddSingleton(_auditStore).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
     #region Constructor Guards
@@ -36,25 +39,25 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
     public void Constructor_NullInner_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretReaderDecorator(
-            null!, _auditStore, _requestContextAccessor, _options,
+            null!, _scopeFactory, _requestContextAccessor, _options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretReaderDecorator(
             _inner, null!, _requestContextAccessor, _options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("auditStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretReaderDecorator(
-            _inner, _auditStore, null!, _options,
+            _inner, _scopeFactory, null!, _options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
@@ -63,7 +66,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretReaderDecorator(
-            _inner, _auditStore, _requestContextAccessor, null!,
+            _inner, _scopeFactory, _requestContextAccessor, null!,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
@@ -72,7 +75,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretReaderDecorator(
-            _inner, _auditStore, _requestContextAccessor, _options, null!);
+            _inner, _scopeFactory, _requestContextAccessor, _options, null!);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
@@ -86,7 +89,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
         // Arrange
         var options = new SecretsOptions { EnableAccessAuditing = false };
         var sut = new AuditedSecretReaderDecorator(
-            _inner, _auditStore, _requestContextAccessor, options,
+            _inner, _scopeFactory, _requestContextAccessor, options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
 
         _inner.GetSecretAsync("test-secret", Arg.Any<CancellationToken>())
@@ -111,7 +114,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
             .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
 
         var sut = new AuditedSecretReaderDecorator(
-            _inner, _auditStore, _requestContextAccessor, options,
+            _inner, _scopeFactory, _requestContextAccessor, options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
 
         _inner.GetSecretAsync("test-secret", Arg.Any<CancellationToken>())
@@ -131,7 +134,7 @@ public sealed class AuditedSecretReaderDecoratorGuardTests
         // Arrange
         var options = new SecretsOptions { EnableAccessAuditing = false };
         var sut = new AuditedSecretReaderDecorator(
-            _inner, _auditStore, _requestContextAccessor, options,
+            _inner, _scopeFactory, _requestContextAccessor, options,
             NullLogger<AuditedSecretReaderDecorator>.Instance);
 
         _inner.GetSecretAsync<TestSecretValue>("test-secret", Arg.Any<CancellationToken>())

@@ -204,6 +204,63 @@ public sealed class SecretsServiceCollectionExtensionsTests
         reader.ShouldBeOfType<EnvironmentSecretProvider>();
     }
 
+    [Fact]
+    public async Task AddEncinaSecrets_EnableAccessAuditing_WithScopedStore_ResolvesTheStorePerCallAndRecordsTheClockTime()
+    {
+        // Arrange: database audit stores are scoped; the singleton reader chain must not capture one
+        const string secretName = "ENCINA_TEST_SECRET_1633_SCOPED";
+        Environment.SetEnvironmentVariable(secretName, "value");
+        try
+        {
+            var store = NSubstitute.Substitute.For<IOperationAuditStore>();
+            store.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
+                .Returns(LanguageExt.Prelude.Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default));
+            var resolutions = 0;
+            var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero));
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSingleton<TimeProvider>(clock);
+            services.AddScoped(_ =>
+            {
+                resolutions++;
+                return store;
+            });
+
+            services.AddEncinaSecrets(o =>
+            {
+                o.EnableCaching = false;
+                o.EnableResilience = true; // two layers under the audit decorator
+                o.EnableAccessAuditing = true;
+            });
+
+            using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true
+            });
+
+            // Act: resolving the singleton at the root throws under ValidateScopes if it captured the scoped store
+            var reader = provider.GetRequiredService<ISecretReader>();
+            reader.ShouldBeOfType<AuditedSecretReaderDecorator>();
+            (await reader.GetSecretAsync(secretName)).IsRight.ShouldBeTrue();
+            (await reader.GetSecretAsync(secretName)).IsRight.ShouldBeTrue();
+
+            // Assert: one store resolution (one scope) per audited call, stamped with the injected clock
+            resolutions.ShouldBe(2);
+            await store.Received(2).RecordAsync(
+                Arg.Is<OperationAuditEntry>(e =>
+                    e.Action == "SecretAccess" &&
+                    e.StartedAtUtc == clock.GetUtcNow() &&
+                    e.CompletedAtUtc == clock.GetUtcNow()),
+                Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(secretName, null);
+        }
+    }
+
     #endregion
 
     #region AddEncinaSecrets<TReader>

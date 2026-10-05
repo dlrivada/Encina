@@ -89,6 +89,42 @@ public class AuditPipelineBehaviorTests : IDisposable
         Metadata = new Dictionary<string, object?>()
     };
 
+    #region Clock Tests
+
+    [Fact]
+    public async Task Handle_Command_StampsStartAndCompletionFromTheInjectedTimeProvider()
+    {
+        // Arrange
+        var start = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(start);
+        var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
+        var behavior = new AuditPipelineBehavior<TestCommand, Unit>(
+            _auditStore, _entryFactory, options, _commandLogger, clock);
+
+        // Act: the handler takes 3 seconds on the fake clock
+        await behavior.Handle(
+            new TestCommand(),
+            RequestContext.CreateForTest(),
+            () =>
+            {
+                clock.Advance(TimeSpan.FromSeconds(3));
+                return new ValueTask<Either<EncinaError, Unit>>(Unit.Default);
+            },
+            CancellationToken.None);
+
+        // Assert
+        _entryFactory.Received(1).Create(
+            Arg.Any<TestCommand>(),
+            Arg.Any<Unit?>(),
+            Arg.Any<IRequestContext>(),
+            AuditOutcome.Success,
+            Arg.Any<string?>(),
+            start,
+            start.AddSeconds(3));
+    }
+
+    #endregion
+
     #region ShouldAudit Tests
 
     [Fact]

@@ -1,4 +1,5 @@
 using Encina.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -46,7 +47,7 @@ namespace Encina.Security.Audit;
 /// </example>
 public sealed class OperationAuditRetentionService : BackgroundService
 {
-    private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly OperationAuditOptions _options;
     private readonly ILogger<OperationAuditRetentionService> _logger;
     private readonly TimeProvider _timeProvider;
@@ -54,22 +55,25 @@ public sealed class OperationAuditRetentionService : BackgroundService
     /// <summary>
     /// Initializes a new instance of the <see cref="OperationAuditRetentionService"/> class.
     /// </summary>
-    /// <param name="auditStore">The audit store to purge entries from.</param>
+    /// <param name="scopeFactory">
+    /// The scope factory used to resolve the <see cref="IOperationAuditStore"/> once per purge run,
+    /// because database stores are scoped and this service is a singleton.
+    /// </param>
     /// <param name="options">The audit options containing retention configuration.</param>
     /// <param name="logger">The logger for recording purge operations.</param>
     /// <param name="timeProvider">Optional time provider for testability. Defaults to system time.</param>
     /// <exception cref="ArgumentNullException">Thrown when any required parameter is null.</exception>
     public OperationAuditRetentionService(
-        IOperationAuditStore auditStore,
+        IServiceScopeFactory scopeFactory,
         IOptions<OperationAuditOptions> options,
         ILogger<OperationAuditRetentionService> logger,
         TimeProvider? timeProvider = null)
     {
-        ArgumentNullException.ThrowIfNull(auditStore);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _auditStore = auditStore;
+        _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -114,7 +118,10 @@ public sealed class OperationAuditRetentionService : BackgroundService
 
             Log.AuditRetentionPurgeStarted(_logger, cutoffDate);
 
-            var result = await _auditStore.PurgeEntriesAsync(cutoffDate, cancellationToken).ConfigureAwait(false);
+            using var scope = _scopeFactory.CreateScope();
+            var auditStore = scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
+
+            var result = await auditStore.PurgeEntriesAsync(cutoffDate, cancellationToken).ConfigureAwait(false);
 
             result.Match(
                 Right: count =>

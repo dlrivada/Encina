@@ -3,6 +3,7 @@ using Encina.Security.Secrets.Abstractions;
 
 using LanguageExt;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.Secrets.Auditing;
@@ -22,16 +23,20 @@ namespace Encina.Security.Secrets.Auditing;
 public sealed class AuditedSecretRotatorDecorator : ISecretRotator
 {
     private readonly ISecretRotator _inner;
-    private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly SecretsOptions _options;
     private readonly ILogger<AuditedSecretRotatorDecorator> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of <see cref="AuditedSecretRotatorDecorator"/>.
     /// </summary>
     /// <param name="inner">The inner secret rotator to delegate to.</param>
-    /// <param name="auditStore">The audit store for recording rotation entries.</param>
+    /// <param name="scopeFactory">
+    /// Scope factory used to resolve the <see cref="IOperationAuditStore"/> for each audit write
+    /// (this decorator is a singleton and database stores are scoped).
+    /// </param>
     /// <param name="requestContextAccessor">
     /// Accessor for the ambient request context, read at the moment each audit entry is recorded
     /// (this decorator is registered as a singleton, so the context cannot be captured once at
@@ -39,24 +44,27 @@ public sealed class AuditedSecretRotatorDecorator : ISecretRotator
     /// </param>
     /// <param name="options">The secrets options controlling auditing behavior.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="timeProvider">Optional time provider for the entry timestamps. Defaults to system time.</param>
     public AuditedSecretRotatorDecorator(
         ISecretRotator inner,
-        IOperationAuditStore auditStore,
+        IServiceScopeFactory scopeFactory,
         IRequestContextAccessor requestContextAccessor,
         SecretsOptions options,
-        ILogger<AuditedSecretRotatorDecorator> logger)
+        ILogger<AuditedSecretRotatorDecorator> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(inner);
-        ArgumentNullException.ThrowIfNull(auditStore);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(requestContextAccessor);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _inner = inner;
-        _auditStore = auditStore;
+        _scopeFactory = scopeFactory;
         _requestContextAccessor = requestContextAccessor;
         _options = options;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -69,9 +77,9 @@ public sealed class AuditedSecretRotatorDecorator : ISecretRotator
             return await _inner.RotateSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
         }
 
-        var startedAt = DateTimeOffset.UtcNow;
+        var startedAt = _timeProvider.GetUtcNow();
         var result = await _inner.RotateSecretAsync(secretName, cancellationToken).ConfigureAwait(false);
-        var completedAt = DateTimeOffset.UtcNow;
+        var completedAt = _timeProvider.GetUtcNow();
 
         await RecordAuditEntryAsync(secretName, result.IsRight, result, startedAt, completedAt, cancellationToken).ConfigureAwait(false);
 
@@ -86,6 +94,6 @@ public sealed class AuditedSecretRotatorDecorator : ISecretRotator
         DateTimeOffset completedAt,
         CancellationToken cancellationToken)
         => SecretAuditRecorder.RecordAsync<Unit>(
-            _auditStore, _requestContextAccessor, _logger, "SecretRotation", secretName, isSuccess,
+            _scopeFactory, _requestContextAccessor, _logger, "SecretRotation", secretName, isSuccess,
             result, startedAt, completedAt, cancellationToken);
 }

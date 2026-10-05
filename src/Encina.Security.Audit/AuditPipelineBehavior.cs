@@ -41,6 +41,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     private readonly IOperationAuditEntryFactory _entryFactory;
     private readonly OperationAuditOptions _options;
     private readonly ILogger<AuditPipelineBehavior<TRequest, TResponse>> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuditPipelineBehavior{TRequest, TResponse}"/> class.
@@ -49,14 +50,16 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     /// <param name="entryFactory">The factory for creating audit entries.</param>
     /// <param name="options">The audit configuration options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="timeProvider">Optional time provider for the entry timestamps. Defaults to system time.</param>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when any parameter is null.
+    /// Thrown when any required parameter is null.
     /// </exception>
     public AuditPipelineBehavior(
         IOperationAuditStore auditStore,
         IOperationAuditEntryFactory entryFactory,
         IOptions<OperationAuditOptions> options,
-        ILogger<AuditPipelineBehavior<TRequest, TResponse>> logger)
+        ILogger<AuditPipelineBehavior<TRequest, TResponse>> logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(auditStore);
         ArgumentNullException.ThrowIfNull(entryFactory);
@@ -67,6 +70,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
         _entryFactory = entryFactory;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -83,7 +87,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
         }
 
         // Capture start time
-        var startedAtUtc = DateTimeOffset.UtcNow;
+        var startedAtUtc = _timeProvider.GetUtcNow();
 
         Either<EncinaError, TResponse> result;
         AuditOutcome outcome = AuditOutcome.Success;
@@ -115,7 +119,7 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
             errorMessage = "Operation was cancelled";
 
             // Capture completion time and record cancellation
-            var completedAtUtc = DateTimeOffset.UtcNow;
+            var completedAtUtc = _timeProvider.GetUtcNow();
             _ = RecordAuditEntryAsync(request, default, context, outcome, errorMessage, startedAtUtc, completedAtUtc);
             throw;
         }
@@ -125,13 +129,13 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
             errorMessage = ex.GetType().Name;
 
             // Capture completion time and record exception
-            var completedAtUtc = DateTimeOffset.UtcNow;
+            var completedAtUtc = _timeProvider.GetUtcNow();
             _ = RecordAuditEntryAsync(request, default, context, outcome, errorMessage, startedAtUtc, completedAtUtc);
             throw;
         }
 
         // Fire-and-forget audit recording with completion time
-        var finalCompletedAt = DateTimeOffset.UtcNow;
+        var finalCompletedAt = _timeProvider.GetUtcNow();
         _ = RecordAuditEntryAsync(request, response, context, outcome, errorMessage, startedAtUtc, finalCompletedAt);
 
         return result;
