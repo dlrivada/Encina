@@ -12,21 +12,25 @@
 Phase 2 adds `IRequestContextScopeFactory`, the only public way to bind an identity (service, principal, inbound request, restored actor) to a region of code.
 
 **What the plan specifies today.**
+
 - The factory has the classic `using` shape: `Begin*` returns `Either<EncinaError, RequestContextScope>`, and `RequestContextScope.Dispose()` ends the scope.
 - `Dispose` "invalidates the scope's holder and restores the captured previous holder only if it is still valid" (plan, Design 3, line 261).
 
 **The hole the #1824 review found.**
+
 - A `Task.Run` child forked after the scope opened inherits the same `AsyncLocal` holder as the scope's owner.
 - Nothing written at open time can tell the two flows apart.
 - So if the child is the one that disposes the scope, the restore branch of `Pop` runs in the child and installs the **parent** identity there.
 
 **Recommendation: a delegate-only public API (option C1 below).**
+
 - Every public scope is `Run*Async(…, work, …)`, and the scope ends when `work` completes.
 - Ending a scope only invalidates its holder. The caller's identity comes back because the C# async machinery restores the caller's `ExecutionContext`, not because Encina writes it back.
 - `RequestContextScope` (the `IDisposable`) is deleted from the public surface.
 - The framework's own internal, frame-bound swaps stay as they are: the dispatcher's `AmbientRequestContext.Enter` and the stream `Flow`.
 
 **Why, decisive arguments first:**
+
 1. **No handle, so no foreign-flow disposal.** A circuit, connection, or `StartAsync`/`StopAsync` pair cannot dispose a scope from another flow.
 2. **No forgotten `using`.** A restored actor cannot leak from one outbox message into the next.
 3. **No helper that silently loses its scope.**
@@ -36,6 +40,7 @@ Phase 2 adds `IRequestContextScopeFactory`, the only public way to bind an ident
 C1 is a **correctness guard against accidental misuse, not a security boundary.** In-process code that wants a service identity can already call the public factory from a flow with no holder, for example through `ExecutionContext.SuppressFlow()`. ADR-035 must say so (section 7, item 25).
 
 **The review found a larger issue, independent of the shape** (section 4.1). Connection-hosted flows (Blazor Server circuits, SignalR hubs) run inside the ExecutionContext of the HTTP request that opened the connection.
+
 - Under WebSockets that request, and its inbound scope, lives as long as the connection.
 - This breaks the plan's Blazor and SignalR assumptions.
 - The fix: `EncinaContextMiddleware` binds no identity on connection endpoints.
@@ -71,6 +76,7 @@ The facts below are from `main` after #1824.
 ### 2.1 The hazard, reproduced
 
 A probe copies the holder semantics above (`Push`, `Pop` with the in-order restore, `IsValid`). Its source is in [Appendix A](#appendix-a-probe). It was run with `dotnet run` on .NET 10.0.112 in the authoring session. The scenario is **application code that nests scopes**:
+
 - an outer service scope (`service:orchestrator`), for example an F1 job opened with `RunAsServiceAsync`;
 - an inner restored-user scope (`user:alice(restored)`) opened by that job;
 - a child forked inside the inner scope, which pops the inner scope.
@@ -97,12 +103,14 @@ Two failures are visible in the `using` rows:
 ### 2.2 Why a `using` scope cannot tell the owner from the child
 
 **Every token is inherited.**
+
 - `AsyncLocal<T>` values live in the `ExecutionContext`, which is immutable and copy-on-write.
 - `Task.Run` captures the current `ExecutionContext` by reference. The child starts with the *same* holder reference, the same `IsScope` flag and the same parent chain as the owner.
 - Any token written at `Push` (an owner marker, a second `AsyncLocal`, a GUID) is captured too and is identical in both flows.
 - The runtime exposes no "logical flow identity". Thread ids change at every `await`.
 
 **So only two outcomes are possible.**
+
 - `Pop` writes something back into the flow that calls it. Then a child can install the parent.
 - `Pop` writes nothing. Then the owner of a `using` block nested inside the same method cannot get its outer identity back.
 
@@ -195,6 +203,7 @@ private async Task<Either<EncinaError, T>> RunAsync<T>(IRequestContext context, 
 **Implementation constraint.** `Push` runs only inside the `async` body of this private method, never in a non-async wrapper. A non-async wrapper's write would stay in the caller's flow. A test pins it: call a `Run*Async` **without awaiting** it, and assert the caller's ambient right after the call returns.
 
 **Results.**
+
 - A refusal returns `Left` without invoking `work`.
 - A `Left` from `work` passes through unchanged.
 - An exception from `work` propagates after the holder is invalidated. Exceptions are not business logic, and `IEncina.Send` already converts handler failures into `Left`.
@@ -230,17 +239,20 @@ The A and C1 columns describe the code as each option would implement it. The ex
 This fact is independent of the scope shape, and it changes the Blazor and SignalR analysis. Sources are `dotnet/aspnetcore`, `release/10.0`.
 
 **How the inheritance happens.**
+
 - `HttpConnectionContext.TryActivatePersistentConnection` starts the connection application inside the request's own flow: `ApplicationTask ??= ExecuteApplication(connectionDelegate)` (`src/SignalR/common/Http.Connections/src/Internal/HttpConnectionContext.cs:421`; long polling `:460`).
 - `ExecuteApplication` (`:626`) does `await Task.Yield(); await connectionDelegate(this);` and never suppresses ExecutionContext flow.
 - So the hub connection handler, every hub invocation and every Blazor Server circuit activity run in an ExecutionContext forked from the `/_blazor` or hub request. That fork happens after `UseEncinaContext` opened its inbound scope.
 - Under WebSockets, `HttpConnectionDispatcher` awaits the connection for its whole life (`HttpConnectionDispatcher.cs:158`, `:328`). The inbound scope therefore ends only at disconnect. This is also why `IHttpContextAccessor.HttpContext` is non-null inside hubs.
 
 **Consequences without a fix, from Phase 3 on.**
+
 - **Blazor.** Every per-activity `RunInboundAsync` finds an ambient User with `Origin = Inbound`. Design 3 refuses both cases with `scope_conflict`.
 - **SignalR.** Hub dispatches run as the connect-time user, with connect-time roles, for hours. A role revocation does not apply until reconnect, so this fails open. It also contradicts the plan's "until F2, SignalR dispatches stay Anonymous" (plan line 197, Design 2 (c), m5).
 - **Transport dependence.** Under long polling and SSE the same flows read Anonymous once the first poll ends, so behaviour depends on the transport.
 
 **Fix: connection endpoints get no request identity.**
+
 - `EncinaContextMiddleware` binds no identity for an endpoint that carries `HubMetadata`, which covers every `MapHub` and Blazor's `/_blazor` hub. It runs `next` outside any inbound scope.
 - Connection flows then start Anonymous whatever the transport. The per-activity (Blazor) and per-invocation (SignalR, F2) scopes establish the identity, as intended.
 - **Ordering requirement.** The middleware must see the endpoint, so it must run after routing. Minimal hosting adds `UseRouting` at the start of the pipeline unless the application calls it explicitly. Phase 3 documents "`UseEncinaContext` after `UseRouting`" and tests the case where routing comes later. When no endpoint is resolved, the middleware cannot tell a hub request and binds as today; the test pins this.
@@ -363,6 +375,7 @@ foreach (var message in batch)
 Under C1, `IsSameAs` keeps two callers: the explicit-context check in `Resolve`, and the setter rule (section 5.4). Neither binds identities to code regions any more; the factory does that. So `IsSameAs` only decides whether "this context is the caller I already have".
 
 **Claims count, except per-token ones.**
+
 - `[RequireClaim]` evaluates `RequestIdentity.HasClaim` over the authenticated identities (Design 4), so any claim can drive authorization. An explicit context that differs only in `amr` or `acr` (step-up) is a different authorization subject, and today it is accepted silently.
 - Comparing *all* claims would make two snapshots of the same session differ after every token refresh, on `exp`, `iat`, `nbf`, `auth_time`, `jti`, `uti`, `rh` and `aio`.
 - **Recommendation:**
@@ -372,6 +385,7 @@ Under C1, `IsSameAs` keeps two callers: the explicit-context check in `Resolve`,
 - **Why an exclusion list and not an allow-list.** An allow-list (`amr`, `acr`, plus the configured subject, role, permission and tenant types) misses the custom claim types that `[RequireClaim]` tests, so a change in one of them would be accepted silently. An exclusion list errs towards "different identity", which is refused or logged, so it fails closed.
 
 **Tenant is not identity, but it gets its own rule.**
+
 - Tenant is not identity (Design 1), so `IsSameAs` ignores it.
 - Two paths have no tenant rule today:
   - an explicit-context `Send(request, ambient.WithTenantId("other"))`: `IsSameAs` is true, so it is accepted silently;
@@ -392,6 +406,7 @@ Under C1, `IsSameAs` keeps two callers: the explicit-context check in `Resolve`,
 - In that case a scope would write to a store the dispatcher never reads (`Resolve` reads the *registered* accessor), and dispatches would silently run Anonymous. The same applies under `using`.
 
 **Recommendation, independent of the shape:**
+
 - The scope factory takes `IRequestContextAccessor` in its constructor. When the accessor is not the default `RequestContextAccessor`, every `Run*Async` returns `Left(encina.identity.unsupported_accessor)` without running `work`.
 - A startup validator (`ValidateOnStart`, registered by `AddEncinaRequestIdentity`) fails the host with the same message, so the misconfiguration surfaces at boot, not on the first job.
 - The validator also removes the case the #1705 comment raised: a decorated accessor whose restore can throw.
@@ -401,11 +416,13 @@ Under C1, `IsSameAs` keeps two callers: the explicit-context check in `Resolve`,
 ### 5.4 The two-step setter bypass
 
 Under C1 no production code needs the public setter to change identity:
+
 - the middleware and the circuit handler use `RunInboundAsync`;
 - jobs use `RunAsServiceAsync`;
 - deferred dispatch uses `RunRestoredAsync`.
 
 **Recommendation: the setter accepts identity-preserving sets only.**
+
 - A set is accepted when the new context is unauthenticated (a downgrade, which fails closed) or `IsSameAs` the current identity.
 - Any change *to* a different authenticated identity is refused (Warning 165, `InvalidOperationException`), whatever the ambient kind.
 - The two-step bypass closes. Clearing is allowed, but setting a user afterwards is a change from Anonymous to an authenticated identity, so it is refused.
@@ -415,11 +432,13 @@ Under C1 no production code needs the public setter to change identity:
 ### 5.5 `TestIdentity.Service` and how tests bind identities
 
 **`TestIdentity.Service` is a builder, nothing more.**
+
 - `TestIdentity.Service(string name, IEnumerable<string>? roles = null, IEnumerable<string>? permissions = null)` builds a `ServiceIdentityDefinition` and calls the internal `RequestIdentity.ForService`. `InternalsVisibleTo` already covers `Encina.Testing`.
 - It is a builder for explicit test contexts passed straight to a handler or behavior. It never binds an ambient identity.
 - Whether a dispatch accepts such a context follows section 5.6.
 
 **No test-only binding path.**
+
 - `Encina.Testing` is a published package. Any application that references it could use a `RunAsAsync`-style helper over an internal seam to bind undeclared identities, with arbitrary roles, to production code. The architecture test only covers Encina's own assemblies.
 - Tests therefore bind identities through the production path instead:
   - **Service identities.** The test host declares the service (`AddEncinaServiceIdentity("billing-reconciliation", …)`) and calls the public `RunAsServiceAsync`.
@@ -441,11 +460,13 @@ result.ShouldBeSuccess();
 M3 (plan line 75) and Design 1 (line 145) key the check on the **identity**: "when the identity's issuing scope is no longer active".
 
 **A stamp on the context is not enough.** It is bypassable through `RequestContext.CopyOf`, which rebuilds a foreign `IRequestContext` and loses any internal field on the old object:
+
 1. Capture `context.Identity` inside `work`.
 2. After `work` ends, return it from a three-line `IRequestContext` implementation.
 3. Dispatch with no ambient context. `CheckExplicitContext` sees an identity change over a non-User ambient and accepts it.
 
 **Recommendation: stamp the issuer on the identity.**
+
 - **Mechanism.** The factory stamps each `RequestIdentity` it creates with an internal reference to its holder (`RequestIdentity.Issuer`), set only by the factory. The same identity object travels through `With*`, `ForNestedDispatch` and `CopyOf`, so the stamp survives every copy.
 - **`Resolve`.** An authenticated explicit identity whose issuer has ended returns `Left(scope_conflict)`: a stale replay.
 - **No issuer at all.** An authenticated explicit identity with no issuer, such as one built with `TestIdentity.User(...)` or `TestIdentity.Service(...)`, returns `Left(scope_conflict)` **outside an active scope of the same identity**.
@@ -481,6 +502,7 @@ M3 (plan line 75) and Design 1 (line 145) key the check on the **identity**: "wh
    - Code that needs an identity across non-nested steps must restructure into one `work`. That is the intended constraint.
 
 **Independent of the shape**, Phase 2 and Phase 3 also need:
+
 - the connection-endpoint rule (section 4.1);
 - the identity-stamped issuer check (section 5.6);
 - the claims and tenant rules (section 5.1);
@@ -490,8 +512,6 @@ M3 (plan line 75) and Design 1 (line 145) key the check on the **identity**: "wh
 ## 7. Concrete changes to the plan
 
 These edits go into `docs/plans/security-context-population-implementation-plan-1705.md` in the Phase 2 plan update. They are listed here, not applied, so that the decision comes first. Line numbers are those of `main` at `c3626ed`. "M6 (scope shape)" names the new amendment, to keep it apart from the existing lowercase `m6` (EventIds).
-
-**Summary and amendments**
 
 1. **Amendments table (after `m4`, line 81):** add a normative row:
 
@@ -507,8 +527,6 @@ These edits go into `docs/plans/security-context-population-implementation-plan-
 5. **Entry-point table:**
    - SignalR row (line 60): "Not populated: the middleware skips `HubMetadata` endpoints, so hub dispatches see Anonymous on every transport; streaming hub methods included in F2".
    - Deferred-dispatch row (line 62): `BeginRestored` → `RunRestoredAsync`.
-
-**Design 1, Design 2 and Design 3**
 
 6. **Design 1 (lines 144-145, 164):**
    - In the "Persisted form" signature (line 164), `BeginRestored` → `RunRestoredAsync`.
@@ -545,8 +563,6 @@ These edits go into `docs/plans/security-context-population-implementation-plan-
     - Add `encina.identity.unsupported_accessor` (section 5.3).
 14. **Design 6, explicit opt-outs (line 348):** "a declared service identity opened through the scope factory" now names `RunAsServiceAsync`.
 
-**Phase 2**
-
 15. **Task 5 (line 481):** the files become `IRequestContextScopeFactory.cs`, `IdentityScopeOptions.cs`, internal `RequestContextScopeFactory.cs` and `RequestContextScopeFactoryExtensions.cs` (the `Task`-returning overloads). `RequestContextScope.cs` is deleted.
 16. **Task 6 (line 482):** add `encina.identity.unsupported_accessor`. `encina.identity.tenant_conflict` gains its explicit-dispatch use (section 5.1).
 17. **Task 8 (line 484):**
@@ -566,8 +582,6 @@ These edits go into `docs/plans/security-context-population-implementation-plan-
     - Resolved by section 5.2: a refresh goes through a new scope, and the setter keeps throwing.
     - Add `TestIdentity.Service` and `TestIdentity.Principal` as builders only (section 5.5).
 21. **Phase 2 prompt (lines 502, 510):** rewrite the TASK block to the delegate API and the rules above. Drop "holder-based Dispose (invalidate own holder, restore previous only if valid, out-of-order Warning)" and the `BeginBuiltIn`/`BeginRestored` names.
-
-**Phase 3, Testing, Phase 7**
 
 22. **Phase 3, task 1 (line 529):** `RunInboundAsync`, the `HubMetadata` skip, the `Left` handling of item 7 and the ordering rule. **Task 4 (line 532):** the circuit handler of section 4.4. **Prompt (lines 547, 551):** the same names.
 23. **Phase 3, task 9:** add TestServer tests over the **WebSocket** transport:
@@ -612,6 +626,7 @@ The adversarial review of `6a78455` (PR #1849, 2026-10-05) was applied as follow
 A self-contained C# 14 file-based app. Run it with `dotnet run probe.cs`; the output is in section 2.1.
 
 `Push`, `Pop` and `Read` mirror `RequestContextAccessor.Push`, `Pop` (including the in-order restore) and `ContextHolder.IsValid`. The probe simplifies two details, and neither changes the scenario:
+
 - `Push` does not drop an ended parent (`LiveOrNull`);
 - `Pop` compares with `ReferenceEquals` instead of `NearestScope`.
 
