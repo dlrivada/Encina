@@ -53,6 +53,7 @@ exit $LASTEXITCODE
 '@
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:AUDIT_STUB_LOG -Value ('gh ' + ($args -join ' '))
+if ($args -contains 'list') { exit 0 }
 'https://github.com/dlrivada/Encina/pull/9999'
 exit 0
 '@

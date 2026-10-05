@@ -4,7 +4,7 @@
 
 Verdict: PASS (independent verification, 2 pass(es))
 
-Record: [issues/28.md](issues/28.md)
+Record: [issues/28.md](../issues/28.md)
 
 ## Stages
 
