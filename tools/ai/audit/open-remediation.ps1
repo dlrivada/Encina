@@ -12,6 +12,7 @@
 param(
     [Parameter(Mandatory)][int]$Issue,
     [switch]$Consolidate,
+    [switch]$WhatIf,
     [string]$Set = 'rules-2026-10'
 )
 
@@ -22,7 +23,9 @@ $root = Get-MainRoot $PSScriptRoot
 $dir = Join-Path $root 'artifacts\knowledge\remediation'
 $opened = Join-Path $dir 'opened.csv'
 $labels = gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name'
+if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh label list failed (exit $LASTEXITCODE); refusing to open issues without the label list"; exit 1 }
 $ms = gh api repos/dlrivada/Encina/milestones --jq '.[].title'
+if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh api milestones failed (exit $LASTEXITCODE); refusing to open issues without the milestone list"; exit 1 }
 
 function Get-HardeningMilestone { "v0.14.0 $([char]0x2014) Hardening" }
 
@@ -206,17 +209,19 @@ function Open-Consolidated($Drafts) {
                 $opts -join "`n"
             }
             'Description' {
-                $head = "Delta re-audit (``$Set``) of #$Issue found $k findings. Each is a checklist item below; the details follow per finding. Fix them in one batch.`n`n" + ($checklist -join "`n")
+                $head = "Delta re-audit (``$Set``) of #${Issue}: $k findings are folded into this issue (bugs are opened separately). Each is a checklist item below; the details follow per finding. Fix them in one batch.`n`n" + ($checklist -join "`n")
                 if ($target['Description'].Count) { $head + "`n`n" + ($target['Description'] -join "`n`n") } else { $head }
             }
             'Location' { if ($locationBlocks.Count) { $locationBlocks -join "`n" } else { $nothing } }
             'Priority' {
-                $name = if ($prio -eq 0) { 'Medium' } else { ($prioRank.GetEnumerator() | Where-Object Value -eq $prio).Key }
-                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*\*{0,2}$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n"
+                if ($prio -eq 0) { $t.Text + "`n`nNot stated by the drafts" } else {
+                $name = ($prioRank.GetEnumerator() | Where-Object Value -eq $prio).Key
+                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*\*{0,2}$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n" }
             }
             'Effort Estimate' {
-                $name = if ($eff -eq 0) { 'Medium' } else { ($effRank.GetEnumerator() | Where-Object Value -eq $eff).Key }
-                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n"
+                if ($eff -eq 0) { $t.Text + "`n`nNot stated by the drafts" } else {
+                $name = ($effRank.GetEnumerator() | Where-Object Value -eq $eff).Key
+                (($t.Text -split "`r?`n") | ForEach-Object { if ($_ -match "^\s*-\s*\[ \]\s*$name\b") { $_ -replace '\[ \]', '[x]' } else { $_ } }) -join "`n" }
             }
             'Related Issues' { (@($related) + "- #$Issue (audited issue)") -join "`n" }
             default { if ($target[$t.Name].Count) { $target[$t.Name] -join "`n`n" } else { $nothing } }
@@ -226,19 +231,49 @@ function Open-Consolidated($Drafts) {
     $body = ($bodyParts -join "`n`n") + "`n"
 
     $noun = if ($k -eq 1) { 'finding' } else { 'findings' }
-    $title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $k $noun (docs and coverage obligations)"
+    $topic = switch ($Set) { 'rules-2026-10' { ' (docs and coverage obligations)' } default { '' } }
+    $title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $k $noun$topic"
     $lab = @('technical-debt'); if ($anyTest) { $lab += 'area-testing' }
     $lab = @($lab | Where-Object { $labels -contains $_ })
     if (-not $lab) { $lab = @('technical-debt') }
-    $url = New-Issue $title $body $lab '' "consolidated-$Issue"
-    foreach ($d in $Drafts) { Add-Content $opened "$($d.File.Name),$url" }
-    "$url  $title"
+
+    if ($WhatIf) {
+        $pdir = Join-Path $root 'artifacts\issues'
+        New-Item -ItemType Directory -Force $pdir | Out-Null
+        $preview = Join-Path $pdir "delta-$Issue-consolidated.preview.md"
+        Set-Content -LiteralPath $preview $body -Encoding utf8
+        "WhatIf: $title"
+        "WhatIf: preview written to $preview; nothing created, no rows written"
+        return
+    }
+
+    if ($body.Length -gt 65000) {
+        Write-Error "open-remediation: the consolidated body is $($body.Length) characters, over the 65,000 limit of a GitHub issue; split the drafts into smaller sets"
+        exit 1
+    }
+
+    # Reuse an issue with the exact same title instead of creating a duplicate.
+    $json = & gh issue list --repo dlrivada/Encina --state all --search "$title in:title" --json number,title --limit 100
+    if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh issue list failed (exit $LASTEXITCODE)"; exit 1 }
+    $found = @(("$($json -join "`n")" | ConvertFrom-Json) | Where-Object { $_.title -ceq $title }) | Select-Object -First 1
+    if ($found) {
+        $url = "https://github.com/dlrivada/Encina/issues/$($found.number)"
+        $msg = "$url  $title (already exists; reused, nothing created)"
+    }
+    else {
+        $url = New-Issue $title $body $lab '' "consolidated-$Issue"
+        $msg = "$url  $title"
+    }
+    Add-Content $opened @($Drafts | ForEach-Object { "$($_.File.Name),$url" })
+    $msg
 }
 
 # --- main ------------------------------------------------------------------------------------------------------
 
-$drafts = foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
-    if ((Test-Path $opened) -and (Select-String -Path $opened -SimpleMatch $f.Name -Quiet)) { continue }
+$pattern = if ($Consolidate) { "$Issue-delta-*.md" } else { "$Issue-*.md" }
+$done = if (Test-Path $opened) { @(Get-Content $opened | ForEach-Object { ($_ -split ',')[0].Trim() }) } else { @() }
+$drafts = foreach ($f in Get-ChildItem $dir -Filter $pattern) {
+    if ($done -contains $f.Name) { continue }
     $d = Get-Draft $f
     if ($d) { $d }
 }
@@ -246,6 +281,8 @@ $drafts = foreach ($f in Get-ChildItem $dir -Filter "$Issue-*.md") {
 if (-not $Consolidate) { foreach ($d in $drafts) { Open-Draft $d }; return }
 
 # A bug is never folded into the batch: it is opened as its own issue, as in a full audit.
-foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) { Open-Draft $d }
+foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) {
+    if ($WhatIf) { "WhatIf: would open its own issue: $($d.Title)" } else { Open-Draft $d }
+}
 $rest = @($drafts | Where-Object { -not $_.Title.StartsWith('[BUG]') })
 if ($rest.Count) { Open-Consolidated $rest }

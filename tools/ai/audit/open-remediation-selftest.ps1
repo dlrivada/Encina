@@ -172,6 +172,10 @@ try {
 Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('gh ' + ($args -join ' '))
 if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; exit 0 }
 if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; exit 0 }
+if ($args[0] -eq 'issue' -and $args[1] -eq 'list') {
+    if ($env:OR_STUB_EXISTING) { $env:OR_STUB_EXISTING } else { '[]' }
+    exit 0
+}
 if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
     $n = @(Get-Content -LiteralPath $env:OR_STUB_LOG | Where-Object { $_ -like 'gh issue create*' }).Count
     $bf = $args[([array]::IndexOf($args, '--body-file') + 1)]
@@ -196,9 +200,11 @@ exit 0
         return @{ Exit = $LASTEXITCODE; Text = ($out -join "`n"); Creates = $creates }
     }
 
-    Write-Text (Join-Path $rem '2-docs-a.md') (New-DocsDraft '[DEBT] Docs page A is stale' 'docs/a.md' 'Low' 'Small' '- #50 - related A')
-    Write-Text (Join-Path $rem '2-docs-b.md') (New-DocsDraft '[DEBT] Docs page B is stale' 'docs/b.md' 'High' 'Medium' "- #50 - related A again`n- #51 - related B")
-    Write-Text (Join-Path $rem '2-test-c.md') $testDraft
+    Write-Text (Join-Path $rem '2-delta-docs-a.md') (New-DocsDraft '[DEBT] Docs page A is stale' 'docs/a.md' 'Low' 'Small' '- #50 - related A')
+    Write-Text (Join-Path $rem '2-delta-docs-b.md') (New-DocsDraft '[DEBT] Docs page B is stale' 'docs/b.md' 'High' 'Medium' "- #50 - related A again`n- #51 - related B")
+    Write-Text (Join-Path $rem '2-delta-test-c.md') $testDraft
+    # A non-delta draft of the same issue must never be folded into the consolidated issue.
+    Write-Text (Join-Path $rem '2-extra-z.md') (New-DocsDraft '[DEBT] Extra Z full-audit draft' 'docs/z.md' 'Low' 'Small' '')
 
     # --- 1. three drafts -> one issue ---------------------------------------------------------------------------
     $r1 = Invoke-Open '-Consolidate'
@@ -224,16 +230,17 @@ exit 0
     Assert-That 'per-finding subsections' ($body.Contains('### Docs page A is stale') -and $body.Contains('### Raise the unit target for Encina.Foo') -and $body.Contains('#### Nested heading in docs/a.md')) $body
     Assert-That 'related issues are the union plus the audited issue' ($body.Contains('#50 - related A') -and $body.Contains('#51 - related B') -and $body.Contains('#999 - TEST related') -and $body.Contains('- #2 (audited issue)') -and -not $body.Contains('This issue') -and -not $body.Contains('related A again')) $body
     $rows = @(Get-Content $csv)
-    Assert-That 'opened.csv has 3 rows with the same URL' ($rows.Count -eq 3 -and @($rows | ForEach-Object { ($_ -split ',')[1] } | Select-Object -Unique).Count -eq 1 -and $rows[0].StartsWith('2-docs-a.md,https://github.com/')) ($rows -join ' | ')
+    Assert-That 'opened.csv has 3 rows with the same URL' ($rows.Count -eq 3 -and @($rows | ForEach-Object { ($_ -split ',')[1] } | Select-Object -Unique).Count -eq 1 -and $rows[0].StartsWith('2-delta-docs-a.md,https://github.com/')) ($rows -join ' | ')
+    Assert-That 'non-delta draft is not folded and has no row' (-not $body.Contains('Extra Z') -and -not ($rows -join "`n").Contains('2-extra-z.md')) ($rows -join ' | ')
 
     # --- 2. idempotent re-run ----------------------------------------------------------------------------------
     $r2 = Invoke-Open '-Consolidate'
     Assert-That 're-run opens nothing' ($r2.Exit -eq 0 -and $r2.Creates.Count -eq 0 -and @(Get-Content $csv).Count -eq 3) $r2.Text
 
     # --- 3. a bug goes to its own issue --------------------------------------------------------------------------
-    Write-Text (Join-Path $rem '2-bug-d.md') $bugDraft
-    Write-Text (Join-Path $rem '2-docs-e.md') (New-DocsDraft '[DEBT] Docs page E is stale' 'docs/e.md' 'Low' 'Small' '')
-    Write-Text (Join-Path $rem '2-docs-f.md') (New-DocsDraft '[DEBT] Docs page F is stale' 'docs/f.md' 'Medium' 'Small' '')
+    Write-Text (Join-Path $rem '2-delta-bug-d.md') $bugDraft
+    Write-Text (Join-Path $rem '2-delta-docs-e.md') (New-DocsDraft '[DEBT] Docs page E is stale' 'docs/e.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '2-delta-docs-f.md') (New-DocsDraft '[DEBT] Docs page F is stale' 'docs/f.md' 'Medium' 'Small' '')
     $r3 = Invoke-Open '-Consolidate'
     Assert-That 'bug plus consolidated: two issues' ($r3.Exit -eq 0 -and $r3.Creates.Count -eq 2) ($r3.Creates -join ' | ')
     $bugCreate = @($r3.Creates | Where-Object { $_.Contains('--title [BUG] Something is wrong') })
@@ -243,16 +250,32 @@ exit 0
     $consBody = (Get-ChildItem $bodies -File | ForEach-Object { Get-Content -Raw $_.FullName } | Where-Object { $_ -match 'Delta re-audit' }) -join ''
     Assert-That 'bug text is not in the consolidated issue' (-not $consBody.Contains('BUG DESCRIPTION') -and $consBody.Contains('Docs page E is stale')) $consBody
     $rows3 = @(Get-Content $csv)
-    $bugUrl = (($rows3 | Where-Object { $_ -like '2-bug-d.md,*' }) -split ',')[1]
-    $eUrl = (($rows3 | Where-Object { $_ -like '2-docs-e.md,*' }) -split ',')[1]
-    $fUrl = (($rows3 | Where-Object { $_ -like '2-docs-f.md,*' }) -split ',')[1]
+    $bugUrl = (($rows3 | Where-Object { $_ -like '2-delta-bug-d.md,*' }) -split ',')[1]
+    $eUrl = (($rows3 | Where-Object { $_ -like '2-delta-docs-e.md,*' }) -split ',')[1]
+    $fUrl = (($rows3 | Where-Object { $_ -like '2-delta-docs-f.md,*' }) -split ',')[1]
     Assert-That 'opened.csv now has 6 rows, bug pointing to its own URL' ($rows3.Count -eq 6 -and $bugUrl -and $eUrl -eq $fUrl -and $bugUrl -ne $eUrl) ($rows3 -join ' | ')
 
     # --- 4. without -Consolidate: one issue per draft -----------------------------------------------------------
     Write-Text (Join-Path $rem '2-docs-g.md') (New-DocsDraft '[DEBT] Docs page G is stale' 'docs/g.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '2-docs-h.md') (New-DocsDraft '[DEBT] Docs page H is stale' 'docs/h.md' 'Low' 'Small' '')
     $r4 = Invoke-Open ''
-    Assert-That 'without -Consolidate every draft is its own issue' ($r4.Exit -eq 0 -and $r4.Creates.Count -eq 2 -and -not ($r4.Creates -join ' ').Contains('Delta re-audit')) ($r4.Creates -join ' | ')
+    Assert-That 'without -Consolidate every draft is its own issue' ($r4.Exit -eq 0 -and $r4.Creates.Count -eq 3 -and -not ($r4.Creates -join ' ').Contains('Delta re-audit')) ($r4.Creates -join ' | ')
+
+    # --- 5. an issue with the same title already exists: reuse it ------------------------------------------------
+    Write-Text (Join-Path $rem '2-delta-docs-i.md') (New-DocsDraft '[DEBT] Docs page I is stale' 'docs/i.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '2-delta-docs-j.md') (New-DocsDraft '[DEBT] Docs page J is stale' 'docs/j.md' 'Low' 'Small' '')
+    $env:OR_STUB_EXISTING = '[{"number":777,"title":"[DEBT] Delta re-audit (rules-2026-10) of #2: 2 findings (docs and coverage obligations)"}]'
+    $r5 = Invoke-Open '-Consolidate'
+    $env:OR_STUB_EXISTING = ''
+    $rows5 = @(Get-Content $csv)
+    Assert-That 'existing same-title issue is reused, nothing created' ($r5.Exit -eq 0 -and $r5.Creates.Count -eq 0 -and $r5.Text.Contains('already exists') -and @($rows5 | Where-Object { $_ -like '2-delta-docs-?.md,https://github.com/dlrivada/Encina/issues/777' }).Count -eq 2) ($r5.Text + ' | ' + ($rows5 -join ' | '))
+
+    # --- 6. -WhatIf: preview only --------------------------------------------------------------------------------
+    Write-Text (Join-Path $rem '2-delta-docs-k.md') (New-DocsDraft '[DEBT] Docs page K is stale' 'docs/k.md' 'Low' 'Small' '')
+    $before = @(Get-Content $csv).Count
+    $r6 = Invoke-Open '-Consolidate -WhatIf'
+    $previewPath = Join-Path $main 'artifacts\issues\delta-2-consolidated.preview.md'
+    Assert-That '-WhatIf writes the preview, creates nothing, writes no rows' ($r6.Exit -eq 0 -and $r6.Creates.Count -eq 0 -and (Test-Path $previewPath) -and (Get-Content -Raw $previewPath).Contains('Docs page K is stale') -and $r6.Text.Contains('Delta re-audit') -and @(Get-Content $csv).Count -eq $before) $r6.Text
 }
 finally {
     if (Test-Path $base) {
