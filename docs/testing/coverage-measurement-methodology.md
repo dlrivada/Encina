@@ -149,29 +149,44 @@ The entry for `DataAnnotationsValidationProvider.cs` in `.github/coverage-manife
 
 ```json
 "DataAnnotationsValidationProvider.cs": {
-  "defaultTests": ["unit", "guard"],
+  "defaultTests": [
+    "unit",
+    "guard"
+  ],
   "defaultRule": "*Provider.cs",
   "reason": "Provider implementation with mockeable deps",
   "targets": { "unit": 90, "property": 90, "guard": 0 },
   "justifications": {
-    "unit": "Validation paths and the attribute-error mapping are pure logic that unit tests already cover above 90%.",
-    "property": "Property tests exercise the provider with generated models and already reach full coverage of this file.",
-    "guard": "No guard tests exist for this provider yet, so the flag cannot exercise the file until they are written."
+    "unit": "Validation and attribute-error mapping are pure logic that unit tests can drive to near-full coverage.",
+    "property": "Property tests drive the provider with generated models, so near-full coverage is realistic.",
+    "guard": "Guard tests for the null-argument checks are not written yet (tracked in #1825), so no guard test can exercise the file today."
   }
 }
 ```
 
-`coverage-report.cs` supports both halves:
+`coverage-report.cs` supports both halves. Validate the manifests (exit 1 when a rule is broken) and check the per-file logic without repository access:
 
-```bash
-# Validate the manifests: exit 1 when a rule is broken, 0 when every target is justified
+```powershell
 dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
+dotnet run --file .github/scripts/coverage-report.cs -- --self-test
 ```
 
-- `--check-justifications` lists every target without a justification, every justification without a target, every unknown flag and every value that is not an integer from 0 to 100, and exits 1 if it finds any.
-- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The report has no exit code for this; the CI gate is #1651.
+To measure, run each flag's tests with its own results folder, then build the report. `<Flag>Tests` is `UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests` or `IntegrationTests`; these are the folder names `coverage-report.cs` classifies, and any other folder name is skipped. The report's "Per-file targets" table is the measurement.
 
-Rule: `AGENTS.md` section 9 requires targets and justifications for every new or touched file, and PRs report measured coverage against them.
+```powershell
+dotnet test --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests
+dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report
+```
+
+- `--check-justifications` lists every target without a justification, every justification without a target, every unknown flag, every value that is not an integer from 0 to 100 and every pair of flag keys that differ only by case (`unit` and `Unit`), and exits 1 if it finds any.
+- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The report has no exit code for this; the CI gate is #1651.
+- The report compares the unrounded measured percentage with the target and rounds only for display (two decimals), so 89.96% does not meet 90.
+
+Generator deviation: the generator preserves per-file targets and justifications and never invents them, because a justification is a judgement about a specific file that a generator cannot make; it keeps its generic `reason` for `defaultTests`.
+
+Per-file targets are not yet shown on the coverage dashboard or in the docref index.
+
+Rule: `AGENTS.md` section 9 requires targets and justifications for every new file, and every file a PR touches, under `src/`, and PRs report measured coverage against them.
 
 ### Per-package targets
 
