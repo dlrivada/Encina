@@ -174,7 +174,7 @@ public sealed class AuditLogObligationHandler(
                 ? reasonText
                 : "No reason provided";
 
-        await auditService.LogAsync(new AuditEntry
+        await auditService.LogAsync(new OperationAuditEntry
         {
             ObligationId = obligation.Id,
             RequestType = context.RequestType.Name,

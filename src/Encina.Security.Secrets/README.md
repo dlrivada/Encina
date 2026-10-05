@@ -143,7 +143,7 @@ var result = await reader.GetSecretAsync("api-key", ct);
 
 ## Audit Trail
 
-When `EnableAccessAuditing` is set, read/write/rotation operations are automatically recorded via `IAuditStore`:
+When `EnableAccessAuditing` is set, read/write/rotation operations are automatically recorded via `IOperationAuditStore`:
 
 ```csharp
 services.AddEncinaSecrets(options =>
@@ -152,7 +152,7 @@ services.AddEncinaSecrets(options =>
 });
 
 // Register audit infrastructure (from Encina.Security.Audit)
-services.AddSingleton<IAuditStore, YourAuditStore>();
+services.AddSingleton<IOperationAuditStore, YourAuditStore>();
 services.AddSingleton<IRequestContext, YourRequestContext>();
 ```
 

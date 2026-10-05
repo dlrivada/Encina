@@ -1,6 +1,6 @@
 # Encina.Audit.Marten
 
-Event-sourced `IAuditStore` implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails.
+Event-sourced `IOperationAuditStore` implementation using Marten (PostgreSQL) with temporal crypto-shredding for compliance-grade audit trails.
 
 ## Why This Package?
 
@@ -73,5 +73,5 @@ Load test: **508K entries/sec** (8 workers, P50: 8.7 us, P99: 0.24 ms).
 
 - `Encina.Marten` — event store infrastructure
 - `Encina.Marten.GDPR` — crypto-shredding patterns
-- `Encina.Security.Audit` — `IAuditStore`, `IReadAuditStore`
+- `Encina.Security.Audit` — `IOperationAuditStore`, `IReadAuditStore`
 - `Encina.Security.Encryption` — AES-256-GCM

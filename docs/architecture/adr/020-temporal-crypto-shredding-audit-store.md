@@ -17,7 +17,7 @@ Accepted
 
 ## Context
 
-`Encina.Security.Audit` provides `IAuditStore` with a `PurgeEntriesAsync(DateTime olderThanUtc)` method that physically deletes audit entries older than a given date. The 13 database providers (ADO, Dapper, EF Core, MongoDB) implement this as `DELETE FROM audit WHERE TimestampUtc < @date`.
+`Encina.Security.Audit` provides `IOperationAuditStore` with a `PurgeEntriesAsync(DateTime olderThanUtc)` method that physically deletes audit entries older than a given date. The 13 database providers (ADO, Dapper, EF Core, MongoDB) implement this as `DELETE FROM audit WHERE TimestampUtc < @date`.
 
 When using Marten as the audit store backend (`Encina.Audit.Marten`), physical deletion violates event store immutability — the fundamental invariant of event sourcing. Events, once appended, must never be mutated or removed.
 
@@ -61,7 +61,7 @@ Monthly is the default because it provides the finest practical granularity for 
 
 ### 2. Encryption Scope: Partial (PII Fields Only)
 
-Only PII-sensitive fields of `AuditEntry` are encrypted:
+Only PII-sensitive fields of `OperationAuditEntry` are encrypted:
 
 | Field | Encrypted | Rationale |
 |-------|-----------|-----------|
@@ -115,13 +115,13 @@ For the Marten implementation, `PurgeEntriesAsync(DateTime olderThanUtc)` destro
 | ADO/Dapper/EF Core/MongoDB | Count of deleted rows |
 | Marten | Count of entries in shredded periods (estimated from projection) |
 
-The `IAuditStore` contract returns `Either<EncinaError, int>` where `int` represents "number of entries affected". For Marten, this is the count of audit entries whose temporal keys were destroyed. The count is obtained from the audit projection's period summary before key deletion.
+The `IOperationAuditStore` contract returns `Either<EncinaError, int>` where `int` represents "number of entries affected". For Marten, this is the count of audit entries whose temporal keys were destroyed. The count is obtained from the audit projection's period summary before key deletion.
 
 This semantic is consistent: the caller learns how many entries are no longer readable, regardless of mechanism (physical deletion vs crypto-shredding).
 
 ### 5. Projection Strategy: Inline Projection with Shredded Entry Handling
 
-The `MartenAuditStore` uses an **inline projection** that maintains a denormalized read model (`AuditEntryReadModel`) for efficient querying.
+The `MartenOperationAuditStore` uses an **inline projection** that maintains a denormalized read model (`OperationAuditEntryReadModel`) for efficient querying.
 
 **Projection behavior**:
 
@@ -162,7 +162,7 @@ TemporalKeyDocument
 When both `ISubjectKeyProvider` and `ITemporalKeyProvider` are configured:
 
 ```
-AuditEntry.UserId = Encrypt(temporal_key, Encrypt(subject_key, "user-42"))
+OperationAuditEntry.UserId = Encrypt(temporal_key, Encrypt(subject_key, "user-42"))
 ```
 
 - **Subject erasure** (GDPR Art. 17): Deletes subject key → that user's PII becomes `[SHREDDED]` across all time periods
@@ -221,7 +221,7 @@ Rejected: Creates unpredictable pagination (page sizes vary), hides evidence tha
 ## References
 
 - Issue: [#799](https://github.com/dlrivada/Encina/issues/799)
-- Depends on: [#395](https://github.com/dlrivada/Encina/issues/395) (Audit Trail Logging — `IAuditStore` interface)
+- Depends on: [#395](https://github.com/dlrivada/Encina/issues/395) (Audit Trail Logging — `IOperationAuditStore` interface)
 - Related: [ADR-019](019-compliance-event-sourcing-marten.md) (Compliance Modules Event Sourcing Strategy with Marten)
 - Related: [ADR-018](018-cross-cutting-integration-principle.md) (Cross-Cutting Integration Principle)
 - Pattern reference: `Encina.Marten.GDPR` — `ISubjectKeyProvider`, `CryptoShreddedAttribute`

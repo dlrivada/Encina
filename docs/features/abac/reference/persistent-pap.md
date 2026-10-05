@@ -188,7 +188,7 @@ Constructor (`AddEncinaABAC` wires every argument):
 
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
-| `scopeFactory` | `IServiceScopeFactory` | required | Opens one DI scope per operation; resolves `IPolicyStore` from it and, for a mutation, `IAuditStore` from a separate scope (see [Lifetimes](#lifetimes)) |
+| `scopeFactory` | `IServiceScopeFactory` | required | Opens one DI scope per operation; resolves `IPolicyStore` from it and, for a mutation, `IOperationAuditStore` from a separate scope (see [Lifetimes](#lifetimes)) |
 | `logger` | `ILogger<PersistentPolicyAdministrationPoint>` | required | Structured logging |
 | `requestContextAccessor` | `IRequestContextAccessor?` | `null` | Resolves the principal of each change |
 | `timeProvider` | `TimeProvider?` | `TimeProvider.System` | Every timestamp and the audit write timeout |
@@ -197,7 +197,7 @@ Constructor (`AddEncinaABAC` wires every argument):
 ## Lifetimes
 
 - `PersistentPolicyAdministrationPoint` is a singleton and never captures a scoped service.
-- Every operation, read or mutation, opens its own async DI scope through `IServiceScopeFactory` and resolves `IPolicyStore` from it. A mutation resolves `IAuditStore` in its own separate scope, so the audit write never shares a unit of work with the policy write.
+- Every operation, read or mutation, opens its own async DI scope through `IServiceScopeFactory` and resolves `IPolicyStore` from it. A mutation resolves `IOperationAuditStore` in its own separate scope, so the audit write never shares a unit of work with the policy write.
 - The policy store and every read of one operation share the operation scope. Concurrent operations never share a store instance.
 - When `PolicyCaching.Enabled` is `true` and an `ICacheProvider` is registered, `CachingPolicyStoreDecorator` wraps the scoped store once per operation scope. It holds no per-request state; the cache and the pub/sub channel are shared through the singleton `ICacheProvider` and `IPubSubProvider`.
 - The decorator stamps its invalidation messages from the registered `TimeProvider` (`TimeProvider.System` by default).
@@ -217,10 +217,10 @@ Applies to `AddPolicySetAsync`, `UpdatePolicySetAsync`, `RemovePolicySetAsync`, 
 
 The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md).
 
-- The PAP does not hold an `IAuditStore`. It takes an `IServiceScopeFactory` and resolves `IAuditStore` for each write in its own scope, because database audit stores are scoped and the PAP is a singleton.
-- The `IServiceScopeFactory` is a required constructor argument, and the `IAuditStore` is resolved in its own separate scope, not the scope of the `IPolicyStore` of that operation. With EF Core a shared scoped `DbContext` would make the audit write of a failed change retry the still-tracked failed policy entity.
-- With no `IAuditStore` registered, policy change auditing is not configured and changes are applied without a record. One `Warning` per PAP instance (EventId 9097) says so.
-- With an `IAuditStore` registered, the audit entry is written and awaited before the change is applied. If resolving the `IAuditStore` throws, or the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted. The 30 second timeout only bounds audit stores that honour the `CancellationToken` (tracked by #1704).
+- The PAP does not hold an `IOperationAuditStore`. It takes an `IServiceScopeFactory` and resolves `IOperationAuditStore` for each write in its own scope, because database audit stores are scoped and the PAP is a singleton.
+- The `IServiceScopeFactory` is a required constructor argument, and the `IOperationAuditStore` is resolved in its own separate scope, not the scope of the `IPolicyStore` of that operation. With EF Core a shared scoped `DbContext` would make the audit write of a failed change retry the still-tracked failed policy entity.
+- With no `IOperationAuditStore` registered, policy change auditing is not configured and changes are applied without a record. One `Warning` per PAP instance (EventId 9097) says so.
+- With an `IOperationAuditStore` registered, the audit entry is written and awaited before the change is applied. If resolving the `IOperationAuditStore` throws, or the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted. The 30 second timeout only bounds audit stores that honour the `CancellationToken` (tracked by #1704).
 - Failures are logged by error code (EventId 9094) or exception type (EventId 9095), never by message.
 - If the policy store then rejects the change, a second entry with outcome `AuditOutcome.Error` and the store's error code in `ErrorMessage` records that the announced change did not happen. Its metadata `writeAheadEntryId` holds the `Id` of the first entry.
 - Caller cancellation propagates as cancellation; it is not reported as an audit failure.

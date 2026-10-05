@@ -781,7 +781,7 @@ All milestones are named exactly as on GitHub. The three DEC-014 milestones were
 | #1152, #1153 | Hangfire jobs never fail on `Left`; recurring insert failure ignored | none | v0.14.0 — Hardening | PR #1159 | REQ-017 |
 | #1155 | HMAC validation fails open | none | v0.14.0 — Hardening | — | REQ-019 |
 | #1128, #1129 | Write-audit store defects (EF Core; ADO.NET and Dapper PostgreSQL) | v0.14.0 — Hardening | unchanged | — | REQ-007 prerequisites |
-| #1135 | `AuditStoreEF` and `ReadAuditStoreEF` let provider exceptions escape (write- and read-audit stores) | v0.14.0 — Hardening | unchanged | — | REQ-007 prerequisite |
+| #1135 | `OperationAuditStoreEF` and `ReadAuditStoreEF` let provider exceptions escape (write- and read-audit stores) | v0.14.0 — Hardening | unchanged | — | REQ-007 prerequisite |
 | #770, #767 | Retention and read-audit retention services to Encina scheduling | v0.14.0 — Hardening | unchanged | — | REQ-003, REQ-007 |
 | #860 | Attestation deferred review items | v0.14.0 — Hardening | unchanged | — | REQ-021 |
 | #857 | Orphan attributes, `EncryptedField` among them | Post-1.0: Critical Bugs & Quality Debt (deferred items) | v0.14.0 — Hardening | — | REQ-020 |

@@ -926,13 +926,13 @@ services.AddEncinaAudit(options =>
 });
 ```
 
-The `AuditRetentionService` is a `BackgroundService` that runs automatically when `EnableAutoPurge` is true.
+The `OperationAuditRetentionService` is a `BackgroundService` that runs automatically when `EnableAutoPurge` is true.
 
 ### Querying Audit Entries
 
-Use `IAuditStore.QueryAsync` with `AuditQuery` for flexible querying:
+Use `IOperationAuditStore.QueryAsync` with `OperationAuditQuery` for flexible querying:
 
-**AuditQuery Properties:**
+**OperationAuditQuery Properties:**
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -957,14 +957,14 @@ Use `IAuditStore.QueryAsync` with `AuditQuery` for flexible querying:
 // Inject the audit store
 public class AuditController
 {
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
 
-    public AuditController(IAuditStore auditStore) => _auditStore = auditStore;
+    public AuditController(IOperationAuditStore auditStore) => _auditStore = auditStore;
 
     // Query by user with date range
-    public async Task<PagedResult<AuditEntry>> GetUserActivity(string userId)
+    public async Task<PagedResult<OperationAuditEntry>> GetUserActivity(string userId)
     {
-        var query = new AuditQuery
+        var query = new OperationAuditQuery
         {
             UserId = userId,
             FromUtc = DateTime.UtcNow.AddDays(-30),
@@ -978,9 +978,9 @@ public class AuditController
     }
 
     // Query failed operations
-    public async Task<PagedResult<AuditEntry>> GetFailedOperations()
+    public async Task<PagedResult<OperationAuditEntry>> GetFailedOperations()
     {
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithOutcome(AuditOutcome.Failure)
             .InDateRange(DateTime.UtcNow.AddDays(-7), DateTime.UtcNow)
             .WithPageSize(50)
@@ -991,9 +991,9 @@ public class AuditController
     }
 
     // Query slow operations
-    public async Task<PagedResult<AuditEntry>> GetSlowOperations()
+    public async Task<PagedResult<OperationAuditEntry>> GetSlowOperations()
     {
-        var query = new AuditQuery
+        var query = new OperationAuditQuery
         {
             MinDuration = TimeSpan.FromSeconds(5),
             Outcome = AuditOutcome.Success,
@@ -1023,16 +1023,18 @@ public sealed record PagedResult<T>
 
 ### Store-Specific Setup
 
-#### EF Core (All 4 Databases)
+The operation audit store (ADR-036) is enabled by the `UseOperationAuditStore` flag on `MessagingConfiguration` (ADO.NET, Dapper and EF Core, each on SQL Server, PostgreSQL and MySQL) and on `EncinaMongoDbOptions` (MongoDB).
+
+#### EF Core (SQL Server, PostgreSQL, MySQL)
 
 ```csharp
 services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 {
-    config.UseAuditStore = true;  // Registers AuditStoreEF
+    config.UseOperationAuditStore = true;  // Registers OperationAuditStoreEF
 });
 
-// Run migrations to create SecurityAuditEntries table
-dotnet ef migrations add AddSecurityAuditEntries
+// Run migrations to create the OperationAuditEntries table
+dotnet ef migrations add AddOperationAuditEntries
 dotnet ef database update
 ```
 
@@ -1040,7 +1042,7 @@ dotnet ef database update
 
 ```csharp
 migrationBuilder.CreateTable(
-    name: "SecurityAuditEntries",
+    name: "OperationAuditEntries",
     columns: table => new
     {
         Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -1064,132 +1066,141 @@ migrationBuilder.CreateTable(
     });
 ```
 
-#### Dapper (SQL Server, PostgreSQL, MySQL)
+#### Dapper and ADO.NET (SQL Server, PostgreSQL, MySQL)
 
-Execute the appropriate SQL script for your database:
+Dapper and ADO.NET share the same script, one per database, at `src/Encina.<ADO|Dapper>.<SqlServer|PostgreSQL|MySQL>/Scripts/028_CreateOperationAuditEntriesTable.sql`. Enable the store with `config.UseOperationAuditStore = true;` in `AddEncinaADO` or `AddEncinaDapper`, then run the script for your database:
 
 **SQL Server:**
 
 ```sql
-CREATE TABLE SecurityAuditEntries (
-    Id UNIQUEIDENTIFIER PRIMARY KEY,
-    CorrelationId NVARCHAR(100) NOT NULL,
-    UserId NVARCHAR(256),
-    TenantId NVARCHAR(100),
-    Action NVARCHAR(100) NOT NULL,
-    EntityType NVARCHAR(500) NOT NULL,
-    EntityId NVARCHAR(256),
-    Outcome INT NOT NULL,
-    ErrorMessage NVARCHAR(MAX),
-    TimestampUtc DATETIME2 NOT NULL,
-    StartedAtUtc DATETIMEOFFSET NOT NULL,
-    CompletedAtUtc DATETIMEOFFSET NOT NULL,
-    IpAddress NVARCHAR(45),
-    UserAgent NVARCHAR(500),
-    RequestPayloadHash NVARCHAR(64),
-    RequestPayload NVARCHAR(MAX),
-    ResponsePayload NVARCHAR(MAX),
-    Metadata NVARCHAR(MAX)
-);
+CREATE TABLE [dbo].[OperationAuditEntries] (
+    [Id]                 UNIQUEIDENTIFIER NOT NULL,
+    [CorrelationId]      NVARCHAR(256)    NOT NULL,
+    [UserId]             NVARCHAR(256)    NULL,
+    [TenantId]           NVARCHAR(128)    NULL,
+    [Action]             NVARCHAR(128)    NOT NULL,
+    [EntityType]         NVARCHAR(256)    NOT NULL,
+    [EntityId]           NVARCHAR(256)    NULL,
+    [Outcome]            INT              NOT NULL,
+    [ErrorMessage]       NVARCHAR(2048)   NULL,
+    [TimestampUtc]       DATETIME2(7)     NOT NULL,
+    [StartedAtUtc]       DATETIMEOFFSET(7) NOT NULL,
+    [CompletedAtUtc]     DATETIMEOFFSET(7) NOT NULL,
+    [IpAddress]          NVARCHAR(45)     NULL,
+    [UserAgent]          NVARCHAR(512)    NULL,
+    [RequestPayloadHash] NVARCHAR(64)     NULL,
+    [RequestPayload]     NVARCHAR(MAX)    NULL,
+    [ResponsePayload]    NVARCHAR(MAX)    NULL,
+    [Metadata]           NVARCHAR(MAX)    NULL,
 
-CREATE INDEX IX_SecurityAuditEntries_UserId ON SecurityAuditEntries(UserId);
-CREATE INDEX IX_SecurityAuditEntries_EntityType_EntityId ON SecurityAuditEntries(EntityType, EntityId);
-CREATE INDEX IX_SecurityAuditEntries_TimestampUtc ON SecurityAuditEntries(TimestampUtc);
-CREATE INDEX IX_SecurityAuditEntries_CorrelationId ON SecurityAuditEntries(CorrelationId);
+    CONSTRAINT [PK_OperationAuditEntries] PRIMARY KEY CLUSTERED ([Id]),
+
+    INDEX [IX_OperationAuditEntries_Entity] ([EntityType], [EntityId]),
+    INDEX [IX_OperationAuditEntries_Timestamp] ([TimestampUtc]),
+    INDEX [IX_OperationAuditEntries_Outcome] ([Outcome]),
+    INDEX [IX_OperationAuditEntries_UserId] ([UserId]) WHERE [UserId] IS NOT NULL,
+    INDEX [IX_OperationAuditEntries_TenantId] ([TenantId]) WHERE [TenantId] IS NOT NULL,
+    INDEX [IX_OperationAuditEntries_CorrelationId] ([CorrelationId]),
+    INDEX [IX_OperationAuditEntries_Action] ([Action])
+);
 ```
 
 **PostgreSQL:**
 
 ```sql
-CREATE TABLE "SecurityAuditEntries" (
-    "Id" UUID PRIMARY KEY,
-    "CorrelationId" VARCHAR(100) NOT NULL,
-    "UserId" VARCHAR(256),
-    "TenantId" VARCHAR(100),
-    "Action" VARCHAR(100) NOT NULL,
-    "EntityType" VARCHAR(500) NOT NULL,
-    "EntityId" VARCHAR(256),
-    "Outcome" INTEGER NOT NULL,
-    "ErrorMessage" TEXT,
-    "TimestampUtc" TIMESTAMP NOT NULL,
-    "StartedAtUtc" TIMESTAMPTZ NOT NULL,
-    "CompletedAtUtc" TIMESTAMPTZ NOT NULL,
-    "IpAddress" VARCHAR(45),
-    "UserAgent" VARCHAR(500),
-    "RequestPayloadHash" VARCHAR(64),
-    "RequestPayload" TEXT,
-    "ResponsePayload" TEXT,
-    "Metadata" JSONB
+CREATE TABLE IF NOT EXISTS "OperationAuditEntries" (
+    "Id"                 UUID           NOT NULL PRIMARY KEY,
+    "CorrelationId"      VARCHAR(256)   NOT NULL,
+    "UserId"             VARCHAR(256)   NULL,
+    "TenantId"           VARCHAR(128)   NULL,
+    "Action"             VARCHAR(128)   NOT NULL,
+    "EntityType"         VARCHAR(256)   NOT NULL,
+    "EntityId"           VARCHAR(256)   NULL,
+    "Outcome"            INTEGER        NOT NULL,
+    "ErrorMessage"       VARCHAR(2048)  NULL,
+    "TimestampUtc"       TIMESTAMP      NOT NULL,
+    "StartedAtUtc"       TIMESTAMPTZ    NOT NULL,
+    "CompletedAtUtc"     TIMESTAMPTZ    NOT NULL,
+    "IpAddress"          VARCHAR(45)    NULL,
+    "UserAgent"          VARCHAR(512)   NULL,
+    "RequestPayloadHash" VARCHAR(64)    NULL,
+    "RequestPayload"     TEXT           NULL,
+    "ResponsePayload"    TEXT           NULL,
+    "Metadata"           TEXT           NULL
 );
 
-CREATE INDEX "IX_SecurityAuditEntries_UserId" ON "SecurityAuditEntries"("UserId");
-CREATE INDEX "IX_SecurityAuditEntries_EntityType_EntityId" ON "SecurityAuditEntries"("EntityType", "EntityId");
-CREATE INDEX "IX_SecurityAuditEntries_TimestampUtc" ON "SecurityAuditEntries"("TimestampUtc");
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_Entity" ON "OperationAuditEntries" ("EntityType", "EntityId");
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_Timestamp" ON "OperationAuditEntries" ("TimestampUtc");
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_Outcome" ON "OperationAuditEntries" ("Outcome");
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_UserId" ON "OperationAuditEntries" ("UserId") WHERE "UserId" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_TenantId" ON "OperationAuditEntries" ("TenantId") WHERE "TenantId" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_CorrelationId" ON "OperationAuditEntries" ("CorrelationId");
+CREATE INDEX IF NOT EXISTS "IX_OperationAuditEntries_Action" ON "OperationAuditEntries" ("Action");
 ```
 
 **MySQL:**
 
 ```sql
-CREATE TABLE `SecurityAuditEntries` (
-    `Id` CHAR(36) PRIMARY KEY,
-    `CorrelationId` VARCHAR(100) NOT NULL,
-    `UserId` VARCHAR(256),
-    `TenantId` VARCHAR(100),
-    `Action` VARCHAR(100) NOT NULL,
-    `EntityType` VARCHAR(500) NOT NULL,
-    `EntityId` VARCHAR(256),
-    `Outcome` INT NOT NULL,
-    `ErrorMessage` TEXT,
-    `TimestampUtc` DATETIME(6) NOT NULL,
-    `StartedAtUtc` DATETIME(6) NOT NULL,
-    `CompletedAtUtc` DATETIME(6) NOT NULL,
-    `IpAddress` VARCHAR(45),
-    `UserAgent` VARCHAR(500),
-    `RequestPayloadHash` VARCHAR(64),
-    `RequestPayload` LONGTEXT,
-    `ResponsePayload` LONGTEXT,
-    `Metadata` JSON
-);
+CREATE TABLE IF NOT EXISTS `OperationAuditEntries` (
+    `Id`                 CHAR(36)      NOT NULL,
+    `CorrelationId`      VARCHAR(256)  NOT NULL,
+    `UserId`             VARCHAR(256)  NULL,
+    `TenantId`           VARCHAR(128)  NULL,
+    `Action`             VARCHAR(128)  NOT NULL,
+    `EntityType`         VARCHAR(256)  NOT NULL,
+    `EntityId`           VARCHAR(256)  NULL,
+    `Outcome`            INT           NOT NULL,
+    `ErrorMessage`       VARCHAR(2048) NULL,
+    `TimestampUtc`       DATETIME(6)   NOT NULL,
+    `StartedAtUtc`       DATETIME(6)   NOT NULL,
+    `CompletedAtUtc`     DATETIME(6)   NOT NULL,
+    `IpAddress`          VARCHAR(45)   NULL,
+    `UserAgent`          VARCHAR(512)  NULL,
+    `RequestPayloadHash` VARCHAR(64)   NULL,
+    `RequestPayload`     LONGTEXT      NULL,
+    `ResponsePayload`    LONGTEXT      NULL,
+    `Metadata`           LONGTEXT      NULL,
 
-CREATE INDEX `IX_SecurityAuditEntries_UserId` ON `SecurityAuditEntries`(`UserId`);
-CREATE INDEX `IX_SecurityAuditEntries_EntityType_EntityId` ON `SecurityAuditEntries`(`EntityType`, `EntityId`);
-CREATE INDEX `IX_SecurityAuditEntries_TimestampUtc` ON `SecurityAuditEntries`(`TimestampUtc`);
+    PRIMARY KEY (`Id`),
+    INDEX `IX_OperationAuditEntries_Entity` (`EntityType`, `EntityId`),
+    INDEX `IX_OperationAuditEntries_Timestamp` (`TimestampUtc`),
+    INDEX `IX_OperationAuditEntries_Outcome` (`Outcome`),
+    INDEX `IX_OperationAuditEntries_UserId` (`UserId`),
+    INDEX `IX_OperationAuditEntries_TenantId` (`TenantId`),
+    INDEX `IX_OperationAuditEntries_CorrelationId` (`CorrelationId`),
+    INDEX `IX_OperationAuditEntries_Action` (`Action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
-
-#### ADO.NET (SQL Server, PostgreSQL, MySQL)
-
-Use the same SQL scripts as Dapper (above).
 
 #### MongoDB
 
 ```csharp
 services.AddEncinaMongoDB(config =>
 {
-    config.UseAuditStore = true;
-    config.CreateIndexes = true;  // Creates optimized indexes
+    config.UseOperationAuditStore = true;  // Registers OperationAuditStoreMongoDB
 });
 ```
 
-**Collection: `security_audit_entries`**
+**Collection: `operation_audit_entries`** (configurable through `EncinaMongoDbOptions.Collections.OperationAuditEntries`)
 
-**Indexes created:**
+The background index creator enabled by `CreateIndexes` does not create indexes for this collection. Create the ones your queries need, for example:
 
 ```javascript
-db.security_audit_entries.createIndex({ "UserId": 1 })
-db.security_audit_entries.createIndex({ "EntityType": 1, "EntityId": 1 })
-db.security_audit_entries.createIndex({ "TimestampUtc": -1 })
-db.security_audit_entries.createIndex({ "CorrelationId": 1 })
-db.security_audit_entries.createIndex({ "TenantId": 1 })
+db.operation_audit_entries.createIndex({ "UserId": 1 })
+db.operation_audit_entries.createIndex({ "EntityType": 1, "EntityId": 1 })
+db.operation_audit_entries.createIndex({ "TimestampUtc": -1 })
+db.operation_audit_entries.createIndex({ "CorrelationId": 1 })
+db.operation_audit_entries.createIndex({ "TenantId": 1 })
 ```
 
-#### InMemoryAuditStore (Testing/Development)
+#### InMemoryOperationAuditStore (Testing/Development)
 
 ```csharp
-// Default - InMemoryAuditStore is registered automatically
+// Default - InMemoryOperationAuditStore is registered automatically
 services.AddEncinaAudit();
 
 // For testing
-var store = new InMemoryAuditStore();
+var store = new InMemoryOperationAuditStore();
 await store.RecordAsync(entry);
 var entries = store.GetAllEntries();  // Testing helper
 store.Clear();  // Reset between tests

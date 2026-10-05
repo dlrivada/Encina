@@ -15,7 +15,7 @@ Encina load tests are organized into five categories:
 | **Brokers** | Message broker pub/sub | rabbitmq, kafka, nats, mqtt | Publish, Consume, Partition |
 | **Compliance** | GDPR Lawful Basis validation under concurrency | inmemory | Registry, LIA Store, Pipeline |
 | **Audit Marten** | Temporal encryption under concurrent audit recording | InMemory key provider | Encrypt throughput, latency percentiles |
-| **Security Audit** | Audit pipeline write/query/purge under concurrency | InMemoryAuditStore | ConcurrentWrites, WriteAndQuery, Burst, Retention |
+| **Security Audit** | Audit pipeline write/query/purge under concurrency | InMemoryOperationAuditStore | ConcurrentWrites, WriteAndQuery, Burst, Retention |
 | **CDC** | Change Data Capture processor throughput | InMemory connector | HighThroughput, BurstProcessing, MixedOperations |
 
 ---
@@ -592,7 +592,7 @@ In production, the encryption overhead is dwarfed by PostgreSQL I/O:
 
 # Security Audit Load Tests
 
-The Security Audit load tests exercise the `InMemoryAuditStore` under concurrent load, validating that the audit pipeline can sustain high write throughput without contention.
+The Security Audit load tests exercise the `InMemoryOperationAuditStore` under concurrent load, validating that the audit pipeline can sustain high write throughput without contention.
 
 ## Scenarios
 
@@ -603,7 +603,7 @@ The Security Audit load tests exercise the `InMemoryAuditStore` under concurrent
 | **BurstWrites** | 16 | N/A | Sudden spike of 10,000 entries |
 | **RetentionUnderLoad** | 8 | 30s | PurgeEntries while writes are happening |
 
-## Expected Baselines (InMemoryAuditStore)
+## Expected Baselines (InMemoryOperationAuditStore)
 
 | Scenario | Expected Ops/Sec | Mean Latency | P95 Latency | P99 Latency |
 |----------|:----------------:|:------------:|:-----------:|:-----------:|
@@ -612,7 +612,7 @@ The Security Audit load tests exercise the `InMemoryAuditStore` under concurrent
 | BurstWrites | N/A (batch) | <50 ms total | N/A | N/A |
 | RetentionUnderLoad | 30,000+ | <1 ms | <5 ms | <10 ms |
 
-> **Note**: InMemoryAuditStore uses ConcurrentDictionary, so contention is minimal. Database-backed stores will have lower throughput due to I/O.
+> **Note**: InMemoryOperationAuditStore uses ConcurrentDictionary, so contention is minimal. Database-backed stores will have lower throughput due to I/O.
 
 ## Success Criteria
 

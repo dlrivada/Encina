@@ -87,7 +87,7 @@ Each compliance module follows the same transformation:
 Module/
 ├── Abstractions/
 │   ├── IEntityStore.cs          # CRUD operations
-│   └── IAuditStore.cs           # Separate audit trail
+│   └── IOperationAuditStore.cs  # Separate audit trail
 ├── Model/
 │   └── Entity.cs                # Mutable entity
 ├── InMemory/
@@ -235,7 +235,7 @@ Current `IEntityStore` interfaces with 13-provider implementations are **replace
 
 - **Write operations** → Aggregate command methods (e.g., `ConsentAggregate.Grant()`, `.Withdraw()`)
 - **Read operations** → Projection read models via `IReadModelRepository<TReadModel>`
-- **Audit operations** → Inherent in the event stream (no separate `IAuditStore` needed)
+- **Audit operations** → Inherent in the event stream (no separate `IOperationAuditStore` needed)
 
 ### GDPR-Specific Event Sourcing Benefits
 

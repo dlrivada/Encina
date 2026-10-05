@@ -8,7 +8,7 @@ parent: "Features"
 
 ## Overview
 
-`Encina.Audit.Marten` is a specialized `IAuditStore` provider that uses Marten's PostgreSQL event store for **immutable, compliance-grade audit trails** with temporal crypto-shredding.
+`Encina.Audit.Marten` is a specialized `IOperationAuditStore` provider that uses Marten's PostgreSQL event store for **immutable, compliance-grade audit trails** with temporal crypto-shredding.
 
 Unlike the 13 database providers (ADO.NET, Dapper, EF Core, MongoDB) which store audit entries as mutable rows, this provider stores them as **append-only encrypted events**. PII fields are encrypted with time-partitioned AES-256-GCM keys, enabling GDPR data minimization via key destruction without breaking event stream integrity.
 
@@ -28,15 +28,15 @@ Unlike the 13 database providers (ADO.NET, Dapper, EF Core, MongoDB) which store
 ```mermaid
 flowchart TD
     A["AuditPipelineBehavior<br/><i>(from Encina.Security.Audit, fire-and-forget)</i>"]
-    B["MartenAuditStore<br/><i>(implements IAuditStore)</i>"]
+    B["MartenOperationAuditStore<br/><i>(implements IOperationAuditStore)</i>"]
     C["AuditEventEncryptor<br/><i>PII → AES-256-GCM</i>"]
     D["Marten Event Store<br/><i>(append-only)</i>"]
-    E["AuditEntryProjection<br/><i>(async, decrypts PII)</i>"]
-    F["AuditEntryReadModel<br/><i>(queryable document)</i>"]
+    E["OperationAuditEntryProjection<br/><i>(async, decrypts PII)</i>"]
+    F["OperationAuditEntryReadModel<br/><i>(queryable document)</i>"]
 
-    A -- "AuditEntry" --> B
+    A -- "OperationAuditEntry" --> B
     B --> C
-    C -- "AuditEntryRecordedEvent" --> D
+    C -- "OperationAuditEntryRecordedEvent" --> D
     D --> E
     E --> F
 ```
@@ -115,7 +115,7 @@ The encryption overhead represents **< 1%** of total audit recording cost (Postg
 
 ## Related
 
-- [Audit Trail Logging](audit-tracking.md) — Core `IAuditStore` interface and pipeline behavior
+- [Audit Trail Logging](audit-tracking.md) — Core `IOperationAuditStore` interface and pipeline behavior
 - [Crypto-Shredding](crypto-shredding.md) — GDPR Art. 17 per-subject crypto-shredding (Encina.Marten.GDPR)
 - [Benchmark Results](../benchmarks/audit-marten-benchmark-results.md) — Detailed benchmark data
 - [Load Test Baselines](../testing/load-test-baselines.md) — Throughput and latency baselines

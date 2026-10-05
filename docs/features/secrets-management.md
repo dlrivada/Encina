@@ -304,7 +304,7 @@ services.AddEncinaSecrets(options =>
 
 ## Access Auditing
 
-When `EnableAccessAuditing` is set, read/write/rotate operations are automatically recorded via `IAuditStore`:
+When `EnableAccessAuditing` is set, read/write/rotate operations are automatically recorded via `IOperationAuditStore`:
 
 ```csharp
 services.AddEncinaSecrets(options =>
@@ -313,7 +313,7 @@ services.AddEncinaSecrets(options =>
 });
 
 // Register audit infrastructure (from Encina.Security.Audit)
-services.AddSingleton<IAuditStore, YourAuditStore>();
+services.AddSingleton<IOperationAuditStore, YourOperationAuditStore>();
 services.AddSingleton<IRequestContext, YourRequestContext>();
 ```
 

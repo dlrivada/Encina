@@ -16,7 +16,7 @@ Audit write performance depends entirely on the backing store (SQL Server, Postg
 - **Integration Tests**: Cover real DB performance across 10 providers (to be created)
 
 ### 4. Recommended Alternative
-If audit throughput becomes a concern, benchmark the specific `IAuditStore` implementation (e.g., SQL Server batch insert) using BenchmarkDotNet with a real database connection.
+If audit throughput becomes a concern, benchmark the specific `IOperationAuditStore` implementation (e.g., SQL Server batch insert) using BenchmarkDotNet with a real database connection.
 
 ## Related Files
 - `src/Encina.Security.Audit/` — Source
