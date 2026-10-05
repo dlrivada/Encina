@@ -4044,6 +4044,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     foreach ($case in @(
             @('PowerShell', 'gh pr create --title x --body y', 'gh pr create'),
             @('Bash', 'gh pr merge 12 --squash --auto', 'gh pr merge'),
+            @('PowerShell', "git status`n    gh pr create --title x", 'gh pr create'),
             @('PowerShell', 'pwsh -NoProfile -File tools/ai/audit/audit-done.ps1 -Issue 30', 'audit-done.ps1'),
             @('PowerShell', 'Set-Location D:\x; & .\tools\ai\audit\audit-commit-stage.ps1 -Stage code', 'audit-commit-stage.ps1'))) {
         $json = @{ tool_name = $case[0]; tool_input = @{ command = $case[1] } } | ConvertTo-Json -Compress

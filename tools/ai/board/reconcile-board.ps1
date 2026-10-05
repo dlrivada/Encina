@@ -119,11 +119,18 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     $since = $Now.AddDays(-$MergedDays).ToString('yyyy-MM-dd')
     $openRaw = Invoke-GhJson @('pr', 'list', '--repo', $Repo, '--state', 'open', '--limit', '300', '--json', 'number,title,headRefName,body,isDraft,createdAt,author,closingIssuesReferences')
     $mergedRaw = Invoke-GhJson @('pr', 'list', '--repo', $Repo, '--state', 'merged', '--search', "merged:>=$since", '--limit', '300', '--json', 'number,title,headRefName,body,mergedAt,author,closingIssuesReferences')
-    $closedRaw = Invoke-GhJson @('issue', 'list', '--repo', $Repo, '--state', 'closed', '--search', "closed:>=$since", '--limit', '300', '--json', 'number,closedAt')
+    $closedRaw = Invoke-GhJson @('issue', 'list', '--repo', $Repo, '--state', 'closed', '--search', "closed:>=$since", '--limit', '300', '--json', 'number,closedAt,stateReason')
     $open = @($openRaw | ForEach-Object { $f = ConvertTo-PrFact $_; $f.state = 'OPEN'; $f })
     $merged = @($mergedRaw | ForEach-Object { $f = ConvertTo-PrFact $_; $f.state = 'MERGED'; $f })
     $closedIssues = @{}
-    foreach ($i in $closedRaw) { $closedIssues[[string]$i.number] = [string]$i.closedAt }
+    foreach ($i in $closedRaw) { $closedIssues[[string]$i.number] = @{ closedAt = [string]$i.closedAt; reason = [string]$i.stateReason } }
+    # The issue of every open flow front, whatever its age: the 14-day list alone would leave old closures open.
+    foreach ($d in $Docs.Values | Where-Object { $_.Collection -eq 'flow' -and [string]$_.Data.status -notin 'merged', 'closed' -and $_.Data.issue }) {
+        $n = [string]$d.Data.issue
+        if ($closedIssues.ContainsKey($n)) { continue }
+        $v = (Invoke-GhJson @('issue', 'view', $n, '--repo', $Repo, '--json', 'state,stateReason,closedAt'))[0]
+        if ($v -and [string]$v.state -eq 'CLOSED') { $closedIssues[$n] = @{ closedAt = [string]$v.closedAt; reason = [string]$v.stateReason } }
+    }
 
     # Cards and fronts that name a PR which is in neither list (older than the window, or closed unmerged).
     $known = @(($open + $merged) | ForEach-Object { $_.number })
@@ -187,24 +194,31 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
 
 # The PR a work card or flow front is about: by its pr number, else by the issues it covers (every issue of the
 # card must be closed by the PR, so a card that groups several issues is not finished by a PR for one of them).
-function Find-PrFor($Facts, $Pr, [int[]]$Issues) {
+# A merged PR that does not close every covered issue (a plan or docs PR "Refs #n", or a PR for one issue of a
+# group) does not finish the work: the issue search then looks for the implementation PR. Only a plan card
+# ($IsPlan) is finished by its own merged plan PR. A closed-unmerged explicit PR also falls back to the search.
+function Find-PrFor($Facts, $Pr, [int[]]$Issues, [bool]$IsPlan = $false) {
     $all = @($Facts.OpenPrs) + @($Facts.MergedPrs)
+    $hit = $null
     if ($Pr) {
         $hit = $all | Where-Object { $_.number -eq [int]$Pr } | Select-Object -First 1
         if (-not $hit) { $hit = $Facts.ExtraPrs[[string][int]$Pr] }
-        # A merged PR finishes the card or front only if it closes every issue it covers: a plan PR ("Refs #n")
-        # or a PR for one issue of a group leaves the work open.
-        if ($hit -and $hit.state -eq 'MERGED' -and $Issues.Count -gt 0 -and @($Issues | Where-Object { $_ -notin $hit.closes }).Count -gt 0) { return $null }
-        return $hit
+        if ($hit -and $hit.state -eq 'OPEN') { return $hit }
+        $closesAll = $hit -and ($Issues.Count -eq 0 -or @($Issues | Where-Object { $_ -notin $hit.closes }).Count -eq 0)
+        if ($hit -and $hit.state -eq 'MERGED' -and ($closesAll -or $IsPlan)) { return $hit }
     }
-    if ($Issues.Count -eq 0) { return $null }
-    # Prefer an open PR (work in progress) over an older merged one.
-    foreach ($set in @($Facts.OpenPrs), @($Facts.MergedPrs | Sort-Object { $_.mergedAt } -Descending)) {
-        $hit = $set | Where-Object { $p = $_; @($Issues | Where-Object { $_ -notin $p.closes }).Count -eq 0 } | Select-Object -First 1
-        if ($hit) { return $hit }
+    if ($Issues.Count -gt 0) {
+        # Prefer an open PR (work in progress) over an older merged one.
+        foreach ($set in @($Facts.OpenPrs), @($Facts.MergedPrs | Sort-Object { $_.mergedAt } -Descending)) {
+            $found = $set | Where-Object { $p = $_; @($Issues | Where-Object { $_ -notin $p.closes }).Count -eq 0 } | Select-Object -First 1
+            if ($found) { return $found }
+        }
     }
+    if ($hit -and $hit.state -eq 'CLOSED') { return $hit }
     return $null
 }
+
+function Test-PlanCard($Card) { [string]$Card.kind -in 'plan', 'docs' -or [string]$Card.title -match '(?i)\bplan\b' }
 
 function Add-Note($Data, [string]$Text) {
     $note = [string]$Data.note
@@ -217,19 +231,23 @@ function Update-WorkCard($Data, $Facts, [string]$NowText) {
     $c = Copy-Data $Data
     if (Test-CardTerminal $c) { return $c }
     $issues = @($c.issues | ForEach-Object { [int]$_ })
-    $pr = Find-PrFor $Facts $c.pr $issues
+    $pr = Find-PrFor $Facts $c.pr $issues (Test-PlanCard $c)
     $wt = $null
     if ($c.worktree) { $wt = $Facts.Worktrees | Where-Object { $_.name -eq $c.worktree } | Select-Object -First 1 }
     if ($pr) {
-        if (-not $c.pr) { $c.pr = $pr.number }
+        if ($c.pr -ne $pr.number) { $c.pr = $pr.number }
         if ($pr.state -eq 'MERGED') {
             $c.status = 'merged'
             $c.endedUtc = $pr.mergedAt
         }
         elseif ($pr.state -eq 'OPEN') {
-            # A draft PR is work in progress: a running card stays running.
-            if (-not ($pr.isDraft -and $c.status -eq 'running')) { $c.status = 'pr-open' }
-            $c.endedUtc = $null
+            # Only a card in flight follows its PR: a hand-set blocked or stopped card stays as set. A draft PR
+            # is work in progress (queued -> running; running and pr-open stay).
+            if ($c.status -in 'queued', 'running', 'pr-open') {
+                if ($pr.isDraft) { if ($c.status -eq 'queued') { $c.status = 'running' } }
+                else { $c.status = 'pr-open' }
+                $c.endedUtc = $null
+            }
         }
         elseif ($c.status -in 'pr-open', 'running', 'queued') {
             $c.status = 'stopped'
@@ -258,20 +276,26 @@ function Update-FlowFront($Data, $Facts, [string]$NowText) {
     $f = Copy-Data $Data
     if ([string]$f.status -in 'merged', 'closed') { return $f }
     $pr = Find-PrFor $Facts $f.pr @([int]$f.issue)
+    $closed = $Facts.ClosedIssues[[string]$f.issue]
     if ($pr -and $pr.state -eq 'MERGED') {
         $f.status = 'merged'; $f.stage = 'done'; $f.pr = $pr.number; $f.updatedUtc = $pr.mergedAt
     }
     elseif ($pr -and $pr.state -eq 'OPEN' -and $pr.isDraft) {
         # A draft PR is still being implemented: only record the PR.
-        if (-not $f.pr) { $f.pr = $pr.number }
+        if ($f.pr -ne $pr.number) { $f.pr = $pr.number }
     }
     elseif ($pr -and $pr.state -eq 'OPEN') {
         if ($f.status -ne 'in-progress' -or $f.stage -ne 'review' -or $f.pr -ne $pr.number) {
             $f.status = 'in-progress'; $f.stage = 'review'; $f.pr = $pr.number; $f.updatedUtc = $NowText
         }
     }
-    elseif (-not $pr -and $Facts.ClosedIssues.ContainsKey([string]$f.issue)) {
-        $f.status = 'closed'; $f.stage = 'close-out'; $f.updatedUtc = $Facts.ClosedIssues[[string]$f.issue]
+    elseif ($closed) {
+        # The issue closed without a PR that finishes the front (any age): closed, or not-planned.
+        $f.status = 'closed'; $f.stage = $(if ($closed.reason -match '(?i)not_?planned') { 'not-planned' } else { 'close-out' }); $f.updatedUtc = $closed.closedAt
+    }
+    elseif ($pr -and $pr.state -eq 'CLOSED' -and $f.status -ne 'stopped') {
+        $f.status = 'stopped'; $f.updatedUtc = $NowText
+        Add-Note $f "Reconciler: PR #$($pr.number) was closed without merging."
     }
     return $f
 }
@@ -296,9 +320,15 @@ function Update-Audit($Data, [string]$Id, $Facts) {
 function New-Audit([string]$Id, $Facts, [bool]$IsOpen) {
     $row = $Facts.Progress | Where-Object { [string]$_.issue -eq $Id } | Select-Object -First 1
     $title = if ($Facts.Titles.ContainsKey($Id)) { $Facts.Titles[$Id] } else { "Audit #$Id" }
-    $a = @{ issue = [int]$Id; title = $title; opened = @(); outcome = ''; pipeline = 'v2'; note = ''; blockedBy = @() }
+    # Nothing is invented: outcome and pipeline come from progress.csv columns of those names, else stay null.
+    $columns = if ($row) { @($row.PSObject.Properties.Name) } else { @() }
+    $a = @{ issue = [int]$Id; title = $title; opened = @(); outcome = $(if ('outcome' -in $columns) { $row.outcome } else { $null }); pipeline = $(if ('pipeline' -in $columns) { $row.pipeline } else { $null }); note = ''; blockedBy = @() }
     if ($IsOpen) { $a.status = 'open'; $a.stage = 'running'; $a.verdict = $null; $a.openedUtc = [string]$Facts.CurrentAudit.startedUtc }
-    else { $a.status = 'closed'; $a.stage = 'done'; $a.note = "Created by the board reconciler from progress.csv. $($row.notes)".Trim(); $a.outcome = 'delivered' }
+    else {
+        $a.status = 'closed'; $a.stage = 'done'
+        $counts = "progress.csv: blockers $($row.findings_blocker), majors $($row.findings_major), minors $($row.findings_minor), remediation issues opened $($row.remediation_opened)."
+        $a.note = "Created by the board reconciler. $counts $($row.notes)".Trim()
+    }
     return $a
 }
 
@@ -370,7 +400,7 @@ function Get-BoardChanges($Docs, $Facts, [datetime]$Now) {
         $m = Copy-Data $Docs['meta/board'].Data
         $status = Get-StatusText $cards.Values $Facts ([string]$m.status) $Now
         if ($status -ne [string]$m.status) { $m.status = $status; $m.updatedUtc = $nowText }
-        if ($Facts.CurrentAudit) { $m.current = [int]$Facts.CurrentAudit.issue }
+        $m.current = $(if ($Facts.CurrentAudit) { [int]$Facts.CurrentAudit.issue } else { $null })
         & $add 'meta' 'board' $m $Docs['meta/board'].Data
     }
     return $changes
@@ -410,13 +440,18 @@ if ($MyInvocation.InvocationName -ne '.') {
         $MainRoot = Split-Path -Parent $common
     }
     $now = if ($NowUtc) { ([datetime]$NowUtc).ToUniversalTime() } else { [datetime]::UtcNow }
+    $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
+    # An incomplete export would make existing documents look new (and be replaced unpinned): abort first.
+    $missing = @('work', 'flow', 'audits') | Where-Object { -not (Test-Path -LiteralPath (Join-Path $CurrentDir $_) -PathType Container) }
+    if (-not (Test-Path -LiteralPath (Join-Path $CurrentDir 'meta\board.json'))) { $missing += 'meta/board.json' }
+    if ($missing) { throw "incomplete board export in ${CurrentDir}: missing $($missing -join ', '); no writes produced" }
     $docs = Read-BoardExport $CurrentDir
     $versionMap = Get-Content -LiteralPath $Versions -Raw | ConvertFrom-Json -AsHashtable
     $facts = Get-BoardFacts $docs $Repo $MainRoot $now $MergedDays
     $changes = Get-BoardChanges $docs $facts $now
     $batch = ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
     foreach ($s in $batch.Skipped) { [Console]::Error.WriteLine("WARN: $s changed but has no version in the sidecar; skipped (never written unpinned).") }
-    $outDir = Split-Path -Parent ([IO.Path]::GetFullPath($Out))
+    $outDir = Split-Path -Parent $Out
     if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
     # Remove the files of an earlier run so only this run's batches remain.
     $stem = [IO.Path]::GetFileNameWithoutExtension($Out)
@@ -424,8 +459,8 @@ if ($MyInvocation.InvocationName -ne '.') {
     foreach ($old in Get-ChildItem -LiteralPath $outDir -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq "$stem$ext" -or $_.Name -match "^$([regex]::Escape($stem))-\d{3}$([regex]::Escape($ext))$" }) { Remove-Item -LiteralPath $old.FullName -Force }
     $paths = @()
     for ($i = 0; $i -lt $batch.Files.Count; $i++) {
-        $path = if ($batch.Files.Count -eq 1) { $Out } else { Join-Path (Split-Path -Parent $Out) ("{0}-{1:D3}{2}" -f [IO.Path]::GetFileNameWithoutExtension($Out), ($i + 1), [IO.Path]::GetExtension($Out)) }
-        [IO.File]::WriteAllText([IO.Path]::GetFullPath($path), (ConvertTo-Json -InputObject $batch.Files[$i] -Depth 20), [Text.UTF8Encoding]::new($false))
+        $path = if ($batch.Files.Count -eq 1) { $Out } else { Join-Path $outDir ("{0}-{1:D3}{2}" -f $stem, ($i + 1), $ext) }
+        [IO.File]::WriteAllText($path,(ConvertTo-Json -InputObject $batch.Files[$i] -Depth 20), [Text.UTF8Encoding]::new($false))
         $paths += $path
     }
     "WRITES $($batch.Count) SKIPPED $($batch.Skipped.Count)"

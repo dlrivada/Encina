@@ -19,26 +19,35 @@ New-Item -ItemType Directory -Force -Path (Join-Path $main 'artifacts\knowledge'
 $wtRoot = Join-Path $main '.claude\worktrees'
 
 # ---- stubs: functions shadow the gh / git executables for the functions called below
-$script:openPrs = @(
+# Global so the stubs also work when the script under test runs as a child script (scope modifiers are dynamic).
+$global:openPrs = @(
     @{ number = 201; title = 'Open PR with card'; headRefName = 'fix/a-101'; body = 'Fixes #101'; isDraft = $false; createdAt = '2026-10-04T08:00:00Z'; author = @{ login = 'dlrivada'; is_bot = $false }; closingIssuesReferences = @() },
     @{ number = 210; title = 'New PR without card'; headRefName = 'fix/new-300'; body = 'Fixes #300'; isDraft = $false; createdAt = '2026-10-05T07:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @(@{ number = 300 }) },
     @{ number = 211; title = 'Bump x'; headRefName = 'dependabot/x'; body = 'Fixes #301'; isDraft = $false; createdAt = '2026-10-05T07:00:00Z'; author = @{ login = 'app/dependabot'; is_bot = $true }; closingIssuesReferences = @() },
     @{ number = 212; title = 'No issue'; headRefName = 'docs/y'; body = 'Just docs'; isDraft = $true; createdAt = '2026-10-05T07:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 213; title = 'Draft in progress'; headRefName = 'fix/d-107'; body = 'Fixes #107'; isDraft = $true; createdAt = '2026-10-05T07:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 234; title = 'Implementation after plan'; headRefName = 'fix/i-412'; body = 'Fixes #412'; isDraft = $false; createdAt = '2026-10-05T07:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 236; title = 'PR on a blocked card'; headRefName = 'fix/bl-114'; body = 'Fixes #114'; isDraft = $false; createdAt = '2026-10-05T07:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 237; title = 'Draft on a queued card'; headRefName = 'fix/q-115'; body = 'Fixes #115'; isDraft = $true; createdAt = '2026-10-05T07:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 221; title = 'Flow ready to review'; headRefName = 'fix/b-401'; body = 'Closes #401'; isDraft = $false; createdAt = '2026-10-05T06:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() }
 )
-$script:mergedPrs = @(
+$global:mergedPrs = @(
     @{ number = 200; title = 'Merged'; headRefName = 'fix/m-100'; body = 'Fixes #100'; mergedAt = '2026-10-05T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 230; title = 'Plan only'; headRefName = 'docs/plan-410'; body = 'Refs #410'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 233; title = 'Plan card PR'; headRefName = 'docs/plan-411'; body = 'Refs #411'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 235; title = 'Implementation merged'; headRefName = 'fix/m-413'; body = 'Fixes #413'; mergedAt = '2026-10-05T10:45:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 231; title = 'One of two'; headRefName = 'fix/one-108'; body = 'Fixes #108'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 220; title = 'Merged flow'; headRefName = 'fix/f-400'; body = 'Fixes #400'; mergedAt = '2026-10-05T10:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() }
 )
 function gh {
     $a = $args -join ' '
     $global:LASTEXITCODE = 0
-    if ($a -match '^pr list .*--state open') { return ConvertTo-Json -InputObject $script:openPrs -Depth 8 }
-    if ($a -match '^pr list .*--state merged') { return ConvertTo-Json -InputObject $script:mergedPrs -Depth 8 }
-    if ($a -match '^issue list .*--state closed') { return '[{"number":402,"closedAt":"2026-10-04T12:00:00Z"}]' }
+    if ($a -match '^pr list .*--state open') { return ConvertTo-Json -InputObject $global:openPrs -Depth 8 }
+    if ($a -match '^pr list .*--state merged') { return ConvertTo-Json -InputObject $global:mergedPrs -Depth 8 }
+    if ($a -match '^issue list .*--state closed') { return '[{"number":402,"closedAt":"2026-10-04T12:00:00Z","stateReason":"COMPLETED"}]' }
+    if ($a -match '^issue view 404 .*--json state') { return '{"state":"CLOSED","stateReason":"NOT_PLANNED","closedAt":"2026-06-01T00:00:00Z"}' }
+    if ($a -match '^issue view \d+ .*--json state') { return '{"state":"OPEN","stateReason":null,"closedAt":null}' }
+    if ($a -match '^pr view 232 ') { return '{"number":232,"title":"Abandoned","headRefName":"x","body":"Fixes #405","state":"CLOSED","mergedAt":null,"createdAt":"2026-10-01T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
     if ($a -match '^pr view 204 ') { return '{"number":204,"title":"Older","headRefName":"x","body":"Fixes #104","state":"MERGED","mergedAt":"2026-09-01T00:00:00Z","createdAt":"2026-08-30T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
     if ($a -match '^issue view (\d+) ') { return "{`"title`":`"Issue $($Matches[1]) title`"}" }
     $global:LASTEXITCODE = 1
@@ -81,6 +90,16 @@ Save-Doc 'work' '110' $fresh
 Save-Doc 'work' '107'(New-Card @(107) 'running' 213 'w107')
 Save-Doc 'work' '108' (New-Card @(108, 109) 'pr-open' 231 'w108')
 Save-Doc 'flow' '410' @{ issue = 410; lane = 'urgent'; note = 'plan merged'; pr = 230; stage = 'implementation'; status = 'ready'; title = 'Flow plan PR'; updatedUtc = '2026-10-03T00:00:00Z' }
+$planCard = New-Card @(411) 'pr-open' 233 'w411'
+$planCard.kind = 'plan'
+Save-Doc 'work' '411' $planCard
+Save-Doc 'work' '412' (New-Card @(412) 'pr-open' 234 'w412')
+Save-Doc 'work' '114' (New-Card @(114) 'blocked' 236 'w114')
+Save-Doc 'work' '115' (New-Card @(115) 'queued' 237 'w115')
+Save-Doc 'flow' '412' @{ issue = 412; lane = 'urgent'; note = 'plan merged'; pr = 230; stage = 'implementation'; status = 'ready'; title = 'Flow after plan, impl open'; updatedUtc = '2026-10-03T00:00:00Z' }
+Save-Doc 'flow' '413' @{ issue = 413; lane = 'urgent'; note = 'plan merged'; pr = 230; stage = 'implementation'; status = 'ready'; title = 'Flow after plan, impl merged'; updatedUtc = '2026-10-03T00:00:00Z' }
+Save-Doc 'flow' '404' @{ issue = 404; lane = 'pilot'; note = 'n'; pr = $null; stage = 'intake'; status = 'ready'; title = 'Flow old not-planned'; updatedUtc = '2026-05-01T00:00:00Z' }
+Save-Doc 'flow' '405' @{ issue = 405; lane = 'pilot'; note = 'n'; pr = 232; stage = 'review'; status = 'in-progress'; title = 'Flow PR abandoned'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '400' @{ issue = 400; lane = 'urgent'; note = 'n'; pr = $null; stage = 'implementation'; status = 'in-progress'; title = 'Flow merged'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '401' @{ issue = 401; lane = 'urgent'; note = 'n'; pr = $null; stage = 'intake'; status = 'ready'; title = 'Flow open PR'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '402' @{ issue = 402; lane = 'pilot'; note = 'n'; pr = $null; stage = 'implementation'; status = 'in-progress'; title = 'Flow closed'; updatedUtc = '2026-10-03T00:00:00Z' }
@@ -126,22 +145,41 @@ try {
     $c = Find-Change 'flow/402'
     Assert-That ($c.Data.status -eq 'closed' -and $c.Data.stage -eq 'close-out') 'flow front whose issue closed without PR: closed / close-out'
     Assert-That ($null -eq (Find-Change 'flow/403')) 'untouched flow front: no write'
+    $c = Find-Change 'flow/404'
+    Assert-That ($c.Data.status -eq 'closed' -and $c.Data.stage -eq 'not-planned' -and $c.Data.updatedUtc -eq '2026-06-01T00:00:00Z') 'flow front whose issue closed long ago as not planned: closed / not-planned'
+    $c = Find-Change 'flow/405'
+    Assert-That ($c.Data.status -eq 'stopped' -and $c.Data.note -match 'closed without merging') 'flow front whose PR closed unmerged: stopped with a note'
+    $c = Find-Change 'flow/412'
+    Assert-That ($c.Data.status -eq 'in-progress' -and $c.Data.stage -eq 'review' -and $c.Data.pr -eq 234) 'front after a merged plan PR advances to review when the Fixes PR opens'
+    $c = Find-Change 'flow/413'
+    Assert-That ($c.Data.status -eq 'merged' -and $c.Data.stage -eq 'done' -and $c.Data.pr -eq 235) 'front after a merged plan PR is done when the Fixes PR merges'
+    $c = Find-Change 'work/411'
+    Assert-That ($c.Data.status -eq 'merged' -and $c.Data.endedUtc -eq '2026-09-20T09:00:00Z') 'plan card is finished by its own merged plan PR'
+    Assert-That ($null -eq (Find-Change 'work/114')) 'hand-set blocked card is not overwritten by an open PR'
+    Assert-That ((Find-Change 'work/115').Data.status -eq 'running') 'queued card with a draft PR becomes running, not pr-open'
     # ---- audits
     Assert-That ((Find-Change 'audits/5').Data.status -eq 'closed') 'audit done in progress.csv: closed'
     Assert-That ($null -eq (Find-Change 'audits/6')) 'closed audit unchanged: no write'
     $c = Find-Change 'audits/7'
     Assert-That ($c -and -not $c.Exists -and $c.Data.status -eq 'closed' -and $c.Data.title -eq 'Issue 7 title') 'audit missing from the board: created from progress.csv with the issue title'
+    Assert-That ($null -eq $c.Data.outcome -and $null -eq $c.Data.pipeline -and $c.Data.note -match 'remediation issues opened 2') 'created audit invents no outcome or pipeline; counts come from progress.csv'
     $c = Find-Change 'audits/8'
     Assert-That ($c -and $c.Data.status -eq 'open' -and $c.Data.openedUtc -eq '2026-10-05T08:00:00Z') 'current-audit.json: open audit created'
     # ---- meta
     $c = Find-Change 'meta/board'
-    Assert-That ($c.Data.status -match 'Audit #8 open\.' -and $c.Data.status -match 'Open PRs: #201 #210 #211 #212 \(draft\) #213 \(draft\) #221\.') 'meta.status lists the open audit and open PRs'
-    Assert-That ($c.Data.status -match 'Merged last 48h: #200 #220\.' -and $c.Data.current -eq 8 -and $c.Data.updatedUtc -eq '2026-10-05T11:00:00Z') 'meta.status lists recent merges; current and updatedUtc set'
+    Assert-That ($c.Data.status -match 'Audit #8 open\.' -and $c.Data.status -match 'Open PRs: #201 #210 #211 #212 \(draft\) #213 \(draft\) #221 #234 #236 #237 \(draft\)\.') 'meta.status lists the open audit and open PRs'
+    Assert-That ($c.Data.status -match 'Merged last 48h: #200 #220 #235\.' -and $c.Data.current -eq 8 -and $c.Data.updatedUtc -eq '2026-10-05T11:00:00Z') 'meta.status lists recent merges; current and updatedUtc set'
     Assert-That ($c.Data.status -match ' Notes: hand written$') 'first run keeps the hand-written status behind the Notes marker'
+    $noAudit = $facts.Clone(); $noAudit.CurrentAudit = $null
+    $cNo = (Get-BoardChanges $docs $noAudit $now | Where-Object { $_.Collection -eq 'meta' }).Data
+    Assert-That ($cNo.Contains('current') -and $null -eq $cNo.current) 'meta.current is cleared when no audit is open'
     Assert-That ($null -eq ($changes | Where-Object { $_.Collection -notin 'work', 'flow', 'audits', 'meta' })) 'no other collection is touched'
 
     # ---- versions
-    $pins = @{ 'work/100' = 4; 'work/102' = 1; 'work/104' = 2; 'flow/400' = 3; 'flow/401' = 1; 'flow/402' = 1; 'audits/5' = 2; 'meta/board' = 9 }
+    $pins = @{}
+    foreach ($ch in $changes | Where-Object { $_.Exists }) { $pins["$($ch.Collection)/$($ch.Id)"] = 7 }
+    $pins.Remove('work/103')
+    $pins['work/100'] = 4
     $batch = ConvertTo-BatchFiles $changes $pins 'set' 'update' 50
     $all = @($batch.Files | ForEach-Object { $_ })
     Assert-That ($batch.Skipped -contains 'work/103' -and $batch.Skipped.Count -eq 1) 'existing doc without a version is skipped, never written unpinned'
@@ -164,6 +202,31 @@ try {
     Assert-That ($split.Files.Count -eq 3 -and $split.Files[0].Count -eq 50 -and $split.Files[1].Count -eq 50 -and $split.Files[2].Count -eq 20 -and $split.Count -eq 120) '120 writes split into 50 + 50 + 20'
     $one = ConvertTo-BatchFiles ($many | Select-Object -First 50) @{} 'set' 'update' 50
     Assert-That ($one.Files.Count -eq 1) 'exactly 50 writes stay in one file'
+
+    # ---- the script's main block, end to end with the stubs (bare -Out name, split, stale files, safety abort)
+    $versionsFile = Join-Path $work 'versions.json'
+    $sidecar = @{ 'meta/board' = 3 }
+    foreach ($ch in $changes | Where-Object { $_.Exists -and "$($_.Collection)/$($_.Id)" -ne 'work/103' }) { $sidecar["$($ch.Collection)/$($ch.Id)"] = 2 }
+    [IO.File]::WriteAllText($versionsFile, (ConvertTo-Json $sidecar), [Text.UTF8Encoding]::new($false))
+    $outDir = Join-Path $work 'out'
+    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+    [IO.File]::WriteAllText((Join-Path $outDir 'batch-009.json'), '[]')
+    $scriptPath = Join-Path $PSScriptRoot 'reconcile-board.ps1'
+    Push-Location $outDir
+    try {
+        $lines = @(& $scriptPath -CurrentDir $export -Versions $versionsFile -Out 'batch.json' -Repo 'o/r' -MainRoot $main -NowUtc '2026-10-05T11:00:00Z' -MaxWrites 5)
+    }
+    finally { Pop-Location }
+    $made = @(Get-ChildItem $outDir -Filter 'batch*.json' | Sort-Object Name | ForEach-Object Name)
+    Assert-That ($lines[0] -match '^WRITES (\d+) SKIPPED 1$' -and $made.Count -eq [math]::Ceiling([int]$Matches[1] / 5) -and $made[0] -eq 'batch-001.json') "main block: bare -Out name resolved, split into numbered files, stale batch-009 removed ($($lines[0]); $($made -join ','))"
+    $first = Get-Content (Join-Path $outDir 'batch-001.json') -Raw | ConvertFrom-Json
+    Assert-That (@($first).Count -eq 5 -and $first[0].op -in 'set', 'update') 'main block: a batch file holds at most -MaxWrites writes in the ArtifactData shape'
+    $broken = Join-Path $work 'export-broken'
+    Copy-Item -Recurse $export $broken
+    Remove-Item -Recurse -Force (Join-Path $broken 'flow')
+    $threw = $false
+    try { & $scriptPath -CurrentDir $broken -Versions $versionsFile -Out (Join-Path $outDir 'never.json') -Repo 'o/r' -MainRoot $main | Out-Null } catch { $threw = $_.Exception.Message -match 'incomplete board export' }
+    Assert-That ($threw -and -not (Test-Path (Join-Path $outDir 'never.json'))) 'main block: an export without flow/ aborts with an error and writes nothing'
 }
 finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue

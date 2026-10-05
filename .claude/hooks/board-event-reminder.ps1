@@ -17,7 +17,7 @@ try {
     if ($tool -in 'Bash', 'PowerShell') {
         $command = [string]$payload.tool_input.command
         # Only a command that RUNS the tool: at the start of a statement, not a mention inside another command.
-        $start = '(?:^|[;&|(]\s*)'
+        $start = '(?:^[ \t]*|[;&|(]\s*)'
         $m = [regex]::Match($command, "(?im)${start}gh(?:\.exe)?\s+pr\s+(?<verb>create|merge)\b|${start}(?:(?:&|\.)\s+|pwsh(?:\.exe)?\s+[^;&|]*?-File\s+)?['""]?[^\s;&|'""]*?(?<script>audit-done|audit-commit-stage)\.ps1")
         if ($m.Success) { $event = if ($m.Groups['verb'].Success) { "gh pr $($m.Groups['verb'].Value)" } else { "$($m.Groups['script'].Value).ps1" } }
     }
