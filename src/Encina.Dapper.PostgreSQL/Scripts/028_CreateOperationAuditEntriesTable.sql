@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "OperationAuditEntries" (
     "EntityId"           VARCHAR(256)   NULL,
     "Outcome"            INTEGER        NOT NULL,
     "ErrorMessage"       VARCHAR(2048)  NULL,
-    "TimestampUtc"       TIMESTAMP      NOT NULL,
+    "TimestampUtc"       TIMESTAMPTZ    NOT NULL,
     "StartedAtUtc"       TIMESTAMPTZ    NOT NULL,
     "CompletedAtUtc"     TIMESTAMPTZ    NOT NULL,
     "IpAddress"          VARCHAR(45)    NULL,
