@@ -22,7 +22,7 @@ namespace Encina.Audit.Marten.Projections;
 /// even after shredding, preserving operational audit trail visibility.
 /// </para>
 /// </remarks>
-public sealed class AuditEntryReadModel
+public sealed class OperationAuditEntryReadModel
 {
     // --- Identity & Technical ---
     public required Guid Id { get; set; }
@@ -84,23 +84,23 @@ public sealed class AuditEntryReadModel
 }
 
 // =============================================================================
-// PROJECTION PSEUDOCODE — How MartenAuditStoreProjection handles events
+// PROJECTION PSEUDOCODE — How MartenOperationAuditStoreProjection handles events
 // =============================================================================
 //
-// 1. ON AuditEntryRecordedEvent:
+// 1. ON OperationAuditEntryRecordedEvent:
 //    - Get temporal key for event.TimestampUtc via ITemporalKeyProvider
 //    - Decrypt PII fields
-//    - Upsert AuditEntryReadModel with decrypted values
+//    - Upsert OperationAuditEntryReadModel with decrypted values
 //    - Store TemporalPeriodId for later shredding reference
 //
 // 2. ON TemporalKeyShreddedEvent:
-//    - Query all AuditEntryReadModel where TemporalPeriodId == event.PeriodId
+//    - Query all OperationAuditEntryReadModel where TemporalPeriodId == event.PeriodId
 //    - Set IsShredded = true, ShreddedAtUtc = event.ShreddedAtUtc
 //    - Replace PII fields with "[SHREDDED]"
 //    - This is a batch operation on the read model, NOT on the event store
 //
 // 3. ON PROJECTION REBUILD:
-//    - For each AuditEntryRecordedEvent:
+//    - For each OperationAuditEntryRecordedEvent:
 //      - Try to get temporal key via ITemporalKeyProvider
 //      - If key exists: decrypt normally
 //      - If key is deleted (IsPeriodShreddedAsync = true):

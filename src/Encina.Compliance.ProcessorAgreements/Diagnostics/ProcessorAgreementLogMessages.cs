@@ -97,14 +97,14 @@ internal static partial class ProcessorAgreementLogMessages
         EventId = 9410,
         Level = LogLevel.Debug,
         Message = "Audit entry recorded. ProcessorId={ProcessorId}, Action={Action}, PerformedBy={PerformedBy}")]
-    internal static partial void OperationAuditEntryRecorded(this ILogger logger, string processorId, string action, string performedBy);
+    internal static partial void AuditEntryRecorded(this ILogger logger, string processorId, string action, string performedBy);
 
     /// <summary>Audit entry recording failed (non-blocking).</summary>
     [LoggerMessage(
         EventId = 9411,
         Level = LogLevel.Warning,
         Message = "Audit entry recording failed (non-blocking). ProcessorId={ProcessorId}, Action={Action}")]
-    internal static partial void OperationAuditEntryFailed(this ILogger logger, string processorId, string action, Exception exception);
+    internal static partial void AuditEntryFailed(this ILogger logger, string processorId, string action, Exception exception);
 
     // ========================================================================
     // Processor registry operation log messages (9420-9429, DC 2)

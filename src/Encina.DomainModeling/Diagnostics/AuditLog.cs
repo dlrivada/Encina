@@ -33,7 +33,7 @@ public static partial class AuditLog
         EventId = 1601,
         Level = LogLevel.Information,
         Message = "Audit entry recorded for {EntityType} ({Action})")]
-    public static partial void OperationAuditEntryRecorded(
+    public static partial void AuditEntryRecorded(
         ILogger logger,
         string entityType,
         string action);
@@ -43,7 +43,7 @@ public static partial class AuditLog
         EventId = 1602,
         Level = LogLevel.Warning,
         Message = "Failed to record audit entry for {EntityType}: {ErrorMessage}")]
-    public static partial void OperationAuditEntryFailed(
+    public static partial void AuditEntryFailed(
         ILogger logger,
         string entityType,
         string errorMessage);
@@ -63,7 +63,7 @@ public static partial class AuditLog
         EventId = 1604,
         Level = LogLevel.Debug,
         Message = "Audit query completed with {ResultCount} entries")]
-    public static partial void OperationAuditQueryCompleted(
+    public static partial void AuditQueryCompleted(
         ILogger logger,
         int resultCount);
 

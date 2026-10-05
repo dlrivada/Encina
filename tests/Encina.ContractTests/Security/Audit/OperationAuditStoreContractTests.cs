@@ -9,7 +9,7 @@ namespace Encina.ContractTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Contract")]
 [Trait("Feature", "Audit")]
-public sealed class AuditStoreContractTests
+public sealed class OperationAuditStoreContractTests
 {
     #region RecordAsync Contract
 

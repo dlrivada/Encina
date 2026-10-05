@@ -66,7 +66,7 @@ internal static class ProcessorAgreementDiagnostics
             description: "Total number of DPA store operations.");
 
     /// <summary>Total number of audit trail entries recorded.</summary>
-    internal static readonly Counter<long> OperationAuditEntryTotal =
+    internal static readonly Counter<long> AuditEntryTotal =
         Meter.CreateCounter<long>("processor_agreement.audit.entries.total",
             description: "Total number of audit trail entries recorded.");
 

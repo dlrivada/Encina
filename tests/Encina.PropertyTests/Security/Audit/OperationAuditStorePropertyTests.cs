@@ -12,7 +12,7 @@ namespace Encina.PropertyTests.Security.Audit;
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Feature", "Audit")]
-public sealed class AuditStorePropertyTests
+public sealed class OperationAuditStorePropertyTests
 {
     #region PurgeAsync Invariants
 

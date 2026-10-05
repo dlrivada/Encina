@@ -108,7 +108,7 @@ Example of 10 database providers matrix:
 | 9 | **Idempotency** (`InboxPipelineBehavior`, dedup) | | |
 | 10 | **Multi-Tenancy** (`TenantId`, `ITenantContext`) | | |
 | 11 | **Module Isolation** (`ModuleId`, `IModuleContext`) | | |
-| 12 | **Audit Trail** (`IAuditStore`, audit events) | | |
+| 12 | **Audit Trail** (`IOperationAuditStore`, audit events) | | |
 
 ### Observability Details (if applicable)
 

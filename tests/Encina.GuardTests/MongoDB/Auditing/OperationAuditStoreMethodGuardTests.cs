@@ -5,7 +5,7 @@ using MongoDB.Driver;
 
 namespace Encina.GuardTests.MongoDB.Auditing;
 
-public class AuditStoreMethodGuardTests
+public class OperationAuditStoreMethodGuardTests
 {
     private static OperationAuditStoreMongoDB CreateStore()
     {

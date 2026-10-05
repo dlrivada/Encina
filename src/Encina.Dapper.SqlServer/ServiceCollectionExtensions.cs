@@ -83,24 +83,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAuditLogStore, AuditLogStoreDapper>();
         }
 
-        // Register operation audit store if enabled
-        if (config.UseOperationAuditStore)
-        {
-            // Remove the in-memory default from Encina.Security.Audit so the database-backed
-            // store wins regardless of the order in which AddEncinaAudit and this provider run.
-            // A custom IOperationAuditStore the application registered itself is never removed
-            // here, so it keeps winning (#1269).
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(IOperationAuditStore) &&
-                    services[i].ImplementationType == typeof(InMemoryOperationAuditStore))
-                {
-                    services.RemoveAt(i);
-                }
-            }
-
-            services.TryAddScoped<IOperationAuditStore, Auditing.OperationAuditStoreDapper>();
-        }
+        RegisterOperationAuditStore(services, config);
 
         // Register read audit store if enabled
         if (config.UseReadAuditStore)
@@ -579,5 +562,30 @@ public static class ServiceCollectionExtensions
             new ProcessingActivity.ProcessingActivityRegistryDapper(connectionString));
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the operation audit store when <see cref="MessagingConfiguration.UseOperationAuditStore"/>
+    /// is enabled; the in-memory default is removed so the database store wins in any registration order,
+    /// and a store the application registered itself is kept (#1269).
+    /// </summary>
+    private static void RegisterOperationAuditStore(IServiceCollection services, MessagingConfiguration config)
+    {
+        if (!config.UseOperationAuditStore) return;
+
+        // Remove the in-memory default from Encina.Security.Audit so the database-backed
+        // store wins regardless of the order in which AddEncinaAudit and this provider run.
+        // A custom IOperationAuditStore the application registered itself is never removed
+        // here, so it keeps winning (#1269).
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            if (services[i].ServiceType == typeof(IOperationAuditStore) &&
+                services[i].ImplementationType == typeof(InMemoryOperationAuditStore))
+            {
+                services.RemoveAt(i);
+            }
+        }
+
+        services.TryAddScoped<IOperationAuditStore, Auditing.OperationAuditStoreDapper>();
     }
 }

@@ -189,7 +189,7 @@ internal sealed class DefaultDPAService : IDPAService
                         {
                             _logger.DPAUpdated(dpaId.ToString(), aggregate.Status.ToString());
                             ProcessorAgreementDiagnostics.DPAOperationTotal.Add(1);
-                            ProcessorAgreementDiagnostics.OperationAuditEntryTotal.Add(1);
+                            ProcessorAgreementDiagnostics.AuditEntryTotal.Add(1);
                             InvalidateDPACache(dpaId, aggregate.ProcessorId);
                             return Unit.Default;
                         },
