@@ -190,6 +190,8 @@ public sealed class OperationAuditStoreMongoDBIntegrationTests : IAsyncLifetime
         var fastOnly = await store.QueryAsync(new OperationAuditQuery { MaxDuration = TimeSpan.FromMilliseconds(100), PageNumber = 1, PageSize = 10 });
 
         slowPage1.IsRight.ShouldBeTrue();
+        slowPage2.IsRight.ShouldBeTrue();
+        fastOnly.IsRight.ShouldBeTrue();
         slowPage1.IfRight(page =>
         {
             page.TotalCount.ShouldBe(3);

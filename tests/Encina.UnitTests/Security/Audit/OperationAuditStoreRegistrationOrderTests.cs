@@ -31,8 +31,9 @@ public sealed class OperationAuditStoreRegistrationOrderTests
 
     private static IOperationAuditStore Resolve(IServiceCollection services)
     {
-        var provider = Build(services);
-        var scope = provider.CreateScope();
+        // The store is only inspected for its type; the mocked connection holds no resources.
+        using var provider = Build(services);
+        using var scope = provider.CreateScope();
         return scope.ServiceProvider.GetRequiredService<IOperationAuditStore>();
     }
 
@@ -164,6 +165,26 @@ public sealed class OperationAuditStoreRegistrationOrderTests
         var descriptor = ServiceDescriptor.Singleton<IOperationAuditStore>(_ => Substitute.For<IOperationAuditStore>());
 
         OperationAuditStoreRegistration.IsInMemoryDefault(descriptor).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsInMemoryDefault_KeyedRegistration_ReturnsFalseWithoutThrowing()
+    {
+        var descriptor = ServiceDescriptor.KeyedSingleton<IOperationAuditStore, InMemoryOperationAuditStore>("audit");
+
+        OperationAuditStoreRegistration.IsInMemoryDefault(descriptor).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void RemoveInMemoryDefault_WithAKeyedStoreRegistered_KeepsItAndDoesNotThrow()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<IOperationAuditStore, InMemoryOperationAuditStore>("audit");
+        services.AddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>();
+
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+
+        services.Single(d => d.ServiceType == typeof(IOperationAuditStore)).IsKeyedService.ShouldBeTrue();
     }
 
     [Fact]

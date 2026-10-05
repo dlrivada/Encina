@@ -12,28 +12,28 @@ public class MartenReadAuditStoreGuardTests
 {
     private static readonly IDocumentSession Session = Substitute.For<IDocumentSession>();
     private static readonly ITemporalKeyProvider KeyProvider = Substitute.For<ITemporalKeyProvider>();
-    private static readonly IOptions<MartenOperationAuditOptions> OperationAuditOptions = Microsoft.Extensions.Options.Options.Create(new MartenOperationAuditOptions());
+    private static readonly IOptions<MartenOperationAuditOptions> AuditOptions = Microsoft.Extensions.Options.Options.Create(new MartenOperationAuditOptions());
     private static readonly ILogger<MartenReadAuditStore> Logger = NullLogger<MartenReadAuditStore>.Instance;
 
     private static AuditEventEncryptor CreateEncryptor()
-        => new(KeyProvider, OperationAuditOptions, NullLogger<AuditEventEncryptor>.Instance);
+        => new(KeyProvider, AuditOptions, NullLogger<AuditEventEncryptor>.Instance);
 
     #region Constructor Guards
 
     [Fact]
     public void Constructor_NullSession_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new MartenReadAuditStore(null!, CreateEncryptor(), KeyProvider, OperationAuditOptions, Logger));
+            new MartenReadAuditStore(null!, CreateEncryptor(), KeyProvider, AuditOptions, Logger));
 
     [Fact]
     public void Constructor_NullEncryptor_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new MartenReadAuditStore(Session, null!, KeyProvider, OperationAuditOptions, Logger));
+            new MartenReadAuditStore(Session, null!, KeyProvider, AuditOptions, Logger));
 
     [Fact]
     public void Constructor_NullKeyProvider_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new MartenReadAuditStore(Session, CreateEncryptor(), null!, OperationAuditOptions, Logger));
+            new MartenReadAuditStore(Session, CreateEncryptor(), null!, AuditOptions, Logger));
 
     [Fact]
     public void Constructor_NullOptions_Throws()
@@ -43,7 +43,7 @@ public class MartenReadAuditStoreGuardTests
     [Fact]
     public void Constructor_NullLogger_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new MartenReadAuditStore(Session, CreateEncryptor(), KeyProvider, OperationAuditOptions, null!));
+            new MartenReadAuditStore(Session, CreateEncryptor(), KeyProvider, AuditOptions, null!));
 
     #endregion
 
@@ -52,7 +52,7 @@ public class MartenReadAuditStoreGuardTests
     [Fact]
     public async Task LogReadAsync_NullEntry_Throws()
     {
-        var store = new MartenReadAuditStore(Session, CreateEncryptor(), KeyProvider, OperationAuditOptions, Logger);
+        var store = new MartenReadAuditStore(Session, CreateEncryptor(), KeyProvider, AuditOptions, Logger);
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await store.LogReadAsync(null!));
     }

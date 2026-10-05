@@ -107,7 +107,7 @@ public sealed class ReadAuditOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is 365 days (1 year). Shorter than CUD audit retention because
+    /// Default is 365 days (1 year). Shorter than the operation audit retention because
     /// read audit volumes are typically much higher.
     /// </para>
     /// <para>

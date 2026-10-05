@@ -6,8 +6,8 @@ namespace Encina.Security.Audit;
 /// <remarks>
 /// <para>
 /// <see cref="ReadAuditEntry"/> captures information about who accessed sensitive data, when,
-/// and for what purpose. Unlike <see cref="OperationAuditEntry"/> which tracks CUD (Create, Update, Delete)
-/// operations at the CQRS pipeline level, <see cref="ReadAuditEntry"/> tracks read operations
+/// and for what purpose. Unlike <see cref="OperationAuditEntry"/> which tracks operations
+/// (commands, audited queries, secret access and policy changes) at the CQRS pipeline level, <see cref="ReadAuditEntry"/> tracks read operations
 /// at the data access (repository) level.
 /// </para>
 /// <para>

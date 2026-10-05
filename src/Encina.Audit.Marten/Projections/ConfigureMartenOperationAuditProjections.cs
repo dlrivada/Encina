@@ -44,19 +44,19 @@ internal sealed class ConfigureMartenOperationAuditProjections : IConfigureOptio
     /// <summary>
     /// Initializes a new instance of the <see cref="ConfigureMartenOperationAuditProjections"/> class.
     /// </summary>
-    /// <param name="OperationAuditOptions">Configured Marten audit options.</param>
+    /// <param name="auditOptions">Configured Marten audit options.</param>
     /// <param name="loggerFactory">Logger factory for creating projection loggers.</param>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="OperationAuditOptions"/> or <paramref name="loggerFactory"/> is <c>null</c>.
+    /// Thrown when <paramref name="auditOptions"/> or <paramref name="loggerFactory"/> is <c>null</c>.
     /// </exception>
     public ConfigureMartenOperationAuditProjections(
-        IOptions<MartenOperationAuditOptions> OperationAuditOptions,
+        IOptions<MartenOperationAuditOptions> auditOptions,
         ILoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(OperationAuditOptions);
+        ArgumentNullException.ThrowIfNull(auditOptions);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _auditOptions = OperationAuditOptions;
+        _auditOptions = auditOptions;
         _loggerFactory = loggerFactory;
     }
 

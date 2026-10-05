@@ -114,7 +114,7 @@ public sealed class OperationAuditRetentionService : BackgroundService
     {
         try
         {
-            var cutoffDate = _timeProvider.GetUtcNow().DateTime.AddDays(-_options.RetentionDays);
+            var cutoffDate = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-_options.RetentionDays);
 
             Log.AuditRetentionPurgeStarted(_logger, cutoffDate);
 

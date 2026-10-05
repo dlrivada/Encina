@@ -32,6 +32,9 @@ public static class OperationAuditStoreRegistration
     /// <param name="services">The service collection to clean.</param>
     /// <remarks>
     /// A store registered by the application (including a decorated one) is never removed.
+    /// The database store registered afterwards is not wrapped by a decorator that wrapped the removed
+    /// default: register the decorator (for example <c>AddEncinaOpenTelemetry</c>) after the provider to
+    /// instrument the database store.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
     public static void RemoveInMemoryDefault(IServiceCollection services)
@@ -58,7 +61,8 @@ public static class OperationAuditStoreRegistration
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        if (descriptor.ServiceType != typeof(IOperationAuditStore))
+        // A keyed registration is never the default, and its implementation getters throw.
+        if (descriptor.IsKeyedService || descriptor.ServiceType != typeof(IOperationAuditStore))
         {
             return false;
         }

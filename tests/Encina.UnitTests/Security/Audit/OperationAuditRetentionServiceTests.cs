@@ -1,7 +1,6 @@
 using Encina.Security.Audit;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -260,7 +259,7 @@ public class OperationAuditRetentionServiceTests
             RetentionDays = 30,
             PurgeIntervalHours = 1
         });
-        var service = new OperationAuditRetentionService(
+        using var service = new OperationAuditRetentionService(
             provider.GetRequiredService<IServiceScopeFactory>(), options, _logger, clock);
 
         // Act: advance the clock until the service's delay fires and the purge runs once
@@ -274,9 +273,13 @@ public class OperationAuditRetentionServiceTests
         var cutoff = await purged.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await service.StopAsync(CancellationToken.None);
 
-        // Assert
-        Volatile.Read(ref resolutions).ShouldBeGreaterThanOrEqualTo(1);
-        cutoff.ShouldBeGreaterThan(start.DateTime.AddDays(-30));
+        // Assert: exactly one store resolution (one scope) per purge run, and a UTC cutoff derived from the fake clock
+        var purgeRuns = _mockAuditStore.ReceivedCalls()
+            .Count(c => c.GetMethodInfo().Name == nameof(IOperationAuditStore.PurgeEntriesAsync));
+        purgeRuns.ShouldBeGreaterThanOrEqualTo(1);
+        Volatile.Read(ref resolutions).ShouldBe(purgeRuns);
+        cutoff.Kind.ShouldBe(DateTimeKind.Utc);
+        cutoff.ShouldBeGreaterThan(start.UtcDateTime.AddDays(-30));
     }
 
     #endregion
