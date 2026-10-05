@@ -216,28 +216,13 @@ internal sealed class CryptoShreddingStartupValidationHostedService : IHostedSer
         }
     }
 
-    private static IEnumerable<Type> ContractNeighbours(JsonTypeInfo typeInfo)
-    {
-        foreach (var property in typeInfo.Properties)
-        {
-            yield return property.PropertyType;
-        }
+    private static IEnumerable<Type> ContractNeighbours(JsonTypeInfo typeInfo) =>
+        typeInfo.Properties.Select(property => property.PropertyType)
+            .Concat(new[] { typeInfo.ElementType, typeInfo.KeyType }.OfType<Type>())
+            .Concat(DerivedTypes(typeInfo));
 
-        if (typeInfo.ElementType is { } element)
-        {
-            yield return element;
-        }
-
-        if (typeInfo.KeyType is { } key)
-        {
-            yield return key;
-        }
-
-        foreach (var derived in typeInfo.PolymorphismOptions?.DerivedTypes ?? [])
-        {
-            yield return derived.DerivedType;
-        }
-    }
+    private static IEnumerable<Type> DerivedTypes(JsonTypeInfo typeInfo) =>
+        typeInfo.PolymorphismOptions is { } polymorphism ? polymorphism.DerivedTypes.Select(d => d.DerivedType) : [];
 
     private static bool IsCryptoRelevant(Type type) =>
         CryptoShreddedPropertyClassifier.GetShape(type).IsRelevant || CryptoShreddedPropertyClassifier.ReachesCryptoOwner(type);

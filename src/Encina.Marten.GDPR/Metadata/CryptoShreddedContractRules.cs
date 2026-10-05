@@ -239,17 +239,17 @@ internal static class CryptoShreddedContractRules
     /// </summary>
     internal static bool HasValueEquality(Type type)
     {
-        if (!CryptoShreddedPropertyClassifier.IsOwner(type))
-        {
-            return false;
-        }
-
-        return type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null
-            || OverridesObjectMethod(type, nameof(GetHashCode), Type.EmptyTypes)
-            || OverridesObjectMethod(type, nameof(Equals), [typeof(object)])
-            || typeof(IComparable).IsAssignableFrom(type)
-            || type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
+        return CryptoShreddedPropertyClassifier.IsOwner(type) && (OverridesEquality(type) || IsComparable(type));
     }
+
+    private static bool OverridesEquality(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null
+        || OverridesObjectMethod(type, nameof(GetHashCode), Type.EmptyTypes)
+        || OverridesObjectMethod(type, nameof(Equals), [typeof(object)]);
+
+    private static bool IsComparable(Type type) =>
+        typeof(IComparable).IsAssignableFrom(type)
+        || type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IComparable<>));
 
     private static bool OverridesObjectMethod(Type type, string name, Type[] parameters) =>
         type.GetMethod(name, BindingFlags.Public | BindingFlags.Instance, parameters) is { } method

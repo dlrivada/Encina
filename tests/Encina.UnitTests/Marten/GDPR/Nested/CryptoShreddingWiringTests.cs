@@ -45,6 +45,43 @@ public sealed class CryptoShreddingWiringTests
         scope.ServiceProvider.GetRequiredService<IPersonalDataLocator>().ShouldBeOfType<MartenEventPersonalDataLocator>();
     }
 
+    [Fact]
+    public void AddHealthCheck_RegistersTheCryptoShreddingCheck()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddEncinaMartenGdpr(o => o.AddHealthCheck = true);
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HealthCheckServiceOptions>>().Value.Registrations
+            .ShouldContain(r => r.Name == CryptoShreddingHealthCheck.DefaultName);
+    }
+
+    [Fact]
+    public void Activities_AreRecordedPerCallWithTheOutcome()
+    {
+        var stopped = new List<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Encina.Marten.GDPR",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = stopped.Add,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        using var harness = new CryptoHarness();
+
+        var json = harness.Serializer.ToJson(new NestedEvent { Contact = new ContactInfo { SubjectId = Subject, Email = "a" } });
+        harness.FromJson<NestedEvent>(json);
+        Should.Throw<CryptoShreddingEncryptionException>(() => harness.Serializer.ToJson(new NestedEvent { Contact = new ContactInfo { Email = "a" } }));
+
+        stopped.ShouldContain(a => a.OperationName == "CryptoShredding.Encrypt" && a.Status == System.Diagnostics.ActivityStatusCode.Ok);
+        stopped.ShouldContain(a => a.OperationName == "CryptoShredding.Decrypt" && a.Status == System.Diagnostics.ActivityStatusCode.Ok);
+        stopped.ShouldContain(a => a.Status == System.Diagnostics.ActivityStatusCode.Error
+            && (string?)a.GetTagItem("crypto.failure_reason") == nameof(CryptoShreddingEncryptionFailureReason.SubjectIdMissing));
+        stopped.ShouldAllBe(a => a.Tags.All(t => t.Value == null || !t.Value.Contains(Subject)));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

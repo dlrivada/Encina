@@ -74,14 +74,15 @@ internal static class CryptoShreddedPropertyClassifier
     /// <summary>
     /// Gets whether a type never holds crypto-shredded data (primitives, enums, strings, non-generic BCL types).
     /// </summary>
-    internal static bool IsTerminal(Type type) =>
-        type.IsPrimitive
-        || type.IsEnum
-        || type.IsPointer
-        || type.IsGenericParameter
-        || type == typeof(string)
-        || type == typeof(object)
-        || (!type.IsGenericType && !type.IsArray && IsSystemNamespace(type));
+    internal static bool IsTerminal(Type type) => IsShapeless(type) || IsNonGenericSystemType(type);
+
+    private static readonly System.Collections.Generic.HashSet<Type> ShapelessTypes = [typeof(string), typeof(object)];
+
+    private static bool IsShapeless(Type type) =>
+        type.IsPrimitive || type.IsEnum || type.IsPointer || type.IsGenericParameter || ShapelessTypes.Contains(type);
+
+    private static bool IsNonGenericSystemType(Type type) =>
+        !type.IsGenericType && !type.IsArray && IsSystemNamespace(type);
 
     private static bool IsSystemNamespace(Type type) =>
         type.Namespace is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal));

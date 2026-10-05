@@ -300,10 +300,13 @@ public sealed class CryptoShredderSerializer : ISerializer
     }
 
     private static bool IsOpenSlot(Type type) =>
-        type == typeof(object)
-        || (type.IsInterface && !type.IsGenericType)
-        || (type.IsAbstract && !type.IsSealed && !type.IsInterface)
-        || type.IsDefined(typeof(System.Text.Json.Serialization.JsonDerivedTypeAttribute), inherit: false);
+        type == typeof(object) || IsOpenInterfaceOrBase(type) || IsPolymorphic(type);
+
+    private static bool IsOpenInterfaceOrBase(Type type) =>
+        type.IsInterface ? !type.IsGenericType : type.IsAbstract && !type.IsSealed;
+
+    private static bool IsPolymorphic(Type type) =>
+        type.IsDefined(typeof(System.Text.Json.Serialization.JsonDerivedTypeAttribute), inherit: false);
 
     private T Read<T>(Type rootType, Func<T> read)
     {

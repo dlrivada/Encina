@@ -80,15 +80,7 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new CryptoShreddingOptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.UsePostgreSqlKeyStore)
-        {
-            services.TryAddScoped<ISubjectKeyProvider, PostgreSqlSubjectKeyProvider>();
-        }
-        else
-        {
-            services.TryAddSingleton<ISubjectKeyProvider, InMemorySubjectKeyProvider>();
-        }
-
+        RegisterKeyProvider(services, optionsInstance.UsePostgreSqlKeyStore);
         services.TryAddSingleton<IForgottenSubjectHandler, DefaultForgottenSubjectHandler>();
         RegisterErasureRouter(services);
 
@@ -107,13 +99,29 @@ public static class ServiceCollectionExtensions
                     tags: CryptoShreddingHealthCheck.Tags);
         }
 
-        var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-            ? optionsInstance.AssembliesToScan
+        RegisterStartupValidation(services, optionsInstance.AssembliesToScan);
+        return services;
+    }
+
+    private static void RegisterKeyProvider(IServiceCollection services, bool usePostgreSqlKeyStore)
+    {
+        if (usePostgreSqlKeyStore)
+        {
+            services.TryAddScoped<ISubjectKeyProvider, PostgreSqlSubjectKeyProvider>();
+        }
+        else
+        {
+            services.TryAddSingleton<ISubjectKeyProvider, InMemorySubjectKeyProvider>();
+        }
+    }
+
+    private static void RegisterStartupValidation(IServiceCollection services, List<Assembly> configured)
+    {
+        IReadOnlyList<Assembly> assembliesToScan = configured.Count > 0
+            ? configured
             : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
         services.TryAddSingleton(new CryptoShreddingValidationDescriptor(assembliesToScan));
         services.AddHostedService<CryptoShreddingStartupValidationHostedService>();
-
-        return services;
     }
 
     /// <summary>

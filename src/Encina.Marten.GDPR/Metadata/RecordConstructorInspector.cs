@@ -94,26 +94,50 @@ internal static class RecordConstructorInspector
         ConstructorInfo constructor, byte[] il, int offset, ref int lastArgument, Dictionary<int, FieldInfo> stores)
     {
         var opcode = il[offset];
-        switch (opcode)
+        var length = InstructionLength(opcode);
+        if (length == 0 || offset + length > il.Length)
         {
-            case Nop:
-            case Ret:
-                lastArgument = -1;
-                return 1;
-            case >= LdArg0 and <= LdArg3:
-                lastArgument = opcode - LdArg0;
-                return 1;
-            case LdArgS when offset + 1 < il.Length:
-                lastArgument = il[offset + 1];
-                return 2;
-            case StFld when offset + 4 < il.Length:
-                return StoreField(constructor, BitConverter.ToInt32(il, offset + 1), ref lastArgument, stores);
-            case Call when offset + 4 < il.Length:
-                lastArgument = -1;
-                return IsBaseConstructor(constructor, BitConverter.ToInt32(il, offset + 1)) ? 5 : 0;
-            default:
-                return 0;
+            return 0;
         }
+
+        return length == 1
+            ? SingleByteInstruction(opcode, ref lastArgument)
+            : OperandInstruction(constructor, il, offset, ref lastArgument, stores);
+    }
+
+    // crap-exempt: single-question switch — opcode to instruction length (0 = not allowed)
+    private static int InstructionLength(byte opcode) => opcode switch
+    {
+        Nop or Ret or (>= LdArg0 and <= LdArg3) => 1,
+        LdArgS => 2,
+        StFld or Call => 5,
+        _ => 0,
+    };
+
+    private static int SingleByteInstruction(byte opcode, ref int lastArgument)
+    {
+        lastArgument = opcode is >= LdArg0 and <= LdArg3 ? opcode - LdArg0 : -1;
+        return 1;
+    }
+
+    private static int OperandInstruction(
+        ConstructorInfo constructor, byte[] il, int offset, ref int lastArgument, Dictionary<int, FieldInfo> stores)
+    {
+        var opcode = il[offset];
+        if (opcode == LdArgS)
+        {
+            lastArgument = il[offset + 1];
+            return 2;
+        }
+
+        var token = BitConverter.ToInt32(il, offset + 1);
+        if (opcode == StFld)
+        {
+            return StoreField(constructor, token, ref lastArgument, stores);
+        }
+
+        lastArgument = -1;
+        return IsBaseConstructor(constructor, token) ? 5 : 0;
     }
 
     private static int StoreField(

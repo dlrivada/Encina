@@ -68,8 +68,8 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
         string? errorCode = null)
         : base(BuildMessage(documentType, declaringType, propertyName, reason, errorCode))
     {
-        DocumentTypeName = documentType is null ? "unknown" : documentType.FullName ?? documentType.Name;
-        DeclaringTypeName = declaringType.FullName ?? declaringType.Name;
+        DocumentTypeName = CryptoShreddingDecryptionException.NameOf(documentType);
+        DeclaringTypeName = CryptoShreddingDecryptionException.NameOf(declaringType);
         PropertyName = propertyName;
         Reason = reason;
         ErrorCode = errorCode;
@@ -105,8 +105,8 @@ public sealed class CryptoShreddingEncryptionException : InvalidOperationExcepti
             _ => $"the subject's encryption key could not be obtained (error code '{errorCode ?? "unknown"}')",
         };
 
-        return $"Cannot encrypt [CryptoShredded] property '{declaringType.FullName ?? declaringType.Name}.{propertyName}' "
-            + $"while serializing '{documentType?.FullName ?? documentType?.Name ?? "unknown"}': {cause}. "
+        return $"Cannot encrypt [CryptoShredded] property '{CryptoShreddingDecryptionException.NameOf(declaringType)}.{propertyName}' "
+            + $"while serializing '{CryptoShreddingDecryptionException.NameOf(documentType)}': {cause}. "
             + "Nothing was serialized, so the personal data was not stored.";
     }
 }

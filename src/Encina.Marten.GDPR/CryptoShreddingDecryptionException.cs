@@ -58,8 +58,8 @@ public sealed class CryptoShreddingDecryptionException : InvalidOperationExcepti
         string? errorCode = null)
         : base(BuildMessage(documentType, declaringType, propertyName, reason, errorCode))
     {
-        DocumentTypeName = documentType is null ? "unknown" : documentType.FullName ?? documentType.Name;
-        DeclaringTypeName = declaringType.FullName ?? declaringType.Name;
+        DocumentTypeName = NameOf(documentType);
+        DeclaringTypeName = NameOf(declaringType);
         PropertyName = propertyName;
         Reason = reason;
         ErrorCode = errorCode;
@@ -86,8 +86,11 @@ public sealed class CryptoShreddingDecryptionException : InvalidOperationExcepti
         ArgumentNullException.ThrowIfNull(declaringType);
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
 
-        return $"Cannot read [CryptoShredded] property '{declaringType.FullName ?? declaringType.Name}.{propertyName}' "
-            + $"while deserializing '{documentType?.FullName ?? documentType?.Name ?? "unknown"}': {reason} "
+        return $"Cannot read [CryptoShredded] property '{NameOf(declaringType)}.{propertyName}' "
+            + $"while deserializing '{NameOf(documentType)}': {reason} "
             + $"(error code '{errorCode ?? "none"}').";
     }
+
+    /// <summary>The full name of a type, or <c>"unknown"</c> for <c>null</c>.</summary>
+    internal static string NameOf(Type? type) => type is null ? "unknown" : type.FullName ?? type.Name;
 }

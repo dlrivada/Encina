@@ -39,17 +39,18 @@ internal static class CryptoShreddedGraphWalker
         while (stack.Count > 0)
         {
             var (value, path, depth) = stack.Pop();
-            if (depth > maxDepth || CryptoShreddedPropertyClassifier.IsTerminal(value.GetType()) || !visited.Add(value))
-            {
-                continue;
-            }
-
-            foreach (var occurrence in Visit(value, path, depth, options, registry, stack))
+            var occurrences = ShouldVisit(value, depth, maxDepth, visited)
+                ? Visit(value, path, depth, options, registry, stack)
+                : [];
+            foreach (var occurrence in occurrences)
             {
                 yield return occurrence;
             }
         }
     }
+
+    private static bool ShouldVisit(object value, int depth, int maxDepth, HashSet<object> visited) =>
+        depth <= maxDepth && !CryptoShreddedPropertyClassifier.IsTerminal(value.GetType()) && visited.Add(value);
 
     private static List<CryptoShreddedOccurrence> Visit(
         object value, string path, int depth, JsonSerializerOptions options, CryptoShreddingTypePlanRegistry registry,
@@ -75,25 +76,28 @@ internal static class CryptoShreddedGraphWalker
         object value, string path, int depth, JsonTypeInfo typeInfo, CryptoShreddingTypePlan? plan,
         Stack<(object Value, string Path, int Depth)> stack)
     {
-        var occurrences = new List<CryptoShreddedOccurrence>();
-        var cryptoNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var field in plan?.Fields ?? [])
-        {
-            cryptoNames.Add(field.Name);
-            occurrences.Add(new CryptoShreddedOccurrence(value, field, Join(path, field.Name)));
-        }
-
+        CryptoShreddedField[] fields = plan is null ? [] : [.. plan.Fields];
+        var cryptoNames = fields.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
         foreach (var property in typeInfo.Properties)
         {
-            if (property.Get is not null && !IsCryptoProperty(property, cryptoNames) && property.Get(value) is { } child)
-            {
-                var name = property.AttributeProvider is MemberInfo member ? member.Name : property.Name;
-                stack.Push((child, Join(path, name), depth + 1));
-            }
+            PushMember(value, path, depth, property, cryptoNames, stack);
         }
 
-        return occurrences;
+        return [.. fields.Select(field => new CryptoShreddedOccurrence(value, field, Join(path, field.Name)))];
     }
+
+    private static void PushMember(
+        object value, string path, int depth, JsonPropertyInfo property, HashSet<string> cryptoNames,
+        Stack<(object Value, string Path, int Depth)> stack)
+    {
+        if (property.Get is { } getter && !IsCryptoProperty(property, cryptoNames) && getter(value) is { } child)
+        {
+            stack.Push((child, Join(path, MemberName(property)), depth + 1));
+        }
+    }
+
+    private static string MemberName(JsonPropertyInfo property) =>
+        property.AttributeProvider is MemberInfo member ? member.Name : property.Name;
 
     private static bool IsCryptoProperty(JsonPropertyInfo property, HashSet<string> cryptoNames) =>
         property.AttributeProvider is PropertyInfo info && cryptoNames.Contains(info.Name);

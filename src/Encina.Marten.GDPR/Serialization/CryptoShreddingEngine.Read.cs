@@ -204,21 +204,17 @@ internal sealed partial class CryptoShreddingEngine
         }
     }
 
-    private string FieldPathOf(CryptoShreddingFrame frame, object owner, CryptoShreddedField field)
-    {
-        if (frame.Root is { } root && PathOptions is { } options)
-        {
-            foreach (var occurrence in CryptoShreddedGraphWalker.Walk(root, options, Registry))
-            {
-                if (ReferenceEquals(occurrence.Owner, owner) && occurrence.Field.Name == field.Name)
-                {
-                    return occurrence.Path;
-                }
-            }
-        }
+    // The path of the field in the locator's FieldName format; the bare name when the root cannot be walked.
+    private string FieldPathOf(CryptoShreddingFrame frame, object owner, CryptoShreddedField field) =>
+        frame.Root is { } root && PathOptions is { } options
+            ? FindPath(root, options, owner, field) ?? field.Name
+            : field.Name;
 
-        return field.Name;
-    }
+    private string? FindPath(object root, System.Text.Json.JsonSerializerOptions options, object owner, CryptoShreddedField field) =>
+        CryptoShreddedGraphWalker.Walk(root, options, Registry)
+            .Where(occurrence => ReferenceEquals(occurrence.Owner, owner) && occurrence.Field.Name == field.Name)
+            .Select(occurrence => occurrence.Path)
+            .FirstOrDefault();
 
     private async ValueTask NotifyForgotten(CryptoShreddingFrame frame, string subjectId, string fieldPath, CancellationToken cancellationToken)
     {
