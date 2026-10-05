@@ -1,7 +1,7 @@
 {
   "package": "Encina",
-  "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 296,
+  "generated": "2026-10-05T15:25:36Z",
+  "totalFiles": 309,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -197,6 +197,11 @@
       "defaultRule": "*.cs",
       "reason": "Extension that tells a nested-dispatch context from an entry-point one"
     },
+    "Core/RequestOrigin.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Internal enum without executable code"
+    },
     "Core/ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit",
@@ -294,6 +299,14 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Diagnostics/RequestIdentityLog.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks"
+    },
     "Dispatchers/Encina.NotificationDispatcher.cs": {
       "defaultTests": [
         "unit",
@@ -369,6 +382,86 @@
       "defaultTests": [],
       "defaultRule": "GlobalSuppressions.cs",
       "reason": "Only [SuppressMessage] attributes"
+    },
+    "Identity/ClaimsRequestIdentityFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "*Factory.cs default; security-critical claim mapping (property test informational)"
+    },
+    "Identity/IRequestIdentityFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/IdentityKind.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Identity/PersistedRequestIdentity.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Positional record without guards; produced by RequestIdentity.ToPersisted"
+    },
+    "Identity/RequestContextIdentityExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "UserId projection over IRequestContext.Identity"
+    },
+    "Identity/RequestIdentity.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Entity.cs",
+      "reason": "Identity value type: invariant and user-id rule (unit), argument guards (guard)"
+    },
+    "Identity/RequestIdentityErrorCodes.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*ErrorCodes.cs",
+      "reason": "Error code constants"
+    },
+    "Identity/RequestIdentityErrors.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Errors.cs",
+      "reason": "Static error factory methods"
+    },
+    "Identity/RequestIdentityOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "*Options.cs default"
+    },
+    "Identity/RequestIdentityOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "*Validator.cs default; generated claim-type lists in property tests"
+    },
+    "Identity/RequestIdentityServiceCollectionExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "*Extensions.cs default; DI tests with ValidateOnBuild and ValidateScopes"
     },
     "Modules/Diagnostics/ModuleActivitySource.cs": {
       "defaultTests": [
