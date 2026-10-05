@@ -65,7 +65,13 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    rules: §3 code rules (`TimeProvider`, `[JsonIgnore]` + `ToString()` override on secrets, async DB calls,
    registration completeness, errors never swallowed in background infrastructure, fail-closed gates,
    `EncinaError.Message` never logged, Railway Oriented Programming), §5 provider coherence, §6 cross-cutting
-   check, §7 EventIds, §9 testing obligations, as applicable to the files actually touched.
+   check, §7 EventIds, §9 testing obligations, as applicable to the files actually touched. The §9
+   per-file obligations (#1762) apply to every new file, and every file the PR touches, under `src/`: it has
+   per-flag `targets` with one-sentence `justifications` in its package manifest (a 0 only with a reason),
+   the targets are plausible (demanding, not a copy of the current number), and the PR reports measured
+   per-flag coverage that meets them (run `dotnet run --file .github/scripts/coverage-report.cs --
+   --check-justifications` and read the "Per-file targets" table the PR reports, or regenerate it from the per-flag runs); a missing, unjustified or
+   unmet target is a finding in section (b).
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
 4. Write the security section: secrets or personal data reaching logs, activity tags, health-check results
@@ -88,7 +94,8 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
 6. Write `artifacts/pr-review/<pr>.md` with exactly these five sections:
    - **(a) Summary and walkthrough** — a short description of what the diff does.
    - **(b) Findings** — one entry per finding: `file:line`, severity (`blocker`/`major`/`minor`/`nit`), a
-     suggested fix, and a verification note (how you checked it, or what would confirm it).
+     suggested fix, and a verification note (how you checked it, or what would confirm it). Per-file
+     obligation gaps (step 2) are findings here.
    - **(c) Linked-issue check** — each acceptance criterion of the linked issue, marked `met` / `not met` /
      `not verifiable`.
    - **(d) Security** — the section from step 4, even when empty ("nothing found" is a valid, stated result).

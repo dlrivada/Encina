@@ -6,6 +6,13 @@
 // Usage: dotnet run .github/scripts/coverage-report.cs -- [--output <dir>] [--input <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-stale-manifest [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest [--manifest <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// Per-file obligations (#1762): a manifest file entry may carry "targets" ({ "<flag>": 0-100 }) and
+// "justifications" ({ "<flag>": "<one sentence>" }); --check-justifications exits 1 when a per-file
+// target has no justification or a justification has no target. The default report lists, per file
+// with targets, the measured coverage against them (report only, no exit code).
 //
 // Requires: .NET 10+ (C# 14 file-based app)
 
@@ -24,15 +31,22 @@ var manifestDir = ".github/coverage-manifest";
 var manifestDirExplicit = false;
 var checkStaleManifest = false;
 var checkMissingManifest = false;
+var checkJustifications = false;
+var selfTest = false;
 
 for (int i = 0; i < args.Length; i++)
 {
+    if (args[i] == "--check-justifications") checkJustifications = true;
+    if (args[i] == "--self-test") selfTest = true;
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) { manifestDir = args[++i]; manifestDirExplicit = true; }
     if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
     if (args[i] == "--check-missing-manifest") checkMissingManifest = true;
 }
+
+if (selfTest)
+    Environment.Exit(RunSelfTest());
 
 // Categories removed — all configuration comes from per-package manifests
 
@@ -47,6 +61,9 @@ var manifestTargets = new Dictionary<string, Dictionary<string, double>>(StringC
 // afford that — a JSON error would silently drop that file's keys from the check and let a
 // genuinely stale entry pass undetected.
 var manifestParseFailures = new List<string>();
+// Per-file obligations (#1762): fileObligations[package][manifestKey] = (targets, justifications),
+// only for entries that carry at least one of the two.
+var fileObligations = new Dictionary<string, Dictionary<string, ManifestFileEntry>>(StringComparer.OrdinalIgnoreCase);
 
 // Try to find manifest directory. An explicitly passed --manifest that does not exist is a
 // caller error, not a hint to go looking elsewhere: silently falling back to the ancestor
@@ -110,6 +127,13 @@ if (Directory.Exists(manifestDir))
                     };
                 }
                 pkgFiles[filePath] = testType;
+
+                if (entry.Targets is { Count: > 0 } || entry.Justifications is { Count: > 0 })
+                {
+                    if (!fileObligations.TryGetValue(mJson.Package, out var pkgObligations))
+                        fileObligations[mJson.Package] = pkgObligations = new Dictionary<string, ManifestFileEntry>(StringComparer.OrdinalIgnoreCase);
+                    pkgObligations[filePath] = entry;
+                }
             }
             manifest[mJson.Package] = pkgFiles;
 
@@ -140,7 +164,7 @@ else
 // parent) instead of the current directory — the same directory independent of the process's
 // cwd. Neither needs coverage data or a build. The two flags can be passed together (CI does):
 // both run, and the process exits 1 if either found a problem, not just whichever ran last.
-if (checkStaleManifest || checkMissingManifest)
+if (checkStaleManifest || checkMissingManifest || checkJustifications)
 {
     // A gate that fails CI when a manifest entry is stale or missing must not pass vacuously
     // when it never actually read a manifest (an empty --manifest directory, or the default
@@ -165,11 +189,259 @@ if (checkStaleManifest || checkMissingManifest)
         failed |= RunCheckStaleManifest(manifest, manifestParseFailures, repoRoot);
     if (checkMissingManifest)
         failed |= RunCheckMissingManifest(manifest, manifestParseFailures, repoRoot, manifestDirFull);
+    if (checkJustifications)
+        failed |= RunCheckJustifications(fileObligations, manifestParseFailures);
 
     if (failed)
         Environment.Exit(1);
 
     return;
+}
+
+// Per-file obligations (#1762): every per-file target needs a one-sentence justification, every
+// justification needs its target, flag names are the five known ones and targets are whole numbers
+// 0-100. Returns true (failed) when there is anything to report.
+bool RunCheckJustifications(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations,
+    List<string> manifestParseFailures)
+{
+    var (problems, checkedTargets) = FindJustificationProblems(fileObligations);
+
+    if (manifestParseFailures.Count > 0)
+    {
+        Console.WriteLine($"\nMANIFEST PARSE FAILURES ({manifestParseFailures.Count}): these files could not be parsed, so their per-file targets cannot be vouched for");
+        foreach (var failedFile in manifestParseFailures)
+            Console.WriteLine($"  - {failedFile}");
+    }
+
+    if (problems.Count > 0)
+    {
+        Console.WriteLine($"\nPER-FILE TARGET PROBLEMS ({problems.Count}): every per-file target needs a one-sentence justification and every justification a target");
+        foreach (var problem in problems)
+            Console.WriteLine($"  - {problem}");
+    }
+
+    if (manifestParseFailures.Count > 0 || problems.Count > 0)
+        return true;
+
+    Console.WriteLine($"\nAll {checkedTargets} per-file targets are justified.");
+    return false;
+}
+
+static string[] ValidFlagNames() => ["unit", "guard", "contract", "property", "integration"];
+
+static TestType ParseFlag(string name) => name.ToLowerInvariant() switch
+{
+    "unit" => TestType.Unit,
+    "guard" => TestType.Guard,
+    "contract" => TestType.Contract,
+    "property" => TestType.Property,
+    "integration" => TestType.Integration,
+    _ => TestType.None
+};
+
+// Lower-cases the flag keys of a per-file map so "unit" and "Unit" are one flag everywhere (the check
+// and the report share this map). Keys that collide after case-folding are listed in duplicates; the
+// first one is kept, and --check-justifications rejects the manifest anyway.
+static Dictionary<string, T> NormaliseFlagKeys<T>(Dictionary<string, T>? source, List<string> duplicates)
+{
+    var result = new Dictionary<string, T>(StringComparer.Ordinal);
+    foreach (var (k, v) in source ?? [])
+    {
+        var folded = k.ToLowerInvariant();
+        if (!result.TryAdd(folded, v)) duplicates.Add(folded);
+    }
+    return result;
+}
+
+// Every per-file target needs a justification and the reverse; flags are the five known ones (compared
+// case-insensitively, a case-duplicate key is a problem); a target is a whole number 0-100.
+static (List<string> Problems, int CheckedTargets) FindJustificationProblems(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations)
+{
+    var validFlags = ValidFlagNames();
+    var problems = new List<string>();
+    var checkedTargets = 0;
+
+    foreach (var (package, files) in fileObligations.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        foreach (var (key, entry) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            var where = $"{package}: {key.Replace('\\', '/')}";
+            var duplicateTargets = new List<string>();
+            var duplicateJustifications = new List<string>();
+            var targets = NormaliseFlagKeys(entry.Targets, duplicateTargets);
+            var justifications = NormaliseFlagKeys(entry.Justifications, duplicateJustifications);
+
+            foreach (var flag in duplicateTargets.Distinct().Order(StringComparer.Ordinal))
+                problems.Add($"{where}: targets name flag '{flag}' more than once (keys that differ only by case)");
+            foreach (var flag in duplicateJustifications.Distinct().Order(StringComparer.Ordinal))
+                problems.Add($"{where}: justifications name flag '{flag}' more than once (keys that differ only by case)");
+
+            foreach (var (flag, value) in targets.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            {
+                checkedTargets++;
+                if (!validFlags.Contains(flag))
+                    problems.Add($"{where}: target for unknown flag '{flag}' (valid: {string.Join(", ", validFlags)})");
+                if (value < 0 || value > 100 || value != Math.Floor(value))
+                    problems.Add($"{where}: target '{flag}' = {value.ToString(CultureInfo.InvariantCulture)} is not a whole number from 0 to 100");
+                if (!justifications.TryGetValue(flag, out var text) || string.IsNullOrWhiteSpace(text))
+                    problems.Add($"{where}: target '{flag}' has no justification");
+            }
+
+            foreach (var flag in justifications.Keys.OrderBy(k => k, StringComparer.Ordinal))
+            {
+                if (!targets.ContainsKey(flag))
+                    problems.Add($"{where}: justification for '{flag}' has no target");
+            }
+        }
+    }
+
+    return (problems, checkedTargets);
+}
+
+// Maps a Cobertura class filename to "src/<Package>/<path>", or null for a file outside src/. Handles
+// the three shapes the collectors emit: relative to the repo ("src/Pkg/A.cs"), relative to a <source>
+// that ends in /src/ ("Pkg/A.cs") and absolute ("C:/x/src/Pkg/A.cs").
+static string? ToSrcRelativePath(string filename, string source)
+{
+    filename = filename.Replace('\\', '/');
+    var src = source.Replace('\\', '/');
+    var sourceEndsSrc = src.EndsWith("/src/", StringComparison.Ordinal) || src.EndsWith("/src", StringComparison.Ordinal);
+
+    if (sourceEndsSrc && !filename.Contains("/src/") && !filename.StartsWith("src/"))
+        filename = "src/" + filename;
+
+    if (!filename.Contains("/src/") && !filename.StartsWith("src/")) return null;
+
+    var srcIdx = filename.IndexOf("/src/", StringComparison.Ordinal);
+    if (srcIdx < 0) srcIdx = filename.IndexOf("src/", StringComparison.Ordinal) - 1;
+    return filename[(srcIdx + 1)..];
+}
+
+// Unrounded line coverage (0-100) of one file under one flag; null when that flag has no data for it.
+static double? MeasureFileFlag(
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag, TestType flag, string sourcePath)
+{
+    if (flag != TestType.None && coverageByFlag.TryGetValue(flag, out var flagData) &&
+        flagData.TryGetValue(sourcePath, out var lines) && lines.Count > 0)
+        return lines.Values.Count(h => h > 0) * 100.0 / lines.Count;
+    return null;
+}
+
+// One row per (file, flag) with a per-file target. Measured comes straight from the Cobertura data of
+// that flag, whatever the file's defaultTests say: a target is an obligation of its own.
+static List<FileTargetRow> BuildFileTargetRows(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations,
+    Dictionary<TestType, Dictionary<string, Dictionary<int, int>>> coverageByFlag)
+{
+    var rows = new List<FileTargetRow>();
+    foreach (var (package, files) in fileObligations.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        foreach (var (key, entry) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            var relPath = key.Replace('\\', '/');
+            var sourcePath = $"src/{package}/{relPath}";
+            var targets = NormaliseFlagKeys(entry.Targets, []);
+            foreach (var (flagName, target) in targets.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                rows.Add(new FileTargetRow(package, relPath, flagName, target,
+                    MeasureFileFlag(coverageByFlag, ParseFlag(flagName), sourcePath)));
+        }
+    }
+    return rows;
+}
+
+// A target of 0 is always met; no data counts as below any target above 0. The measured value is
+// compared unrounded, so 89.96% does not pass a target of 90.
+static bool IsBelowTarget(FileTargetRow row)
+    => row.Target > 0 && (row.Measured is null || row.Measured < row.Target);
+
+// Display only: two decimals so a value just under the target never prints as the target.
+static string FormatMeasured(double? measured)
+    => measured is { } m ? m.ToString("F2") + "%" : "no data";
+
+// Self-test (#1762): exercises the per-file obligation logic without touching the repository.
+int RunSelfTest()
+{
+    var passed = 0;
+    var failures = new List<string>();
+    void Check(bool condition, string name)
+    {
+        if (condition) passed++;
+        else failures.Add(name);
+    }
+
+    static Dictionary<string, Dictionary<string, ManifestFileEntry>> One(ManifestFileEntry entry)
+        => new() { ["Pkg"] = new() { ["A.cs"] = entry } };
+    static bool Reports(ManifestFileEntry entry, string fragment)
+        => FindJustificationProblems(One(entry)).Problems.Any(p => p.Contains(fragment, StringComparison.Ordinal));
+
+    // --- the justification check ---
+    var good = new ManifestFileEntry
+    {
+        Targets = new() { ["unit"] = 90, ["guard"] = 0 },
+        Justifications = new() { ["unit"] = "Pure logic.", ["guard"] = "No guard tests yet (#1825)." }
+    };
+    var goodResult = FindJustificationProblems(One(good));
+    Check(goodResult.Problems.Count == 0 && goodResult.CheckedTargets == 2, "a justified manifest has no problems");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 90 } }, "'unit' has no justification"), "a target without justifications is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 90 }, Justifications = new() { ["guard"] = "x" } }, "'unit' has no justification"), "a target missing its own justification is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 90 }, Justifications = new() { ["unit"] = "  " } }, "'unit' has no justification"), "a blank justification is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 90 }, Justifications = new() { ["unit"] = "x", ["guard"] = "y" } }, "justification for 'guard' has no target"), "an orphan justification is reported");
+    Check(Reports(new ManifestFileEntry { Justifications = new() { ["guard"] = "y" } }, "justification for 'guard' has no target"), "a justification with no targets at all is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 150 }, Justifications = new() { ["unit"] = "x" } }, "not a whole number from 0 to 100"), "a target above 100 is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = -1 }, Justifications = new() { ["unit"] = "x" } }, "not a whole number from 0 to 100"), "a negative target is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["unit"] = 55.5 }, Justifications = new() { ["unit"] = "x" } }, "not a whole number from 0 to 100"), "a non-integer target is reported");
+    Check(Reports(new ManifestFileEntry { Targets = new() { ["mutation"] = 50 }, Justifications = new() { ["mutation"] = "x" } }, "unknown flag 'mutation'"), "an unknown flag is reported");
+    Check(FindJustificationProblems(One(new ManifestFileEntry { Targets = new() { ["Unit"] = 90 }, Justifications = new() { ["UNIT"] = "x" } })).Problems.Count == 0,"flag names match case-insensitively");
+
+    var caseDuplicates = new ManifestFileEntry
+    {
+        Targets = new() { ["unit"] = 90, ["Unit"] = 80 },
+        Justifications = new() { ["unit"] = "x", ["Unit"] = "y" }
+    };
+    Check(Reports(caseDuplicates, "targets name flag 'unit' more than once"), "case-duplicate target keys are reported");
+    Check(Reports(caseDuplicates, "justifications name flag 'unit' more than once"), "case-duplicate justification keys are reported");
+    var duplicateRows = BuildFileTargetRows(One(caseDuplicates), new());
+    Check(duplicateRows.Count == 1, "case-duplicate keys give one report row, not two");
+
+    // --- measured against target ---
+    var lines = new Dictionary<int, int>();
+    for (var n = 1; n <= 10_000; n++) lines[n] = n <= 8_996 ? 1 : 0; // 89.96% covered
+    var data = new Dictionary<TestType, Dictionary<string, Dictionary<int, int>>>
+    {
+        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { ["src/Pkg/A.cs"] = lines }
+    };
+    var measured = MeasureFileFlag(data, TestType.Unit, "src/Pkg/A.cs");
+    Check(measured is { } m89 && Math.Abs(m89 - 89.96) < 1e-9, "the measured value is not rounded");
+    Check(IsBelowTarget(new FileTargetRow("Pkg", "A.cs", "unit", 90, measured)), "89.96% does not meet a target of 90");
+    Check(!IsBelowTarget(new FileTargetRow("Pkg", "A.cs", "unit", 89, measured)), "89.96% meets a target of 89");
+    Check(FormatMeasured(measured) == "89.96%" || FormatMeasured(measured) == "89,96%", "the display keeps two decimals");
+    Check(IsBelowTarget(new FileTargetRow("Pkg", "A.cs", "guard", 1, null)), "no data is below a target above 0");
+    Check(!IsBelowTarget(new FileTargetRow("Pkg", "A.cs", "guard", 0, null)), "a target of 0 is always met");
+    Check(MeasureFileFlag(data, TestType.Guard, "src/Pkg/A.cs") is null, "a flag with no data measures null");
+    Check(MeasureFileFlag(data, TestType.Unit, "src/Pkg/Other.cs") is null, "a file absent from the flag measures null");
+
+    // --- the three Cobertura filename shapes land on the same key ---
+    Check(ToSrcRelativePath("src\\Pkg\\A.cs", "C:\\repo\\") == "src/Pkg/A.cs", "shape 1: src-relative filename");
+    Check(ToSrcRelativePath("Pkg\\A.cs", "C:\\repo\\src\\") == "src/Pkg/A.cs", "shape 2: filename relative to a <source> ending in src");
+    Check(ToSrcRelativePath("C:\\repo\\src\\Pkg\\A.cs", "C:\\repo\\") == "src/Pkg/A.cs", "shape 3: absolute filename");
+    Check(ToSrcRelativePath("/home/r/src/Pkg/A.cs", "/home/r") == "src/Pkg/A.cs", "shape 3: absolute POSIX filename");
+    Check(ToSrcRelativePath("tests\\X\\T.cs", "C:\\repo\\") is null, "a file outside src/ is skipped");
+    var rowFromShape = BuildFileTargetRows(One(good), new()
+    {
+        [TestType.Unit] = new(StringComparer.OrdinalIgnoreCase) { [ToSrcRelativePath("Pkg\\A.cs", "C:\\repo\\src\\")!] = lines }
+    });
+    Check(rowFromShape.Any(r => r.Flag == "unit" && r.Measured is not null), "a per-file target finds data reported in the shape 2 filename");
+
+    foreach (var failure in failures) Console.WriteLine($"  FAIL: {failure}");
+    if (failures.Count > 0)
+    {
+        Console.WriteLine($"Self-test FAILED ({failures.Count} of {passed + failures.Count} checks)");
+        return 1;
+    }
+    Console.WriteLine($"Self-test passed ({passed} checks)");
+    return 0;
 }
 
 // Checks every manifest key against src/<Package>/<relPath>; a key naming a file that no
@@ -418,32 +690,17 @@ foreach (var xmlFile in xmlFiles)
         var doc = XDocument.Load(xmlFile);
         var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
 
-        // Check if <source> ends with /src/ — filenames may be relative to it
-        var sourceEl = doc.Descendants(ns + "source").FirstOrDefault()?.Value?.Replace('\\', '/') ?? "";
-        var sourceEndsSrc = sourceEl.EndsWith("/src/", StringComparison.Ordinal)
-                         || sourceEl.EndsWith("/src", StringComparison.Ordinal);
+        // <source> may end with /src/ — filenames may be relative to it
+        var sourceEl = doc.Descendants(ns + "source").FirstOrDefault()?.Value ?? "";
 
         foreach (var cls in doc.Descendants(ns + "class"))
         {
             var filename = cls.Attribute("filename")?.Value;
             if (filename is null) continue;
 
-            // Normalize path separators
-            filename = filename.Replace('\\', '/');
-
-            // If filename is relative (no src/) and source ends with /src/, prepend src/
-            if (sourceEndsSrc && !filename.Contains("/src/") && !filename.StartsWith("src/"))
-            {
-                filename = "src/" + filename;
-            }
-
-            // Only count src/ files
-            if (!filename.Contains("/src/") && !filename.StartsWith("src/")) continue;
-
-            // Extract relative path from src/
-            var srcIdx = filename.IndexOf("/src/", StringComparison.Ordinal);
-            if (srcIdx < 0) srcIdx = filename.IndexOf("src/", StringComparison.Ordinal) - 1;
-            var relFile = filename[(srcIdx + 1)..]; // "src/Encina.Foo/Bar.cs"
+            // Normalize separators, resolve a filename relative to <source>, keep only src/ files
+            var relFile = ToSrcRelativePath(filename, sourceEl); // "src/Encina.Foo/Bar.cs"
+            if (relFile is null) continue;
 
             if (!flagData.ContainsKey(relFile))
                 flagData[relFile] = new Dictionary<int, int>();
@@ -693,6 +950,18 @@ Console.WriteLine($"{'═',0}═════════════════
 
 Console.WriteLine($"  Packages: {packageResults.Count} | Files: {fileResults.Count}");
 
+// ─── Per-file targets (#1762): measured vs target, report only ───────────────
+
+var fileTargetRows = BuildFileTargetRows(fileObligations, coverageByFlag);
+
+if (fileTargetRows.Count > 0)
+{
+    var below = fileTargetRows.Where(IsBelowTarget).ToList();
+    Console.WriteLine($"\n  Per-file targets: {fileTargetRows.Count} | below target: {below.Count}");
+    foreach (var row in below)
+        Console.WriteLine($"    BELOW: {row.Package}/{row.File} {row.Flag}: {FormatMeasured(row.Measured)} < {row.Target:0}%");
+}
+
 // ─── Generate outputs ────────────────────────────────────────────────────────
 
 Directory.CreateDirectory(outputDir);
@@ -713,6 +982,19 @@ md.AppendLine("|---------|:----:|:-----:|:--------:|:--------:|:-----:|:--------
 foreach (var pkg in packageResults)
 {
     md.AppendLine($"| {pkg.Name} | {FlagPct(pkg, TestType.Unit)} | {FlagPct(pkg, TestType.Guard)} | {FlagPct(pkg, TestType.Contract)} | {FlagPct(pkg, TestType.Property)} | {FlagPct(pkg, TestType.Integration)} | {pkg.Percentage:F1}% | |");
+}
+
+if (fileTargetRows.Count > 0)
+{
+    md.AppendLine();
+    md.AppendLine("## Per-file targets");
+    md.AppendLine();
+    md.AppendLine("| File | Flag | Measured | Target | Status |");
+    md.AppendLine("|------|:----:|:--------:|:------:|:------:|");
+    foreach (var row in fileTargetRows)
+    {
+        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {(IsBelowTarget(row) ? "below" : "met")} |");
+    }
 }
 
 md.AppendLine();
@@ -1215,6 +1497,9 @@ sealed class MethodCrapInfo(string relFile, string className, string name, strin
     public double Crap { get; set; }
 }
 
+// One per-file target against its measured value (#1762); Measured is unrounded, null without data.
+record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured);
+
 record PackageCoverage(string Name, int TotalLines, double CoveredEquivalent, double Percentage,
     Dictionary<TestType, (int Total, int Covered)> PerFlag,
     Dictionary<string, double>? PerFlagTarget, List<FileCoverage> Files);
@@ -1235,4 +1520,9 @@ record ManifestFileEntry
     public string[]? DefaultTests { get; init; }
     [JsonPropertyName("override")]
     public string[]? Override { get; init; }
+    // Per-file per-flag obligations (#1762): targets are 0-100, every target needs a justification.
+    [JsonPropertyName("targets")]
+    public Dictionary<string, double>? Targets { get; init; }
+    [JsonPropertyName("justifications")]
+    public Dictionary<string, string>? Justifications { get; init; }
 }
