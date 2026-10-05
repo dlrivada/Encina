@@ -37,7 +37,8 @@ param(
     [string]$CreateOp = 'set',
     [string]$UpdateOp = 'update',
     [int]$MergedDays = 14,
-    [int]$MaxWrites = 50
+    [int]$MaxWrites = 50,
+    [switch]$DryRun
 )
 
 #requires -Version 7.5
@@ -106,7 +107,7 @@ function Read-BoardExport([string]$Dir) {
             $docs["$c/$($f.BaseName)"] = @{ Collection = $c; Id = $f.BaseName; Data = (Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json -AsHashtable) }
         }
     }
-    $m = Join-Path $Dir 'meta\board.json'
+    $m = Join-Path $Dir 'meta' 'board.json'
     if (Test-Path -LiteralPath $m) { $docs['meta/board'] = @{ Collection = 'meta'; Id = 'board'; Data = (Get-Content -LiteralPath $m -Raw | ConvertFrom-Json -AsHashtable) } }
     return $docs
 }
@@ -169,7 +170,7 @@ function Get-BoardFacts($Docs, [string]$Repo, [string]$MainRoot, [datetime]$Now,
     $worktrees = $script:worktreeList
 
     # Audits: the open one, and the history.
-    $kn = Join-Path $MainRoot 'artifacts\knowledge'
+    $kn = Join-Path $MainRoot 'artifacts' 'knowledge'
     $current = $null
     $cp = Join-Path $kn 'current-audit.json'
     if (Test-Path -LiteralPath $cp) { $current = Get-Content -LiteralPath $cp -Raw | ConvertFrom-Json -AsHashtable }
@@ -433,23 +434,32 @@ function ConvertTo-BatchFiles($Changes, $VersionMap, [string]$CreateOp, [string]
 # ---------------------------------------------------------------- main
 
 if ($MyInvocation.InvocationName -ne '.') {
-    foreach ($p in 'CurrentDir', 'Versions', 'Out') { if (-not (Get-Variable $p -ValueOnly)) { throw "-$p is required" } }
+    foreach ($p in 'CurrentDir', 'Versions') { if (-not (Get-Variable $p -ValueOnly)) { throw "-$p is required" } }
+    if (-not $DryRun -and -not $Out) { throw '-Out is required (or pass -DryRun to list the drift without writing anything)' }
     if (-not (Test-Path -LiteralPath $Versions)) { throw "versions sidecar not found: $Versions (the caller writes it from the ArtifactData list results)" }
     if (-not $MainRoot) {
         $common = (git rev-parse --path-format=absolute --git-common-dir).Trim()
         $MainRoot = Split-Path -Parent $common
     }
     $now = if ($NowUtc) { ([datetime]$NowUtc).ToUniversalTime() } else { [datetime]::UtcNow }
-    $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
+    if ($Out) { $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out) }
     # An incomplete export would make existing documents look new (and be replaced unpinned): abort first.
     $missing = @('work', 'flow', 'audits') | Where-Object { -not (Test-Path -LiteralPath (Join-Path $CurrentDir $_) -PathType Container) }
-    if (-not (Test-Path -LiteralPath (Join-Path $CurrentDir 'meta\board.json'))) { $missing += 'meta/board.json' }
+    if (-not (Test-Path -LiteralPath (Join-Path $CurrentDir 'meta' 'board.json'))) { $missing += 'meta/board.json' }
     if ($missing) { throw "incomplete board export in ${CurrentDir}: missing $($missing -join ', '); no writes produced" }
     $docs = Read-BoardExport $CurrentDir
     $versionMap = Get-Content -LiteralPath $Versions -Raw | ConvertFrom-Json -AsHashtable
     $facts = Get-BoardFacts $docs $Repo $MainRoot $now $MergedDays
     $changes = Get-BoardChanges $docs $facts $now
-    $batch = ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
+    if ($DryRun) {
+        foreach ($c in $changes) {
+            $fields = if ($c.Exists) { @($c.Data.Keys | Where-Object { -not $c.Old.ContainsKey($_) -or (ConvertTo-CanonicalJson $c.Old[$_]) -ne (ConvertTo-CanonicalJson $c.Data[$_]) }) -join ', ' } else { 'new' }
+            "DRIFT $($c.Collection)/$($c.Id): $fields"
+        }
+        "DRY-RUN: $(@($changes).Count) documents drift, nothing written"
+        return
+    }
+    $batch =ConvertTo-BatchFiles $changes $versionMap $CreateOp $UpdateOp $MaxWrites
     foreach ($s in $batch.Skipped) { [Console]::Error.WriteLine("WARN: $s changed but has no version in the sidecar; skipped (never written unpinned).") }
     $outDir = Split-Path -Parent $Out
     if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }

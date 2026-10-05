@@ -15,8 +15,8 @@ function Assert-That([bool]$Condition, [string]$Label) {
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ("board-selftest-" + [guid]::NewGuid().ToString('N'))
 $main = Join-Path $work 'repo'
-New-Item -ItemType Directory -Force -Path (Join-Path $main 'artifacts\knowledge') | Out-Null
-$wtRoot = Join-Path $main '.claude\worktrees'
+New-Item -ItemType Directory -Force -Path (Join-Path $main 'artifacts' 'knowledge') | Out-Null
+$wtRoot = Join-Path $main '.claude' 'worktrees'
 
 # ---- stubs: functions shadow the gh / git executables for the functions called below
 # Global so the stubs also work when the script under test runs as a child script (scope modifiers are dynamic).
@@ -108,8 +108,8 @@ Save-Doc 'audits' '5' @{ issue = 5; note = ''; opened = @(); outcome = 'delivere
 Save-Doc 'audits' '6' @{ issue = 6; note = ''; opened = @(); outcome = 'delivered'; pipeline = 'legacy'; status = 'closed'; title = 'Audit six' }
 Save-Doc 'meta' 'board' @{ current = 6; pipeline = 'v2'; status = 'hand written'; updatedUtc = '2026-10-01T00:00:00Z' }
 
-[IO.File]::WriteAllText((Join-Path $main 'artifacts\knowledge\progress.csv'), "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n5,done,,,,1,`"five`"`n6,done,,,,0,`"`"`n7,done,,,,2,`"seven`"`n", [Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText((Join-Path $main 'artifacts\knowledge\current-audit.json'), '{"issue":8,"worktree":"wia-8","startedUtc":"2026-10-05T08:00:00Z"}', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'progress.csv'), "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n5,done,,,,1,`"five`"`n6,done,,,,0,`"`"`n7,done,,,,2,`"seven`"`n", [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $main 'artifacts' 'knowledge' 'current-audit.json'), '{"issue":8,"worktree":"wia-8","startedUtc":"2026-10-05T08:00:00Z"}', [Text.UTF8Encoding]::new($false))
 
 $now = [datetime]::Parse('2026-10-05T11:00:00Z').ToUniversalTime()
 $docs = Read-BoardExport $export
@@ -227,6 +227,19 @@ try {
     $threw = $false
     try { & $scriptPath -CurrentDir $broken -Versions $versionsFile -Out (Join-Path $outDir 'never.json') -Repo 'o/r' -MainRoot $main | Out-Null } catch { $threw = $_.Exception.Message -match 'incomplete board export' }
     Assert-That ($threw -and -not (Test-Path (Join-Path $outDir 'never.json'))) 'main block: an export without flow/ aborts with an error and writes nothing'
+
+    # ---- dry run: lists the drift, writes and deletes nothing; no -Out and no -DryRun is an error
+    $snapshot = { @(Get-ChildItem $outDir -File | Sort-Object Name | ForEach-Object { "$($_.Name):$((Get-FileHash $_.FullName).Hash)" }) -join '|' }
+    $before = & $snapshot
+    $dry = @(& $scriptPath -CurrentDir $export -Versions $versionsFile -DryRun -Repo 'o/r' -MainRoot $main -NowUtc '2026-10-05T11:00:00Z')
+    $probe = $changes[0]
+    $driftLines = @($dry | Where-Object { $_ -like 'DRIFT *' })
+    Assert-That (@($driftLines -match "^DRIFT $([regex]::Escape("$($probe.Collection)/$($probe.Id)")): \S").Count -eq 1) "dry run: a DRIFT line names $($probe.Collection)/$($probe.Id) with its changed fields"
+    Assert-That ($dry[-1] -eq "DRY-RUN: $($driftLines.Count) documents drift, nothing written") "dry run: summary line ($($dry[-1]))"
+    Assert-That ((& $snapshot) -eq $before) 'dry run: the out directory is byte-for-byte unchanged (no new file, no deleted batch)'
+    $threw = $false
+    try { & $scriptPath -CurrentDir $export -Versions $versionsFile -Repo 'o/r' -MainRoot $main | Out-Null } catch { $threw = $_.Exception.Message -match '-Out is required' }
+    Assert-That $threw 'main block: neither -Out nor -DryRun fails with a clear error'
 }
 finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
