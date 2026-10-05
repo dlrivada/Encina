@@ -40,6 +40,7 @@ param(
     [int]$MaxWrites = 50
 )
 
+#requires -Version 7.5
 $ErrorActionPreference = 'Stop'
 # ISO timestamps must stay strings (PowerShell 7.5+): the default would turn them into local DateTime values.
 $PSDefaultParameterValues['ConvertFrom-Json:DateKind'] = 'String'
@@ -191,6 +192,9 @@ function Find-PrFor($Facts, $Pr, [int[]]$Issues) {
     if ($Pr) {
         $hit = $all | Where-Object { $_.number -eq [int]$Pr } | Select-Object -First 1
         if (-not $hit) { $hit = $Facts.ExtraPrs[[string][int]$Pr] }
+        # A merged PR finishes the card or front only if it closes every issue it covers: a plan PR ("Refs #n")
+        # or a PR for one issue of a group leaves the work open.
+        if ($hit -and $hit.state -eq 'MERGED' -and $Issues.Count -gt 0 -and @($Issues | Where-Object { $_ -notin $hit.closes }).Count -gt 0) { return $null }
         return $hit
     }
     if ($Issues.Count -eq 0) { return $null }
@@ -233,7 +237,7 @@ function Update-WorkCard($Data, $Facts, [string]$NowText) {
         }
         return $c
     }
-    if ($wt -and $wt.ahead -gt 0 -and $c.status -in 'queued', 'stopped', 'pr-open', 'running') {
+    if ($wt -and $wt.ahead -gt 0 -and $c.status -in 'queued', 'running') {
         $c.status = 'running'
         $c.endedUtc = $null
         if (-not $c.startedUtc) { $c.startedUtc = $NowText }
@@ -305,8 +309,11 @@ function Get-StatusText($Cards, $Facts, [string]$Existing, [datetime]$Now) {
     if ($recent.Count -gt 12) { $recent = @($recent | Select-Object -Last 12) + @("(+$($recent.Count - 12) older)") }
     $count = { param($s) @($Cards | Where-Object { [string]$_.status -eq $s }).Count }
     $text = "$audit Open PRs: $(if ($prs) { $prs -join ' ' } else { 'none' }). Merged last 48h: $(if ($recent) { $recent -join ' ' } else { 'none' }). Cards: $(& $count 'running') running, $(& $count 'pr-open') pr-open, $(& $count 'queued') queued, $(& $count 'blocked') blocked."
+    # Hand-written text survives behind " Notes: ": kept as is when the marker exists; on the first run (an
+    # existing status that is not one of ours) the whole old text moves behind the marker.
     $i = $Existing.IndexOf(' Notes: ')
     if ($i -ge 0) { $text += $Existing.Substring($i) }
+    elseif ($Existing.Trim() -and $Existing -notmatch '\sCards: \d+ running, \d+ pr-open, \d+ queued, \d+ blocked\.$') { $text += " Notes: $($Existing.Trim())" }
     return $text
 }
 
@@ -403,6 +410,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     foreach ($s in $batch.Skipped) { [Console]::Error.WriteLine("WARN: $s changed but has no version in the sidecar; skipped (never written unpinned).") }
     $outDir = Split-Path -Parent ([IO.Path]::GetFullPath($Out))
     if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
+    # Remove the files of an earlier run so only this run's batches remain.
+    $stem = [IO.Path]::GetFileNameWithoutExtension($Out)
+    $ext = [IO.Path]::GetExtension($Out)
+    foreach ($old in Get-ChildItem -LiteralPath $outDir -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq "$stem$ext" -or $_.Name -match "^$([regex]::Escape($stem))-\d{3}$([regex]::Escape($ext))$" }) { Remove-Item -LiteralPath $old.FullName -Force }
     $paths = @()
     for ($i = 0; $i -lt $batch.Files.Count; $i++) {
         $path = if ($batch.Files.Count -eq 1) { $Out } else { Join-Path (Split-Path -Parent $Out) ("{0}-{1:D3}{2}" -f [IO.Path]::GetFileNameWithoutExtension($Out), ($i + 1), [IO.Path]::GetExtension($Out)) }

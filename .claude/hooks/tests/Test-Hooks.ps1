@@ -4038,7 +4038,6 @@ The fluent builder chain described in the documentation is fictional. The parame
     }
     # ---- end #1368/#1380 block ----
 
-    # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
     # board-event-reminder.ps1 (#1732): a PostToolUse reminder, never blocks (exit 0 always).
     $boardHook = Join-Path $hooks 'board-event-reminder.ps1'
     $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now \(or let the 30-minute reconciler do it\)"'
@@ -4057,12 +4056,15 @@ The fluent builder chain described in the documentation is fictional. The parame
     foreach ($quiet in @(
             @('PowerShell', 'gh pr list --state open'),
             @('PowerShell', 'git status'),
+            @('PowerShell', 'Get-Content tools/ai/audit/audit-done.ps1'),
+            @('PowerShell', 'git commit -m "docs: mention gh pr create"'),
             @('Bash', 'gh issue view 12'))) {
         Invoke-HookCase $boardHook (@{ tool_name = $quiet[0]; tool_input = @{ command = $quiet[1] } } | ConvertTo-Json -Compress) 0 "board-event-reminder: '$($quiet[1])' stays silent" $null '^$'
     }
     Invoke-HookCase $boardHook (@{ tool_name = 'Agent'; tool_input = @{ subagent_type = 'adversarial-reviewer'; prompt = 'x' } } | ConvertTo-Json -Compress) 0 'board-event-reminder: another agent spawn stays silent' $null '^$'
     Invoke-HookCase $boardHook 'not json' 0 'board-event-reminder: malformed payload stays silent and does not block' $null '^$'
 
+    # Agent frontmatter and settings.json wiring: structure, models, and hook scripts that exist.
     function Test-Wiring([string]$Label, [string[]]$Problems) {
         $script:total++
         if ($Problems.Count -gt 0) { $script:failed++; "FAIL $Label`: $($Problems -join '; ')" } else { "PASS $Label" }

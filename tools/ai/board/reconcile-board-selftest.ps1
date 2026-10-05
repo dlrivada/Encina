@@ -29,6 +29,8 @@ $script:openPrs = @(
 )
 $script:mergedPrs = @(
     @{ number = 200; title = 'Merged'; headRefName = 'fix/m-100'; body = 'Fixes #100'; mergedAt = '2026-10-05T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 230; title = 'Plan only'; headRefName = 'docs/plan-410'; body = 'Refs #410'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
+    @{ number = 231; title = 'One of two'; headRefName = 'fix/one-108'; body = 'Fixes #108'; mergedAt = '2026-09-20T09:00:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() },
     @{ number = 220; title = 'Merged flow'; headRefName = 'fix/f-400'; body = 'Fixes #400'; mergedAt = '2026-10-05T10:30:00Z'; author = @{ login = 'dlrivada' }; closingIssuesReferences = @() }
 )
 function gh {
@@ -37,7 +39,7 @@ function gh {
     if ($a -match '^pr list .*--state open') { return ConvertTo-Json -InputObject $script:openPrs -Depth 8 }
     if ($a -match '^pr list .*--state merged') { return ConvertTo-Json -InputObject $script:mergedPrs -Depth 8 }
     if ($a -match '^issue list .*--state closed') { return '[{"number":402,"closedAt":"2026-10-04T12:00:00Z"}]' }
-    if ($a -match '^pr view 204 ') { return '{"number":204,"title":"Older","headRefName":"x","body":"","state":"MERGED","mergedAt":"2026-09-01T00:00:00Z","createdAt":"2026-08-30T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
+    if ($a -match '^pr view 204 ') { return '{"number":204,"title":"Older","headRefName":"x","body":"Fixes #104","state":"MERGED","mergedAt":"2026-09-01T00:00:00Z","createdAt":"2026-08-30T00:00:00Z","author":{"login":"dlrivada"},"closingIssuesReferences":[]}' }
     if ($a -match '^issue view (\d+) ') { return "{`"title`":`"Issue $($Matches[1]) title`"}" }
     $global:LASTEXITCODE = 1
     return "unexpected gh call: $a"
@@ -74,6 +76,8 @@ Save-Doc 'work' '104' (New-Card @(104) 'pr-open' 204 $null)
 Save-Doc 'work' '105-done' (New-Card @(105) 'done' $null 'w105')
 Save-Doc 'work' '106-orch' (New-Card @(106) 'running' $null '' 'orchestrator')
 Save-Doc 'work' '107' (New-Card @(107) 'running' 213 'w107')
+Save-Doc 'work' '108' (New-Card @(108, 109) 'pr-open' 231 'w108')
+Save-Doc 'flow' '410' @{ issue = 410; lane = 'urgent'; note = 'plan merged'; pr = 230; stage = 'implementation'; status = 'ready'; title = 'Flow plan PR'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '400' @{ issue = 400; lane = 'urgent'; note = 'n'; pr = $null; stage = 'implementation'; status = 'in-progress'; title = 'Flow merged'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '401' @{ issue = 401; lane = 'urgent'; note = 'n'; pr = $null; stage = 'intake'; status = 'ready'; title = 'Flow open PR'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '402' @{ issue = 402; lane = 'pilot'; note = 'n'; pr = $null; stage = 'implementation'; status = 'in-progress'; title = 'Flow closed'; updatedUtc = '2026-10-03T00:00:00Z' }
@@ -103,6 +107,8 @@ try {
     $c = Find-Change 'work/104'
     Assert-That ($c.Data.status -eq 'merged' -and $c.Data.endedUtc -eq '2026-09-01T00:00:00Z') 'PR outside the 14-day window is resolved with gh pr view'
     Assert-That ($null -eq (Find-Change 'work/107')) 'draft PR on a running card: the card stays running'
+    Assert-That ($null -eq (Find-Change 'work/108')) 'card grouping two issues is not finished by a PR closing only one'
+    Assert-That ($null -eq (Find-Change 'flow/410')) 'merged plan PR (Refs only) does not finish the flow front'
     Assert-That ($null -eq (Find-Change 'work/105-done')) 'done card is left alone'
     Assert-That ($null -eq (Find-Change 'work/106-orch')) 'running orchestrator card without worktree is not stopped'
     $c = Find-Change 'work/300'
@@ -127,6 +133,7 @@ try {
     $c = Find-Change 'meta/board'
     Assert-That ($c.Data.status -match 'Audit #8 open\.' -and $c.Data.status -match 'Open PRs: #201 #210 #211 #212 \(draft\) #213 \(draft\) #221\.') 'meta.status lists the open audit and open PRs'
     Assert-That ($c.Data.status -match 'Merged last 48h: #200 #220\.' -and $c.Data.current -eq 8 -and $c.Data.updatedUtc -eq '2026-10-05T11:00:00Z') 'meta.status lists recent merges; current and updatedUtc set'
+    Assert-That ($c.Data.status -match ' Notes: hand written$') 'first run keeps the hand-written status behind the Notes marker'
     Assert-That ($null -eq ($changes | Where-Object { $_.Collection -notin 'work', 'flow', 'audits', 'meta' })) 'no other collection is touched'
 
     # ---- versions
