@@ -276,7 +276,7 @@ public class CacheConfigurationTests
     {
         var context = Substitute.For<IRequestContext>();
         context.TenantId.Returns(tenantId);
-        context.Identity.Returns(TestIdentity.User(userId));
+        context.Identity.Returns(string.IsNullOrWhiteSpace(userId) ? TestIdentity.Anonymous : TestIdentity.User(userId));
         context.CorrelationId.Returns(Guid.NewGuid().ToString());
         return context;
     }

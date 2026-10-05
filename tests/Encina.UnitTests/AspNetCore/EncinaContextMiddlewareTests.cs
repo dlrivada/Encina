@@ -70,17 +70,21 @@ public sealed class EncinaContextMiddlewareTests
 
     #region UserId
 
+    // Interim (#1705 phase 1): the middleware no longer maps claims itself; the identity is built
+    // by the identity scope factory in phase 3, and the claim mapping is covered by
+    // ClaimsRequestIdentityFactoryTests. Until then an authenticated request is anonymous here.
     [Fact]
-    public async Task InvokeAsync_AuthenticatedUser_ShouldExtractUserId()
+    public async Task InvokeAsync_AuthenticatedUser_IsAnonymousUntilTheScopeFactoryBuildsTheIdentity()
     {
         var middleware = CreateMiddleware();
         var context = new DefaultHttpContext();
-        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, "user-42") };
-        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+        var claims = new[] { new Claim("sub", "oidc-user-1") };
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "oidc"));
 
         await middleware.InvokeAsync(context, _accessor);
 
-        _capturedContext!.UserId.ShouldBe("user-42");
+        _capturedContext!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        _capturedContext.UserId.ShouldBeNull();
     }
 
     [Fact]
@@ -92,19 +96,6 @@ public sealed class EncinaContextMiddlewareTests
         await middleware.InvokeAsync(context, _accessor);
 
         _capturedContext!.UserId.ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_SubClaim_ShouldExtractUserId()
-    {
-        var middleware = CreateMiddleware();
-        var context = new DefaultHttpContext();
-        var claims = new[] { new Claim("sub", "oidc-user-1") };
-        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "oidc"));
-
-        await middleware.InvokeAsync(context, _accessor);
-
-        _capturedContext!.UserId.ShouldBe("oidc-user-1");
     }
 
     #endregion

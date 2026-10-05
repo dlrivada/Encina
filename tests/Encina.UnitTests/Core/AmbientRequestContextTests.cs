@@ -144,6 +144,9 @@ public sealed class AmbientRequestContextTests
     private static IRequestContext UserContext(string user, string? tenant = null)
         => TestRequestContext.For(TestIdentity.User(user), tenantId: tenant, correlationId: $"corr-{user}");
 
+    private static IRequestContext AnonymousAmbient()
+        => RequestContext.CreateForTest(tenantId: "ambient-tenant", correlationId: "corr-ambient");
+
     // ── Registration ───────────────────────────────────────────────────
 
     [Fact]
@@ -201,7 +204,8 @@ public sealed class AmbientRequestContextTests
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
+        // An anonymous ambient (no user to protect): an explicit job identity is accepted (and logged, 165).
+        var ambient = AnonymousAmbient();
         var explicitContext = UserContext("job-user", "job-tenant");
         accessor.RequestContext = ambient;
 
@@ -324,7 +328,7 @@ public sealed class AmbientRequestContextTests
         var encina = provider.GetRequiredService<IEncina>();
         var observations = provider.GetRequiredService<NotificationObservations>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
+        var ambient = AnonymousAmbient();
         var explicitContext = UserContext("webhook-user");
         accessor.RequestContext = ambient;
 
@@ -388,7 +392,7 @@ public sealed class AmbientRequestContextTests
         var encina = provider.GetRequiredService<IEncina>();
         var contexts = provider.GetRequiredService<StreamContexts>();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        var ambient = UserContext("ambient-user");
+        var ambient = AnonymousAmbient();
         var explicitContext = UserContext("export-job");
         accessor.RequestContext = ambient;
 

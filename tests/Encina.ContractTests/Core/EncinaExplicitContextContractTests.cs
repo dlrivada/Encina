@@ -96,7 +96,8 @@ public abstract class EncinaExplicitContextContract
     {
         var sut = CreateSut();
         var accessor = new RequestContextAccessor();
-        var callerContext = TestRequestContext.For(TestIdentity.User("caller"));
+        // An anonymous caller: over an ambient user a different explicit identity is refused (#1705).
+        var callerContext = RequestContext.CreateForTest(correlationId: "caller");
         accessor.RequestContext = callerContext;
 
         await sut.Send(new ContractPing("a"), JobContext());

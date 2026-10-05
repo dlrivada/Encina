@@ -18,6 +18,34 @@ public class EncinaArbitrariesTests
 {
     // FsCheck 3.x auto-discovers arbitraries via EncinaArbitraryProvider
 
+    #region RequestIdentity Tests
+
+    [Fact]
+    public void RequestIdentity_GeneratesAnonymousAndValidUsersOnly()
+    {
+        // Arrange
+        var gen = EncinaArbitraries.RequestIdentity().Generator;
+
+        // Act
+        var samples = Gen.Sample(gen, 10, 200).ToList();
+
+        // Assert
+        samples.ShouldContain(identity => identity.Kind == IdentityKind.Anonymous);
+        samples.ShouldContain(identity => identity.Kind == IdentityKind.User);
+        samples.ShouldNotContain(identity => identity.Kind == IdentityKind.Service);
+        samples.ShouldAllBe(identity => (identity.UserId != null) == identity.IsAuthenticated);
+        samples.Where(identity => identity.IsAuthenticated)
+            .ShouldAllBe(identity => global::Encina.RequestIdentity.IsValidUserId(identity.UserId));
+    }
+
+    [Fact]
+    public void RequestIdentity_IsExposedByTheProvider()
+    {
+        EncinaArbitraryProvider.RequestIdentity.Generator.ShouldNotBeNull();
+    }
+
+    #endregion
+
     #region EncinaError Tests
 
     [Fact]

@@ -443,7 +443,7 @@ public sealed class NestedDispatchContextTests
     {
         await using var provider = BuildProvider();
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = EntryContext();
-        var childContext = TestRequestContext.For(TestIdentity.User("child-user"), idempotencyKey: "child-key");
+        var childContext = TestRequestContext.For(TestIdentity.User("user-1"), idempotencyKey: "child-key");
 
         (await provider.GetRequiredService<IEncina>().Send(new Parent(1, childContext))).ShouldBeSuccess();
 
@@ -661,7 +661,7 @@ public sealed class NestedDispatchContextTests
         await using var provider = BuildProvider();
         var caller = EntryContext();
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var explicitContext = TestRequestContext.For(TestIdentity.User("job"));
+        var explicitContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await provider.GetRequiredService<IEncina>().Send(new Explode(), explicitContext));
@@ -677,7 +677,7 @@ public sealed class NestedDispatchContextTests
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IEncina>().Send(new ExplodeInBehavior(), TestRequestContext.For(TestIdentity.User("job"))));
+            await provider.GetRequiredService<IEncina>().Send(new ExplodeInBehavior(), TestRequestContext.For(TestIdentity.User("user-1"))));
 
         await ShouldBeRestoredAsync(provider, caller);
     }
@@ -690,7 +690,7 @@ public sealed class NestedDispatchContextTests
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
 
-        var result = await provider.GetRequiredService<IEncina>().Send(new WaitForCancel(), TestRequestContext.For(TestIdentity.User("job")), cts.Token);
+        var result = await provider.GetRequiredService<IEncina>().Send(new WaitForCancel(), TestRequestContext.For(TestIdentity.User("user-1")), cts.Token);
 
         result.ShouldBeError();
         await ShouldBeRestoredAsync(provider, caller);
@@ -702,7 +702,7 @@ public sealed class NestedDispatchContextTests
         await using var provider = BuildProvider();
         var caller = EntryContext();
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("export"));
+        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
         await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext))
         {
@@ -722,7 +722,7 @@ public sealed class NestedDispatchContextTests
         await using var provider = BuildProvider();
         var caller = EntryContext();
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("export"));
+        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
         var received = 0;
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -746,7 +746,7 @@ public sealed class NestedDispatchContextTests
         var caller = EntryContext();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
         accessor.RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("export"));
+        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
         var enumerator = provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext).GetAsyncEnumerator();
         (await enumerator.MoveNextAsync()).ShouldBeTrue();

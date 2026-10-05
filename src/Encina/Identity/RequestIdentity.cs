@@ -154,6 +154,7 @@ public sealed class RequestIdentity
         IEnumerable<string>? roles = null,
         IEnumerable<string>? permissions = null)
     {
+        ArgumentNullException.ThrowIfNull(userId);
         if (!IsValidUserId(userId))
         {
             throw new ArgumentException(

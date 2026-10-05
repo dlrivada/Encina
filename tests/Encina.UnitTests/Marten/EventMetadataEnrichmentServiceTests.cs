@@ -416,7 +416,8 @@ public sealed class EventMetadataEnrichmentServiceTests
             IDictionary<string, object?> metadata)
         {
             CorrelationId = correlationId;
-            Identity = userId is null ? RequestIdentity.Anonymous : TestIdentity.User(userId);
+            // A blank user id is not a user: it is the anonymous identity.
+            Identity = string.IsNullOrWhiteSpace(userId) ? RequestIdentity.Anonymous : TestIdentity.User(userId);
             TenantId = tenantId;
             Timestamp = timestamp;
             _metadata = new Dictionary<string, object?>(metadata);
