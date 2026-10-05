@@ -124,7 +124,7 @@ public sealed class IDataErasureStrategyContractTests : IDisposable
     }
 
     [Fact]
-    public async Task Contract_EraseField_WhenSubjectAlreadyForgotten_ReturnsError()
+    public async Task Contract_EraseField_WhenSubjectAlreadyForgotten_IsIdempotent()
     {
         // Arrange — create and forget a subject
         await _keyProvider.GetOrCreateSubjectKeyAsync("user-2");
@@ -148,9 +148,10 @@ public sealed class IDataErasureStrategyContractTests : IDisposable
         // Act
         var result = await sut.EraseFieldAsync(location);
 
-        // Assert
-        result.IsLeft.ShouldBeTrue(
-            "Contract: EraseField should return error for already-forgotten subject");
+        // Assert (#1698): erasure is idempotent; several locations share one subject key
+        result.IsRight.ShouldBeTrue(
+            "Contract: erasing an already-forgotten subject succeeds");
+        (await sut.EraseFieldAsync(location)).IsRight.ShouldBeTrue("Contract: erasing twice succeeds");
     }
 
     [Fact]

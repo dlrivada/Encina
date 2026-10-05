@@ -39,7 +39,6 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
     public void Dispose()
     {
         _keyProvider.Clear();
-        CryptoShreddedPropertyCache.ClearCache();
     }
 
     [Fact]
@@ -165,7 +164,7 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
 
         // Stored JSON holds the encrypted envelope, never the plaintext
         var storedJson = await ReadStoredEventJsonAsync(store, streamId);
-        storedJson.ShouldContain("__enc");
+        storedJson.ShouldContain("cs2:");
         storedJson.ShouldNotContain(email);
 
         // Readable while the subject key exists
@@ -329,9 +328,7 @@ public sealed class CryptoShredderSerializerIntegrationTests : IDisposable
             // Apply crypto-shredder serializer
             CryptoShredderSerializerFactory.Apply(
                 opts,
-                keyProvider ?? _keyProvider,
-                new DefaultForgottenSubjectHandler(
-                    NullLogger<DefaultForgottenSubjectHandler>.Instance),
+                CryptoShreddingTestServices.ScopeFactory(keyProvider ?? _keyProvider),
                 NullLogger<CryptoShredderSerializer>.Instance);
         });
     }
