@@ -11,7 +11,7 @@ Encina grew four audit storage abstractions one issue at a time, with no ADR or 
 - **`IAuditLogStore`** (`src/Encina.DomainModeling/Auditing/IAuditLogStore.cs`): entity change history, one `AuditLogEntry` with old and new JSON per changed entity. Its only writer is the EF Core `AuditInterceptor`. It returns `Task`, not `Either` (ADR-001, ADR-006), and has no `TenantId`, `ModuleId`, purge, `TimeProvider`, query model or redaction of old and new values.
 - **`IAuditStore`** (`src/Encina.Security.Audit/Abstractions/IAuditStore.cs`): one `AuditEntry` per operation (who, which request, outcome, duration, redacted payload, IP address). It is the general write-audit sink: `AuditPipelineBehavior`, NIS2, ABAC policy administration and Secrets all write to it (ADR-018, function 12). Its interface, its table `SecurityAuditEntries` and its flag `UseSecurityAuditStore` are three names for one thing. It is not registered for ADO.NET x3, Dapper x3 and MongoDB, and no DDL creates its table (#1633).
 - **`IReadAuditStore`** (`src/Encina.Security.Audit/Abstractions/IReadAuditStore.cs`): who read which data and why. It is the only split with a written rationale: different fields, a much higher volume and a shorter default retention. Its XML documentation and `docs/features/read-auditing.md` call `IAuditStore` the "CUD" store, which is wrong: the operation store records reads handled by the pipeline, secret access and policy changes too.
-- **`IAnonymizationAuditStore`** (`src/Encina.Compliance.Anonymization/Abstractions/IAnonymizationAuditStore.cs`): in-memory only, with no production caller of `AddEntryAsync`. ADR-019 removed the per-module audit stores of the other compliance modules; this one survived because Anonymization was considered stateless.
+- **`IAnonymizationAuditStore`** (`src/Encina.Compliance.Anonymization/Abstractions/IAnonymizationAuditStore.cs`): in-memory only, with no production caller of `AddEntryAsync`. ADR-019 moved the other compliance modules to event sourcing, so their per-module audit stores no longer exist; this one survived because Anonymization was considered a stateless transformation tool.
 
 The real defect is not that there are several stores. It is that `IAuditLogStore.GetHistoryAsync` and `IAuditStore.GetByEntityAsync` answer the same question ("what happened to this entity") with different contracts, and that the names do not say what each store is for.
 
@@ -33,7 +33,8 @@ Encina keeps exactly three audit stores. Each is named after its purpose, and th
 | Entry record | `OperationAuditEntry` (was `AuditEntry`) | `EntityChangeAuditEntry` (was `AuditLogEntry`) | `ReadAuditEntry` (unchanged) |
 | Action enum | existing `AuditOutcome` stays | `EntityChangeAction` (was `AuditAction`) | existing `ReadAccessMethod` stays |
 | Query | `OperationAuditQuery` (was `AuditQuery`) | `EntityChangeAuditQuery` (new) | `ReadAuditQuery` (unchanged) |
-| Table / collection | `OperationAuditEntries` (was `SecurityAuditEntries`) | `EntityChangeAuditEntries` (was `AuditLogs`) | `ReadAuditEntries` (unchanged) |
+| Table | `OperationAuditEntries` (was `SecurityAuditEntries`) | `EntityChangeAuditEntries` (was `AuditLogs`) | `ReadAuditEntries` (unchanged) |
+| MongoDB collection (property of `EncinaMongoDbOptions` collections, default) | `OperationAuditEntries`, default `operation_audit_entries` (was `SecurityAuditEntries`, `security_audit_entries`) | `EntityChangeAuditEntries`, default `entity_change_audit_entries` (was `AuditLogs`, `audit_logs`) | `ReadAuditEntries`, default `read_audit_entries` (unchanged) |
 | Flag on `MessagingConfiguration` and `EncinaMongoDbOptions` | `UseOperationAuditStore` (was `UseSecurityAuditStore`) | `UseEntityChangeAuditStore` (was `UseAuditLogStore`) | `UseReadAuditStore` (unchanged) |
 | Options | `OperationAuditOptions` (was `AuditOptions`) | `EntityChangeAuditOptions` (new, retention) | `ReadAuditOptions` (unchanged) |
 | Providers | `OperationAuditStoreEF`, `OperationAuditStoreADO`, `OperationAuditStoreDapper`, `OperationAuditStoreMongoDB`, `MartenOperationAuditStore`, `InMemoryOperationAuditStore` | `EntityChangeAuditStoreEF`, `...ADO`, `...Dapper`, `...MongoDB`, `InMemoryEntityChangeAuditStore` | `ReadAuditStoreEF`, `...ADO`, `...Dapper`, `...MongoDB`, `MartenReadAuditStore`, `InMemoryReadAuditStore` (unchanged) |
@@ -47,6 +48,7 @@ Further decisions:
 5. **The "CUD" mislabel is fixed** in the XML documentation of `IReadAuditStore` and in `docs/features/read-auditing.md`.
 6. **A Marten implementation of the entity-change store is not part of 1.0.** Marten is the event-sourcing provider (ADR-027) and its audit stores exist for the compliance modules (ADR-019); the entity-change interceptor is EF Core only. The decision is revisited if a non-EF writer appears.
 7. **No compatibility layer.** The old names are removed in the same change that introduces the new ones (pre-1.0, AGENTS.md section 1).
+8. **`TimeProvider` is new work for all three stores.** None of the operation, entity-change or read stores takes it today (only the decorators and the interceptor do). The operation store gets it in #1633 together with the rename; the other two in their follow-up issues.
 
 ## Diagram
 
@@ -111,7 +113,7 @@ The retention defaults are the values of the `RetentionDays` properties in `src/
 - [SPEC-002](../../specifications/SPEC-002-eu-regulatory-readiness.md), REQ-007 (read audit as evidence of access)
 - [ADR-018](018-cross-cutting-integration-principle.md) (audit trail as cross-cutting function 12)
 - [ADR-019](019-compliance-event-sourcing-marten.md) (per-module audit stores removed)
-- Issues: #1674 (this spike), #1633 (registration and DDL), #751 (ABAC decision audit), #1193 and #1270 (read-audit decorators), #1203 (missing READMEs), #574-#582 and #875 (entity-change backlog)
+- Issues: #1674 (this spike), #1633 (registration and DDL), #751 (ABAC decision audit), #1193 (evidential read audit) and #1270 (dead soft-delete and read-audit code), #1203 (missing READMEs), #574-#582 and #875 (entity-change backlog)
 
 ## Date
 
