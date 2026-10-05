@@ -78,7 +78,7 @@ Following the file with `git log --follow` confirms it was deleted, along with t
 
 | ID | Outcome | Evidence / reason |
 |---|---|---|
-| AUD-01 | pass | The code no longer does what the issue decided, but the drift is recorded: [ADR-024](../../architecture/adr/024-remove-sqlite-provider-pre-1.0.md) removed the entire SQLite provider in March 2026, and its "SQLite-Specific Technical Challenges" table names the exact failure mode issue #9 hit ("`datetime('now')` Incompatible format with ISO 8601"). No unrecorded drift. |
+| AUD-01 | pass | The code no longer does what the issue decided, but the drift is recorded: [ADR-024](../../../../architecture/adr/024-remove-sqlite-provider-pre-1.0.md) removed the entire SQLite provider in March 2026, and its "SQLite-Specific Technical Challenges" table names the exact failure mode issue #9 hit ("`datetime('now')` Incompatible format with ISO 8601"). No unrecorded drift. |
 | AUD-02 | n/a | Code removed by ADR-024; the unit no longer exists in `src/`/`tests/` to check for cross-cutting integrations. |
 | AUD-03 | n/a | `.github/coverage-manifest/Encina.Dapper.Sqlite.json` does not exist (checked: no file of that name under `.github/coverage-manifest/`); the package was deleted, so there is no manifest or coverage to measure. |
 | AUD-04 | n/a | Code removed; no test to read. |
