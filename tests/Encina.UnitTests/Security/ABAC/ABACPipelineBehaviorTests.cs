@@ -27,6 +27,7 @@ namespace Encina.UnitTests.Security.ABAC;
 /// <see cref="RequirePolicyAttribute"/> and the expressions of <see cref="RequireConditionAttribute"/>
 /// (#1634); the PDP is mocked per named policy.
 /// </summary>
+[Collection(ABACActivityListenerIsolation.Name)]
 public sealed class ABACPipelineBehaviorTests
 {
     private static readonly EELCompiler Compiler = new();

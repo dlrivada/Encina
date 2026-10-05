@@ -29,6 +29,7 @@ namespace Encina.UnitTests.Security.ABAC;
 /// through <see cref="ABACPipelineBehavior{TRequest, TResponse}"/> with the real
 /// <see cref="XACMLPolicyDecisionPoint"/> and an in-memory policy store (#1634).
 /// </summary>
+[Collection(ABACActivityListenerIsolation.Name)]
 public sealed class ABACRequirementEnforcementTests
 {
     private static readonly EELCompiler Compiler = new();
