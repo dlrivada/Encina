@@ -34,7 +34,7 @@ param(
     [string]$Repo = 'dlrivada/Encina',
     [string]$MainRoot,
     [string]$NowUtc,
-    [string]$CreateOp = 'create',
+    [string]$CreateOp = 'set',
     [string]$UpdateOp = 'update',
     [int]$MergedDays = 14,
     [int]$MaxWrites = 50
@@ -213,6 +213,7 @@ function Add-Note($Data, [string]$Text) {
 }
 
 function Update-WorkCard($Data, $Facts, [string]$NowText) {
+    $Now = ([datetime]$NowText).ToUniversalTime()
     $c = Copy-Data $Data
     if (Test-CardTerminal $c) { return $c }
     $issues = @($c.issues | ForEach-Object { [int]$_ })
@@ -243,7 +244,9 @@ function Update-WorkCard($Data, $Facts, [string]$NowText) {
         if (-not $c.startedUtc) { $c.startedUtc = $NowText }
         return $c
     }
-    if ($c.status -eq 'running' -and $c.kind -eq 'worker' -and -not $wt) {
+    # Only after two hours: a freshly spawned worker may not have its worktree yet.
+    $stale = -not $c.startedUtc -or ([datetime]$c.startedUtc).ToUniversalTime() -lt $Now.AddHours(-2)
+    if ($c.status -eq 'running' -and $c.kind -eq 'worker' -and -not $wt -and $stale) {
         $c.status = 'stopped'
         $c.endedUtc = $NowText
         Add-Note $c 'Reconciler: no worktree and no PR found, marked stopped.'
@@ -327,7 +330,7 @@ function Get-BoardChanges($Docs, $Facts, [datetime]$Now) {
         $key = "$coll/$id"
         $exists = $null -ne $existing
         if (-not $exists -or (ConvertTo-CanonicalJson $existing) -ne (ConvertTo-CanonicalJson $data)) {
-            $changes.Add(@{ Collection = $coll; Id = $id; Data = $data; Exists = $exists })
+            $changes.Add(@{ Collection = $coll; Id = $id; Data = $data; Exists = $exists; Old = $existing })
         }
     }
     foreach ($d in ($Docs.Values | Where-Object { $_.Collection -eq 'work' } | Sort-Object { $_.Id })) {
@@ -381,7 +384,12 @@ function ConvertTo-BatchFiles($Changes, $VersionMap, [string]$CreateOp, [string]
         $key = "$($c.Collection)/$($c.Id)"
         if ($c.Exists) {
             if (-not $VersionMap.ContainsKey($key)) { $skipped.Add($key); continue }
-            $writes.Add([ordered]@{ op = $UpdateOp; collection = $c.Collection; doc_id = $c.Id; if_version = [int]$VersionMap[$key]; data = $c.Data })
+            # "update" merges fields into the stored document, so only the changed top-level fields are sent.
+            $delta = [ordered]@{}
+            foreach ($k in $c.Data.Keys) {
+                if (-not $c.Old.ContainsKey($k) -or (ConvertTo-CanonicalJson $c.Old[$k]) -ne (ConvertTo-CanonicalJson $c.Data[$k])) { $delta[$k] = $c.Data[$k] }
+            }
+            $writes.Add([ordered]@{ op = $UpdateOp; collection = $c.Collection; doc_id = $c.Id; if_version = [int]$VersionMap[$key]; data = $delta })
         }
         else { $writes.Add([ordered]@{ op = $CreateOp; collection = $c.Collection; doc_id = $c.Id; data = $c.Data }) }
     }

@@ -75,7 +75,10 @@ Save-Doc 'work' '103' (New-Card @(103) 'running' $null 'w103')
 Save-Doc 'work' '104' (New-Card @(104) 'pr-open' 204 $null)
 Save-Doc 'work' '105-done' (New-Card @(105) 'done' $null 'w105')
 Save-Doc 'work' '106-orch' (New-Card @(106) 'running' $null '' 'orchestrator')
-Save-Doc 'work' '107' (New-Card @(107) 'running' 213 'w107')
+$fresh = New-Card @(110) 'running' $null 'w110'
+$fresh.startedUtc = '2026-10-05T10:30:00Z'
+Save-Doc 'work' '110' $fresh
+Save-Doc 'work' '107'(New-Card @(107) 'running' 213 'w107')
 Save-Doc 'work' '108' (New-Card @(108, 109) 'pr-open' 231 'w108')
 Save-Doc 'flow' '410' @{ issue = 410; lane = 'urgent'; note = 'plan merged'; pr = 230; stage = 'implementation'; status = 'ready'; title = 'Flow plan PR'; updatedUtc = '2026-10-03T00:00:00Z' }
 Save-Doc 'flow' '400' @{ issue = 400; lane = 'urgent'; note = 'n'; pr = $null; stage = 'implementation'; status = 'in-progress'; title = 'Flow merged'; updatedUtc = '2026-10-03T00:00:00Z' }
@@ -107,6 +110,7 @@ try {
     $c = Find-Change 'work/104'
     Assert-That ($c.Data.status -eq 'merged' -and $c.Data.endedUtc -eq '2026-09-01T00:00:00Z') 'PR outside the 14-day window is resolved with gh pr view'
     Assert-That ($null -eq (Find-Change 'work/107')) 'draft PR on a running card: the card stays running'
+    Assert-That ($null -eq (Find-Change 'work/110')) 'running card started 30 minutes ago with no worktree yet: left alone (race)'
     Assert-That ($null -eq (Find-Change 'work/108')) 'card grouping two issues is not finished by a PR closing only one'
     Assert-That ($null -eq (Find-Change 'flow/410')) 'merged plan PR (Refs only) does not finish the flow front'
     Assert-That ($null -eq (Find-Change 'work/105-done')) 'done card is left alone'
@@ -138,13 +142,15 @@ try {
 
     # ---- versions
     $pins = @{ 'work/100' = 4; 'work/102' = 1; 'work/104' = 2; 'flow/400' = 3; 'flow/401' = 1; 'flow/402' = 1; 'audits/5' = 2; 'meta/board' = 9 }
-    $batch = ConvertTo-BatchFiles $changes $pins 'create' 'update' 50
+    $batch = ConvertTo-BatchFiles $changes $pins 'set' 'update' 50
     $all = @($batch.Files | ForEach-Object { $_ })
     Assert-That ($batch.Skipped -contains 'work/103' -and $batch.Skipped.Count -eq 1) 'existing doc without a version is skipped, never written unpinned'
     Assert-That ((@($all | Where-Object { $_.op -eq 'update' -and $_.if_version -gt 0 }).Count) -eq (@($all | Where-Object { $_.op -eq 'update' }).Count)) 'every update carries if_version'
-    $creates = @($all | Where-Object { $_.op -eq 'create' })
+    $creates = @($all | Where-Object { $_.op -eq 'set' })
     Assert-That (@($creates | Where-Object { $_.Contains('if_version') }).Count -eq 0 -and $creates.Count -eq 4) "creates ($($creates.Count): $(($creates | ForEach-Object { "$($_.collection)/$($_.doc_id)" }) -join ',')) carry no if_version (work/300, work/401 for PR 221, audits/7, audits/8)"
     Assert-That (($all | Where-Object { $_.collection -eq 'work' -and $_.doc_id -eq '100' }).if_version -eq 4) 'the version comes from the sidecar'
+    $w100 = $all | Where-Object { $_.collection -eq 'work' -and $_.doc_id -eq '100' }
+    Assert-That ((@($w100.data.Keys | Sort-Object) -join ',') -eq 'endedUtc,status') "update carries only the changed fields (got $(@($w100.data.Keys | Sort-Object) -join ','))"
 
     # ---- idempotence: apply the changes, a second run writes nothing
     foreach ($ch in $changes) { $docs["$($ch.Collection)/$($ch.Id)"] = @{ Collection = $ch.Collection; Id = $ch.Id; Data = (Copy-Data $ch.Data) } }
@@ -154,9 +160,9 @@ try {
 
     # ---- the 50-write split
     $many = 1..120 | ForEach-Object { @{ Collection = 'work'; Id = "n$_"; Data = @{ n = $_ }; Exists = $false } }
-    $split = ConvertTo-BatchFiles $many @{} 'create' 'update' 50
+    $split = ConvertTo-BatchFiles $many @{} 'set' 'update' 50
     Assert-That ($split.Files.Count -eq 3 -and $split.Files[0].Count -eq 50 -and $split.Files[1].Count -eq 50 -and $split.Files[2].Count -eq 20 -and $split.Count -eq 120) '120 writes split into 50 + 50 + 20'
-    $one = ConvertTo-BatchFiles ($many | Select-Object -First 50) @{} 'create' 'update' 50
+    $one = ConvertTo-BatchFiles ($many | Select-Object -First 50) @{} 'set' 'update' 50
     Assert-That ($one.Files.Count -eq 1) 'exactly 50 writes stay in one file'
 }
 finally {
