@@ -1,8 +1,8 @@
 using Encina.Messaging.ReadWriteSeparation;
 using Encina.MongoDB;
 using Encina.MongoDB.ReadWriteSeparation;
-using Encina.Testing.Identity;
 using Encina.TestInfrastructure.Fixtures;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
