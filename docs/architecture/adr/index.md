@@ -41,6 +41,7 @@ has_children: true
 | [030](030-encryption-at-the-serializer-level.md) | Encryption at the Serializer Level (AES-256-GCM) |
 | [031](031-retention-erasure-port.md) | Retention Enforcement Erases Through Its Own Category-Scoped Port |
 | [034](034-crypto-shredding-through-the-stj-contract.md) | Crypto-Shredding Runs Through the System.Text.Json Contract |
+| [036](036-three-audit-stores.md) | Three Purpose-Named Audit Stores: Operation, Entity Change and Read Access |
 
 ## Reserved numbers
 
