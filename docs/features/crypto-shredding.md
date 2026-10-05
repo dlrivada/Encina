@@ -514,7 +514,7 @@ After forgetting:
 var result = await keyProvider.RotateSubjectKeyAsync("user-123");
 
 result.Match(
-    Right: r => Console.WriteLine($"Rotated: v{r.PreviousVersion} -> v{r.NewVersion}"),
+    Right: r => Console.WriteLine($"Rotated: v{r.OldVersion} -> v{r.NewVersion}"),
     Left:  e => Console.WriteLine($"Error: {e.GetCode().IfNone("encina.unknown")}"));
 ```
 
@@ -617,9 +617,11 @@ One `Activity` is started per serializer call, lazily on the first crypto field,
 |----------|------|------|
 | `CryptoShredding.Encrypt` | Internal | `crypto.event_type`, `crypto.outcome`, `crypto.failure_reason` (on failure) |
 | `CryptoShredding.Decrypt` | Internal | `crypto.event_type`, `crypto.outcome`, `crypto.failure_reason` (on failure) |
-| `CryptoShredding.Forget` | Internal | `crypto.subject_id`, `crypto.outcome` |
-| `CryptoShredding.KeyRotation` | Internal | `crypto.subject_id`, `crypto.outcome` |
-| `CryptoShredding.Erasure` | Internal | `crypto.subject_id`, `crypto.outcome` |
+| `CryptoShredding.Forget` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
+| `CryptoShredding.KeyRotation` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
+| `CryptoShredding.Erasure` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
+
+No tag carries a subject id.
 
 ### Metrics
 
@@ -681,7 +683,7 @@ Event IDs 8450-8499 are registered as `EventIdRanges.MartenGDPRCryptoShredding`.
 | 8483 | `PersonalDataLocateFailed` | Error |
 | 8484 | `InMemoryKeyStoreInUse` | Warning |
 
-Messages 8450-8466 are defined in `Diagnostics/CryptoShreddingLogMessages.cs`, 8470-8484 in `Diagnostics/CryptoShreddingLog.cs`. 8464 and 8465 are defined but not called yet.
+Messages 8450-8469 are defined in `Diagnostics/CryptoShreddingLogMessages.cs`, 8470-8484 in `Diagnostics/CryptoShreddingLog.cs`. 8464 and 8465 are defined but not called yet.
 
 ---
 

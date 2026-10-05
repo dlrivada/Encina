@@ -174,9 +174,9 @@ services.AddEncinaMartenGdpr(options =>
 });
 
 // Erasure workflow triggers crypto-shredding automatically
-var erasureService = serviceProvider.GetRequiredService<IDataErasureService>();
+var executor = serviceProvider.GetRequiredService<IDataErasureExecutor>();
 var scope = new ErasureScope { Reason = ErasureReason.ConsentWithdrawn };
-await erasureService.EraseSubjectDataAsync("user-123", scope);
+await executor.EraseAsync("user-123", scope, cancellationToken);
 ```
 
 `MartenEventPersonalDataLocator` discovers all PII locations in the Marten event stream for the specified subject. `PersonalDataLocation.FieldName` is the path of the field (`Email`, `Contact.Email`, `Items[].Note`). Erasure is subject-wide: it shreds every crypto-shredded field of the subject whatever `FieldName` or `ErasureScope.SpecificFields` say (#1144).
@@ -245,9 +245,9 @@ Reference for the flags, the configuration problems, the read semantics and the 
 |----------|------|------|
 | `CryptoShredding.Encrypt` | Internal | `crypto.event_type`, `crypto.outcome` |
 | `CryptoShredding.Decrypt` | Internal | `crypto.event_type`, `crypto.outcome` |
-| `CryptoShredding.Forget` | Internal | `crypto.subject_id`, `crypto.outcome` |
-| `CryptoShredding.KeyRotation` | Internal | `crypto.subject_id`, `crypto.outcome` |
-| `CryptoShredding.Erasure` | Internal | `crypto.subject_id`, `crypto.outcome` |
+| `CryptoShredding.Forget` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
+| `CryptoShredding.KeyRotation` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
+| `CryptoShredding.Erasure` | Internal | `crypto.outcome`, `crypto.failure_reason` (on failure) |
 
 ### Metrics
 
@@ -262,6 +262,7 @@ Reference for the flags, the configuration problems, the read semantics and the 
 | `crypto.forgotten_access.total` | Counter | Decrypt attempts on forgotten subjects |
 | `crypto.key_rotation.total` | Counter | Subject key rotations |
 | `crypto.forget.total` | Counter | Subject forget (crypto-shred) operations |
+| `crypto.configuration.misconfigured.total` | Counter | Misconfiguration findings |
 | `crypto.encryption.duration` | Histogram (ms) | Encryption duration |
 | `crypto.decryption.duration` | Histogram (ms) | Decryption duration |
 | `crypto.forget.duration` | Histogram (ms) | Forget operation duration |
