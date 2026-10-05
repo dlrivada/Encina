@@ -8,7 +8,7 @@ parent: "Features"
 
 ## Overview
 
-Encina Read Auditing provides a comprehensive audit trail for read access to sensitive entities. While CUD (Create, Update, Delete) operations are audited at the CQRS pipeline level via `AuditPipelineBehavior`, read operations require separate tracking at the repository level.
+Encina Read Auditing provides a comprehensive audit trail for read access to sensitive entities. Operations (commands, audited queries, secret access and policy changes) are recorded in the operation audit store at the CQRS pipeline level via `AuditPipelineBehavior`, while read access to sensitive entities needs separate tracking at the repository level.
 
 Read auditing answers critical compliance questions:
 
