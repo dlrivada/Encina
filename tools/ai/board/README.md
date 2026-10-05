@@ -91,11 +91,22 @@ only the changed top-level fields for existing documents and the full document (
 
 ### Dry run
 
-With `-DryRun`, `-Out` is not required. The script computes exactly the same changes as a normal run
-and prints one line per drifting document, `DRIFT <collection>/<id>: <comma-separated changed fields>`
-(`new` for a document that does not exist yet), then `DRY-RUN: <n> documents drift, nothing written`.
-It writes no file and deletes no file: old batch files are kept. Without `-DryRun` and without `-Out`
-the script fails with `-Out is required (or pass -DryRun ...)`.
+With `-DryRun`, `-Out` is not required. A dry run computes the same patches as a real run and prints one
+line per drifting document:
+
+```text
+DRIFT <collection>/<id>: <comma-separated changed fields>[ (would skip: no version)]
+```
+
+The field list is `new` for a document that does not exist yet. A document that a real run would
+SKIP, because it exists but has no version in the `-Versions` sidecar, is marked on its DRIFT line with
+` (would skip: no version)`. The summary is `DRY-RUN: <n> documents drift (<k> would be skipped), nothing written`.
+A real run on the same input reports `WRITES` equal to n - k and `SKIPPED` equal to k.
+
+A dry run writes no file and deletes no file: old batch files are kept. When `-Out` is given together
+with `-DryRun`, it is ignored and one line `DRY-RUN: -Out ignored` is printed (no error, nothing
+written or deleted). Without `-DryRun` and without `-Out` the script fails with
+`-Out is required (or pass -DryRun ...)`.
 
 ```powershell
 pwsh -NoProfile -File tools/ai/board/reconcile-board.ps1 -CurrentDir <tmp> -Versions <tmp>/versions.json -DryRun
@@ -104,7 +115,7 @@ pwsh -NoProfile -File tools/ai/board/reconcile-board.ps1 -CurrentDir <tmp> -Vers
 ```text
 DRIFT work/1732: new
 DRIFT meta/board: status, updatedUtc
-DRY-RUN: 2 documents drift, nothing written
+DRY-RUN: 2 documents drift (0 would be skipped), nothing written
 ```
 
 ### Deviation from #1732
@@ -169,6 +180,8 @@ The reconciler is idempotent: a second run on a reconciled board writes nothing.
 7. -Out may be a bare file name (resolved against the current directory); earlier -Out files are removed first.
 
 8. Self-test: also runs the script's main block end to end with stubbed gh/git (bare -Out name, split, stale file removal, incomplete-export abort).
+
+9. Self-test, dry run: a dry run with `-Out` pointing into a directory that holds a stale batch leaves its file set and hashes unchanged; the number of DRIFT lines equals the changes the real run computes; the would-skip count equals the real run's `SKIPPED` and n - k equals its `WRITES`; the `DRY-RUN: -Out ignored` line is printed.
 
 ### Scheduled task
 
