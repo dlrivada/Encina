@@ -4,9 +4,9 @@ using Shouldly;
 namespace Encina.UnitTests.Security.Audit;
 
 /// <summary>
-/// Unit tests for <see cref="AuditEntry"/>.
+/// Unit tests for <see cref="OperationAuditEntry"/>.
 /// </summary>
-public class AuditEntryTests
+public class OperationAuditEntryTests
 {
     [Fact]
     public void InitProperties_ShouldSetAllValues()
@@ -30,7 +30,7 @@ public class AuditEntryTests
         var completedAtUtc = DateTimeOffset.UtcNow;
 
         // Act
-        var entry = new AuditEntry
+        var entry = new OperationAuditEntry
         {
             Id = id,
             CorrelationId = correlationId,
@@ -138,7 +138,7 @@ public class AuditEntryTests
         var metadata = new Dictionary<string, object?>();
         var startedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
         var completedAtUtc = DateTimeOffset.UtcNow;
-        var entry1 = new AuditEntry
+        var entry1 = new OperationAuditEntry
         {
             Id = id,
             CorrelationId = "corr",
@@ -150,7 +150,7 @@ public class AuditEntryTests
             CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
-        var entry2 = new AuditEntry
+        var entry2 = new OperationAuditEntry
         {
             Id = id,
             CorrelationId = "corr",
@@ -176,7 +176,7 @@ public class AuditEntryTests
         var metadata = new Dictionary<string, object?>();
         var startedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
         var completedAtUtc = DateTimeOffset.UtcNow;
-        var entry1 = new AuditEntry
+        var entry1 = new OperationAuditEntry
         {
             Id = id,
             CorrelationId = "corr",
@@ -188,7 +188,7 @@ public class AuditEntryTests
             CompletedAtUtc = completedAtUtc,
             Metadata = metadata
         };
-        var entry2 = new AuditEntry
+        var entry2 = new OperationAuditEntry
         {
             Id = id,
             CorrelationId = "corr",
@@ -222,7 +222,7 @@ public class AuditEntryTests
         entry.RequestPayloadHash.ShouldBeNull();
     }
 
-    private static AuditEntry CreateEntry(
+    private static OperationAuditEntry CreateEntry(
         Guid? id = null,
         string? correlationId = null,
         string? action = null,
@@ -232,7 +232,7 @@ public class AuditEntryTests
         string? errorMessage = null,
         IReadOnlyDictionary<string, object?>? metadata = null)
     {
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = id ?? Guid.NewGuid(),
             CorrelationId = correlationId ?? "test-correlation",

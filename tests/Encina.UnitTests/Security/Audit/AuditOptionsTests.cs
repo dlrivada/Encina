@@ -4,15 +4,15 @@ using Shouldly;
 namespace Encina.UnitTests.Security.Audit;
 
 /// <summary>
-/// Unit tests for <see cref="AuditOptions"/>.
+/// Unit tests for <see cref="OperationAuditOptions"/>.
 /// </summary>
-public class AuditOptionsTests
+public class OperationAuditOptionsTests
 {
     [Fact]
     public void DefaultValues_ShouldBeCorrect()
     {
         // Act
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Assert
         options.AuditAllCommands.ShouldBeTrue();
@@ -31,7 +31,7 @@ public class AuditOptionsTests
     public void ExcludedTypes_ShouldBeEmptyByDefault()
     {
         // Act
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Assert
         options.ExcludedTypes.ShouldBeEmpty();
@@ -41,7 +41,7 @@ public class AuditOptionsTests
     public void IncludedQueryTypes_ShouldBeEmptyByDefault()
     {
         // Act
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Assert
         options.IncludedQueryTypes.ShouldBeEmpty();
@@ -51,7 +51,7 @@ public class AuditOptionsTests
     public void ExcludeType_Generic_ShouldAddToExcludedTypes()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         options.ExcludeType<TestCommand>();
@@ -65,7 +65,7 @@ public class AuditOptionsTests
     public void ExcludeType_NonGeneric_ShouldAddToExcludedTypes()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         options.ExcludeType(typeof(TestCommand));
@@ -79,7 +79,7 @@ public class AuditOptionsTests
     public void ExcludeType_Generic_ShouldReturnOptionsForChaining()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var result = options.ExcludeType<TestCommand>();
@@ -92,7 +92,7 @@ public class AuditOptionsTests
     public void ExcludeType_ShouldSupportFluentChaining()
     {
         // Arrange & Act
-        var options = new AuditOptions()
+        var options = new OperationAuditOptions()
             .ExcludeType<TestCommand>()
             .ExcludeType<TestQuery>();
 
@@ -106,7 +106,7 @@ public class AuditOptionsTests
     public void IncludeQueryType_Generic_ShouldAddToIncludedQueryTypes()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         options.IncludeQueryType<TestQuery>();
@@ -120,7 +120,7 @@ public class AuditOptionsTests
     public void IncludeQueryType_NonGeneric_ShouldAddToIncludedQueryTypes()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         options.IncludeQueryType(typeof(TestQuery));
@@ -134,7 +134,7 @@ public class AuditOptionsTests
     public void IncludeQueryType_Generic_ShouldReturnOptionsForChaining()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var result = options.IncludeQueryType<TestQuery>();
@@ -147,7 +147,7 @@ public class AuditOptionsTests
     public void IsExcluded_WhenTypeNotExcluded_ShouldReturnFalse()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act & Assert
         options.IsExcluded(typeof(TestCommand)).ShouldBeFalse();
@@ -157,7 +157,7 @@ public class AuditOptionsTests
     public void IsQueryIncluded_WhenTypeNotIncluded_ShouldReturnFalse()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act & Assert
         options.IsQueryIncluded(typeof(TestQuery)).ShouldBeFalse();
@@ -167,7 +167,7 @@ public class AuditOptionsTests
     public void ExcludeType_NonGeneric_WithNull_ShouldThrowArgumentNullException()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var act = () => options.ExcludeType(null!);
@@ -181,7 +181,7 @@ public class AuditOptionsTests
     public void IncludeQueryType_NonGeneric_WithNull_ShouldThrowArgumentNullException()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var act = () => options.IncludeQueryType(null!);
@@ -195,7 +195,7 @@ public class AuditOptionsTests
     public void ExcludeType_SameTypeTwice_ShouldNotDuplicate()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         options.ExcludeType<TestCommand>();
@@ -209,7 +209,7 @@ public class AuditOptionsTests
     public void Properties_ShouldBeSettable()
     {
         // Arrange & Act
-        var options = new AuditOptions
+        var options = new OperationAuditOptions
         {
             AuditAllCommands = false,
             AuditAllQueries = true,
@@ -228,7 +228,7 @@ public class AuditOptionsTests
     public void EnableAutoPurge_ShouldBeSettable()
     {
         // Arrange & Act
-        var options = new AuditOptions
+        var options = new OperationAuditOptions
         {
             EnableAutoPurge = true,
             PurgeIntervalHours = 12
@@ -243,7 +243,7 @@ public class AuditOptionsTests
     public void PayloadSettings_ShouldBeSettable()
     {
         // Arrange & Act
-        var options = new AuditOptions
+        var options = new OperationAuditOptions
         {
             IncludeRequestPayload = true,
             IncludeResponsePayload = true,
@@ -260,7 +260,7 @@ public class AuditOptionsTests
     public void GlobalSensitiveFields_ShouldBeSettable()
     {
         // Arrange & Act
-        var options = new AuditOptions
+        var options = new OperationAuditOptions
         {
             GlobalSensitiveFields = ["customField", "dateOfBirth", "taxId"]
         };

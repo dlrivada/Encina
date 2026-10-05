@@ -10,7 +10,7 @@ namespace Encina.Security.Audit;
 /// ADO.NET, and Dapper store implementations.
 /// </para>
 /// <para>
-/// Key differences from <c>AuditEntryEntity</c> (write audit):
+/// Key differences from <c>OperationAuditEntryEntity</c> (write audit):
 /// <list type="bullet">
 /// <item><description>No request/response payload fields — reads don't modify data</description></item>
 /// <item><description>Includes <see cref="Purpose"/> for GDPR Art. 15 compliance</description></item>

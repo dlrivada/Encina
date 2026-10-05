@@ -14,7 +14,7 @@ namespace Encina.UnitTests.Security.Secrets;
 public sealed class AuditedSecretReaderDecoratorTests
 {
     private readonly ISecretReader _innerReader;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<AuditedSecretReaderDecorator> _logger;
@@ -22,7 +22,7 @@ public sealed class AuditedSecretReaderDecoratorTests
     public AuditedSecretReaderDecoratorTests()
     {
         _innerReader = Substitute.For<ISecretReader>();
-        _auditStore = Substitute.For<IAuditStore>();
+        _auditStore = Substitute.For<IOperationAuditStore>();
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _logger = Substitute.For<ILogger<AuditedSecretReaderDecorator>>();
@@ -32,7 +32,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         _requestContext.TenantId.Returns("test-tenant");
         _requestContextAccessor.RequestContext.Returns(_requestContext);
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
 
@@ -106,7 +106,7 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         result.IsRight.ShouldBeTrue();
         result.IfRight(v => v.ShouldBe("value"));
-        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -123,7 +123,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         await decorator.GetSecretAsync("api-key");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Action == "SecretAccess" &&
                 e.EntityType == "Secret" &&
                 e.EntityId == "api-key" &&
@@ -156,7 +156,7 @@ public sealed class AuditedSecretReaderDecoratorTests
 
         result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
                 e.EntityId == "missing-key"),
             Arg.Any<CancellationToken>());
@@ -172,7 +172,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         await decorator.GetSecretAsync("key");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.UserId == "test-user" &&
                 e.TenantId == "test-tenant"),
             Arg.Any<CancellationToken>());
@@ -189,7 +189,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("value"));
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(
                 SecretsErrors.AuditFailed("key")));
 
@@ -206,7 +206,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         _innerReader.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("value"));
 
-        _auditStore.When(x => x.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()))
+        _auditStore.When(x => x.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("audit store crashed"));
 
         var result = await decorator.GetSecretAsync("key");
@@ -230,7 +230,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         var result = await decorator.GetSecretAsync<TestConfig>("config");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public sealed class AuditedSecretReaderDecoratorTests
         await decorator.GetSecretAsync<TestConfig>("config");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Action == "SecretAccess" &&
                 e.EntityType == "Secret" &&
                 e.EntityId == "config" &&

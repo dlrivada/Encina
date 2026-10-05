@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Encina.GuardTests.AuditMarten;
 
 /// <summary>
-/// Guard tests for <see cref="AuditEntryProjection"/> and <see cref="ReadAuditEntryProjection"/>.
+/// Guard tests for <see cref="OperationAuditEntryProjection"/> and <see cref="ReadAuditEntryProjection"/>.
 /// Validates constructor and method null-argument guards.
 /// </summary>
 /// <remarks>
@@ -15,43 +15,43 @@ namespace Encina.GuardTests.AuditMarten;
 /// pipeline requires a real Marten document session. End-to-end coverage is provided by the
 /// integration test suite, which boots a real PostgreSQL-backed Marten store.
 /// </remarks>
-public class AuditEntryProjectionGuardTests
+public class OperationAuditEntryProjectionGuardTests
 {
     [Fact]
-    public void AuditEntryProjection_Constructor_Parameterless_DoesNotThrow()
+    public void OperationAuditEntryProjection_Constructor_Parameterless_DoesNotThrow()
     {
-        var projection = new AuditEntryProjection();
+        var projection = new OperationAuditEntryProjection();
         projection.ShouldNotBeNull();
-        projection.Name.ShouldBe("AuditEntryProjection");
+        projection.Name.ShouldBe("OperationAuditEntryProjection");
     }
 
     [Fact]
-    public void AuditEntryProjection_Constructor_NullPlaceholder_Throws()
+    public void OperationAuditEntryProjection_Constructor_NullPlaceholder_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new AuditEntryProjection(null!, NullLogger<AuditEntryProjection>.Instance));
+            new OperationAuditEntryProjection(null!, NullLogger<OperationAuditEntryProjection>.Instance));
     }
 
     [Fact]
-    public void AuditEntryProjection_Constructor_NullLogger_Throws()
+    public void OperationAuditEntryProjection_Constructor_NullLogger_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new AuditEntryProjection("[SHREDDED]", null!));
+            new OperationAuditEntryProjection("[SHREDDED]", null!));
     }
 
     [Fact]
-    public async Task AuditEntryProjection_Create_NullEvent_Throws()
+    public async Task OperationAuditEntryProjection_Create_NullEvent_Throws()
     {
-        var projection = new AuditEntryProjection();
+        var projection = new OperationAuditEntryProjection();
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await projection.Create(null!, operations: null!, CancellationToken.None));
     }
 
     [Fact]
-    public async Task AuditEntryProjection_Create_NullOperations_Throws()
+    public async Task OperationAuditEntryProjection_Create_NullOperations_Throws()
     {
-        var projection = new AuditEntryProjection();
-        var evt = new AuditEntryRecordedEvent
+        var projection = new OperationAuditEntryProjection();
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "c",

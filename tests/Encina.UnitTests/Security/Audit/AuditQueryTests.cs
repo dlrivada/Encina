@@ -4,9 +4,9 @@ using Shouldly;
 namespace Encina.UnitTests.Security.Audit;
 
 /// <summary>
-/// Unit tests for <see cref="AuditQuery"/> and <see cref="AuditQueryBuilder"/>.
+/// Unit tests for <see cref="OperationAuditQuery"/> and <see cref="OperationAuditQueryBuilder"/>.
 /// </summary>
-public class AuditQueryTests
+public class OperationAuditQueryTests
 {
     #region Default Values Tests
 
@@ -14,7 +14,7 @@ public class AuditQueryTests
     public void DefaultValues_PageNumber_ShouldBeOne()
     {
         // Act
-        var query = new AuditQuery();
+        var query = new OperationAuditQuery();
 
         // Assert
         query.PageNumber.ShouldBe(1);
@@ -24,10 +24,10 @@ public class AuditQueryTests
     public void DefaultValues_PageSize_ShouldBeDefaultPageSize()
     {
         // Act
-        var query = new AuditQuery();
+        var query = new OperationAuditQuery();
 
         // Assert
-        query.PageSize.ShouldBe(AuditQuery.DefaultPageSize);
+        query.PageSize.ShouldBe(OperationAuditQuery.DefaultPageSize);
         query.PageSize.ShouldBe(50);
     }
 
@@ -35,7 +35,7 @@ public class AuditQueryTests
     public void DefaultValues_AllFilters_ShouldBeNull()
     {
         // Act
-        var query = new AuditQuery();
+        var query = new OperationAuditQuery();
 
         // Assert
         query.UserId.ShouldBeNull();
@@ -56,14 +56,14 @@ public class AuditQueryTests
     public void Constants_DefaultPageSize_ShouldBe50()
     {
         // Assert
-        AuditQuery.DefaultPageSize.ShouldBe(50);
+        OperationAuditQuery.DefaultPageSize.ShouldBe(50);
     }
 
     [Fact]
     public void Constants_MaxPageSize_ShouldBe1000()
     {
         // Assert
-        AuditQuery.MaxPageSize.ShouldBe(1000);
+        OperationAuditQuery.MaxPageSize.ShouldBe(1000);
     }
 
     #endregion
@@ -78,7 +78,7 @@ public class AuditQueryTests
         var toUtc = DateTime.UtcNow;
 
         // Act
-        var query = new AuditQuery
+        var query = new OperationAuditQuery
         {
             UserId = "user-123",
             TenantId = "tenant-456",
@@ -121,22 +121,22 @@ public class AuditQueryTests
     public void Builder_ShouldReturnNewBuilderInstance()
     {
         // Act
-        var builder = AuditQuery.Builder();
+        var builder = OperationAuditQuery.Builder();
 
         // Assert
         builder.ShouldNotBeNull();
-        builder.ShouldBeOfType<AuditQueryBuilder>();
+        builder.ShouldBeOfType<OperationAuditQueryBuilder>();
     }
 
     [Fact]
     public void Builder_Build_WithNoFilters_ShouldReturnDefaultQuery()
     {
         // Act
-        var query = AuditQuery.Builder().Build();
+        var query = OperationAuditQuery.Builder().Build();
 
         // Assert
         query.PageNumber.ShouldBe(1);
-        query.PageSize.ShouldBe(AuditQuery.DefaultPageSize);
+        query.PageSize.ShouldBe(OperationAuditQuery.DefaultPageSize);
         query.UserId.ShouldBeNull();
     }
 
@@ -144,7 +144,7 @@ public class AuditQueryTests
     public void Builder_ForUser_ShouldSetUserId()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .ForUser("user-123")
             .Build();
 
@@ -156,7 +156,7 @@ public class AuditQueryTests
     public void Builder_ForTenant_ShouldSetTenantId()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .ForTenant("tenant-456")
             .Build();
 
@@ -168,7 +168,7 @@ public class AuditQueryTests
     public void Builder_ForEntityType_ShouldSetEntityType()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .ForEntityType("Order")
             .Build();
 
@@ -180,7 +180,7 @@ public class AuditQueryTests
     public void Builder_ForEntity_ShouldSetEntityTypeAndId()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .ForEntity("Order", "order-123")
             .Build();
 
@@ -193,7 +193,7 @@ public class AuditQueryTests
     public void Builder_WithAction_ShouldSetAction()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithAction("Create")
             .Build();
 
@@ -205,7 +205,7 @@ public class AuditQueryTests
     public void Builder_WithOutcome_ShouldSetOutcome()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithOutcome(AuditOutcome.Failure)
             .Build();
 
@@ -217,7 +217,7 @@ public class AuditQueryTests
     public void Builder_WithCorrelationId_ShouldSetCorrelationId()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithCorrelationId("corr-123")
             .Build();
 
@@ -233,7 +233,7 @@ public class AuditQueryTests
         var to = DateTime.UtcNow;
 
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .InDateRange(from, to)
             .Build();
 
@@ -246,7 +246,7 @@ public class AuditQueryTests
     public void Builder_InDateRange_WithNulls_ShouldSetNulls()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .InDateRange(null, null)
             .Build();
 
@@ -259,7 +259,7 @@ public class AuditQueryTests
     public void Builder_FromIpAddress_ShouldSetIpAddress()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .FromIpAddress("192.168.1.100")
             .Build();
 
@@ -275,7 +275,7 @@ public class AuditQueryTests
         var max = TimeSpan.FromSeconds(10);
 
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithDurationRange(min, max)
             .Build();
 
@@ -288,7 +288,7 @@ public class AuditQueryTests
     public void Builder_OnPage_ShouldSetPageNumber()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .OnPage(5)
             .Build();
 
@@ -300,7 +300,7 @@ public class AuditQueryTests
     public void Builder_WithPageSize_ShouldSetPageSize()
     {
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .WithPageSize(100)
             .Build();
 
@@ -312,7 +312,7 @@ public class AuditQueryTests
     public void Builder_FluentChaining_ShouldReturnBuilderInstance()
     {
         // Act
-        var builder = AuditQuery.Builder()
+        var builder = OperationAuditQuery.Builder()
             .ForUser("user")
             .ForTenant("tenant")
             .ForEntityType("Order")
@@ -322,7 +322,7 @@ public class AuditQueryTests
             .WithPageSize(25);
 
         // Assert
-        builder.ShouldBeOfType<AuditQueryBuilder>();
+        builder.ShouldBeOfType<OperationAuditQueryBuilder>();
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public class AuditQueryTests
         var to = DateTime.UtcNow;
 
         // Act
-        var query = AuditQuery.Builder()
+        var query = OperationAuditQuery.Builder()
             .ForUser("user-123")
             .ForTenant("tenant-456")
             .ForEntity("Order", "order-789")

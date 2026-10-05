@@ -170,9 +170,9 @@ internal static partial class Log
     [LoggerMessage(EventId = 3152, Level = LogLevel.Debug, Message = "Created audit log indexes")]
     public static partial void CreatedAuditLogIndexes(ILogger logger);
 
-    // AuditStoreMongoDB (Security Audit): EventIds 3153-3161
+    // OperationAuditStoreMongoDB (Security Audit): EventIds 3153-3161
     [LoggerMessage(EventId = 3153, Level = LogLevel.Debug, Message = "Added security audit entry {EntryId} for {EntityType}:{EntityId}")]
-    public static partial void AddedSecurityAuditEntry(ILogger logger, Guid entryId, string entityType, string? entityId);
+    public static partial void AddedOperationAuditEntry(ILogger logger, Guid entryId, string entityType, string? entityId);
 
     [LoggerMessage(EventId = 3154, Level = LogLevel.Debug, Message = "Created security audit indexes")]
     public static partial void CreatedSecurityAuditIndexes(ILogger logger);

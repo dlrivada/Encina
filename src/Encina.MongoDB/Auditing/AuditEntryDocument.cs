@@ -6,11 +6,11 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Encina.MongoDB.Auditing;
 
 /// <summary>
-/// MongoDB document representation of an <see cref="AuditEntry"/>.
+/// MongoDB document representation of an <see cref="OperationAuditEntry"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This document class maps to the <see cref="AuditEntry"/> record from the security audit library,
+/// This document class maps to the <see cref="OperationAuditEntry"/> record from the security audit library,
 /// providing MongoDB-specific serialization attributes for BSON storage.
 /// </para>
 /// <para>
@@ -18,7 +18,7 @@ namespace Encina.MongoDB.Auditing;
 /// MongoDB community conventions.
 /// </para>
 /// </remarks>
-public sealed class AuditEntryDocument
+public sealed class OperationAuditEntryDocument
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -139,15 +139,15 @@ public sealed class AuditEntryDocument
     public string? Metadata { get; set; }
 
     /// <summary>
-    /// Creates an <see cref="AuditEntryDocument"/> from an <see cref="AuditEntry"/>.
+    /// Creates an <see cref="OperationAuditEntryDocument"/> from an <see cref="OperationAuditEntry"/>.
     /// </summary>
     /// <param name="entry">The audit entry to convert.</param>
     /// <returns>A new document representation of the entry.</returns>
-    public static AuditEntryDocument FromEntry(AuditEntry entry)
+    public static OperationAuditEntryDocument FromEntry(OperationAuditEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        return new AuditEntryDocument
+        return new OperationAuditEntryDocument
         {
             Id = entry.Id,
             CorrelationId = entry.CorrelationId,
@@ -171,10 +171,10 @@ public sealed class AuditEntryDocument
     }
 
     /// <summary>
-    /// Converts this document to an <see cref="AuditEntry"/> record.
+    /// Converts this document to an <see cref="OperationAuditEntry"/> record.
     /// </summary>
     /// <returns>An audit entry record.</returns>
-    public AuditEntry ToEntry() => new()
+    public OperationAuditEntry ToEntry() => new()
     {
         Id = Id,
         CorrelationId = CorrelationId,

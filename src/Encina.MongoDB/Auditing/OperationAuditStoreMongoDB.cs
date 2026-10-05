@@ -1,0 +1,322 @@
+using Encina.Diagnostics;
+using Encina.Messaging;
+using Encina.Security.Audit;
+using LanguageExt;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using MongoDB.Driver;
+using static LanguageExt.Prelude;
+
+namespace Encina.MongoDB.Auditing;
+
+/// <summary>
+/// MongoDB implementation of <see cref="IOperationAuditStore"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This implementation uses MongoDB-specific features:
+/// <list type="bullet">
+/// <item><description>BSON document serialization</description></item>
+/// <item><description>Filter builders for type-safe queries</description></item>
+/// <item><description>Indexes on frequently queried fields for performance</description></item>
+/// <item><description>Skip/Limit for pagination</description></item>
+/// <item><description>DeleteManyAsync for efficient purge operations</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// Each call to <see cref="RecordAsync"/> immediately persists the audit entry to the database.
+/// </para>
+/// </remarks>
+public sealed class OperationAuditStoreMongoDB : IOperationAuditStore
+{
+    private readonly IMongoCollection<OperationAuditEntryDocument> _collection;
+    private readonly ILogger<OperationAuditStoreMongoDB> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OperationAuditStoreMongoDB"/> class.
+    /// </summary>
+    /// <param name="mongoClient">The MongoDB client.</param>
+    /// <param name="options">The MongoDB options.</param>
+    /// <param name="logger">The logger.</param>
+    public OperationAuditStoreMongoDB(
+        IMongoClient mongoClient,
+        IOptions<EncinaMongoDbOptions> options,
+        ILogger<OperationAuditStoreMongoDB> logger)
+    {
+        ArgumentNullException.ThrowIfNull(mongoClient);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        var config = options.Value;
+        var database = mongoClient.GetDatabase(config.DatabaseName);
+        _collection = database.GetCollection<OperationAuditEntryDocument>(config.Collections.OperationAuditEntries);
+        _logger = logger;
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, Unit>> RecordAsync(
+        OperationAuditEntry entry,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        try
+        {
+            var document = OperationAuditEntryDocument.FromEntry(entry);
+            await _collection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+            Log.AddedOperationAuditEntry(_logger, entry.Id, entry.EntityType, entry.EntityId);
+            return Right(unit);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToRecordAuditEntry(_logger, ex.ForLogging(), entry.Id);
+            return Left(EncinaError.New($"Failed to record audit entry: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByEntityAsync(
+        string entityType,
+        string? entityId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(entityType);
+
+        try
+        {
+            var filterBuilder = Builders<OperationAuditEntryDocument>.Filter;
+            var filter = filterBuilder.Eq(d => d.EntityType, entityType);
+
+            if (entityId is not null)
+            {
+                filter &= filterBuilder.Eq(d => d.EntityId, entityId);
+            }
+
+            var documents = await _collection
+                .Find(filter)
+                .SortByDescending(d => d.TimestampUtc)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var entries = documents.Select(d => d.ToEntry()).ToList();
+            return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToQueryAuditEntriesByEntity(_logger, ex.ForLogging(), entityType);
+            return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
+                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByUserAsync(
+        string userId,
+        DateTime? fromUtc,
+        DateTime? toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        try
+        {
+            var filterBuilder = Builders<OperationAuditEntryDocument>.Filter;
+            var filter = filterBuilder.Eq(d => d.UserId, userId);
+
+            if (fromUtc.HasValue)
+            {
+                filter &= filterBuilder.Gte(d => d.TimestampUtc, fromUtc.Value);
+            }
+
+            if (toUtc.HasValue)
+            {
+                filter &= filterBuilder.Lte(d => d.TimestampUtc, toUtc.Value);
+            }
+
+            var documents = await _collection
+                .Find(filter)
+                .SortByDescending(d => d.TimestampUtc)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var entries = documents.Select(d => d.ToEntry()).ToList();
+            return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToQueryAuditEntriesByUser(_logger, ex.ForLogging(), userId);
+            return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
+                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByCorrelationIdAsync(
+        string correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+
+        try
+        {
+            var filter = Builders<OperationAuditEntryDocument>.Filter.Eq(d => d.CorrelationId, correlationId);
+
+            var documents = await _collection
+                .Find(filter)
+                .SortBy(d => d.TimestampUtc) // Ascending for correlation ID to show chronological order
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var entries = documents.Select(d => d.ToEntry()).ToList();
+            return Right<EncinaError, IReadOnlyList<OperationAuditEntry>>(entries);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToQueryAuditEntriesByCorrelationId(_logger, ex.ForLogging(), correlationId);
+            return Left<EncinaError, IReadOnlyList<OperationAuditEntry>>(
+                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryAsync(
+        OperationAuditQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        try
+        {
+            var pageNumber = Math.Max(1, query.PageNumber);
+            var pageSize = Math.Clamp(query.PageSize, 1, OperationAuditQuery.MaxPageSize);
+            var skip = (pageNumber - 1) * pageSize;
+
+            // Build filter from query
+            var filter = BuildFilter(query);
+
+            // Get total count
+            var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            // Get paginated results
+            var documents = await _collection
+                .Find(filter)
+                .SortByDescending(d => d.TimestampUtc)
+                .Skip(skip)
+                .Limit(pageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var entries = documents.Select(d => d.ToEntry()).ToList();
+
+            // Apply duration filter in memory (Duration is computed, not stored)
+            if (query.MinDuration.HasValue || query.MaxDuration.HasValue)
+            {
+                var filtered = entries.AsEnumerable();
+
+                if (query.MinDuration.HasValue)
+                {
+                    filtered = filtered.Where(e => e.Duration >= query.MinDuration.Value);
+                }
+
+                if (query.MaxDuration.HasValue)
+                {
+                    filtered = filtered.Where(e => e.Duration <= query.MaxDuration.Value);
+                }
+
+                entries = filtered.ToList();
+            }
+
+            var result = PagedResult<OperationAuditEntry>.Create(entries, (int)totalCount, pageNumber, pageSize);
+            return Right(result);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToExecuteAuditQuery(_logger, ex.ForLogging());
+            return Left<EncinaError, PagedResult<OperationAuditEntry>>(
+                EncinaError.New($"Failed to query audit entries: {ex.Message}"));
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<Either<EncinaError, int>> PurgeEntriesAsync(
+        DateTime olderThanUtc,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var filter = Builders<OperationAuditEntryDocument>.Filter.Lt(d => d.TimestampUtc, olderThanUtc);
+            var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+
+            var deletedCount = (int)result.DeletedCount;
+            Log.PurgedAuditEntries(_logger, deletedCount, olderThanUtc);
+            return Right(deletedCount);
+        }
+        catch (Exception ex)
+        {
+            Log.FailedToPurgeAuditEntries(_logger, ex.ForLogging(), olderThanUtc);
+            return Left<EncinaError, int>(
+                EncinaError.New($"Failed to purge audit entries: {ex.Message}"));
+        }
+    }
+
+    private static FilterDefinition<OperationAuditEntryDocument> BuildFilter(OperationAuditQuery query)
+    {
+        var builder = Builders<OperationAuditEntryDocument>.Filter;
+        var filters = new List<FilterDefinition<OperationAuditEntryDocument>>();
+
+        if (!string.IsNullOrWhiteSpace(query.UserId))
+        {
+            filters.Add(builder.Eq(d => d.UserId, query.UserId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            filters.Add(builder.Eq(d => d.TenantId, query.TenantId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+        {
+            filters.Add(builder.Eq(d => d.EntityType, query.EntityType));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+        {
+            filters.Add(builder.Eq(d => d.EntityId, query.EntityId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            filters.Add(builder.Eq(d => d.Action, query.Action));
+        }
+
+        if (query.Outcome.HasValue)
+        {
+            filters.Add(builder.Eq(d => d.Outcome, (int)query.Outcome.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CorrelationId))
+        {
+            filters.Add(builder.Eq(d => d.CorrelationId, query.CorrelationId));
+        }
+
+        if (query.FromUtc.HasValue)
+        {
+            filters.Add(builder.Gte(d => d.TimestampUtc, query.FromUtc.Value));
+        }
+
+        if (query.ToUtc.HasValue)
+        {
+            filters.Add(builder.Lte(d => d.TimestampUtc, query.ToUtc.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.IpAddress))
+        {
+            filters.Add(builder.Eq(d => d.IpAddress, query.IpAddress));
+        }
+
+        return filters.Count == 0
+            ? builder.Empty
+            : builder.And(filters);
+    }
+}

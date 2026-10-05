@@ -18,20 +18,20 @@ public sealed class AuditPipelineBehaviorRedactionTests
     private const string Sentinel = "SENTINEL-audit-error-message";
     private const string Code = "audit.sentinel.code";
 
-    private readonly IAuditStore _auditStore = Substitute.For<IAuditStore>();
-    private readonly IAuditEntryFactory _entryFactory = Substitute.For<IAuditEntryFactory>();
+    private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
+    private readonly IOperationAuditEntryFactory _entryFactory = Substitute.For<IOperationAuditEntryFactory>();
     private string? _recordedErrorMessage;
     private int _createCalls;
 
     public AuditPipelineBehaviorRedactionTests()
     {
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
         _entryFactory.Create(
                 Arg.Any<object>(), Arg.Any<object?>(), Arg.Any<IRequestContext>(), Arg.Any<AuditOutcome>(),
                 Arg.Do<string?>(m => { _recordedErrorMessage = m; _createCalls++; }),
                 Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
-            .Returns(_ => new AuditEntry
+            .Returns(_ => new OperationAuditEntry
             {
                 Id = Guid.NewGuid(),
                 CorrelationId = "corr",
@@ -46,7 +46,7 @@ public sealed class AuditPipelineBehaviorRedactionTests
     }
 
     private AuditPipelineBehavior<RedactionCommand, Unit> CreateSut() =>
-        new(_auditStore, _entryFactory, Options.Create(new AuditOptions { AuditAllCommands = true }),
+        new(_auditStore, _entryFactory, Options.Create(new OperationAuditOptions { AuditAllCommands = true }),
             NullLogger<AuditPipelineBehavior<RedactionCommand, Unit>>.Instance);
 
     [Fact]

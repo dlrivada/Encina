@@ -13,28 +13,28 @@ public static class ServiceCollectionExtensions
     /// Adds Encina audit trail services to the specified <see cref="IServiceCollection"/>.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
-    /// <param name="configure">Optional action to configure <see cref="AuditOptions"/>.</param>
+    /// <param name="configure">Optional action to configure <see cref="OperationAuditOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <para>
     /// This method registers the following services:
     /// <list type="bullet">
-    /// <item><see cref="AuditOptions"/> - Configured via the provided action</item>
-    /// <item><see cref="IAuditEntryFactory"/> → <see cref="DefaultAuditEntryFactory"/> (Scoped)</item>
+    /// <item><see cref="OperationAuditOptions"/> - Configured via the provided action</item>
+    /// <item><see cref="IOperationAuditEntryFactory"/> → <see cref="DefaultOperationAuditEntryFactory"/> (Scoped)</item>
     /// <item><see cref="IPiiMasker"/> → <see cref="NullPiiMasker"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="IAuditStore"/> → <see cref="InMemoryAuditStore"/> (Singleton, using TryAdd)</item>
+    /// <item><see cref="IOperationAuditStore"/> → <see cref="InMemoryOperationAuditStore"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="AuditPipelineBehavior{TRequest, TResponse}"/> (Scoped, open generic)</item>
-    /// <item><see cref="AuditRetentionService"/> (Hosted service, only when <see cref="AuditOptions.EnableAutoPurge"/> is true)</item>
+    /// <item><see cref="OperationAuditRetentionService"/> (Hosted service, only when <see cref="OperationAuditOptions.EnableAutoPurge"/> is true)</item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Default registrations:</b>
-    /// <see cref="IPiiMasker"/> and <see cref="IAuditStore"/> are registered using <c>TryAdd</c>,
+    /// <see cref="IPiiMasker"/> and <see cref="IOperationAuditStore"/> are registered using <c>TryAdd</c>,
     /// allowing you to register custom implementations before calling this method.
     /// </para>
     /// <para>
     /// <b>Production considerations:</b>
-    /// For production use, register a persistent <see cref="IAuditStore"/> implementation
+    /// For production use, register a persistent <see cref="IOperationAuditStore"/> implementation
     /// (e.g., SQL Server, PostgreSQL) before calling this method.
     /// </para>
     /// </remarks>
@@ -55,7 +55,7 @@ public static class ServiceCollectionExtensions
     /// });
     ///
     /// // With custom store (register before AddEncinaAudit)
-    /// services.AddSingleton&lt;IAuditStore, SqlServerAuditStore&gt;();
+    /// services.AddSingleton&lt;IOperationAuditStore, SqlServerAuditStore&gt;();
     /// services.AddEncinaAudit();
     ///
     /// // With custom PII masker
@@ -66,7 +66,7 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
     public static IServiceCollection AddEncinaAudit(
         this IServiceCollection services,
-        Action<AuditOptions>? configure = null)
+        Action<OperationAuditOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -77,25 +77,25 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            services.Configure<AuditOptions>(_ => { });
+            services.Configure<OperationAuditOptions>(_ => { });
         }
 
         // Register default implementations (TryAdd allows override)
         services.TryAddSingleton<IPiiMasker, NullPiiMasker>();
-        services.TryAddSingleton<IAuditStore, InMemoryAuditStore>();
+        services.TryAddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>();
 
         // Register factory and behavior
-        services.AddScoped<IAuditEntryFactory, DefaultAuditEntryFactory>();
+        services.AddScoped<IOperationAuditEntryFactory, DefaultOperationAuditEntryFactory>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuditPipelineBehavior<,>));
 
         // Register auto-purge service if enabled
         // Note: We need to evaluate the options to check if EnableAutoPurge is true
-        var optionsInstance = new AuditOptions();
+        var optionsInstance = new OperationAuditOptions();
         configure?.Invoke(optionsInstance);
 
         if (optionsInstance.EnableAutoPurge)
         {
-            services.AddHostedService<AuditRetentionService>();
+            services.AddHostedService<OperationAuditRetentionService>();
         }
 
         return services;

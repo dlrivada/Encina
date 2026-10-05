@@ -340,7 +340,7 @@ public static class ServiceCollectionExtensions
         // Layer 2: Auditing (outer decorator, wraps caching)
         if (options.EnableAccessAuditing)
         {
-            var auditStore = sp.GetService<IAuditStore>();
+            var auditStore = sp.GetService<IOperationAuditStore>();
             var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
 
             if (auditStore is not null && requestContextAccessor is not null)

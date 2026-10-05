@@ -83,14 +83,14 @@ public sealed class EncinaMongoDbOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When enabled, registers IAuditStore implemented by AuditStoreMongoDB.
+    /// When enabled, registers IOperationAuditStore implemented by OperationAuditStoreMongoDB.
     /// </para>
     /// <para>
     /// The security audit store provides comprehensive audit trail for operations
     /// including request/response payloads, outcome tracking, and compliance features.
     /// </para>
     /// </remarks>
-    public bool UseSecurityAuditStore { get; set; }
+    public bool UseOperationAuditStore { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to use the Read Audit Store.
@@ -293,7 +293,7 @@ public sealed class MongoDbCollectionNames
     /// <summary>
     /// Gets or sets the collection name for security audit entries.
     /// </summary>
-    public string SecurityAuditEntries { get; set; } = "security_audit_entries";
+    public string OperationAuditEntries { get; set; } = "operation_audit_entries";
 
     /// <summary>
     /// Gets or sets the collection name for read audit entries.

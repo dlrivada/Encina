@@ -19,13 +19,13 @@ public sealed class SecretAuditRecorderRedactionTests
     private const string Sentinel = "SENTINEL-secret-error-message";
     private const string Code = "secrets.sentinel.code";
 
-    private readonly IAuditStore _auditStore = Substitute.For<IAuditStore>();
+    private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
     private readonly IRequestContextAccessor _accessor = Substitute.For<IRequestContextAccessor>();
     private readonly SecretsOptions _options = new() { EnableAccessAuditing = true };
 
     public SecretAuditRecorderRedactionTests()
     {
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
 
@@ -35,7 +35,7 @@ public sealed class SecretAuditRecorderRedactionTests
     {
         var calls = _auditStore.ReceivedCalls().ToList();
         calls.Count.ShouldBe(1);
-        var entry = (AuditEntry)calls[0].GetArguments()[0]!;
+        var entry = (OperationAuditEntry)calls[0].GetArguments()[0]!;
         entry.Outcome.ShouldBe(AuditOutcome.Failure);
         entry.ErrorMessage.ShouldBe(Code);
         await Task.CompletedTask;
@@ -61,7 +61,7 @@ public sealed class SecretAuditRecorderRedactionTests
         var inner = Substitute.For<ISecretReader>();
         inner.GetSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, string>>("value"));
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create("audit.store.code", Sentinel)));
         var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<AuditedSecretReaderDecorator>();
         var sut = new AuditedSecretReaderDecorator(inner, _auditStore, _accessor, _options, logger);

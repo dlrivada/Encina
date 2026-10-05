@@ -7,16 +7,16 @@ namespace Encina.GuardTests.MongoDB.Auditing;
 
 public class AuditStoreMethodGuardTests
 {
-    private static AuditStoreMongoDB CreateStore()
+    private static OperationAuditStoreMongoDB CreateStore()
     {
         var client = Substitute.For<IMongoClient>();
         var db = Substitute.For<IMongoDatabase>();
         client.GetDatabase(Arg.Any<string>(), Arg.Any<MongoDatabaseSettings>()).Returns(db);
-        db.GetCollection<AuditEntryDocument>(Arg.Any<string>(), Arg.Any<MongoCollectionSettings>())
-            .Returns(Substitute.For<IMongoCollection<AuditEntryDocument>>());
-        return new AuditStoreMongoDB(client,
+        db.GetCollection<OperationAuditEntryDocument>(Arg.Any<string>(), Arg.Any<MongoCollectionSettings>())
+            .Returns(Substitute.For<IMongoCollection<OperationAuditEntryDocument>>());
+        return new OperationAuditStoreMongoDB(client,
             Options.Create(new EncinaMongoDbOptions { DatabaseName = "test" }),
-            NullLogger<AuditStoreMongoDB>.Instance);
+            NullLogger<OperationAuditStoreMongoDB>.Instance);
     }
 
     [Fact]

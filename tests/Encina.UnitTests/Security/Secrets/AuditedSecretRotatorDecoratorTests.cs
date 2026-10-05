@@ -14,7 +14,7 @@ namespace Encina.UnitTests.Security.Secrets;
 public sealed class AuditedSecretRotatorDecoratorTests
 {
     private readonly ISecretRotator _innerRotator;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<AuditedSecretRotatorDecorator> _logger;
@@ -22,7 +22,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
     public AuditedSecretRotatorDecoratorTests()
     {
         _innerRotator = Substitute.For<ISecretRotator>();
-        _auditStore = Substitute.For<IAuditStore>();
+        _auditStore = Substitute.For<IOperationAuditStore>();
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _logger = Substitute.For<ILogger<AuditedSecretRotatorDecorator>>();
@@ -32,7 +32,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _requestContext.TenantId.Returns("test-tenant");
         _requestContextAccessor.RequestContext.Returns(_requestContext);
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
 
@@ -105,7 +105,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         var result = await decorator.RotateSecretAsync("key");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -122,7 +122,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         await decorator.RotateSecretAsync("db-password");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Action == "SecretRotation" &&
                 e.EntityType == "Secret" &&
                 e.EntityId == "db-password" &&
@@ -154,7 +154,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
                 e.EntityId == "key"),
             Arg.Any<CancellationToken>());
@@ -170,7 +170,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         await decorator.RotateSecretAsync("key");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.UserId == "test-user" &&
                 e.TenantId == "test-tenant"),
             Arg.Any<CancellationToken>());
@@ -187,7 +187,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _innerRotator.RotateSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(
                 SecretsErrors.AuditFailed("key")));
 
@@ -203,7 +203,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _innerRotator.RotateSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.When(x => x.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()))
+        _auditStore.When(x => x.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("audit store crashed"));
 
         var result = await decorator.RotateSecretAsync("key");

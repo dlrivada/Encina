@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Encina.Security.Audit;
 
 /// <summary>
-/// Default implementation of <see cref="IAuditEntryFactory"/> that creates audit entries
+/// Default implementation of <see cref="IOperationAuditEntryFactory"/> that creates audit entries
 /// using naming conventions, attributes, and request context.
 /// </summary>
 /// <remarks>
@@ -23,7 +23,7 @@ namespace Encina.Security.Audit;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
+public sealed class DefaultOperationAuditEntryFactory : IOperationAuditEntryFactory
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -33,18 +33,18 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
 
     private readonly IPiiMasker _piiMasker;
     private readonly DefaultSensitiveDataRedactor? _redactor;
-    private readonly IOptions<AuditOptions> _optionsAccessor;
-    private readonly AuditOptions _options;
+    private readonly IOptions<OperationAuditOptions> _optionsAccessor;
+    private readonly OperationAuditOptions _options;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultAuditEntryFactory"/> class.
+    /// Initializes a new instance of the <see cref="DefaultOperationAuditEntryFactory"/> class.
     /// </summary>
     /// <param name="piiMasker">The PII masker for sanitizing request payloads.</param>
     /// <param name="options">The audit options.</param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="piiMasker"/> or <paramref name="options"/> is null.
     /// </exception>
-    public DefaultAuditEntryFactory(IPiiMasker piiMasker, IOptions<AuditOptions> options)
+    public DefaultOperationAuditEntryFactory(IPiiMasker piiMasker, IOptions<OperationAuditOptions> options)
     {
         ArgumentNullException.ThrowIfNull(piiMasker);
         ArgumentNullException.ThrowIfNull(options);
@@ -58,7 +58,7 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
     }
 
     /// <inheritdoc/>
-    public AuditEntry Create<TRequest>(
+    public OperationAuditEntry Create<TRequest>(
         TRequest request,
         IRequestContext context,
         AuditOutcome outcome,
@@ -73,7 +73,7 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
     }
 
     /// <inheritdoc/>
-    public AuditEntry Create<TRequest, TResponse>(
+    public OperationAuditEntry Create<TRequest, TResponse>(
         TRequest request,
         TResponse? response,
         IRequestContext context,
@@ -116,7 +116,7 @@ public sealed class DefaultAuditEntryFactory : IAuditEntryFactory
         // Build metadata
         var metadata = BuildMetadata(context, auditableAttribute);
 
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = context.CorrelationId,

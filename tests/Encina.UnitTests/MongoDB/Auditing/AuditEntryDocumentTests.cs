@@ -3,13 +3,13 @@ using Encina.Security.Audit;
 
 namespace Encina.UnitTests.MongoDB.Auditing;
 
-public sealed class AuditEntryDocumentTests
+public sealed class OperationAuditEntryDocumentTests
 {
     [Fact]
     public void FromEntry_MapsAllProperties()
     {
         var now = DateTimeOffset.UtcNow;
-        var entry = new AuditEntry
+        var entry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-1",
@@ -23,7 +23,7 @@ public sealed class AuditEntryDocumentTests
             CompletedAtUtc = now
         };
 
-        var doc = AuditEntryDocument.FromEntry(entry);
+        var doc = OperationAuditEntryDocument.FromEntry(entry);
 
         doc.Id.ShouldBe(entry.Id);
         doc.CorrelationId.ShouldBe("corr-1");
@@ -37,7 +37,7 @@ public sealed class AuditEntryDocumentTests
     public void ToEntry_MapsBackCorrectly()
     {
         var now = DateTime.UtcNow;
-        var doc = new AuditEntryDocument
+        var doc = new OperationAuditEntryDocument
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-2",
@@ -63,7 +63,7 @@ public sealed class AuditEntryDocumentTests
     public void RoundTrip_PreservesData()
     {
         var now = DateTimeOffset.UtcNow;
-        var original = new AuditEntry
+        var original = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "round-trip",
@@ -76,7 +76,7 @@ public sealed class AuditEntryDocumentTests
             CompletedAtUtc = now
         };
 
-        var doc = AuditEntryDocument.FromEntry(original);
+        var doc = OperationAuditEntryDocument.FromEntry(original);
         var restored = doc.ToEntry();
 
         restored.Id.ShouldBe(original.Id);
@@ -89,7 +89,7 @@ public sealed class AuditEntryDocumentTests
     [Fact]
     public void Defaults_AreCorrect()
     {
-        var doc = new AuditEntryDocument();
+        var doc = new OperationAuditEntryDocument();
         doc.Id.ShouldBe(Guid.Empty);
         doc.CorrelationId.ShouldBeEmpty();
         doc.Action.ShouldBeEmpty();

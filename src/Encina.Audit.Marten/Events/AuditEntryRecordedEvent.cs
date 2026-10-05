@@ -7,7 +7,7 @@ namespace Encina.Audit.Marten.Events;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This event is appended to Marten event streams by <c>MartenAuditStore.RecordAsync</c>.
+/// This event is appended to Marten event streams by <c>MartenOperationAuditStore.RecordAsync</c>.
 /// PII-sensitive fields are stored as <see cref="EncryptedField"/> values encrypted with
 /// temporal keys, while structural fields remain in plaintext for querying and compliance analysis.
 /// </para>
@@ -23,7 +23,7 @@ namespace Encina.Audit.Marten.Events;
 /// <c>EncryptedRequestPayload</c>, <c>EncryptedResponsePayload</c>, <c>EncryptedMetadata</c>.
 /// </para>
 /// </remarks>
-public sealed record AuditEntryRecordedEvent
+public sealed record OperationAuditEntryRecordedEvent
 {
     // ── Plaintext structural fields ─────────────────────────────────────
 

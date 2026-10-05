@@ -7,21 +7,21 @@ namespace Encina.Audit.Marten.Projections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This read model is populated by the <see cref="AuditEntryProjection"/> from
-/// <see cref="Events.AuditEntryRecordedEvent"/> events. PII fields are decrypted during
+/// This read model is populated by the <see cref="OperationAuditEntryProjection"/> from
+/// <see cref="Events.OperationAuditEntryRecordedEvent"/> events. PII fields are decrypted during
 /// projection processing when temporal keys are available.
 /// </para>
 /// <para>
 /// When temporal keys have been destroyed via crypto-shredding, PII fields contain the
-/// <see cref="MartenAuditOptions.ShreddedPlaceholder"/> value (default: <c>"[SHREDDED]"</c>)
+/// <see cref="MartenOperationAuditOptions.ShreddedPlaceholder"/> value (default: <c>"[SHREDDED]"</c>)
 /// and <see cref="IsShredded"/> is set to <c>true</c>.
 /// </para>
 /// <para>
-/// All fields from <see cref="AuditEntry"/> are present, plus <see cref="IsShredded"/>
+/// All fields from <see cref="OperationAuditEntry"/> are present, plus <see cref="IsShredded"/>
 /// and <see cref="TemporalKeyPeriod"/> for crypto-shredding tracking.
 /// </para>
 /// </remarks>
-public sealed class AuditEntryReadModel
+public sealed class OperationAuditEntryReadModel
 {
     // ── Identity ────────────────────────────────────────────────────────
 

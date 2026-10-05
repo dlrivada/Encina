@@ -17,7 +17,7 @@ namespace Encina.GuardTests.Security.Secrets.Auditing;
 public sealed class AuditedSecretRotatorDecoratorGuardTests
 {
     private readonly ISecretRotator _inner = Substitute.For<ISecretRotator>();
-    private readonly IAuditStore _auditStore = Substitute.For<IAuditStore>();
+    private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
     private readonly IRequestContext _requestContext = Substitute.For<IRequestContext>();
     private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
     private readonly SecretsOptions _options = new();
@@ -100,7 +100,7 @@ public sealed class AuditedSecretRotatorDecoratorGuardTests
         var options = new SecretsOptions { EnableAccessAuditing = true };
         _requestContext.CorrelationId.Returns("corr-123");
         _requestContext.UserId.Returns("user-1");
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
 
         var sut = new AuditedSecretRotatorDecorator(
@@ -113,7 +113,7 @@ public sealed class AuditedSecretRotatorDecoratorGuardTests
         var result = await sut.RotateSecretAsync("test-secret");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.Received(1).RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.Received(1).RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion

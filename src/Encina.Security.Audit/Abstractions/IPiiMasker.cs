@@ -56,7 +56,7 @@ public interface IPiiMasker
     /// <para>
     /// The returned object is used for:
     /// <list type="bullet">
-    /// <item>Computing the <see cref="AuditEntry.RequestPayloadHash"/></item>
+    /// <item>Computing the <see cref="OperationAuditEntry.RequestPayloadHash"/></item>
     /// <item>Any optional payload logging (if enabled)</item>
     /// </list>
     /// </para>

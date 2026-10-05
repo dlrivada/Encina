@@ -12,22 +12,22 @@ using Shouldly;
 namespace Encina.UnitTests.EntityFrameworkCore.Auditing;
 
 /// <summary>
-/// Unit tests for how <see cref="AuditStoreEF"/> and <see cref="ReadAuditStoreEF"/> report database failures and for
+/// Unit tests for how <see cref="OperationAuditStoreEF"/> and <see cref="ReadAuditStoreEF"/> report database failures and for
 /// the filtered indexes of their entity configurations (#1128).
 /// </summary>
 [Trait("Category", "Unit")]
-public sealed class SecurityAuditStoreEFFailureTests
+public sealed class OperationAuditStoreEFFailureTests
 {
-    private const string RootCauseMessage = "42P01: relation \"SecurityAuditEntries\" does not exist";
+    private const string RootCauseMessage = "42P01: relation \"OperationAuditEntries\" does not exist";
 
-    #region AuditStoreEF.RecordAsync
+    #region OperationAuditStoreEF.RecordAsync
 
     [Fact]
     public async Task RecordAsync_WhenSaveChangesFails_ReturnsLeftCarryingTheException()
     {
         // Arrange
         var failure = CreateDbUpdateException();
-        var store = new AuditStoreEF(CreateFailingContext<AuditEntryEntity>(failure));
+        var store = new OperationAuditStoreEF(CreateFailingContext<OperationAuditEntryEntity>(failure));
 
         // Act
         var result = await store.RecordAsync(CreateAuditEntry());
@@ -42,7 +42,7 @@ public sealed class SecurityAuditStoreEFFailureTests
     public async Task RecordAsync_WhenSaveChangesFails_MessageIncludesTheRootCauseTypeButNotItsText()
     {
         // Arrange
-        var store = new AuditStoreEF(CreateFailingContext<AuditEntryEntity>(CreateDbUpdateException()));
+        var store = new OperationAuditStoreEF(CreateFailingContext<OperationAuditEntryEntity>(CreateDbUpdateException()));
 
         // Act
         var result = await store.RecordAsync(CreateAuditEntry());
@@ -59,29 +59,29 @@ public sealed class SecurityAuditStoreEFFailureTests
     public async Task RecordAsync_WhenSaveChangesFails_ReturnsStoreErrorCodeAndOperation()
     {
         // Arrange
-        var store = new AuditStoreEF(CreateFailingContext<AuditEntryEntity>(CreateDbUpdateException()));
+        var store = new OperationAuditStoreEF(CreateFailingContext<OperationAuditEntryEntity>(CreateDbUpdateException()));
 
         // Act
         var result = await store.RecordAsync(CreateAuditEntry());
 
         // Assert
         var error = result.LeftToSeq().Single();
-        error.GetCode().IfNone(string.Empty).ShouldBe(AuditStoreEF.StoreErrorCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditStoreEF.StoreErrorCode);
         error.GetDetails()["operation"].ShouldBe("Record");
     }
 
     #endregion
 
-    #region AuditStoreEF.PurgeEntriesAsync
+    #region OperationAuditStoreEF.PurgeEntriesAsync
 
     [Fact]
     public async Task PurgeEntriesAsync_WhenExecuteDeleteThrowsDbException_ReturnsLeftCarryingTheException()
     {
         // Arrange: ExecuteDeleteAsync issues the DELETE directly, without EF Core's DbUpdateException wrapper,
         // so a raw provider DbException (e.g. a missing table) must be caught too, not just DbUpdateException (#1128).
-        var failure = new TestDbException("42P01: relation \"SecurityAuditEntries\" does not exist", sqlState: "42P01");
-        var context = CreateContextWithExecuteDeleteFailure<AuditEntryEntity>(failure);
-        var store = new AuditStoreEF(context);
+        var failure = new TestDbException("42P01: relation \"OperationAuditEntries\" does not exist", sqlState: "42P01");
+        var context = CreateContextWithExecuteDeleteFailure<OperationAuditEntryEntity>(failure);
+        var store = new OperationAuditStoreEF(context);
 
         // Act
         var result = await store.PurgeEntriesAsync(DateTime.UtcNow);
@@ -90,7 +90,7 @@ public sealed class SecurityAuditStoreEFFailureTests
         var error = result.LeftToSeq().Single();
         error.Exception.IsSome.ShouldBeTrue();
         error.Exception.IfSome(ex => ex.ShouldBeSameAs(failure));
-        error.GetCode().IfNone(string.Empty).ShouldBe(AuditStoreEF.StoreErrorCode);
+        error.GetCode().IfNone(string.Empty).ShouldBe(OperationAuditStoreEF.StoreErrorCode);
         error.GetDetails()["operation"].ShouldBe("PurgeEntries");
         error.Message.ShouldContain(nameof(TestDbException));
         error.Message.ShouldContain("SqlState=42P01");
@@ -227,8 +227,8 @@ public sealed class SecurityAuditStoreEFFailureTests
     }
 
     [Theory]
-    [InlineData("SecurityAuditEntries", "IX_SecurityAuditEntries_UserId", "UserId")]
-    [InlineData("SecurityAuditEntries", "IX_SecurityAuditEntries_TenantId", "TenantId")]
+    [InlineData("OperationAuditEntries", "IX_SecurityAuditEntries_UserId", "UserId")]
+    [InlineData("OperationAuditEntries", "IX_SecurityAuditEntries_TenantId", "TenantId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_UserId", "UserId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_TenantId", "TenantId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_CorrelationId", "CorrelationId")]
@@ -260,7 +260,7 @@ public sealed class SecurityAuditStoreEFFailureTests
         var script = context.Database.GenerateCreateScript();
 
         // Assert
-        script.ShouldContain("CREATE INDEX [IX_SecurityAuditEntries_UserId] ON [SecurityAuditEntries] ([UserId]) WHERE \"UserId\" IS NOT NULL;");
+        script.ShouldContain("CREATE INDEX [IX_SecurityAuditEntries_UserId] ON [OperationAuditEntries] ([UserId]) WHERE \"UserId\" IS NOT NULL;");
         script.ShouldContain("CREATE INDEX [IX_ReadAuditEntries_CorrelationId] ON [ReadAuditEntries] ([CorrelationId]) WHERE \"CorrelationId\" IS NOT NULL;");
     }
 
@@ -289,10 +289,10 @@ public sealed class SecurityAuditStoreEFFailureTests
         return context;
     }
 
-    private static AuditEntry CreateAuditEntry()
+    private static OperationAuditEntry CreateAuditEntry()
     {
         var now = DateTimeOffset.UnixEpoch.AddYears(56);
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-1128",
@@ -324,7 +324,7 @@ public sealed class SecurityAuditStoreEFFailureTests
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.ApplyConfiguration(new AuditEntryEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new OperationAuditEntryEntityConfiguration());
             modelBuilder.ApplyConfiguration(new ReadAuditEntryEntityConfiguration());
         }
     }

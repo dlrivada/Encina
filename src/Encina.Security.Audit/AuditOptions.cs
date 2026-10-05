@@ -47,7 +47,7 @@ namespace Encina.Security.Audit;
 /// });
 /// </code>
 /// </example>
-public sealed class AuditOptions
+public sealed class OperationAuditOptions
 {
     private readonly HashSet<Type> _excludedTypes = [];
     private readonly HashSet<Type> _includedQueryTypes = [];
@@ -96,7 +96,7 @@ public sealed class AuditOptions
     /// <remarks>
     /// <para>
     /// Default is <c>false</c>. When enabled, the JSON-serialized request (after sensitive
-    /// field redaction) is stored in <see cref="AuditEntry.RequestPayload"/>.
+    /// field redaction) is stored in <see cref="OperationAuditEntry.RequestPayload"/>.
     /// </para>
     /// <para>
     /// <b>Warning:</b> Enabling this increases storage requirements significantly.
@@ -115,7 +115,7 @@ public sealed class AuditOptions
     /// <remarks>
     /// <para>
     /// Default is <c>false</c>. When enabled, the JSON-serialized response (after sensitive
-    /// field redaction) is stored in <see cref="AuditEntry.ResponsePayload"/>.
+    /// field redaction) is stored in <see cref="OperationAuditEntry.ResponsePayload"/>.
     /// </para>
     /// <para>
     /// <b>Warning:</b> Enabling this increases storage requirements significantly.
@@ -136,8 +136,8 @@ public sealed class AuditOptions
     /// and will be set to <c>null</c> in the audit entry.
     /// </para>
     /// <para>
-    /// This limit applies to both <see cref="AuditEntry.RequestPayload"/> and
-    /// <see cref="AuditEntry.ResponsePayload"/> independently.
+    /// This limit applies to both <see cref="OperationAuditEntry.RequestPayload"/> and
+    /// <see cref="OperationAuditEntry.ResponsePayload"/> independently.
     /// </para>
     /// </remarks>
     public int MaxPayloadSizeBytes { get; set; } = 65536; // 64 KB
@@ -202,7 +202,7 @@ public sealed class AuditOptions
     /// Default is 2555 days (approximately 7 years) for SOX compliance.
     /// </para>
     /// <para>
-    /// This value is informational and should be enforced by the <see cref="IAuditStore"/> implementation
+    /// This value is informational and should be enforced by the <see cref="IOperationAuditStore"/> implementation
     /// or by a separate cleanup process.
     /// </para>
     /// <para>
@@ -245,7 +245,7 @@ public sealed class AuditOptions
     ///        .ExcludeType&lt;HealthCheckQuery&gt;();
     /// </code>
     /// </example>
-    public AuditOptions ExcludeType<TRequest>()
+    public OperationAuditOptions ExcludeType<TRequest>()
     {
         _excludedTypes.Add(typeof(TRequest));
         return this;
@@ -257,7 +257,7 @@ public sealed class AuditOptions
     /// <param name="requestType">The request type to exclude.</param>
     /// <returns>This instance for fluent chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="requestType"/> is null.</exception>
-    public AuditOptions ExcludeType(Type requestType)
+    public OperationAuditOptions ExcludeType(Type requestType)
     {
         ArgumentNullException.ThrowIfNull(requestType);
         _excludedTypes.Add(requestType);
@@ -279,7 +279,7 @@ public sealed class AuditOptions
     ///        .IncludeQueryType&lt;GetAccountBalanceQuery&gt;();
     /// </code>
     /// </example>
-    public AuditOptions IncludeQueryType<TQuery>()
+    public OperationAuditOptions IncludeQueryType<TQuery>()
     {
         _includedQueryTypes.Add(typeof(TQuery));
         return this;
@@ -291,7 +291,7 @@ public sealed class AuditOptions
     /// <param name="queryType">The query type to include.</param>
     /// <returns>This instance for fluent chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="queryType"/> is null.</exception>
-    public AuditOptions IncludeQueryType(Type queryType)
+    public OperationAuditOptions IncludeQueryType(Type queryType)
     {
         ArgumentNullException.ThrowIfNull(queryType);
         _includedQueryTypes.Add(queryType);

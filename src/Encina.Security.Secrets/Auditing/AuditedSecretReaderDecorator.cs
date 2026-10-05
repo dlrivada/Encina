@@ -13,8 +13,8 @@ namespace Encina.Security.Secrets.Auditing;
 /// <remarks>
 /// <para>
 /// When <see cref="SecretsOptions.EnableAccessAuditing"/> is <c>true</c>, creates an
-/// <see cref="AuditEntry"/> for each secret read attempt, recording the user, outcome,
-/// and timing information via <see cref="IAuditStore"/>.
+/// <see cref="OperationAuditEntry"/> for each secret read attempt, recording the user, outcome,
+/// and timing information via <see cref="IOperationAuditStore"/>.
 /// </para>
 /// <para>
 /// <b>Resilience:</b> Audit failures are logged but never affect the secret retrieval result.
@@ -24,7 +24,7 @@ namespace Encina.Security.Secrets.Auditing;
 public sealed class AuditedSecretReaderDecorator : ISecretReader
 {
     private readonly ISecretReader _inner;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly SecretsOptions _options;
     private readonly ILogger<AuditedSecretReaderDecorator> _logger;
@@ -43,7 +43,7 @@ public sealed class AuditedSecretReaderDecorator : ISecretReader
     /// <param name="logger">The logger instance.</param>
     public AuditedSecretReaderDecorator(
         ISecretReader inner,
-        IAuditStore auditStore,
+        IOperationAuditStore auditStore,
         IRequestContextAccessor requestContextAccessor,
         SecretsOptions options,
         ILogger<AuditedSecretReaderDecorator> logger)

@@ -7,7 +7,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This entity maps to the "SecurityAuditEntries" table and stores comprehensive audit trail
+/// This entity maps to the "OperationAuditEntries" table and stores comprehensive audit trail
 /// information for CQRS request/response operations, supporting compliance requirements
 /// such as SOX, HIPAA, and GDPR.
 /// </para>
@@ -24,7 +24,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class AuditEntryEntity
+public sealed class OperationAuditEntryEntity
 {
     /// <summary>
     /// Gets or sets the unique identifier for this audit entry.
@@ -116,7 +116,7 @@ public sealed class AuditEntryEntity
     /// </summary>
     /// <remarks>
     /// Stored as JSON string in the database for flexibility.
-    /// Deserialized to <c>Dictionary&lt;string, object?&gt;</c> when mapping to <see cref="AuditEntry"/>.
+    /// Deserialized to <c>Dictionary&lt;string, object?&gt;</c> when mapping to <see cref="OperationAuditEntry"/>.
     /// </remarks>
     public string? Metadata { get; set; }
 }

@@ -4,8 +4,8 @@ using LanguageExt;
 namespace Encina.ContractTests.Security.Audit;
 
 /// <summary>
-/// Contract tests for <see cref="IAuditStore"/> to verify consistent behavior
-/// across implementations. Uses <see cref="InMemoryAuditStore"/> as the reference implementation.
+/// Contract tests for <see cref="IOperationAuditStore"/> to verify consistent behavior
+/// across implementations. Uses <see cref="InMemoryOperationAuditStore"/> as the reference implementation.
 /// </summary>
 [Trait("Category", "Contract")]
 [Trait("Feature", "Audit")]
@@ -178,7 +178,7 @@ public sealed class AuditStoreContractTests
     {
         // Arrange
         var store = CreateStore();
-        var query = new AuditQuery { PageNumber = 1, PageSize = 10 };
+        var query = new OperationAuditQuery { PageNumber = 1, PageSize = 10 };
 
         // Act
         var result = await store.QueryAsync(query);
@@ -189,7 +189,7 @@ public sealed class AuditStoreContractTests
 
         var pagedResult = result.Match(
             Right: r => r,
-            Left: _ => PagedResult<AuditEntry>.Empty());
+            Left: _ => PagedResult<OperationAuditEntry>.Empty());
 
         pagedResult.Items.Count.ShouldBe(0);
         pagedResult.TotalCount.ShouldBe(0);
@@ -207,7 +207,7 @@ public sealed class AuditStoreContractTests
             await store.RecordAsync(CreateEntry(timestamp: DateTime.UtcNow.AddSeconds(-i)));
         }
 
-        var query = new AuditQuery { PageNumber = 1, PageSize = 10 };
+        var query = new OperationAuditQuery { PageNumber = 1, PageSize = 10 };
 
         // Act
         var result = await store.QueryAsync(query);
@@ -217,7 +217,7 @@ public sealed class AuditStoreContractTests
 
         var pagedResult = result.Match(
             Right: r => r,
-            Left: _ => PagedResult<AuditEntry>.Empty());
+            Left: _ => PagedResult<OperationAuditEntry>.Empty());
 
         pagedResult.Items.Count.ShouldBe(10);
         pagedResult.TotalCount.ShouldBe(15);
@@ -252,15 +252,15 @@ public sealed class AuditStoreContractTests
 
     #region Helpers
 
-    private static InMemoryAuditStore CreateStore() => new();
+    private static InMemoryOperationAuditStore CreateStore() => new();
 
-    private static AuditEntry CreateEntry(
+    private static OperationAuditEntry CreateEntry(
         string entityType = "Order",
         string? entityId = null,
         DateTime? timestamp = null)
     {
         var now = DateTimeOffset.UtcNow;
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid().ToString(),

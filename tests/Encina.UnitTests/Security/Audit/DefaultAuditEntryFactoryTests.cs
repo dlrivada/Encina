@@ -6,21 +6,21 @@ using Shouldly;
 namespace Encina.UnitTests.Security.Audit;
 
 /// <summary>
-/// Unit tests for <see cref="DefaultAuditEntryFactory"/>.
+/// Unit tests for <see cref="DefaultOperationAuditEntryFactory"/>.
 /// </summary>
-public class DefaultAuditEntryFactoryTests
+public class DefaultOperationAuditEntryFactoryTests
 {
     private readonly IPiiMasker _piiMasker;
-    private readonly IOptions<AuditOptions> _options;
-    private readonly DefaultAuditEntryFactory _factory;
+    private readonly IOptions<OperationAuditOptions> _options;
+    private readonly DefaultOperationAuditEntryFactory _factory;
 
-    public DefaultAuditEntryFactoryTests()
+    public DefaultOperationAuditEntryFactoryTests()
     {
         _piiMasker = Substitute.For<IPiiMasker>();
         _piiMasker.MaskForAudit(Arg.Any<object>()).Returns(x => x.Arg<object>());
 
-        _options = Options.Create(new AuditOptions());
-        _factory = new DefaultAuditEntryFactory(_piiMasker, _options);
+        _options = Options.Create(new OperationAuditOptions());
+        _factory = new DefaultOperationAuditEntryFactory(_piiMasker, _options);
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class DefaultAuditEntryFactoryTests
     public void Create_ShouldNotComputePayloadHash_WhenDisabledInOptions()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions { IncludePayloadHash = false });
-        var factory = new DefaultAuditEntryFactory(_piiMasker, options);
+        var options = Options.Create(new OperationAuditOptions { IncludePayloadHash = false });
+        var factory = new DefaultOperationAuditEntryFactory(_piiMasker, options);
         var request = new CreateOrderCommand { Id = Guid.NewGuid() };
         var context = RequestContext.CreateForTest();
 
@@ -267,7 +267,7 @@ public class DefaultAuditEntryFactoryTests
     public void Constructor_WithNullPiiMasker_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new DefaultAuditEntryFactory(null!, _options);
+        var act = () => new DefaultOperationAuditEntryFactory(null!, _options);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -278,7 +278,7 @@ public class DefaultAuditEntryFactoryTests
     public void Constructor_WithNullOptions_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new DefaultAuditEntryFactory(_piiMasker, null!);
+        var act = () => new DefaultOperationAuditEntryFactory(_piiMasker, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)

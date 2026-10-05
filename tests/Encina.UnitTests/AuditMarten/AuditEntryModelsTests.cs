@@ -9,18 +9,18 @@ namespace Encina.UnitTests.AuditMarten;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Provider", "Marten")]
-public sealed class AuditEntryModelsTests
+public sealed class OperationAuditEntryModelsTests
 {
-    #region AuditEntryRecordedEvent
+    #region OperationAuditEntryRecordedEvent
 
     [Fact]
-    public void AuditEntryRecordedEvent_PreservesAllProperties()
+    public void OperationAuditEntryRecordedEvent_PreservesAllProperties()
     {
         var id = Guid.NewGuid();
         var now = DateTime.UtcNow;
         var nowOffset = DateTimeOffset.UtcNow;
 
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = id,
             CorrelationId = "corr-1",
@@ -58,13 +58,13 @@ public sealed class AuditEntryModelsTests
     }
 
     [Fact]
-    public void AuditEntryRecordedEvent_RecordEquality_WorksByValue()
+    public void OperationAuditEntryRecordedEvent_RecordEquality_WorksByValue()
     {
         var fixedTime = new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc);
         var fixedOffset = new DateTimeOffset(fixedTime, TimeSpan.Zero);
         var id = Guid.NewGuid();
 
-        var a = new AuditEntryRecordedEvent
+        var a = new OperationAuditEntryRecordedEvent
         {
             Id = id,
             CorrelationId = "c",
@@ -77,7 +77,7 @@ public sealed class AuditEntryModelsTests
             TemporalKeyPeriod = "2026-03"
         };
 
-        var b = new AuditEntryRecordedEvent
+        var b = new OperationAuditEntryRecordedEvent
         {
             Id = id,
             CorrelationId = "c",
@@ -133,12 +133,12 @@ public sealed class AuditEntryModelsTests
 
     #endregion
 
-    #region AuditEntryReadModel
+    #region OperationAuditEntryReadModel
 
     [Fact]
-    public void AuditEntryReadModel_DefaultValues_AreSensible()
+    public void OperationAuditEntryReadModel_DefaultValues_AreSensible()
     {
-        var model = new AuditEntryReadModel();
+        var model = new OperationAuditEntryReadModel();
 
         model.Id.ShouldBe(Guid.Empty);
         model.CorrelationId.ShouldBe(string.Empty);
@@ -159,14 +159,14 @@ public sealed class AuditEntryModelsTests
     }
 
     [Fact]
-    public void AuditEntryReadModel_CanSetAllProperties()
+    public void OperationAuditEntryReadModel_CanSetAllProperties()
     {
         var id = Guid.NewGuid();
         var ts = DateTime.UtcNow;
         var startedAt = DateTimeOffset.UtcNow;
         var completedAt = startedAt.AddMilliseconds(50);
 
-        var model = new AuditEntryReadModel
+        var model = new OperationAuditEntryReadModel
         {
             Id = id,
             CorrelationId = "c",

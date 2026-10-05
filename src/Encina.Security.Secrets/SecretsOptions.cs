@@ -94,7 +94,7 @@ public sealed class SecretsOptions
     /// </summary>
     /// <remarks>
     /// When <c>true</c>, secret access operations are recorded via <c>Encina.Security.Audit</c>.
-    /// Requires <c>IAuditStore</c> to be registered in DI.
+    /// Requires <c>IOperationAuditStore</c> to be registered in DI.
     /// Default is <c>false</c>.
     /// </remarks>
     public bool EnableAccessAuditing { get; set; }

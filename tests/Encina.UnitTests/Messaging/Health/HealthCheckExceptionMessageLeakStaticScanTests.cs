@@ -155,7 +155,7 @@ public sealed partial class HealthCheckExceptionMessageLeakStaticScanTests
         // A guard against the scan silently matching nothing (a renamed folder or file pattern).
         healthFiles.Count.ShouldBeGreaterThan(40);
         healthFiles.ShouldContain(f => f.EndsWith("DatabaseHealthMonitorBase.cs", StringComparison.Ordinal));
-        healthFiles.ShouldContain(f => f.EndsWith("MartenAuditHealthCheck.cs", StringComparison.Ordinal));
+        healthFiles.ShouldContain(f => f.EndsWith("MartenOperationAuditHealthCheck.cs", StringComparison.Ordinal));
     }
 
     [Theory]

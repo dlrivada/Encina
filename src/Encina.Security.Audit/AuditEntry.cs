@@ -5,7 +5,7 @@ namespace Encina.Security.Audit;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="AuditEntry"/> captures comprehensive information about each audited operation,
+/// <see cref="OperationAuditEntry"/> captures comprehensive information about each audited operation,
 /// supporting compliance requirements such as SOX, HIPAA, and GDPR.
 /// </para>
 /// <para>
@@ -25,7 +25,7 @@ namespace Encina.Security.Audit;
 /// // ... execute operation ...
 /// var completedAt = DateTimeOffset.UtcNow;
 ///
-/// var entry = new AuditEntry
+/// var entry = new OperationAuditEntry
 /// {
 ///     Id = Guid.NewGuid(),
 ///     CorrelationId = context.CorrelationId,
@@ -47,7 +47,7 @@ namespace Encina.Security.Audit;
 /// Console.WriteLine($"Operation took {entry.Duration.TotalMilliseconds}ms");
 /// </code>
 /// </example>
-public sealed record AuditEntry
+public sealed record OperationAuditEntry
 {
     /// <summary>
     /// Unique identifier for this audit entry.
@@ -200,7 +200,7 @@ public sealed record AuditEntry
     /// The hash is computed from the JSON-serialized request after PII masking.
     /// </para>
     /// <para>
-    /// <c>null</c> when payload hashing is disabled via <c>AuditOptions.IncludePayloadHash</c>.
+    /// <c>null</c> when payload hashing is disabled via <c>OperationAuditOptions.IncludePayloadHash</c>.
     /// </para>
     /// </remarks>
     public string? RequestPayloadHash { get; init; }
@@ -214,8 +214,8 @@ public sealed record AuditEntry
     /// (passwords, tokens, PII) replaced with "[REDACTED]".
     /// </para>
     /// <para>
-    /// <c>null</c> when payload capture is disabled via <c>AuditOptions.IncludeRequestPayload</c>
-    /// or when the payload exceeds <c>AuditOptions.MaxPayloadSizeBytes</c>.
+    /// <c>null</c> when payload capture is disabled via <c>OperationAuditOptions.IncludeRequestPayload</c>
+    /// or when the payload exceeds <c>OperationAuditOptions.MaxPayloadSizeBytes</c>.
     /// </para>
     /// </remarks>
     public string? RequestPayload { get; init; }
@@ -229,8 +229,8 @@ public sealed record AuditEntry
     /// (passwords, tokens, PII) replaced with "[REDACTED]".
     /// </para>
     /// <para>
-    /// <c>null</c> when payload capture is disabled via <c>AuditOptions.IncludeResponsePayload</c>,
-    /// when the operation failed, or when the payload exceeds <c>AuditOptions.MaxPayloadSizeBytes</c>.
+    /// <c>null</c> when payload capture is disabled via <c>OperationAuditOptions.IncludeResponsePayload</c>,
+    /// when the operation failed, or when the payload exceeds <c>OperationAuditOptions.MaxPayloadSizeBytes</c>.
     /// </para>
     /// </remarks>
     public string? ResponsePayload { get; init; }

@@ -7,8 +7,8 @@ using FsCheck.Xunit;
 namespace Encina.PropertyTests.Security.Audit;
 
 /// <summary>
-/// Property-based tests for <see cref="IAuditStore"/> invariants.
-/// Uses <see cref="InMemoryAuditStore"/> as the implementation under test.
+/// Property-based tests for <see cref="IOperationAuditStore"/> invariants.
+/// Uses <see cref="InMemoryOperationAuditStore"/> as the implementation under test.
 /// </summary>
 [Trait("Category", "Property")]
 [Trait("Feature", "Audit")]
@@ -21,9 +21,9 @@ public sealed class AuditStorePropertyTests
     {
         // Arrange
         var count = Math.Min(entryCount.Get, 50);
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var threshold = DateTime.UtcNow;
-        var newerEntries = new List<AuditEntry>();
+        var newerEntries = new List<OperationAuditEntry>();
 
         // Insert entries with timestamps both before and after the threshold
         for (var i = 0; i < count; i++)
@@ -64,7 +64,7 @@ public sealed class AuditStorePropertyTests
     {
         // Arrange
         var count = Math.Clamp(entryCount.Get, 1, 100);
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         const int pageSize = 7; // Use an odd page size to test uneven pagination
 
         for (var i = 0; i < count; i++)
@@ -83,7 +83,7 @@ public sealed class AuditStorePropertyTests
 
         for (var page = 1; page <= totalPages + 1; page++)
         {
-            var query = new AuditQuery
+            var query = new OperationAuditQuery
             {
                 EntityType = "Order",
                 PageNumber = page,
@@ -95,7 +95,7 @@ public sealed class AuditStorePropertyTests
 
             var pagedResult = result.Match(
                 Right: r => r,
-                Left: _ => PagedResult<AuditEntry>.Empty());
+                Left: _ => PagedResult<OperationAuditEntry>.Empty());
 
             foreach (var item in pagedResult.Items)
             {
@@ -119,7 +119,7 @@ public sealed class AuditStorePropertyTests
     public bool RecordAsync_ThenGetByEntity_AlwaysFindsEntry(NonEmptyString entityId)
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
         var sanitizedEntityId = entityId.Get.Trim();
         if (string.IsNullOrWhiteSpace(sanitizedEntityId)) return true; // skip degenerate input
 
@@ -146,13 +146,13 @@ public sealed class AuditStorePropertyTests
 
     #region Helpers
 
-    private static AuditEntry CreateEntry(
+    private static OperationAuditEntry CreateEntry(
         string entityType = "Order",
         string? entityId = null,
         DateTime? timestamp = null)
     {
         var now = DateTimeOffset.UtcNow;
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid().ToString(),

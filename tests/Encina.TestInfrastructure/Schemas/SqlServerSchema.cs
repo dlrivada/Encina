@@ -531,7 +531,7 @@ public static class SqlServerSchema
             IF OBJECT_ID('SagaStates', 'U') IS NOT NULL DELETE FROM SagaStates;
             IF OBJECT_ID('InboxMessages', 'U') IS NOT NULL DELETE FROM InboxMessages;
             IF OBJECT_ID('OutboxMessages', 'U') IS NOT NULL DELETE FROM OutboxMessages;
-            IF OBJECT_ID('SecurityAuditEntries', 'U') IS NOT NULL DELETE FROM SecurityAuditEntries;
+            IF OBJECT_ID('OperationAuditEntries', 'U') IS NOT NULL DELETE FROM OperationAuditEntries;
             IF OBJECT_ID('ReadAuditEntries', 'U') IS NOT NULL DELETE FROM ReadAuditEntries;
             """;
 

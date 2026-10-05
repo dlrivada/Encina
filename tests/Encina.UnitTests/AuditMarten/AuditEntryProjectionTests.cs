@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Encina.UnitTests.AuditMarten;
 
 /// <summary>
-/// Unit tests for <see cref="AuditEntryProjection"/> event-to-read-model projection logic.
+/// Unit tests for <see cref="OperationAuditEntryProjection"/> event-to-read-model projection logic.
 /// </summary>
 /// <remarks>
 /// These tests exercise the internal mapping helpers (<c>MapToReadModel</c>) directly. The
@@ -21,18 +21,18 @@ namespace Encina.UnitTests.AuditMarten;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Provider", "Marten")]
-public sealed class AuditEntryProjectionTests
+public sealed class OperationAuditEntryProjectionTests
 {
-    private static AuditEntryProjection CreateProjection(string placeholder = "[SHREDDED]") =>
-        new(placeholder, NullLogger<AuditEntryProjection>.Instance);
+    private static OperationAuditEntryProjection CreateProjection(string placeholder = "[SHREDDED]") =>
+        new(placeholder, NullLogger<OperationAuditEntryProjection>.Instance);
 
     [Fact]
     public void Constructor_Parameterless_SetsNameAndUsesDefaultShreddedPlaceholder()
     {
-        // Arrange: parameterless ctor should fall back to MartenAuditOptions.DefaultShreddedPlaceholder
-        var projection = new AuditEntryProjection();
+        // Arrange: parameterless ctor should fall back to MartenOperationAuditOptions.DefaultShreddedPlaceholder
+        var projection = new OperationAuditEntryProjection();
 
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "c",
@@ -55,8 +55,8 @@ public sealed class AuditEntryProjectionTests
         var readModel = projection.MapToReadModel(evt, keyMaterial: null, isShredded: true);
 
         // Assert: the default placeholder propagates from the parameterless constructor
-        projection.Name.ShouldBe("AuditEntryProjection");
-        readModel.UserId.ShouldBe(MartenAuditOptions.DefaultShreddedPlaceholder);
+        projection.Name.ShouldBe("OperationAuditEntryProjection");
+        readModel.UserId.ShouldBe(MartenOperationAuditOptions.DefaultShreddedPlaceholder);
         readModel.IsShredded.ShouldBeTrue();
     }
 
@@ -64,21 +64,21 @@ public sealed class AuditEntryProjectionTests
     public void Constructor_WithPlaceholderAndLogger_SetsName()
     {
         var projection = CreateProjection("<HIDDEN>");
-        projection.Name.ShouldBe("AuditEntryProjection");
+        projection.Name.ShouldBe("OperationAuditEntryProjection");
     }
 
     [Fact]
     public void Constructor_NullPlaceholder_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new AuditEntryProjection(null!, NullLogger<AuditEntryProjection>.Instance));
+            new OperationAuditEntryProjection(null!, NullLogger<OperationAuditEntryProjection>.Instance));
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new AuditEntryProjection("[SHREDDED]", null!));
+            new OperationAuditEntryProjection("[SHREDDED]", null!));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class AuditEntryProjectionTests
         var keyId = "temporal:2026-03:v1";
 
         var projection = CreateProjection();
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-1",
@@ -144,7 +144,7 @@ public sealed class AuditEntryProjectionTests
         var encrypted = EncryptedField.Encrypt("secret", dummyKey, "temporal:2099-12:v1");
 
         var projection = CreateProjection();
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-x",
@@ -185,7 +185,7 @@ public sealed class AuditEntryProjectionTests
         System.Security.Cryptography.RandomNumberGenerator.Fill(keyMaterial);
 
         var projection = CreateProjection();
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "corr-nulls",
@@ -237,7 +237,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey, destroyedMarker: null, "2026-03");
 
         // Assert
@@ -258,7 +258,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey: null, destroyedMarker, "2020-01");
 
         // Assert
@@ -275,7 +275,7 @@ public sealed class AuditEntryProjectionTests
         // the high-water mark and permanently corrupt the read model).
         // Act + Assert
         var ex = Should.Throw<KeyNotFoundException>(() =>
-            AuditEntryProjection.ClassifyTemporalKeyLookup(
+            OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
                 activeKey: null, destroyedMarker: null, "2026-03"));
 
         ex.Message.ShouldContain("2026-03");
@@ -310,7 +310,7 @@ public sealed class AuditEntryProjectionTests
         };
 
         // Act
-        var (resultKey, isShredded) = AuditEntryProjection.ClassifyTemporalKeyLookup(
+        var (resultKey, isShredded) = OperationAuditEntryProjection.ClassifyTemporalKeyLookup(
             activeKey, destroyedMarker, "2026-03");
 
         // Assert
@@ -327,7 +327,7 @@ public sealed class AuditEntryProjectionTests
         var encrypted = EncryptedField.Encrypt("secret", dummyKey, "temporal:1999-01:v1");
 
         var projection = CreateProjection("<REDACTED>");
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "c",

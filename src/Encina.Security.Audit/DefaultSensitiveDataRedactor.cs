@@ -35,7 +35,7 @@ namespace Encina.Security.Audit;
 /// services.AddSingleton&lt;IPiiMasker, DefaultSensitiveDataRedactor&gt;();
 ///
 /// // Usage
-/// var redactor = new DefaultSensitiveDataRedactor(Options.Create(new AuditOptions()));
+/// var redactor = new DefaultSensitiveDataRedactor(Options.Create(new OperationAuditOptions()));
 /// var request = new CreateUserCommand { Email = "user@example.com", Password = "secret123" };
 /// var masked = redactor.MaskForAudit(request);
 /// // masked.Password == "[REDACTED]"
@@ -94,7 +94,7 @@ public sealed class DefaultSensitiveDataRedactor : IPiiMasker
     /// </summary>
     /// <param name="options">The audit options containing global sensitive field configuration.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <c>null</c>.</exception>
-    public DefaultSensitiveDataRedactor(IOptions<AuditOptions> options)
+    public DefaultSensitiveDataRedactor(IOptions<OperationAuditOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 

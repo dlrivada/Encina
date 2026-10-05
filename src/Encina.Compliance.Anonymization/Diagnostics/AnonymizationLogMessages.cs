@@ -263,5 +263,5 @@ internal static partial class AnonymizationLogMessages
         EventId = 8435,
         Level = LogLevel.Debug,
         Message = "Anonymization audit entry recorded. Operation={Operation}, SubjectId={SubjectId}")]
-    internal static partial void AuditEntryRecorded(this ILogger logger, string operation, string? subjectId);
+    internal static partial void OperationAuditEntryRecorded(this ILogger logger, string operation, string? subjectId);
 }

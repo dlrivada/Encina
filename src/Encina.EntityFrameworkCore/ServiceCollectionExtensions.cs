@@ -184,7 +184,7 @@ public static class ServiceCollectionExtensions
         RegisterAuditingInterceptor(services, config);
         RegisterAuditLogStore(services, config);
         RegisterSoftDeleteInterceptor(services, config);
-        RegisterSecurityAuditStore(services, config);
+        RegisterOperationAuditStore(services, config);
         RegisterReadAuditStore(services, config);
         RegisterAnonymization(services, config);
         RegisterABACPolicyStore(services, config);
@@ -347,7 +347,7 @@ public static class ServiceCollectionExtensions
         if (!config.UseAuditing) return;
 
         // Register audit interceptor options
-        var auditOptions = new AuditInterceptorOptions
+        var OperationAuditOptions = new AuditInterceptorOptions
         {
             Enabled = true,
             TrackCreatedAt = config.AuditingOptions.TrackCreatedAt,
@@ -357,7 +357,7 @@ public static class ServiceCollectionExtensions
             LogAuditChanges = config.AuditingOptions.LogAuditChanges,
             LogChangesToStore = config.AuditingOptions.LogChangesToStore
         };
-        services.TryAddSingleton(auditOptions);
+        services.TryAddSingleton(OperationAuditOptions);
 
         // Register TimeProvider for consistent timestamps
         services.TryAddSingleton(TimeProvider.System);
@@ -405,14 +405,14 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers the security audit trail store when
-    /// <see cref="MessagingConfiguration.UseSecurityAuditStore"/> is enabled.
+    /// <see cref="MessagingConfiguration.UseOperationAuditStore"/> is enabled.
     /// </summary>
-    private static void RegisterSecurityAuditStore(IServiceCollection services, MessagingConfiguration config)
+    private static void RegisterOperationAuditStore(IServiceCollection services, MessagingConfiguration config)
     {
-        if (!config.UseSecurityAuditStore) return;
+        if (!config.UseOperationAuditStore) return;
 
         // Register security audit trail store (Encina.Security.Audit)
-        services.AddScoped<IAuditStore, AuditStoreEF>();
+        services.AddScoped<IOperationAuditStore, OperationAuditStoreEF>();
     }
 
     /// <summary>

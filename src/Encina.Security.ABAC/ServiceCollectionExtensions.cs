@@ -56,7 +56,7 @@ public static class ServiceCollectionExtensions
     /// <see cref="PersistentPolicyAdministrationPoint"/> is registered instead of the default
     /// <see cref="InMemoryPolicyAdministrationPoint"/>. This requires an <see cref="IPolicyStore"/>
     /// to be registered by a database provider package. Policy changes are attributed to the
-    /// principal of the request context and refused without one; when an <c>IAuditStore</c> is
+    /// principal of the request context and refused without one; when an <c>IOperationAuditStore</c> is
     /// registered (scoped or not), each change is audited fail closed in its own DI scope.
     /// </para>
     /// <para>
@@ -247,7 +247,7 @@ public static class ServiceCollectionExtensions
         }
 
         // The PAP takes the scope factory: it opens one scope per operation and resolves the
-        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IAuditStore from a second scope.
+        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IOperationAuditStore from a second scope.
         return new PersistentPolicyAdministrationPoint(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),

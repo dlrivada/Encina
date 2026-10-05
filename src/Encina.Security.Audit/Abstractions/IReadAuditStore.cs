@@ -8,7 +8,7 @@ namespace Encina.Security.Audit;
 /// <remarks>
 /// <para>
 /// Tracks read access to sensitive entities marked with <c>IReadAuditable</c>.
-/// This is separate from <see cref="IAuditStore"/> which handles CUD (Create, Update, Delete)
+/// This is separate from <see cref="IOperationAuditStore"/> which handles CUD (Create, Update, Delete)
 /// operations at the CQRS pipeline level.
 /// </para>
 /// <para>

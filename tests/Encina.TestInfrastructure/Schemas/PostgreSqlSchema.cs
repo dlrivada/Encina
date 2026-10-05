@@ -580,13 +580,13 @@ public static class PostgreSqlSchema
             DELETE FROM inboxmessages;
             DELETE FROM outboxmessages;
 
-            -- SecurityAuditEntries / ReadAuditEntries are created on demand by the EF Core audit integration
+            -- OperationAuditEntries / ReadAuditEntries are created on demand by the EF Core audit integration
             -- tests (AuditTestDbContext), not by CreateSchemaAsync, so an unconditional DELETE would fail with
             -- "relation does not exist" for every other test sharing this fixture's container (#1128).
             DO $$
             BEGIN
-                IF to_regclass('"SecurityAuditEntries"') IS NOT NULL THEN
-                    DELETE FROM "SecurityAuditEntries";
+                IF to_regclass('"OperationAuditEntries"') IS NOT NULL THEN
+                    DELETE FROM "OperationAuditEntries";
                 END IF;
 
                 IF to_regclass('"ReadAuditEntries"') IS NOT NULL THEN

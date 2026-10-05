@@ -51,7 +51,7 @@ public sealed class MartenReadAuditStoreQueryTests
     {
         var session = Substitute.For<IDocumentSession>();
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
-        var options = Options.Create(new MartenAuditOptions());
+        var options = Options.Create(new MartenOperationAuditOptions());
         var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
         var logger = new FakeLogger<MartenReadAuditStore>();
         return (new MartenReadAuditStore(session, encryptor, keyProvider, options, logger), logger, session);

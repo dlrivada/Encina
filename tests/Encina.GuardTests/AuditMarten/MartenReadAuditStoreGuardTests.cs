@@ -13,12 +13,12 @@ public class MartenReadAuditStoreGuardTests
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
         var encryptor = new AuditEventEncryptor(keyProvider,
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             NullLogger<AuditEventEncryptor>.Instance);
 
         Should.Throw<ArgumentNullException>(() =>
             new MartenReadAuditStore(null!, encryptor, keyProvider,
-                Options.Create(new MartenAuditOptions()),
+                Options.Create(new MartenOperationAuditOptions()),
                 NullLogger<MartenReadAuditStore>.Instance));
     }
 
@@ -31,7 +31,7 @@ public class MartenReadAuditStoreGuardTests
 
         Should.Throw<ArgumentNullException>(() =>
             new MartenReadAuditStore(session, null!, keyProvider,
-                Options.Create(new MartenAuditOptions()),
+                Options.Create(new MartenOperationAuditOptions()),
                 NullLogger<MartenReadAuditStore>.Instance));
     }
 
@@ -42,12 +42,12 @@ public class MartenReadAuditStoreGuardTests
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
         var encryptor = new AuditEventEncryptor(keyProvider,
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             NullLogger<AuditEventEncryptor>.Instance);
 
         Should.Throw<ArgumentNullException>(() =>
             new MartenReadAuditStore(session, encryptor, null!,
-                Options.Create(new MartenAuditOptions()),
+                Options.Create(new MartenOperationAuditOptions()),
                 NullLogger<MartenReadAuditStore>.Instance));
     }
 
@@ -58,7 +58,7 @@ public class MartenReadAuditStoreGuardTests
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
         var encryptor = new AuditEventEncryptor(keyProvider,
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             NullLogger<AuditEventEncryptor>.Instance);
 
         Should.Throw<ArgumentNullException>(() =>
@@ -73,11 +73,11 @@ public class MartenReadAuditStoreGuardTests
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
         var encryptor = new AuditEventEncryptor(keyProvider,
-            Options.Create(new MartenAuditOptions()),
+            Options.Create(new MartenOperationAuditOptions()),
             NullLogger<AuditEventEncryptor>.Instance);
 
         Should.Throw<ArgumentNullException>(() =>
             new MartenReadAuditStore(session, encryptor, keyProvider,
-                Options.Create(new MartenAuditOptions()), null!));
+                Options.Create(new MartenOperationAuditOptions()), null!));
     }
 }

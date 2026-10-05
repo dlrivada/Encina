@@ -13,7 +13,7 @@ namespace Encina.UnitTests.Security.ABAC.Persistence;
 
 /// <summary>
 /// Regression tests for #1677: policy changes of <see cref="PersistentPolicyAdministrationPoint"/>
-/// are audited fail closed, refused without a principal, and wired with the <see cref="IAuditStore"/>
+/// are audited fail closed, refused without a principal, and wired with the <see cref="IOperationAuditStore"/>
 /// resolved per write in its own scope, together with the policy store (#1707).
 /// </summary>
 public sealed class PersistentPolicyAdministrationPointFailClosedTests
@@ -56,8 +56,8 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     public async Task AddPolicyAsync_AuditStoreReturnsLeft_ChangeIsRejectedAndNotPersisted()
     {
         var store = CreateStoreForNewStandalonePolicy();
-        var auditStore = Substitute.For<IAuditStore>();
-        auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(
                 Either<EncinaError, Unit>.Left(EncinaErrors.Create("audit.failed", "store down"))));
         var sut = CreateSut(store, auditStore, CreateAccessor("alice"));
@@ -72,8 +72,8 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     public async Task SeedingHostedService_WithoutPrincipal_SeedsThroughTheSystemActorScope()
     {
         var store = CreateStoreForNewStandalonePolicy();
-        var auditStore = Substitute.For<IAuditStore>();
-        auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Either<EncinaError, Unit>.Right(Prelude.unit)));
         var pap = CreateSut(store, auditStore, accessor: null);
         var options = new ABACOptions();
@@ -85,12 +85,12 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
 
         await store.Received(1).SavePolicyAsync(Arg.Is<Policy>(p => p.Id == "seeded"), Arg.Any<CancellationToken>());
         await auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e => e.UserId == "system" && e.EntityId == "seeded"), Arg.Any<CancellationToken>());
+            Arg.Is<OperationAuditEntry>(e => e.UserId == "system" && e.EntityId == "seeded"), Arg.Any<CancellationToken>());
         (await pap.AddPolicyAsync(CreatePolicy("after"), parentPolicySetId: null)).IsLeft.ShouldBeTrue();
     }
 
     private static PersistentPolicyAdministrationPoint CreateSut(
-        IPolicyStore store, IAuditStore? auditStore, IRequestContextAccessor? accessor)
+        IPolicyStore store, IOperationAuditStore? auditStore, IRequestContextAccessor? accessor)
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => store);
@@ -133,11 +133,11 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
         // Both stores are scoped, like every database provider's: the singleton PAP resolves them
         // per operation in its own scope.
         services.AddScoped(_ => store);
-        services.AddScoped<IAuditStore>(_ =>
+        services.AddScoped<IOperationAuditStore>(_ =>
         {
             created++;
-            var auditStore = Substitute.For<IAuditStore, IAsyncDisposable>();
-            auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            var auditStore = Substitute.For<IOperationAuditStore, IAsyncDisposable>();
+            auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
                 .Returns(call =>
                 {
                     recorded++;

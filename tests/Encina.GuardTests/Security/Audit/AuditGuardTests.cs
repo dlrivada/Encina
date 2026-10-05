@@ -12,16 +12,16 @@ namespace Encina.GuardTests.Security.Audit;
 /// </summary>
 public class AuditGuardTests
 {
-    #region DefaultAuditEntryFactory Guard Tests
+    #region DefaultOperationAuditEntryFactory Guard Tests
 
     [Fact]
-    public void DefaultAuditEntryFactory_Constructor_NullPiiMasker_ThrowsArgumentNullException()
+    public void DefaultOperationAuditEntryFactory_Constructor_NullPiiMasker_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions());
+        var options = Options.Create(new OperationAuditOptions());
 
         // Act
-        var act = () => new DefaultAuditEntryFactory(null!, options);
+        var act = () => new DefaultOperationAuditEntryFactory(null!, options);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -29,13 +29,13 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void DefaultAuditEntryFactory_Constructor_NullOptions_ThrowsArgumentNullException()
+    public void DefaultOperationAuditEntryFactory_Constructor_NullOptions_ThrowsArgumentNullException()
     {
         // Arrange
         var piiMasker = Substitute.For<IPiiMasker>();
 
         // Act
-        var act = () => new DefaultAuditEntryFactory(piiMasker, null!);
+        var act = () => new DefaultOperationAuditEntryFactory(piiMasker, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -43,12 +43,12 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void DefaultAuditEntryFactory_Create_NullRequest_ThrowsArgumentNullException()
+    public void DefaultOperationAuditEntryFactory_Create_NullRequest_ThrowsArgumentNullException()
     {
         // Arrange
         var piiMasker = Substitute.For<IPiiMasker>();
-        var options = Options.Create(new AuditOptions());
-        var factory = new DefaultAuditEntryFactory(piiMasker, options);
+        var options = Options.Create(new OperationAuditOptions());
+        var factory = new DefaultOperationAuditEntryFactory(piiMasker, options);
         var context = RequestContext.CreateForTest();
 
         // Act
@@ -60,12 +60,12 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void DefaultAuditEntryFactory_Create_NullContext_ThrowsArgumentNullException()
+    public void DefaultOperationAuditEntryFactory_Create_NullContext_ThrowsArgumentNullException()
     {
         // Arrange
         var piiMasker = Substitute.For<IPiiMasker>();
-        var options = Options.Create(new AuditOptions());
-        var factory = new DefaultAuditEntryFactory(piiMasker, options);
+        var options = Options.Create(new OperationAuditOptions());
+        var factory = new DefaultOperationAuditEntryFactory(piiMasker, options);
         var request = new TestCommand();
 
         // Act
@@ -84,8 +84,8 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullAuditStore_ThrowsArgumentNullException()
     {
         // Arrange
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
-        var options = Options.Create(new AuditOptions());
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var options = Options.Create(new OperationAuditOptions());
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<TestCommand, Unit>>>();
 
         // Act
@@ -101,8 +101,8 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullEntryFactory_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IAuditStore>();
-        var options = Options.Create(new AuditOptions());
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var options = Options.Create(new OperationAuditOptions());
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<TestCommand, Unit>>>();
 
         // Act
@@ -118,8 +118,8 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IAuditStore>();
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
         var logger = Substitute.For<ILogger<AuditPipelineBehavior<TestCommand, Unit>>>();
 
         // Act
@@ -135,9 +135,9 @@ public class AuditGuardTests
     public void AuditPipelineBehavior_Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IAuditStore>();
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
-        var options = Options.Create(new AuditOptions());
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var options = Options.Create(new OperationAuditOptions());
 
         // Act
         var act = () => new AuditPipelineBehavior<TestCommand, Unit>(
@@ -150,13 +150,13 @@ public class AuditGuardTests
 
     #endregion
 
-    #region InMemoryAuditStore Guard Tests
+    #region InMemoryOperationAuditStore Guard Tests
 
     [Fact]
-    public async Task InMemoryAuditStore_RecordAsync_NullEntry_ThrowsArgumentNullException()
+    public async Task InMemoryOperationAuditStore_RecordAsync_NullEntry_ThrowsArgumentNullException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.RecordAsync(null!);
@@ -167,10 +167,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByEntityAsync_NullEntityType_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByEntityAsync_NullEntityType_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByEntityAsync(null!, null);
@@ -180,10 +180,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByEntityAsync_EmptyEntityType_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByEntityAsync_EmptyEntityType_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByEntityAsync("", null);
@@ -193,10 +193,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByUserAsync_NullUserId_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByUserAsync_NullUserId_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByUserAsync(null!, null, null);
@@ -206,10 +206,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByUserAsync_EmptyUserId_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByUserAsync_EmptyUserId_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByUserAsync("", null, null);
@@ -219,10 +219,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByCorrelationIdAsync_NullCorrelationId_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByCorrelationIdAsync_NullCorrelationId_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByCorrelationIdAsync(null!);
@@ -232,10 +232,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public async Task InMemoryAuditStore_GetByCorrelationIdAsync_EmptyCorrelationId_ThrowsArgumentException()
+    public async Task InMemoryOperationAuditStore_GetByCorrelationIdAsync_EmptyCorrelationId_ThrowsArgumentException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.GetByCorrelationIdAsync("");
@@ -246,13 +246,13 @@ public class AuditGuardTests
 
     #endregion
 
-    #region AuditOptions Guard Tests
+    #region OperationAuditOptions Guard Tests
 
     [Fact]
-    public void AuditOptions_ExcludeType_NullType_ThrowsArgumentNullException()
+    public void OperationAuditOptions_ExcludeType_NullType_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var act = () => options.ExcludeType(null!);
@@ -263,10 +263,10 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void AuditOptions_IncludeQueryType_NullType_ThrowsArgumentNullException()
+    public void OperationAuditOptions_IncludeQueryType_NullType_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = new AuditOptions();
+        var options = new OperationAuditOptions();
 
         // Act
         var act = () => options.IncludeQueryType(null!);
@@ -296,17 +296,17 @@ public class AuditGuardTests
 
     #endregion
 
-    #region AuditRetentionService Guard Tests
+    #region OperationAuditRetentionService Guard Tests
 
     [Fact]
-    public void AuditRetentionService_Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void OperationAuditRetentionService_Constructor_NullAuditStore_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions());
-        var logger = Substitute.For<ILogger<AuditRetentionService>>();
+        var options = Options.Create(new OperationAuditOptions());
+        var logger = Substitute.For<ILogger<OperationAuditRetentionService>>();
 
         // Act
-        var act = () => new AuditRetentionService(null!, options, logger);
+        var act = () => new OperationAuditRetentionService(null!, options, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -314,14 +314,14 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void AuditRetentionService_Constructor_NullOptions_ThrowsArgumentNullException()
+    public void OperationAuditRetentionService_Constructor_NullOptions_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IAuditStore>();
-        var logger = Substitute.For<ILogger<AuditRetentionService>>();
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var logger = Substitute.For<ILogger<OperationAuditRetentionService>>();
 
         // Act
-        var act = () => new AuditRetentionService(auditStore, null!, logger);
+        var act = () => new OperationAuditRetentionService(auditStore, null!, logger);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -329,14 +329,14 @@ public class AuditGuardTests
     }
 
     [Fact]
-    public void AuditRetentionService_Constructor_NullLogger_ThrowsArgumentNullException()
+    public void OperationAuditRetentionService_Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var auditStore = Substitute.For<IAuditStore>();
-        var options = Options.Create(new AuditOptions());
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var options = Options.Create(new OperationAuditOptions());
 
         // Act
-        var act = () => new AuditRetentionService(auditStore, options, null!);
+        var act = () => new OperationAuditRetentionService(auditStore, options, null!);
 
         // Assert
         Should.Throw<ArgumentNullException>(act)
@@ -362,7 +362,7 @@ public class AuditGuardTests
     public void DefaultSensitiveDataRedactor_MaskForAuditGeneric_NullRequest_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions());
+        var options = Options.Create(new OperationAuditOptions());
         var redactor = new DefaultSensitiveDataRedactor(options);
 
         // Act
@@ -377,7 +377,7 @@ public class AuditGuardTests
     public void DefaultSensitiveDataRedactor_MaskForAuditObject_NullRequest_ThrowsArgumentNullException()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions());
+        var options = Options.Create(new OperationAuditOptions());
         var redactor = new DefaultSensitiveDataRedactor(options);
 
         // Act
@@ -390,13 +390,13 @@ public class AuditGuardTests
 
     #endregion
 
-    #region InMemoryAuditStore QueryAsync Guard Tests
+    #region InMemoryOperationAuditStore QueryAsync Guard Tests
 
     [Fact]
-    public async Task InMemoryAuditStore_QueryAsync_NullQuery_ThrowsArgumentNullException()
+    public async Task InMemoryOperationAuditStore_QueryAsync_NullQuery_ThrowsArgumentNullException()
     {
         // Arrange
-        var store = new InMemoryAuditStore();
+        var store = new InMemoryOperationAuditStore();
 
         // Act
         var act = async () => await store.QueryAsync(null!);

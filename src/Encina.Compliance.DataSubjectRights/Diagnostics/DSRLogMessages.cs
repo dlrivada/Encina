@@ -286,7 +286,7 @@ internal static partial class DSRLogMessages
         EventId = 8344,
         Level = LogLevel.Warning,
         Message = "Failed to persist aggregate event. DSRRequestId={DSRRequestId}, ErrorMessage={ErrorMessage}")]
-    internal static partial void AuditEntryFailed(this ILogger logger, string dsrRequestId, string errorMessage);
+    internal static partial void OperationAuditEntryFailed(this ILogger logger, string dsrRequestId, string errorMessage);
 
     /// <summary>No personal data found for subject during erasure.</summary>
     [LoggerMessage(

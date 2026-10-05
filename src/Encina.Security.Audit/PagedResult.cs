@@ -93,7 +93,7 @@ public sealed record PagedResult<T>
     /// <param name="pageSize">The requested page size.</param>
     /// <returns>An empty <see cref="PagedResult{T}"/> with zero total count.</returns>
 #pragma warning disable CA1000 // Do not declare static members on generic types - factory method is appropriate here
-    public static PagedResult<T> Empty(int pageNumber = 1, int pageSize = AuditQuery.DefaultPageSize) => new()
+    public static PagedResult<T> Empty(int pageNumber = 1, int pageSize = OperationAuditQuery.DefaultPageSize) => new()
     {
         Items = Array.Empty<T>(),
         TotalCount = 0,

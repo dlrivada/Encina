@@ -51,7 +51,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     private readonly IDocumentSession _session;
     private readonly AuditEventEncryptor _encryptor;
     private readonly ITemporalKeyProvider _keyProvider;
-    private readonly MartenAuditOptions _options;
+    private readonly MartenOperationAuditOptions _options;
     private readonly ILogger<MartenReadAuditStore> _logger;
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
         IDocumentSession session,
         AuditEventEncryptor encryptor,
         ITemporalKeyProvider keyProvider,
-        IOptions<MartenAuditOptions> options,
+        IOptions<MartenOperationAuditOptions> options,
         ILogger<MartenReadAuditStore> logger)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -366,7 +366,7 @@ public sealed class MartenReadAuditStore : IReadAuditStore
     private static ReadAuditEntry MapToReadAuditEntry(ReadAuditEntryReadModel model)
     {
         IReadOnlyDictionary<string, object?> metadata = model.MetadataJson is not null
-                && model.MetadataJson != MartenAuditOptions.DefaultShreddedPlaceholder
+                && model.MetadataJson != MartenOperationAuditOptions.DefaultShreddedPlaceholder
             ? JsonSerializer.Deserialize<Dictionary<string, object?>>(model.MetadataJson, MetadataJsonOptions)
                 ?? new Dictionary<string, object?>()
             : new Dictionary<string, object?>();

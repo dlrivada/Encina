@@ -23,8 +23,8 @@ namespace Encina.Security.Audit;
 /// <para>
 /// <b>Auditing Rules:</b>
 /// <list type="bullet">
-/// <item>Commands are audited by default when <c>AuditOptions.AuditAllCommands</c> is <c>true</c></item>
-/// <item>Queries are NOT audited by default unless <c>AuditOptions.AuditAllQueries</c> is <c>true</c></item>
+/// <item>Commands are audited by default when <c>OperationAuditOptions.AuditAllCommands</c> is <c>true</c></item>
+/// <item>Queries are NOT audited by default unless <c>OperationAuditOptions.AuditAllQueries</c> is <c>true</c></item>
 /// <item>Queries with <c>[Auditable]</c> attribute are always audited</item>
 /// <item>Requests with <c>[Auditable(Skip = true)]</c> are never audited</item>
 /// <item>Requests in the excluded types collection are never audited</item>
@@ -37,9 +37,9 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     // Cache for ShouldAudit results per request type
     private static readonly ConcurrentDictionary<Type, bool> ShouldAuditCache = new();
 
-    private readonly IAuditStore _auditStore;
-    private readonly IAuditEntryFactory _entryFactory;
-    private readonly AuditOptions _options;
+    private readonly IOperationAuditStore _auditStore;
+    private readonly IOperationAuditEntryFactory _entryFactory;
+    private readonly OperationAuditOptions _options;
     private readonly ILogger<AuditPipelineBehavior<TRequest, TResponse>> _logger;
 
     /// <summary>
@@ -53,9 +53,9 @@ public sealed partial class AuditPipelineBehavior<TRequest, TResponse> : IPipeli
     /// Thrown when any parameter is null.
     /// </exception>
     public AuditPipelineBehavior(
-        IAuditStore auditStore,
-        IAuditEntryFactory entryFactory,
-        IOptions<AuditOptions> options,
+        IOperationAuditStore auditStore,
+        IOperationAuditEntryFactory entryFactory,
+        IOptions<OperationAuditOptions> options,
         ILogger<AuditPipelineBehavior<TRequest, TResponse>> logger)
     {
         ArgumentNullException.ThrowIfNull(auditStore);

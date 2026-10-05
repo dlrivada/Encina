@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Encina.EntityFrameworkCore.Auditing;
 
 /// <summary>
-/// Entity Framework Core configuration for <see cref="AuditEntryEntity"/>.
+/// Entity Framework Core configuration for <see cref="OperationAuditEntryEntity"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -24,12 +24,12 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class AuditEntryEntityConfiguration : IEntityTypeConfiguration<AuditEntryEntity>
+public sealed class OperationAuditEntryEntityConfiguration : IEntityTypeConfiguration<OperationAuditEntryEntity>
 {
     /// <inheritdoc/>
-    public void Configure(EntityTypeBuilder<AuditEntryEntity> builder)
+    public void Configure(EntityTypeBuilder<OperationAuditEntryEntity> builder)
     {
-        builder.ToTable("SecurityAuditEntries");
+        builder.ToTable("OperationAuditEntries");
 
         builder.HasKey(x => x.Id);
 
@@ -117,12 +117,12 @@ public sealed class AuditEntryEntityConfiguration : IEntityTypeConfiguration<Aud
 
         // Filtered index on UserId for user activity tracking
         builder.HasIndex(x => x.UserId)
-            .HasFilter(IndexFilters.IsNotNull(nameof(AuditEntryEntity.UserId)))
+            .HasFilter(IndexFilters.IsNotNull(nameof(OperationAuditEntryEntity.UserId)))
             .HasDatabaseName("IX_SecurityAuditEntries_UserId");
 
         // Filtered index on TenantId for multi-tenant queries
         builder.HasIndex(x => x.TenantId)
-            .HasFilter(IndexFilters.IsNotNull(nameof(AuditEntryEntity.TenantId)))
+            .HasFilter(IndexFilters.IsNotNull(nameof(OperationAuditEntryEntity.TenantId)))
             .HasDatabaseName("IX_SecurityAuditEntries_TenantId");
 
         // Index on CorrelationId for request correlation tracking

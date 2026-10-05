@@ -36,7 +36,7 @@ public sealed record NIS2MeasureContext
     /// <remarks>
     /// Evaluators may need to resolve services that are not directly injected
     /// (e.g., checking if <c>IBreachNotificationService</c> is registered for the
-    /// incident handling measure, or verifying that <c>IAuditStore</c> is available
+    /// incident handling measure, or verifying that <c>IOperationAuditStore</c> is available
     /// for the risk analysis measure).
     /// </remarks>
     public required IServiceProvider ServiceProvider { get; init; }

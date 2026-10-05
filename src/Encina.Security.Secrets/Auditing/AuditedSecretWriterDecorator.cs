@@ -13,7 +13,7 @@ namespace Encina.Security.Secrets.Auditing;
 /// <remarks>
 /// <para>
 /// When <see cref="SecretsOptions.EnableAccessAuditing"/> is <c>true</c>, creates an
-/// <see cref="AuditEntry"/> for each secret write attempt with <c>Action = "SecretWrite"</c>.
+/// <see cref="OperationAuditEntry"/> for each secret write attempt with <c>Action = "SecretWrite"</c>.
 /// </para>
 /// <para>
 /// <b>Resilience:</b> Audit failures are logged but never affect the write result.
@@ -22,7 +22,7 @@ namespace Encina.Security.Secrets.Auditing;
 public sealed class AuditedSecretWriterDecorator : ISecretWriter
 {
     private readonly ISecretWriter _inner;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly SecretsOptions _options;
     private readonly ILogger<AuditedSecretWriterDecorator> _logger;
@@ -41,7 +41,7 @@ public sealed class AuditedSecretWriterDecorator : ISecretWriter
     /// <param name="logger">The logger instance.</param>
     public AuditedSecretWriterDecorator(
         ISecretWriter inner,
-        IAuditStore auditStore,
+        IOperationAuditStore auditStore,
         IRequestContextAccessor requestContextAccessor,
         SecretsOptions options,
         ILogger<AuditedSecretWriterDecorator> logger)

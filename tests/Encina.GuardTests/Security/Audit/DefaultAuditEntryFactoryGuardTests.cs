@@ -6,19 +6,19 @@ using Shouldly;
 namespace Encina.GuardTests.Security.Audit;
 
 /// <summary>
-/// Additional guard clause tests for <see cref="DefaultAuditEntryFactory"/>.
+/// Additional guard clause tests for <see cref="DefaultOperationAuditEntryFactory"/>.
 /// Tests the overloaded Create method with timing parameters.
 /// </summary>
-public class DefaultAuditEntryFactoryGuardTests
+public class DefaultOperationAuditEntryFactoryGuardTests
 {
-    private readonly DefaultAuditEntryFactory _factory;
+    private readonly DefaultOperationAuditEntryFactory _factory;
 
-    public DefaultAuditEntryFactoryGuardTests()
+    public DefaultOperationAuditEntryFactoryGuardTests()
     {
         var piiMasker = Substitute.For<IPiiMasker>();
         piiMasker.MaskForAudit(Arg.Any<object>()).Returns(x => x[0]);
-        var options = Options.Create(new AuditOptions());
-        _factory = new DefaultAuditEntryFactory(piiMasker, options);
+        var options = Options.Create(new OperationAuditOptions());
+        _factory = new DefaultOperationAuditEntryFactory(piiMasker, options);
     }
 
     [Fact]

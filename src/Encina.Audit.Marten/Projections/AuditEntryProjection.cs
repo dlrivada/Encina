@@ -13,8 +13,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Encina.Audit.Marten.Projections;
 
 /// <summary>
-/// Marten async event projection that transforms <see cref="AuditEntryRecordedEvent"/> events
-/// into <see cref="AuditEntryReadModel"/> documents with transparent PII decryption.
+/// Marten async event projection that transforms <see cref="OperationAuditEntryRecordedEvent"/> events
+/// into <see cref="OperationAuditEntryReadModel"/> documents with transparent PII decryption.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,13 +25,13 @@ namespace Encina.Audit.Marten.Projections;
 /// <para>
 /// During processing, the projection:
 /// <list type="number">
-/// <item>Receives <see cref="AuditEntryRecordedEvent"/> from the event stream</item>
+/// <item>Receives <see cref="OperationAuditEntryRecordedEvent"/> from the event stream</item>
 /// <item>Uses the projection-scoped <see cref="IDocumentOperations"/> to load the
 /// <see cref="TemporalKeyDocument"/> for the entry's period</item>
 /// <item>Decrypts PII fields using the temporal key material</item>
 /// <item>If the key has been destroyed (crypto-shredded), substitutes the configured
-/// shredded placeholder and sets <see cref="AuditEntryReadModel.IsShredded"/> to <c>true</c></item>
-/// <item>Stores the resulting <see cref="AuditEntryReadModel"/> as a Marten document</item>
+/// shredded placeholder and sets <see cref="OperationAuditEntryReadModel.IsShredded"/> to <c>true</c></item>
+/// <item>Stores the resulting <see cref="OperationAuditEntryReadModel"/> as a Marten document</item>
 /// </list>
 /// </para>
 /// <para>
@@ -42,23 +42,23 @@ namespace Encina.Audit.Marten.Projections;
 /// keys are loaded through the supplied <see cref="IDocumentOperations"/>.
 /// </para>
 /// </remarks>
-public sealed partial class AuditEntryProjection : EventProjection
+public sealed partial class OperationAuditEntryProjection : EventProjection
 {
     private readonly string _shreddedPlaceholder;
-    private readonly ILogger<AuditEntryProjection> _logger;
+    private readonly ILogger<OperationAuditEntryProjection> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AuditEntryProjection"/> class
-    /// using the default shredded placeholder (<see cref="MartenAuditOptions.DefaultShreddedPlaceholder"/>)
+    /// Initializes a new instance of the <see cref="OperationAuditEntryProjection"/> class
+    /// using the default shredded placeholder (<see cref="MartenOperationAuditOptions.DefaultShreddedPlaceholder"/>)
     /// and a null logger.
     /// </summary>
-    public AuditEntryProjection()
-        : this(MartenAuditOptions.DefaultShreddedPlaceholder, NullLogger<AuditEntryProjection>.Instance)
+    public OperationAuditEntryProjection()
+        : this(MartenOperationAuditOptions.DefaultShreddedPlaceholder, NullLogger<OperationAuditEntryProjection>.Instance)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AuditEntryProjection"/> class.
+    /// Initializes a new instance of the <see cref="OperationAuditEntryProjection"/> class.
     /// </summary>
     /// <param name="shreddedPlaceholder">
     /// The placeholder substituted for PII fields when the temporal key has been destroyed.
@@ -72,18 +72,18 @@ public sealed partial class AuditEntryProjection : EventProjection
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="logger"/> is <c>null</c>.
     /// </exception>
-    public AuditEntryProjection(string shreddedPlaceholder, ILogger<AuditEntryProjection> logger)
+    public OperationAuditEntryProjection(string shreddedPlaceholder, ILogger<OperationAuditEntryProjection> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(shreddedPlaceholder);
         ArgumentNullException.ThrowIfNull(logger);
 
-        Name = "AuditEntryProjection";
+        Name = "OperationAuditEntryProjection";
         _shreddedPlaceholder = shreddedPlaceholder;
         _logger = logger;
     }
 
     /// <summary>
-    /// Creates an <see cref="AuditEntryReadModel"/> document from an <see cref="AuditEntryRecordedEvent"/>.
+    /// Creates an <see cref="OperationAuditEntryReadModel"/> document from an <see cref="OperationAuditEntryRecordedEvent"/>.
     /// </summary>
     /// <param name="event">The event containing the encrypted audit entry data.</param>
     /// <param name="operations">
@@ -92,15 +92,15 @@ public sealed partial class AuditEntryProjection : EventProjection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The projected read model document with decrypted (or shredded) PII fields.</returns>
     /// <remarks>
-    /// Marten invokes this method for each <see cref="AuditEntryRecordedEvent"/> in the event stream.
+    /// Marten invokes this method for each <see cref="OperationAuditEntryRecordedEvent"/> in the event stream.
     /// The method shape is constrained by Marten's projection validator — only
     /// <see cref="IDocumentOperations"/>, <see cref="CancellationToken"/>, and event parameter
     /// types are permitted.
     /// </remarks>
     [SuppressMessage("Performance", "CA1822:Mark members as static",
         Justification = "Marten's EventProjection convention requires instance methods for Create/Apply.")]
-    public async Task<AuditEntryReadModel> Create(
-        AuditEntryRecordedEvent @event,
+    public async Task<OperationAuditEntryReadModel> Create(
+        OperationAuditEntryRecordedEvent @event,
         IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
@@ -227,7 +227,7 @@ public sealed partial class AuditEntryProjection : EventProjection
     }
 
     /// <summary>
-    /// Maps an <see cref="AuditEntryRecordedEvent"/> to an <see cref="AuditEntryReadModel"/>,
+    /// Maps an <see cref="OperationAuditEntryRecordedEvent"/> to an <see cref="OperationAuditEntryReadModel"/>,
     /// decrypting PII fields with the supplied key material or substituting the shredded
     /// placeholder when <paramref name="isShredded"/> is <c>true</c>.
     /// </summary>
@@ -235,8 +235,8 @@ public sealed partial class AuditEntryProjection : EventProjection
     /// Exposed as <c>internal</c> so unit tests can validate the mapping logic independently
     /// of Marten's projection pipeline, which cannot be booted from unit tests.
     /// </remarks>
-    internal AuditEntryReadModel MapToReadModel(
-        AuditEntryRecordedEvent @event,
+    internal OperationAuditEntryReadModel MapToReadModel(
+        OperationAuditEntryRecordedEvent @event,
         byte[]? keyMaterial,
         bool isShredded)
     {
@@ -250,7 +250,7 @@ public sealed partial class AuditEntryProjection : EventProjection
 
         var placeholder = _shreddedPlaceholder;
 
-        return new AuditEntryReadModel
+        return new OperationAuditEntryReadModel
         {
             // Identity
             Id = @event.Id,

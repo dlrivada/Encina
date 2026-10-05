@@ -12,8 +12,8 @@ namespace Encina.Audit.Marten.Benchmarks;
 /// <remarks>
 /// <para>
 /// This is the most representative benchmark for real-world impact because it measures
-/// the complete flow: AuditEntry → temporal key lookup → encrypt 5-6 PII fields →
-/// produce AuditEntryRecordedEvent.
+/// the complete flow: OperationAuditEntry → temporal key lookup → encrypt 5-6 PII fields →
+/// produce OperationAuditEntryRecordedEvent.
 /// </para>
 /// <para>
 /// Run:
@@ -28,8 +28,8 @@ public class AuditEventEncryptorBenchmarks
 {
     private AuditEventEncryptor _encryptor = null!;
     private InMemoryTemporalKeyProvider _keyProvider = null!;
-    private AuditEntry _minimalEntry = null!;
-    private AuditEntry _fullEntry = null!;
+    private OperationAuditEntry _minimalEntry = null!;
+    private OperationAuditEntry _fullEntry = null!;
     private ReadAuditEntry _readEntry = null!;
 
     [GlobalSetup]
@@ -39,7 +39,7 @@ public class AuditEventEncryptorBenchmarks
             TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
 
-        var options = Options.Create(new MartenAuditOptions
+        var options = Options.Create(new MartenOperationAuditOptions
         {
             TemporalGranularity = TemporalKeyGranularity.Monthly
         });
@@ -52,7 +52,7 @@ public class AuditEventEncryptorBenchmarks
         var now = DateTimeOffset.UtcNow;
 
         // Minimal entry: only required fields, no PII
-        _minimalEntry = new AuditEntry
+        _minimalEntry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "bench-corr-1",
@@ -65,7 +65,7 @@ public class AuditEventEncryptorBenchmarks
         };
 
         // Full entry: all PII fields populated (worst case for encryption)
-        _fullEntry = new AuditEntry
+        _fullEntry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "bench-corr-2",

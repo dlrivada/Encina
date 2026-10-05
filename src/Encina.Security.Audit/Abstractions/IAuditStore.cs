@@ -29,7 +29,7 @@ namespace Encina.Security.Audit;
 /// var entries = await auditStore.GetByUserAsync("user-123", TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7), null, cancellationToken);
 /// </code>
 /// </example>
-public interface IAuditStore
+public interface IOperationAuditStore
 {
     /// <summary>
     /// Records a new audit entry.
@@ -43,7 +43,7 @@ public interface IAuditStore
     /// Implementations should handle duplicate IDs gracefully (e.g., update or reject).
     /// Recording failures should not affect the original request processing.
     /// </remarks>
-    ValueTask<Either<EncinaError, Unit>> RecordAsync(AuditEntry entry, CancellationToken cancellationToken = default);
+    ValueTask<Either<EncinaError, Unit>> RecordAsync(OperationAuditEntry entry, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves audit entries for a specific entity.
@@ -58,7 +58,7 @@ public interface IAuditStore
     /// <remarks>
     /// Returns an empty list (not an error) when no entries match the criteria.
     /// </remarks>
-    ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByEntityAsync(
+    ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByEntityAsync(
         string entityType,
         string? entityId,
         CancellationToken cancellationToken = default);
@@ -77,7 +77,7 @@ public interface IAuditStore
     /// <remarks>
     /// Returns an empty list (not an error) when no entries match the criteria.
     /// </remarks>
-    ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByUserAsync(
+    ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByUserAsync(
         string userId,
         DateTime? fromUtc,
         DateTime? toUtc,
@@ -96,7 +96,7 @@ public interface IAuditStore
     /// Useful for tracing a complete request chain across multiple operations.
     /// Returns an empty list (not an error) when no entries match the correlation ID.
     /// </remarks>
-    ValueTask<Either<EncinaError, IReadOnlyList<AuditEntry>>> GetByCorrelationIdAsync(
+    ValueTask<Either<EncinaError, IReadOnlyList<OperationAuditEntry>>> GetByCorrelationIdAsync(
         string correlationId,
         CancellationToken cancellationToken = default);
 
@@ -112,7 +112,7 @@ public interface IAuditStore
     /// <remarks>
     /// <para>
     /// This is the primary query method that supports all filtering options.
-    /// Results are ordered by <see cref="AuditEntry.TimestampUtc"/> descending (newest first).
+    /// Results are ordered by <see cref="OperationAuditEntry.TimestampUtc"/> descending (newest first).
     /// </para>
     /// <para>
     /// Returns an empty <see cref="PagedResult{T}"/> (not an error) when no entries match the query.
@@ -120,7 +120,7 @@ public interface IAuditStore
     /// </remarks>
     /// <example>
     /// <code>
-    /// var query = AuditQuery.Builder()
+    /// var query = OperationAuditQuery.Builder()
     ///     .ForUser("user-123")
     ///     .WithOutcome(AuditOutcome.Failure)
     ///     .InDateRange(TimeProvider.System.GetUtcNow().UtcDateTime.AddDays(-7), null)
@@ -130,14 +130,14 @@ public interface IAuditStore
     /// var result = await auditStore.QueryAsync(query, cancellationToken);
     /// </code>
     /// </example>
-    ValueTask<Either<EncinaError, PagedResult<AuditEntry>>> QueryAsync(
-        AuditQuery query,
+    ValueTask<Either<EncinaError, PagedResult<OperationAuditEntry>>> QueryAsync(
+        OperationAuditQuery query,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Purges audit entries older than the specified date.
     /// </summary>
-    /// <param name="olderThanUtc">Entries with <see cref="AuditEntry.TimestampUtc"/> before this date will be deleted.</param>
+    /// <param name="olderThanUtc">Entries with <see cref="OperationAuditEntry.TimestampUtc"/> before this date will be deleted.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
     /// <c>Either.Right</c> with the number of entries purged,
@@ -147,7 +147,7 @@ public interface IAuditStore
     /// <para>
     /// Use this method to implement data retention policies. Typically called from a background
     /// service at regular intervals (e.g., daily) to remove entries older than
-    /// <see cref="AuditOptions.RetentionDays"/>.
+    /// <see cref="OperationAuditOptions.RetentionDays"/>.
     /// </para>
     /// <para>
     /// This operation may be slow for large datasets. Consider running during off-peak hours.

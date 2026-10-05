@@ -13,7 +13,7 @@ namespace Encina.Security.Secrets.Auditing;
 /// <remarks>
 /// <para>
 /// When <see cref="SecretsOptions.EnableAccessAuditing"/> is <c>true</c>, creates an
-/// <see cref="AuditEntry"/> for each secret rotation attempt with <c>Action = "SecretRotation"</c>.
+/// <see cref="OperationAuditEntry"/> for each secret rotation attempt with <c>Action = "SecretRotation"</c>.
 /// </para>
 /// <para>
 /// <b>Resilience:</b> Audit failures are logged but never affect the rotation result.
@@ -22,7 +22,7 @@ namespace Encina.Security.Secrets.Auditing;
 public sealed class AuditedSecretRotatorDecorator : ISecretRotator
 {
     private readonly ISecretRotator _inner;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly SecretsOptions _options;
     private readonly ILogger<AuditedSecretRotatorDecorator> _logger;
@@ -41,7 +41,7 @@ public sealed class AuditedSecretRotatorDecorator : ISecretRotator
     /// <param name="logger">The logger instance.</param>
     public AuditedSecretRotatorDecorator(
         ISecretRotator inner,
-        IAuditStore auditStore,
+        IOperationAuditStore auditStore,
         IRequestContextAccessor requestContextAccessor,
         SecretsOptions options,
         ILogger<AuditedSecretRotatorDecorator> logger)

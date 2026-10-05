@@ -148,7 +148,7 @@ public static class ServiceCollectionExtensions
         DecorateService<IInboxStore>(services, inner => new InstrumentedInboxStore(inner));
         DecorateService<ISagaStore>(services, inner => new InstrumentedSagaStore(inner));
         DecorateService<IScheduledMessageStore>(services, inner => new InstrumentedScheduledMessageStore(inner));
-        DecorateService<IAuditStore>(services, inner => new InstrumentedAuditStore(inner));
+        DecorateService<IOperationAuditStore>(services, inner => new InstrumentedOperationAuditStore(inner));
         DecorateService<ICacheProvider>(services, inner => new InstrumentedCacheProvider(inner));
 
         return services;

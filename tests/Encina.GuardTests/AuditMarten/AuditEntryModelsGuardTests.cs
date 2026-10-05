@@ -8,12 +8,12 @@ namespace Encina.GuardTests.AuditMarten;
 /// Guard tests exercising the audit Marten event records and read models (POCO validation).
 /// These cover property assignment paths on the public event and read model types.
 /// </summary>
-public class AuditEntryModelsGuardTests
+public class OperationAuditEntryModelsGuardTests
 {
     [Fact]
-    public void AuditEntryRecordedEvent_RequiredProperties_AreAssignable()
+    public void OperationAuditEntryRecordedEvent_RequiredProperties_AreAssignable()
     {
-        var evt = new AuditEntryRecordedEvent
+        var evt = new OperationAuditEntryRecordedEvent
         {
             Id = Guid.NewGuid(),
             CorrelationId = "c",
@@ -53,9 +53,9 @@ public class AuditEntryModelsGuardTests
     }
 
     [Fact]
-    public void AuditEntryReadModel_Defaults_AreInitialized()
+    public void OperationAuditEntryReadModel_Defaults_AreInitialized()
     {
-        var model = new AuditEntryReadModel();
+        var model = new OperationAuditEntryReadModel();
         model.CorrelationId.ShouldBe(string.Empty);
         model.Action.ShouldBe(string.Empty);
         model.EntityType.ShouldBe(string.Empty);
@@ -64,13 +64,13 @@ public class AuditEntryModelsGuardTests
     }
 
     [Fact]
-    public void AuditEntryReadModel_AllProperties_AreSettable()
+    public void OperationAuditEntryReadModel_AllProperties_AreSettable()
     {
         var id = Guid.NewGuid();
         var now = DateTime.UtcNow;
         var offset = DateTimeOffset.UtcNow;
 
-        var model = new AuditEntryReadModel
+        var model = new OperationAuditEntryReadModel
         {
             Id = id,
             CorrelationId = "c",
