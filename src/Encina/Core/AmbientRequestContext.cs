@@ -161,34 +161,21 @@ internal static class AmbientRequestContext
     private static RequestIdentity IdentityOf(IRequestContext? context) =>
         context?.Identity ?? RequestIdentity.Anonymous;
 
-    // The dispatcher has already applied the explicit-context rule (or is restoring the value it
-    // replaced), so the default accessor is set without it; any other accessor gets a plain set.
-    private static void SetAmbient(IRequestContextAccessor accessor, IRequestContext? context)
-    {
-        if (accessor is RequestContextAccessor)
-        {
-            RequestContextAccessor.SetUnchecked(context);
-        }
-        else
-        {
-            accessor.RequestContext = context;
-        }
-    }
-
     /// <summary>
     /// Makes <paramref name="context"/> the ambient context and marks a dispatch as in flight until
     /// the returned scope is disposed, which restores both previous values.
     /// </summary>
-    public static Scope Enter(IRequestContextAccessor accessor, IRequestContext context)
-    {
-        var previous = accessor.RequestContext;
+    public static Scope Enter(IRequestContextAccessor accessor, IRequestContext context) =>
+        Enter(accessor, context, holder: null);
 
-        // Already ambient (the usual case behind EncinaContextMiddleware): nothing to set or restore.
-        var setContext = !ReferenceEquals(previous, context);
-        if (setContext)
-        {
-            SetAmbient(accessor, context);
-        }
+    /// <summary>
+    /// <see cref="Enter(IRequestContextAccessor, IRequestContext)"/>, reinstalling
+    /// <paramref name="holder"/> (a holder an earlier step of the same dispatch installed) instead of
+    /// creating a new one, so a stream step never revives a context whose scope ended between steps.
+    /// </summary>
+    internal static Scope Enter(IRequestContextAccessor accessor, IRequestContext context, RequestContextAccessor.ContextHolder? holder)
+    {
+        var swap = AmbientSwap.Apply(accessor, context, holder);
 
         // Nested dispatches find the flag already set; only the outermost one sets and clears it.
         var enterDispatch = !DispatchInFlight.Value;
@@ -200,7 +187,7 @@ internal static class AmbientRequestContext
         var previousKind = DispatchIdentity.Value;
         DispatchIdentity.Value = IdentityOf(context).Kind;
 
-        return new Scope(setContext ? accessor : null, previous, enterDispatch, previousKind);
+        return new Scope(swap, enterDispatch, previousKind);
     }
 
     /// <summary>
@@ -221,8 +208,11 @@ internal static class AmbientRequestContext
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         IAsyncEnumerator<T> enumerator;
-        using (Enter(accessor, context))
+        RequestContextAccessor.ContextHolder? holder;
+        using (var first = Enter(accessor, context))
         {
+            // Every later step reinstalls this holder: if its scope ends, the stream reads no context.
+            holder = first.Holder;
             enumerator = source.GetAsyncEnumerator(cancellationToken);
         }
 
@@ -231,7 +221,7 @@ internal static class AmbientRequestContext
             while (true)
             {
                 bool moved;
-                using (Enter(accessor, context))
+                using (Enter(accessor, context, holder))
                 {
                     moved = await enumerator.MoveNextAsync().ConfigureAwait(false);
                 }
@@ -246,7 +236,7 @@ internal static class AmbientRequestContext
         }
         finally
         {
-            using (Enter(accessor, context))
+            using (Enter(accessor, context, holder))
             {
                 await enumerator.DisposeAsync().ConfigureAwait(false);
             }
@@ -258,27 +248,26 @@ internal static class AmbientRequestContext
     /// </summary>
     internal readonly struct Scope : IDisposable
     {
-        private readonly IRequestContextAccessor? _accessor;
-        private readonly IRequestContext? _previous;
+        private readonly AmbientSwap _swap;
         private readonly bool _leaveDispatch;
         private readonly IdentityKind _previousKind;
 
-        internal Scope(IRequestContextAccessor? accessor, IRequestContext? previous, bool leaveDispatch, IdentityKind previousKind)
+        internal Scope(AmbientSwap swap, bool leaveDispatch, IdentityKind previousKind)
         {
-            _accessor = accessor;
-            _previous = previous;
+            _swap = swap;
             _leaveDispatch = leaveDispatch;
             _previousKind = previousKind;
         }
 
+        /// <summary>
+        /// Gets the holder current during this scope (default accessor only), or <see langword="null"/>.
+        /// </summary>
+        internal RequestContextAccessor.ContextHolder? Holder => _swap.Holder;
+
         /// <inheritdoc />
         public void Dispose()
         {
-            // A null accessor means the context was already ambient: there is nothing to restore.
-            if (_accessor is not null)
-            {
-                SetAmbient(_accessor, _previous);
-            }
+            _swap.Restore();
 
             if (_leaveDispatch)
             {
@@ -286,6 +275,91 @@ internal static class AmbientRequestContext
             }
 
             DispatchIdentity.Value = _previousKind;
+        }
+    }
+
+    /// <summary>
+    /// Sets the ambient context for a dispatch step and puts back exactly what was there before.
+    /// </summary>
+    /// <remarks>
+    /// With the default <see cref="RequestContextAccessor"/> the set skips the explicit-context rule
+    /// (<see cref="Resolve"/> has applied it), and the restore reinstalls the captured holder itself
+    /// rather than setting its value again: a holder whose scope ended meanwhile stays ended, so the
+    /// end of a dispatch never revives an identity. Any other accessor gets plain sets.
+    /// </remarks>
+    internal readonly struct AmbientSwap
+    {
+        private readonly IRequestContextAccessor? _accessor;
+        private readonly IRequestContext? _previousContext;
+        private readonly RequestContextAccessor.ContextHolder? _previousHolder;
+
+        private AmbientSwap(
+            IRequestContextAccessor? accessor,
+            IRequestContext? previousContext,
+            RequestContextAccessor.ContextHolder? previousHolder,
+            RequestContextAccessor.ContextHolder? holder)
+        {
+            _accessor = accessor;
+            _previousContext = previousContext;
+            _previousHolder = previousHolder;
+            Holder = holder;
+        }
+
+        /// <summary>
+        /// Gets the holder current after the swap (default accessor only), or <see langword="null"/>.
+        /// </summary>
+        internal RequestContextAccessor.ContextHolder? Holder { get; }
+
+        /// <summary>
+        /// Makes <paramref name="context"/> ambient, reinstalling <paramref name="reuse"/> when given.
+        /// </summary>
+        internal static AmbientSwap Apply(IRequestContextAccessor accessor, IRequestContext context, RequestContextAccessor.ContextHolder? reuse)
+        {
+            var previous = accessor.RequestContext;
+            if (accessor is not RequestContextAccessor)
+            {
+                return ApplyPlain(accessor, context, previous);
+            }
+
+            var previousHolder = RequestContextAccessor.Current;
+
+            // Already ambient (the usual case behind EncinaContextMiddleware): nothing to set.
+            if (ReferenceEquals(previous, context))
+            {
+                return new AmbientSwap(null, null, null, previousHolder);
+            }
+
+            if (reuse is null)
+            {
+                return new AmbientSwap(accessor, previous, previousHolder, RequestContextAccessor.SetUnchecked(context));
+            }
+
+            RequestContextAccessor.Install(reuse);
+            return new AmbientSwap(accessor, previous, previousHolder, reuse);
+        }
+
+        /// <summary>Puts back what <see cref="Apply"/> replaced.</summary>
+        internal void Restore()
+        {
+            if (_accessor is RequestContextAccessor)
+            {
+                RequestContextAccessor.Install(_previousHolder);
+            }
+            else if (_accessor is not null)
+            {
+                _accessor.RequestContext = _previousContext;
+            }
+        }
+
+        private static AmbientSwap ApplyPlain(IRequestContextAccessor accessor, IRequestContext context, IRequestContext? previous)
+        {
+            if (ReferenceEquals(previous, context))
+            {
+                return default;
+            }
+
+            accessor.RequestContext = context;
+            return new AmbientSwap(accessor, previous, null, null);
         }
     }
 }

@@ -43,6 +43,7 @@ public sealed class RequestIdentityTests
     [InlineData("al​ice")]
     [InlineData("alice‮ecila")]
     [InlineData("﻿alice")]
+    [InlineData("alice\U000E0041")]
     [InlineData("service:billing")]
     [InlineData("SERVICE:billing")]
     [InlineData(" service:billing")]
@@ -51,6 +52,23 @@ public sealed class RequestIdentityTests
     {
         Should.Throw<ArgumentException>(() => RequestIdentity.ForUser(userId));
         RequestIdentity.IsValidUserId(userId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ForUser_RejectsALoneSurrogate()
+    {
+        // Built at run time: a malformed UTF-16 string does not survive test-case serialization.
+        foreach (var userId in new[] { "al" + (char)0xD800 + "ice", "alice" + (char)0xDC00 })
+        {
+            Should.Throw<ArgumentException>(() => RequestIdentity.ForUser(userId));
+            RequestIdentity.IsValidUserId(userId).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public void IsValidUserId_AcceptsASupplementaryPlaneLetter()
+    {
+        RequestIdentity.IsValidUserId("user-\U0001D400").ShouldBeTrue();
     }
 
     [Fact]

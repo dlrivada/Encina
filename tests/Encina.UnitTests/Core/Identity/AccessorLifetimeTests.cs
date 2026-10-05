@@ -88,7 +88,7 @@ public sealed class AccessorLifetimeTests
     }
 
     [Fact]
-    public async Task EndingAScopeFromAnotherFlow_AfterThatFlowSetItsOwnValue_NeverInstallsItsParentThere()
+    public async Task EndingAScopeFromAnotherFlow_WhoseCurrentScopeIsItsOwn_NeverInstallsItsParentThere()
     {
         await Task.Yield();
         _accessor.RequestContext = UserContext("alice");
@@ -160,6 +160,50 @@ public sealed class AccessorLifetimeTests
         seen.afterEnd.ShouldBeNull();
         seen.afterSet.ShouldBe("set-after-end");
         seen.afterPush.ShouldBe("bob");
+    }
+
+    [Fact]
+    public async Task ADispatchEndingAfterItsFlowsScopeEnded_DoesNotReviveTheScopesContext()
+    {
+        await Task.Yield();
+        var scope = RequestContextAccessor.Push(UserContext("alice"));
+        var nested = RequestContext.ForNestedDispatch(_accessor.RequestContext!, TimeProvider.System.GetUtcNow());
+        var dispatch = AmbientRequestContext.Enter(_accessor, nested);
+        _accessor.RequestContext!.UserId.ShouldBe("alice");
+
+        // The owner ends the scope while the dispatch is still running in this flow.
+        RequestContextAccessor.Pop(scope);
+        _accessor.RequestContext.ShouldBeNull();
+        dispatch.Dispose();
+
+        _accessor.RequestContext.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task AStreamStepAfterTheConsumersScopeEnded_ReadsNoContext()
+    {
+        await Task.Yield();
+        var scope = RequestContextAccessor.Push(UserContext("alice"));
+        var context = _accessor.RequestContext!;
+        var seen = new List<string?>();
+        var source = Steps();
+
+        await using var enumerator = AmbientRequestContext.Flow(source, _accessor, context).GetAsyncEnumerator();
+        (await enumerator.MoveNextAsync()).ShouldBeTrue();
+        RequestContextAccessor.Pop(scope);
+        (await enumerator.MoveNextAsync()).ShouldBeTrue();
+
+        seen.ShouldBe(["alice", null]);
+
+        async IAsyncEnumerable<int> Steps()
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                await Task.Yield();
+                seen.Add(_accessor.RequestContext?.UserId);
+                yield return i;
+            }
+        }
     }
 
     [Fact]

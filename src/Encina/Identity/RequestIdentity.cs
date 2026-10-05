@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Security.Claims;
+using System.Text;
 
 namespace Encina;
 
@@ -196,7 +198,7 @@ public sealed class RequestIdentity
     internal static bool IsValidUserId(string? userId) =>
         !string.IsNullOrWhiteSpace(userId)
         && string.Equals(userId, userId.Trim(), StringComparison.Ordinal)
-        && !userId.Any(IsControlOrFormat)
+        && !HasInvisibleOrInvalidCharacter(userId)
         && !IsReservedSubject(userId);
 
     /// <summary>
@@ -210,8 +212,24 @@ public sealed class RequestIdentity
             ? EmptySet
             : values.Where(static value => !string.IsNullOrWhiteSpace(value)).ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    private static bool IsControlOrFormat(char character) =>
-        char.IsControl(character) || char.GetUnicodeCategory(character) == UnicodeCategory.Format;
+    // Walks Unicode scalar values, not UTF-16 chars, so a supplementary-plane format character (such
+    // as the U+E0001-U+E007F tags) is caught; a lone surrogate is malformed and rejected too.
+    private static bool HasInvisibleOrInvalidCharacter(string userId)
+    {
+        var remaining = userId.AsSpan();
+        while (!remaining.IsEmpty)
+        {
+            if (Rune.DecodeFromUtf16(remaining, out var rune, out var consumed) != OperationStatus.Done
+                || Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format)
+            {
+                return true;
+            }
+
+            remaining = remaining[consumed..];
+        }
+
+        return false;
+    }
 
     private static (string Type, string Value)[] FreezeClaims(ClaimsPrincipal? principal) =>
         principal is null

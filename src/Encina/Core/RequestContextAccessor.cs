@@ -68,7 +68,9 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     /// When the ambient identity is an authenticated <see cref="IdentityKind.User"/> and
     /// <paramref name="value"/> carries a different authenticated identity, the set is refused:
     /// Warning 165 is logged (kinds only) and <see cref="InvalidOperationException"/> is thrown.
-    /// Any other change of authenticated identity is allowed and logs Warning 165.
+    /// Any other change of authenticated identity is allowed and logs Warning 165. The rule guards
+    /// against a direct overwrite of the current value (clearing it first, then setting another
+    /// user, is allowed and logged); identity scopes bind an identity to a region of code.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The set would replace an ambient user with a different authenticated identity.</exception>
@@ -86,8 +88,24 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     /// Sets the ambient value without the explicit-context rule. Internal: used by the dispatcher,
     /// which has already applied the rule (or is restoring the value it replaced).
     /// </summary>
-    internal static void SetUnchecked(IRequestContext? value) =>
-        CurrentHolder.Value = new ContextHolder(value, NearestScope(LiveOrNull(CurrentHolder.Value)), isScope: false);
+    /// <returns>The holder now current in this flow.</returns>
+    internal static ContextHolder SetUnchecked(IRequestContext? value)
+    {
+        var holder = new ContextHolder(value, NearestScope(LiveOrNull(CurrentHolder.Value)), isScope: false);
+        CurrentHolder.Value = holder;
+        return holder;
+    }
+
+    /// <summary>
+    /// Gets the holder current in this flow, which the dispatcher captures to restore it exactly.
+    /// </summary>
+    internal static ContextHolder? Current => CurrentHolder.Value;
+
+    /// <summary>
+    /// Makes <paramref name="holder"/> current in this flow as it is: an ended holder stays ended, so
+    /// restoring a captured holder never revives an identity whose scope has ended.
+    /// </summary>
+    internal static void Install(ContextHolder? holder) => CurrentHolder.Value = holder;
 
     /// <summary>
     /// Makes <paramref name="context"/> ambient in a new scope holder and returns that holder, which
