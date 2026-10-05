@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IBreachNotificationService"/> → <see cref="DefaultBreachNotificationService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IBreachDetector"/> → <see cref="DefaultBreachDetector"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IBreachNotifier"/> → <see cref="DefaultBreachNotifier"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// <item>Built-in detection rules: <see cref="UnauthorizedAccessRule"/>, <see cref="MassDataExfiltrationRule"/>,
     ///   <see cref="PrivilegeEscalationRule"/>, <see cref="AnomalousQueryPatternRule"/> (Singleton)</item>
     /// </list>

@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IFieldEncryptor"/> → <c>AesGcmFieldEncryptor</c> (Singleton, using TryAdd)</item>
     /// <item><see cref="IKeyProvider"/> → <see cref="InMemoryKeyProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IEncryptionOrchestrator"/> → <c>EncryptionOrchestrator</c> (Scoped, using TryAdd)</item>
-    /// <item><see cref="EncryptionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="EncryptionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

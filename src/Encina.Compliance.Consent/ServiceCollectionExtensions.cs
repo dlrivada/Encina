@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ConsentOptions"/> — Configured via the provided action, validated at first access</item>
     /// <item><see cref="IConsentService"/> → <see cref="DefaultConsentService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IConsentValidator"/> → <see cref="DefaultConsentValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="ConsentRequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="ConsentRequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

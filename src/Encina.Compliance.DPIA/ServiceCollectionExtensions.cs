@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDPIATemplateProvider"/> → <see cref="DefaultDPIATemplateProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IDPIAAssessmentEngine"/> → <see cref="DefaultDPIAAssessmentEngine"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IRiskCriterion"/> — 6 built-in risk criteria (Singleton, using TryAddEnumerable)</item>
-    /// <item><see cref="DPIARequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="DPIARequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

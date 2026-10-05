@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IRetentionPolicyService"/> → <see cref="DefaultRetentionPolicyService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IRetentionRecordService"/> → <see cref="DefaultRetentionRecordService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="ILegalHoldService"/> → <see cref="DefaultLegalHoldService"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="RetentionValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="RetentionValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

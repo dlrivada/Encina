@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDataPortabilityExporter"/> → <see cref="DefaultDataPortabilityExporter"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDataSubjectIdExtractor"/> → <see cref="DefaultDataSubjectIdExtractor"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="JsonExportFormatWriter"/>, <see cref="CsvExportFormatWriter"/>, <see cref="XmlExportFormatWriter"/> — all three export writers</item>
-    /// <item><see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

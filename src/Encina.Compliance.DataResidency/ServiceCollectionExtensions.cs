@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IRegionContextProvider"/> → <see cref="DefaultRegionContextProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAdequacyDecisionProvider"/> → <see cref="DefaultAdequacyDecisionProvider"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IRegionRouter"/> → <see cref="DefaultRegionRouter"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="DataResidencyPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="DataResidencyPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="GDPROptions"/> — Configured via the provided action, validated at first access</item>
     /// <item><see cref="IProcessingActivityRegistry"/> → <see cref="InMemoryProcessingActivityRegistry"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IGDPRComplianceValidator"/> → <see cref="DefaultGDPRComplianceValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="GDPRCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="GDPRCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

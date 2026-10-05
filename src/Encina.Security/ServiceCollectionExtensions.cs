@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ISecurityContextAccessor"/> → <c>SecurityContextAccessor</c> (Scoped, using TryAdd)</item>
     /// <item><see cref="IPermissionEvaluator"/> → <see cref="DefaultPermissionEvaluator"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IResourceOwnershipEvaluator"/> → <see cref="DefaultResourceOwnershipEvaluator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="SecurityPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="SecurityPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>

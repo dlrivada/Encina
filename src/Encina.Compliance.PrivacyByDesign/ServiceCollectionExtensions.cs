@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDataMinimizationAnalyzer"/> → <see cref="DefaultDataMinimizationAnalyzer"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IPurposeRegistry"/> → <see cref="InMemoryPurposeRegistry"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IPrivacyByDesignValidator"/> → <see cref="DefaultPrivacyByDesignValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="DataMinimizationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="DataMinimizationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
