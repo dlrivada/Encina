@@ -466,6 +466,15 @@ jobs:
           # remaining growth is fixed in the tests by #1858.
           MALLOC_MMAP_THRESHOLD_: "131072"
           MALLOC_TRIM_THRESHOLD_: "131072"
+          # #1441 phase 2f: the Encina.UnitTests test server ends itself at
+          # the start of a mutant's session when its private memory is above
+          # ENCINA_MTP_RECYCLE_MB, and Stryker retries that mutant on a fresh
+          # server (tests/Encina.UnitTests/TestHost/StrykerServerRecycler.cs).
+          # Stryker discards the server's stderr, so each recycle is also
+          # appended to ENCINA_MTP_RECYCLE_LOG, which is uploaded with the
+          # stryker-logs artifact and counted in the shard summary.
+          ENCINA_MTP_RECYCLE_MB: "6144"
+          ENCINA_MTP_RECYCLE_LOG: ${{ github.workspace }}/artifacts/mutation/logs/mtp-recycle.log
           # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
           # logs at debug level so the log names the mutant under test when
           # a test host starts to grow; scheduled and full-matrix runs stay
@@ -890,6 +899,11 @@ jobs:
               echo '```';
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+          # #1441 phase 2f: number of test-server recycles in this shard.
+          RECYCLE_LOG=artifacts/mutation/logs/mtp-recycle.log
+          RECYCLES=0
+          if [ -f "$RECYCLE_LOG" ]; then RECYCLES=$(grep -c . "$RECYCLE_LOG" || true); fi
+          echo "Test-server recycles (ENCINA_MTP_RECYCLE_MB): ${RECYCLES}" >> "$GITHUB_STEP_SUMMARY"
 
       # The 4 GiB heap cap of "Run mutation tests" turns a runaway test host
       # into an OutOfMemoryException, and a test that fails with it inside a
