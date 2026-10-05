@@ -88,7 +88,7 @@ Encina.Security.Audit.AuditOutcome.Error = 3 -> Encina.Security.Audit.AuditOutco
 Encina.Security.Audit.AuditOutcome.Failure = 1 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditOutcome.Success = 0 -> Encina.Security.Audit.AuditOutcome
 Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>
-Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.AuditPipelineBehavior(Encina.Security.Audit.IOperationAuditStore! auditStore, Encina.Security.Audit.IOperationAuditEntryFactory! entryFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>!>! logger) -> void
+Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.AuditPipelineBehavior(Encina.Security.Audit.IOperationAuditStore! auditStore, Encina.Security.Audit.IOperationAuditEntryFactory! entryFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>!>! logger, System.TimeProvider? timeProvider = null) -> void
 Encina.Security.Audit.AuditPipelineBehavior<TRequest, TResponse>.Handle(TRequest request, Encina.IRequestContext! context, Encina.RequestHandlerCallback<TResponse>! nextStep, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<LanguageExt.Either<Encina.EncinaError, TResponse>>
 Encina.Security.Audit.OperationAuditQuery
 Encina.Security.Audit.OperationAuditQuery.UserId.get -> string?
@@ -323,7 +323,7 @@ Encina.Security.Audit.SensitiveDataAccessedNotification.AccessedAtUtc.init -> vo
 Encina.Security.Audit.ServiceCollectionExtensions
 static Encina.Security.Audit.ServiceCollectionExtensions.AddEncinaAudit(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Encina.Security.Audit.OperationAuditOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Encina.Security.Audit.OperationAuditRetentionService
-Encina.Security.Audit.OperationAuditRetentionService.OperationAuditRetentionService(Encina.Security.Audit.IOperationAuditStore! auditStore, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.OperationAuditRetentionService!>! logger, System.TimeProvider? timeProvider = null) -> void
+Encina.Security.Audit.OperationAuditRetentionService.OperationAuditRetentionService(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Options.IOptions<Encina.Security.Audit.OperationAuditOptions!>! options, Microsoft.Extensions.Logging.ILogger<Encina.Security.Audit.OperationAuditRetentionService!>! logger, System.TimeProvider? timeProvider = null) -> void
 Encina.Security.Audit.Health.OperationAuditStoreHealthCheck
 Encina.Security.Audit.Health.OperationAuditStoreHealthCheck.OperationAuditStoreHealthCheck(Encina.Security.Audit.IOperationAuditStore! auditStore) -> void
 const Encina.Security.Audit.Health.OperationAuditStoreHealthCheck.DefaultName = "encina-audit" -> string!
@@ -359,3 +359,8 @@ static Encina.Security.Audit.Diagnostics.ReadAuditLog.NothingToPurge(Microsoft.E
 static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeFailed(Microsoft.Extensions.Logging.ILogger! logger, string! errorCode) -> void
 static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeCancelled(Microsoft.Extensions.Logging.ILogger! logger) -> void
 static Encina.Security.Audit.Diagnostics.ReadAuditLog.PurgeError(Microsoft.Extensions.Logging.ILogger! logger, System.Exception! exception) -> void
+Encina.Security.Audit.IDecoratedServiceFactory
+Encina.Security.Audit.IDecoratedServiceFactory.Decorated.get -> Microsoft.Extensions.DependencyInjection.ServiceDescriptor!
+Encina.Security.Audit.OperationAuditStoreRegistration
+static Encina.Security.Audit.OperationAuditStoreRegistration.IsInMemoryDefault(Microsoft.Extensions.DependencyInjection.ServiceDescriptor! descriptor) -> bool
+static Encina.Security.Audit.OperationAuditStoreRegistration.RemoveInMemoryDefault(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void

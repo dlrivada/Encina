@@ -231,14 +231,21 @@ public static class ServiceCollectionExtensions
 
         services.Remove(descriptor);
 
-        services.Add(ServiceDescriptor.Describe(
-            typeof(TService),
-            sp =>
-            {
-                var inner = ResolveFromDescriptor<TService>(sp, descriptor);
-                return decoratorFactory(inner);
-            },
-            descriptor.Lifetime));
+        // The factory is an instance method of a marker object so registration code (for example a
+        // database provider replacing the in-memory audit default) can look through the wrapper.
+        var decorating = new DecoratingFactory<TService>(descriptor, decoratorFactory);
+        services.Add(ServiceDescriptor.Describe(typeof(TService), decorating.Create, descriptor.Lifetime));
+    }
+
+    private sealed class DecoratingFactory<TService>(
+        ServiceDescriptor decorated,
+        Func<TService, TService> decoratorFactory) : IDecoratedServiceFactory
+        where TService : class
+    {
+        public ServiceDescriptor Decorated { get; } = decorated;
+
+        public object Create(IServiceProvider sp) =>
+            decoratorFactory(ResolveFromDescriptor<TService>(sp, Decorated));
     }
 
     private static T ResolveFromDescriptor<T>(IServiceProvider sp, ServiceDescriptor descriptor)

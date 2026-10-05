@@ -653,15 +653,7 @@ public static class ServiceCollectionExtensions
     {
         if (!options.UseOperationAuditStore) return;
 
-        for (var i = services.Count - 1; i >= 0; i--)
-        {
-            if (services[i].ServiceType == typeof(IOperationAuditStore) &&
-                services[i].ImplementationType == typeof(InMemoryOperationAuditStore))
-            {
-                services.RemoveAt(i);
-            }
-        }
-
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
         services.TryAddScoped<IOperationAuditStore, OperationAuditStoreMongoDB>();
     }
 

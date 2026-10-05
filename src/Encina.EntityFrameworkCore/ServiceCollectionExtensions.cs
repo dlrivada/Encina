@@ -347,7 +347,7 @@ public static class ServiceCollectionExtensions
         if (!config.UseAuditing) return;
 
         // Register audit interceptor options
-        var OperationAuditOptions = new AuditInterceptorOptions
+        var auditOptions = new AuditInterceptorOptions
         {
             Enabled = true,
             TrackCreatedAt = config.AuditingOptions.TrackCreatedAt,
@@ -357,7 +357,7 @@ public static class ServiceCollectionExtensions
             LogAuditChanges = config.AuditingOptions.LogAuditChanges,
             LogChangesToStore = config.AuditingOptions.LogChangesToStore
         };
-        services.TryAddSingleton(OperationAuditOptions);
+        services.TryAddSingleton(auditOptions);
 
         // Register TimeProvider for consistent timestamps
         services.TryAddSingleton(TimeProvider.System);
@@ -411,8 +411,11 @@ public static class ServiceCollectionExtensions
     {
         if (!config.UseOperationAuditStore) return;
 
-        // Register operation audit trail store (Encina.Security.Audit)
-        services.AddScoped<IOperationAuditStore, OperationAuditStoreEF>();
+        // Same rule as the ADO, Dapper and MongoDB providers: the in-memory default from
+        // Encina.Security.Audit is removed so the database store wins in any registration order,
+        // and a store the application registered itself is never overridden (#1269).
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+        services.TryAddScoped<IOperationAuditStore, OperationAuditStoreEF>();
     }
 
     /// <summary>

@@ -431,7 +431,7 @@ public static class ServiceCollectionExtensions
         // store wins regardless of the order in which AddEncinaAudit and this provider run.
         // A custom IOperationAuditStore the application registered itself is never removed
         // here, so it keeps winning (#1269).
-        RemoveInMemoryDefault<IOperationAuditStore, InMemoryOperationAuditStore>(services);
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
         services.TryAddScoped<IOperationAuditStore, Auditing.OperationAuditStoreADO>();
     }
 }

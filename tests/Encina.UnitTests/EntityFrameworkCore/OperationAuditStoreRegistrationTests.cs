@@ -1,15 +1,15 @@
-using Encina.MongoDB;
-using Encina.MongoDB.Auditing;
+using Encina.EntityFrameworkCore;
 using Encina.Security.Audit;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using DbOperationAuditStore = Encina.EntityFrameworkCore.Auditing.OperationAuditStoreEF;
 
-namespace Encina.UnitTests.MongoDB;
+namespace Encina.UnitTests.EntityFrameworkCore;
 
 /// <summary>
-/// Verifies that the MongoDB <see cref="IOperationAuditStore"/> wins over
-/// <see cref="InMemoryOperationAuditStore"/> regardless of the order in which
-/// <c>AddEncinaAudit</c> and <c>AddEncinaMongoDB</c> run, and never replaces a store the
-/// application registered itself (#1633, #1269). Every provider is built with
+/// Verifies that the EF Core <see cref="IOperationAuditStore"/> follows the same rule as the ADO, Dapper
+/// and MongoDB providers: it wins over <see cref="InMemoryOperationAuditStore"/> regardless of the order
+/// in which <c>AddEncinaAudit</c> and <c>AddEncinaEntityFrameworkCore</c> run, and never replaces a store
+/// the application registered itself (#1633, #1269). Every provider is built with
 /// <c>ValidateOnBuild</c> and <c>ValidateScopes</c>.
 /// </summary>
 public sealed class OperationAuditStoreRegistrationTests
@@ -25,48 +25,43 @@ public sealed class OperationAuditStoreRegistrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddDbContext<TestDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         return services;
     }
 
-    private static void AddMongo(IServiceCollection services, bool useOperationAuditStore) =>
-        services.AddEncinaMongoDB(opts =>
-        {
-            opts.ConnectionString = "mongodb://localhost";
-            opts.UseOperationAuditStore = useOperationAuditStore;
-        });
-
     [Fact]
-    public void AddEncinaAudit_ThenAddEncinaMongoDB_ResolvesDatabaseStore()
+    public void AddEncinaAudit_ThenAddEncinaEntityFrameworkCore_ResolvesDatabaseStore()
     {
         // Arrange
         var services = NewServices();
 
         // Act
         services.AddEncinaAudit();
-        AddMongo(services, useOperationAuditStore: true);
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = true);
 
         // Assert
         using var provider = Build(services);
         using var scope = provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<IOperationAuditStore>()
-            .ShouldBeOfType<OperationAuditStoreMongoDB>();
+            .ShouldBeOfType<DbOperationAuditStore>();
     }
 
     [Fact]
-    public void AddEncinaMongoDB_ThenAddEncinaAudit_ResolvesDatabaseStore()
+    public void AddEncinaEntityFrameworkCore_ThenAddEncinaAudit_ResolvesDatabaseStore()
     {
         // Arrange
         var services = NewServices();
 
         // Act
-        AddMongo(services, useOperationAuditStore: true);
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = true);
         services.AddEncinaAudit();
 
         // Assert
         using var provider = Build(services);
         using var scope = provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<IOperationAuditStore>()
-            .ShouldBeOfType<OperationAuditStoreMongoDB>();
+            .ShouldBeOfType<DbOperationAuditStore>();
     }
 
     [Fact]
@@ -78,7 +73,7 @@ public sealed class OperationAuditStoreRegistrationTests
         services.AddSingleton(customStore);
 
         // Act
-        AddMongo(services, useOperationAuditStore: true);
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = true);
         services.AddEncinaAudit();
 
         // Assert
@@ -88,14 +83,32 @@ public sealed class OperationAuditStoreRegistrationTests
     }
 
     [Fact]
-    public void AddEncinaMongoDB_WithoutTheFlag_DoesNotRegisterTheDatabaseStore()
+    public void CustomOperationAuditStore_RegisteredAfterProvider_StaysResolved()
+    {
+        // Arrange
+        var services = NewServices();
+        var customStore = Substitute.For<IOperationAuditStore>();
+
+        // Act
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = true);
+        services.AddSingleton(customStore);
+        services.AddEncinaAudit();
+
+        // Assert
+        using var provider = Build(services);
+        using var scope = provider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IOperationAuditStore>().ShouldBeSameAs(customStore);
+    }
+
+    [Fact]
+    public void AddEncinaEntityFrameworkCore_WithoutTheFlag_DoesNotRegisterTheDatabaseStore()
     {
         // Arrange
         var services = NewServices();
 
         // Act
         services.AddEncinaAudit();
-        AddMongo(services, useOperationAuditStore: false);
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = false);
 
         // Assert
         using var provider = Build(services);
@@ -111,7 +124,7 @@ public sealed class OperationAuditStoreRegistrationTests
 
         // Act
         services.AddEncinaAudit(options => options.EnableAutoPurge = true);
-        AddMongo(services, useOperationAuditStore: true);
+        services.AddEncinaEntityFrameworkCore<TestDbContext>(config => config.UseOperationAuditStore = true);
 
         // Assert - ValidateScopes fails the build when the singleton hosted service captures the scoped store
         using var provider = Build(services);

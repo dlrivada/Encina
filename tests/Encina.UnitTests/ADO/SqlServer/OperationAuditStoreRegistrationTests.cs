@@ -97,4 +97,21 @@ public sealed class OperationAuditStoreRegistrationTests
         provider.GetRequiredService<IOperationAuditStore>()
             .ShouldBeOfType<InMemoryOperationAuditStore>();
     }
+
+    [Fact]
+    public void AddEncinaAudit_WithAutoPurge_BuildsTheRetentionServiceOverTheScopedStore()
+    {
+        // Arrange
+        var services = NewServices();
+
+        // Act
+        services.AddEncinaAudit(options => options.EnableAutoPurge = true);
+        services.AddEncinaADO(config => config.UseOperationAuditStore = true);
+
+        // Assert - ValidateScopes fails the build when the singleton hosted service captures the scoped store
+        using var provider = Build(services);
+        provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<OperationAuditRetentionService>()
+            .ShouldHaveSingleItem();
+    }
 }
