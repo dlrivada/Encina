@@ -25,7 +25,7 @@ spawn a stage agent out of order or for the wrong issue; `enforce-path-ownership
 but the assigned agent write a stage's artifact (#1345's fabrication gap).
 
 **Feed the system.** Every stage ends with "## Lessons for the pipeline". You resolve every lesson before
-`audit-done.ps1` will close the audit (see step 8) — apply it now, or say explicitly why not.
+`audit-done.ps1` will close the audit (see step 6) — apply it now, or say explicitly why not.
 
 **Siblings and successor states (the #20 and #26 lessons).** `issue-auditor` audits the copies of a pattern
 the issue's own fix did not reach, not only the files the issue's PRs touched. `issue-archivist` re-verifies
@@ -76,7 +76,7 @@ pwsh -NoProfile -File tools/ai/audit/audit-next.ps1
 ```
 
 With no `-Issue`, it takes the next entry of `artifacts/knowledge/audit-queue.txt` not already in
-`progress.csv`. It refuses when an audit is already open — close it first (step 8) — creates
+`progress.csv`. It refuses when an audit is already open — close it first (step 6) — creates
 `.claude/worktrees/wia-<n>` on branch `audit/<n>` from `origin/main`, writes
 `artifacts/knowledge/current-audit.json`, ensures the local-model pre-draft exists, and prints the next stage
 to run.

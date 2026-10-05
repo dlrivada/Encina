@@ -338,7 +338,7 @@ function New-AuditResultSummary([int]$Issue, [string]$StagesDir, $Pipeline, [int
         if (Test-Path -LiteralPath $rFile) {
             # Only the structured lines "<stage> <n> [(Severity)]: ... duplicate of #N": free prose of the stage may
             # describe a match the verifier has since resolved.
-            $dups = @(Get-Content -LiteralPath $rFile | Where-Object { $_ -match '^\s*-?\s*\w+ \d+(?: \([^)]*\))?:.*\bduplicate of #\d+' })
+            $dups = @(Get-Content -LiteralPath $rFile | Where-Object { $_ -match '^\s*-?\s*\w+ \d+ \([^)]*\):.*\bduplicate of #\d+' })
         }
     }
     if ($dups.Count -eq 0) { $null = $sb.Append("- none`n") }
