@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ReadWriteSeparation.ReplicaSelectionBenchmarks-20261005-111244</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+INTEL XEON PLATINUM 8573C 2.30GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;LeastConnections.AcquireReplica (lease)&#39;</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>256.463 ns</td><td>5.0545 ns</td><td>5.6181 ns</td><td>24.93</td><td>0.97</td><td>3</td><td>-</td><td>32 B</td><td>NA</td>
+</tr><tr><td>LeastConnections.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>219.296 ns</td><td>1.8629 ns</td><td>1.6514 ns</td><td>21.31</td><td>0.71</td><td>2</td><td>-</td><td>32 B</td><td>NA</td>
+</tr><tr><td>Random.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.721 ns</td><td>0.1271 ns</td><td>0.1061 ns</td><td>1.04</td><td>0.04</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>RoundRobin.SelectReplica</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.300 ns</td><td>0.2862 ns</td><td>0.3515 ns</td><td>1.00</td><td>0.05</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>&#39;LeastConnections.AcquireReplica (lease)&#39;</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>250.102 ns</td><td>20.8388 ns</td><td>1.1422 ns</td><td>27.50</td><td>0.23</td><td>2</td><td>-</td><td>32 B</td><td>NA</td>
+</tr><tr><td>LeastConnections.SelectReplica</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>212.471 ns</td><td>55.9450 ns</td><td>3.0665 ns</td><td>23.37</td><td>0.34</td><td>2</td><td>0.0002</td><td>32 B</td><td>NA</td>
+</tr><tr><td>Random.SelectReplica</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>10.850 ns</td><td>1.0729 ns</td><td>0.0588 ns</td><td>1.19</td><td>0.01</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>RoundRobin.SelectReplica</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>9.094 ns</td><td>1.4096 ns</td><td>0.0773 ns</td><td>1.00</td><td>0.01</td><td>1</td><td>-</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
