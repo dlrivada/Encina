@@ -171,10 +171,10 @@ dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications [
 dotnet run --file .github/scripts/coverage-report.cs -- --self-test
 ```
 
-To measure, run each flag's tests with its own results folder, then build the report. `<Flag>Tests` is `UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests` or `IntegrationTests`; these are the folder names `coverage-report.cs` classifies, and any other folder name is skipped. The report's "Per-file targets" table is the measurement.
+To measure, run each flag's tests with its own results folder, then build the report. `<Flag>Tests` is `UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests` or `IntegrationTests`; these are the folder names `coverage-report.cs` classifies, and any other folder name is skipped. The report's "Per-file targets" table is the measurement. All commands run from the repository root; without the project argument every test project would write to one folder and be counted as one flag.
 
 ```powershell
-dotnet test --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests
+dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests
 dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report
 ```
 
