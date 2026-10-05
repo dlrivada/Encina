@@ -73,11 +73,31 @@ public sealed class AccessorLifetimeTests
         RequestContextAccessor.Pop(outer).ShouldBeFalse();
         _accessor.RequestContext.ShouldBeNull();
 
-        // The flow already moved past the inner holder: its end is out of order and restores nothing alive.
-        RequestContextAccessor.Pop(inner).ShouldBeFalse();
+        // The inner holder is still current in this flow: it restores its parent, which has ended.
+        RequestContextAccessor.Pop(inner).ShouldBeTrue();
         _accessor.RequestContext.ShouldBeNull();
         outer.IsDisposed.ShouldBeTrue();
         inner.IsDisposed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task EndingAScopeFromAnotherFlow_NeverInstallsItsParentThere()
+    {
+        await Task.Yield();
+        _accessor.RequestContext = UserContext("alice");
+        var holder = RequestContextAccessor.Push(UserContext("job"));
+
+        var seenInOtherFlow = await Task.Run(() =>
+        {
+            _accessor.RequestContext = UserContext("bob");
+            var inOrder = RequestContextAccessor.Pop(holder);
+            return (inOrder, _accessor.RequestContext?.UserId);
+        });
+
+        // The other flow never sees alice (the parent): its own value was set inside the ended scope.
+        seenInOtherFlow.inOrder.ShouldBeFalse();
+        seenInOtherFlow.UserId.ShouldBeNull();
+        _accessor.RequestContext.ShouldBeNull();
     }
 
     [Fact]

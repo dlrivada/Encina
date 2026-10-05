@@ -66,8 +66,8 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
         holder is null || holder.IsScope ? holder : holder.Parent;
 
     /// <summary>
-    /// Ends <paramref name="holder"/>: invalidates it (and so every holder pushed over it) and
-    /// restores the holder it replaced in the current flow.
+    /// Ends <paramref name="holder"/>: invalidates it (and so every holder pushed over it) and, when it
+    /// is the current holder of this flow, restores the holder it replaced.
     /// </summary>
     /// <returns>
     /// <see langword="true"/> when <paramref name="holder"/> was the current holder (LIFO);
@@ -80,7 +80,14 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
 
         var inOrder = ReferenceEquals(CurrentHolder.Value, holder) && !holder.IsDisposed;
         holder.Invalidate();
-        CurrentHolder.Value = holder.Parent;
+
+        // Restore only in the flow that owns the holder: ending it from another flow (or out of order)
+        // must never install the parent identity into that other flow. The ended holder already reads null.
+        if (inOrder)
+        {
+            CurrentHolder.Value = holder.Parent;
+        }
+
         return inOrder;
     }
 

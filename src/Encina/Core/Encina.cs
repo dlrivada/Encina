@@ -90,9 +90,10 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, TResponse>>(error);
         }
 
-        return AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger).Match(
-            Right: context => new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken)),
-            Left: refusal => new ValueTask<Either<EncinaError, TResponse>>(refusal));
+        var resolved = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger);
+        return resolved.Case is IRequestContext context
+            ? new ValueTask<Either<EncinaError, TResponse>>(RequestDispatcher.ExecuteAsync(this, request, context, cancellationToken))
+            : new ValueTask<Either<EncinaError, TResponse>>((EncinaError)resolved.Case);
     }
 
     private ValueTask<Either<EncinaError, Unit>> PublishCore<TNotification>(TNotification notification, IRequestContext? explicitContext, CancellationToken cancellationToken)
@@ -104,9 +105,10 @@ public sealed partial class Encina(
             return new ValueTask<Either<EncinaError, Unit>>(error);
         }
 
-        return AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger).Match(
-            Right: context => new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken)),
-            Left: refusal => new ValueTask<Either<EncinaError, Unit>>(refusal));
+        var resolved = AmbientRequestContext.Resolve(_requestContextAccessor, explicitContext, _timeProvider, _logger);
+        return resolved.Case is IRequestContext context
+            ? new ValueTask<Either<EncinaError, Unit>>(NotificationDispatcher.ExecuteAsync(this, notification, context, cancellationToken))
+            : new ValueTask<Either<EncinaError, Unit>>((EncinaError)resolved.Case);
     }
 
     private void LogSendOutcome<TResponse>(Type requestType, Type handlerType, Either<EncinaError, TResponse> outcome)

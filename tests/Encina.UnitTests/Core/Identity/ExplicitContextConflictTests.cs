@@ -147,15 +147,21 @@ public sealed class ExplicitContextConflictTests
     [InlineData(true, "user")]
     public async Task Send_TagsTheDispatchActivityWithTheIdentityKind(bool authenticated, string expected)
     {
-        var tags = new List<string?>();
+        var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina",
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "Encina.Send")
+                // Only this class's request: the listener is process-wide and other tests dispatch too.
+                if (activity.OperationName == "Encina.Send" && Equals(activity.GetTagItem("Encina.request_type"), typeof(Probe).FullName))
                 {
+                    foreach (var tag in activity.Tags)
+                    {
+                        tag.Value?.ShouldNotContain("sentinel-tag-user");
+                    }
+
                     tags.Add(activity.GetTagItem("encina.identity.kind") as string);
                 }
             }
@@ -176,14 +182,14 @@ public sealed class ExplicitContextConflictTests
     [InlineData(true, "user")]
     public async Task Stream_TagsTheStreamActivityWithTheIdentityKind(bool authenticated, string expected)
     {
-        var tags = new List<string?>();
+        var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "Encina",
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStopped = activity =>
             {
-                if (activity.OperationName == "Encina.Stream")
+                if (activity.OperationName == "Encina.Stream" && Equals(activity.GetTagItem("Encina.request_type"), typeof(Count).FullName))
                 {
                     tags.Add(activity.GetTagItem("encina.identity.kind") as string);
                 }
