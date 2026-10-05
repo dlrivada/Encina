@@ -115,6 +115,12 @@ Every source file in `src/**/*.cs` is classified into the test types that should
 
 `generate-coverage-manifest.cs` scans every `.cs` file in `src/` (excluding `obj/` and `bin/`) and applies the rules from `.github/coverage-manifest/defaults.json` in order. The **first matching rule wins**. If no rule matches, the file falls back to `["unit", "guard"]`.
 
+The default mode is append-only: it adds an entry for every source file a manifest lacks, creates manifests for packages that have none, and never rewrites or removes an existing entry. Full regeneration (recompute every entry, remove entries whose source file is gone) runs only with the explicit `--full` option. `--dry-run` prints the plan and writes nothing; `--append-only` is accepted as an explicit spelling of the default; `-h` or `--help` prints the usage and exits 0. Any other argument is an error (exit code 2, usage printed), as is an option value that starts with `--` or `--self-test` combined with another option, or `--full` together with `--append-only`. The repository root is the git top-level of the script's own directory, so the script only modifies the checkout it belongs to; run from a different checkout it fails and names both paths, and when git is missing the error includes git's reason. `--src`, `--defaults` and `--output` must resolve inside the repository root (otherwise exit code 1), and a missing `--src` directory is an error. A manifest whose `files` is not an object of objects is reported and skipped, and fails the run like invalid JSON.
+
+```bash
+dotnet run --file .github/scripts/generate-coverage-manifest.cs [-- <options>]
+```
+
 Rule types supported:
 
 | Match type | Semantics | Example |
@@ -343,7 +349,7 @@ The methodology is deliberate and imperfect. These are the trade-offs we know ab
 
 1. **Obligations double-count identical lines across flags.** A line covered by both unit and integration tests contributes two met obligations. This is intentional — being covered from two angles is better than being covered from one — but it means the absolute numbers (e.g., "224,430 total obligations") are larger than the NCLOC of the project. Readers should interpret the **percentage**, not the raw obligation counts, when comparing to NCLOC.
 
-2. **Per-file manifests drift from source code.** New files added to `src/` do not automatically appear in the manifest until `generate-coverage-manifest.cs` runs. Until then, their coverage is not counted. This is mitigated by running the generator on every coverage update. The safe way to add only the new files is `dotnet run .github/scripts/generate-coverage-manifest.cs -- --append-only`: it adds entries for source files that have none, never modifies or removes an existing entry, leaves a manifest with nothing to add byte-untouched, and prints the added files per package. A manifest that gains entries is rewritten in the generator's canonical formatting (2-space indent, LF, final newline). The default full mode also recomputes `defaultTests` of existing entries and removes (and prints) entries whose source file is gone.
+2. **Per-file manifests drift from source code.** New files added to `src/` do not automatically appear in the manifest until `generate-coverage-manifest.cs` runs. Until then, their coverage is not counted. This is mitigated by running the generator on every coverage update. The default run (`dotnet run --file .github/scripts/generate-coverage-manifest.cs`) is append-only: it adds entries for source files that have none, creates missing manifests, never modifies or removes an existing entry, leaves a manifest with nothing to add byte-untouched, and prints the added files per package. A manifest that gains entries is rewritten in the generator's canonical formatting (2-space indent, LF, final newline). Add `-- --dry-run` to preview the plan first. Only `-- --full` recomputes `defaultTests` of existing entries and removes (and prints) entries whose source file is gone.
 
 3. **Manifest-source drift is not enforced in CI.** Nothing currently fails the build if a file exists in `src/` but not in any manifest, or vice versa. A warning is logged but the workflow continues. Tightening this is a possible improvement.
 

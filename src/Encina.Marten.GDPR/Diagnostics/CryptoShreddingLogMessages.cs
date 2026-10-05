@@ -7,15 +7,17 @@ namespace Encina.Marten.GDPR.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses <c>LoggerMessage.Define</c> to avoid boxing and string formatting overhead
-/// in hot paths. All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
+/// The existing messages use <c>LoggerMessage.Define</c> (one literal <c>new EventId(n, ...)</c> each,
+/// scanned by the allocation test, #1125) to avoid boxing and string formatting overhead
+/// in hot paths; the newer messages use the <c>[LoggerMessage]</c> source generator.
+/// All methods are extension methods on <see cref="ILogger"/> for ergonomic use.
 /// </para>
 /// <para>
 /// Event IDs are allocated in the 8450-8499 range reserved for Marten GDPR crypto-shredding
 /// (see <c>EventIdRanges.MartenGDPRCryptoShredding</c>).
 /// </para>
 /// </remarks>
-internal static class CryptoShreddingLogMessages
+internal static partial class CryptoShreddingLogMessages
 {
     // Note: none of these templates carry the data subject's own identifier — it is personal data
     // and must never reach a log sink in plain text (#1429, following #1314). Correlate via
@@ -78,14 +80,16 @@ internal static class CryptoShreddingLogMessages
 
     // -- 8455: Encryption failed --
 
-    private static readonly Action<ILogger, string, string, Exception?> EncryptionFailedDef =
-        LoggerMessage.Define<string, string>(
+    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionFailedDef =
+        LoggerMessage.Define<string, string, string>(
             LogLevel.Error,
             new EventId(8455, nameof(EncryptionFailed)),
-            "Failed to encrypt PII field. PropertyName={PropertyName}, EventType={EventType}");
+            "Failed to encrypt PII field; the event is not stored. PropertyName={PropertyName}, EventType={EventType}, ErrorCode={ErrorCode}");
 
-    internal static void EncryptionFailed(this ILogger logger, string propertyName, string eventType, Exception? exception = null)
-        => EncryptionFailedDef(logger, propertyName, eventType, exception);
+    // The exception, when present, must already be redacted with ForLogging() (#1557).
+    internal static void EncryptionFailed(
+        this ILogger logger, string propertyName, string eventType, string errorCode, Exception? exception = null)
+        => EncryptionFailedDef(logger, propertyName, eventType, errorCode, exception);
 
     // -- 8456: Decryption failed --
 
@@ -122,14 +126,16 @@ internal static class CryptoShreddingLogMessages
 
     // -- 8459: Attribute misconfigured --
 
-    private static readonly Action<ILogger, string, string, Exception?> AttributeMisconfiguredDef =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Warning,
+    private static readonly Action<ILogger, string, string, string, Exception?> AttributeMisconfiguredDef =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Error,
             new EventId(8459, nameof(AttributeMisconfigured)),
-            "CryptoShredded attribute misconfigured. PropertyName={PropertyName}, DeclaringType={DeclaringType}");
+            "CryptoShredded attribute misconfigured; the event is not stored. "
+            + "PropertyName={PropertyName}, DeclaringType={DeclaringType}, MisconfiguredProperties={MisconfiguredProperties}");
 
-    internal static void AttributeMisconfigured(this ILogger logger, string propertyName, string declaringType)
-        => AttributeMisconfiguredDef(logger, propertyName, declaringType, null);
+    internal static void AttributeMisconfigured(
+        this ILogger logger, string propertyName, string declaringType, string misconfiguredProperties)
+        => AttributeMisconfiguredDef(logger, propertyName, declaringType, misconfiguredProperties, null);
 
     // -- 8460: Serializer wrapped --
 
@@ -196,4 +202,52 @@ internal static class CryptoShreddingLogMessages
 
     internal static void ReEncryptionStarted(this ILogger logger, int newVersion)
         => ReEncryptionStartedDef(logger, newVersion, null);
+
+    // -- 8466: Subject id missing at encryption --
+
+    private static readonly Action<ILogger, string, string, string, Exception?> EncryptionSubjectIdMissingDef =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Error,
+            new EventId(8466, nameof(EncryptionSubjectIdMissing)),
+            "Cannot encrypt PII field: the subject id is missing; the event is not stored. "
+            + "PropertyName={PropertyName}, EventType={EventType}, SubjectIdProperty={SubjectIdProperty}");
+
+    internal static void EncryptionSubjectIdMissing(
+        this ILogger logger, string propertyName, string eventType, string subjectIdProperty)
+        => EncryptionSubjectIdMissingDef(logger, propertyName, eventType, subjectIdProperty, null);
+
+    // -- 8467: Subject key created --
+
+    /// <summary>
+    /// Logs the creation of a subject's first encryption key. Event ID: 8467 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8467,
+        Level = LogLevel.Debug,
+        Message = "Created initial encryption key. Version={Version}")]
+    internal static partial void KeyCreated(this ILogger logger, int version);
+
+    // -- 8468: Concurrent key write resolved --
+
+    /// <summary>
+    /// Logs that a key insert hit a key version another writer had already stored, and the stored key was
+    /// returned instead. Event ID: 8468 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8468,
+        Level = LogLevel.Warning,
+        Message = "Key version already stored by a concurrent writer; the stored key is used. Operation={Operation}, Version={Version}")]
+    internal static partial void ConcurrentKeyWriteResolved(this ILogger logger, string operation, int version);
+
+    // -- 8469: Leftover keys erased --
+
+    /// <summary>
+    /// Logs that a repeated erasure of an already forgotten subject found and deleted key documents.
+    /// Event ID: 8469 (see EventIdRanges.MartenGDPRCryptoShredding).
+    /// </summary>
+    [LoggerMessage(
+        EventId = 8469,
+        Level = LogLevel.Warning,
+        Message = "Subject was already forgotten; leftover encryption keys deleted. KeysDeleted={KeysDeleted}")]
+    internal static partial void LeftoverKeysErased(this ILogger logger, int keysDeleted);
 }

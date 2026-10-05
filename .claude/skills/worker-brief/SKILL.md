@@ -11,17 +11,18 @@ The orchestrator itself does not edit `src/` or `tests/` (the `guard-orchestrato
 
 ## 1. Before writing
 
-1. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
-2. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
-3. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
-4. List what the worker must not touch: the shared hot spots of the moment (always `.github/workflows/*`; anything another open PR edits).
+1. Read the issue with its comments before writing the brief: `gh issue view <n> --repo dlrivada/Encina --comments`. Audit and decision comments add acceptance items that "Closes #<n>" silently drops (PR #1598 missed a SPEC-003 audit comment's scanning test and cost a review round); carry every one into the brief's Acceptance list.
+2. Create the worktree: `git worktree add D:\Proyectos\Encina\.claude\worktrees\<name> -b <branch> <base>`.
+3. Choose the agent: `docs-writer` when the issue is documentation (pages under `docs/`, package READMEs, `CONTRIBUTING.md`); `issue-worker` for everything else, including code changes that also need documentation (the issue-worker spawns `docs-writer` for that part).
+4. Choose the model. Workers run on Sonnet. Pass `model: opus` to the Agent call only when the brief states why in one line: the root cause is unknown, or the task is design-heavy. Keep the brief small (this fixed part plus a closed variable part), so the worker finishes within its turn limit: a resume re-reads the whole context it had already paid for.
+5. List what the worker must not touch: the shared hot spots of the moment (always `.github/workflows/*`; anything another open PR edits).
 
 ## 2. Fixed part (copy it)
 
 `<wt>` is the worktree's absolute path. Every command in the brief names it: the hooks and several scripts resolve relative paths against the current directory, and the worker's shell starts in the main checkout.
 
 ```text
-Issue #<n> (read it: gh issue view <n> --repo dlrivada/Encina). Worktree <wt>, branch <branch>, base <base>.
+Issue #<n> (read it with its comments: gh issue view <n> --repo dlrivada/Encina --comments). Worktree <wt>, branch <branch>, base <base>.
 
 Rules:
 - Use ABSOLUTE paths for every read and write, inside the worktree only. Your shell starts in the main
@@ -45,6 +46,19 @@ Rules:
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/knowledge-records.cs -- --check
   When a docs-writer closes the issue, this brief's variable part says who writes the record (#1379).
 - Verify: <commands from §3 for this kind of change, with <wt> filled in>. Paste the actual output in the report.
+- CRAP (mandatory when the diff touches src/): "CRAP <= 10" as a sentence is not enough (PR #1420 failed 16
+  touched methods, untested ones that a mechanical sync-to-async change re-touched). Run the tests that cover
+  the changed files with --collect "XPlat Code Coverage" --results-directory <wt>\artifacts\coverage (every
+  flag that exercises them: unit, guard, contract, property, integration), create the folder and write the diff to a file with
+  New-Item -ItemType Directory -Force <wt>\artifacts\crap-gate | Out-Null (a fresh worktree has no
+  git-ignored folders and the redirect does not create them), then
+  git -C <wt> diff -U0 origin/main...HEAD > <wt>\artifacts\crap-gate\diff.patch, list the inputs with
+  Get-ChildItem <wt>\artifacts\coverage -Recurse -Filter coverage.cobertura.xml (each run puts its file in a
+  GUID subfolder), then run
+  Set-Location <wt>; dotnet run --file <wt>/.github/scripts/crap-gate.cs -- --report --diff <wt>\artifacts\crap-gate\diff.patch <each coverage.cobertura.xml>
+  (the input is a diff FILE, not diff text; flags and design: docs/engineering/crap-gate-design.md), paste the
+  script output in the report (it prints only the violations: an empty table means no touched method is over
+  the threshold), and make every touched method CRAP <= 10 by lowering its complexity or adding tests.
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.
@@ -96,7 +110,7 @@ Fill `<wt>` in every command. Each one either starts with `Set-Location <wt>;` o
 | Public API | the above, plus `PublicAPI.Unshipped.txt` updated by `mechanical-fixer` (RS0016/RS0017 clean) |
 | Tests only | `dotnet test <wt>\tests\<Project>\<Project>.csproj --filter <new classes> --results-directory <wt>\artifacts\test-results`, run twice for determinism |
 | `.github/scripts/*.cs` | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\<script>.cs -- <the mode the change touches>` against a real input |
-| Hooks in `.claude/hooks` | `pwsh -NoProfile -File <wt>\.claude\hooks\tests\Test-Hooks.ps1`, plus an AST parse of each changed hook: `[System.Management.Automation.Language.Parser]::ParseFile('<wt>\.claude\hooks\<hook>.ps1', [ref]$null, [ref]$errors)` with `$errors` empty |
+| Hooks in `.claude/hooks` | `Set-Location <wt>` as its own tool call first, not chained in the same statement (hooks load from the main checkout, so the live copies govern the worker; see `.claude/agents/README.md`, "Where hooks load from"), then `pwsh -NoProfile -File <wt>\.claude\hooks\tests\Test-Hooks.ps1`, plus an AST parse of each changed hook: `[System.Management.Automation.Language.Parser]::ParseFile('<wt>\.claude\hooks\<hook>.ps1', [ref]$null, [ref]$errors)` with `$errors` empty |
 | Changelog fragment | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\changelog-fragments.cs -- --check` |
 | Knowledge record | `Set-Location <wt>; dotnet run --file <wt>\.github\scripts\knowledge-records.cs -- --check` |
 | Local-model draft | `Set-Location <wt>; dotnet run --file <wt>\tools\ai\local-ai-ask.cs -- --task <name> --brief <wt>\artifacts\local-ai\briefs\<name>.md --input <file> --out <wt>\artifacts\local-ai\out\<name>.md` (the script appends to `artifacts/local-ai/ledger.csv` under the current directory, hence the `Set-Location`) |

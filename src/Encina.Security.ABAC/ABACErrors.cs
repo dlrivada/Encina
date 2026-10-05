@@ -87,6 +87,12 @@ public static class ABACErrors
     /// <summary>Error code when an obligation or advice handler threw an exception instead of returning a result.</summary>
     public const string ObligationHandlerExceptionCode = "abac.obligation_handler_exception";
 
+    /// <summary>Error code when a policy change is refused because no principal can be resolved to attribute it to.</summary>
+    public const string PolicyChangePrincipalRequiredCode = "abac.policy_change_principal_required";
+
+    /// <summary>Error code when the audit record of a policy change could not be written, so the change was not applied.</summary>
+    public const string PolicyChangeAuditFailedCode = "abac.policy_change_audit_failed";
+
     // ── Factory Methods ─────────────────────────────────────────────
 
     /// <summary>
@@ -227,12 +233,12 @@ public static class ABACErrors
     /// Creates an error when policy evaluation threw an exception.
     /// </summary>
     /// <param name="requestType">The request type whose evaluation failed.</param>
-    /// <param name="exception">The exception that occurred during evaluation.</param>
+    /// <param name="exception">The exception that occurred during evaluation; only its type is recorded, never its message.</param>
     /// <returns>An error indicating evaluation failure.</returns>
     public static EncinaError EvaluationFailed(Type requestType, Exception exception) =>
         EncinaErrors.Create(
             code: EvaluationFailedCode,
-            message: $"Policy evaluation failed for '{requestType.Name}': {exception.Message}",
+            message: $"Policy evaluation failed for '{requestType.Name}'. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,
@@ -360,14 +366,15 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when the security context is not available for ABAC evaluation.
+    /// Creates an error when the security context, or the user it should carry, is not available
+    /// for ABAC evaluation. The Policy Enforcement Point returns it in every enforcement mode.
     /// </summary>
     /// <param name="requestType">The request type that required ABAC evaluation.</param>
     /// <returns>An error indicating the security context is missing.</returns>
     public static EncinaError MissingContext(Type requestType) =>
         EncinaErrors.Create(
             code: MissingContextCode,
-            message: $"Security context is not available for ABAC evaluation of '{requestType.Name}'. Ensure ABAC middleware is configured.",
+            message: $"Authenticated security context with a user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,
@@ -522,5 +529,36 @@ public static class ABACErrors
             {
                 [MetadataKeyStage] = MetadataStageAbac,
                 ["requirement"] = "ICacheProvider"
+            });
+
+    /// <summary>
+    /// Creates an error when a policy change is refused because the request context carries no
+    /// principal to attribute the change to. The message is fixed and carries no caller data.
+    /// </summary>
+    /// <returns>An error indicating that a policy change needs an authenticated principal.</returns>
+    public static EncinaError PolicyChangePrincipalRequired() =>
+        EncinaErrors.Create(
+            code: PolicyChangePrincipalRequiredCode,
+            message: "A policy change requires a resolvable principal; none is available in the current request context.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac
+            });
+
+    /// <summary>
+    /// Creates an error when the audit record of a policy change could not be written, so the
+    /// change was not applied (the policy administration point fails closed). The message is
+    /// fixed; only the underlying error code (or exception type) is recorded.
+    /// </summary>
+    /// <param name="cause">The error code or exception type name of the audit failure.</param>
+    /// <returns>An error indicating that the policy change was not applied.</returns>
+    public static EncinaError PolicyChangeAuditFailed(string cause) =>
+        EncinaErrors.Create(
+            code: PolicyChangeAuditFailedCode,
+            message: "The audit record of the policy change could not be written; the change was not applied.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyStage] = MetadataStageAbac,
+                ["cause"] = cause
             });
 }

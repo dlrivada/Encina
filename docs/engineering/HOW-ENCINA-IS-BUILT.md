@@ -2,7 +2,7 @@
 
 > A public account of the working method behind Encina: a specification-driven process adapted for one maintainer, a paid frontier model, a free local model and cost-tiered agents, on top of a quality system that measures itself. Written so that an engineer outside the project can understand it and replicate it. Tracking: #1104 (EPIC #1102). Internal counterpart: [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md); task routing: [`ai-task-routing.md`](ai-task-routing.md).
 >
-> Every figure in this document is cited to an issue, a pull request, a dashboard or a ledger file in the repository. Nothing is typed from memory (policy from #1090). Sections 2 to 4 were first drafted by the free local model from the internal documents and then rewritten; section 6 records the cost of that experiment.
+> Every figure in this document is cited to an issue, a pull request, a dashboard or a ledger file in the repository. Nothing is typed from memory (policy from #1090). The single exception is the counts in the section "Retrospective after two weeks (2026-10-03)": they are session figures reported from `gh` and the audit artifacts on that date, with their source and cut-off stated in that section. Sections 2 to 4 were first drafted by the free local model from the internal documents and then rewritten; section 6 records the cost of that experiment.
 
 ## How to read this
 
@@ -245,6 +245,58 @@ Writing those three sections from the sources without the local model would have
 ### 6.6 What was decided about time
 
 There is no date for 1.0. The first two days show why an estimate would be dishonest: the work that dominated them (infrastructure repair, protection, bots) will not repeat, and the throughput of the steady state is unknown until a few specifications have gone through the whole pipeline. When that data exists, "pull requests merged per day" is the number to estimate from. Until then, the sequence is published (SPEC-000 §9) and the calendar is not.
+
+## Retrospective after two weeks (2026-10-03)
+
+This section looks back over the orchestrator era, which began on 2026-09-21 after the stall described in section 1. It is a discussion of what the method produced and what it exposed, not a procedure; the procedures are in sections 2 to 5. Counts come from `gh`, queried on 2026-10-04 for the window 2026-09-21 to 2026-10-03 inclusive (UTC dates as GitHub search interprets them): 469 issues created and 175 pull requests merged. They are the number of results of `gh issue list --repo dlrivada/Encina --state all --search "created:2026-09-21..2026-10-03" --limit 1000 --json number` and of `gh pr list --repo dlrivada/Encina --state merged --search "merged:2026-09-21..2026-10-03" --limit 1000 --json number`. `gh issue list` counts issues only, not pull requests: no number appears in both result sets. Section 6 covers the first two days; this one covers the whole window and does not repeat it. The audit and review numbers below (the 87 remediation issues, the refuter discard counts) were reported by the maintainer and the orchestrator from the audit artifacts on 2026-10-03 and are not re-derivable from the repository; the issue numbers are.
+
+### What worked
+
+**1. The deep closed-issue audit replaced a superficial one (maintainer decision).** The first pass (audits #1 to #15) was batched and ran on Haiku; it even recorded #149, which is still open ("Dead Letter Queue for Failed Scheduled Messages"), as implemented in audit #26. The replacement is the SPEC-003 pipeline of section 2.6: six single-owner stages, a verifier that returns `Verdict: FAIL` and names the stage to re-run, and per-role lessons. Audits #16 to #28 opened 87 remediation issues.
+
+Because those audits read today's code in the issue's scope, siblings included, they also found defects in the assurance system itself, not only in features:
+
+- CI skips every test job when only props, `.github` or shared test-configuration files change, and still reports green (#1721, from audit #28).
+- The `ci-full` pack job is not gated on test results, so a tag push could publish a package with red tests (#1745, from audit #29).
+- `ROADMAP.md` and ADR-005 contradict open plans (#1716, #1717).
+- Many contract test files are reflection-only, which section 4.1 says cover no lines (audit #29: 29 of 134 contract test files; #1749).
+
+**2. The method itself, which turns "done" into "done, and here is what it hid".** Agents per role, skills, hooks, worktrees, plans before features, reviews, and the CRAP and per-flag coverage gates (section 4) mean the same work now surfaces hidden debt, both as new issues and in the history. Three examples from 2026-10-03:
+
+- The review of #1703 found that the persistent policy administration point captured a scoped `IPolicyStore` in all eight provider registrations; the defect pre-dated the change and became #1707.
+- A multi-agent review of #1712 found an absolute-path bypass of the checkout guard that a single reviewer had missed.
+- The adversarial review of the plan for #1698 found three paths that would have stored health data in plaintext, before any code existed.
+
+**3. Smaller practices that paid off.**
+
+- **Fail closed as a design rule.** ABAC (#1634, #1676, #1677) and the crypto-shredder (#1646) now deny or fail when context is missing, as [`AGENTS.md`](../../AGENTS.md) §3 requires, instead of proceeding with partial data.
+- **Maintainer decisions taken one at a time**, with the options explained and the choice recorded in the issue: the ten questions of #751, option B of #1698, and the single identity model of #1705. This is the human gate of section 2.4 working as designed.
+- **Plan before code, then an adversarial review of the plan.** A defect found in a plan costs a paragraph; found in code it costs a fix round and a re-review.
+- **Pre-1.0 means best solution, no compatibility.** #1705 records the decision to remove `ISecurityContext` completely rather than keep an adapter, which [`AGENTS.md`](../../AGENTS.md) §1 and §3 require.
+- **Two independent refuters per review finding.** They discarded 9 of 10 findings on #1706 and 6 of 10 on #1727, which avoided fix rounds on non-issues.
+- **The role-lessons loop.** A mistake recorded in an agent's lessons file under `.claude/agents/lessons/` stops repeating in later audits.
+- **Resilience.** A power cut and a usage limit cost no work: workflows resumed from their journals and workers from their progress files.
+
+### What to improve
+
+Each item was approved by the maintainer and is tracked in an issue.
+
+| Weakness | Tracked in |
+| --- | --- |
+| Audit stage citations are checked only by the model verifier | #1729: check them deterministically (file:line, quotes, search claims) before the verifier |
+| An agent's claimed outputs are trusted | #1730: verify files, commits and clean checkouts after every agent finishes |
+| `audit-done` edits the main checkout to publish role lessons | #1731: commit them on a branch and open the lessons pull request |
+| The control board drifts from GitHub | #1732: reconcile work cards, flow fronts and audits automatically |
+| No process metrics, so retrospectives cannot compare trends | #1733: debt discovered versus created, defects caught before merge versus escaped, cost per merged pull request |
+| The method relies on CI telling the truth, and CI does not always | Gate integrity first: #1721 and #1745 (the `ci-full` pack gating, from audit #29) |
+
+### A recorded decision about cost
+
+The maintainer rejected reducing review depth to save tokens: full multi-agent review and verification stay the norm. Cost is still reported as a metric, but outside this public page. The reasoning follows the findings above, where most of the value came from the deepest reviews.
+
+### Scope of this retrospective
+
+It covers the method and what it exposed. Product status is in the [roadmap](../../ROADMAP.md) and the active plans listed in [`CLAUDE.md`](../../CLAUDE.md); the internal reference for roles, routing and principles is [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md). No decision record covers the audit redesign beyond SPEC-003 and its issues, and none was invented here.
 
 ## 7. How to replicate it
 

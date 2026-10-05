@@ -3,6 +3,7 @@ using Encina.Diagnostics;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
@@ -38,11 +39,29 @@ namespace Encina.Security.ABAC.Administration;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Audit trail</b>:
-/// When an <see cref="IAuditStore"/> is provided, all mutation operations (add, update, remove)
-/// record audit entries with before/after state. Audit recording is fire-and-forget — failures
-/// are logged but never block policy operations. This supports NIS2 Art. 10 and SOX §404
-/// compliance requirements.
+/// <b>Principal</b>: every mutation (add, update, remove) is attributed to the principal of the
+/// ambient <see cref="IRequestContext"/> and is refused with
+/// <see cref="ABACErrors.PolicyChangePrincipalRequiredCode"/> when none can be resolved. The only
+/// exception is the explicit system-actor scope that internal callers open (the policy seeding
+/// hosted service at startup); the audit entry then records the actor as <c>system</c>.
+/// </para>
+/// <para>
+/// <b>Lifetimes</b>: this PAP is a singleton. It never captures a scoped service: every operation
+/// (a read or a mutation) opens its own async DI scope and resolves the <see cref="IPolicyStore"/>
+/// from it, and a mutation resolves its <see cref="IAuditStore"/> in a separate scope, so two
+/// concurrent operations never share a store instance and the audit write never shares a unit of
+/// work with the policy write (database stores are scoped).
+/// </para>
+/// <para>
+/// <b>Audit trail (fail closed)</b>: when an <see cref="IAuditStore"/> is registered, each mutation
+/// awaits the audit write <em>before</em> the change is
+/// applied. A <c>Left</c>, an exception or a timeout of that write fails the policy change with
+/// <see cref="ABACErrors.PolicyChangeAuditFailedCode"/> and nothing is persisted, so no policy
+/// change is ever committed without its audit record. When the change itself is then rejected by
+/// the policy store, a second entry with outcome <see cref="AuditOutcome.Error"/> records that
+/// the announced change did not happen. With no <see cref="IAuditStore"/> registered, policy
+/// change auditing is not configured and mutations are applied without a record, and a Warning (EventId 9097) says so once per instance. This supports
+/// NIS2 Art. 10 and SOX §404 compliance requirements.
 /// </para>
 /// <para>
 /// The store uses upsert semantics internally, while this PAP layer enforces business rules
@@ -51,10 +70,17 @@ namespace Encina.Security.ABAC.Administration;
 /// </remarks>
 public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdministrationPoint
 {
-    private readonly IPolicyStore _store;
-    private readonly IAuditStore? _auditStore;
+    private const string SystemActorId = "system";
+
+    /// <summary>The longest an audit write may take before the policy change fails closed.</summary>
+    private static readonly TimeSpan AuditWriteTimeout = TimeSpan.FromSeconds(30);
+
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly Func<IServiceProvider, IPolicyStore> _storeResolver;
     private readonly IRequestContextAccessor? _requestContextAccessor;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<PersistentPolicyAdministrationPoint> _logger;
+    private int _unauditedWarningLogged;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -62,34 +88,73 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    private readonly record struct PolicyActor(string UserId, string? TenantId, string CorrelationId, bool IsSystem);
+
+    /// <summary>
+    /// The state of one PAP operation: the policy store of the operation's own DI scope, plus the
+    /// actor of a mutation.
+    /// </summary>
+    private readonly record struct PolicyOperation(IPolicyStore Store, PolicyActor Actor);
+
+    private sealed record PolicyChange(
+        string Action,
+        string EntityType,
+        string EntityId,
+        object? After,
+        Func<CancellationToken, ValueTask<object?>>? LoadBefore = null,
+        IReadOnlyDictionary<string, object?>? Extra = null);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PersistentPolicyAdministrationPoint"/> class.
     /// </summary>
-    /// <param name="store">The policy store provider for persistent storage.</param>
-    /// <param name="logger">Logger for structured PAP logging.</param>
-    /// <param name="auditStore">
-    /// Optional audit store for recording policy change events.
-    /// When <c>null</c>, audit recording is disabled.
+    /// <param name="scopeFactory">
+    /// Scope factory used to open one DI scope per operation (and a separate one for the
+    /// <see cref="IAuditStore"/> of a mutation). The <see cref="IPolicyStore"/> (a scoped service
+    /// in every database provider) is resolved from the operation's scope, so this singleton
+    /// never captures a scoped service. When no <see cref="IAuditStore"/> is registered, policy change auditing is
+    /// not configured.
     /// </param>
+    /// <param name="logger">Logger for structured PAP logging.</param>
     /// <param name="requestContextAccessor">
-    /// Optional accessor for the ambient request context, used to resolve the actor (user ID) in
-    /// audit entries at the moment each entry is recorded (this PAP is registered as a singleton,
-    /// so the context cannot be captured once at construction time). When <c>null</c>, or when no
-    /// context is in flight, audit entries record the actor as <c>"system"</c>.
+    /// Optional accessor for the ambient request context, used to resolve the principal of each
+    /// change at the moment it is made (this PAP is registered as a singleton, so the context
+    /// cannot be captured at construction time). Without a resolvable principal every mutation is
+    /// refused, except inside the internal system-actor scope.
+    /// </param>
+    /// <param name="timeProvider">
+    /// Optional time provider for every timestamp and the audit write timeout.
+    /// Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
+    /// <param name="storeResolver">
+    /// Optional function that returns the <see cref="IPolicyStore"/> of an operation from the
+    /// operation's scope (the registration uses it to wrap the scoped store with the caching
+    /// decorator). Defaults to resolving the registered <see cref="IPolicyStore"/> as is.
     /// </param>
     public PersistentPolicyAdministrationPoint(
-        IPolicyStore store,
+        IServiceScopeFactory scopeFactory,
         ILogger<PersistentPolicyAdministrationPoint> logger,
-        IAuditStore? auditStore = null,
-        IRequestContextAccessor? requestContextAccessor = null)
+        IRequestContextAccessor? requestContextAccessor = null,
+        TimeProvider? timeProvider = null,
+        Func<IServiceProvider, IPolicyStore>? storeResolver = null)
     {
-        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _store = store;
+        _scopeFactory = scopeFactory;
         _logger = logger;
-        _auditStore = auditStore;
         _requestContextAccessor = requestContextAccessor;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _storeResolver = storeResolver ?? (static services => services.GetRequiredService<IPolicyStore>());
+    }
+
+    /// <summary>
+    /// Runs one read in its own DI scope. The store lives exactly as long as the read, so two
+    /// concurrent operations never share a store instance.
+    /// </summary>
+    private async ValueTask<T> ReadAsync<T>(Func<IPolicyStore, ValueTask<T>> read)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        return await read(_storeResolver(scope.ServiceProvider));
     }
 
     // ── PolicySet CRUD ──────────────────────────────────────────────
@@ -98,7 +163,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     public async ValueTask<Either<EncinaError, IReadOnlyList<PolicySet>>> GetPolicySetsAsync(
         CancellationToken cancellationToken = default)
     {
-        return await _store.GetAllPolicySetsAsync(cancellationToken);
+        return await ReadAsync(store => store.GetAllPolicySetsAsync(cancellationToken));
     }
 
     /// <inheritdoc />
@@ -108,7 +173,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(policySetId);
 
-        return await _store.GetPolicySetAsync(policySetId, cancellationToken);
+        return await ReadAsync(store => store.GetPolicySetAsync(policySetId, cancellationToken));
     }
 
     /// <inheritdoc />
@@ -118,27 +183,27 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentNullException.ThrowIfNull(policySet);
 
-        // Check for duplicate policy set
-        var existsResult = await _store.ExistsPolicySetAsync(policySet.Id, cancellationToken);
+        return await RunAsActorAsync(actor => AddPolicySetCoreAsync(actor, policySet, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> AddPolicySetCoreAsync(
+        PolicyOperation op,
+        PolicySet policySet,
+        CancellationToken cancellationToken)
+    {
+        var existsResult = await op.Store.ExistsPolicySetAsync(policySet.Id, cancellationToken);
         if (existsResult.IsLeft)
         {
             return existsResult.Map(_ => unit);
         }
 
-        var exists = existsResult.Match(Right: v => v, Left: _ => false);
-        if (exists)
+        if (existsResult.Match(Right: v => v, Left: _ => false))
         {
             return ABACErrors.DuplicatePolicySet(policySet.Id);
         }
 
-        var saveResult = await _store.SavePolicySetAsync(policySet, cancellationToken);
-        if (saveResult.IsRight)
-        {
-            _logger.LogDebug("Policy set '{PolicySetId}' added", policySet.Id);
-            RecordAuditFireAndForget("PolicySetCreated", "PolicySet", policySet.Id, beforeState: null, afterState: policySet);
-        }
-
-        return saveResult;
+        var change = new PolicyChange("PolicySetCreated", "PolicySet", policySet.Id, policySet);
+        return await ApplyAsync(op, change, () => op.Store.SavePolicySetAsync(policySet, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -148,40 +213,28 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentNullException.ThrowIfNull(policySet);
 
-        // Check that the policy set exists
-        var existsResult = await _store.ExistsPolicySetAsync(policySet.Id, cancellationToken);
+        return await RunAsActorAsync(actor => UpdatePolicySetCoreAsync(actor, policySet, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> UpdatePolicySetCoreAsync(
+        PolicyOperation op,
+        PolicySet policySet,
+        CancellationToken cancellationToken)
+    {
+        var existsResult = await op.Store.ExistsPolicySetAsync(policySet.Id, cancellationToken);
         if (existsResult.IsLeft)
         {
             return existsResult.Map(_ => unit);
         }
 
-        var exists = existsResult.Match(Right: v => v, Left: _ => false);
-        if (!exists)
+        if (!existsResult.Match(Right: v => v, Left: _ => false))
         {
             return ABACErrors.PolicySetNotFound(policySet.Id);
         }
 
-        // Capture before state for audit
-        object? beforeState = null;
-        if (_auditStore is not null)
-        {
-            var beforeResult = await _store.GetPolicySetAsync(policySet.Id, cancellationToken);
-            if (beforeResult.IsRight)
-            {
-                beforeState = beforeResult.Match(
-                    Right: opt => opt.Match(Some: ps => (object?)ps, None: () => null),
-                    Left: _ => null);
-            }
-        }
-
-        var saveResult = await _store.SavePolicySetAsync(policySet, cancellationToken);
-        if (saveResult.IsRight)
-        {
-            _logger.LogDebug("Policy set '{PolicySetId}' updated", policySet.Id);
-            RecordAuditFireAndForget("PolicySetUpdated", "PolicySet", policySet.Id, beforeState, afterState: policySet);
-        }
-
-        return saveResult;
+        var change = new PolicyChange(
+            "PolicySetUpdated", "PolicySet", policySet.Id, policySet, LoadBefore: ct => LoadPolicySetStateAsync(op.Store, policySet.Id, ct));
+        return await ApplyAsync(op, change, () => op.Store.SavePolicySetAsync(policySet, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -191,40 +244,28 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(policySetId);
 
-        // Check that the policy set exists
-        var existsResult = await _store.ExistsPolicySetAsync(policySetId, cancellationToken);
+        return await RunAsActorAsync(actor => RemovePolicySetCoreAsync(actor, policySetId, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> RemovePolicySetCoreAsync(
+        PolicyOperation op,
+        string policySetId,
+        CancellationToken cancellationToken)
+    {
+        var existsResult = await op.Store.ExistsPolicySetAsync(policySetId, cancellationToken);
         if (existsResult.IsLeft)
         {
             return existsResult.Map(_ => unit);
         }
 
-        var exists = existsResult.Match(Right: v => v, Left: _ => false);
-        if (!exists)
+        if (!existsResult.Match(Right: v => v, Left: _ => false))
         {
             return ABACErrors.PolicySetNotFound(policySetId);
         }
 
-        // Capture before state for audit
-        object? beforeState = null;
-        if (_auditStore is not null)
-        {
-            var beforeResult = await _store.GetPolicySetAsync(policySetId, cancellationToken);
-            if (beforeResult.IsRight)
-            {
-                beforeState = beforeResult.Match(
-                    Right: opt => opt.Match(Some: ps => (object?)ps, None: () => null),
-                    Left: _ => null);
-            }
-        }
-
-        var deleteResult = await _store.DeletePolicySetAsync(policySetId, cancellationToken);
-        if (deleteResult.IsRight)
-        {
-            _logger.LogDebug("Policy set '{PolicySetId}' removed", policySetId);
-            RecordAuditFireAndForget("PolicySetRemoved", "PolicySet", policySetId, beforeState, afterState: null);
-        }
-
-        return deleteResult;
+        var change = new PolicyChange(
+            "PolicySetRemoved", "PolicySet", policySetId, After: null, LoadBefore: ct => LoadPolicySetStateAsync(op.Store, policySetId, ct));
+        return await ApplyAsync(op, change, () => op.Store.DeletePolicySetAsync(policySetId, cancellationToken), cancellationToken);
     }
 
     // ── Policy CRUD ─────────────────────────────────────────────────
@@ -234,14 +275,22 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         string? policySetId,
         CancellationToken cancellationToken = default)
     {
+        return await ReadAsync(store => GetPoliciesCoreAsync(store, policySetId, cancellationToken));
+    }
+
+    private static async ValueTask<Either<EncinaError, IReadOnlyList<Policy>>> GetPoliciesCoreAsync(
+        IPolicyStore store,
+        string? policySetId,
+        CancellationToken cancellationToken)
+    {
         if (policySetId is null)
         {
             // Return all standalone policies
-            return await _store.GetAllStandalonePoliciesAsync(cancellationToken);
+            return await store.GetAllStandalonePoliciesAsync(cancellationToken);
         }
 
         // Return policies within the specified policy set
-        var policySetResult = await _store.GetPolicySetAsync(policySetId, cancellationToken);
+        var policySetResult = await store.GetPolicySetAsync(policySetId, cancellationToken);
         if (policySetResult.IsLeft)
         {
             return policySetResult.Map<IReadOnlyList<Policy>>(_ => []);
@@ -261,8 +310,16 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
 
+        return await ReadAsync(store => GetPolicyCoreAsync(store, policyId, cancellationToken));
+    }
+
+    private static async ValueTask<Either<EncinaError, Option<Policy>>> GetPolicyCoreAsync(
+        IPolicyStore store,
+        string policyId,
+        CancellationToken cancellationToken)
+    {
         // Check standalone policies first
-        var standaloneResult = await _store.GetPolicyAsync(policyId, cancellationToken);
+        var standaloneResult = await store.GetPolicyAsync(policyId, cancellationToken);
         if (standaloneResult.IsLeft)
         {
             return standaloneResult;
@@ -275,7 +332,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
 
         // Search through all policy sets for a nested policy
-        var searchResult = await FindPolicyInPolicySetsAsync(policyId, cancellationToken);
+        var searchResult = await FindPolicyInPolicySetsAsync(store, policyId, cancellationToken);
         if (searchResult.IsLeft)
         {
             return searchResult.Map<Option<Policy>>(_ => None);
@@ -298,50 +355,37 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentNullException.ThrowIfNull(policy);
 
-        // Check for duplicates across standalone policies
-        var standaloneExistsResult = await _store.ExistsPolicyAsync(policy.Id, cancellationToken);
-        if (standaloneExistsResult.IsLeft)
+        return await RunAsActorAsync(actor => AddPolicyCoreAsync(actor, policy, parentPolicySetId, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> AddPolicyCoreAsync(
+        PolicyOperation op,
+        Policy policy,
+        string? parentPolicySetId,
+        CancellationToken cancellationToken)
+    {
+        var free = await EnsurePolicyIdIsFreeAsync(op.Store, policy.Id, cancellationToken);
+        if (free.IsLeft)
         {
-            return standaloneExistsResult.Map(_ => unit);
+            return free;
         }
 
-        var standaloneExists = standaloneExistsResult.Match(Right: v => v, Left: _ => false);
-        if (standaloneExists)
+        if (parentPolicySetId is not null)
         {
-            return ABACErrors.DuplicatePolicy(policy.Id);
+            return await AddPolicyToParentAsync(op, policy, parentPolicySetId, cancellationToken);
         }
 
-        // Check for duplicates across nested policies in policy sets
-        var nestedSearchResult = await FindPolicyInPolicySetsAsync(policy.Id, cancellationToken);
-        if (nestedSearchResult.IsLeft)
-        {
-            return nestedSearchResult.Map(_ => unit);
-        }
+        var change = new PolicyChange("PolicyCreated", "Policy", policy.Id, policy);
+        return await ApplyAsync(op, change, () => op.Store.SavePolicyAsync(policy, cancellationToken), cancellationToken);
+    }
 
-        var nestedFoundOption = nestedSearchResult.Match(
-            Right: v => v,
-            Left: _ => Option<(PolicySet Parent, Policy Policy)>.None);
-
-        if (nestedFoundOption.IsSome)
-        {
-            return ABACErrors.DuplicatePolicy(policy.Id);
-        }
-
-        if (parentPolicySetId is null)
-        {
-            // Add as standalone policy
-            var saveResult = await _store.SavePolicyAsync(policy, cancellationToken);
-            if (saveResult.IsRight)
-            {
-                _logger.LogDebug("Standalone policy '{PolicyId}' added", policy.Id);
-                RecordAuditFireAndForget("PolicyCreated", "Policy", policy.Id, beforeState: null, afterState: policy);
-            }
-
-            return saveResult;
-        }
-
-        // Add to the specified parent policy set
-        var parentResult = await _store.GetPolicySetAsync(parentPolicySetId, cancellationToken);
+    private async ValueTask<Either<EncinaError, Unit>> AddPolicyToParentAsync(
+        PolicyOperation op,
+        Policy policy,
+        string parentPolicySetId,
+        CancellationToken cancellationToken)
+    {
+        var parentResult = await op.Store.GetPolicySetAsync(parentPolicySetId, cancellationToken);
         if (parentResult.IsLeft)
         {
             return parentResult.Map(_ => unit);
@@ -357,21 +401,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             Some: v => v,
             None: () => throw new InvalidOperationException("Unreachable: IsNone was checked above."));
 
-        var updatedPolicies = new List<Policy>(parentPolicySet.Policies) { policy };
-        var updatedPolicySet = parentPolicySet with { Policies = updatedPolicies };
-
-        var addToParentResult = await _store.SavePolicySetAsync(updatedPolicySet, cancellationToken);
-        if (addToParentResult.IsRight)
-        {
-            _logger.LogDebug(
-                "Policy '{PolicyId}' added to policy set '{PolicySetId}'",
-                policy.Id,
-                parentPolicySetId);
-            RecordAuditFireAndForget("PolicyCreated", "Policy", policy.Id, beforeState: null, afterState: policy,
-                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySetId });
-        }
-
-        return addToParentResult;
+        var updatedPolicySet = parentPolicySet with { Policies = [.. parentPolicySet.Policies, policy] };
+        var change = new PolicyChange(
+            "PolicyCreated", "Policy", policy.Id, policy, Extra: ParentMetadata(parentPolicySetId));
+        return await ApplyAsync(op, change, () => op.Store.SavePolicySetAsync(updatedPolicySet, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -381,78 +414,28 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentNullException.ThrowIfNull(policy);
 
-        // Check standalone policies first
-        var standaloneExistsResult = await _store.ExistsPolicyAsync(policy.Id, cancellationToken);
+        return await RunAsActorAsync(actor => UpdatePolicyCoreAsync(actor, policy, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> UpdatePolicyCoreAsync(
+        PolicyOperation op,
+        Policy policy,
+        CancellationToken cancellationToken)
+    {
+        var standaloneExistsResult = await op.Store.ExistsPolicyAsync(policy.Id, cancellationToken);
         if (standaloneExistsResult.IsLeft)
         {
             return standaloneExistsResult.Map(_ => unit);
         }
 
-        var standaloneExists = standaloneExistsResult.Match(Right: v => v, Left: _ => false);
-        if (standaloneExists)
+        if (!standaloneExistsResult.Match(Right: v => v, Left: _ => false))
         {
-            // Capture before state for audit
-            object? beforeState = null;
-            if (_auditStore is not null)
-            {
-                var beforeResult = await _store.GetPolicyAsync(policy.Id, cancellationToken);
-                if (beforeResult.IsRight)
-                {
-                    beforeState = beforeResult.Match(
-                        Right: opt => opt.Match(Some: p => (object?)p, None: () => null),
-                        Left: _ => null);
-                }
-            }
-
-            var saveResult = await _store.SavePolicyAsync(policy, cancellationToken);
-            if (saveResult.IsRight)
-            {
-                _logger.LogDebug("Standalone policy '{PolicyId}' updated", policy.Id);
-                RecordAuditFireAndForget("PolicyUpdated", "Policy", policy.Id, beforeState, afterState: policy);
-            }
-
-            return saveResult;
+            return await ChangeNestedPolicyAsync(op, policy.Id, "PolicyUpdated", policy, cancellationToken);
         }
 
-        // Search for the policy in policy sets
-        var searchResult = await FindPolicyInPolicySetsAsync(policy.Id, cancellationToken);
-        if (searchResult.IsLeft)
-        {
-            return searchResult.Map(_ => unit);
-        }
-
-        var foundOption = searchResult.Match(
-            Right: v => v,
-            Left: _ => Option<(PolicySet Parent, Policy Policy)>.None);
-
-        if (foundOption.IsNone)
-        {
-            return ABACErrors.PolicyNotFound(policy.Id);
-        }
-
-        // Update the policy within the parent policy set
-        var found = foundOption.Match(
-            Some: v => v,
-            None: () => throw new InvalidOperationException("Unreachable: IsNone was checked above."));
-
-        var parentPolicySet = found.Parent;
-        var updatedPolicies = parentPolicySet.Policies
-            .Select(p => p.Id == policy.Id ? policy : p)
-            .ToList();
-
-        var updatedPolicySet = parentPolicySet with { Policies = updatedPolicies };
-        var updateResult = await _store.SavePolicySetAsync(updatedPolicySet, cancellationToken);
-        if (updateResult.IsRight)
-        {
-            _logger.LogDebug(
-                "Policy '{PolicyId}' updated in policy set '{PolicySetId}'",
-                policy.Id,
-                parentPolicySet.Id);
-            RecordAuditFireAndForget("PolicyUpdated", "Policy", policy.Id, found.Policy, afterState: policy,
-                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySet.Id });
-        }
-
-        return updateResult;
+        var change = new PolicyChange(
+            "PolicyUpdated", "Policy", policy.Id, policy, LoadBefore: ct => LoadPolicyStateAsync(op.Store, policy.Id, ct));
+        return await ApplyAsync(op, change, () => op.Store.SavePolicyAsync(policy, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -462,41 +445,44 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(policyId);
 
-        // Try removing from standalone policies first
-        var standaloneExistsResult = await _store.ExistsPolicyAsync(policyId, cancellationToken);
+        return await RunAsActorAsync(actor => RemovePolicyCoreAsync(actor, policyId, cancellationToken));
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> RemovePolicyCoreAsync(
+        PolicyOperation op,
+        string policyId,
+        CancellationToken cancellationToken)
+    {
+        var standaloneExistsResult = await op.Store.ExistsPolicyAsync(policyId, cancellationToken);
         if (standaloneExistsResult.IsLeft)
         {
             return standaloneExistsResult.Map(_ => unit);
         }
 
-        var standaloneExists = standaloneExistsResult.Match(Right: v => v, Left: _ => false);
-        if (standaloneExists)
+        if (!standaloneExistsResult.Match(Right: v => v, Left: _ => false))
         {
-            // Capture before state for audit
-            object? beforeState = null;
-            if (_auditStore is not null)
-            {
-                var beforeResult = await _store.GetPolicyAsync(policyId, cancellationToken);
-                if (beforeResult.IsRight)
-                {
-                    beforeState = beforeResult.Match(
-                        Right: opt => opt.Match(Some: p => (object?)p, None: () => null),
-                        Left: _ => null);
-                }
-            }
-
-            var deleteResult = await _store.DeletePolicyAsync(policyId, cancellationToken);
-            if (deleteResult.IsRight)
-            {
-                _logger.LogDebug("Standalone policy '{PolicyId}' removed", policyId);
-                RecordAuditFireAndForget("PolicyRemoved", "Policy", policyId, beforeState, afterState: null);
-            }
-
-            return deleteResult;
+            return await ChangeNestedPolicyAsync(op, policyId, "PolicyRemoved", replacement: null, cancellationToken);
         }
 
-        // Search for the policy in policy sets
-        var searchResult = await FindPolicyInPolicySetsAsync(policyId, cancellationToken);
+        var change = new PolicyChange(
+            "PolicyRemoved", "Policy", policyId, After: null, LoadBefore: ct => LoadPolicyStateAsync(op.Store, policyId, ct));
+        return await ApplyAsync(op, change, () => op.Store.DeletePolicyAsync(policyId, cancellationToken), cancellationToken);
+    }
+
+    // ── Private Helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Replaces (when <paramref name="replacement"/> is set) or removes a policy nested in a
+    /// policy set by saving the rewritten parent policy set.
+    /// </summary>
+    private async ValueTask<Either<EncinaError, Unit>> ChangeNestedPolicyAsync(
+        PolicyOperation op,
+        string policyId,
+        string action,
+        Policy? replacement,
+        CancellationToken cancellationToken)
+    {
+        var searchResult = await FindPolicyInPolicySetsAsync(op.Store, policyId, cancellationToken);
         if (searchResult.IsLeft)
         {
             return searchResult.Map(_ => unit);
@@ -511,32 +497,71 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
             return ABACErrors.PolicyNotFound(policyId);
         }
 
-        // Remove the policy from the parent policy set
         var found = foundOption.Match(
             Some: v => v,
             None: () => throw new InvalidOperationException("Unreachable: IsNone was checked above."));
 
-        var parentPolicySet = found.Parent;
-        var updatedPolicies = parentPolicySet.Policies
-            .Where(p => p.Id != policyId)
-            .ToList();
+        var rewritten = replacement is null
+            ? found.Parent.Policies.Where(p => p.Id != policyId).ToList()
+            : found.Parent.Policies.Select(p => p.Id == policyId ? replacement : p).ToList();
 
-        var updatedPolicySet = parentPolicySet with { Policies = updatedPolicies };
-        var saveResult = await _store.SavePolicySetAsync(updatedPolicySet, cancellationToken);
-        if (saveResult.IsRight)
-        {
-            _logger.LogDebug(
-                "Policy '{PolicyId}' removed from policy set '{PolicySetId}'",
-                policyId,
-                parentPolicySet.Id);
-            RecordAuditFireAndForget("PolicyRemoved", "Policy", policyId, found.Policy, afterState: null,
-                new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySet.Id });
-        }
-
-        return saveResult;
+        var updatedPolicySet = found.Parent with { Policies = rewritten };
+        var change = new PolicyChange(
+            action, "Policy", policyId, replacement,
+            LoadBefore: _ => ValueTask.FromResult<object?>(found.Policy),
+            Extra: ParentMetadata(found.Parent.Id));
+        return await ApplyAsync(op, change, () => op.Store.SavePolicySetAsync(updatedPolicySet, cancellationToken), cancellationToken);
     }
 
-    // ── Private Helpers ─────────────────────────────────────────────
+    /// <summary>Returns an error when the policy identifier is already used by a standalone or nested policy.</summary>
+    private static async ValueTask<Either<EncinaError, Unit>> EnsurePolicyIdIsFreeAsync(
+        IPolicyStore store,
+        string policyId,
+        CancellationToken cancellationToken)
+    {
+        var standaloneExistsResult = await store.ExistsPolicyAsync(policyId, cancellationToken);
+        if (standaloneExistsResult.IsLeft)
+        {
+            return standaloneExistsResult.Map(_ => unit);
+        }
+
+        if (standaloneExistsResult.Match(Right: v => v, Left: _ => false))
+        {
+            return ABACErrors.DuplicatePolicy(policyId);
+        }
+
+        var nestedSearchResult = await FindPolicyInPolicySetsAsync(store, policyId, cancellationToken);
+        if (nestedSearchResult.IsLeft)
+        {
+            return nestedSearchResult.Map(_ => unit);
+        }
+
+        if (nestedSearchResult.Match(Right: found => found.IsSome, Left: _ => false))
+        {
+            return ABACErrors.DuplicatePolicy(policyId);
+        }
+
+        return unit;
+    }
+
+    private static Dictionary<string, object?> ParentMetadata(string parentPolicySetId) =>
+        new Dictionary<string, object?> { ["parentPolicySetId"] = parentPolicySetId };
+
+    private static async ValueTask<object?> LoadPolicySetStateAsync(IPolicyStore store, string policySetId, CancellationToken cancellationToken)
+    {
+        var result = await store.GetPolicySetAsync(policySetId, cancellationToken);
+        return result.Match(
+            Right: opt => opt.Match(Some: ps => (object?)ps, None: () => null),
+            Left: _ => null);
+    }
+
+    private static async ValueTask<object?> LoadPolicyStateAsync(IPolicyStore store, string policyId, CancellationToken cancellationToken)
+    {
+        var result = await store.GetPolicyAsync(policyId, cancellationToken);
+        return result.Match(
+            Right: opt => opt.Match(Some: p => (object?)p, None: () => null),
+            Left: _ => null);
+    }
 
     /// <summary>
     /// Searches all top-level policy sets for a policy with the specified identifier.
@@ -547,11 +572,12 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// LanguageExt's <c>Map</c>/<c>Match&lt;Ret&gt;</c> throws <c>ValueIsNullException</c>
     /// when the mapping function returns <c>null</c> for reference types.
     /// </remarks>
-    private async ValueTask<Either<EncinaError, Option<(PolicySet Parent, Policy Policy)>>> FindPolicyInPolicySetsAsync(
+    private static async ValueTask<Either<EncinaError, Option<(PolicySet Parent, Policy Policy)>>> FindPolicyInPolicySetsAsync(
+        IPolicyStore store,
         string policyId,
         CancellationToken cancellationToken)
     {
-        var policySetsResult = await _store.GetAllPolicySetsAsync(cancellationToken);
+        var policySetsResult = await store.GetAllPolicySetsAsync(cancellationToken);
 
         // LanguageExt's Map internally calls Either.Right(result), which throws
         // ValueIsNullException when result is null. We unpack manually instead.
@@ -579,88 +605,240 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         return Option<(PolicySet Parent, Policy Policy)>.None;
     }
 
-    // ── Audit Recording (Fire-and-Forget) ───────────────────────────
+    // ── Principal and audited application of a change ───────────────
 
     /// <summary>
-    /// Records an audit entry asynchronously without blocking the calling operation.
-    /// Failures are logged but never propagated.
+    /// Runs one mutation for the resolved actor in its own DI scope. The policy store and every
+    /// read the mutation makes come from that one scope; the audit store has a scope of its own
+    /// (see <see cref="ApplyAsync"/>).
     /// </summary>
-    private void RecordAuditFireAndForget(
-        string action,
-        string entityType,
-        string entityId,
-        object? beforeState,
-        object? afterState,
-        Dictionary<string, object?>? additionalMetadata = null)
+    private async ValueTask<Either<EncinaError, Unit>> RunAsActorAsync(
+        Func<PolicyOperation, ValueTask<Either<EncinaError, Unit>>> body)
     {
-        if (_auditStore is null)
+        if (!TryResolveActor(out var actor))
         {
-            return;
+            return ABACErrors.PolicyChangePrincipalRequired();
         }
 
-        var requestContext = _requestContextAccessor?.RequestContext;
-        var now = DateTimeOffset.UtcNow;
-        var userId = requestContext?.UserId ?? "system";
-        var correlationId = requestContext?.CorrelationId ?? Guid.NewGuid().ToString();
-        var tenantId = requestContext?.TenantId;
-
-        var metadata = new Dictionary<string, object?>
-        {
-            ["source"] = "PersistentPolicyAdministrationPoint"
-        };
-
-        if (beforeState is not null)
-        {
-            metadata["beforeState"] = SerializeState(beforeState);
-        }
-
-        if (afterState is not null)
-        {
-            metadata["afterState"] = SerializeState(afterState);
-        }
-
-        if (additionalMetadata is not null)
-        {
-            foreach (var kvp in additionalMetadata)
-            {
-                metadata[kvp.Key] = kvp.Value;
-            }
-        }
-
-        var entry = new AuditEntry
-        {
-            Id = Guid.NewGuid(),
-            CorrelationId = correlationId,
-            UserId = userId,
-            TenantId = tenantId,
-            Action = action,
-            EntityType = entityType,
-            EntityId = entityId,
-            Outcome = AuditOutcome.Success,
-            TimestampUtc = now.UtcDateTime,
-            StartedAtUtc = now,
-            CompletedAtUtc = now,
-            Metadata = metadata
-        };
-
-        // Fire-and-forget: do not await, do not block
-        _ = RecordAuditEntryAsync(entry);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        return await body(new PolicyOperation(_storeResolver(scope.ServiceProvider), actor));
     }
 
-    private async Task RecordAuditEntryAsync(AuditEntry entry)
+    private bool TryResolveActor(out PolicyActor actor)
+    {
+        var context = _requestContextAccessor?.RequestContext;
+        var isSystem = PolicyChangeActorScope.IsSystemActorActive;
+        var userId = isSystem ? SystemActorId : UserIdOf(context);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            actor = default;
+            return false;
+        }
+
+        actor = new PolicyActor(userId, TenantIdOf(context), CorrelationIdOf(context), isSystem);
+        return true;
+    }
+
+    private static string? UserIdOf(IRequestContext? context) => context?.UserId;
+
+    private static string? TenantIdOf(IRequestContext? context) => context?.TenantId;
+
+    private static string CorrelationIdOf(IRequestContext? context) =>
+        context?.CorrelationId ?? Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// Applies a change after its audit record is written. The audit store is resolved in its own
+    /// scope, separate from the one holding the policy store: with a shared unit of work (an EF Core
+    /// <c>DbContext</c>), a failed policy save would leave its entity tracked and the audit write
+    /// of the failure would retry it. A failed audit write stops the change (fail closed).
+    /// </summary>
+    private async ValueTask<Either<EncinaError, Unit>> ApplyAsync(
+        PolicyOperation op,
+        PolicyChange change,
+        Func<ValueTask<Either<EncinaError, Unit>>> apply,
+        CancellationToken cancellationToken)
+    {
+        var actor = op.Actor;
+        await using var auditScope = _scopeFactory.CreateAsyncScope();
+        var resolved = ResolveAuditStore(auditScope.ServiceProvider, change, out var auditStore);
+        if (resolved.IsLeft)
+        {
+            return resolved;
+        }
+
+        if (auditStore is null)
+        {
+            WarnUnauditedOnce("no IAuditStore is registered");
+            return await apply();
+        }
+
+        return await ApplyAuditedAsync(auditStore, actor, change, apply, cancellationToken);
+    }
+
+    /// <summary>Logs, once per instance, that changes are being applied without an audit record.</summary>
+    private void WarnUnauditedOnce(string condition)
+    {
+        if (Interlocked.Exchange(ref _unauditedWarningLogged, 1) == 0)
+        {
+            LogChangesUnaudited(_logger, condition);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the audit store from the per-write scope. A store whose own dependencies cannot be
+    /// built fails the change closed, like a failed write, instead of surfacing a raw exception.
+    /// </summary>
+    private Either<EncinaError, Unit> ResolveAuditStore(IServiceProvider scopedProvider, PolicyChange change, out IAuditStore? auditStore)
     {
         try
         {
-            var result = await _auditStore!.RecordAsync(entry).ConfigureAwait(false);
-
-            result.Match(
-                Right: _ => { },
-                Left: error => LogAuditRecordingFailed(
-                    _logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", error.GetCode().IfNone("encina.unknown")));
+            auditStore = scopedProvider.GetService<IAuditStore>();
+            return unit;
         }
         catch (Exception ex)
         {
-            LogAuditRecordingException(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", ex.ForLogging());
+            auditStore = null;
+            LogAuditWriteException(_logger, change.Action, change.EntityType, change.EntityId, ex.ForLogging());
+            return ABACErrors.PolicyChangeAuditFailed(ex.GetType().Name);
+        }
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> ApplyAuditedAsync(
+        IAuditStore auditStore,
+        PolicyActor actor,
+        PolicyChange change,
+        Func<ValueTask<Either<EncinaError, Unit>>> apply,
+        CancellationToken cancellationToken)
+    {
+        var beforeState = change.LoadBefore is null ? null : await change.LoadBefore(cancellationToken);
+        var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Success, errorCode: null);
+        var writeAheadEntryId = entry.Id;
+        var recorded = await RecordAuditAsync(auditStore, entry, cancellationToken);
+        if (recorded.IsLeft)
+        {
+            return recorded;
+        }
+
+        Either<EncinaError, Unit> result;
+        try
+        {
+            result = await apply();
+        }
+        catch (Exception ex)
+        {
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, ex.GetType().Name, writeAheadEntryId);
+            throw;
+        }
+
+        if (result.IsLeft)
+        {
+            var errorCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone("encina.unknown"));
+            await RecordFailedChangeAsync(auditStore, actor, change, beforeState, errorCode, writeAheadEntryId);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Records that a change announced by a write-ahead entry did not happen. It ignores the
+    /// caller's cancellation so the trail is completed, and it never replaces the original outcome.
+    /// </summary>
+    private async ValueTask RecordFailedChangeAsync(
+        IAuditStore auditStore,
+        PolicyActor actor,
+        PolicyChange change,
+        object? beforeState,
+        string errorCode,
+        Guid writeAheadEntryId)
+    {
+        var entry = BuildEntry(actor, change, beforeState, AuditOutcome.Error, errorCode, writeAheadEntryId);
+        await RecordAuditAsync(auditStore, entry, CancellationToken.None);
+    }
+
+    private async ValueTask<Either<EncinaError, Unit>> RecordAuditAsync(
+        IAuditStore auditStore,
+        AuditEntry entry,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = new CancellationTokenSource(AuditWriteTimeout, _timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+
+        try
+        {
+            var result = await auditStore.RecordAsync(entry, linked.Token).ConfigureAwait(false);
+            if (result.IsRight)
+            {
+                return unit;
+            }
+
+            var errorCode = result.Match(Right: _ => string.Empty, Left: e => e.GetCode().IfNone("encina.unknown"));
+            LogAuditWriteFailed(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", errorCode);
+            return ABACErrors.PolicyChangeAuditFailed(errorCode);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            LogAuditWriteException(_logger, entry.Action, entry.EntityType, entry.EntityId ?? "unknown", ex.ForLogging());
+            return ABACErrors.PolicyChangeAuditFailed(ex.GetType().Name);
+        }
+    }
+
+    private AuditEntry BuildEntry(
+        PolicyActor actor,
+        PolicyChange change,
+        object? beforeState,
+        AuditOutcome outcome,
+        string? errorCode,
+        Guid? writeAheadEntryId = null)
+    {
+        var now = _timeProvider.GetUtcNow();
+
+        return new AuditEntry
+        {
+            Id = Guid.NewGuid(),
+            CorrelationId = actor.CorrelationId,
+            UserId = actor.UserId,
+            TenantId = actor.TenantId,
+            Action = change.Action,
+            EntityType = change.EntityType,
+            EntityId = change.EntityId,
+            Outcome = outcome,
+            ErrorMessage = errorCode,
+            TimestampUtc = now.UtcDateTime,
+            StartedAtUtc = now,
+            CompletedAtUtc = now,
+            Metadata = BuildMetadata(actor, change, beforeState, writeAheadEntryId)
+        };
+    }
+
+    private static Dictionary<string, object?> BuildMetadata(PolicyActor actor, PolicyChange change, object? beforeState, Guid? writeAheadEntryId)
+    {
+        var metadata = new Dictionary<string, object?>
+        {
+            ["source"] = "PersistentPolicyAdministrationPoint",
+            ["actor"] = actor.IsSystem ? SystemActorId : "principal"
+        };
+
+        if (writeAheadEntryId is { } writeAheadId)
+        {
+            metadata["writeAheadEntryId"] = writeAheadId;
+        }
+
+        AddState(metadata, "beforeState", beforeState);
+        AddState(metadata, "afterState", change.After);
+
+        foreach (var (key, value) in change.Extra ?? new Dictionary<string, object?>())
+        {
+            metadata[key] = value;
+        }
+
+        return metadata;
+    }
+
+    private static void AddState(Dictionary<string, object?> metadata, string key, object? state)
+    {
+        if (state is not null)
+        {
+            metadata[key] = SerializeState(state);
         }
     }
 
@@ -677,10 +855,10 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     }
 
     [LoggerMessage(
-        EventId = 9056,
-        Level = LogLevel.Warning,
-        Message = "Failed to record audit entry for {Action} on {EntityType} '{EntityId}': {ErrorCode}")]
-    private static partial void LogAuditRecordingFailed(
+        EventId = 9094,
+        Level = LogLevel.Error,
+        Message = "Audit write failed for policy change {Action} on {EntityType} '{EntityId}': {ErrorCode}")]
+    private static partial void LogAuditWriteFailed(
         ILogger logger,
         string action,
         string entityType,
@@ -688,13 +866,19 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         string errorCode);
 
     [LoggerMessage(
-        EventId = 9057,
-        Level = LogLevel.Warning,
-        Message = "Exception while recording audit entry for {Action} on {EntityType} '{EntityId}'")]
-    private static partial void LogAuditRecordingException(
+        EventId = 9095,
+        Level = LogLevel.Error,
+        Message = "Exception during the audit write for policy change {Action} on {EntityType} '{EntityId}'")]
+    private static partial void LogAuditWriteException(
         ILogger logger,
         string action,
         string entityType,
         string entityId,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 9097,
+        Level = LogLevel.Warning,
+        Message = "ABAC policy changes are being applied without an audit record: {Condition}")]
+    private static partial void LogChangesUnaudited(ILogger logger, string condition);
 }

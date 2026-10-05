@@ -34,7 +34,7 @@ The three core security principles of Encina ABAC are:
 
 - **Default deny for required policies**: a required policy that does not apply, or does not exist, denies the request.
 - **Obligation enforcement**: unfulfilled obligations override Permit decisions.
-- **Fail-safe evaluation**: errors produce Indeterminate or `abac.evaluation_failed`, which deny in every enforcement mode, never silent Permits.
+- **Fail-safe evaluation**: errors produce Indeterminate, `abac.evaluation_failed` or `abac.missing_context`, which deny in every enforcement mode, never silent Permits. A missing or unauthenticated security context, or an empty user id, is never evaluated as an anonymous user.
 
 ---
 
@@ -85,7 +85,9 @@ public sealed class GetClassifiedDocumentHandler : IQueryHandler<GetClassifiedDo
 
 ## 3. Policy Evaluation Security
 
-The `XACMLPolicyDecisionPoint` is designed to never throw exceptions during evaluation. All failures are captured as `Effect.Indeterminate` with a descriptive `DecisionStatus`, ensuring the PEP always receives a usable decision.
+The `XACMLPolicyDecisionPoint` is designed to never throw exceptions during evaluation (a cancellation requested by the caller's token is the one exception and is rethrown). All failures are captured as `Effect.Indeterminate` with a `DecisionStatus`, ensuring the PEP always receives a usable decision.
+
+When `IPolicyDecisionPoint.EvaluateAsync` evaluates the whole store and either the policy sets or the standalone policies cannot be read from the PAP, the decision is `Indeterminate` with status code `processing-error` and the fixed status message `The policy store could not be read in full. No decision is made on part of the policies.` The PDP never decides on part of the store, because a Deny could be among the policies it could not read. An unexpected exception gets the same decision and message. The failure is logged with EventId 9092 (source and error code) or 9093 (exception type and stack trace, never the message); see [observability](../reference/observability.md). `EvaluatePolicyAsync`, which `[RequirePolicy]` uses, treats every retrieval failure as Indeterminate as well.
 
 ### Four-Effect Model
 
@@ -280,6 +282,7 @@ A request is evaluated only when its type carries `[RequirePolicy]` or `[Require
 | A required policy returns `Permit` | The requirement passes |
 | A required policy returns `Deny` or `NotApplicable` | Denies with `abac.access_denied`: an explicitly required policy that does not apply cannot authorize |
 | A required policy is not in the policy store, or exists only nested inside a policy set | Denies with `abac.policy_not_found` |
+| There is no security context, it is not authenticated (`IsAuthenticated` is `false`), or its `UserId` is null, empty or whitespace | Denies with `abac.missing_context`, in every enforcement mode, before any attribute is collected |
 | A required policy returns `Indeterminate`, or the PDP fails (policy store failure, a `Left` with another code) | Denies with `abac.indeterminate`, in every enforcement mode |
 | The attribute provider or the PDP throws | Denies with `abac.evaluation_failed`, in every enforcement mode |
 | A `[RequireCondition]` expression is `false` | Denies with `abac.condition_not_met` |
@@ -312,7 +315,7 @@ The `ABACEnforcementMode` enum enables gradual rollout of ABAC policies without 
 
 ### Warn Mode Security Implications
 
-In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
+In `Warn` mode, definite verdicts are logged but the request proceeds: a Deny, a required policy that is NotApplicable, Deny or not found (`abac.policy_not_found`), and a condition that evaluates to `false` (`abac.condition_not_met`). Errors still deny when they decide the verdict: a missing or unauthenticated security context, or a missing user id (`abac.missing_context`, always, before any evaluation), Indeterminate (`abac.indeterminate`), an exception from the attribute provider or the PDP (`abac.evaluation_failed`), and a mandatory obligation that cannot be fulfilled (`abac.obligation_failed`). When a definite denial and an error occur together among the required policies (for example an `AllMustPass` policy that is NotApplicable next to one that is Indeterminate, or a missing policy name next to an Indeterminate one), the definite denial (`abac.access_denied` or `abac.policy_not_found`) is the verdict, and `Warn` logs it and lets the request through. Warn is useful for validating policies against real traffic, but for definite verdicts it means **no authorization is enforced**. Monitor logs for unexpected denials before transitioning to `Block`:
 
 ```csharp
 // During shadow mode, monitor these log events (EventIds in reference/observability.md):
@@ -404,12 +407,15 @@ The `IPolicyAdministrationPoint` controls what policies exist in the system. Una
 
 The built-in `InMemoryPolicyAdministrationPoint` stores policies in `ConcurrentDictionary` instances. It is thread-safe but has no access control, no audit logging, and no persistence. Policies are lost on process restart.
 
-**Production recommendation**: Implement a database-backed `IPolicyAdministrationPoint` with:
+**Production recommendation**: Use the database-backed `PersistentPolicyAdministrationPoint` (`ABACOptions.UsePersistentPAP`), which attributes and audits every policy change (see below), and add what it does not provide:
 
 - Authentication and authorization for policy CRUD operations
-- Audit logging of all policy changes (who changed what, when)
 - Policy versioning to support rollback
 - Approval workflows for policy modifications
+
+### Policy Change Audit Trail
+
+`PersistentPolicyAdministrationPoint` attributes every add, update and remove of a policy or policy set to the principal of the ambient `IRequestContext` and refuses the change with `abac.policy_change_principal_required` when there is none. When an `IAuditStore` is registered, the audit entry is written before the change is applied; if that write fails, throws or exceeds 30 seconds, the change is not applied (`abac.policy_change_audit_failed`); the 30 second limit only bounds audit stores that honour the `CancellationToken` (tracked by #1704). Every operation opens its own DI scope and resolves the policy store from it, and a mutation resolves the `IAuditStore` in its own separate scope, so the audit write never shares a unit of work with the policy write. With no `IAuditStore` registered, changes are applied without a record and a Warning (EventId 9097) is logged once per instance, so register one in production. Startup seeding runs under an explicit, logged system actor (`UserId` `"system"`). The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md). Details: [Persistent PAP](../reference/persistent-pap.md#policy-change-principal-and-audit-trail).
 
 ### Protecting PAP Operations
 

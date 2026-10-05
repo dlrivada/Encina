@@ -113,13 +113,14 @@ ABACDiagnostics.RecordDenied(activity, policyId, reason);
 ABACDiagnostics.RecordIndeterminate(activity, reason);
 // Sets: abac.effect = "indeterminate"
 // Status: ActivityStatusCode.Error with reason description
+// When the PEP catches an exception, the reason is the exception type name, never its message.
 ```
 
 ---
 
 ## Structured Logging
 
-All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics.
+All log messages use compile-time source generation via `[LoggerMessage]` for zero-allocation logging when the log level is disabled. Event IDs occupy the `9000-9099` range reserved for ABAC diagnostics. The package's EventIds are allocated inside 9000-9097; the unused ids to reuse first are 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057 and 9098-9099, and 9079-9090 are reserved for #751. Ids 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096).
 
 ### Pipeline Messages (9000-9005, 9008-9009)
 
@@ -132,7 +133,7 @@ All log messages use compile-time source generation via `[LoggerMessage]` for ze
 | 9004 | `Warning` | `ABAC enforcement in Warn mode - would deny {RequestType}: {ErrorCode}. Allowing request to proceed` | `requestType`, `errorCode` |
 | 9005 | `Warning` | `Permit obligations failed for {RequestType}. Overriding to Deny per XACML 7.18: {ErrorCode}` | `requestType`, `errorCode` |
 | 9008 | `Warning` | `ABAC: Indeterminate for {RequestType}: {Reason}` | `requestType`, `reason` |
-| 9009 | `Error` | `ABAC evaluation failed for {RequestType} after {DurationMs:F2}ms` | `exception`, `requestType`, `durationMs` |
+| 9009 | `Error` | `ABAC evaluation failed for {RequestType} after {DurationMs:F2}ms` | `exception` (through `ForLogging()`), `requestType`, `durationMs` |
 
 ### Obligation Messages (9010-9019)
 
@@ -166,6 +167,27 @@ These messages carry error codes and exception types only, never an error or exc
 | 9076 | `Warning` | `Condition {ConditionIndex} for {RequestType} could not be compiled: {ErrorCode}. The condition is Indeterminate` | `conditionIndex`, `requestType`, `errorCode` |
 | 9077 | `Warning` | `Condition {ConditionIndex} for {RequestType} failed during evaluation. The condition is Indeterminate` | `exception`, `conditionIndex`, `requestType` |
 | 9078 | `Error` | `Handler for obligation or advice {ObligationId} threw an exception` | `exception`, `obligationId` |
+
+### Fail-Closed Messages (9091-9093)
+
+These messages carry error codes, source names and exception types only, never an error message, an exception message or a user identifier. EventIds 9079-9090 are reserved for the decision audit trail of #751 and are not in use.
+
+| EventId | Level | Message Template | Parameters |
+|---------|-------|------------------|------------|
+| 9091 | `Warning` | `ABAC denied {RequestType}: no authenticated security context with a user is available ({ErrorCode}). The request is denied in every enforcement mode` | `requestType`, `errorCode` |
+| 9092 | `Warning` | `Retrieval of the {Source} from the policy administration point failed: {ErrorCode}. The decision is Indeterminate` | `source` (`policy sets` or `standalone policies`), `errorCode` |
+| 9093 | `Error` | `Unexpected error while evaluating the policy store. The decision is Indeterminate` | `exception` (through `ForLogging()`: type and stack trace) |
+
+### Policy Administration Messages (9094-9097)
+
+Emitted by `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096). They carry error codes and exception types only, never an error or exception message. See [Persistent PAP](persistent-pap.md#policy-change-principal-and-audit-trail).
+
+| EventId | Level | Message Template | Parameters |
+|---------|-------|------------------|------------|
+| 9094 | `Error` | `Audit write failed for policy change {Action} on {EntityType} '{EntityId}': {ErrorCode}` | `action`, `entityType`, `entityId`, `errorCode` |
+| 9095 | `Error` | `Exception during the audit write for policy change {Action} on {EntityType} '{EntityId}'` | `action`, `entityType`, `entityId`, `exception` |
+| 9096 | `Information` | `System actor scope opened for ABAC policy seeding; policy changes are recorded as made by the system actor` | none |
+| 9097 | `Warning` | `ABAC policy changes are being applied without an audit record: {Condition}` | `condition` (logged once per PAP instance) |
 
 ---
 
@@ -338,5 +360,5 @@ abac_obligation_no_handler
 | File | Purpose |
 |------|---------|
 | `src/Encina.Security.ABAC/Diagnostics/ABACDiagnostics.cs` | Activity source, meter, counters, histograms, tag constants, recording helpers |
-| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds 9000-9078; see [Structured Logging](#structured-logging)) |
+| `src/Encina.Security.ABAC/Diagnostics/ABACLogMessages.cs` | `[LoggerMessage]` source-generated structured log methods (EventIds allocated inside 9000-9097, unused ids 9006-9007, 9016-9019, 9023-9029, 9041-9049, 9056-9057 and 9098-9099; 9079-9090 are reserved for the ABAC decision audit trail (#751); 9094-9097 come from `PersistentPolicyAdministrationPoint` (9094, 9095, 9097) and `ABACPolicySeedingHostedService` (9096); see [Structured Logging](#structured-logging)) |
 | `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` | `IHealthCheck` implementation for PAP policy verification |

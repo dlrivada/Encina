@@ -55,7 +55,9 @@ public static class ServiceCollectionExtensions
     /// When <see cref="ABACOptions.UsePersistentPAP"/> is <c>true</c>, the
     /// <see cref="PersistentPolicyAdministrationPoint"/> is registered instead of the default
     /// <see cref="InMemoryPolicyAdministrationPoint"/>. This requires an <see cref="IPolicyStore"/>
-    /// to be registered by a database provider package.
+    /// to be registered by a database provider package. Policy changes are attributed to the
+    /// principal of the request context and refused without one; when an <c>IAuditStore</c> is
+    /// registered (scoped or not), each change is audited fail closed in its own DI scope.
     /// </para>
     /// <para>
     /// <b>Policy seeding:</b>
@@ -99,14 +101,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // ── Configure options ──────────────────────────────────────
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<ABACOptions>(_ => { });
-        }
+        services.Configure(configure ?? (_ => { }));
 
         // Create a temporary options instance for feature-gating decisions
         var optionsInstance = new ABACOptions();
@@ -119,18 +114,7 @@ public static class ServiceCollectionExtensions
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded
-        services.TryAddSingleton<IFunctionRegistry>(sp =>
-        {
-            var registry = new DefaultFunctionRegistry();
-            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
-
-            foreach (var (functionId, function) in options.CustomFunctions)
-            {
-                registry.Register(functionId, function);
-            }
-
-            return registry;
-        });
+        services.TryAddSingleton<IFunctionRegistry>(CreateFunctionRegistry);
 
         // ── Combining algorithms (Singleton) ───────────────────────
         services.TryAddSingleton<CombiningAlgorithmFactory>();
@@ -140,91 +124,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ConditionEvaluator>();
 
         // ── Policy Administration Point (Singleton) ────────────────
-        if (optionsInstance.UsePersistentPAP)
-        {
-            // Register serializer (TryAdd — allows user to register a custom serializer first)
-            if (optionsInstance.UseXacmlXml)
-            {
-                // Use XACML 3.0 XML as the primary serializer
-                services.TryAddSingleton<IPolicySerializer, XacmlXmlPolicySerializer>();
-            }
-            else
-            {
-                services.TryAddSingleton<IPolicySerializer, DefaultPolicySerializer>();
-            }
-
-            // Optionally register XACML XML serializer as a keyed service for import/export
-            if (optionsInstance.RegisterXacmlXmlAsKeyed)
-            {
-                services.TryAddKeyedSingleton<IPolicySerializer, XacmlXmlPolicySerializer>("xacml-xml");
-            }
-
-            // Register PersistentPAP with factory for startup validation.
-            // Uses AddSingleton (not TryAdd) to override any prior InMemoryPAP registration.
-            services.AddSingleton<IPolicyAdministrationPoint>(sp =>
-            {
-                var store = sp.GetService<IPolicyStore>();
-                if (store is null)
-                {
-                    var startupLogger = sp.GetRequiredService<ILoggerFactory>()
-                        .CreateLogger(typeof(ServiceCollectionExtensions));
-
-                    startupLogger.LogCritical(
-                        "UsePersistentPAP is enabled but no IPolicyStore is registered. " +
-                        "Register a provider package (e.g., AddEncinaEntityFrameworkCore with UseABACPolicyStore = true)");
-
-                    throw new InvalidOperationException(
-                        "UsePersistentPAP is enabled but no IPolicyStore implementation is registered. " +
-                        "Register a provider package (e.g., services.AddEncinaEntityFrameworkCore(c => c.UseABACPolicyStore = true)).");
-                }
-
-                // ── Policy Caching (decorator wrapping) ──────────────
-                // When PolicyCaching.Enabled = true and an ICacheProvider is available,
-                // wrap the inner IPolicyStore with CachingPolicyStoreDecorator for
-                // cache-aside reads with stampede protection and write-through invalidation.
-                var resolvedOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
-                if (resolvedOptions.PolicyCaching.Enabled)
-                {
-                    var cacheProvider = sp.GetService<ICacheProvider>();
-                    if (cacheProvider is not null)
-                    {
-                        var pubSubProvider = sp.GetService<IPubSubProvider>();
-                        var cachingLogger = sp.GetRequiredService<ILogger<CachingPolicyStoreDecorator>>();
-
-                        store = new CachingPolicyStoreDecorator(
-                            store, cacheProvider, pubSubProvider,
-                            resolvedOptions.PolicyCaching, cachingLogger);
-                    }
-                }
-
-                var logger = sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>();
-                var auditStore = sp.GetService<Audit.IAuditStore>();
-                var requestContextAccessor = sp.GetService<IRequestContextAccessor>();
-                return new PersistentPolicyAdministrationPoint(store, logger, auditStore, requestContextAccessor);
-            });
-
-            // ── Policy Cache PubSub Hosted Service ───────────────────
-            // When PubSub invalidation is enabled, register a hosted service that
-            // subscribes to the invalidation channel for cross-instance cache eviction.
-            if (optionsInstance.PolicyCaching is { Enabled: true, EnablePubSubInvalidation: true })
-            {
-                services.AddHostedService<PolicyCachePubSubHostedService>(sp =>
-                {
-                    var cacheProvider = sp.GetRequiredService<ICacheProvider>();
-                    var pubSubProvider = sp.GetRequiredService<IPubSubProvider>();
-                    var pubSubLogger = sp.GetRequiredService<ILogger<PolicyCachePubSubHostedService>>();
-                    var resolvedOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
-
-                    return new PolicyCachePubSubHostedService(
-                        cacheProvider, pubSubProvider,
-                        resolvedOptions.PolicyCaching, pubSubLogger);
-                });
-            }
-        }
-        else
-        {
-            services.TryAddSingleton<IPolicyAdministrationPoint, InMemoryPolicyAdministrationPoint>();
-        }
+        AddPolicyAdministrationPoint(services, optionsInstance);
 
         // ── Policy Decision Point (Singleton) ──────────────────────
         services.TryAddSingleton<IPolicyDecisionPoint, XACMLPolicyDecisionPoint>();
@@ -245,6 +145,26 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<EELCompiler>();
 
         // ── Policy Seeding, Health Check & Expression Precompilation ──
+        AddStartupServices(services, optionsInstance);
+
+        return services;
+    }
+
+    private static DefaultFunctionRegistry CreateFunctionRegistry(IServiceProvider sp)
+    {
+        var registry = new DefaultFunctionRegistry();
+        var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
+
+        foreach (var (functionId, function) in options.CustomFunctions)
+        {
+            registry.Register(functionId, function);
+        }
+
+        return registry;
+    }
+
+    private static void AddStartupServices(IServiceCollection services, ABACOptions optionsInstance)
+    {
         if (optionsInstance.SeedPolicySets.Count > 0 || optionsInstance.SeedPolicies.Count > 0)
         {
             services.AddHostedService<ABACPolicySeedingHostedService>();
@@ -262,7 +182,113 @@ public static class ServiceCollectionExtensions
                     ABACHealthCheck.DefaultName,
                     tags: ABACHealthCheck.Tags);
         }
+    }
 
-        return services;
+    private static void AddPolicyAdministrationPoint(IServiceCollection services, ABACOptions optionsInstance)
+    {
+        if (!optionsInstance.UsePersistentPAP)
+        {
+            services.TryAddSingleton<IPolicyAdministrationPoint, InMemoryPolicyAdministrationPoint>();
+            return;
+        }
+
+        AddPolicySerializers(services, optionsInstance);
+
+        // Register PersistentPAP with factory for startup validation.
+        // Uses AddSingleton (not TryAdd) to override any prior InMemoryPAP registration.
+        services.AddSingleton<IPolicyAdministrationPoint>(CreatePersistentPolicyAdministrationPoint);
+
+        // ── Policy Cache PubSub Hosted Service ───────────────────
+        // When PubSub invalidation is enabled, register a hosted service that
+        // subscribes to the invalidation channel for cross-instance cache eviction.
+        if (optionsInstance.PolicyCaching is { Enabled: true, EnablePubSubInvalidation: true })
+        {
+            services.AddHostedService<PolicyCachePubSubHostedService>(CreatePolicyCachePubSubHostedService);
+        }
+    }
+
+    private static void AddPolicySerializers(IServiceCollection services, ABACOptions optionsInstance)
+    {
+        // Register serializer (TryAdd — allows user to register a custom serializer first)
+        if (optionsInstance.UseXacmlXml)
+        {
+            // Use XACML 3.0 XML as the primary serializer
+            services.TryAddSingleton<IPolicySerializer, XacmlXmlPolicySerializer>();
+        }
+        else
+        {
+            services.TryAddSingleton<IPolicySerializer, DefaultPolicySerializer>();
+        }
+
+        // Optionally register XACML XML serializer as a keyed service for import/export
+        if (optionsInstance.RegisterXacmlXmlAsKeyed)
+        {
+            services.TryAddKeyedSingleton<IPolicySerializer, XacmlXmlPolicySerializer>("xacml-xml");
+        }
+    }
+
+    private static PersistentPolicyAdministrationPoint CreatePersistentPolicyAdministrationPoint(IServiceProvider sp)
+    {
+        // The store is checked by registration, never resolved here: database stores are scoped and
+        // this PAP is a singleton, so it resolves (and caches-wraps) the store per operation scope.
+        var isService = sp.GetRequiredService<IServiceProviderIsService>();
+        if (!isService.IsService(typeof(IPolicyStore)))
+        {
+            var startupLogger = sp.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(typeof(ServiceCollectionExtensions));
+
+            startupLogger.LogCritical(
+                "UsePersistentPAP is enabled but no IPolicyStore is registered. " +
+                "Register a provider package (e.g., AddEncinaEntityFrameworkCore with UseABACPolicyStore = true)");
+
+            throw new InvalidOperationException(
+                "UsePersistentPAP is enabled but no IPolicyStore implementation is registered. " +
+                "Register a provider package (e.g., services.AddEncinaEntityFrameworkCore(c => c.UseABACPolicyStore = true)).");
+        }
+
+        // The PAP takes the scope factory: it opens one scope per operation and resolves the
+        // IPolicyStore (wrapped by ResolvePolicyStore) from it, and the IAuditStore from a second scope.
+        return new PersistentPolicyAdministrationPoint(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),
+            sp.GetService<IRequestContextAccessor>(),
+            sp.GetService<TimeProvider>(),
+            ResolvePolicyStore);
+    }
+
+    // ── Policy Caching (decorator wrapping) ──────────────
+    // Resolves the policy store of one operation scope. When PolicyCaching.Enabled = true and an
+    // ICacheProvider is available, the scoped inner IPolicyStore is wrapped with a
+    // CachingPolicyStoreDecorator for cache-aside reads with stampede protection and write-through
+    // invalidation. The decorator holds no per-request state; the cache and the pub/sub channel are
+    // shared through the singleton providers.
+    private static IPolicyStore ResolvePolicyStore(IServiceProvider scopedProvider)
+    {
+        var store = scopedProvider.GetRequiredService<IPolicyStore>();
+        var resolvedOptions = scopedProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
+        var cacheProvider = resolvedOptions.PolicyCaching.Enabled ? scopedProvider.GetService<ICacheProvider>() : null;
+        if (cacheProvider is null)
+        {
+            return store;
+        }
+
+        return new CachingPolicyStoreDecorator(
+            store,
+            cacheProvider,
+            scopedProvider.GetService<IPubSubProvider>(),
+            resolvedOptions.PolicyCaching,
+            scopedProvider.GetRequiredService<ILogger<CachingPolicyStoreDecorator>>(),
+            scopedProvider.GetService<TimeProvider>() ?? TimeProvider.System);
+    }
+
+    private static PolicyCachePubSubHostedService CreatePolicyCachePubSubHostedService(IServiceProvider sp)
+    {
+        var resolvedOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ABACOptions>>().Value;
+
+        return new PolicyCachePubSubHostedService(
+            sp.GetRequiredService<ICacheProvider>(),
+            sp.GetRequiredService<IPubSubProvider>(),
+            resolvedOptions.PolicyCaching,
+            sp.GetRequiredService<ILogger<PolicyCachePubSubHostedService>>());
     }
 }

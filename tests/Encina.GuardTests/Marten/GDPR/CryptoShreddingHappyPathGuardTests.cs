@@ -79,7 +79,7 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
 
         result.IsRight.ShouldBeTrue();
         byte[] key = null!;
-        result.IfRight(k => key = k);
+        result.IfRight(k => key = k.KeyMaterial);
         key.Length.ShouldBe(32);
     }
 
@@ -91,8 +91,8 @@ public sealed class CryptoShreddingHappyPathGuardTests : IDisposable
 
         byte[] k1 = null!;
         byte[] k2 = null!;
-        first.IfRight(k => k1 = k);
-        second.IfRight(k => k2 = k);
+        first.IfRight(k => k1 = k.KeyMaterial);
+        second.IfRight(k => k2 = k.KeyMaterial);
         k1.SequenceEqual(k2).ShouldBeTrue();
     }
 

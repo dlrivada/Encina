@@ -266,7 +266,12 @@ public class ABACPipelineBehaviorGuardTests
     {
         pdp ??= Substitute.For<IPolicyDecisionPoint>();
         var attributeProvider = CreateDefaultAttributeProvider();
+        // An authenticated user: a missing one denies before evaluation (#1676).
+        var securityContext = Substitute.For<global::Encina.Security.ISecurityContext>();
+        securityContext.UserId.Returns("guard-user");
+        securityContext.IsAuthenticated.Returns(true);
         var securityContextAccessor = Substitute.For<global::Encina.Security.ISecurityContextAccessor>();
+        securityContextAccessor.SecurityContext.Returns(securityContext);
         var obligationExecutor = CreateObligationExecutor();
         var effectiveOptions = abacOptions ?? new ABACOptions();
         var options = Options.Create(effectiveOptions);

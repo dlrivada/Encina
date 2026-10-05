@@ -166,10 +166,10 @@ public sealed class CryptoShredderSerializerPropertyTests : IDisposable
                && observedEmail.StartsWith("{\"__enc\":true", StringComparison.Ordinal);
     }
 
-    // ─── Forgotten subject: encryption silently skipped ───
+    // ─── Forgotten subject: serialization fails closed (#1646) ───
 
     [Property(MaxTest = 30)]
-    public bool ToJson_ForgottenSubject_SkipsEncryptionAndRestoresOriginal(NonEmptyString userId)
+    public bool ToJson_ForgottenSubject_ThrowsAndRestoresOriginal(NonEmptyString userId)
     {
         var uid = userId.Get.Trim();
         if (string.IsNullOrWhiteSpace(uid)) return true;
@@ -180,11 +180,20 @@ public sealed class CryptoShredderSerializerPropertyTests : IDisposable
 
         var evt = new PiiSampleEvent { UserId = uid, Email = "secret@example.com" };
 
-        // Should not throw; the encryption branch returns null silently.
-        _sut.ToJson(evt);
+        // The value cannot be encrypted, so the event is never serialized in plaintext.
+        CryptoShreddingEncryptionException? thrown = null;
+        try
+        {
+            _sut.ToJson(evt);
+        }
+        catch (CryptoShreddingEncryptionException ex)
+        {
+            thrown = ex;
+        }
 
         // Original values must be preserved.
-        return evt.Email == "secret@example.com" && evt.UserId == uid;
+        return thrown is { Reason: CryptoShreddingEncryptionFailureReason.KeyUnavailable }
+               && evt.Email == "secret@example.com" && evt.UserId == uid;
     }
 
     // ─── Decryption pipeline (sync path): round-trip ───

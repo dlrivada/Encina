@@ -182,6 +182,65 @@ The PAP implementation that wraps `IPolicyStore` with business rules:
 - **Duplicate detection**: Checks both standalone policies and nested policies within all policy sets before adding.
 - **Parent-child management**: `AddPolicyAsync` with a `parentPolicySetId` loads the parent, appends the policy, and saves the updated policy set.
 - **Search-then-mutate**: `GetPolicyAsync`, `UpdatePolicyAsync`, and `RemovePolicyAsync` search standalone policies first, then scan all policy sets for nested matches.
+- **Principal and audit**: every mutation is attributed to a principal and audited before it is applied (see [Policy Change Principal and Audit Trail](#policy-change-principal-and-audit-trail)).
+
+Constructor (`AddEncinaABAC` wires every argument):
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `scopeFactory` | `IServiceScopeFactory` | required | Opens one DI scope per operation; resolves `IPolicyStore` from it and, for a mutation, `IAuditStore` from a separate scope (see [Lifetimes](#lifetimes)) |
+| `logger` | `ILogger<PersistentPolicyAdministrationPoint>` | required | Structured logging |
+| `requestContextAccessor` | `IRequestContextAccessor?` | `null` | Resolves the principal of each change |
+| `timeProvider` | `TimeProvider?` | `TimeProvider.System` | Every timestamp and the audit write timeout |
+| `storeResolver` | `Func<IServiceProvider, IPolicyStore>?` | resolves the registered `IPolicyStore` | Returns the store of one operation from its scope; the registration uses it to apply the caching decorator |
+
+## Lifetimes
+
+- `PersistentPolicyAdministrationPoint` is a singleton and never captures a scoped service.
+- Every operation, read or mutation, opens its own async DI scope through `IServiceScopeFactory` and resolves `IPolicyStore` from it. A mutation resolves `IAuditStore` in its own separate scope, so the audit write never shares a unit of work with the policy write.
+- The policy store and every read of one operation share the operation scope. Concurrent operations never share a store instance.
+- When `PolicyCaching.Enabled` is `true` and an `ICacheProvider` is registered, `CachingPolicyStoreDecorator` wraps the scoped store once per operation scope. It holds no per-request state; the cache and the pub/sub channel are shared through the singleton `ICacheProvider` and `IPubSubProvider`.
+- The decorator stamps its invalidation messages from the registered `TimeProvider` (`TimeProvider.System` by default).
+- `ABACPolicySeedingHostedService` goes through the PAP, so no store is resolved from the root provider.
+
+## Policy Change Principal and Audit Trail
+
+Applies to `AddPolicySetAsync`, `UpdatePolicySetAsync`, `RemovePolicySetAsync`, `AddPolicyAsync`, `UpdatePolicyAsync` and `RemovePolicyAsync`. Reads are not audited.
+
+### Principal
+
+- Each change is attributed to the principal of the ambient `IRequestContext`: `UserId`, plus `TenantId` and `CorrelationId` when present.
+- When no principal can be resolved (no accessor, no context, or an empty `UserId`), the change is refused with `abac.policy_change_principal_required` (`ABACErrors.PolicyChangePrincipalRequiredCode`). The PAP never attributes a change silently to a default actor.
+- The only exception is an internal system-actor scope that `ABACPolicySeedingHostedService` opens while it seeds `ABACOptions.SeedPolicySets` and `ABACOptions.SeedPolicies` at startup. Opening it is logged at `Information` level (EventId 9096). The audit entry then has `UserId` `"system"` and metadata `actor` = `system`; otherwise `actor` = `principal`.
+
+### Audit write (fail closed)
+
+The fail-closed rule follows [SPEC-002 DEC-006](../../../specifications/SPEC-002-eu-regulatory-readiness.md).
+
+- The PAP does not hold an `IAuditStore`. It takes an `IServiceScopeFactory` and resolves `IAuditStore` for each write in its own scope, because database audit stores are scoped and the PAP is a singleton.
+- The `IServiceScopeFactory` is a required constructor argument, and the `IAuditStore` is resolved in its own separate scope, not the scope of the `IPolicyStore` of that operation. With EF Core a shared scoped `DbContext` would make the audit write of a failed change retry the still-tracked failed policy entity.
+- With no `IAuditStore` registered, policy change auditing is not configured and changes are applied without a record. One `Warning` per PAP instance (EventId 9097) says so.
+- With an `IAuditStore` registered, the audit entry is written and awaited before the change is applied. If resolving the `IAuditStore` throws, or the write returns `Left`, throws, or takes longer than 30 seconds, the change is not applied and the call returns `abac.policy_change_audit_failed` (`ABACErrors.PolicyChangeAuditFailedCode`). Nothing is persisted. The 30 second timeout only bounds audit stores that honour the `CancellationToken` (tracked by #1704).
+- Failures are logged by error code (EventId 9094) or exception type (EventId 9095), never by message.
+- If the policy store then rejects the change, a second entry with outcome `AuditOutcome.Error` and the store's error code in `ErrorMessage` records that the announced change did not happen. Its metadata `writeAheadEntryId` holds the `Id` of the first entry.
+- Caller cancellation propagates as cancellation; it is not reported as an audit failure.
+
+The first entry is a write-ahead entry: it records an authorized change that is about to be applied, not a change that was applied. A change that failed afterwards has a later `Error` entry whose `writeAheadEntryId` points to it. If the process stops between the two writes, the trail can show a write-ahead entry whose change was never applied, so readers reconcile the trail against the policy store. A compensating Error entry that itself cannot be written is logged (EventId 9094 for a Left, 9095 for an exception) and not retried, so that write-ahead entry has no Error entry; readers reconcile against the policy store.
+
+### Startup seeding
+
+`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown by the PAP while applying a seed is wrapped in an `InvalidOperationException` whose message names the policy or set id and the exception type (never the exception message), with the original exception as `InnerException`. Cancellation of the `StartAsync` token still propagates as `OperationCanceledException`. The failing instance does not start; seeds applied before the failure stay persisted and the next start skips them as duplicates.
+
+### Audit entry
+
+| Field | Value |
+|-------|-------|
+| `Action` | `PolicySetCreated`, `PolicySetUpdated`, `PolicySetRemoved`, `PolicyCreated`, `PolicyUpdated`, `PolicyRemoved` |
+| `EntityType` / `EntityId` | `PolicySet` or `Policy`, and the identifier |
+| `UserId`, `TenantId`, `CorrelationId` | From the request context (`"system"` for the seeding scope) |
+| `Outcome` / `ErrorMessage` | `Success`; or `Error` with the store error code on the second entry |
+| `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc` | From the injected `TimeProvider` |
+| `Metadata` | `source`, `actor`, `beforeState` (updates and removals), `afterState` (adds and updates), `parentPolicySetId` for a policy nested in a policy set, `writeAheadEntryId` on the `Error` entry |
 
 ## Policy Caching
 
@@ -284,6 +343,8 @@ All operations return `Either<EncinaError, T>`. Common errors:
 | `ABACErrors.PolicySetNotFound` | Updating/removing a non-existent policy set |
 | `ABACErrors.DuplicatePolicy` | Adding a policy with an existing ID (standalone or nested) |
 | `ABACErrors.PolicyNotFound` | Updating/removing a non-existent policy |
+| `ABACErrors.PolicyChangePrincipalRequired` | A mutation with no resolvable principal in the request context (`abac.policy_change_principal_required`) |
+| `ABACErrors.PolicyChangeAuditFailed` | The audit write failed, threw or timed out; the change was not applied (`abac.policy_change_audit_failed`) |
 | Store infrastructure errors | Database connection failures, serialization errors |
 
 ## Health Check

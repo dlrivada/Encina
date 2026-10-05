@@ -52,11 +52,11 @@ React to each event as it arrives:
 | CodeRabbit "Review rate limited" (or no review posted after the normal wait) | Do not wait for it. Spawn `pr-reviewer` with the PR number in the foreground. Post its `artifacts/pr-review/<n>.md` as one PR review (`gh pr review --repo dlrivada/Encina <n> --comment --body-file artifacts/pr-review/<n>.md`) and add inline comments only for findings with an exact `file:line`. Record in the PR that CodeRabbit was skipped. A PR that also touches gates, CI workflows or `.github/scripts` still gets an `adversarial-reviewer` pass too (existing rule below, unchanged). This replaces the manual step first improvised on PR #1408. |
 | `CHECKS-DONE` with failures | Fix, push, request `@coderabbitai review` again. |
 
-Mechanical follow-ups (formatting, a config exclusion, replying to threads with decided text) go to `mechanical-fixer`. A PR that touches gates, CI workflows or `.github/scripts`, or that merges without a CodeRabbit review, gets an `adversarial-reviewer` pass before or right after the merge — `pr-reviewer` and `adversarial-reviewer` can both legitimately run on the same PR, since they check different things (a published PR against its linked issue and `.coderabbit.yaml`, vs. gates/CI/`.github/scripts` specifically).
+Mechanical follow-ups (formatting, a config exclusion, replying to threads with decided text) go to `mechanical-fixer`. A PR that touches gates, CI workflows, `.github/scripts` or hooks, or that merges without a CodeRabbit review, gets an `adversarial-reviewer` pass before or right after the merge — `pr-reviewer` and `adversarial-reviewer` can both legitimately run on the same PR, since they check different things (a published PR against its linked issue and `.coderabbit.yaml`, vs. gates/CI/`.github/scripts` specifically).
 
 ## 3. Merge
 
-Auto-merge and branch protection changes are the maintainer's. Hand them one line:
+The orchestrator arms auto-merge itself, once the reviews say merge (`pr-reviewer`, plus `adversarial-reviewer` for gates, CI, workflows, `.github/scripts` and hooks) and every review thread (bots included) is fixed or answered and resolved (the maintainer's standing authorisation of 2026-10-02: handing over the command added latency and no decision). A PR that needs a maintainer decision (design, scope, a breaking choice) goes to them first. Changes to branch protection stay the maintainer's. Name the PRs you armed in the summary to the maintainer. The command:
 
 ```powershell
 gh pr merge <n> --repo dlrivada/Encina --auto --squash
@@ -71,7 +71,7 @@ gh api graphql -f query='mutation { resolveReviewThread(input: { threadId: "<id>
 
 Resolve a thread only after its point is fixed or answered.
 
-Changing a PR's base (for example after the PR it was stacked on merges) **drops auto-merge**. Ask the maintainer to arm it again.
+Changing a PR's base (for example after the PR it was stacked on merges) **drops auto-merge**. Arm it again with the command above once the reviews still say merge.
 
 ## 4. After the merge
 

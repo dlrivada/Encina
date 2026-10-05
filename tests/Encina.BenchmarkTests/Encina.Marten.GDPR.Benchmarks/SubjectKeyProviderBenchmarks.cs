@@ -56,7 +56,7 @@ public class SubjectKeyProviderBenchmarks
         var subjectId = _existingSubjectIds[0];
         var result = await _keyProvider.GetOrCreateSubjectKeyAsync(subjectId);
         byte[]? key = null;
-        result.IfRight(k => key = k);
+        result.IfRight(k => key = k.KeyMaterial);
         return key;
     }
 
@@ -66,7 +66,7 @@ public class SubjectKeyProviderBenchmarks
         var subjectId = $"new-subject-{Guid.NewGuid():N}";
         var result = await _keyProvider.GetOrCreateSubjectKeyAsync(subjectId);
         byte[]? key = null;
-        result.IfRight(k => key = k);
+        result.IfRight(k => key = k.KeyMaterial);
         return key;
     }
 

@@ -91,10 +91,12 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     {
         var evt = new DoubleSubjectEvent { PatientId = 1.5, Email = "a@example.com" };
 
-        var ex = Should.Throw<InvalidOperationException>(() => _sut.ToJson(evt));
+        var ex = Should.Throw<CryptoShreddingEncryptionException>(() => _sut.ToJson(evt));
 
+        ex.Reason.ShouldBe(CryptoShreddingEncryptionFailureReason.PropertyMisconfigured);
         ex.Message.ShouldContain(nameof(DoubleSubjectEvent));
-        ex.Message.ShouldContain(nameof(DoubleSubjectEvent.PatientId));
+        ex.Message.ShouldContain(nameof(DoubleSubjectEvent.Email));
+        ex.Message.ShouldContain("supported type");
         evt.Email.ShouldBe("a@example.com");
         _inner.DidNotReceiveWithAnyArgs().ToJson(default);
     }
@@ -207,16 +209,7 @@ public sealed class CryptoShredderSerializerSubjectIdTests : IDisposable
     {
         keyMaterial ??= new byte[32];
         _keys.GetOrCreateSubjectKeyAsync(subjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, byte[]>(keyMaterial));
-        _keys.GetSubjectInfoAsync(subjectId, Arg.Any<CancellationToken>())
-            .Returns(Right<EncinaError, SubjectEncryptionInfo>(new SubjectEncryptionInfo
-            {
-                SubjectId = subjectId,
-                Status = SubjectStatus.Active,
-                ActiveKeyVersion = 1,
-                TotalKeyVersions = 1,
-                CreatedAtUtc = DateTimeOffset.UtcNow
-            }));
+            .Returns(Right<EncinaError, SubjectEncryptionKey>(new SubjectEncryptionKey { Version = 1, KeyMaterial = keyMaterial }));
         return new StringHolder();
     }
 

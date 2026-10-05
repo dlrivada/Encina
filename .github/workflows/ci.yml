@@ -29,7 +29,9 @@ jobs:
       tests-contract: ${{ steps.filter.outputs.tests-contract }}
       tests-property: ${{ steps.filter.outputs.tests-property }}
       tests-ef: ${{ steps.filter.outputs.tests-ef }}
+      tests-other: ${{ steps.filter.outputs.tests-other }}
       infra: ${{ steps.filter.outputs.infra }}
+      shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -57,18 +59,47 @@ jobs:
               - 'src/**'
               - 'tests/Encina.PropertyTests/**'
             tests-ef:
-              - 'src/Encina.EntityFrameworkCore/**'
-              - 'tests/Encina.IntegrationTests/**/EntityFrameworkCore/**'
+              - 'src/**'
+              - 'tests/Encina.IntegrationTests/**'
+            # Any other file under tests/ (benchmarks, load tests, examples, ...): compiled by the build
+            # (-warnaserror, format check) but it runs no test job of this workflow.
+            tests-other:
+              - 'tests/**'
             infra:
               - '.github/**'
+            # Inputs that can change the result of any test suite without touching src/ or a suite's own folder
+            # (#1721). A change here makes the build and every test job run. Keep it in step with what the
+            # test projects really consume: the shared build props and package versions, the SDK and NuGet
+            # configuration, the solution, the analyzer config, the shared test settings and test
+            # infrastructure, and this workflow. No tests/Encina.Testing.* project is referenced by a test project today.
+            shared:
+              - 'Directory.Build.props'
+              - 'Directory.Build.targets'
+              - 'Directory.Packages.props'
+              - 'Directory.Build.rsp'
+              - 'global.json'
+              - 'nuget.config'
+              - 'NuGet.Config'
+              - '*.slnx'
+              - '.editorconfig'
+              - 'tests/Directory.Build.*'
+              - 'tests/xunit.runner.json'
+              - 'tests/appsettings.Testing.json'
+              - 'tests/Encina.TestInfrastructure/**'
+              - '.github/workflows/ci.yml'
+              # Templates read by tests/Encina.UnitTests/Workflows/WorkflowTemplateTests.cs.
+              - '.github/workflows/templates/**'
 
   # Build job - quality checks, build, and artifact creation
   build:
     needs: [changes]
-    # Docs-only pull requests skip the build and every test shard; ci-result treats skipped
-    # upstream jobs as success, so such a PR is green in minutes (#1097). Anything under src/,
-    # tests/, .github/ or the build props still runs the full fast tier.
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    # A pull request that touches no input of any suite (docs only) skips the build and every test
+    # job; ci-result treats skipped upstream jobs as success, so such a PR is green in minutes (#1097).
+    # Anything under src/, a suite's own folder, .github/ or a `shared` input (build props, package
+    # versions, SDK and NuGet config, shared test settings and infrastructure, this workflow: #1721)
+    # runs the build and every test job. Every test job below repeats the `shared` term, because a
+    # job whose own filter is false would otherwise be skipped while the change could break it.
+    if: needs.changes.outputs.shared == 'true' || needs.changes.outputs.src == 'true' || needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.tests-other == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -121,7 +152,7 @@ jobs:
   # Unit tests - split into shards for parallel execution
   test-unit:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-unit == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-unit == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -182,7 +213,7 @@ jobs:
   # Integration tests - split by data access provider for parallel execution
   test-integration:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-integration == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-integration == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -256,7 +287,7 @@ jobs:
   # Contract tests
   test-contract:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-contract == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-contract == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -295,7 +326,7 @@ jobs:
   # Property tests
   test-property:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-property == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-property == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -334,7 +365,7 @@ jobs:
   # Guard tests
   test-guard:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-guard == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-guard == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -378,7 +409,7 @@ jobs:
   # Note: Oracle was removed from pre-1.0 scope (see ADR-009)
   test-ef-providers:
     needs: [changes, build]
-    if: needs.changes.outputs.tests-ef == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.tests-ef == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -493,9 +524,10 @@ jobs:
   crap-gate:
     needs: [changes, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
     # Runs only for a PR that touches src/ (same `changes.src` filter `build` uses). `always()`
-    # plus the explicit failure/cancelled check (mirrors ci-result below) is required because
-    # test-ef-providers is legitimately skipped for a non-EF PR — the job's default implicit
-    # `success()` condition would treat that skip as "do not run" and the gate would never fire.
+    # plus the explicit failure/cancelled check (mirrors ci-result below) keeps the gate independent of
+    # the default implicit `success()` condition, which would treat any skipped upstream job as "do not
+    # run". A PR that touches src/ runs all six test jobs (every tests-* filter matches src/**), so the
+    # gate sees the coverage of all of them.
     if: |
       always() &&
       github.event_name == 'pull_request' &&
@@ -558,6 +590,12 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      # Closes #1670: prove the coverage-manifest generator (append-only default, --full, argument and
+      # checkout guards; #1542, #1702) still behaves before trusting the manifests it writes.
+      - name: Self-test generate-coverage-manifest.cs
+        shell: pwsh
+        run: dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --self-test
 
       - name: Check coverage citations for dangling DocRefs
         run: |

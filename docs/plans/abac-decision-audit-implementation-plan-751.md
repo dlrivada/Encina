@@ -482,7 +482,7 @@ REFERENCE FILES: Diagnostics/ABACLogMessages.cs, Diagnostics/ABACDiagnostics.cs:
 <summary>Prompt for AI Agents — Phase 7</summary>
 
 ```text
-CONTEXT: Targets per flag come from .github/coverage-manifest/Encina.Security.ABAC.json (unit 70, guard 20, contract 15, property 15); new source files are added with `dotnet run --file .github/scripts/generate-coverage-manifest.cs -- --append-only` (mechanical-fixer).
+CONTEXT: Targets per flag come from .github/coverage-manifest/Encina.Security.ABAC.json (unit 70, guard 20, contract 15, property 15); new source files are added with `dotnet run --file .github/scripts/generate-coverage-manifest.cs` (append-only by default; `--dry-run` previews; mechanical-fixer).
 TASK: Write the tests listed in the plan, executing real package code (no reflection-only tests). Use Shouldly via Encina.Testing.Shouldly, NSubstitute, FsCheck wrappers, FakeTimeProvider.
 KEY RULES: AGENTS.md section 9 (AAA, deterministic, no Thread.Sleep, builders), integration via [Collection("ADO-SqlServer")] etc., never IClassFixture for DB fixtures, outputs under artifacts/.
 REFERENCE FILES: tests/Encina.UnitTests/Security/ABAC/ABACPipelineBehaviorTests.cs:157-455, tests/Encina.ContractTests/Security/ABAC/, tests/Encina.IntegrationTests/Security/Audit/.

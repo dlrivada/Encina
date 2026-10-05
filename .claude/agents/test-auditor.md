@@ -56,7 +56,7 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 
 ## Method
 
-1. **Measure, every time — never guess.** Run the relevant test projects with `--collect "XPlat Code Coverage" --results-directory <wt>\artifacts\audit\coverage\<flag>` for each applicable flag (unit, guard, contract, property, integration) and compare the scoped files against their manifest targets. A flag you did not run is "not measured", not "assumed pass" (the lesson from #15: always mandatory).
+1. **Measure, every time — never guess.** Run the relevant test projects with `--collect "XPlat Code Coverage" --results-directory <wt>\artifacts\audit\coverage\<flag>` for each applicable flag (unit, guard, contract, property, integration) and compare the scoped files against their manifest targets. Let `dotnet` create the folders; write logs only after the folder exists; never `New-Item` the bare `artifacts/audit` or `artifacts/audit/coverage` directory (the path-ownership hook rejects it). A flag you did not run is "not measured", not "assumed pass" (the lesson from #15: always mandatory).
 2. **Missing test types.** For each scoped file, check which of unit/guard/contract/property/integration/load/benchmark apply per `AGENTS.md` §9 and whether a `.cs` test file or a `.md` justification exists for each.
 3. **Regression tests.** For every bug `issue-auditor` reported (or that this issue itself fixed), confirm a test exists that would fail without the fix.
 4. **Test quality.** Reflection-only tests (`typeof(...).GetMethod(...)` with no instantiation), asserts that cannot fail, `Thread.Sleep`, shared mutable state across tests, non-deterministic generators.
@@ -72,6 +72,8 @@ You are the test stage of the SPEC-003 audit pipeline (#1345), inside an open au
 <per scoped file, per flag: measured % vs manifest target, pass/fail; "not measured: <reason>" only when a flag genuinely does not apply>
 ## Findings
 <missing test types, missing regression tests, test-quality issues, missing real-infrastructure tests — one numbered paragraph per finding, in this exact shape: "N. **Blocker**", "N. **Major**" or "N. **Minor**" followed by " — " and the body (file:line/test name first, then what is missing or wrong); continuation lines belong to the same numbered finding until the next "N. **Severity**" line or the next "## " heading; "- none" when nothing survives verification. audit-draft-remediation.ps1's Split-Findings depends on this exact layout to draft one issue per finding; any other shape surfaces as a single Unknown-severity finding covering the whole section instead of being split further>
+## Informational (not findings)
+<observations, measurements and prose that are not findings; never put prose under "## Findings", not even after "- none" (text after "- none" is ignored by Split-Findings)>
 ## CRAP
 <pending #1346>
 ## Lessons for the pipeline

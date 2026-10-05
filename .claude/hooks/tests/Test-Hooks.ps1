@@ -1343,8 +1343,16 @@ try {
         Invoke-AuditCase 'docs-reviewer' 'A normal documentation self-review, no audit context.' $null 0 'audit-stage-guard: docs-reviewer without wia-<n> is not an audit stage'
         Set-AuditOpen $true
 
-        Invoke-AuditCase 'issue-worker' "Run the SPEC-003 audit for #$auditN end to end." $null 2 'audit-stage-guard: issue-worker SPEC-003 audit coordinator path is closed'
-        Invoke-AuditCase 'general-purpose' "Run the SPEC-003 audit for #$auditN." $null 2 'audit-stage-guard: general-purpose SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'issue-worker' "Run the SPEC-003 audit for #$auditN end to end in wia-$auditN." $null 2 'audit-stage-guard: issue-worker SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'general-purpose' "Run the SPEC-003 audit for #$auditN in wia-$auditN." $null 2 'audit-stage-guard: general-purpose SPEC-003 audit coordinator path is closed'
+        Invoke-AuditCase 'issue-worker' 'Run the audit in wia-29.' $null 2 'audit-stage-guard: issue-worker prompt naming wia-29 is denied (#1744)'
+        Invoke-AuditCase 'general-purpose' 'Run the audit in WIA-29.' $null 2 'audit-stage-guard: the audit worktree marker matches case-insensitively (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Write artifacts/knowledge/stages/code.md for the issue.' $null 2 'audit-stage-guard: issue-worker prompt naming artifacts/knowledge/stages/ (forward slash) is denied (#1744)'
+        Invoke-AuditCase 'general-purpose' 'Write artifacts\knowledge\stages\tests.md for the issue.' $null 2 'audit-stage-guard: general-purpose prompt naming the stages folder is denied (#1744)'
+        Invoke-AuditCase '' 'Run the audit in wia-29.' $null 2 'audit-stage-guard: an empty subagent_type (general-purpose) naming wia-29 is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Continue on branch audit/29 and finish it.' $null 2 'audit-stage-guard: issue-worker prompt naming audit/29 is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Write artifacts\knowledge\stages\code.md for the issue.' $null 2 'audit-stage-guard: issue-worker prompt naming artifacts\knowledge\stages\ is denied (#1744)'
+        Invoke-AuditCase 'issue-worker' 'Worktree D:\Proyectos\Encina\.claude\worktrees\w1735. Change tools/ai/audit/audit-done.ps1 so it handles X; this is part of the SPEC-003 audit pipeline.' $null 0 'audit-stage-guard: issue-worker brief on the audit tooling is allowed (#1744)'
 
         Write-AuditStage 'docs' 'docs.md' -Commit
         Invoke-AuditCase 'audit-verifier' "Audit #$auditN in worktree wia-$auditN, verify." $null 2 'audit-stage-guard: remediation stage still pending, agent spawn is out of order'
@@ -1890,6 +1898,50 @@ Test.
     # (d) "- none" (the stage agents' own convention for "nothing survives review") yields zero findings, but a
     # non-empty section the parser cannot recognize never yields zero silently: one 'Unknown' finding instead.
     Test-RemediationCase 'Split-Findings: "- none" yields zero findings' { @(Split-Findings 'code' '- none').Count -eq 0 }
+    # #1694: prose after a leading "- none" is ignored with a note; "- none." and "None" variants are honoured.
+    $noneProse = @(Split-Findings 'tests' "- none`n`nCoverage was measured for all flags and every target is met.")
+    Test-RemediationCase 'Split-Findings: "- none" plus trailing prose yields zero findings (#1694)' { $noneProse.Count -eq 0 }
+    $noneNote = @(& { [void](Split-Findings 'tests' "- none`n`nSome prose.") } 6>&1 | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { [string]$_.MessageData })
+    Test-RemediationCase 'Split-Findings: trailing text after "- none" prints a note naming the stage (#1694)' { $noneNote.Count -eq 1 -and $noneNote[0] -match "trailing text after '- none' in tests ignored" }
+    $noneAlone = @(& { [void](Split-Findings 'tests' '- none') } 6>&1 | Where-Object { $_ -is [System.Management.Automation.InformationRecord] })
+    Test-RemediationCase 'Split-Findings: "- none" alone prints no note (#1694)' { $noneAlone.Count -eq 0 }
+    $noneThenFinding = @(Split-Findings 'code' "- none`n1. **Blocker** -- real bug.")
+    Test-RemediationCase 'Split-Findings: a numbered finding after "- none" is never dropped (#1694)' { $noneThenFinding.Count -eq 1 -and $noneThenFinding[0].Severity -eq 'Blocker' }
+    Test-RemediationCase 'Split-Findings: "- none." with a period yields zero findings (#1694)' { @(Split-Findings 'code' '- none.').Count -eq 0 }
+    Test-RemediationCase 'Split-Findings: "None" in any case, with or without the dash, yields zero findings (#1694)' { @(Split-Findings 'code' 'None').Count -eq 0 -and @(Split-Findings 'code' '- NONE.').Count -eq 0 }
+    $numberedSplit = @(Split-Findings 'code' "1. **Major** -- a.`n2. **Minor** -- b.")
+    Test-RemediationCase 'Split-Findings: a numbered finding list is unchanged (#1694)' { $numberedSplit.Count -eq 2 -and $numberedSplit[0].Severity -eq 'Major' -and $numberedSplit[1].Severity -eq 'Minor' }
+    $noneOfSplit = @(Split-Findings 'code' '- none of the above were verified.')
+    Test-RemediationCase 'Split-Findings: "- none of ..." is not the none marker and stays an Unknown finding (#1694)' { $noneOfSplit.Count -eq 1 -and $noneOfSplit[0].Severity -eq 'Unknown' }
+    # #1694 review round: same-line text stays one Unknown finding; anything finding-shaped after "- none" is parsed.
+    $noneSameLine = @(Split-Findings 'code' '- none (all flags met)')
+    Test-RemediationCase 'Split-Findings: "- none (all flags met)" with same-line text stays one Unknown finding (#1694)' { $noneSameLine.Count -eq 1 -and $noneSameLine[0].Severity -eq 'Unknown' }
+    $noneShapes = [ordered]@{
+        'indented numbered'  = "- none`n  1. **Major** -- real."
+        'numbered paren'     = "- none`n1) **Major** -- real."
+        'unbold numbered'    = "- none`n1. Major -- real."
+        'bare bold severity' = "- none`n**Major** -- real."
+        'bulleted severity'  = "- none`n- **Minor**: real."
+        'bullet gap'         = "- none`n`n- Major: real.`n- Minor: other."
+        'bare severity word' = "- none`nMinor details were found in A.cs."
+        'colon form'         = "- none`n1. **Major**: real."
+        'bullet then number' = "- none`n- 1. **Major** -- real."
+        'colon after number' = "- none`n1: **Major** -- real."
+        'number inside bold' = "- none`n**1. Major** -- real."
+        'hash number'        = "- none`n#1 **Major** -- real."
+        'letter item'        = "- none`na. **Major** -- real."
+        'bracket severity'   = "- none`n[Major] foo.cs:12 real."
+        'paren severity'     = "- none`n(Major) foo.cs:12 real."
+        'italic severity'    = "- none`n*Major* real."
+        'severity label'     = "- none`nSeverity: Major real."
+        'blockquote'         = "- none`n> 1. **Major** -- real."
+        'high bold bullet'   = "- none`n- **High**: real."
+    }
+    foreach ($shapeName in $noneShapes.Keys) {
+        $shapeText = $noneShapes[$shapeName]
+        $shapeResult = @(Split-Findings 'code' $shapeText)
+        Test-RemediationCase "Split-Findings: finding-shaped text after '- none' ($shapeName) yields at least one finding (#1694)" { $shapeResult.Count -ge 1 }
+    }
     $unknownSplit = @(Split-Findings 'code' 'Some free-form paragraph with no numbered severity line at all.')
     Test-RemediationCase 'Split-Findings: an unrecognized non-empty section yields one Unknown finding, never silently zero' { $unknownSplit.Count -eq 1 -and $unknownSplit[0].Severity -eq 'Unknown' }
 
@@ -2065,6 +2117,15 @@ Test.
         Test-RemediationCase "a duplicate finding id within one stage is an error end to end (exit non-zero, names the stage and id)" { $dupId.Code -ne 0 -and $dupId.Output -match "stage 'tests'" -and $dupId.Output -match "'1'" }
         Set-Content -LiteralPath $testsStageFile -Encoding utf8 -Value $testsStageBackup
         Test-RemediationCase '#1548 a failed -Prepare (here a malformed stage) leaves the previous manifest in place' { $null -ne (Get-RemediationManifest $remWt $remN) }
+
+        # #1694 review round: the ignored-prose note reaches the manifest's lessons (and so the stage file and audit-verifier).
+        $noteN = 6161
+        $noteWt = New-RemediationFixture 'RemediationNoneNoteWt' $noteN "- none`n`nCoverage was measured for every flag."
+        $notePrepare = Invoke-Remediation $noteWt @('-Prepare', '-NoGh')
+        $noteManifest = Get-RemediationManifest $noteWt $noteN
+        Test-RemediationCase "#1694 -Prepare: prose after '- none' yields zero findings and the manifest lesson records the ignored prose" {
+            $notePrepare.Code -eq 0 -and @($noteManifest.findings).Count -eq 0 -and @($noteManifest.lessons) -contains "stage code: '- none' followed by prose; prose ignored"
+        }
 
         # ---- #1572 -Finalize: sanitizers, header/template/placeholder checks, missing drafts and lines ----
         $finN = 5151

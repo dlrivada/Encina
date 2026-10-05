@@ -134,7 +134,8 @@ public sealed class ABACErrorsTests
         var error = ABACErrors.EvaluationFailed(typeof(string), ex);
 
         error.GetCode().IfNone("").ShouldBe(ABACErrors.EvaluationFailedCode);
-        error.Message.ShouldContain("test error");
+        error.Message.ShouldNotContain("test error");
+        error.GetDetails()["exceptionType"].ShouldBe(typeof(InvalidOperationException).FullName);
     }
 
     [Fact]

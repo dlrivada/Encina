@@ -22,6 +22,8 @@ namespace Encina.Marten.GDPR;
 /// <item><description>The <see cref="CryptoShreddedAttribute.SubjectIdProperty"/> references a valid,
 /// readable property on the declaring type, of a supported subject-id type (<c>string</c>, <c>Guid</c>,
 /// an integer type or a strongly-typed id); any other type is a configuration error (#1174)</description></item>
+/// <item><description>Each crypto-shredded property is a <c>string</c> with a setter or init accessor, so the
+/// serializer can replace its value with the ciphertext; a getter-only property is a configuration error (#1646)</description></item>
 /// </list>
 /// <para>
 /// Pre-populates the <see cref="CryptoShreddedPropertyCache"/> so that the first serialization
@@ -155,7 +157,40 @@ internal sealed class CryptoShreddingAutoRegistrationHostedService : IHostedServ
                 + $"but is of type '{FormatTypeName(property.PropertyType)}'. Only string properties can be encrypted.");
         }
 
+        ValidateWritable(type, property, validationErrors);
         ValidateSubjectIdProperty(type, property, cryptoAttr, validationErrors);
+    }
+
+    // The serializer overwrites the value with its ciphertext; a property it cannot write would be stored
+    // in plaintext, so serialization refuses it and the scan rejects it here (#1646).
+    private void ValidateWritable(Type type, PropertyInfo property, List<string> validationErrors)
+    {
+        if (CryptoShreddedPropertyCache.CanSetProperty(type, property))
+        {
+            return;
+        }
+
+        ReportError(
+            validationErrors,
+            $"Property '{property.Name}' on type '{type.FullName}' has [CryptoShredded] " + DescribeWritableProblem(type));
+    }
+
+    private static string DescribeWritableProblem(Type type)
+    {
+        if (type.IsValueType)
+        {
+            return "but is declared on a struct: the serializer receives the event boxed and cannot replace the value "
+                + "with the ciphertext. Declare the event as a class or a record class.";
+        }
+
+        if (type.IsInterface)
+        {
+            return "but is declared on an interface: the attribute is not inherited by the implementing property, "
+                + "so it would never encrypt. Put [CryptoShredded] on the property of the implementing class or record class.";
+        }
+
+        return "but has no setter or init accessor, so its value cannot be replaced with the ciphertext. "
+            + "Add a setter or an init accessor (positional record properties already have one).";
     }
 
     private void ValidateSubjectIdProperty(

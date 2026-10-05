@@ -14,6 +14,9 @@ internal sealed class TestCdcConnector : ICdcConnector
 {
     private readonly List<Either<EncinaError, ChangeEvent>> _events = [];
     private long _currentPosition;
+    private readonly object _streamCallLock = new();
+    private readonly List<(int Count, TaskCompletionSource Waiter)> _streamCallWaiters = [];
+    private int _streamCallCount;
 
     public string ConnectorId { get; }
 
@@ -56,6 +59,52 @@ internal sealed class TestCdcConnector : ICdcConnector
     }
 
     /// <summary>
+    /// Completes when <see cref="StreamChangesAsync"/> has started at least
+    /// <paramref name="count"/> times. Because the processor consumes one stream call
+    /// completely before polling again, stream call <c>N + 1</c> proves that call <c>N</c>
+    /// (its dispatches and position saves) has finished.
+    /// </summary>
+    public Task WaitForStreamCallsAsync(int count)
+    {
+        lock (_streamCallLock)
+        {
+            if (_streamCallCount >= count)
+            {
+                return Task.CompletedTask;
+            }
+
+            var waiter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _streamCallWaiters.Add((count, waiter));
+            return waiter.Task;
+        }
+    }
+
+    private void RecordStreamCall()
+    {
+        List<TaskCompletionSource>? ready = null;
+        lock (_streamCallLock)
+        {
+            _streamCallCount++;
+            for (var i = _streamCallWaiters.Count - 1; i >= 0; i--)
+            {
+                if (_streamCallWaiters[i].Count <= _streamCallCount)
+                {
+                    (ready ??= []).Add(_streamCallWaiters[i].Waiter);
+                    _streamCallWaiters.RemoveAt(i);
+                }
+            }
+        }
+
+        if (ready is not null)
+        {
+            foreach (var waiter in ready)
+            {
+                waiter.TrySetResult();
+            }
+        }
+    }
+
+    /// <summary>
     /// Clears all queued events.
     /// </summary>
     public void ClearEvents()
@@ -75,6 +124,8 @@ internal sealed class TestCdcConnector : ICdcConnector
             snapshot = [.. _events];
             _events.Clear();
         }
+
+        RecordStreamCall();
 
         foreach (var evt in snapshot)
         {
