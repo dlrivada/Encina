@@ -124,6 +124,24 @@ New documents carry no version.
 
 The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
+### Reconciliation behavior and safety
+
+1. A merged PR that does not close every issue a card/front covers (plan or docs PR "Refs #n", or a PR for one issue of a group) does not finish it: the reconciler then searches the open/merged PRs by the issues for the implementation PR (a front advances to review when the "Fixes #n" PR opens and to done when it merges, and the card/front pr field follows). Exception: a plan card (kind `plan` or `docs`, or a title containing the word plan) is finished (merged) by its own merged plan PR.
+
+2. An open PR moves only queued/running/pr-open cards: a hand-set blocked or stopped card is left alone; a queued card with a draft PR becomes running (not pr-open); a running card stays running.
+
+3. Flow front: PR closed without merging -> status stopped with a note; issue closed whatever its age (the issue state of every open front is queried, not only the 14-day window) -> closed / close-out, or closed / not-planned when the stateReason is not planned.
+
+4. Audits created by the reconciler take outcome and pipeline only from progress.csv columns of those names (otherwise null) and the counts go in the note; nothing is invented.
+
+5. meta/board.current is cleared (null) when no audit is open.
+
+6. Safety: the run aborts with an error and writes no batch file if the export lacks work/, flow/, audits/ or meta/board.json, or the versions sidecar is missing; the scheduled session must list all four collections fully before running, so that an incomplete export can never make an existing document look new (a `set` is unpinned).
+
+7. -Out may be a bare file name (resolved against the current directory); earlier -Out files are removed first.
+
+8. Self-test: also runs the script's main block end to end with stubbed gh/git (bare -Out name, split, stale file removal, incomplete-export abort).
+
 ### Scheduled task
 
 A Claude session that the orchestrator creates after merge runs this every 30 minutes:
