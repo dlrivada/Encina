@@ -213,7 +213,7 @@ exit 0
     $headers = @([regex]::Matches($body, '(?m)^## (.+?)\s*$') | ForEach-Object { $_.Groups[1].Value })
     $expectedHeaders = @('Type', 'Description', 'Location', 'Current Behavior', 'Expected Behavior', 'Root Cause', 'Proposed Fix', 'Priority', 'Effort Estimate', 'Related Issues')
     Assert-That 'template headers verbatim and in order' (($headers -join '|') -eq ($expectedHeaders -join '|')) ($headers -join '|')
-    Assert-That 'three checkboxes with the severity' ($body.Contains('- [ ] Docs page A is stale (Low)') -and $body.Contains('- [ ] Docs page B is stale (High)') -and $body.Contains('- [ ] Raise the unit target for Encina.Foo (Medium)')) $body
+    Assert-That 'three checkboxes with the severity' ($body.Contains('- [ ] Docs page A is stale (Low)') -and $body.Contains('- [ ] Docs page B is stale (High)') -and $body.Contains('- [ ] Raise the unit target for Encina.Foo' + "`n")) $body
     Assert-That 'type ticks Documentation gap and Missing tests' ($body.Contains('- [x] Documentation gap') -and $body.Contains('- [x] Missing tests') -and $body.Contains('- [ ] Other')) $body
     Assert-That 'priority is the highest (High) and effort the largest (Medium)' ($body -match '(?m)^- \[x\] \*\*High\*\*' -and $body -notmatch '(?m)^- \[x\] \*\*Low\*\*' -and $body -match '(?m)^- \[x\] Medium \(1-4 hours\)') $body
     $kept = $true; $missing = @()

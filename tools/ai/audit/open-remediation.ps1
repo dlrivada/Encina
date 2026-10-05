@@ -147,7 +147,7 @@ function Open-Consolidated($Drafts) {
             if (-not $perDraft.ContainsKey($Header)) { $perDraft[$Header] = [System.Collections.Generic.List[string]]::new() }
             $perDraft[$Header].Add($Text)
         }
-        $dPrio = 'Medium'
+        $dPrio = ''   # a draft without a Priority section (test_implementation.md has none) shows no invented severity
         if ($p.Test) { $anyTest = $true; [void]$typeTicked.Add('Missing tests') }
         if ($p.Draft.Kind -eq 'docs') { [void]$typeTicked.Add('Documentation gap') }
         foreach ($s in $p.Sections) {
@@ -169,9 +169,11 @@ function Open-Consolidated($Drafts) {
                 'Related Issues' {
                     foreach ($line in ($s.Text -split "`r?`n")) {
                         if ($line -match '^\s*-\s*#_+') { continue }
-                        $ref = [regex]::Match($line, '#(\d+)').Groups[1].Value
-                        if ($ref -eq "$Issue" -or -not $line.Trim()) { continue }
-                        $key = if ($ref) { "#$ref" } else { $line.Trim() }
+                        $refs = @([regex]::Matches($line, '#(\d+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+                        if (-not $line.Trim() -or $line -match '^\s*-\s*none\s*$') { continue }
+                        # Only a line that refers to nothing but the audited issue is replaced by the canonical line below.
+                        if ($refs.Count -eq 1 -and $refs[0] -eq "$Issue") { continue }
+                        $key = if ($refs.Count -eq 1) { "#$($refs[0])" } else { $line.Trim() }
                         if ($relatedSeen.Add($key)) { $related.Add($line.TrimEnd()) }
                     }
                 }
@@ -188,7 +190,7 @@ function Open-Consolidated($Drafts) {
                 default { Add-Text 'Current Behavior' ("#### $($s.Name)`n" + $text) }
             }
         }
-        $checklist.Add("- [ ] $t ($dPrio)")
+        $checklist.Add($(if ($dPrio) { "- [ ] $t ($dPrio)" } else { "- [ ] $t" }))
         foreach ($h in $perDraft.Keys) { $target[$h].Add("### $t`n`n" + ($perDraft[$h] -join "`n`n")) }
     }
 
@@ -223,7 +225,8 @@ function Open-Consolidated($Drafts) {
     }
     $body = ($bodyParts -join "`n`n") + "`n"
 
-    $title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $k findings (docs and coverage obligations)"
+    $noun = if ($k -eq 1) { 'finding' } else { 'findings' }
+    $title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $k $noun (docs and coverage obligations)"
     $lab = @('technical-debt'); if ($anyTest) { $lab += 'area-testing' }
     $lab = @($lab | Where-Object { $labels -contains $_ })
     if (-not $lab) { $lab = @('technical-debt') }
