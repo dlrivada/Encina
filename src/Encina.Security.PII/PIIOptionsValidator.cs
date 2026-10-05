@@ -51,7 +51,7 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 
     private static string? FindFailure(PIIOptions options)
     {
-        if (options.RegexTimeout <= TimeSpan.Zero || options.RegexTimeout.TotalMilliseconds >= int.MaxValue)
+        if (options.RegexTimeout <= TimeSpan.Zero || options.RegexTimeout.TotalMilliseconds > int.MaxValue - 1)
         {
             return "PIIOptions.RegexTimeout must be greater than zero and shorter than about 24 days.";
         }

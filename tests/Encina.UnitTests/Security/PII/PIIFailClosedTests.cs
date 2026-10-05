@@ -108,11 +108,15 @@ public sealed class PIIFailClosedTests : IDisposable
             record.Message.ShouldNotContain(ValueSentinel);
             record.Message.ShouldNotContain(PatternSentinel);
             record.Message.ShouldNotContain(MessageSentinel);
-            record.Exception?.ToString().ShouldNotContain(MessageSentinel);
+            var exceptionText = record.Exception?.ToString() ?? string.Empty;
+            exceptionText.ShouldNotContain(ValueSentinel);
+            exceptionText.ShouldNotContain(PatternSentinel);
+            exceptionText.ShouldNotContain(MessageSentinel);
             foreach (var pair in record.StructuredState ?? [])
             {
                 (pair.Value ?? string.Empty).ShouldNotContain(ValueSentinel);
                 (pair.Value ?? string.Empty).ShouldNotContain(PatternSentinel);
+                (pair.Value ?? string.Empty).ShouldNotContain(MessageSentinel);
             }
         }
     }
@@ -130,6 +134,7 @@ public sealed class PIIFailClosedTests : IDisposable
         var warning = logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning);
         warning.Id.Id.ShouldBe(8021);
         warning.Message.ShouldContain(pattern.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        warning.Exception.ShouldBeOfType<RedactedException>();
         AssertNothingSensitiveLogged(logger);
     }
 
@@ -145,6 +150,7 @@ public sealed class PIIFailClosedTests : IDisposable
 
         result.ShouldBe(new string('*', value.Length));
         logger.Collector.GetSnapshot().Single(r => r.Level == LogLevel.Warning).Id.Id.ShouldBe(8021);
+        AssertNothingSensitiveLogged(logger);
     }
 
     [Fact]
@@ -283,6 +289,15 @@ public sealed class PIIFailClosedTests : IDisposable
 
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain("RegexTimeout");
+    }
+
+    [Fact]
+    public void Validator_LargestTimeoutRegexAccepts_IsValidAndUsableByMask()
+    {
+        var options = new PIIOptions { RegexTimeout = TimeSpan.FromMilliseconds(int.MaxValue - 1) };
+
+        new PIIOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
+        CreateMasker(options, new FakeLogger<PIIMasker>()).Mask("12345", @"\d").ShouldBe("*****");
     }
 
     [Fact]
