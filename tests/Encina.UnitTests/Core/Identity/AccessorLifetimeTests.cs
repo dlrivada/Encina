@@ -12,6 +12,9 @@ public sealed class AccessorLifetimeTests
 
     private static IRequestContext UserContext(string user) => TestRequestContext.For(TestIdentity.User(user));
 
+    // Anonymous contexts told apart by correlation id: the setter refuses to swap one user for another.
+    private static IRequestContext Anonymous(string correlationId) => RequestContext.CreateForTest(correlationId: correlationId);
+
     [Fact]
     public async Task Push_ThenPop_RestoresThePreviousContext()
     {
@@ -49,14 +52,18 @@ public sealed class AccessorLifetimeTests
     {
         await Task.Yield();
         var gate = new TaskCompletionSource();
+        var setDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var holder = RequestContextAccessor.Push(UserContext("alice"));
         var captured = Task.Run(async () =>
         {
-            _accessor.RequestContext = UserContext("set-inside");
+            _accessor.RequestContext = Anonymous("set-inside");
+            setDone.SetResult();
             await gate.Task;
             return _accessor.RequestContext;
         });
 
+        // The value is set while the scope is live, so it is bound to it.
+        await setDone.Task;
         RequestContextAccessor.Pop(holder);
         gate.SetResult();
 
@@ -81,7 +88,7 @@ public sealed class AccessorLifetimeTests
     }
 
     [Fact]
-    public async Task EndingAScopeFromAnotherFlow_NeverInstallsItsParentThere()
+    public async Task EndingAScopeFromAnotherFlow_AfterThatFlowSetItsOwnValue_NeverInstallsItsParentThere()
     {
         await Task.Yield();
         _accessor.RequestContext = UserContext("alice");
@@ -89,15 +96,70 @@ public sealed class AccessorLifetimeTests
 
         var seenInOtherFlow = await Task.Run(() =>
         {
-            _accessor.RequestContext = UserContext("bob");
+            RequestContextAccessor.Push(Anonymous("other-flow"));
             var inOrder = RequestContextAccessor.Pop(holder);
             return (inOrder, _accessor.RequestContext?.UserId);
         });
 
-        // The other flow never sees alice (the parent): its own value was set inside the ended scope.
+        // The other flow's current scope is its own: ending the job scope there is out of order.
         seenInOtherFlow.inOrder.ShouldBeFalse();
         seenInOtherFlow.UserId.ShouldBeNull();
         _accessor.RequestContext.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task SettingAValueInsideAScope_ThenEndingItInOrder_RestoresTheOuterContext()
+    {
+        await Task.Yield();
+        var outer = UserContext("alice");
+        _accessor.RequestContext = outer;
+        var scope = RequestContextAccessor.Push(Anonymous("scope"));
+        _accessor.RequestContext = Anonymous("set-inside");
+
+        RequestContextAccessor.Pop(scope).ShouldBeTrue();
+
+        _accessor.RequestContext.ShouldBeSameAs(outer);
+    }
+
+    [Fact]
+    public async Task AfterAnOutOfOrderEnd_ANewPushInTheOwningFlow_IsReadable()
+    {
+        await Task.Yield();
+        var outer = RequestContextAccessor.Push(UserContext("outer"));
+        RequestContextAccessor.Push(UserContext("inner"));
+        RequestContextAccessor.Pop(outer).ShouldBeFalse();
+        _accessor.RequestContext.ShouldBeNull();
+
+        var fresh = RequestContextAccessor.Push(Anonymous("fresh"));
+
+        _accessor.RequestContext!.CorrelationId.ShouldBe("fresh");
+        RequestContextAccessor.Pop(fresh).ShouldBeTrue();
+        _accessor.RequestContext.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task AFlowWhoseScopeEnded_CanSetAndPushANewReadableContext()
+    {
+        await Task.Yield();
+        var gate = new TaskCompletionSource();
+        var holder = RequestContextAccessor.Push(UserContext("alice"));
+        var captured = Task.Run(async () =>
+        {
+            await gate.Task;
+            var afterEnd = _accessor.RequestContext;
+            _accessor.RequestContext = Anonymous("set-after-end");
+            var afterSet = _accessor.RequestContext?.CorrelationId;
+            RequestContextAccessor.Push(UserContext("bob"));
+            return (afterEnd, afterSet, afterPush: _accessor.RequestContext?.UserId);
+        });
+
+        RequestContextAccessor.Pop(holder).ShouldBeTrue();
+        gate.SetResult();
+
+        var seen = await captured;
+        seen.afterEnd.ShouldBeNull();
+        seen.afterSet.ShouldBe("set-after-end");
+        seen.afterPush.ShouldBe("bob");
     }
 
     [Fact]
@@ -118,10 +180,10 @@ public sealed class AccessorLifetimeTests
         var scope = RequestContextAccessor.Push(UserContext("scope"));
         for (var i = 0; i < 1000; i++)
         {
-            _accessor.RequestContext = UserContext($"user-{i}");
+            _accessor.RequestContext = Anonymous($"ctx-{i}");
         }
 
-        _accessor.RequestContext!.UserId.ShouldBe("user-999");
+        _accessor.RequestContext!.CorrelationId.ShouldBe("ctx-999");
         RequestContextAccessor.Pop(scope);
         _accessor.RequestContext.ShouldBeNull();
     }
@@ -134,8 +196,8 @@ public sealed class AccessorLifetimeTests
 
         _accessor.RequestContext = null;
         _accessor.RequestContext.ShouldBeNull();
-        _accessor.RequestContext = UserContext("again");
-        RequestContextAccessor.Pop(scope);
+        _accessor.RequestContext = Anonymous("again");
+        RequestContextAccessor.Pop(scope).ShouldBeTrue();
 
         _accessor.RequestContext.ShouldBeNull();
     }

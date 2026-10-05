@@ -46,8 +46,10 @@ internal static class AmbientRequestContext
     /// </summary>
     /// <remarks>
     /// <list type="number">
-    /// <item><description>An explicit context is checked against the ambient identity (see below)
-    /// and, when accepted, used as-is.</description></item>
+    /// <item><description>An explicit context is snapshotted (a non-<see cref="RequestContext"/>
+    /// implementation is copied into an immutable <see cref="RequestContext"/>), the snapshot is
+    /// checked against the ambient identity (see below) and, when accepted, the snapshot is what the
+    /// dispatch runs with.</description></item>
     /// <item><description>With no ambient context, a fresh anonymous one is created (correlation id
     /// from <see cref="System.Diagnostics.Activity.Current"/>).</description></item>
     /// <item><description>An ambient context seen while no dispatch is in flight belongs to an entry
@@ -59,7 +61,8 @@ internal static class AmbientRequestContext
     /// </list>
     /// <para>
     /// <b>Explicit-context rule.</b> An explicit context whose identity is authenticated and differs
-    /// (kind or user id) from the ambient identity logs Warning 165 with both kinds (never ids). When
+    /// (kind, user id, roles or permissions) from the ambient identity logs Warning 165 with both
+    /// kinds (never ids). When
     /// the ambient identity is a <see cref="IdentityKind.User"/>, the dispatch is refused with
     /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>: a dispatch cannot run a user's request
     /// under someone else's identity. An explicit anonymous context, or one with the ambient
@@ -94,17 +97,49 @@ internal static class AmbientRequestContext
         IRequestContext? ambient,
         ILogger logger)
     {
-        var requested = IdentityOf(explicitContext);
+        // Check and dispatch the same immutable snapshot: a foreign implementation could return one
+        // identity to the check and another to the handlers.
+        var snapshot = RequestContext.CopyOf(explicitContext);
+        var requested = snapshot.Identity;
         var current = IdentityOf(ambient);
-        if (!requested.IsAuthenticated || IsSameIdentity(requested, current))
+        if (!IsIdentityChange(requested, current))
         {
-            return Right<EncinaError, IRequestContext>(explicitContext);
+            return Right<EncinaError, IRequestContext>(snapshot);
         }
 
         return current.Kind == IdentityKind.User
             ? Refuse(requested, current, logger)
-            : Accept(explicitContext, requested, current, logger);
+            : Accept(snapshot, requested, current, logger);
     }
+
+    /// <summary>
+    /// Applies the explicit-context rule to a direct set of the ambient context: replacing an ambient
+    /// <see cref="IdentityKind.User"/> with a different authenticated identity logs Warning 165 and
+    /// throws; any other change of authenticated identity logs Warning 165 and is allowed.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The set would replace an ambient user with a different authenticated identity.</exception>
+    internal static void EnsureReplaceable(IRequestContext? ambient, IRequestContext? replacement, ILogger logger)
+    {
+        var requested = IdentityOf(replacement);
+        var current = IdentityOf(ambient);
+        if (!IsIdentityChange(requested, current))
+        {
+            return;
+        }
+
+        if (current.Kind == IdentityKind.User)
+        {
+            RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused");
+            throw new InvalidOperationException(
+                $"The ambient request context carries an authenticated user; it cannot be replaced by a context with a different {requested.Kind} identity. End the user's scope before running as another identity.");
+        }
+
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "accepted");
+    }
+
+    // An anonymous context never changes the identity; an authenticated one does unless it is the same caller.
+    private static bool IsIdentityChange(RequestIdentity requested, RequestIdentity current) =>
+        requested.IsAuthenticated && !requested.IsSameAs(current);
 
     private static Either<EncinaError, IRequestContext> Refuse(RequestIdentity requested, RequestIdentity current, ILogger logger)
     {
@@ -126,8 +161,19 @@ internal static class AmbientRequestContext
     private static RequestIdentity IdentityOf(IRequestContext? context) =>
         context?.Identity ?? RequestIdentity.Anonymous;
 
-    private static bool IsSameIdentity(RequestIdentity left, RequestIdentity right) =>
-        left.Kind == right.Kind && string.Equals(left.UserId, right.UserId, StringComparison.Ordinal);
+    // The dispatcher has already applied the explicit-context rule (or is restoring the value it
+    // replaced), so the default accessor is set without it; any other accessor gets a plain set.
+    private static void SetAmbient(IRequestContextAccessor accessor, IRequestContext? context)
+    {
+        if (accessor is RequestContextAccessor)
+        {
+            RequestContextAccessor.SetUnchecked(context);
+        }
+        else
+        {
+            accessor.RequestContext = context;
+        }
+    }
 
     /// <summary>
     /// Makes <paramref name="context"/> the ambient context and marks a dispatch as in flight until
@@ -141,7 +187,7 @@ internal static class AmbientRequestContext
         var setContext = !ReferenceEquals(previous, context);
         if (setContext)
         {
-            accessor.RequestContext = context;
+            SetAmbient(accessor, context);
         }
 
         // Nested dispatches find the flag already set; only the outermost one sets and clears it.
@@ -231,7 +277,7 @@ internal static class AmbientRequestContext
             // A null accessor means the context was already ambient: there is nothing to restore.
             if (_accessor is not null)
             {
-                _accessor.RequestContext = _previous;
+                SetAmbient(_accessor, _previous);
             }
 
             if (_leaveDispatch)

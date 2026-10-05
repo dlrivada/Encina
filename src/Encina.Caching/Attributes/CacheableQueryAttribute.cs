@@ -118,6 +118,10 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
     public Func<TRequest, IRequestContext, string>? KeyGenerator { get; init; }
 
     /// <inheritdoc/>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="VaryByUser"/> is set and the request identity is not an authenticated user; such a
+    /// request must bypass the cache instead of sharing one key across callers.
+    /// </exception>
     public string GenerateKey(TRequest request, IRequestContext context)
     {
         if (KeyGenerator is not null)
@@ -134,9 +138,10 @@ public sealed class CacheConfiguration<TRequest> : ICacheConfiguration<TRequest>
         {
             parts.Add($"t:{context.TenantId}");
         }
-        if (VaryByUser && !string.IsNullOrEmpty(context.UserId))
+        // A non-user identity has no VaryByUser key: the caller bypasses the cache.
+        if (VaryByUser)
         {
-            parts.Add($"u:{context.UserId}");
+            parts.Add($"u:{CacheUserIdentity.RequireUserId(context)}");
         }
         parts.Add(typeName);
         parts.Add(hash.ToString("x8", System.Globalization.CultureInfo.InvariantCulture));

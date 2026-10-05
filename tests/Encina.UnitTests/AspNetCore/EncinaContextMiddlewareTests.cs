@@ -68,6 +68,41 @@ public sealed class EncinaContextMiddlewareTests
 
     #endregion
 
+    #region Timestamp
+
+    [Fact]
+    public async Task InvokeAsync_StampsTheContextFromTheRequestTimeProvider()
+    {
+        var now = new DateTimeOffset(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
+        var middleware = CreateMiddleware();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<TimeProvider>(new Microsoft.Extensions.Time.Testing.FakeTimeProvider(now))
+                .BuildServiceProvider()
+        };
+
+        await middleware.InvokeAsync(context, _accessor);
+
+        _capturedContext.ShouldNotBeNull();
+        _capturedContext!.Timestamp.ShouldBe(now);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithoutRequestServices_FallsBackToTheSystemClock()
+    {
+        var middleware = CreateMiddleware();
+        var context = new DefaultHttpContext { RequestServices = null! };
+        var before = TimeProvider.System.GetUtcNow();
+
+        await middleware.InvokeAsync(context, _accessor);
+
+        _capturedContext.ShouldNotBeNull();
+        _capturedContext!.Timestamp.ShouldBeInRange(before, TimeProvider.System.GetUtcNow());
+    }
+
+    #endregion
+
     #region UserId
 
     // Interim (#1705 phase 1): the middleware no longer maps claims itself; the identity is built

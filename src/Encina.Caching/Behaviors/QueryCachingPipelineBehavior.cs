@@ -24,6 +24,11 @@ namespace Encina.Caching;
 /// <para>
 /// Only successful responses (Right side of Either) are cached. Error responses are not cached.
 /// </para>
+/// <para>
+/// A request marked <see cref="CacheAttribute.VaryByUser"/> is cached only for an authenticated
+/// <see cref="IdentityKind.User"/>. Any other identity (anonymous, a service) bypasses the cache with
+/// no read and no write, and logs a Debug message (EventId 3512) with the identity kind only.
+/// </para>
 /// </remarks>
 public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -76,6 +81,13 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         // Check if caching is enabled and request has [Cache] attribute
         if (!_options.EnableQueryCaching || CacheAttribute is null)
         {
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        // A per-user entry needs a user: any other identity bypasses the cache (no read, no write).
+        if (CacheAttribute.VaryByUser && !CacheUserIdentity.IsUser(context))
+        {
+            LogVaryByUserBypassed(_logger, typeof(TRequest).Name, CacheUserIdentity.KindOf(context));
             return await nextStep().ConfigureAwait(false);
         }
 
@@ -233,6 +245,15 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         string requestType,
         string cacheKey,
         Exception exception);
+
+    [LoggerMessage(
+        EventId = 3512,
+        Level = LogLevel.Debug,
+        Message = "{RequestType} varies by user but the request identity is {IdentityKind}, not an authenticated user; the cache is bypassed (no read, no write)")]
+    private static partial void LogVaryByUserBypassed(
+        ILogger logger,
+        string requestType,
+        IdentityKind identityKind);
 }
 
 /// <summary>

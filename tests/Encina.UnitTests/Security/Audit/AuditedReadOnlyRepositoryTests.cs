@@ -439,8 +439,9 @@ public sealed class AuditedReadOnlyRepositoryTests
     // ── Sampling / exclusion logic ──────────────────────────────────────
 
     [Fact]
-    public async Task ExcludeSystemAccess_NoUserId_DoesNotAudit()
+    public async Task ExcludeSystemAccess_AnonymousIdentity_StillAudits()
     {
+        // Only a declared service identity is system access: an anonymous read is audited (fail closed).
         var h = new Harness(samplingRate: 1.0);
         h.Options.ExcludeSystemAccess = true;
         h.RequestContext.Identity.Returns(TestIdentity.Anonymous);
@@ -451,7 +452,8 @@ public sealed class AuditedReadOnlyRepositoryTests
         var sut = h.Create();
         await sut.GetAllAsync();
 
-        h.LoggedEntries.ShouldBeEmpty();
+        h.LoggedEntries.Count.ShouldBe(1);
+        h.LoggedEntries[0].UserId.ShouldBeNull();
     }
 
     [Fact]

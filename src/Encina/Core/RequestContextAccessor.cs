@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Encina;
 
 /// <summary>
@@ -24,8 +27,15 @@ namespace Encina;
 /// disposing scopes out of order never resurrects an ended identity.
 /// </para>
 /// <para>
+/// A flow whose current holder has ended (its scope ended, or an outer scope ended out of order)
+/// reads no context, and the next <see cref="Push"/> or set starts a fresh chain, so the flow can
+/// establish a new readable context.
+/// </para>
+/// <para>
 /// The public setter is host infrastructure (middleware, circuit handlers, identity scopes,
-/// the dispatcher); application code reads the context and never sets it.
+/// the dispatcher); application code reads the context and never sets it. It follows the
+/// explicit-context rule: replacing an ambient authenticated user with a context of a different
+/// authenticated identity is refused (Warning 165 and <see cref="InvalidOperationException"/>).
 /// </para>
 /// <para>
 /// <c>AddEncina</c> registers it as a singleton. Hosts that build <see cref="Encina"/> by hand get an
@@ -36,17 +46,48 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
 {
     private static readonly AsyncLocal<ContextHolder?> CurrentHolder = new();
 
+    private readonly ILogger _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RequestContextAccessor"/> class.
+    /// </summary>
+    /// <param name="logger">The logger for refused or changed identities (Warning 165); none by default.</param>
+    public RequestContextAccessor(ILogger<RequestContextAccessor>? logger = null)
+    {
+        _logger = logger ?? (ILogger)NullLogger.Instance;
+    }
+
     /// <inheritdoc />
     /// <remarks>
-    /// Setting a value replaces the current one in this flow and stays bound to the innermost
+    /// <para>
+    /// Setting a value replaces the current one in this flow and stays bound to the innermost live
     /// scope holder (see <see cref="Push"/>): when that scope ends, the value is no longer readable.
     /// Only scope holders are chained, so repeated sets in a long-lived flow never grow the chain.
+    /// </para>
+    /// <para>
+    /// When the ambient identity is an authenticated <see cref="IdentityKind.User"/> and
+    /// <paramref name="value"/> carries a different authenticated identity, the set is refused:
+    /// Warning 165 is logged (kinds only) and <see cref="InvalidOperationException"/> is thrown.
+    /// Any other change of authenticated identity is allowed and logs Warning 165.
+    /// </para>
     /// </remarks>
+    /// <exception cref="InvalidOperationException">The set would replace an ambient user with a different authenticated identity.</exception>
     public IRequestContext? RequestContext
     {
         get => CurrentHolder.Value?.ReadContext();
-        set => CurrentHolder.Value = new ContextHolder(value, NearestScope(CurrentHolder.Value), isScope: false);
+        set
+        {
+            AmbientRequestContext.EnsureReplaceable(CurrentHolder.Value?.ReadContext(), value, _logger);
+            SetUnchecked(value);
+        }
     }
+
+    /// <summary>
+    /// Sets the ambient value without the explicit-context rule. Internal: used by the dispatcher,
+    /// which has already applied the rule (or is restoring the value it replaced).
+    /// </summary>
+    internal static void SetUnchecked(IRequestContext? value) =>
+        CurrentHolder.Value = new ContextHolder(value, NearestScope(LiveOrNull(CurrentHolder.Value)), isScope: false);
 
     /// <summary>
     /// Makes <paramref name="context"/> ambient in a new scope holder and returns that holder, which
@@ -56,10 +97,14 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var holder = new ContextHolder(context, CurrentHolder.Value, isScope: true);
+        var holder = new ContextHolder(context, LiveOrNull(CurrentHolder.Value), isScope: true);
         CurrentHolder.Value = holder;
         return holder;
     }
+
+    // An ended holder (or one bound to an ended scope) starts no chain: the new value begins a fresh one.
+    private static ContextHolder? LiveOrNull(ContextHolder? holder) =>
+        holder is not null && holder.IsValid() ? holder : null;
 
     // A non-scope holder's parent is always a scope holder (or null), so this is the innermost scope.
     private static ContextHolder? NearestScope(ContextHolder? holder) =>
@@ -67,22 +112,22 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
 
     /// <summary>
     /// Ends <paramref name="holder"/>: invalidates it (and so every holder pushed over it) and, when it
-    /// is the current holder of this flow, restores the holder it replaced.
+    /// is the current scope of this flow, restores the holder it replaced.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> when <paramref name="holder"/> was the current holder (LIFO);
-    /// <see langword="false"/> when it was ended out of order or already ended. Either way the
-    /// ended identity is never readable again.
+    /// <see langword="true"/> when <paramref name="holder"/> was the current scope of this flow (LIFO),
+    /// including when a value was set inside it; <see langword="false"/> when it was ended out of order
+    /// or already ended. Either way the ended identity is never readable again.
     /// </returns>
     internal static bool Pop(ContextHolder holder)
     {
         ArgumentNullException.ThrowIfNull(holder);
 
-        var inOrder = ReferenceEquals(CurrentHolder.Value, holder) && !holder.IsDisposed;
+        var inOrder = !holder.IsDisposed && ReferenceEquals(NearestScope(CurrentHolder.Value), holder);
         holder.Invalidate();
 
-        // Restore only in the flow that owns the holder: ending it from another flow (or out of order)
-        // must never install the parent identity into that other flow. The ended holder already reads null.
+        // Restore only when the holder is this flow's current scope: ending it out of order must never
+        // install its parent identity. The ended holder already reads null.
         if (inOrder)
         {
             CurrentHolder.Value = holder.Parent;
@@ -96,7 +141,9 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     /// </summary>
     internal sealed class ContextHolder
     {
-        private IRequestContext? _context;
+        // Volatile: a holder is invalidated by one flow and read by every flow that captured it.
+        private volatile IRequestContext? _context;
+        private volatile bool _disposed;
 
         internal ContextHolder(IRequestContext? context, ContextHolder? parent, bool isScope)
         {
@@ -115,7 +162,7 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
         internal bool IsScope { get; }
 
         /// <summary>Gets a value indicating whether this holder has ended.</summary>
-        internal bool IsDisposed { get; private set; }
+        internal bool IsDisposed => _disposed;
 
         /// <summary>Returns the context, or <see langword="null"/> when this holder or an ancestor has ended.</summary>
         internal IRequestContext? ReadContext() => IsValid() ? _context : null;
@@ -123,11 +170,12 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
         /// <summary>Ends this holder.</summary>
         internal void Invalidate()
         {
+            _disposed = true;
             _context = null;
-            IsDisposed = true;
         }
 
-        private bool IsValid()
+        /// <summary>Determines whether neither this holder nor any holder it is bound to has ended.</summary>
+        internal bool IsValid()
         {
             for (var holder = this; holder is not null; holder = holder.Parent)
             {

@@ -25,6 +25,44 @@ public sealed class RequestContextIdentityTests
         ((RequestContext)context).Origin.ShouldBe(RequestOrigin.Unspecified);
     }
 
+    [Fact]
+    public void Create_IsAnonymous_WithAGeneratedCorrelationId_AndEmptyMetadata()
+    {
+        var context = RequestContext.Create();
+
+        context.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        context.CorrelationId.ShouldNotBeNullOrWhiteSpace();
+        context.Metadata.ShouldBeEmpty();
+        context.TenantId.ShouldBeNull();
+        context.IdempotencyKey.ShouldBeNull();
+        context.CausationId.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Create_WithoutAnActivity_GeneratesADistinctCorrelationIdPerCall()
+    {
+        using var noActivity = new NoCurrentActivity();
+
+        RequestContext.Create().CorrelationId.ShouldNotBe(RequestContext.Create().CorrelationId);
+    }
+
+    [Fact]
+    public void Create_UnderAnActivity_UsesItsIdAsTheCorrelationId()
+    {
+        using var activity = new System.Diagnostics.Activity("create-test").Start();
+
+        RequestContext.Create().CorrelationId.ShouldBe(activity.Id);
+    }
+
+    private sealed class NoCurrentActivity : IDisposable
+    {
+        private readonly System.Diagnostics.Activity? _previous = System.Diagnostics.Activity.Current;
+
+        public NoCurrentActivity() => System.Diagnostics.Activity.Current = null;
+
+        public void Dispose() => System.Diagnostics.Activity.Current = _previous;
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

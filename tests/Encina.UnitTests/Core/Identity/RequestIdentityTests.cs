@@ -40,6 +40,9 @@ public sealed class RequestIdentityTests
     [InlineData(" alice")]
     [InlineData("alice ")]
     [InlineData("al\u0001ice")]
+    [InlineData("al​ice")]
+    [InlineData("alice‮ecila")]
+    [InlineData("﻿alice")]
     [InlineData("service:billing")]
     [InlineData("SERVICE:billing")]
     [InlineData(" service:billing")]
@@ -90,6 +93,45 @@ public sealed class RequestIdentityTests
         identity.HasClaim("DEPT", "sales").ShouldBeTrue();
         identity.HasClaim("dept", "SALES").ShouldBeFalse();
         identity.HasClaim("level").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void HasClaim_AnswersFromTheClaimsFrozenAtCreation_NotTheLivePrincipal()
+    {
+        var authenticated = new ClaimsIdentity([new Claim("dept", "sales")], "bearer");
+        var identity = RequestIdentity.ForUser("alice", new ClaimsPrincipal(authenticated));
+
+        authenticated.AddClaim(new Claim("role-escalation", "admin"));
+        authenticated.RemoveClaim(authenticated.FindFirst("dept"));
+        identity.Principal!.AddIdentity(new ClaimsIdentity([new Claim("late", "added")], "bearer"));
+
+        identity.HasClaim("dept", "sales").ShouldBeTrue();
+        identity.HasClaim("role-escalation").ShouldBeFalse();
+        identity.HasClaim("late").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsSameAs_ComparesKindUserIdRolesAndPermissions()
+    {
+        var alice = TestIdentity.User("alice", roles: ["reader"], permissions: ["orders:read"]);
+
+        alice.IsSameAs(TestIdentity.User("alice", roles: ["READER"], permissions: ["Orders:Read"])).ShouldBeTrue();
+        alice.IsSameAs(TestIdentity.User("bob", roles: ["reader"], permissions: ["orders:read"])).ShouldBeFalse();
+        alice.IsSameAs(TestIdentity.User("alice", roles: ["reader", "admin"], permissions: ["orders:read"])).ShouldBeFalse();
+        alice.IsSameAs(TestIdentity.User("alice", roles: ["reader"], permissions: ["orders:write"])).ShouldBeFalse();
+        alice.IsSameAs(RequestIdentity.Anonymous).ShouldBeFalse();
+        RequestIdentity.Anonymous.IsSameAs(RequestIdentity.Anonymous).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void PersistedRequestIdentity_ToString_PrintsTheKindOnly()
+    {
+        var persisted = TestIdentity.User("sentinel-actor-7c1e").ToPersisted("sentinel-tenant", "sentinel-corr", "sentinel-cause");
+
+        var text = persisted.ToString();
+
+        text.ShouldBe("PersistedRequestIdentity { Kind = User }");
+        text.ShouldNotContain("sentinel");
     }
 
     [Fact]

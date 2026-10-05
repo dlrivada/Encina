@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Encina.Testing;
 using Encina.Testing.Identity;
@@ -8,9 +7,9 @@ namespace Encina.UnitTests.Core.Identity;
 
 /// <summary>
 /// The explicit-context rule of <c>AmbientRequestContext.Resolve</c> through <see cref="IEncina"/>:
-/// a dispatch cannot run a user's request under another authenticated identity, every identity
-/// swap is logged (EventId 165) with kinds only, and the dispatch activity carries
-/// <c>encina.identity.kind</c>.
+/// a dispatch (or a direct set of <see cref="RequestContextAccessor.RequestContext"/>) cannot run a
+/// user's request under another authenticated identity, every identity swap is logged (EventId 165)
+/// with kinds only, and an explicit context is checked and dispatched as one snapshot.
 /// </summary>
 public sealed class ExplicitContextConflictTests
 {
@@ -129,7 +128,7 @@ public sealed class ExplicitContextConflictTests
     }
 
     [Fact]
-    public async Task Send_AConforminglessExplicitContextWithANullIdentity_IsTreatedAsAnonymous()
+    public async Task Send_AForeignExplicitContextWithANullIdentity_IsTreatedAsAnonymous()
     {
         await using var provider = BuildProvider();
         provider.GetRequiredService<IRequestContextAccessor>().RequestContext = User("alice");
@@ -139,81 +138,114 @@ public sealed class ExplicitContextConflictTests
 
         var result = await provider.GetRequiredService<IEncina>().Send(new Probe(), foreign);
 
-        result.IsRight.ShouldBeTrue();
+        result.ShouldBeSuccess().ShouldBe(Anonymous);
     }
 
-    [Theory]
-    [InlineData(false, "anonymous")]
-    [InlineData(true, "user")]
-    public async Task Send_TagsTheDispatchActivityWithTheIdentityKind(bool authenticated, string expected)
+    [Fact]
+    public async Task Send_AForeignExplicitContext_IsCheckedAndDispatchedAsOneSnapshot()
     {
-        var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Encina",
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity =>
-            {
-                // Only this class's request: the listener is process-wide and other tests dispatch too.
-                if (activity.OperationName == "Encina.Send" && Equals(activity.GetTagItem("Encina.request_type"), typeof(Probe).FullName))
-                {
-                    foreach (var tag in activity.Tags)
-                    {
-                        tag.Value?.ShouldNotContain("sentinel-tag-user");
-                    }
-
-                    tags.Add(activity.GetTagItem("encina.identity.kind") as string);
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
-        var context = authenticated ? User("sentinel-tag-user") : RequestContext.CreateForTest();
+        var alice = User("alice");
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = alice;
 
-        (await provider.GetRequiredService<IEncina>().Send(new Probe(), context)).IsRight.ShouldBeTrue();
+        // The first read (the check) sees alice; every later read would see mallory.
+        var foreign = Substitute.For<IRequestContext>();
+        foreign.CorrelationId.Returns("corr-foreign");
+        foreign.Metadata.Returns(new Dictionary<string, object?>());
+        foreign.Identity.Returns(alice.Identity, TestIdentity.User("mallory"));
 
-        tags.ShouldContain(expected);
-        tags.ShouldNotContain("sentinel-tag-user");
+        var result = await provider.GetRequiredService<IEncina>().Send(new Probe(), foreign);
+
+        result.ShouldBeSuccess().ShouldBe("alice");
+        _ = foreign.Received(1).Identity;
     }
 
-    [Theory]
-    [InlineData(false, "anonymous")]
-    [InlineData(true, "user")]
-    public async Task Stream_TagsTheStreamActivityWithTheIdentityKind(bool authenticated, string expected)
+    [Fact]
+    public async Task Send_WithTheAmbientUserIdButOtherRoles_IsRefused()
     {
-        var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Encina",
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity =>
-            {
-                if (activity.OperationName == "Encina.Stream" && Equals(activity.GetTagItem("Encina.request_type"), typeof(Count).FullName))
-                {
-                    tags.Add(activity.GetTagItem("encina.identity.kind") as string);
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
-        var context = authenticated ? User("stream-user") : RequestContext.CreateForTest();
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = TestRequestContext.For(TestIdentity.User("alice", roles: ["reader"]));
 
-        await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Count(), context))
-        {
-            item.IsRight.ShouldBeTrue();
-        }
+        var result = await provider.GetRequiredService<IEncina>().Send(
+            new Probe(), TestRequestContext.For(TestIdentity.User("alice", roles: ["reader", "admin"])));
 
-        tags.ShouldContain(expected);
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetEncinaCode().ShouldBe(RequestIdentityErrorCodes.ScopeConflict));
     }
 
-    [Theory]
-    [InlineData(IdentityKind.Anonymous, "anonymous")]
-    [InlineData(IdentityKind.User, "user")]
-    [InlineData(IdentityKind.Service, "service")]
-    public void ToTagValue_IsTheLowercaseKind(IdentityKind kind, string expected)
+    [Fact]
+    public async Task Setter_ReplacingAnAmbientUserWithAnotherUser_Throws_AndLogs165WithKindsOnly()
     {
-        EncinaDiagnostics.ToTagValue(kind).ShouldBe(expected);
+        await Task.Yield();
+        var logger = new FakeLogger<RequestContextAccessor>();
+        var accessor = new RequestContextAccessor(logger);
+        var alice = User("alice-sentinel");
+        accessor.RequestContext = alice;
+        logger.Collector.Clear();
+
+        Should.Throw<InvalidOperationException>(() => accessor.RequestContext = User("mallory-sentinel"));
+
+        accessor.RequestContext.ShouldBeSameAs(alice);
+        var record = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 165);
+        record.Level.ShouldBe(LogLevel.Warning);
+        record.Message.ShouldContain("refused");
+        record.Message.ShouldNotContain("sentinel");
+    }
+
+    [Fact]
+    public async Task Setter_ReplacingAnAmbientUserWithOtherRoles_Throws()
+    {
+        await Task.Yield();
+        var accessor = new RequestContextAccessor();
+        accessor.RequestContext = TestRequestContext.For(TestIdentity.User("alice"));
+
+        Should.Throw<InvalidOperationException>(
+            () => accessor.RequestContext = TestRequestContext.For(TestIdentity.User("alice", roles: ["admin"])));
+    }
+
+    [Fact]
+    public async Task Setter_WithTheSameIdentity_OrAnAnonymousContext_IsAllowed_WithoutALog()
+    {
+        await Task.Yield();
+        var logger = new FakeLogger<RequestContextAccessor>();
+        var accessor = new RequestContextAccessor(logger);
+        accessor.RequestContext = User("alice");
+        logger.Collector.Clear();
+
+        accessor.RequestContext = User("alice");
+        accessor.RequestContext!.UserId.ShouldBe("alice");
+        accessor.RequestContext = RequestContext.CreateForTest();
+        accessor.RequestContext!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        accessor.RequestContext = null;
+
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+    }
+
+    [Fact]
+    public async Task Setter_AUserOverAnAnonymousAmbient_IsAllowed_AndLogs165()
+    {
+        await Task.Yield();
+        var logger = new FakeLogger<RequestContextAccessor>();
+        var accessor = new RequestContextAccessor(logger);
+        accessor.RequestContext = RequestContext.CreateForTest();
+
+        accessor.RequestContext = User("job-owner");
+
+        accessor.RequestContext!.UserId.ShouldBe("job-owner");
+        logger.Collector.GetSnapshot().Single(r => r.Id.Id == 165).Message.ShouldContain("accepted");
+    }
+
+    [Fact]
+    public async Task Dispatch_UnderAnAnonymousAmbient_WithAnExplicitUser_RestoresTheAmbientWithoutASecondLog()
+    {
+        await using var provider = BuildProvider();
+        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
+        var ambient = RequestContext.CreateForTest();
+        accessor.RequestContext = ambient;
+
+        (await provider.GetRequiredService<IEncina>().Send(new Probe(), User("job-owner"))).ShouldBeSuccess().ShouldBe("job-owner");
+
+        accessor.RequestContext.ShouldBeSameAs(ambient);
+        _logger.Collector.GetSnapshot().Count(r => r.Id.Id == 165).ShouldBe(1);
     }
 }

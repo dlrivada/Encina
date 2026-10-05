@@ -90,19 +90,21 @@ public class RequestContextGuardTests
 
     #endregion
 
-    #region CreateAnonymousAt() (with auto-generated correlationId)
+    #region Create() (with auto-generated correlationId)
 
     /// <summary>
-    /// Verifies that CreateAnonymousAt generates a non-empty correlationId when not provided.
+    /// Verifies that Create, which takes no correlation id, generates a non-empty one.
     /// </summary>
     [Fact]
-    public void CreateAnonymousAt_DefaultCorrelationId_GeneratesNonEmptyCorrelationId()
+    public void Create_WithoutACorrelationId_GeneratesANonEmptyOne()
     {
         // Act
-        var result = RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "test-corr");
+        var first = RequestContext.Create();
+        var second = RequestContext.Create();
 
         // Assert
-        result.CorrelationId.ShouldNotBeNullOrWhiteSpace();
+        first.CorrelationId.ShouldNotBeNullOrWhiteSpace();
+        second.CorrelationId.ShouldNotBeNullOrWhiteSpace();
     }
 
     #endregion
@@ -249,10 +251,10 @@ public class RequestContextGuardTests
     #region CreateForTest
 
     /// <summary>
-    /// Verifies that CreateForTest creates a context with the specified values.
+    /// Verifies that TestRequestContext.For creates a context with the specified identity and values.
     /// </summary>
     [Fact]
-    public void CreateForTest_WithAllParameters_SetsAllValues()
+    public void TestRequestContextFor_WithAllParameters_SetsAllValues()
     {
         // Act
         var result = TestRequestContext.For(

@@ -93,7 +93,9 @@ public sealed class RequestContext : IRequestContext
     /// <param name="idempotencyKey">The idempotency key, if any.</param>
     /// <returns>A context with <see cref="RequestIdentity.Anonymous"/>.</returns>
     /// <remarks>
-    /// This is the only public production factory. It never creates an authenticated identity.
+    /// The production factory to use with an injected <see cref="TimeProvider"/> (<see cref="Create"/>
+    /// reads <see cref="TimeProvider.System"/>). Like every public factory, it never creates an
+    /// authenticated identity.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="correlationId"/> is null, empty or whitespace.</exception>
     /// <example>

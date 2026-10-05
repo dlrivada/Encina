@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace Encina;
@@ -51,6 +52,13 @@ public sealed class RequestIdentity
 
     private static readonly FrozenSet<string> EmptySet = Array.Empty<string>().ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
+    // The claims of the principal's authenticated identities, frozen at creation like the roles and
+    // permissions: a principal mutated after the identity was built never changes what it holds.
+    private readonly (string Type, string Value)[] _claims;
+
+    private readonly FrozenSet<string> _roles;
+    private readonly FrozenSet<string> _permissions;
+
     private RequestIdentity(
         IdentityKind kind,
         string? userId,
@@ -61,8 +69,9 @@ public sealed class RequestIdentity
         Kind = kind;
         UserId = userId;
         Principal = principal;
-        Roles = roles;
-        Permissions = permissions;
+        _roles = roles;
+        _permissions = permissions;
+        _claims = FreezeClaims(principal);
     }
 
     /// <summary>
@@ -95,31 +104,35 @@ public sealed class RequestIdentity
     /// <summary>
     /// Gets the caller's roles (case-insensitive).
     /// </summary>
-    public IReadOnlySet<string> Roles { get; }
+    public IReadOnlySet<string> Roles => _roles;
 
     /// <summary>
     /// Gets the caller's permissions (case-insensitive).
     /// </summary>
-    public IReadOnlySet<string> Permissions { get; }
+    public IReadOnlySet<string> Permissions => _permissions;
 
     /// <summary>
     /// Determines whether an authenticated <see cref="ClaimsIdentity"/> of <see cref="Principal"/>
-    /// carries a claim of <paramref name="type"/> (and, when given, of <paramref name="value"/>).
+    /// carried a claim of <paramref name="type"/> (and, when given, of <paramref name="value"/>) when
+    /// this identity was created.
     /// </summary>
     /// <param name="type">The claim type (compared case-insensitively).</param>
     /// <param name="value">The claim value (compared ordinally), or <see langword="null"/> for any value.</param>
     /// <returns><see langword="true"/> when an authenticated identity carries the claim.</returns>
     /// <remarks>
-    /// Unauthenticated <see cref="ClaimsIdentity"/> instances (for example ones added by claims
-    /// transformation) never count.
+    /// The claims are frozen when the identity is created, like <see cref="Roles"/> and
+    /// <see cref="Permissions"/>: adding or removing claims on <see cref="Principal"/> afterwards does
+    /// not change the answer. Unauthenticated <see cref="ClaimsIdentity"/> instances (for example ones
+    /// added by claims transformation) never count.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="type"/> is null, empty or whitespace.</exception>
     public bool HasClaim(string type, string? value = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
 
-        return Principal is not null
-            && Principal.Identities.Any(identity => identity.IsAuthenticated && HasMatchingClaim(identity, type, value));
+        return Array.Exists(_claims, claim =>
+            string.Equals(claim.Type, type, StringComparison.OrdinalIgnoreCase)
+            && (value is null || string.Equals(claim.Value, value, StringComparison.Ordinal)));
     }
 
     /// <summary>
@@ -158,7 +171,7 @@ public sealed class RequestIdentity
         if (!IsValidUserId(userId))
         {
             throw new ArgumentException(
-                "A user id must not be blank, must have no leading or trailing whitespace or control characters, and must not start with the reserved 'service:' prefix.",
+                "A user id must not be blank, must have no leading or trailing whitespace, no control or format characters, and must not start with the reserved 'service:' prefix.",
                 nameof(userId));
         }
 
@@ -166,13 +179,24 @@ public sealed class RequestIdentity
     }
 
     /// <summary>
-    /// The user-id rule: not blank, no leading or trailing whitespace, no control characters, and not
-    /// starting (case-insensitively, after trimming) with <see cref="ServiceSubjectPrefix"/>.
+    /// Determines whether <paramref name="other"/> is the same caller holding the same authority:
+    /// same kind, same user id (ordinal), and the same roles and permissions.
+    /// </summary>
+    internal bool IsSameAs(RequestIdentity other) =>
+        Kind == other.Kind
+        && string.Equals(UserId, other.UserId, StringComparison.Ordinal)
+        && _roles.SetEquals(other._roles)
+        && _permissions.SetEquals(other._permissions);
+
+    /// <summary>
+    /// The user-id rule: not blank, no leading or trailing whitespace, no control characters, no
+    /// invisible format characters (such as U+200B or U+202E), and not starting (case-insensitively,
+    /// after trimming) with <see cref="ServiceSubjectPrefix"/>.
     /// </summary>
     internal static bool IsValidUserId(string? userId) =>
         !string.IsNullOrWhiteSpace(userId)
         && string.Equals(userId, userId.Trim(), StringComparison.Ordinal)
-        && !userId.Any(char.IsControl)
+        && !userId.Any(IsControlOrFormat)
         && !IsReservedSubject(userId);
 
     /// <summary>
@@ -186,10 +210,16 @@ public sealed class RequestIdentity
             ? EmptySet
             : values.Where(static value => !string.IsNullOrWhiteSpace(value)).ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    private static bool HasMatchingClaim(ClaimsIdentity identity, string type, string? value) =>
-        identity.Claims.Any(claim =>
-            string.Equals(claim.Type, type, StringComparison.OrdinalIgnoreCase)
-            && (value is null || string.Equals(claim.Value, value, StringComparison.Ordinal)));
+    private static bool IsControlOrFormat(char character) =>
+        char.IsControl(character) || char.GetUnicodeCategory(character) == UnicodeCategory.Format;
+
+    private static (string Type, string Value)[] FreezeClaims(ClaimsPrincipal? principal) =>
+        principal is null
+            ? []
+            : [.. principal.Identities
+                .Where(static identity => identity.IsAuthenticated)
+                .SelectMany(static identity => identity.Claims)
+                .Select(static claim => (claim.Type, claim.Value))];
 
     // crap-exempt: single-question switch — the actor id of each identity kind.
     private string? ActorId() => Kind switch

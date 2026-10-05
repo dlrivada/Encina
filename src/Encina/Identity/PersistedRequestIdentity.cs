@@ -27,4 +27,12 @@ public sealed record PersistedRequestIdentity(
     string? ActorId,
     string? TenantId,
     string CorrelationId,
-    string? CausationId);
+    string? CausationId)
+{
+    /// <summary>
+    /// Returns the identity kind only; the actor id is never printed, so a persisted identity cannot
+    /// leak a user id into logs or diagnostics.
+    /// </summary>
+    /// <returns>A string such as <c>PersistedRequestIdentity { Kind = User }</c>.</returns>
+    public override string ToString() => $"PersistedRequestIdentity {{ Kind = {Kind} }}";
+}

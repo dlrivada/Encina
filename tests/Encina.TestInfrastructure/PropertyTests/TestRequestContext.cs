@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using Encina.Testing.Identity;
 
 namespace Encina.TestInfrastructure.PropertyTests;
 

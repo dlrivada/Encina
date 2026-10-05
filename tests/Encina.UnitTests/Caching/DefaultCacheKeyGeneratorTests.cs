@@ -144,6 +144,42 @@ public class DefaultCacheKeyGeneratorTests
     }
 
     [Fact]
+    public void GenerateKey_WithVaryByUser_AndAnAnonymousIdentity_Throws()
+    {
+        var context = CreateContext(userId: null);
+
+        Should.Throw<InvalidOperationException>(
+            () => _sut.GenerateKey<CachedQueryVaryByUser, string>(new CachedQueryVaryByUser("test"), context));
+    }
+
+    [Fact]
+    public void GenerateKey_WithVaryByUser_AndAForeignContextWithoutIdentity_Throws()
+    {
+        var context = Substitute.For<IRequestContext>();
+        context.TenantId.Returns("default-tenant");
+
+        Should.Throw<InvalidOperationException>(
+            () => _sut.GenerateKey<CachedQueryVaryByUser, string>(new CachedQueryVaryByUser("test"), context));
+    }
+
+    [Fact]
+    public void GenerateKey_FromTemplate_WithVaryByUser_IncludesTheUser()
+    {
+        var key = _sut.GenerateKey<CachedTemplateVaryByUser, string>(
+            new CachedTemplateVaryByUser("p1"), CreateContext(userId: "user123"));
+
+        key.ShouldContain("u:user123:");
+        key.ShouldEndWith("item:p1");
+    }
+
+    [Fact]
+    public void GenerateKey_FromTemplate_WithVaryByUser_AndAnAnonymousIdentity_Throws()
+    {
+        Should.Throw<InvalidOperationException>(
+            () => _sut.GenerateKey<CachedTemplateVaryByUser, string>(new CachedTemplateVaryByUser("p1"), CreateContext(userId: null)));
+    }
+
+    [Fact]
     public void GeneratePattern_WithNullContext_ThrowsArgumentNullException()
     {
         // Act & Assert
@@ -272,6 +308,10 @@ public class DefaultCacheKeyGeneratorTests
     // Test request with VaryByUser
     [Cache(DurationSeconds = 300, VaryByUser = true)]
     private sealed record CachedQueryVaryByUser(string Value) : IRequest<string>;
+
+    // Test request with a key template and VaryByUser
+    [Cache(DurationSeconds = 300, KeyTemplate = "item:{Value}", VaryByUser = true)]
+    private sealed record CachedTemplateVaryByUser(string Value) : IRequest<string>;
 
     // Complex request for hash testing
     private sealed record ComplexQuery(Guid Id, string Name, int Count) : IRequest<string>;
