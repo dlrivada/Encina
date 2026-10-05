@@ -12,7 +12,7 @@ namespace Encina.EntityFrameworkCore.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This implementation uses EF Core to persist security audit entries to the database.
+/// This implementation uses EF Core to persist operation audit entries to the database.
 /// It provides:
 /// <list type="bullet">
 /// <item><description>Immediate persistence via SaveChangesAsync for durability</description></item>

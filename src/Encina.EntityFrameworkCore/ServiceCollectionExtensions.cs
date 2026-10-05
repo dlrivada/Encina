@@ -404,14 +404,14 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the security audit trail store when
+    /// Registers the operation audit trail store when
     /// <see cref="MessagingConfiguration.UseOperationAuditStore"/> is enabled.
     /// </summary>
     private static void RegisterOperationAuditStore(IServiceCollection services, MessagingConfiguration config)
     {
         if (!config.UseOperationAuditStore) return;
 
-        // Register security audit trail store (Encina.Security.Audit)
+        // Register operation audit trail store (Encina.Security.Audit)
         services.AddScoped<IOperationAuditStore, OperationAuditStoreEF>();
     }
 

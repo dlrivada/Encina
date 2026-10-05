@@ -41,29 +41,8 @@ public class OperationAuditStoreDapperPostgreSqlIntegrationTests : IAsyncLifetim
 
     private static async Task CreateAuditSchemaAsync(NpgsqlConnection connection)
     {
-        const string sql = """
-            CREATE TABLE IF NOT EXISTS "OperationAuditEntries" (
-                "Id" UUID PRIMARY KEY,
-                "CorrelationId" VARCHAR(256) NOT NULL,
-                "UserId" VARCHAR(256) NULL,
-                "TenantId" VARCHAR(128) NULL,
-                "Action" VARCHAR(128) NOT NULL,
-                "EntityType" VARCHAR(256) NOT NULL,
-                "EntityId" VARCHAR(256) NULL,
-                "Outcome" INTEGER NOT NULL,
-                "ErrorMessage" VARCHAR(2048) NULL,
-                "TimestampUtc" TIMESTAMP NOT NULL,
-                "StartedAtUtc" TIMESTAMPTZ NOT NULL,
-                "CompletedAtUtc" TIMESTAMPTZ NOT NULL,
-                "IpAddress" VARCHAR(45) NULL,
-                "UserAgent" VARCHAR(512) NULL,
-                "RequestPayloadHash" VARCHAR(64) NULL,
-                "RequestPayload" TEXT NULL,
-                "ResponsePayload" TEXT NULL,
-                "Metadata" TEXT NULL
-            );
-            """;
-
+        // The table comes from the script the package ships, so the test proves that DDL.
+        var sql = ShippedSqlScript.Read("Encina.Dapper.PostgreSQL", ShippedSqlScript.OperationAuditEntries);
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
     }

@@ -436,18 +436,18 @@ public static class MySqlSchema
         // doesn't exist" for every other test sharing this fixture's container. MySQL has no "DELETE ... IF
         // EXISTS" syntax, so the guard is a dynamic prepared statement keyed off information_schema (#1128).
         const string guardedDeleteSql = """
-            SET @encina_security_audit_exists := (
+            SET @encina_operation_audit_exists := (
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema = DATABASE() AND table_name = 'OperationAuditEntries'
             );
-            SET @encina_security_audit_sql := IF(
-                @encina_security_audit_exists > 0,
+            SET @encina_operation_audit_sql := IF(
+                @encina_operation_audit_exists > 0,
                 'DELETE FROM `OperationAuditEntries`',
                 'DO 0'
             );
-            PREPARE encina_security_audit_stmt FROM @encina_security_audit_sql;
-            EXECUTE encina_security_audit_stmt;
-            DEALLOCATE PREPARE encina_security_audit_stmt;
+            PREPARE encina_operation_audit_stmt FROM @encina_operation_audit_sql;
+            EXECUTE encina_operation_audit_stmt;
+            DEALLOCATE PREPARE encina_operation_audit_stmt;
 
             SET @encina_read_audit_exists := (
                 SELECT COUNT(*) FROM information_schema.tables

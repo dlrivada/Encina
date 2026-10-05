@@ -43,32 +43,13 @@ public class OperationAuditStoreDapperSqlServerIntegrationTests : IAsyncLifetime
 
     private static async Task CreateAuditSchemaAsync(SqlConnection connection)
     {
-        const string sql = """
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OperationAuditEntries')
-            CREATE TABLE OperationAuditEntries (
-                Id UNIQUEIDENTIFIER PRIMARY KEY,
-                CorrelationId NVARCHAR(256) NOT NULL,
-                UserId NVARCHAR(256) NULL,
-                TenantId NVARCHAR(128) NULL,
-                [Action] NVARCHAR(128) NOT NULL,
-                EntityType NVARCHAR(256) NOT NULL,
-                EntityId NVARCHAR(256) NULL,
-                Outcome INT NOT NULL,
-                ErrorMessage NVARCHAR(2048) NULL,
-                TimestampUtc DATETIME2 NOT NULL,
-                StartedAtUtc DATETIMEOFFSET NOT NULL,
-                CompletedAtUtc DATETIMEOFFSET NOT NULL,
-                IpAddress NVARCHAR(45) NULL,
-                UserAgent NVARCHAR(512) NULL,
-                RequestPayloadHash NVARCHAR(64) NULL,
-                RequestPayload NVARCHAR(MAX) NULL,
-                ResponsePayload NVARCHAR(MAX) NULL,
-                Metadata NVARCHAR(MAX) NULL
-            );
-            """;
-
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        // The table comes from the script the package ships, so the test proves that DDL.
+        var sql = ShippedSqlScript.Read("Encina.Dapper.SqlServer", ShippedSqlScript.OperationAuditEntries);
+        foreach (var batch in ShippedSqlScript.SplitBatches(sql))
+        {
+            await using var command = new SqlCommand(batch, connection);
+            await command.ExecuteNonQueryAsync();
+        }
     }
 
     private async Task ClearDataAsync()

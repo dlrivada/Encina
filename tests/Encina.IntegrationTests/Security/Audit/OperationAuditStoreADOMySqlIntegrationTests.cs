@@ -43,29 +43,8 @@ public class OperationAuditStoreADOMySqlIntegrationTests : IAsyncLifetime
 
     private static async Task CreateAuditSchemaAsync(MySqlConnection connection)
     {
-        const string sql = """
-            CREATE TABLE IF NOT EXISTS `OperationAuditEntries` (
-                `Id` CHAR(36) PRIMARY KEY,
-                `CorrelationId` VARCHAR(256) NOT NULL,
-                `UserId` VARCHAR(256) NULL,
-                `TenantId` VARCHAR(128) NULL,
-                `Action` VARCHAR(128) NOT NULL,
-                `EntityType` VARCHAR(256) NOT NULL,
-                `EntityId` VARCHAR(256) NULL,
-                `Outcome` INT NOT NULL,
-                `ErrorMessage` VARCHAR(2048) NULL,
-                `TimestampUtc` DATETIME(6) NOT NULL,
-                `StartedAtUtc` DATETIME(6) NOT NULL,
-                `CompletedAtUtc` DATETIME(6) NOT NULL,
-                `IpAddress` VARCHAR(45) NULL,
-                `UserAgent` VARCHAR(512) NULL,
-                `RequestPayloadHash` VARCHAR(64) NULL,
-                `RequestPayload` LONGTEXT NULL,
-                `ResponsePayload` LONGTEXT NULL,
-                `Metadata` LONGTEXT NULL
-            );
-            """;
-
+        // The table comes from the script the package ships, so the test proves that DDL.
+        var sql = ShippedSqlScript.Read("Encina.ADO.MySQL", ShippedSqlScript.OperationAuditEntries);
         await using var command = new MySqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
     }

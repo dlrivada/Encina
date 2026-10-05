@@ -227,18 +227,18 @@ public sealed class OperationAuditStoreEFFailureTests
     }
 
     [Theory]
-    [InlineData("OperationAuditEntries", "IX_SecurityAuditEntries_UserId", "UserId")]
-    [InlineData("OperationAuditEntries", "IX_SecurityAuditEntries_TenantId", "TenantId")]
+    [InlineData("OperationAuditEntries", "IX_OperationAuditEntries_UserId", "UserId")]
+    [InlineData("OperationAuditEntries", "IX_OperationAuditEntries_TenantId", "TenantId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_UserId", "UserId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_TenantId", "TenantId")]
     [InlineData("ReadAuditEntries", "IX_ReadAuditEntries_CorrelationId", "CorrelationId")]
     public void PostgreSqlCreateScript_FilteredIndexes_QuoteTheColumn(string table, string index, string column)
     {
         // Arrange
-        var options = new DbContextOptionsBuilder<SecurityAuditSchemaDbContext>()
+        var options = new DbContextOptionsBuilder<OperationAuditSchemaDbContext>()
             .UseNpgsql("Host=localhost;Database=unused")
             .Options;
-        using var context = new SecurityAuditSchemaDbContext(options);
+        using var context = new OperationAuditSchemaDbContext(options);
 
         // Act
         var script = context.Database.GenerateCreateScript();
@@ -251,16 +251,16 @@ public sealed class OperationAuditStoreEFFailureTests
     public void SqlServerCreateScript_FilteredIndexes_UseTheQuotedFilter()
     {
         // Arrange
-        var options = new DbContextOptionsBuilder<SecurityAuditSchemaDbContext>()
+        var options = new DbContextOptionsBuilder<OperationAuditSchemaDbContext>()
             .UseSqlServer("Server=localhost;Database=unused")
             .Options;
-        using var context = new SecurityAuditSchemaDbContext(options);
+        using var context = new OperationAuditSchemaDbContext(options);
 
         // Act
         var script = context.Database.GenerateCreateScript();
 
         // Assert
-        script.ShouldContain("CREATE INDEX [IX_SecurityAuditEntries_UserId] ON [OperationAuditEntries] ([UserId]) WHERE \"UserId\" IS NOT NULL;");
+        script.ShouldContain("CREATE INDEX [IX_OperationAuditEntries_UserId] ON [OperationAuditEntries] ([UserId]) WHERE \"UserId\" IS NOT NULL;");
         script.ShouldContain("CREATE INDEX [IX_ReadAuditEntries_CorrelationId] ON [ReadAuditEntries] ([CorrelationId]) WHERE \"CorrelationId\" IS NOT NULL;");
     }
 
@@ -319,7 +319,7 @@ public sealed class OperationAuditStoreEFFailureTests
         EntityCount = 1
     };
 
-    private sealed class SecurityAuditSchemaDbContext(DbContextOptions<SecurityAuditSchemaDbContext> options)
+    private sealed class OperationAuditSchemaDbContext(DbContextOptions<OperationAuditSchemaDbContext> options)
         : DbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -10,7 +10,7 @@ namespace Encina.MongoDB.Auditing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This document class maps to the <see cref="OperationAuditEntry"/> record from the security audit library,
+/// This document class maps to the <see cref="OperationAuditEntry"/> record from the operation audit library,
 /// providing MongoDB-specific serialization attributes for BSON storage.
 /// </para>
 /// <para>

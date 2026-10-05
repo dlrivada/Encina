@@ -105,32 +105,32 @@ public sealed class OperationAuditEntryEntityConfiguration : IEntityTypeConfigur
 
         // Composite index for efficient entity history lookups
         builder.HasIndex(x => new { x.EntityType, x.EntityId })
-            .HasDatabaseName("IX_SecurityAuditEntries_Entity");
+            .HasDatabaseName("IX_OperationAuditEntries_Entity");
 
         // Index for time-based queries
         builder.HasIndex(x => x.TimestampUtc)
-            .HasDatabaseName("IX_SecurityAuditEntries_Timestamp");
+            .HasDatabaseName("IX_OperationAuditEntries_Timestamp");
 
         // Index for outcome-based filtering
         builder.HasIndex(x => x.Outcome)
-            .HasDatabaseName("IX_SecurityAuditEntries_Outcome");
+            .HasDatabaseName("IX_OperationAuditEntries_Outcome");
 
         // Filtered index on UserId for user activity tracking
         builder.HasIndex(x => x.UserId)
             .HasFilter(IndexFilters.IsNotNull(nameof(OperationAuditEntryEntity.UserId)))
-            .HasDatabaseName("IX_SecurityAuditEntries_UserId");
+            .HasDatabaseName("IX_OperationAuditEntries_UserId");
 
         // Filtered index on TenantId for multi-tenant queries
         builder.HasIndex(x => x.TenantId)
             .HasFilter(IndexFilters.IsNotNull(nameof(OperationAuditEntryEntity.TenantId)))
-            .HasDatabaseName("IX_SecurityAuditEntries_TenantId");
+            .HasDatabaseName("IX_OperationAuditEntries_TenantId");
 
         // Index on CorrelationId for request correlation tracking
         builder.HasIndex(x => x.CorrelationId)
-            .HasDatabaseName("IX_SecurityAuditEntries_CorrelationId");
+            .HasDatabaseName("IX_OperationAuditEntries_CorrelationId");
 
         // Index on Action for action-based filtering
         builder.HasIndex(x => x.Action)
-            .HasDatabaseName("IX_SecurityAuditEntries_Action");
+            .HasDatabaseName("IX_OperationAuditEntries_Action");
     }
 }

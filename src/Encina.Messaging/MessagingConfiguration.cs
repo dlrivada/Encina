@@ -456,7 +456,7 @@ public sealed class MessagingConfiguration
     public bool UseSoftDelete { get; set; }
 
     /// <summary>
-    /// Gets or sets whether to enable security audit trail storage.
+    /// Gets or sets whether to enable operation audit trail storage.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -466,7 +466,7 @@ public sealed class MessagingConfiguration
     /// which logs entity changes.
     /// </para>
     /// <para>
-    /// Security audit trail features:
+    /// Operation audit trail features:
     /// <list type="bullet">
     /// <item><description>Records command and query operations with outcomes</description></item>
     /// <item><description>Captures user, tenant, correlation, and timing information</description></item>

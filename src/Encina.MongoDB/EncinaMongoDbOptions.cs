@@ -291,7 +291,7 @@ public sealed class MongoDbCollectionNames
     public string AuditLogs { get; set; } = "audit_logs";
 
     /// <summary>
-    /// Gets or sets the collection name for security audit entries.
+    /// Gets or sets the collection name for operation audit entries.
     /// </summary>
     public string OperationAuditEntries { get; set; } = "operation_audit_entries";
 

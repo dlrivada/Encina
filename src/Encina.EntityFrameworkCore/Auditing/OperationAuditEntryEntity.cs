@@ -3,7 +3,7 @@ using Encina.Security.Audit;
 namespace Encina.EntityFrameworkCore.Auditing;
 
 /// <summary>
-/// Entity Framework Core entity for persisting security audit entries.
+/// Entity Framework Core entity for persisting operation audit entries.
 /// </summary>
 /// <remarks>
 /// <para>
