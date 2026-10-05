@@ -109,6 +109,31 @@ try {
     Add-File $r 'docs\knowledge\audits\13\stages\code.md' "x`n"
     Assert-Case 'stage folder without a record fails' (Invoke-Check $r) $false 'no matching record issues/13.md'
 
+    $r = New-Fixture 'other-issue-target'
+    Add-File $r 'docs\knowledge\issues\15.md' (Get-Record 1 15 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-16.md'))
+    Add-File $r 'docs\knowledge\issues\16.md' (Get-Record 1 16 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-16.md'))
+    Add-File $r 'docs\knowledge\audits\issue-16.md' "# Audit of issue #16`n"
+    Assert-Case "audit.record naming another issue's result fails" (Invoke-Check $r) $false "must be exactly 'docs/knowledge/audits/issue-15.md'"
+
+    $r = New-Fixture 'rooted-target'
+    Add-File $r 'docs\knowledge\issues\17.md' (Get-Record 1 17 (Get-AuditBlock 'conforms' 'C:/Users/someone/audits/issue-17.md'))
+    Assert-Case 'a rooted audit.record fails' (Invoke-Check $r) $false 'must be exactly'
+
+    $r = New-Fixture 'artifacts-target'
+    Add-File $r 'docs\knowledge\issues\18.md' (Get-Record 1 18 (Get-AuditBlock 'findings-tracked' 'artifacts/knowledge/audits/issue-18.md'))
+    Add-File $r 'artifacts\knowledge\audits\issue-18.md' "# local only`n"
+    Assert-Case 'an artifacts/ audit.record fails even when the ignored file exists locally' (Invoke-Check $r) $false 'must be exactly'
+
+    $r = New-Fixture 'v1-nested-flow'
+    Add-File $r 'docs\knowledge\issues\19.md' ((Get-Record 1 19 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'destinations:\n      - kind: backlog\n        status: planned\n        target: "#1735"', 'destinations: []')
+    Assert-Case 'schema 1 rejects a nested flow list' (Invoke-Check $r) $false 'flow list'
+
+    $r = New-Fixture 'stage-link'
+    Add-File $r 'docs\knowledge\issues\20.md' (Get-Record 1 20 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-20.md'))
+    Add-File $r 'docs\knowledge\audits\issue-20.md' "# Audit of issue #20`n- code: [20/stages/code.md](20/stages/code.md)`n"
+    Add-File $r 'docs\knowledge\audits\20\stages\archivist.md' "x`n"
+    Assert-Case 'a dangling stage link in an audit result fails' (Invoke-Check $r) $false "stage link '20/stages/code.md' does not exist"
+
     $r = New-Fixture 'skip-links'
     Add-File $r 'docs\knowledge\issues\14.md' (Get-Record 1 14 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-14.md'))
     Assert-Case '--skip-audit-links skips the existence check' (Invoke-Check $r @('--skip-audit-links')) $true

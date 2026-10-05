@@ -17,8 +17,10 @@
 //             `planned (#1317)`), destination targets may be prose, and sources need no link/date marker.
 //             Schema 2 checks structure and enums only; REQ-002/REQ-005 and `done`-target existence are
 //             not applied to it. Unifying both on one schema is future work (see #1735).
-// Both schemas share the audit-result rule: `audit.record` must name an existing file (relative to the
-// repository root) unless `audit.verdict` is `not-audited`, in which case it names no file ("not written yet").
+// Both schemas share the audit-result rule: `audit.record` is either exactly docs/knowledge/audits/issue-<n>.md
+// (the record's own issue; the file must exist, rooted or artifacts/ paths fail) or, only when `audit.verdict` is
+// `not-audited`, text that names no file ("not written yet"). Schema 1 also rejects flow lists nested in
+// `knowledge`. Each stage link `[<n>/stages/<file>]` of an audit result must exist.
 //
 // Usage:
 //   dotnet run .github/scripts/knowledge-records.cs -- --check [--dir <records-dir>] [--audits-dir <dir>] [--skip-audit-links]
@@ -223,7 +225,7 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
         if (!audit.ContainsKey("checklist")) Err("'audit.checklist' is required");
         if (!audit.ContainsKey("date")) Err("'audit.date' is required");
         CheckEnumIn(audit, "verdict", RecordSchema.AuditVerdicts, msg => Err($"audit.{msg}"));
-        CheckAuditRecordPath(audit, repoRoot, skipAuditLinks, Err);
+        CheckAuditRecordPath(audit, AsScalar(front.GetValueOrDefault("issue")), repoRoot, skipAuditLinks, Err);
     }
 
     // knowledge: list of maps.
@@ -237,9 +239,11 @@ static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditL
 }
 
 // audit.record names the audit result file (REQ-011). An unaudited record (verdict not-audited) names no
-// result file; every other verdict needs one, and a named file must exist (#1379, #1735). skipLinks is for the
-// pre-publication check inside the audit worktree, where the result is not in docs/knowledge yet.
-static void CheckAuditRecordPath(Dictionary<string, object?> audit, string repoRoot, bool skipLinks, Action<string> err)
+// result file; every other verdict needs one. A named file must be exactly docs/knowledge/audits/issue-<n>.md
+// for the record's own issue (no rooted, artifacts/ or other-issue path) and must exist (#1379, #1735).
+// skipLinks skips only the existence check, for the pre-publication check inside the audit worktree where the
+// result is not in docs/knowledge yet.
+static void CheckAuditRecordPath(Dictionary<string, object?> audit, string? issue, string repoRoot, bool skipLinks, Action<string> err)
 {
     var verdict = AsScalar(audit.GetValueOrDefault("verdict"));
     var record = AsScalar(audit.GetValueOrDefault("record"));
@@ -251,8 +255,14 @@ static void CheckAuditRecordPath(Dictionary<string, object?> audit, string repoR
             err("'audit.record' must name the audit result file (docs/knowledge/audits/issue-<n>.md, REQ-011) unless audit.verdict is 'not-audited'");
         return;
     }
+    var expected = $"docs/knowledge/audits/issue-{issue}.md";
+    if (record != expected)
+    {
+        err($"'audit.record' must be exactly '{expected}' (found '{record}')");
+        return;
+    }
     if (skipLinks) return;
-    var full = Path.IsPathRooted(record!) ? record! : Path.Combine(repoRoot, record!);
+    var full = Path.Combine(repoRoot, expected);
     if (!File.Exists(full))
         err($"'audit.record' points to '{record}', which does not exist (an unaudited record uses verdict 'not-audited' and names no result file)");
 }
@@ -271,6 +281,12 @@ static (List<string> Errors, int Checked) ValidateAudits(string auditsDir, strin
         if (!m.Success) { errors.Add($"audits/{name}: unexpected file (expected issue-<n>.md or an <n>/ stage folder)"); continue; }
         if (!File.Exists(Path.Combine(recordsDir, $"{m.Groups[1].Value}.md")))
             errors.Add($"audits/{name}: no matching record issues/{m.Groups[1].Value}.md");
+        // Stage links of a result (generated or archived): [<n>/stages/<file>](<n>/stages/<file>) must exist.
+        foreach (System.Text.RegularExpressions.Match link in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(f), @"\]\((\d+/stages/[^)\s#]+)\)"))
+        {
+            if (!File.Exists(Path.Combine(auditsDir, link.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar))))
+                errors.Add($"audits/{name}: stage link '{link.Groups[1].Value}' does not exist");
+        }
     }
     foreach (var d in Directory.GetDirectories(auditsDir).OrderBy(d => d, StringComparer.Ordinal))
     {
@@ -314,8 +330,17 @@ static void ValidateKnowledgeV2(List<object?> knowledgeList, Action<string> err)
     }
 }
 
+static bool ContainsFlowList(object? node) => node switch
+{
+    FlowList => true,
+    List<object?> list => list.Any(ContainsFlowList),
+    Dictionary<string, object?> map => map.Values.Any(ContainsFlowList),
+    _ => false
+};
+
 static void ValidateKnowledgeV1(List<object?> knowledgeList, string repoRoot, Action<string> Err)
 {
+    if (ContainsFlowList(knowledgeList)) Err("'knowledge' contains a flow list ('[]' or '[a, b]'), which only schema 2 accepts; use block lists");
     {
         for (var i = 0; i < knowledgeList.Count; i++)
         {
