@@ -78,6 +78,41 @@ public sealed class PIIPropertyScannerTests : IDisposable
         public string Normal { get; set; } = "";
     }
 
+    [PII(PIIType.Name)]
+    private sealed class ClassLevelPiiDto
+    {
+        public string First { get; set; } = "";
+
+        public string Last { get; set; } = "";
+
+        public int Age { get; set; }
+    }
+
+    [SensitiveData(MaskingMode.Redact)]
+    private sealed class ClassLevelSensitiveDto
+    {
+        public string Note { get; set; } = "";
+    }
+
+    [Fact]
+    public void GetProperties_ClassLevelPii_AppliesToEveryStringProperty()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(ClassLevelPiiDto));
+
+        properties.Length.ShouldBe(2);
+        properties.ShouldAllBe(p => p.Type == PIIType.Name && !p.LogOnly && p.Setter != null);
+    }
+
+    [Fact]
+    public void GetProperties_ClassLevelSensitiveData_AppliesToEveryStringProperty()
+    {
+        var properties = PIIPropertyScanner.GetProperties(typeof(ClassLevelSensitiveDto));
+
+        var note = properties.ShouldHaveSingleItem();
+        note.Type.ShouldBe(PIIType.Custom);
+        note.Mode.ShouldBe(MaskingMode.Redact);
+    }
+
     private sealed class NonStringPropertyDto
     {
         [PII(PIIType.Custom)]
@@ -198,15 +233,17 @@ public sealed class PIIPropertyScannerTests : IDisposable
     }
 
     [Fact]
-    public void GetProperties_ReadOnlyProperty_SkipsIfNoSetter()
+    public void GetProperties_ReadOnlyProperty_IsKeptWithoutSetter()
     {
         // Act
         var properties = PIIPropertyScanner.GetProperties(typeof(ReadOnlyPropertyDto));
 
-        // Assert - read-only properties (no setter) should be skipped since masking requires writing
-        properties.ShouldNotBeNull();
-        // The Email property has no setter, so it should be excluded
-        properties.ShouldBeEmpty();
+        // Assert - a get-only PII property is never skipped (skipping it would leak it unmasked);
+        // the masker fails closed when the masked value does not take effect on the copy
+        var email = properties.ShouldHaveSingleItem();
+        email.Property.Name.ShouldBe(nameof(ReadOnlyPropertyDto.Email));
+        email.Setter.ShouldBeNull();
+        Should.Throw<InvalidOperationException>(() => email.SetValue(new ReadOnlyPropertyDto(), "x"));
     }
 
     [Fact]

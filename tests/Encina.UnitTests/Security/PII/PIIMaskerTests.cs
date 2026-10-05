@@ -177,13 +177,13 @@ public sealed class PIIMaskerTests
     }
 
     [Fact]
-    public void Mask_InvalidRegex_ReturnsOriginal()
+    public void Mask_InvalidRegex_ReturnsFullyMaskedValue()
     {
         var sut = CreateSut();
 
         var result = sut.Mask("test-value", "[invalid(regex");
 
-        result.ShouldBe("test-value");
+        result.ShouldBe("**********");
     }
 
     [Fact]

@@ -170,6 +170,15 @@ public sealed class PIIOptions
     public bool EnableMetrics { get; set; }
 
     /// <summary>
+    /// Gets or sets the match timeout applied to every custom regex pattern used for masking.
+    /// </summary>
+    /// <remarks>
+    /// A pattern that does not finish within this time (catastrophic backtracking) fails closed:
+    /// the whole value is masked. Must be greater than zero. Default is 100 milliseconds.
+    /// </remarks>
+    public TimeSpan RegexTimeout { get; set; } = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>
     /// Gets the registered custom masking strategies keyed by <see cref="PIIType"/>.
     /// </summary>
     internal IReadOnlyDictionary<PIIType, Type> CustomStrategies => _customStrategies;

@@ -107,16 +107,30 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return value;
         }
 
+        var maskingOptions = BuildMaskingOptions(PIIType.Custom, _options.DefaultMode);
+        return MaskByPattern(value, pattern, maskingOptions.MaskCharacter);
+    }
+
+    /// <summary>
+    /// Masks the parts of <paramref name="value"/> matching <paramref name="pattern"/>, failing closed:
+    /// an invalid pattern, an invalid timeout or a match timeout masks the whole value, never returns it.
+    /// </summary>
+    private string MaskByPattern(string value, string pattern, char maskCharacter)
+    {
         try
         {
-            var maskingOptions = BuildMaskingOptions(PIIType.Custom, _options.DefaultMode);
-            return Regex.Replace(value, pattern, match =>
-                new string(maskingOptions.MaskCharacter, match.Length));
+            return Regex.Replace(
+                value,
+                pattern,
+                match => new string(maskCharacter, match.Length),
+                RegexOptions.None,
+                _options.RegexTimeout);
         }
-        catch (RegexParseException ex)
+        catch (Exception ex) when (ex is ArgumentException or RegexMatchTimeoutException)
         {
-            _logger.LogWarning(ex.ForLogging(), "Invalid regex pattern for PII masking: {Pattern}", pattern);
-            return value;
+            // Never log the value or the pattern text (a pattern can embed personal data): only its length.
+            PIILogMessages.PatternMaskingFailed(_logger, ex.ForLogging(), pattern.Length);
+            return new string(maskCharacter, value.Length);
         }
     }
 
@@ -237,8 +251,10 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _logger.LogWarning(ex.ForLogging(), "Failed to mask PII for audit on type {TypeName}", typeof(T).Name);
-            return request;
+            // Fail closed: the caller gets the exception instead of an unmasked copy. The payload stored
+            // in the audit entry is not redacted by this masker (tracked in #1835).
+            PIILogMessages.AuditMaskingFailed(_logger, ex.ForLogging(), typeof(T).Name);
+            throw;
         }
     }
 
@@ -258,8 +274,10 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _logger.LogWarning(ex.ForLogging(), "Failed to mask PII for audit on type {TypeName}", request.GetType().Name);
-            return request;
+            // Fail closed: the caller gets the exception instead of an unmasked copy. The payload stored
+            // in the audit entry is not redacted by this masker (tracked in #1835).
+            PIILogMessages.AuditMaskingFailed(_logger, ex.ForLogging(), request.GetType().Name);
+            throw;
         }
     }
 
@@ -298,32 +316,69 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
                 return obj;
             }
 
+            var applied = new List<(PropertyMaskingMetadata Property, string MaskedValue)>();
             foreach (var prop in properties)
             {
-                if (TryMaskNodeProperty(jsonObj, prop, logContextOnly))
+                if (TryMaskNodeProperty(jsonObj, prop, logContextOnly, out var maskedValue))
                 {
-                    maskedCount++;
+                    applied.Add((prop, maskedValue));
                 }
             }
+
+            maskedCount = applied.Count;
 
             // Also apply sensitive field pattern matching
             MaskSensitiveFieldsInNode(jsonObj);
 
-            var result = node.Deserialize<T>(_jsonOptions);
-            return result ?? obj;
+            var result = node.Deserialize<T>(_jsonOptions) ?? obj;
+            EnsureMasked(result!, type, applied);
+            return result;
         }
         catch (JsonException ex)
         {
+            // Fail closed: the unmasked object must never be returned (MaskObject logs and rethrows).
             PIILogMessages.SerializationFailed(_logger, ex.ForLogging(), type.Name);
-            return obj;
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Fails closed when a masked property did not take effect on the deserialized copy (for example a
+    /// get-only property that the deserializer cannot set): the unmasked copy is never returned.
+    /// </summary>
+    private static void EnsureMasked(
+        object result,
+        Type type,
+        List<(PropertyMaskingMetadata Property, string MaskedValue)> applied)
+    {
+        foreach (var (property, maskedValue) in applied)
+        {
+            // A member declared on a derived type does not exist on a copy deserialized as its base type.
+            if (!property.Property.DeclaringType!.IsInstanceOfType(result))
+            {
+                continue;
+            }
+
+            var actual = property.GetValue(result) as string;
+            if (!string.Equals(actual, maskedValue, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"PII property '{property.Property.Name}' of type '{type.Name}' could not be masked on the copy.");
+            }
         }
     }
 
     /// <summary>
     /// Masks one decorated property inside the JSON node; returns <c>true</c> when it was masked.
     /// </summary>
-    private bool TryMaskNodeProperty(JsonObject jsonObj, PropertyMaskingMetadata prop, bool logContextOnly)
+    private bool TryMaskNodeProperty(
+        JsonObject jsonObj,
+        PropertyMaskingMetadata prop,
+        bool logContextOnly,
+        out string maskedValue)
     {
+        maskedValue = string.Empty;
+
         // Skip log-only properties when not in log context
         if (prop.LogOnly && !logContextOnly)
         {
@@ -338,7 +393,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return false;
         }
 
-        var maskedValue = MaskPropertyValue(originalValue, prop);
+        maskedValue = MaskPropertyValue(originalValue, prop);
         jsonObj[propertyName] = maskedValue;
 
         // Trace-level log per property
@@ -367,81 +422,55 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return obj;
         }
 
-        try
-        {
-            var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
-            var node = JsonNode.Parse(json);
+        // Fail closed: a serialization failure propagates (the callers log and fail the operation);
+        // the unmasked object is never returned.
+        var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
+        var node = JsonNode.Parse(json);
 
-            if (node is not JsonObject jsonObj)
-            {
-                return obj;
-            }
-
-            var modified = MaskSensitiveFieldsInNode(jsonObj);
-            if (!modified)
-            {
-                return obj;
-            }
-
-            var result = node.Deserialize<T>(_jsonOptions);
-            return result ?? obj;
-        }
-        catch (JsonException)
+        if (node is not JsonObject jsonObj)
         {
             return obj;
         }
+
+        var modified = MaskSensitiveFieldsInNode(jsonObj);
+        if (!modified)
+        {
+            return obj;
+        }
+
+        var result = node.Deserialize<T>(_jsonOptions);
+        return result ?? obj;
     }
 
     private object MaskObjectViaJson(object obj, Type type, bool logContextOnly)
     {
         var properties = PIIPropertyScanner.GetProperties(type);
 
-        try
-        {
-            var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
-            var node = JsonNode.Parse(json);
+        // Fail closed: a serialization failure propagates (MaskForAudit logs and rethrows).
+        var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
+        var node = JsonNode.Parse(json);
 
-            if (node is not JsonObject jsonObj)
-            {
-                return obj;
-            }
-
-            // Apply attribute-based masking
-            foreach (var prop in properties)
-            {
-                if (prop.LogOnly && !logContextOnly)
-                {
-                    continue;
-                }
-
-                var propertyName = _jsonOptions.PropertyNamingPolicy?.ConvertName(prop.Property.Name)
-                    ?? prop.Property.Name;
-
-                if (jsonObj[propertyName] is not JsonValue jsonValue)
-                {
-                    continue;
-                }
-
-                var originalValue = jsonValue.ToString();
-                if (string.IsNullOrEmpty(originalValue))
-                {
-                    continue;
-                }
-
-                var maskedValue = MaskPropertyValue(originalValue, prop);
-                jsonObj[propertyName] = maskedValue;
-            }
-
-            // Apply sensitive field pattern matching
-            MaskSensitiveFieldsInNode(jsonObj);
-
-            var result = node.Deserialize(type, _jsonOptions);
-            return result ?? obj;
-        }
-        catch (JsonException)
+        if (node is not JsonObject jsonObj)
         {
             return obj;
         }
+
+        // Apply attribute-based masking
+        var applied = new List<(PropertyMaskingMetadata Property, string MaskedValue)>();
+        foreach (var prop in properties)
+        {
+            if (TryMaskNodeProperty(jsonObj, prop, logContextOnly, out var maskedValue))
+            {
+                applied.Add((prop, maskedValue));
+            }
+        }
+
+        // Apply sensitive field pattern matching
+        MaskSensitiveFieldsInNode(jsonObj);
+
+        var result = node.Deserialize(type, _jsonOptions) ?? obj;
+        EnsureMasked(result, type, applied);
+        return result;
     }
 
     private string MaskPropertyValue(string value, PropertyMaskingMetadata metadata)
@@ -452,19 +481,11 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             return metadata.Replacement;
         }
 
-        // Custom pattern masking
+        // Custom pattern masking (fails closed: see MaskByPattern)
         if (metadata.Pattern is not null)
         {
-            try
-            {
-                var maskingOptions = BuildMaskingOptions(metadata.Type, metadata.Mode);
-                return Regex.Replace(value, metadata.Pattern, match =>
-                    new string(maskingOptions.MaskCharacter, match.Length));
-            }
-            catch (RegexParseException)
-            {
-                return value;
-            }
+            var maskingOptions = BuildMaskingOptions(metadata.Type, metadata.Mode);
+            return MaskByPattern(value, metadata.Pattern, maskingOptions.MaskCharacter);
         }
 
         // Strategy-based masking

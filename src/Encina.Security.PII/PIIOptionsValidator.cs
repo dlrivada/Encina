@@ -51,6 +51,11 @@ internal sealed class PIIOptionsValidator : IValidateOptions<PIIOptions>
 
     private static string? FindFailure(PIIOptions options)
     {
+        if (options.RegexTimeout <= TimeSpan.Zero || options.RegexTimeout.TotalMilliseconds > int.MaxValue - 1)
+        {
+            return "PIIOptions.RegexTimeout must be greater than zero and shorter than about 24 days.";
+        }
+
         if (HasBlankKey(options))
         {
             return "PIIOptions.HashKey must not be empty or whitespace; set a real key or leave it null.";

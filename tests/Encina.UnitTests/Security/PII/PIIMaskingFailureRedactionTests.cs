@@ -115,7 +115,7 @@ public sealed class PIIMaskingFailureRedactionTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Handle_MaskerThrows_ReturnsOriginalAndLogsRedactedException(bool metrics)
+    public async Task Handle_MaskerThrows_ReturnsErrorAndLogsRedactedException(bool metrics)
     {
         var masker = Substitute.For<IPIIMasker>();
         masker.MaskObject(Arg.Any<EmailDto>()).Throws(new InvalidOperationException(Sentinel));
@@ -130,8 +130,12 @@ public sealed class PIIMaskingFailureRedactionTests : IDisposable
             () => ValueTask.FromResult<Either<EncinaError, EmailDto>>(response),
             CancellationToken.None);
 
-        result.IsRight.ShouldBeTrue();
-        result.IfRight(r => r.ShouldBeSameAs(response));
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e =>
+        {
+            e.GetCode().IfNone(string.Empty).ShouldBe(PIIErrors.MaskingFailedCode);
+            e.Message.ShouldNotContain(Sentinel);
+        });
         AssertLoggedRedacted(logger);
     }
 }
