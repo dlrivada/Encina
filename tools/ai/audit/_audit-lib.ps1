@@ -101,6 +101,14 @@ function Get-DeltaDone([string]$KnowledgeRoot, [string]$Set) {
     return @(Get-Content -LiteralPath $p | Where-Object { $_ -match '\S' } | ForEach-Object { ($_ -split ',')[0].Trim() })
 }
 
+# The date (yyyy-MM-dd) of the audit recorded in a knowledge record's front matter (`audit:` block, `date:`),
+# or '' when the record has none (the oldest records predate that block).
+function Get-RecordAuditDate([string]$RecordText) {
+    $m = [regex]::Match($RecordText, '(?m)^audit:[ \t]*\r?\n(?:[ \t]+\S.*\r?\n)*?[ \t]+date:[ \t]*(?<d>\d{4}-\d{2}-\d{2})')
+    if ($m.Success) { return $m.Groups['d'].Value }
+    return ''
+}
+
 # The scope the original audit recorded, as the text of artifacts\knowledge\delta-scope.md: the packages and
 # title of the knowledge record docs/knowledge/issues/<n>.md plus, when published, the archivist and code stage
 # files under docs/knowledge/audits/<n>/stages/ (their scope lists are the audit's own scope). Read from the
@@ -111,11 +119,24 @@ function New-DeltaScopeText([int]$Issue, [string]$Worktree, [string]$Set) {
     if (-not (Test-Path -LiteralPath $record)) { return $null }
     $sb = [System.Text.StringBuilder]::new()
     $null = $sb.Append("# Delta scope of issue #$Issue (set $Set)`n`n")
+    $hasStages = Test-Path -LiteralPath (Join-Path $Worktree "docs\knowledge\audits\$Issue\stages")
+    $resultFile = Join-Path $Worktree "docs\knowledge\audits\issue-$Issue.md"
+    $hasResult = Test-Path -LiteralPath $resultFile
     $null = $sb.Append("Reused from the original audit; do not re-derive it. Rules in this delta: see tools/ai/audit/pipeline-delta.json.`n`n")
+    $source = if ($hasStages) { 'the published record and the published stage files of the original audit (docs/knowledge/audits/' + $Issue + '/stages/)' }
+    else { 'the published record' + $(if ($hasResult) { " and the published audit result (docs/knowledge/audits/issue-$Issue.md)" } else { '' }) + ' only: the original audit has no published stage files' }
+    $null = $sb.Append("**Scope source:** $source.`n`n")
     $null = $sb.Append("## Knowledge record (docs/knowledge/issues/$Issue.md)`n`n")
     $recordText = Get-Content -LiteralPath $record -Raw
     $front = [regex]::Match($recordText, '(?s)\A---\r?\n(?<fm>.*?)\r?\n---')
     $null = $sb.Append('```yaml' + "`n" + $(if ($front.Success) { $front.Groups['fm'].Value } else { $recordText }) + "`n" + '```' + "`n`n")
+    if (-not $hasStages) {
+        # Without stage files the scope is what the record names (packages, files and knowledge destinations in the
+        # front matter above, the "Where the knowledge lives" section) and the result's text.
+        $where = [regex]::Match($recordText, '(?ims)^##\s*Where the knowledge lives[^\r\n]*\r?\n(?<body>.*?)(?=^##\s|\z)')
+        if ($where.Success) { $null = $sb.Append("## Where the knowledge lives (record)`n`n" + $where.Groups['body'].Value.Trim() + "`n`n") }
+        if ($hasResult) { $null = $sb.Append("## Audit result (docs/knowledge/audits/issue-$Issue.md)`n`n" + (Get-Content -LiteralPath $resultFile -Raw).Trim() + "`n`n") }
+    }
     foreach ($name in 'archivist.md', 'code.md') {
         $stageFile = Join-Path $Worktree "docs\knowledge\audits\$Issue\stages\$name"
         if (-not (Test-Path -LiteralPath $stageFile)) { continue }

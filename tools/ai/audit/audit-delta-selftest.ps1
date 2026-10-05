@@ -77,6 +77,14 @@ exit 0
     Write-Text (Join-Path $main "docs\knowledge\audits\issue-$issue.md") "# Audit of issue #$issue`n`nORIGINAL RESULT`n"
     Write-Text (Join-Path $main "docs\knowledge\audits\$issue\stages\archivist.md") "## Scope`n- src/Encina.Fixture/Widget.cs`n- tests/Encina.UnitTests/Fixture/WidgetTests.cs`n## Findings`n- none`n"
     Write-Text (Join-Path $main "docs\knowledge\audits\$issue\stages\code.md") "## Findings`n- none`n"
+    # 97: an early audit with a published record and result but NO published stage files (its scope comes from the
+    # record); 96: audited on 2026-10-06, after the set's cut-off (never in the queue); 95: no published record.
+    foreach ($spec in @(@(97, '2026-09-20'), @(96, '2026-10-06'))) {
+        $n = $spec[0]
+        $rec = $record.Replace("issue: $issue", "issue: $n").Replace('date: 2026-09-20', "date: $($spec[1])").Replace("issue-$issue.md", "issue-$n.md").Replace('Encina.Fixture', "Encina.Early$n").Replace('ORIGINAL RECORD', "RECORD $n")
+        Write-Text (Join-Path $main "docs\knowledge\issues\$n.md") $rec
+        Write-Text (Join-Path $main "docs\knowledge\audits\issue-$n.md") "# Audit of issue #$n`n`nPUBLISHED RESULT $n`n"
+    }
     Git -C $main add -A | Out-Null
     Git -C $main commit -q -m 'fixture main' | Out-Null
     Git -C $main remote add origin $origin | Out-Null
@@ -84,7 +92,7 @@ exit 0
 
     # Audit history: 98 audited and already re-checked, 99 audited twice (a redo), 97 not in the list at all.
     $knowledge = Join-Path $main 'artifacts\knowledge'
-    Write-Text (Join-Path $knowledge 'progress.csv') "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n98,done,,,,0,`"`"`n$issue,done,,,,1,`"first`"`n$issue,done,,,,2,`"redo`"`n"
+    Write-Text (Join-Path $knowledge 'progress.csv') "issue,status,findings_blocker,findings_major,findings_minor,remediation_opened,notes`n98,done,,,,0,`"`"`n$issue,done,,,,1,`"first`"`n$issue,done,,,,2,`"redo`"`n97,done,,,,0,`"`"`n96,done,,,,0,`"`"`n95,done,,,,0,`"`"`n"
     $deltaProgress = Join-Path $knowledge "delta-progress-$set.csv"
     Write-Text $deltaProgress "98,done,0,`n"
     $progressBefore = Get-Content (Join-Path $knowledge 'progress.csv') -Raw
@@ -160,8 +168,31 @@ exit 0
     Assert-That 'the delta audit is closed (worktree, branch, current-audit.json)' ((-not (Test-Path $wt)) -and (-not (Test-Path $currentAudit)) -and (-not (Git -C $main branch --list 'audit/99')))
     Assert-That 'the delta progress file records 99 and progress.csv is untouched' (((Get-Content $deltaProgress) -match '^99,done') -and ((Get-Content (Join-Path $knowledge 'progress.csv') -Raw) -ceq $progressBefore))
     Assert-That 'the delta stages were archived next to, not over, the originals' ((Test-Path (Join-Path $knowledge "stages\99-$folder\docs.md")) -and -not (Test-Path (Join-Path $knowledge 'stages\99')))
+    Assert-That 'the cut-off and the missing record are reported (96 after the cut-off, 95 skipped with a warning)' (($r.Text -like '*not in the*2026-10-05*96*') -and ($r.Text -like '*skipped*95*')) $r.Text
+
+    # --- 6. an early audit without published stage files (97) ------------------------------------------------
+    $r4 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
+    Assert-That 'the next delta is 97, the early audit without stage files (95 and 96 never enter the queue)' ($r4.Exit -eq 0 -and $r4.Text -like "*Delta audit $set of #97*") $r4.Text
+    $wt = Join-Path $main '.claude\worktrees\wia-97'
+    $stagesDir = Join-Path $wt 'artifacts\knowledge\stages'
+    $scopeFile = Join-Path $wt 'artifacts\knowledge\delta-scope.md'
+    $scope97 = if (Test-Path $scopeFile) { Get-Content $scopeFile -Raw } else { '' }
+    Assert-That 'its scope came from the published record and result, and says so' ($scope97 -like '*Scope source:*only: the original audit has no published stage files*' -and $scope97 -like '*Encina.Early97*' -and $scope97 -like '*PUBLISHED RESULT 97*') $scope97
+    foreach ($stage in $expectedOrder) {
+        $def = (Get-Content (Join-Path $wt 'tools\ai\audit\pipeline-delta.json') -Raw | ConvertFrom-Json).stages | Where-Object { $_.stage -eq $stage }
+        $text = if ($stage -eq 'verification') { "Verdict: PASS`n## Verified claims`nFixture.`n" } else { "## Findings`n- none`n## Lessons for the pipeline`n- none`n" }
+        Write-Text (Join-Path $stagesDir $def.artifact) $text
+        Git -C $wt add -f "artifacts/knowledge/stages/$($def.artifact)" | Out-Null
+        Git -C $wt commit -q -m "audit #97: $stage stage" -m "Stage: $stage" | Out-Null
+    }
+    Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons recorded across the pipeline stages for #97.`n"
+    $d3 = Invoke-Script 'audit-done.ps1' @()
+    Assert-That 'the delta of 97 publishes although the original audit has no stages folder (validator accepts a delta-only audit folder)' ($d3.Exit -eq 0) $d3.Text
+    $diff97 = @(Git -C $main diff --name-only origin/main "knowledge/audit-97-$folder")
+    Assert-That 'its publish layout is audits/97/delta-2026-10/ only' ((@($diff97 | Where-Object { $_ -notlike "docs/knowledge/audits/97/$folder/*" }).Count -eq 0) -and $diff97.Count -eq 6) ($diff97 -join "`n")
+
     $r3 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
-    Assert-That 'with every audited issue done the next audit-next -Delta says so' ($r3.Exit -ne 0 -and $r3.Text -like '*no audited issue left*') $r3.Text
+    Assert-That 'with every eligible audited issue done the next audit-next -Delta says so' ($r3.Exit -ne 0 -and $r3.Text -like '*no audited issue left*') $r3.Text
 }
 finally {
     Set-Location $PSScriptRoot

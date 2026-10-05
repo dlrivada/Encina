@@ -296,7 +296,10 @@ static (List<string> Errors, int Checked) ValidateAudits(string auditsDir, strin
         if (!File.Exists(Path.Combine(recordsDir, $"{name}.md")))
             errors.Add($"audits/{name}/: no matching record issues/{name}.md");
         var stages = Path.Combine(d, "stages");
-        if (!Directory.Exists(stages)) errors.Add($"audits/{name}/: missing stages folder");
+        // An audit folder holds the original audit's stages/ and/or delta re-checks (delta-*/, #1763); a delta of an
+        // early audit that published no stage files is valid with only its delta folder.
+        var hasDelta = Directory.GetDirectories(d, "delta-*").Length > 0;
+        if (!Directory.Exists(stages) && !hasDelta) errors.Add($"audits/{name}/: missing stages folder");
     }
     return (errors, checkedFiles);
 }
