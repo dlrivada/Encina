@@ -675,12 +675,40 @@ jobs:
       - name: Self-test the audit delta mode (git and gh stubbed)
         run: pwsh -NoProfile -File tools/ai/audit/audit-delta-selftest.ps1
 
+  # #1817: internal links and anchors of the whole site, offline (deterministic, seconds long), as a
+  # merge gate through ci-result. link-check.yml keeps the online and changed-file scans; before this
+  # job a red internal-link check could merge because it was not required (PR #1815).
+  internal-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check internal markdown links (whole site, offline)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress
+            --offline
+            --config '.github/lychee.toml'
+            'docs/**/*.md'
+            '.github/**/*.md'
+            'README.md'
+            'CHANGELOG.md'
+            'changelog.d/**/*.md'
+            'CONTRIBUTING.md'
+            'ROADMAP.md'
+          fail: true
+
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped
   # by change detection, and fails only if a job it depends on failed or was cancelled.
   ci-result:
     name: ci-result
-    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records]
+    needs: [changes, build, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers, crap-gate, coverage-citations, changelog-fragments, knowledge-records, internal-links]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
