@@ -356,9 +356,24 @@ pwsh -NoProfile -File tools/ai/audit/audit-done.ps1
 
 Refuses when any stage artifact is missing or uncommitted, the verification verdict is not PASS, any lesson
 still says `Applied: TODO`, or the worktree's `knowledge-records --check` fails on `artifacts/knowledge/issues`.
-Otherwise it copies the records, audits, remediation drafts, stage artifacts and the ledger into the main
-`artifacts/knowledge/`, appends `progress.csv`, appends every `role:<agent>` lesson to that agent's memory
-file, removes the `wia-<n>` worktree and its `audit/<n>` branch, and deletes `current-audit.json`.
+Otherwise it first **publishes the audit to the repository** (#1735): in a temporary worktree it creates the
+branch `knowledge/audit-<n>` from `origin/main`, puts the record in `docs/knowledge/issues/<n>.md` (replacing a
+fix PR's schema 1 record), the audit result in `docs/knowledge/audits/issue-<n>.md` and the stage files in
+`docs/knowledge/audits/<n>/stages/`, validates the whole `docs/knowledge` tree with `knowledge-records.cs --check`,
+commits `docs(knowledge): SPEC-003 audit of #<n>`, pushes and opens a pull request whose body is `Refs #1345`
+(never `Fixes`). When the pipeline wrote no audit result (it does not for the six stages), the script generates a
+short one: the verdict line and pass count of the verification stage, one line per stage with a link to its stage
+file, the remediation issues opened (from `artifacts/knowledge/remediation/opened.csv`; drafts not yet opened are
+listed as such) and the duplicates the remediation stage noted. Remediation drafts are not published; they become
+issues in step 6. If publishing fails, nothing else happens (the `wia-<n>` worktree, the `audit/<n>` branch and
+`current-audit.json` stay) and the script can be run again. `-NoPublish` prepares the branch and prints the push
+and `gh pr create` commands without running them, and leaves the audit open. Merge the knowledge pull request like
+any other (`pr-cycle`).
+
+Only after the pull request exists it copies the records, audits, remediation drafts, stage artifacts and the
+ledger into the main `artifacts/knowledge/` (still git-ignored, the working area), appends `progress.csv`,
+appends every `role:<agent>` lesson to that agent's memory file, removes the `wia-<n>` worktree and its
+`audit/<n>` branch, and deletes `current-audit.json`.
 
 Update the board: `audits/<n>.status=closed`, its `outcome` (from the knowledge record), `opened=[...]`
 remediation issue numbers once step 6 runs, and `meta/board.pipeline="v2"`.

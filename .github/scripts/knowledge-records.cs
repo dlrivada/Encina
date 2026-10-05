@@ -6,16 +6,34 @@
 // set (superset of `prs`, which is issue-worker/closing-PR driven). The schema lives in ONE place
 // in this file (see RecordSchema below) so a later amendment is one edit.
 //
+// Schemas (#1735). The front-matter `schema` field selects the rule set; any other value is rejected.
+//   schema 1  the strict shape above: block lists only (flow syntax like `[]` is rejected), every source
+//             marked quote:/paraphrase: with a link and a date (REQ-002), a `done` destination whose target
+//             exists, `current: yes` with a non-`none` destination (REQ-005), `audit` required.
+//   schema 2  the audit pipeline's records (docs/knowledge/issues/1..10 as archived): the same required
+//             fields, enums and block of audit keys, but flow lists (`packages: [A, B]`, `prs: []`) and
+//             block scalars (`>-`) are accepted, `audit` may be absent (never audited), `audit.unit` and
+//             `knowledge_unverified` are allowed, destination statuses are free text (`present`,
+//             `planned (#1317)`), destination targets may be prose, and sources need no link/date marker.
+//             Schema 2 checks structure and enums only; REQ-002/REQ-005 and `done`-target existence are
+//             not applied to it. Unifying both on one schema is future work (see #1735).
+// Both schemas share the audit-result rule: `audit.record` must name an existing file (relative to the
+// repository root) unless `audit.verdict` is `not-audited`, in which case it names no file ("not written yet").
+//
 // Usage:
-//   dotnet run .github/scripts/knowledge-records.cs -- --check [--dir <records-dir>]
+//   dotnet run .github/scripts/knowledge-records.cs -- --check [--dir <records-dir>] [--audits-dir <dir>] [--skip-audit-links]
 //   dotnet run .github/scripts/knowledge-records.cs -- --generate --dir <records-dir> --out <output-dir>
 //
 // --check     validates every docs/knowledge/issues/<n>.md (or every *.md under --dir) against the
 //             record schema: required front-matter fields, enum values, that a `done` destination's
 //             target file exists (relative to the repository root of --dir's checkout), that every
 //             knowledge item with current: yes has a non-`none` destination (REQ-005), and that
-//             every knowledge item carries at least one source (REQ-002). Exit 1 on any violation,
-//             with one line per error naming the file and the field.
+//             every knowledge item carries at least one source (REQ-002). It also checks the audit
+//             results next to the records (--audits-dir, default <dir>/../audits): every issue-<n>.md and
+//             every <n>/stages folder needs the record <n>.md. --skip-audit-links turns off the
+//             audit.record existence check and the audits folder check (audit-done.ps1 uses it before the
+//             result is in docs/knowledge). Exit 1 on any violation, with one line per error naming the
+//             file and the field.
 // --generate  reads every record under --dir and writes, under --out: an `index.md` grouped by
 //             area (REQ-015) and a `PROJECT-HISTORY.md` grouped by knowledge kind within area, both
 //             stamped as generated (REQ-016). Never writes to docs/engineering/ directly — --out is
@@ -43,6 +61,9 @@ string? GetOpt(string name) {
 
 var dir = GetOpt("--dir") ?? Path.Combine("docs", "knowledge", "issues");
 var repoRoot = GetOpt("--repo-root") ?? FindRepoRoot(dir);
+var skipAuditLinks = args.Contains("--skip-audit-links");
+// The audit results sit next to the records directory: docs/knowledge/issues -> docs/knowledge/audits.
+var auditsDir = GetOpt("--audits-dir") ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dir)) ?? ".", "audits");
 
 if (!Directory.Exists(dir))
 {
@@ -62,17 +83,25 @@ if (mode == "--check")
     var errors = new List<string>();
     foreach (var file in files)
     {
-        errors.AddRange(ValidateRecord(file, repoRoot));
+        errors.AddRange(ValidateRecord(file, repoRoot, skipAuditLinks));
+    }
+
+    var auditFiles = 0;
+    if (!skipAuditLinks && Directory.Exists(auditsDir))
+    {
+        var (auditErrors, checkedFiles) = ValidateAudits(auditsDir, dir);
+        errors.AddRange(auditErrors);
+        auditFiles = checkedFiles;
     }
 
     if (errors.Count > 0)
     {
         foreach (var e in errors) Console.Error.WriteLine(e);
-        Console.Error.WriteLine($"knowledge-records --check: {errors.Count} error(s) across {files.Length} file(s).");
+        Console.Error.WriteLine($"knowledge-records --check: {errors.Count} error(s) across {files.Length + auditFiles} file(s).");
         return 1;
     }
 
-    Console.WriteLine($"knowledge-records --check: {files.Length} record(s) OK.");
+    Console.WriteLine($"knowledge-records --check: {files.Length} record(s) and {auditFiles} audit file(s) OK.");
     return 0;
 }
 
@@ -110,7 +139,7 @@ return skipped > 0 ? 1 : 0;
 // Validation
 // ---------------------------------------------------------------------------------------------
 
-static List<string> ValidateRecord(string file, string repoRoot)
+static List<string> ValidateRecord(string file, string repoRoot, bool skipAuditLinks)
 {
     var errors = new List<string>();
     var name = Path.GetFileName(file);
@@ -120,12 +149,28 @@ static List<string> ValidateRecord(string file, string repoRoot)
 
     void Err(string msg) => errors.Add($"{name}: {msg}");
 
+    // The schema version selects the rule set; a missing or unknown version gets ONE error and no
+    // further checks, because the other rules cannot be applied to a shape nobody defined.
+    var schemaText = AsScalar(front.GetValueOrDefault("schema"));
+    if (string.IsNullOrEmpty(schemaText))
+    {
+        Err("missing required field 'schema'");
+        return errors;
+    }
+    if (!int.TryParse(schemaText, out var schemaVersion) || !RecordSchema.SupportedVersions.Contains(schemaVersion))
+    {
+        Err($"'schema' must be one of {string.Join(", ", RecordSchema.SupportedVersions)} (found '{schemaText}')");
+        return errors;
+    }
+    var isV2 = schemaVersion == 2;
+
     // Fields already reported as missing by the loops below are not re-checked for format below:
     // a record missing 'schema' entirely should get ONE error ("missing required field"), not two
     // ("missing required field" followed by "must be 1 (found 'None')" for the same absence).
     var missingScalarFields = new HashSet<string>(StringComparer.Ordinal);
     foreach (var field in RecordSchema.RequiredScalarFields)
     {
+        if (field == "schema") continue; // validated above
         if (!front.TryGetValue(field, out var fieldVal) || fieldVal is not string { Length: > 0 })
         {
             // A key with no inline value and no indented block (e.g. `closed:` alone) parses as an
@@ -141,12 +186,9 @@ static List<string> ValidateRecord(string file, string repoRoot)
     {
         if (!front.TryGetValue(field, out var listVal))
             Err($"missing required field '{field}'");
-        else if (listVal is not List<object?>)
-            Err($"'{field}' must be a block list (flow syntax like '[]' is not supported; use an empty key)");
+        else if (listVal is not List<object?> || (!isV2 && listVal is FlowList))
+            Err($"'{field}' must be a block list (flow syntax like '[]' is only accepted by schema 2; use an empty key)");
     }
-
-    if (!missingScalarFields.Contains("schema") && (!int.TryParse(AsScalar(front.GetValueOrDefault("schema")), out var schemaVersion) || schemaVersion != RecordSchema.SupportedVersion))
-        Err($"'schema' must be {RecordSchema.SupportedVersion} (found '{AsScalar(front.GetValueOrDefault("schema"))}')");
 
     if (front.TryGetValue("nav_exclude", out var nx) && AsScalar(nx) != "true")
         Err("'nav_exclude' must be true");
@@ -169,24 +211,111 @@ static List<string> ValidateRecord(string file, string repoRoot)
             Err($"outcome '{outcome}' requires '{linkField}'");
     }
 
-    // audit: a nested map.
+    // audit: a nested map. Required by schema 1; schema 2 records that were never audited omit it.
     if (!front.TryGetValue("audit", out var auditObj) || auditObj is not Dictionary<string, object?> audit)
     {
-        Err("missing required field 'audit'");
+        if (!isV2 || front.ContainsKey("audit")) Err("missing required field 'audit'");
     }
     else
     {
         // SPEC-003 §3.1: the audit unit is the issue itself (§15.4, DECIDED), so no separate
-        // 'unit' field is required; the map is 'checklist', 'date', 'verdict', 'record'.
+        // 'unit' field is required (schema 2 allows it); the map is 'checklist', 'date', 'verdict', 'record'.
         if (!audit.ContainsKey("checklist")) Err("'audit.checklist' is required");
         if (!audit.ContainsKey("date")) Err("'audit.date' is required");
-        if (!audit.ContainsKey("record") || string.IsNullOrWhiteSpace(AsScalar(audit.GetValueOrDefault("record"))))
-            Err("'audit.record' is required (link to docs/knowledge/audits/issue-<n>.md, REQ-011)");
         CheckEnumIn(audit, "verdict", RecordSchema.AuditVerdicts, msg => Err($"audit.{msg}"));
+        CheckAuditRecordPath(audit, repoRoot, skipAuditLinks, Err);
     }
 
     // knowledge: list of maps.
     if (front.TryGetValue("knowledge", out var knowledgeObj) && knowledgeObj is List<object?> knowledgeList)
+    {
+        if (isV2) ValidateKnowledgeV2(knowledgeList, Err);
+        else ValidateKnowledgeV1(knowledgeList, repoRoot, Err);
+    }
+
+    return errors;
+}
+
+// audit.record names the audit result file (REQ-011). An unaudited record (verdict not-audited) names no
+// result file; every other verdict needs one, and a named file must exist (#1379, #1735). skipLinks is for the
+// pre-publication check inside the audit worktree, where the result is not in docs/knowledge yet.
+static void CheckAuditRecordPath(Dictionary<string, object?> audit, string repoRoot, bool skipLinks, Action<string> err)
+{
+    var verdict = AsScalar(audit.GetValueOrDefault("verdict"));
+    var record = AsScalar(audit.GetValueOrDefault("record"));
+    // A value without whitespace ending in .md names a file; anything else ("not written yet") names none.
+    var namesFile = !string.IsNullOrWhiteSpace(record) && System.Text.RegularExpressions.Regex.IsMatch(record, @"^\S+\.md$");
+    if (!namesFile)
+    {
+        if (verdict != "not-audited")
+            err("'audit.record' must name the audit result file (docs/knowledge/audits/issue-<n>.md, REQ-011) unless audit.verdict is 'not-audited'");
+        return;
+    }
+    if (skipLinks) return;
+    var full = Path.IsPathRooted(record!) ? record! : Path.Combine(repoRoot, record!);
+    if (!File.Exists(full))
+        err($"'audit.record' points to '{record}', which does not exist (an unaudited record uses verdict 'not-audited' and names no result file)");
+}
+
+// Checks of docs/knowledge/audits next to the records: every issue-<n>.md result and every <n>/ stage folder
+// needs the record issues/<n>.md; nothing else belongs there.
+static (List<string> Errors, int Checked) ValidateAudits(string auditsDir, string recordsDir)
+{
+    var errors = new List<string>();
+    var checkedFiles = 0;
+    foreach (var f in Directory.GetFiles(auditsDir, "*", SearchOption.TopDirectoryOnly).OrderBy(f => f, StringComparer.Ordinal))
+    {
+        var name = Path.GetFileName(f);
+        var m = System.Text.RegularExpressions.Regex.Match(name, @"^issue-(\d+)\.md$");
+        checkedFiles++;
+        if (!m.Success) { errors.Add($"audits/{name}: unexpected file (expected issue-<n>.md or an <n>/ stage folder)"); continue; }
+        if (!File.Exists(Path.Combine(recordsDir, $"{m.Groups[1].Value}.md")))
+            errors.Add($"audits/{name}: no matching record issues/{m.Groups[1].Value}.md");
+    }
+    foreach (var d in Directory.GetDirectories(auditsDir).OrderBy(d => d, StringComparer.Ordinal))
+    {
+        var name = Path.GetFileName(d);
+        checkedFiles++;
+        if (!name.All(char.IsAsciiDigit)) { errors.Add($"audits/{name}/: unexpected folder (expected <n>/stages)"); continue; }
+        if (!File.Exists(Path.Combine(recordsDir, $"{name}.md")))
+            errors.Add($"audits/{name}/: no matching record issues/{name}.md");
+        var stages = Path.Combine(d, "stages");
+        if (!Directory.Exists(stages)) errors.Add($"audits/{name}/: missing stages folder");
+    }
+    return (errors, checkedFiles);
+}
+
+// Schema 2 knowledge items (the audit pipeline's records): structure and enums only. The archived records
+// carry prose destination targets, sources without a link or marker, statuses such as 'present' or
+// 'planned (#1317)', and 'current: yes' with only a 'none' destination, so the schema 1 content rules
+// (REQ-002 source markers, REQ-005, done-target existence) are not applied.
+static void ValidateKnowledgeV2(List<object?> knowledgeList, Action<string> err)
+{
+    for (var i = 0; i < knowledgeList.Count; i++)
+    {
+        if (knowledgeList[i] is not Dictionary<string, object?> item) { err($"'knowledge[{i}]' must be a map"); continue; }
+        var where = $"knowledge[{i}]";
+        CheckEnumIn(item, "kind", RecordSchema.KnowledgeKinds, msg => err($"{where}.{msg}"));
+        CheckEnumIn(item, "current", RecordSchema.CurrentValues, msg => err($"{where}.{msg}"));
+        if (string.IsNullOrWhiteSpace(AsScalar(item.GetValueOrDefault("statement")))) err($"{where}.statement is required");
+        var sources = item.GetValueOrDefault("sources") as List<object?>;
+        if (sources is null || sources.Count == 0 || sources.Any(s => string.IsNullOrWhiteSpace(AsScalar(s))))
+            err($"{where}.sources must be a non-empty list of non-empty strings");
+        var destinations = item.GetValueOrDefault("destinations") as List<object?> ?? [];
+        for (var j = 0; j < destinations.Count; j++)
+        {
+            if (destinations[j] is not Dictionary<string, object?> dest) { err($"{where}.destinations[{j}] must be a map"); continue; }
+            var dwhere = $"{where}.destinations[{j}]";
+            CheckEnumIn(dest, "kind", RecordSchema.DestinationKinds, msg => err($"{dwhere}.{msg}"));
+            if (string.IsNullOrWhiteSpace(AsScalar(dest.GetValueOrDefault("status")))) err($"{dwhere}.status is required");
+            if (AsScalar(dest.GetValueOrDefault("kind")) != "none" && string.IsNullOrWhiteSpace(AsScalar(dest.GetValueOrDefault("target"))))
+                err($"{dwhere}.target is required unless the kind is 'none'");
+        }
+    }
+}
+
+static void ValidateKnowledgeV1(List<object?> knowledgeList, string repoRoot, Action<string> Err)
+{
     {
         for (var i = 0; i < knowledgeList.Count; i++)
         {
@@ -274,8 +403,6 @@ static List<string> ValidateRecord(string file, string repoRoot)
                 Err($"{where}: current: yes requires at least one destination other than 'none' (REQ-005)");
         }
     }
-
-    return errors;
 }
 
 static void CheckEnum(Dictionary<string, object?> map, string field, string[] allowed, Action<string> err)
@@ -384,7 +511,7 @@ static Dictionary<string, object?> ParseMap(List<(int Indent, string Content)> l
         var val = content[(colon + 1)..].Trim();
         if (val.Length > 0)
         {
-            map[key] = Unquote(val);
+            map[key] = ParseValue(val, lines, ref pos, indent);
         }
         else if (pos < lines.Count && lines[pos].Indent > indent)
         {
@@ -424,7 +551,7 @@ static List<object?> ParseSeq(List<(int Indent, string Content)> lines, ref int 
             var key = content[..colon].Trim();
             var val = content[(colon + 1)..].Trim();
             map[key] = val.Length > 0
-                ? Unquote(val)
+                ? ParseValue(val, lines, ref pos, indent + 1)
                 : (pos < lines.Count && lines[pos].Indent > indent
                     ? (lines[pos].Content.StartsWith("- ", StringComparison.Ordinal) ? ParseSeq(lines, ref pos, lines[pos].Indent) : ParseMap(lines, ref pos, lines[pos].Indent))
                     : new List<object?>());
@@ -437,7 +564,7 @@ static List<object?> ParseSeq(List<(int Indent, string Content)> lines, ref int 
                 var k2 = line[..c2].Trim();
                 var v2 = line[(c2 + 1)..].Trim();
                 map[k2] = v2.Length > 0
-                    ? Unquote(v2)
+                    ? ParseValue(v2, lines, ref pos, indent + 1)
                     : (pos < lines.Count && lines[pos].Indent > indent + 1
                         ? (lines[pos].Content.StartsWith("- ", StringComparison.Ordinal) ? ParseSeq(lines, ref pos, lines[pos].Indent) : ParseMap(lines, ref pos, lines[pos].Indent))
                         : new List<object?>());
@@ -450,6 +577,47 @@ static List<object?> ParseSeq(List<(int Indent, string Content)> lines, ref int 
         }
     }
     return list;
+}
+
+// A flow list ([a, b] or []) is parsed into FlowList so schema 1 can still reject it while schema 2
+// accepts it; a block scalar (>-, |, ...) is folded into one string. Anything else is an unquoted scalar.
+static object? ParseValue(string val, List<(int Indent, string Content)> lines, ref int pos, int keyIndent)
+{
+    if (val is ">" or ">-" or ">+" or "|" or "|-" or "|+")
+    {
+        var literal = val[0] == '|';
+        var parts = new List<string>();
+        while (pos < lines.Count && lines[pos].Indent > keyIndent)
+        {
+            parts.Add(lines[pos].Content);
+            pos++;
+        }
+        return string.Join(literal ? '\n' : ' ', parts);
+    }
+    if (val.Length >= 2 && val[0] == '[' && val[^1] == ']')
+    {
+        var list = new FlowList();
+        foreach (var part in SplitFlow(val[1..^1])) list.Add(Unquote(part));
+        return list;
+    }
+    return Unquote(val);
+}
+
+// Splits "a, "b, c", d" on the commas outside double quotes; an empty inner text is an empty list.
+static List<string> SplitFlow(string inner)
+{
+    var parts = new List<string>();
+    var sb = new StringBuilder();
+    var inQuotes = false;
+    foreach (var ch in inner)
+    {
+        if (ch == '"') inQuotes = !inQuotes;
+        if (ch == ',' && !inQuotes) { parts.Add(sb.ToString().Trim()); sb.Clear(); continue; }
+        sb.Append(ch);
+    }
+    var last = sb.ToString().Trim();
+    if (last.Length > 0 || parts.Count > 0) parts.Add(last);
+    return parts.Where(p => p.Length > 0).ToList();
 }
 
 static string Unquote(string s)
@@ -544,9 +712,13 @@ static string ToTitle(string kebab)
 // Schema (RecordSchema): the single place an amendment to the front matter touches.
 // ---------------------------------------------------------------------------------------------
 
+sealed class FlowList : List<object?>;
+
 static class RecordSchema
 {
-    public const int SupportedVersion = 1;
+    // Schema 1: the strict record shape SPEC-003 §3.1 defines (block lists only, REQ-002 sources, REQ-005,
+    // done-target existence). Schema 2: the audit pipeline's records (#1735), see the header of this file.
+    public static readonly int[] SupportedVersions = [1, 2];
 
     // SPEC-003 §3.1 required scalar fields, plus the pilot-1 `linked_prs` amendment.
     public static readonly string[] RequiredScalarFields =

@@ -229,3 +229,228 @@ function Split-Findings([string]$Stage, [string]$FindingsText) {
     }
     return $results
 }
+
+# ---------------------------------------------------------------------------------------------------------------
+# Publishing a closed audit to docs/knowledge (#1735), used by audit-done.ps1 and exercised by
+# audit-done-selftest.ps1.
+#
+# The knowledge record, the audit result and the audit's stage files go into docs/knowledge/ through a pull
+# request (Refs #1345, never Fixes), so the audit output is version-controlled instead of living only in the
+# git-ignored artifacts/knowledge/.
+#
+# Layout (decision of #1735):
+#   artifacts/knowledge/issues/<n>.md        -> docs/knowledge/issues/<n>.md            (replaces an existing record)
+#   artifacts/knowledge/audits/issue-<n>.md  -> docs/knowledge/audits/issue-<n>.md      (generated when missing)
+#   artifacts/knowledge/stages/<stage>.md    -> docs/knowledge/audits/<n>/stages/<stage>.md
+# Remediation drafts are NOT published: they become issues, and the audit result lists their numbers.
+#
+# The self-test shadows git and gh with PowerShell functions that record the commands and never push or open a
+# pull request, so every call below is a plain `& git ...` / `& gh ...`.
+# ---------------------------------------------------------------------------------------------------------------
+
+function Invoke-AuditGit([string[]]$ArgList) {
+    $global:LASTEXITCODE = 0
+    $out = & git @ArgList 2>&1
+    return @{ ExitCode = $global:LASTEXITCODE; Output = (($out | ForEach-Object { "$_" }) -join "`n") }
+}
+
+function Invoke-AuditGh([string[]]$ArgList) {
+    $global:LASTEXITCODE = 0
+    $out = & gh @ArgList 2>&1
+    return @{ ExitCode = $global:LASTEXITCODE; Output = (($out | ForEach-Object { "$_" }) -join "`n") }
+}
+
+# Number of commits on the audit branch that carry the 'Stage: verification' trailer = verification passes.
+function Get-AuditPassCount([string]$Worktree, [string]$VerifierStage = 'verification') {
+    $r = Invoke-AuditGit @('-C', $Worktree, 'log', '--grep', "Stage: $VerifierStage", '--fixed-strings', '--pretty=format:%H')
+    if ($r.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($r.Output)) { return 0 }
+    return @($r.Output -split "`n" | Where-Object { $_.Trim() }).Count
+}
+
+# Fallback when the audit branch is gone (the backfill): the pass number the verification text itself names
+# ('Third pass', 'pass-6', 're-verification'); 1 when it names none. A lower bound, not an exact count.
+function Get-VerificationPassCountFromText([string]$VerificationFile) {
+    if (-not (Test-Path -LiteralPath $VerificationFile)) { return 1 }
+    $text = Get-Content -LiteralPath $VerificationFile -Raw
+    $ordinals = @{ first = 1; second = 2; third = 3; fourth = 4; fifth = 5; sixth = 6; seventh = 7 }
+    $max = 1
+    foreach ($m in [regex]::Matches($text, '(?i)\b(first|second|third|fourth|fifth|sixth|seventh)\s+(?:verification\s+)?pass\b')) { $max = [Math]::Max($max, $ordinals[$m.Groups[1].Value.ToLowerInvariant()]) }
+    foreach ($m in [regex]::Matches($text, '(?i)\bpass[- ](\d+)\b')) { $max = [Math]::Max($max, [int]$m.Groups[1].Value) }
+    if ($max -lt 2 -and $text -match '(?i)re-verification|after the FAIL') { $max = 2 }
+    return $max
+}
+
+# The remediation drafts of one audit (<n>-*.md) found in the given folders, de-duplicated by file name, with
+# the issue URL from opened.csv ('<draft file>,<url>' per line) when open-remediation.ps1 already opened it.
+function Get-AuditRemediation([int]$Issue, [string[]]$DraftDirs, [string]$OpenedCsv) {
+    $opened = @{}
+    if ($OpenedCsv -and (Test-Path -LiteralPath $OpenedCsv)) {
+        foreach ($line in Get-Content -LiteralPath $OpenedCsv) {
+            $parts = $line -split ',', 2
+            if ($parts.Count -eq 2) { $opened[$parts[0].Trim()] = $parts[1].Trim() }
+        }
+    }
+    $seen = @{}
+    foreach ($dir in $DraftDirs) {
+        if (-not (Test-Path -LiteralPath $dir)) { continue }
+        foreach ($f in Get-ChildItem -LiteralPath $dir -Filter "$Issue-*.md" -File) {
+            if ($seen.ContainsKey($f.Name)) { continue }
+            $seen[$f.Name] = $true
+        }
+    }
+    return @($seen.Keys | Sort-Object | ForEach-Object {
+            [pscustomobject]@{ Draft = $_; Url = $(if ($opened.ContainsKey($_)) { $opened[$_] } else { '' }) }
+        })
+}
+
+# The short audit result generated when the pipeline wrote none (it never does for the six-stage pipeline):
+# the verdict line and pass count of the verification stage, one line per stage with a link to its stage file,
+# the remediation issues and the duplicates the remediation stage noted.
+function New-AuditResultSummary([int]$Issue, [string]$StagesDir, $Pipeline, [int]$PassCount, $Remediation) {
+    $verdict = ''
+    $verification = $Pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
+    if ($verification) {
+        $vFile = Join-Path $StagesDir $verification.artifact
+        if (Test-Path -LiteralPath $vFile) { $verdict = (Get-Content -LiteralPath $vFile -TotalCount 1) }
+    }
+    $sb = [System.Text.StringBuilder]::new()
+    $null = $sb.Append("# Audit of issue #$Issue`n`n")
+    $null = $sb.Append("<!-- Generated by tools/ai/audit/audit-done.ps1: the pipeline wrote no audit result file for this issue. -->`n`n")
+    $null = $sb.Append("$verdict (independent verification, $PassCount pass(es))`n`n")
+    $null = $sb.Append("Record: [issues/$Issue.md](issues/$Issue.md)`n`n")
+    $null = $sb.Append("## Stages`n`n")
+    foreach ($stage in $Pipeline.stages) {
+        $null = $sb.Append("- $($stage.stage): [$Issue/stages/$($stage.artifact)]($Issue/stages/$($stage.artifact))`n")
+    }
+    $null = $sb.Append("- lessons: [$Issue/stages/lessons.md]($Issue/stages/lessons.md)`n`n")
+    $null = $sb.Append("## Remediation issues`n`n")
+    if (@($Remediation).Count -eq 0) { $null = $sb.Append("- none`n") }
+    foreach ($r in @($Remediation)) {
+        if ($r.Url) { $null = $sb.Append("- $($r.Url) (draft $($r.Draft))`n") }
+        else { $null = $sb.Append("- not opened when this audit was published (draft $($r.Draft))`n") }
+    }
+    $null = $sb.Append("`n## Duplicates noted`n`n")
+    $remStage = $Pipeline.stages | Where-Object { $_.stage -eq 'remediation' } | Select-Object -First 1
+    $dups = @()
+    if ($remStage) {
+        $rFile = Join-Path $StagesDir $remStage.artifact
+        if (Test-Path -LiteralPath $rFile) {
+            $dups = @(Get-Content -LiteralPath $rFile | Where-Object { $_ -match '(?i)\bduplicates?\b|already tracked' })
+        }
+    }
+    if ($dups.Count -eq 0) { $null = $sb.Append("- none`n") }
+    foreach ($d in $dups) { $null = $sb.Append("$($d.TrimEnd())`n") }
+    return $sb.ToString()
+}
+
+# The files to publish: @{ Source = <path or $null>; Content = <text when generated>; Dest = <repo-relative> }.
+# Throws when the record is missing.
+function Get-AuditPublishPlan([int]$Issue, [string]$AuditWorktree, [string]$StagesDir, $Pipeline, [string]$ResultSummary) {
+    $plan = [System.Collections.Generic.List[hashtable]]::new()
+    $src = Join-Path $AuditWorktree 'artifacts\knowledge'
+    $record = Join-Path $src "issues\$Issue.md"
+    if (-not (Test-Path -LiteralPath $record)) { throw "Get-AuditPublishPlan: the knowledge record $record does not exist." }
+    $plan.Add(@{ Source = $record; Content = $null; Dest = "docs/knowledge/issues/$Issue.md" })
+
+    $result = Join-Path $src "audits\issue-$Issue.md"
+    if (Test-Path -LiteralPath $result) { $plan.Add(@{ Source = $result; Content = $null; Dest = "docs/knowledge/audits/issue-$Issue.md" }) }
+    else { $plan.Add(@{ Source = $null; Content = $ResultSummary; Dest = "docs/knowledge/audits/issue-$Issue.md" }) }
+
+    $names = @($Pipeline.stages | ForEach-Object { $_.artifact }) + 'lessons.md'
+    foreach ($name in $names) {
+        $f = Join-Path $StagesDir $name
+        if (Test-Path -LiteralPath $f) { $plan.Add(@{ Source = $f; Content = $null; Dest = "docs/knowledge/audits/$Issue/stages/$name" }) }
+    }
+    return , $plan
+}
+
+# Builds the publication of one audit. Returns @{ Ok; Message; Branch; PrUrl; Planned }.
+#   -NoPublish: prepares the branch locally (layout, validation, commit) and records the push and
+#   'gh pr create' commands in Planned without running them.
+# On any failure the caller keeps the audit worktree, the audit branch and current-audit.json; the temporary
+# worktree is always removed and a stale local knowledge/audit-<n> branch from an earlier try is replaced.
+function Publish-AuditKnowledge {
+    param(
+        [Parameter(Mandatory)][int]$Issue,
+        [Parameter(Mandatory)][string]$MainRoot,
+        [Parameter(Mandatory)][string]$AuditWorktree,
+        [Parameter(Mandatory)][string]$StagesDir,
+        [Parameter(Mandatory)]$Pipeline,
+        [string[]]$DraftDirs = @(),
+        [string]$OpenedCsv = '',
+        [switch]$NoPublish,
+        [string]$TempRoot = ([IO.Path]::GetTempPath()),
+        [string]$Repo = 'dlrivada/Encina'
+    )
+    $branch = "knowledge/audit-$Issue"
+    $title = "docs(knowledge): SPEC-003 audit of #$Issue"
+    $planned = [System.Collections.Generic.List[string]]::new()
+    $tmp = Join-Path $TempRoot ("audit-publish-$Issue-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $created = $false
+    $fail = { param($msg) @{ Ok = $false; Message = $msg; Branch = $branch; PrUrl = ''; Planned = @($planned) } }
+
+    try {
+        $passes = Get-AuditPassCount $AuditWorktree
+        if ($passes -eq 0) {
+            $verifier = $Pipeline.stages | Where-Object { $_.agent -eq 'audit-verifier' } | Select-Object -First 1
+            $passes = Get-VerificationPassCountFromText (Join-Path $StagesDir $verifier.artifact)
+        }
+        $remediation = Get-AuditRemediation $Issue $DraftDirs $OpenedCsv
+        $summary = New-AuditResultSummary $Issue $StagesDir $Pipeline $passes $remediation
+        $plan = Get-AuditPublishPlan $Issue $AuditWorktree $StagesDir $Pipeline $summary
+
+        $r = Invoke-AuditGit @('-C', $MainRoot, 'fetch', 'origin', 'main')
+        if ($r.ExitCode -ne 0) { return (& $fail "git fetch origin main failed: $($r.Output)") }
+
+        $stale = Invoke-AuditGit @('-C', $MainRoot, 'rev-parse', '--verify', '--quiet', "refs/heads/$branch")
+        if ($stale.ExitCode -eq 0) {
+            Write-Warning "audit-done: replacing the stale local branch $branch from an earlier publication attempt."
+            $null = Invoke-AuditGit @('-C', $MainRoot, 'branch', '-D', $branch)
+        }
+        $r = Invoke-AuditGit @('-C', $MainRoot, 'worktree', 'add', '-b', $branch, $tmp, 'origin/main')
+        if ($r.ExitCode -ne 0) { return (& $fail "git worktree add $tmp failed: $($r.Output)") }
+        $created = $true
+
+        foreach ($item in $plan) {
+            $dest = Join-Path $tmp ($item.Dest -replace '/', '\')
+            New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
+            if ($item.Source) { Copy-Item -LiteralPath $item.Source -Destination $dest -Force }
+            else { [IO.File]::WriteAllText($dest, $item.Content, [Text.UTF8Encoding]::new($false)) }
+        }
+
+        # The whole docs/knowledge tree must validate with the new files in place (schema, audit.record exists,
+        # every result and stage folder has its record). The validator of the fresh origin/main checkout is used.
+        $script = Join-Path $tmp '.github\scripts\knowledge-records.cs'
+        if (-not (Test-Path -LiteralPath $script)) { return (& $fail "$script not found in the publication checkout; cannot validate.") }
+        Push-Location $tmp
+        try { $check = & dotnet run --file $script -- --check 2>&1 | ForEach-Object { "$_" }; $checkExit = $LASTEXITCODE }
+        finally { Pop-Location }
+        if ($checkExit -ne 0) { return (& $fail "knowledge-records --check failed on the publication checkout:`n$($check -join "`n")") }
+
+        $r = Invoke-AuditGit @('-C', $tmp, 'add', 'docs/knowledge')
+        if ($r.ExitCode -ne 0) { return (& $fail "git add failed: $($r.Output)") }
+        $r = Invoke-AuditGit @('-C', $tmp, 'commit', '-m', $title)
+        if ($r.ExitCode -ne 0) { return (& $fail "git commit failed: $($r.Output)") }
+
+        $pushArgs = @('-C', $tmp, 'push', '-u', 'origin', $branch)
+        $prArgs = @('pr', 'create', '--repo', $Repo, '--base', 'main', '--head', $branch, '--title', $title, '--body', 'Refs #1345')
+        if ($NoPublish) {
+            $planned.Add('git ' + ($pushArgs -join ' '))
+            $planned.Add('gh ' + ($prArgs -join ' '))
+            return @{ Ok = $true; Message = 'prepared (NoPublish): nothing pushed, no pull request created'; Branch = $branch; PrUrl = ''; Planned = @($planned) }
+        }
+
+        $r = Invoke-AuditGit $pushArgs
+        if ($r.ExitCode -ne 0) { return (& $fail "git push failed: $($r.Output)") }
+        $r = Invoke-AuditGh $prArgs
+        if ($r.ExitCode -ne 0) { return (& $fail "gh pr create failed (the branch $branch is pushed): $($r.Output)") }
+        $url = ($r.Output -split "`n" | Where-Object { $_ -match '^https://' } | Select-Object -Last 1)
+        return @{ Ok = $true; Message = "published $branch"; Branch = $branch; PrUrl = "$url"; Planned = @($planned) }
+    }
+    catch {
+        return (& $fail "publication failed: $($_.Exception.Message)")
+    }
+    finally {
+        if ($created) { $null = Invoke-AuditGit @('-C', $MainRoot, 'worktree', 'remove', $tmp, '--force') }
+    }
+}
