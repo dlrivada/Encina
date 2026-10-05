@@ -57,7 +57,7 @@ public static class ServiceCollectionExtensions
         // Register messaging enricher behavior if enabled
         if (options.EnableMessagingEnrichers)
         {
-            services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(MessagingEnricherPipelineBehavior<,>));
+            services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(MessagingEnricherPipelineBehavior<,>)));
         }
 
         // Register database pool metrics initialization as a hosted service.

@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ProcessorAgreementOptions"/> — Configured via the provided action, validated at first access</item>
     /// <item><see cref="IProcessorService"/> → <see cref="DefaultProcessorService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IDPAService"/> → <see cref="DefaultDPAService"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="ProcessorValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="ProcessorValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// <item><see cref="CheckDPAExpirationHandler"/> (Transient, using TryAdd)</item>
     /// </list>
     /// </para>
@@ -98,7 +98,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IDPAService, DefaultDPAService>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ProcessorValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ProcessorValidationPipelineBehavior<,>)));
 
         // Register expiration monitoring handler (always available for manual invocation)
         services.TryAddTransient<ICommandHandler<CheckDPAExpirationCommand, LanguageExt.Unit>, CheckDPAExpirationHandler>();

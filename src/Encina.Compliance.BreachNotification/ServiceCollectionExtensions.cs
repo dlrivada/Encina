@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IBreachNotificationService"/> → <see cref="DefaultBreachNotificationService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IBreachDetector"/> → <see cref="DefaultBreachDetector"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IBreachNotifier"/> → <see cref="DefaultBreachNotifier"/> (Singleton, using TryAdd)</item>
-    /// <item><see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="BreachDetectionPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// <item>Built-in detection rules: <see cref="UnauthorizedAccessRule"/>, <see cref="MassDataExfiltrationRule"/>,
     ///   <see cref="PrivilegeEscalationRule"/>, <see cref="AnomalousQueryPatternRule"/> (Singleton)</item>
     /// </list>
@@ -85,14 +85,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<BreachNotificationOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<BreachNotificationOptions>, BreachNotificationOptionsValidator>();
 
@@ -107,7 +100,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IBreachNotifier, DefaultBreachNotifier>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(BreachDetectionPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(BreachDetectionPipelineBehavior<,>)));
 
         // Register built-in detection rules
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IBreachDetectionRule, UnauthorizedAccessRule>());
@@ -120,26 +113,49 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(optionsInstance);
 
         // Register custom detection rules from fluent API
-        foreach (var ruleType in optionsInstance.DetectionRuleTypes)
+        AddCustomDetectionRules(services, optionsInstance);
+        AddHealthCheck(services, optionsInstance);
+        AddDeadlineMonitoring(services, optionsInstance);
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<BreachNotificationOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<BreachNotificationOptions>(_ => { });
+        }
+    }
+
+    private static void AddCustomDetectionRules(IServiceCollection services, BreachNotificationOptions options)
+    {
+        foreach (var ruleType in options.DetectionRuleTypes)
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton(typeof(IBreachDetectionRule), ruleType));
         }
+    }
 
-        // Conditional: Health check
-        if (optionsInstance.AddHealthCheck)
+    private static void AddHealthCheck(IServiceCollection services, BreachNotificationOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<BreachNotificationHealthCheck>(
                     BreachNotificationHealthCheck.DefaultName,
                     tags: BreachNotificationHealthCheck.Tags);
         }
+    }
 
-        // Conditional: Deadline monitoring service
-        if (optionsInstance.EnableDeadlineMonitoring)
+    private static void AddDeadlineMonitoring(IServiceCollection services, BreachNotificationOptions options)
+    {
+        if (options.EnableDeadlineMonitoring)
         {
             services.AddHostedService<BreachDeadlineMonitorService>();
         }
-
-        return services;
     }
 }

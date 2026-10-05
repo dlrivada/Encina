@@ -139,7 +139,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ObligationExecutor>();
 
         // ── Pipeline Behavior (Transient) ──────────────────────────
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ABACPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ABACPipelineBehavior<,>)));
 
         // ── EEL Compiler (Singleton — IDisposable, disposed by container) ──
         services.TryAddSingleton<EELCompiler>();

@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="ISecurityContextAccessor"/> → <c>SecurityContextAccessor</c> (Scoped, using TryAdd)</item>
     /// <item><see cref="IPermissionEvaluator"/> → <see cref="DefaultPermissionEvaluator"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IResourceOwnershipEvaluator"/> → <see cref="DefaultResourceOwnershipEvaluator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="SecurityPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="SecurityPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -78,7 +78,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IResourceOwnershipEvaluator, DefaultResourceOwnershipEvaluator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(SecurityPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(SecurityPipelineBehavior<,>)));
 
         // Register health check if enabled
         var optionsInstance = new SecurityOptions();

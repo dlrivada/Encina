@@ -31,7 +31,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDataQualityValidator"/> → <see cref="DefaultDataQualityValidator"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAIActDocumentation"/> → <see cref="DefaultAIActDocumentation"/> (Singleton, using TryAdd)</item>
     /// <item><see cref="IAIActComplianceValidator"/> → <see cref="DefaultAIActComplianceValidator"/> (Scoped, using TryAdd)</item>
-    /// <item><see cref="AIActCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="AIActCompliancePipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// </list>
     /// </para>
     /// <para>
@@ -72,14 +72,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         // Configure and validate options
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<AIActOptions>(_ => { });
-        }
+        ConfigureOptions(services, configure);
 
         services.TryAddSingleton<IValidateOptions<AIActOptions>, AIActOptionsValidator>();
 
@@ -95,31 +88,52 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAIActComplianceValidator, DefaultAIActComplianceValidator>();
 
         // Register pipeline behavior
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(AIActCompliancePipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(AIActCompliancePipelineBehavior<,>)));
 
         // Auto-register from attributes if enabled
         var optionsInstance = new AIActOptions();
         configure?.Invoke(optionsInstance);
 
-        if (optionsInstance.AddHealthCheck)
+        AddHealthCheck(services, optionsInstance);
+        AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
+
+        return services;
+    }
+
+    private static void ConfigureOptions(IServiceCollection services, Action<AIActOptions>? configure)
+    {
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+        else
+        {
+            services.Configure<AIActOptions>(_ => { });
+        }
+    }
+
+    private static void AddHealthCheck(IServiceCollection services, AIActOptions options)
+    {
+        if (options.AddHealthCheck)
         {
             services.AddHealthChecks()
                 .AddCheck<AIActHealthCheck>(
                     AIActHealthCheck.DefaultName,
                     tags: AIActHealthCheck.Tags);
         }
+    }
 
-        if (optionsInstance.AutoRegisterFromAttributes)
+    private static void AddAutoRegistration(IServiceCollection services, AIActOptions options, Assembly callingAssembly)
+    {
+        if (options.AutoRegisterFromAttributes)
         {
-            var assembliesToScan = optionsInstance.AssembliesToScan.Count > 0
-                ? optionsInstance.AssembliesToScan
-                : [Assembly.GetEntryAssembly() ?? Assembly.GetCallingAssembly()];
+            var assembliesToScan = options.AssembliesToScan.Count > 0
+                ? options.AssembliesToScan
+                : [Assembly.GetEntryAssembly() ?? callingAssembly];
 
             // Register descriptor and hosted service for deferred auto-registration
             services.AddSingleton(new AIActAutoRegistrationDescriptor(assembliesToScan));
             services.AddHostedService<AIActAutoRegistrationHostedService>();
         }
-
-        return services;
     }
 }

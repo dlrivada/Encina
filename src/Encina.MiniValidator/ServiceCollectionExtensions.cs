@@ -64,7 +64,7 @@ public static class ServiceCollectionExtensions
         // Register the validation infrastructure
         services.TryAddSingleton<IValidationProvider, MiniValidationProvider>();
         services.TryAddSingleton<ValidationOrchestrator>();
-        services.TryAddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+        services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>)));
 
         return services;
     }
