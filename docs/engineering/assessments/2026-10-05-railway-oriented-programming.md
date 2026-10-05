@@ -8,7 +8,7 @@ nav_exclude: true
 
 This page explains how well Encina follows its Railway Oriented Programming (ROP) rule and why the gaps exist, for a maintainer or contributor deciding what to enforce next. It records the 2026-10-05 assessment of ROP and LanguageExt discipline, with the evidence behind each finding and the issue that tracks it. It is an explanation page: the fixes live in the linked issues. See the [assessments index](index.md) for how assessments are written.
 
-Counts were measured on 2026-10-05 by regex over `src/` and `tests/` and are approximate (a refuter counted 581 non-guard throws at HEAD against the report's 595). They are not coverage figures. Every `file:line` was re-checked against the repository on the same date; the one that moved is marked "(moved)".
+Counts were measured on 2026-10-05 with `Select-String` over `src/` and `tests/`, and are approximate (a second independent count gave 581 non-guard throws at HEAD against the 595 of the first). They are not coverage figures. Every `file:line` was re-checked against the repository on the same date; the one that moved is marked "(moved)".
 
 ## Verdict
 
@@ -49,7 +49,7 @@ The intended rule, recorded in [`AGENTS.md`](../../../AGENTS.md) section 3: a `L
 | Public interfaces are almost all `Either` | 345 of 378 `Task`/`ValueTask...Async` methods. Example: `src/Encina.Security.ABAC/Persistence/IPolicyStore.cs:47-196` |
 | The central converter is correct and respects cancellation | `src/Encina/Results/EitherHelpers.cs:38,65,89,116` rethrow `OperationCanceledException` and convert the rest; 296 calls |
 | `catch` blocks that convert to `Left` keep the cause | 313 of 317 pass the exception to `Create` or `FromException`; an upper bound by heuristic |
-| The course was corrected once | Commits 873ce415 (#670), 3e53b962 (#672) and f0a24f67 (#673), February 2026. Not reproduced by the refuter (not verified) |
+| The course was corrected once | Commits 873ce415 (#670), 3e53b962 (#672) and f0a24f67 (#673), February 2026. Not reproduced in a second pass (not verified) |
 | The `Either`-to-`throw` ratio recovered | 7.6 (Dec 2025), 3.4 (Jan 2026), 7.1 (Feb), 7.2 (Mar to Sep), 7.3 today |
 | Typed assertion helpers exist | `ShouldBeErrorWithCode`, `ShouldBeError`, `ShouldBeSuccess` and similar in (the assessment named `EncinaErrorWithCode`, which does not exist in `src/`) `src/Encina.Testing.Shouldly/EitherShouldlyExtensions.cs:41-335`. Zero FluentAssertions |
 
@@ -125,7 +125,7 @@ Issue titles:
 - The analysis of pull requests since 2026-09-20 (59 throws and 79 catches, almost all legitimate). It is consistent with the flat trend but was not reproduced.
 - The per-package test tables (Core, Caching, Tenancy and others) and the 43 % of bare assertions.
 - Code from before the repository, from the SimpleMediator era: it cannot be measured.
-- All figures come from regex and are approximate; for example the refuter counted 581 non-guard throws at HEAD against the report's 595.
+- All figures come from regex and are approximate; for example a second independent count gave 581 non-guard throws at HEAD against the 595 of the first.
 - The benefits of migrating to LanguageExt v5 are from memory and were not checked.
 
 ## Related

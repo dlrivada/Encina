@@ -8,7 +8,7 @@ nav_exclude: true
 
 This page explains where Encina's observability stands and why, for a maintainer or contributor deciding what to build next. It records the 2026-10-05 assessment, the evidence behind each finding, the issue that tracks each one, and how Encina compares with other .NET messaging libraries. It is an explanation page: the fixes themselves live in the linked issues. See the [assessments index](index.md) for how assessments are written.
 
-Counts below were measured on 2026-10-05 by regex or `grep` over `src/` and `tests/`; they are approximate and are not coverage figures. Every `file:line` was re-checked against the repository on the same date (the counts were not re-run; a spot check gave 1596 `[LoggerMessage]` and 466 `ForLogging(` against the 1581 and 468 below); the one that moved are marked "(moved)".
+Counts below were measured on 2026-10-05 with `Select-String` over `src/` and `tests/`; they are approximate and are not coverage figures. Every `file:line` was re-checked against the repository on the same date (the counts were not re-run; a spot check gave 1596 `[LoggerMessage]` and 466 `ForLogging(` against the 1581 and 468 below); the ones that moved are marked "(moved)".
 
 ## Verdict
 
@@ -64,9 +64,9 @@ flowchart LR
 | # | Finding | Evidence | Issue |
 |---|---|---|---|
 | 1 | No trace propagation: not in the outbox, not in the transports, no `traceparent` | 0 matches of `traceparent`, `ActivityLink` or `TextMapPropagator` in `src`. `src/Encina.Messaging/Outbox/IOutboxMessage.cs:21-72` has no trace field. `src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs:61-67` sets no headers | [#1791](https://github.com/dlrivada/Encina/issues/1791) (related #132, #1164, #725) |
-| 2 | 68 % of projects have no spans or metrics | 35 of 108 projects under `src` have instrumentation (scan repeated and confirmed). Without `Testing.*`, the real gap is about 59 to 61 packages | [#1791](https://github.com/dlrivada/Encina/issues/1791) |
+| 2 | About two thirds of projects have no spans or metrics | 35 of the 106 projects counted as `src/*/*.csproj` on 2026-10-05 have instrumentation (the 35 comes from the scan, repeated and confirmed; the project total was re-counted that day). Without `Testing.*`, the real gap is about 59 to 61 packages | [#1791](https://github.com/dlrivada/Encina/issues/1791) |
 | 3 | `WithEncina()` registers about 19 sources and only the `"Encina"` meter | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:179-210` (19 `AddSource` calls, one `AddMeter`). No `Encina.Compliance.*` or `Encina.Security.*` source is registered there or by any other package. Only ABAC has an issue (#1637). The exact number of orphan sources is not verified | [#1787](https://github.com/dlrivada/Encina/issues/1787) |
-| 4 | `EncinaError.Message` reaches the Activity status in 26 files, against [`AGENTS.md`](../../../AGENTS.md) section 3 | Grep of `SetStatus(Error, ...Message)`. Examples: `src/Encina.OpenTelemetry/MessagingStores/InstrumentedOutboxStore.cs:44,62,72,87,108` reaching `:213`, and `src/Encina.Security.PII/Diagnostics/PIIDiagnostics.cs:135`. In the core, `src/Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs:155-158` (tag `FailureMessage`). Only the saga store has an open bug (#1468) | [#1788](https://github.com/dlrivada/Encina/issues/1788) |
+| 4 | `EncinaError.Message` or an exception message reaches the Activity status in 26 files, against [`AGENTS.md`](../../../AGENTS.md) section 3 | Search for `SetStatus(Error, ...Message)`. Examples: `src/Encina.OpenTelemetry/MessagingStores/InstrumentedOutboxStore.cs:44,62,72,87,108` reaching `:213`, and, for an exception message, `src/Encina.Security.PII/Diagnostics/PIIDiagnostics.cs:135` (`exception.Message`). In the core, `src/Encina/Pipeline/Behaviors/CommandActivityPipelineBehavior.cs:155-158` (tag `FailureMessage`). Only the saga store has an open bug (#1468) | [#1788](https://github.com/dlrivada/Encina/issues/1788) |
 | 5 | A returned `Left` does not mark the command span as error | `CommandActivityPipelineBehavior.cs:53-56` returns before `RecordOutcome`, so `RecordErrorOutcome` (`:162-168`) is dead code. The query behavior was not verified in the second pass | [#1789](https://github.com/dlrivada/Encina/issues/1789) |
 | 6 | Dead and duplicated instrumentation | `Outbox/Inbox/SagaActivitySource` in `Encina.Messaging` have no callers. `InstrumentedOutboxStore.cs:24` creates `"Encina.Messaging.Outbox"` again. Without the OpenTelemetry package, outbox, inbox and saga emit no spans. `OutboxBatchProcessor` has no Activity | [#1790](https://github.com/dlrivada/Encina/issues/1790) |
 | 7 | No exporters and no OpenTelemetry logs wired | 0 `AddOtlpExporter` or `WithLogging`. Milestone 30: 25 open and 0 closed | [#1791](https://github.com/dlrivada/Encina/issues/1791) (backlog: [#1794](https://github.com/dlrivada/Encina/issues/1794)) |
@@ -128,7 +128,7 @@ Issue titles:
 
 ## How Encina compares
 
-The assessment first compared Encina with other libraries from memory. On the same day a research pass read the official documentation and the source files of each library; the table below comes from that pass. "unverified" marks anything that was not confirmed.
+The assessment first compared Encina with other libraries from memory. On the same day a second pass read the official documentation and the source files of each library; the table below comes from that pass. "unverified" marks anything that was not confirmed.
 
 | Library | Source and meter | Propagation | Span status on failure | Semantic conventions | Metric units |
 |---|---|---|---|---|---|
