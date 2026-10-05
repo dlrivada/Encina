@@ -5,56 +5,56 @@ using Shouldly;
 namespace Encina.GuardTests.Security.ABAC.EEL;
 
 /// <summary>
-/// Guard clause tests for <see cref="EELCompiler"/>.
+/// Guard clause tests for <see cref="EELCompiler"/>. One compiler is shared by the class because
+/// each compiled expression emits a Roslyn script assembly that is never unloaded; the caching and
+/// disposal tests create their own instance.
 /// </summary>
 public class EELCompilerGuardTests
 {
+    // Static and never disposed, so it survives repeated runs in the same process.
+    private static readonly EELCompiler _compiler = new();
+
     #region CompileAsync Guards
 
     [Fact]
     public async Task CompileAsync_NullExpression_ThrowsArgumentException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.CompileAsync(null!).AsTask();
+        var act = () => _compiler.CompileAsync(null!).AsTask();
         await act.ShouldThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
     public async Task CompileAsync_EmptyExpression_ThrowsArgumentException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.CompileAsync("").AsTask();
+        var act = () => _compiler.CompileAsync("").AsTask();
         await act.ShouldThrowAsync<ArgumentException>();
     }
 
     [Fact]
     public async Task CompileAsync_WhitespaceExpression_ThrowsArgumentException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.CompileAsync("   ").AsTask();
+        var act = () => _compiler.CompileAsync("   ").AsTask();
         await act.ShouldThrowAsync<ArgumentException>();
     }
 
     [Fact]
     public async Task CompileAsync_ValidExpression_ReturnsRight()
     {
-        using var compiler = new EELCompiler();
-        var result = await compiler.CompileAsync("true");
+        var result = await _compiler.CompileAsync("true");
         result.IsRight.ShouldBeTrue();
     }
 
     [Fact]
     public async Task CompileAsync_InvalidExpression_ReturnsLeft()
     {
-        using var compiler = new EELCompiler();
-        var result = await compiler.CompileAsync("this is not valid C#!!!!");
+        var result = await _compiler.CompileAsync("this is not valid C#!!!!");
         result.IsLeft.ShouldBeTrue();
     }
 
     [Fact]
     public async Task CompileAsync_SameExpressionTwice_ReturnsCached()
     {
-        using var compiler = new EELCompiler();
+        using var compiler = new EELCompiler(); // fresh: the test asserts on the cache itself
         var result1 = await compiler.CompileAsync("1 == 1");
         var result2 = await compiler.CompileAsync("1 == 1");
         result1.IsRight.ShouldBeTrue();
@@ -68,31 +68,27 @@ public class EELCompilerGuardTests
     [Fact]
     public async Task EvaluateAsync_NullExpression_ThrowsArgumentException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.EvaluateAsync(null!, new EELGlobals()).AsTask();
+        var act = () => _compiler.EvaluateAsync(null!, new EELGlobals()).AsTask();
         await act.ShouldThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
     public async Task EvaluateAsync_EmptyExpression_ThrowsArgumentException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.EvaluateAsync("", new EELGlobals()).AsTask();
+        var act = () => _compiler.EvaluateAsync("", new EELGlobals()).AsTask();
         await act.ShouldThrowAsync<ArgumentException>();
     }
 
     [Fact]
     public async Task EvaluateAsync_NullGlobals_ThrowsArgumentNullException()
     {
-        using var compiler = new EELCompiler();
-        var act = () => compiler.EvaluateAsync("true", null!).AsTask();
+        var act = () => _compiler.EvaluateAsync("true", null!).AsTask();
         await act.ShouldThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
     public async Task EvaluateAsync_TrueExpression_ReturnsTrue()
     {
-        using var compiler = new EELCompiler();
         var globals = new EELGlobals
         {
             user = new System.Dynamic.ExpandoObject(),
@@ -100,7 +96,7 @@ public class EELCompilerGuardTests
             environment = new System.Dynamic.ExpandoObject(),
             action = new System.Dynamic.ExpandoObject()
         };
-        var result = await compiler.EvaluateAsync("true", globals);
+        var result = await _compiler.EvaluateAsync("true", globals);
         result.IsRight.ShouldBeTrue();
         result.Match(Left: _ => false, Right: v => v).ShouldBeTrue();
     }
@@ -108,7 +104,6 @@ public class EELCompilerGuardTests
     [Fact]
     public async Task EvaluateAsync_FalseExpression_ReturnsFalse()
     {
-        using var compiler = new EELCompiler();
         var globals = new EELGlobals
         {
             user = new System.Dynamic.ExpandoObject(),
@@ -116,7 +111,7 @@ public class EELCompilerGuardTests
             environment = new System.Dynamic.ExpandoObject(),
             action = new System.Dynamic.ExpandoObject()
         };
-        var result = await compiler.EvaluateAsync("false", globals);
+        var result = await _compiler.EvaluateAsync("false", globals);
         result.IsRight.ShouldBeTrue();
         result.Match(Left: _ => true, Right: v => v).ShouldBeFalse();
     }
