@@ -237,23 +237,23 @@ exit 0
     $r2 = Invoke-Open '-Consolidate'
     Assert-That 're-run opens nothing' ($r2.Exit -eq 0 -and $r2.Creates.Count -eq 0 -and @(Get-Content $csv).Count -eq 3) $r2.Text
 
-    # --- 3. a bug goes to its own issue --------------------------------------------------------------------------
-    Write-Text (Join-Path $rem '2-delta-bug-d.md') $bugDraft
+    # --- 3. drafts added after the consolidated issue exists: refuse, never a second issue -----------------------
     Write-Text (Join-Path $rem '2-delta-docs-e.md') (New-DocsDraft '[DEBT] Docs page E is stale' 'docs/e.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '2-delta-docs-f.md') (New-DocsDraft '[DEBT] Docs page F is stale' 'docs/f.md' 'Medium' 'Small' '')
     $r3 = Invoke-Open '-Consolidate'
-    Assert-That 'bug plus consolidated: two issues' ($r3.Exit -eq 0 -and $r3.Creates.Count -eq 2) ($r3.Creates -join ' | ')
-    $bugCreate = @($r3.Creates | Where-Object { $_.Contains('--title [BUG] Something is wrong') })
-    $consCreate = @($r3.Creates | Where-Object { $_ -like '*Delta re-audit*: 2 findings*' })
-    Assert-That 'bug is its own issue with the Hardening milestone' ($bugCreate.Count -eq 1 -and $bugCreate[0].Contains('--milestone v0.14.0') -and $bugCreate[0].Contains('--label bug')) ($r3.Creates -join ' | ')
-    Assert-That 'consolidated issue holds only the two non-bug drafts' ($consCreate.Count -eq 1) ($r3.Creates -join ' | ')
-    $consBody = (Get-ChildItem $bodies -File | ForEach-Object { Get-Content -Raw $_.FullName } | Where-Object { $_ -match 'Delta re-audit' }) -join ''
-    Assert-That 'bug text is not in the consolidated issue' (-not $consBody.Contains('BUG DESCRIPTION') -and $consBody.Contains('Docs page E is stale')) $consBody
     $rows3 = @(Get-Content $csv)
-    $bugUrl = (($rows3 | Where-Object { $_ -like '2-delta-bug-d.md,*' }) -split ',')[1]
-    $eUrl = (($rows3 | Where-Object { $_ -like '2-delta-docs-e.md,*' }) -split ',')[1]
-    $fUrl = (($rows3 | Where-Object { $_ -like '2-delta-docs-f.md,*' }) -split ',')[1]
-    Assert-That 'opened.csv now has 6 rows, bug pointing to its own URL' ($rows3.Count -eq 6 -and $bugUrl -and $eUrl -eq $fUrl -and $bugUrl -ne $eUrl) ($rows3 -join ' | ')
+    Assert-That -Name 'later drafts are refused: exit 1, nothing created, no rows' -Condition ($r3.Exit -ne 0 -and $r3.Creates.Count -eq 0 -and $rows3.Count -eq 3) -Detail ($r3.Text + ' | ' + ($rows3 -join ' | '))
+    Assert-That -Name 'refusal names the existing issue and the new drafts' -Condition ($r3.Text.Contains('https://github.com/dlrivada/Encina/issues/1001') -and $r3.Text.Contains('2-delta-docs-e.md') -and $r3.Text.Contains('2-delta-docs-f.md')) -Detail $r3.Text
+    Remove-Item (Join-Path $rem '2-delta-docs-e.md'), (Join-Path $rem '2-delta-docs-f.md') -Force
+
+    # --- 3b. a bug goes to its own issue, the consolidated issue stays alone -----------------------------------
+    Write-Text (Join-Path $rem '2-delta-bug-d.md') $bugDraft
+    $r3b = Invoke-Open '-Consolidate'
+    $bugCreate = @($r3b.Creates | Where-Object { $_.Contains('--title [BUG] Something is wrong') })
+    Assert-That -Name 'bug is its own issue with the Hardening milestone' -Condition ($r3b.Exit -eq 0 -and $r3b.Creates.Count -eq 1 -and $bugCreate.Count -eq 1 -and $bugCreate[0].Contains('--milestone v0.14.0') -and $bugCreate[0].Contains('--label bug')) -Detail ($r3b.Creates -join ' | ')
+    $rows3b = @(Get-Content $csv)
+    $bugUrl = (($rows3b | Where-Object { $_ -like '2-delta-bug-d.md,*' }) -split ',')[1]
+    Assert-That -Name 'opened.csv has 4 rows, the bug row carries its own issue URL' -Condition ($rows3b.Count -eq 4 -and $bugUrl -like 'https://github.com/*') -Detail ($rows3b -join ' | ')
 
     # --- 4. without -Consolidate: one issue per draft -----------------------------------------------------------
     Write-Text (Join-Path $rem '2-docs-g.md') (New-DocsDraft '[DEBT] Docs page G is stale' 'docs/g.md' 'Low' 'Small' '')
@@ -262,6 +262,10 @@ exit 0
     Assert-That 'without -Consolidate every draft is its own issue' ($r4.Exit -eq 0 -and $r4.Creates.Count -eq 3 -and -not ($r4.Creates -join ' ').Contains('Delta re-audit')) ($r4.Creates -join ' | ')
 
     # --- 5. an issue with the same title already exists: reuse it ------------------------------------------------
+    # Simulate a crashed run: drop the consolidated rows and drafts so no consolidated issue is recorded.
+    foreach ($n in 'a', 'b') { Remove-Item (Join-Path $rem "2-delta-docs-$n.md") -Force }
+    Remove-Item (Join-Path $rem '2-delta-test-c.md') -Force
+    Write-Text $csv ((@(Get-Content $csv | Where-Object { $_ -notlike '2-delta-docs-?.md,*' -and $_ -notlike '2-delta-test-c.md,*' }) -join "`n") + "`n")
     Write-Text (Join-Path $rem '2-delta-docs-i.md') (New-DocsDraft '[DEBT] Docs page I is stale' 'docs/i.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '2-delta-docs-j.md') (New-DocsDraft '[DEBT] Docs page J is stale' 'docs/j.md' 'Low' 'Small' '')
     $env:OR_STUB_EXISTING = '[{"number":777,"title":"[DEBT] Delta re-audit (rules-2026-10) of #2: 2 findings (docs and coverage obligations)"}]'
@@ -271,11 +275,17 @@ exit 0
     Assert-That 'existing same-title issue is reused, nothing created' ($r5.Exit -eq 0 -and $r5.Creates.Count -eq 0 -and $r5.Text.Contains('already exists') -and @($rows5 | Where-Object { $_ -like '2-delta-docs-?.md,https://github.com/dlrivada/Encina/issues/777' }).Count -eq 2) ($r5.Text + ' | ' + ($rows5 -join ' | '))
 
     # --- 6. -WhatIf: preview only --------------------------------------------------------------------------------
+    foreach ($n in 'i', 'j') { Remove-Item (Join-Path $rem "2-delta-docs-$n.md") -Force }
+    Write-Text $csv ((@(Get-Content $csv | Where-Object { $_ -notlike '2-delta-docs-?.md,*' }) -join "`n") + "`n")
     Write-Text (Join-Path $rem '2-delta-docs-k.md') (New-DocsDraft '[DEBT] Docs page K is stale' 'docs/k.md' 'Low' 'Small' '')
     $before = @(Get-Content $csv).Count
     $r6 = Invoke-Open '-Consolidate -WhatIf'
     $previewPath = Join-Path $main 'artifacts\issues\delta-2-consolidated.preview.md'
     Assert-That '-WhatIf writes the preview, creates nothing, writes no rows' ($r6.Exit -eq 0 -and $r6.Creates.Count -eq 0 -and (Test-Path $previewPath) -and (Get-Content -Raw $previewPath).Contains('Docs page K is stale') -and $r6.Text.Contains('Delta re-audit') -and @(Get-Content $csv).Count -eq $before) $r6.Text
+
+    # --- 7. -WhatIf without -Consolidate: nothing is opened ------------------------------------------------------
+    $r7 = Invoke-Open '-WhatIf'
+    Assert-That -Name '-WhatIf without -Consolidate prints the titles, creates nothing, writes no rows' -Condition ($r7.Exit -eq 0 -and $r7.Creates.Count -eq 0 -and $r7.Text.Contains('WhatIf: would open: [DEBT] Docs page K is stale') -and @(Get-Content $csv).Count -eq $before) -Detail $r7.Text
 }
 finally {
     if (Test-Path $base) {

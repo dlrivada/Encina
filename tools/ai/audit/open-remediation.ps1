@@ -278,11 +278,34 @@ $drafts = foreach ($f in Get-ChildItem $dir -Filter $pattern) {
     if ($d) { $d }
 }
 
-if (-not $Consolidate) { foreach ($d in $drafts) { Open-Draft $d }; return }
+if (-not $Consolidate) {
+    foreach ($d in $drafts) { if ($WhatIf) { "WhatIf: would open: $($d.Title)" } else { Open-Draft $d } }
+    return
+}
 
 # A bug is never folded into the batch: it is opened as its own issue, as in a full audit.
 foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) {
     if ($WhatIf) { "WhatIf: would open its own issue: $($d.Title)" } else { Open-Draft $d }
 }
 $rest = @($drafts | Where-Object { -not $_.Title.StartsWith('[BUG]') })
-if ($rest.Count) { Open-Consolidated $rest }
+if ($rest.Count) {
+    # One consolidated issue per delta audit: when a non-bug delta draft of this issue already has a row, the
+    # consolidated issue exists, so new drafts are never turned into a second issue.
+    $existing = if (Test-Path $opened) {
+        @(Get-Content $opened | Where-Object { $_.Trim() } | ForEach-Object {
+            $parts = $_ -split ',', 2
+            $name = $parts[0].Trim()
+            $file = Join-Path $dir $name
+            if ($name -like "$Issue-delta-*.md" -and (Test-Path $file)) {
+                $d = Get-Draft (Get-Item $file)
+                if ($d -and -not $d.Title.StartsWith('[BUG]')) { [pscustomobject]@{ Name = $name; Url = $parts[1].Trim() } }
+            }
+        })
+    } else { @() }
+    if ($existing.Count) {
+        $names = ($rest | ForEach-Object { $_.File.Name }) -join ', '
+        Write-Error "open-remediation: the consolidated issue of the #$Issue delta audit already exists ($($existing[0].Url)); refusing to open a second one for the new unopened drafts: $names. Add them to that issue by hand (or open a documented follow-up); no rows were written"
+        exit 1
+    }
+    Open-Consolidated $rest
+}
