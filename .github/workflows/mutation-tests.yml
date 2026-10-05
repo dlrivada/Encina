@@ -456,6 +456,16 @@ jobs:
           # from the gc_server and anon columns of the process telemetry.
           DOTNET_gcServer: "0"
           DOTNET_gcConcurrent: "0"
+          # #1441 phase 2e: glibc's dynamic mmap threshold kept the native
+          # memory freed after each run of the ABAC EEL tests (Roslyn script
+          # compilations), so the reused MTP test server grew about 2.5 GB per
+          # run and was killed in run 4. Fixed thresholds return freed blocks
+          # to the kernel: measured on Linux with a 12 GiB cap, the first-run
+          # peak dropped from 7.6 GB to 4.9 GB and growth to about 230 MB per
+          # run, with no slowdown. MALLOC_ARENA_MAX=2 did not help. The
+          # remaining growth is fixed in the tests by #1858.
+          MALLOC_MMAP_THRESHOLD_: "131072"
+          MALLOC_TRIM_THRESHOLD_: "131072"
           # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
           # logs at debug level so the log names the mutant under test when
           # a test host starts to grow; scheduled and full-matrix runs stay
