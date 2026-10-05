@@ -379,7 +379,9 @@ function Get-VerificationPassCountFromText([string]$VerificationFile) {
 
 # The remediation drafts of one audit (<n>-*.md) found in the given folders, de-duplicated by file name, with
 # the issue URL from opened.csv ('<draft file>,<url>' per line) when open-remediation.ps1 already opened it.
-function Get-AuditRemediation([int]$Issue, [string[]]$DraftDirs, [string]$OpenedCsv) {
+function Get-AuditRemediation([int]$Issue, [string[]]$DraftDirs, [string]$OpenedCsv, [string]$NamePrefix = '') {
+    # $NamePrefix: a delta audit (#1763) looks only at its own '<n>-<delta folder>-*.md' drafts.
+    $draftPrefix = if ($NamePrefix) { $NamePrefix } else { "$Issue" }
     $opened = @{}
     if ($OpenedCsv -and (Test-Path -LiteralPath $OpenedCsv)) {
         foreach ($line in Get-Content -LiteralPath $OpenedCsv) {
@@ -390,7 +392,7 @@ function Get-AuditRemediation([int]$Issue, [string[]]$DraftDirs, [string]$Opened
     $seen = @{}
     foreach ($dir in $DraftDirs) {
         if (-not (Test-Path -LiteralPath $dir)) { continue }
-        foreach ($f in Get-ChildItem -LiteralPath $dir -Filter "$Issue-*.md" -File) {
+        foreach ($f in Get-ChildItem -LiteralPath $dir -Filter "$draftPrefix-*.md" -File) {
             if ($seen.ContainsKey($f.Name)) { continue }
             $seen[$f.Name] = $true
         }
@@ -531,7 +533,7 @@ function Publish-AuditKnowledge {
     $fail = { param($msg) @{ Ok = $false; Message = $msg; Branch = $branch; PrUrl = ''; Planned = @($planned) } }
 
     try {
-        $remediation = Get-AuditRemediation $Issue $DraftDirs $OpenedCsv
+        $remediation = Get-AuditRemediation $Issue $DraftDirs $OpenedCsv -NamePrefix $(if ($isDelta) { "$Issue-$DeltaFolder" } else { '' })
         # The result names the issues the audit opened, so they must exist first (F2 of the #1766 review); the
         # same gate applies to the remediation drafts of a delta audit (#1763).
         $unopened = @($remediation | Where-Object { -not $_.Url })

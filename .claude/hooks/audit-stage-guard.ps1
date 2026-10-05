@@ -131,9 +131,18 @@ try {
             [Console]::Error.WriteLine("Blocked: the open audit of #$n is a delta audit; the prompt must say '$deltaMarker, check only rule (a|b)' so the agent checks only the delta's rule (#1763).")
             exit 2
         }
+        # A stage with a `rule` in pipeline-delta.json (docs: a, tests: b) also needs "check only rule (<rule>)".
+        $ownStage = @($pipeline.stages) | Where-Object { [string]$_.agent -eq $subagent } | Select-Object -First 1
+        if ($null -ne $ownStage -and $null -ne $ownStage.PSObject.Properties['rule']) {
+            $ruleText = "check only rule ($([string]$ownStage.rule))"
+            if ($prompt.IndexOf($ruleText, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                [Console]::Error.WriteLine("Blocked: the '$($ownStage.stage)' stage of a delta audit checks rule ($($ownStage.rule)) only; the prompt must say '$deltaMarker, $ruleText' (#1763).")
+                exit 2
+            }
+        }
     }
 
-    $model = [string]$payload.tool_input.model
+    $model =[string]$payload.tool_input.model
     if ($model -and $pipeline.forbiddenModels -and $model -in @($pipeline.forbiddenModels)) {
         [Console]::Error.WriteLine("Blocked: an audit-stage agent may not run on '$model' (#1345, tools/ai/audit/pipeline.json forbiddenModels). Use the agent's own default model or Sonnet.")
         exit 2

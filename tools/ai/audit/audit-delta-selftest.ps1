@@ -71,6 +71,7 @@ exit 0
     Copy-Item -Recurse (Join-Path $repo 'tools\ai\audit') (Join-Path $main 'tools\ai\audit') -Force
     New-Item -ItemType Directory -Force (Join-Path $main '.github\scripts') | Out-Null
     Copy-Item (Join-Path $repo '.github\scripts\knowledge-records.cs') (Join-Path $main '.github\scripts\knowledge-records.cs') -Force
+    Copy-Item -Recurse (Join-Path $repo '.github\ISSUE_TEMPLATE') (Join-Path $main '.github\ISSUE_TEMPLATE') -Force
     Write-Text (Join-Path $main '.gitignore') "artifacts/`n"
     $record = "---`nschema: 2`nnav_exclude: true`nissue: $issue`ntitle: `"[DEBT] Fixture`"`nclosed: 2025-12-22`nstate_reason: completed`noutcome: delivered`ntype: debt`narea: core`nreview: verified`npackages: [Encina.Fixture]`nprs: []`nlinked_prs: []`nremediation: []`nknowledge:`n  - kind: decision`n    statement: `"A statement.`"`n    current: `"yes`"`n    sources:`n      - `"paraphrase: fixture (issue #1, 2025-12-22)`"`n    destinations:`n      - kind: adr`n        status: done`n        target: `"fixture`"`naudit:`n  checklist: 1`n  date: 2026-09-20`n  verdict: findings-tracked`n  record: `"docs/knowledge/audits/issue-$issue.md`"`n---`n`nORIGINAL RECORD`n"
     Write-Text (Join-Path $main "docs\knowledge\issues\$issue.md") $record
@@ -149,7 +150,31 @@ exit 0
     Assert-That 'audit-stage -Next reports every stage complete at the end' (((Invoke-Script 'audit-stage.ps1' @('-Next')).Text) -like '*All stages complete*')
     Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons recorded across the pipeline stages for #99.`n"
 
+    # --- 3b. delta remediation files never touch the original audit's (F1) ------------------------------------
+    $remDir = Join-Path $knowledge 'remediation'
+    $origDraft = Join-Path $remDir '99-docs-1-original-draft.md'
+    $origManifest = Join-Path $remDir '_manifest-99.json'
+    $origInput = Join-Path $remDir '_input-99-docs-1.md'
+    Write-Text $origDraft "ORIGINAL DRAFT`n"
+    Write-Text $origManifest "{ `"original`": true }`n"
+    Write-Text $origInput "ORIGINAL INPUT`n"
+    Write-Text (Join-Path $remDir 'opened.csv') "99-docs-1-original-draft.md,https://github.com/dlrivada/Encina/issues/1`n"
+    $prep = Invoke-Script 'audit-draft-remediation.ps1' @('-Prepare', '-NoGh')
+    Assert-That 'a delta -Prepare exits 0' ($prep.Exit -eq 0) $prep.Text
+    Assert-That 'a delta -Prepare leaves the original draft, manifest and input untouched' ((Test-Path $origDraft) -and (Test-Path $origManifest) -and (Test-Path $origInput) -and ((Get-Content $origDraft -Raw) -like 'ORIGINAL DRAFT*') -and ((Get-Content $origManifest -Raw) -like '*original*')) $prep.Text
+    Assert-That 'a delta -Prepare writes its own delta-named manifest' (Test-Path (Join-Path $remDir "_manifest-99-$folder.json")) $prep.Text
+    Assert-That 'the committed remediation stage is still clean after Prepare' (-not (Git -C $wt status --porcelain -- artifacts/knowledge/stages/remediation.md))
+
     # --- 4. audit-done -NoPublish -----------------------------------------------------------------------------
+    # F2/F3: an unopened delta draft (named with the delta prefix) stops the publication; the original audit's
+    # drafts are not looked at, and opened.csv cannot confuse the two.
+    $deltaDraftName = "99-$folder-docs-1-fixture.md"
+    Write-Text (Join-Path $remDir $deltaDraftName) "DELTA DRAFT`n"
+    $dGate = Invoke-Script 'audit-done.ps1' @('-NoPublish')
+    Assert-That 'an unopened delta draft stops audit-done (the opened-remediation gate applies to a delta)' ($dGate.Exit -ne 0 -and $dGate.Text -like "*not opened yet*$deltaDraftName*") $dGate.Text
+    Assert-That 'the gate names only the delta draft, never the original one' ($dGate.Text -notlike '*99-docs-1-original-draft.md*') $dGate.Text
+    Assert-That 'the refused publication left the audit open' ((Test-Path $wt) -and (Test-Path $currentAudit))
+    Add-Content (Join-Path $remDir 'opened.csv') "$deltaDraftName,https://github.com/dlrivada/Encina/issues/2"
     $d1 = Invoke-Script 'audit-done.ps1' @('-NoPublish')
     Assert-That 'audit-done -NoPublish exits 0' ($d1.Exit -eq 0) $d1.Text
     $branch = "knowledge/audit-99-$folder"

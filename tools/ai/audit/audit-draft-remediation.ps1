@@ -198,7 +198,11 @@ $remediationDir = Join-Path $mainRoot 'artifacts\knowledge\remediation'
 $sandboxDir = Join-Path $remediationDir "_dryrun-$n"
 $outDir = if ($DryRun) { $sandboxDir } else { $remediationDir }
 $stageOut = if ($DryRun) { Join-Path $sandboxDir 'remediation.md' } else { Get-StageFile 'remediation' }
-$manifestPath = Join-Path $outDir "_manifest-$n.json"
+# #1763: a delta audit writes, reads and cleans only files named with the delta prefix (<n>-delta-2026-10-*.md,
+# _manifest-<n>-delta-2026-10.json, ...), so the original audit's drafts and manifest of the same issue are never
+# touched and opened.csv can never confuse a delta draft with an original one. $fileKey is that name stem.
+$fileKey = if (Test-DeltaAudit $audit) { "$n-$([string]$pipeline.delta.folder)" } else { "$n" }
+$manifestPath = Join-Path $outDir "_manifest-$fileKey.json"
 $lessonsHeading = '## Lessons for the pipeline'
 
 function Get-GhResult([string[]]$Arguments, [string]$What) {
@@ -267,14 +271,14 @@ if ($Finalize) {
     # renamed per group; any other extra is removed below.
     foreach ($f in @($manifest.findings)) {
         if (-not $f.draftFile -or (Test-Path -LiteralPath $f.draftFile)) { continue }
-        $prefix = "$n-$($f.stage)-$($f.id)-"
+        $prefix = "$fileKey-$($f.stage)-$($f.id)-"
         $misnamed = @(Get-ChildItem -LiteralPath $outDir -Filter "$prefix*.md" -File -ErrorAction SilentlyContinue | Where-Object { -not $expectedDrafts.Contains($_.FullName) } | Sort-Object Name | Select-Object -First 1)
         if ($misnamed.Count -eq 1) {
             Move-Item -LiteralPath $misnamed[0].FullName -Destination $f.draftFile
             $notes.Add("$($f.label): renamed $($misnamed[0].Name) to the manifest's draft name $(Split-Path -Leaf $f.draftFile).")
         }
     }
-    foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)) {
+    foreach ($onDisk in @(Get-ChildItem -LiteralPath $outDir -Filter "$fileKey-*.md" -File -ErrorAction SilentlyContinue)) {
         if (-not $expectedDrafts.Contains($onDisk.FullName)) {
             Remove-Item -LiteralPath $onDisk.FullName -Force
             $notes.Add("removed $($onDisk.Name): not a draft the manifest names (an orphan, a second draft of one group, or a draft of a duplicate/merged finding); open-remediation.ps1 would have opened it as an extra issue.")
@@ -628,7 +632,7 @@ if ($onlyKeys) {
 }
 
 function Get-FindingLabel($Finding) { "$($Finding.Stage) $($Finding.Id) ($($Finding.Severity))" }
-function Get-InputPath($Finding) { Join-Path $outDir "_input-$n-$($Finding.Stage)-$($Finding.Id).md" }
+function Get-InputPath($Finding) { Join-Path $outDir "_input-$fileKey-$($Finding.Stage)-$($Finding.Id).md" }
 
 # Every gh call (the duplicate search) runs here, before anything on disk is touched (#1548): a failure stops
 # the run with the previous outputs intact.
@@ -716,7 +720,7 @@ foreach ($gi in $touchedGroupIndexes) {
             'docs' { $kind = 'docs'; $kindOptions = @('docs') }
             default { $kind = 'drafter-decides'; $kindOptions = @('bug', 'debt', 'docs') }
         }
-        $draftFile = Join-Path $outDir "$n-$($primary.Stage)-$($primary.Id)-$(New-Slug $primary.Text).md"
+        $draftFile = Join-Path $outDir "$fileKey-$($primary.Stage)-$($primary.Id)-$(New-Slug $primary.Text).md"
         $primaryLine = "- $primaryLabel`: draft $(Split-Path -Leaf $draftFile)"
     }
 
@@ -772,9 +776,9 @@ $findingEntries = foreach ($f in $allFindings) {
     $key = "$($f.Stage)|$($f.Id)"
     if ($entriesByKey.ContainsKey($key)) { $entriesByKey[$key]; continue }
     $group = $groups[$groupIndexByKey[$key]]
-    $candidates = @(Get-ChildItem -LiteralPath $outDir -Filter "$n-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)
+    $candidates = @(Get-ChildItem -LiteralPath $outDir -Filter "$fileKey-$($f.Stage)-$($f.Id)-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name)
     $previousDraft = $previousDraftByKey["$($f.Stage) $($f.Id)"]
-    $todayName = "$n-$($f.Stage)-$($f.Id)-$(New-Slug $f.Text).md"
+    $todayName = "$fileKey-$($f.Stage)-$($f.Id)-$(New-Slug $f.Text).md"
     $existingDraft = @($candidates | Where-Object { $previousDraft -and $_.FullName -ieq $previousDraft })
     if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Where-Object { $_.Name -ieq $todayName }) }
     if ($existingDraft.Count -eq 0) { $existingDraft = @($candidates | Select-Object -First 1) }
@@ -831,7 +835,7 @@ if ($onlyKeys) {
     foreach ($gi in $touchedGroupIndexes) {
         foreach ($member in $groups[$gi].Members) {
             # A literal separator right after the id, so "code 1" never matches "code 10"'s files (#1492).
-            foreach ($pattern in "$n-$($member.Stage)-$($member.Id)-*.md", "_input-$n-$($member.Stage)-$($member.Id).md") {
+            foreach ($pattern in "$fileKey-$($member.Stage)-$($member.Id)-*.md", "_input-$fileKey-$($member.Stage)-$($member.Id).md") {
                 foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
                     Remove-Item -LiteralPath $staleFile.FullName -Force
                     "audit-draft-remediation: removed previous output $($staleFile.Name)"
@@ -842,7 +846,7 @@ if ($onlyKeys) {
 }
 else {
     # The _brief-/_classify-/_classify-brief- files are the pre-#1572 local-model intermediates of this audit.
-    foreach ($pattern in "$n-*.md", "_input-$n-*.md", "_manifest-$n.json", "_brief-$n-*.md", "_classify-$n-*.md", "_classify-brief-$n-*.md") {
+    foreach ($pattern in "$fileKey-*.md", "_input-$fileKey-*.md", "_manifest-$fileKey.json", "_brief-$fileKey-*.md", "_classify-$fileKey-*.md", "_classify-brief-$fileKey-*.md") {
         foreach ($staleFile in (Get-ChildItem -LiteralPath $outDir -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             Remove-Item -LiteralPath $staleFile.FullName -Force
             "audit-draft-remediation: removed previous output $($staleFile.Name)"

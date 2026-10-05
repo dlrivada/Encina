@@ -182,7 +182,8 @@ if (Test-Path -LiteralPath $lessonsFile) {
 $ledger = Join-Path $wt 'artifacts\agent-usage\ledger.csv'
 if (Test-Path -LiteralPath $ledger) { Get-Content -LiteralPath $ledger | Select-Object -Skip 1 | Add-Content (Join-Path $knowledgeRoot 'agent-ledger.csv') }
 
-$remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$n-*.md" -ErrorAction SilentlyContinue).Count
+$remPrefix = if ($isDelta) { "$n-$deltaFolder" } else { "$n" }
+$remCount = @(Get-ChildItem (Join-Path $knowledgeRoot 'remediation') -Filter "$remPrefix-*.md" -ErrorAction SilentlyContinue).Count
 if ($isDelta) {
     # The delta set has its own progress file; progress.csv (the original audits) is never touched.
     Add-Content (Get-DeltaProgressPath $knowledgeRoot $deltaSet) "$n,done,$remCount,$($publish.PrUrl)"

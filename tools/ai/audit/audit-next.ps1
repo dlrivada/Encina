@@ -97,11 +97,6 @@ if ($Delta) {
     New-Item -ItemType Directory -Force (Get-StagesDir $wt) | Out-Null
     Set-Content -LiteralPath (Join-Path $wt 'artifacts\knowledge\delta-scope.md') -Value $scopeText -Encoding utf8
 
-    $oldDrafts = @(Get-ChildItem -LiteralPath (Join-Path $knowledgeRoot 'remediation') -Filter "$n-*.md" -File -ErrorAction SilentlyContinue)
-    if ($oldDrafts.Count -gt 0) {
-        Write-Warning "audit-next: $($oldDrafts.Count) draft(s) of the original audit of #$n are in artifacts/knowledge/remediation; a full audit-draft-remediation.ps1 -Prepare removes this issue's drafts and open-remediation.ps1 skips a name listed in opened.csv. Move them away before the remediation stage of the delta."
-    }
-
     $audit = [ordered]@{
         issue      = $n
         worktree   = $wt
