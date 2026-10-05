@@ -1,0 +1,1 @@
+- **`CompositePersonalDataLocator` fails when any locator fails** (#1698). It returned the partial inventory whenever another locator succeeded, so an access, portability or erasure request could look complete while one store was left out; it now returns `Left`.

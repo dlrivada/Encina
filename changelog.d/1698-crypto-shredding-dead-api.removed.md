@@ -1,0 +1,1 @@
+- **Unused crypto-shredding types removed** (#1698). `PiiEncryptionFailedEvent` (never published, and it carried the subject id and an error message) and `CryptoShreddedFieldMetadata` (produced by nothing) are gone.
