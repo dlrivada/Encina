@@ -1,0 +1,266 @@
+# tools/ai/audit/open-remediation-selftest.ps1
+#
+# Self-test for open-remediation.ps1 -Consolidate (one issue per delta audit). Builds a throwaway git repository
+# with the audit scripts, the technical_debt.md template and remediation drafts for audited issue 2, and runs the
+# REAL script with gh replaced by a PowerShell function in the child session (it records every call, copies the
+# --body-file and prints a fake URL; nothing is opened). Asserts:
+#   1. 2 docs drafts + 1 test draft -> exactly one `gh issue create` with the expected title, labels, no
+#      milestone, the local-draft marker first, the template headers verbatim and in order, one checkbox per
+#      draft, every draft's text, and opened.csv with one row per draft pointing to the same URL;
+#   2. a re-run opens nothing (idempotent);
+#   3. a [BUG] draft goes to its own issue and is left out of the consolidated one;
+#   4. without -Consolidate every draft is its own issue (full audits unchanged).
+#
+# Exit code: 0 if every assertion passes, 1 otherwise.
+
+$ErrorActionPreference = 'Stop'
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+$base = Join-Path ([IO.Path]::GetTempPath()) ("open-remediation-selftest-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$failures = [System.Collections.Generic.List[string]]::new()
+
+function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
+    if ($Condition) { Write-Host "PASS  $Name" }
+    else { Write-Host "FAIL  $Name $Detail"; $failures.Add($Name) }
+}
+
+function Write-Text([string]$Path, [string]$Text) {
+    New-Item -ItemType Directory -Force (Split-Path -Parent $Path) | Out-Null
+    [IO.File]::WriteAllText($Path, $Text, [Text.UTF8Encoding]::new($false))
+}
+
+function New-DocsDraft([string]$Title, [string]$File, [string]$Prio, [string]$Eff, [string]$Related) {
+    $p = @{ High = '[ ]'; Medium = '[ ]'; Low = '[ ]' }; $p[$Prio] = '[x]'
+    $e = @{ Small = '[ ]'; Medium = '[ ]'; Large = '[ ]' }; $e[$Eff] = '[x]'
+    return @"
+<!--
+title: $Title
+labels: technical-debt, area-docs-unknown
+milestone:
+kind: docs
+-->
+
+## Type
+
+- [ ] Failing tests
+- [ ] Missing tests
+- [ ] Code quality (warnings, analyzers)
+- [ ] Performance optimization
+- [ ] Refactoring needed
+- [x] Documentation gap
+- [ ] Incorrect implementation
+- [ ] Other
+
+## Description
+
+DESCRIPTION of $File.
+
+## Location
+
+- **File(s)**: ``$File``
+  - ``:10`` the line
+- **Package(s)**: none (documentation only)
+
+## Current Behavior
+
+CURRENT of $File.
+
+## Expected Behavior
+
+EXPECTED of $File.
+
+### Nested heading in $File
+
+nested text
+
+## Root Cause
+
+ROOT of $File.
+
+## Proposed Fix
+
+FIX of $File.
+
+## Priority
+
+- $($p.High) **High** - Blocks functionality or causes failures in production
+- $($p.Medium) **Medium** - Should be fixed before 1.0 release
+- $($p.Low) **Low** - Nice to have, can be deferred
+
+## Effort Estimate
+
+- $($e.Small) Small (< 1 hour)
+- $($e.Medium) Medium (1-4 hours)
+- $($e.Large) Large (> 4 hours)
+
+## Related Issues
+
+- #2 (This issue)
+$Related
+"@
+}
+
+$testDraft = @'
+<!--
+title: [TEST] Raise the unit target for Encina.Foo
+labels: area-testing
+milestone:
+kind: test
+-->
+
+## Test Category
+
+- [x] Unit Tests
+- [ ] Integration Tests (Docker/Testcontainers)
+- [x] Coverage Gap (below 85% target)
+
+## Description
+
+TEST DESCRIPTION.
+
+## Packages / Providers Affected
+
+- **Package(s)**: Encina.Foo
+- **Provider(s)**: none
+
+## Current Coverage
+
+| Package | Line Coverage | Target | Gap |
+|---------|:------------:|:------:|:---:|
+| Encina.Foo | 62.3% | 85% | -22.7% |
+
+## Infrastructure Required
+
+- [ ] Docker / Testcontainers
+- [x] None (pure unit tests)
+
+## Test Plan
+
+### Tests to Implement
+
+- [ ] Test 1: TESTPLAN item
+
+## Related Issues
+
+- #999 - TEST related
+'@
+
+$bugDraft = @'
+<!--
+title: [BUG] Something is wrong
+labels: bug
+milestone:
+kind: bug
+-->
+
+## Description
+
+BUG DESCRIPTION.
+'@
+
+try {
+    $main = Join-Path $base 'main'
+    $stubs = Join-Path $base 'stubs'
+    $log = Join-Path $base 'gh.log'
+    $bodies = Join-Path $base 'bodies'
+    New-Item -ItemType Directory -Force $main, $stubs, $bodies | Out-Null
+    & git init -q -b main $main | Out-Null
+    Copy-Item -Recurse (Join-Path $repo 'tools\ai\audit') (Join-Path $main 'tools\ai\audit') -Force
+    New-Item -ItemType Directory -Force (Join-Path $main '.github\ISSUE_TEMPLATE') | Out-Null
+    Copy-Item (Join-Path $repo '.github\ISSUE_TEMPLATE\technical_debt.md') (Join-Path $main '.github\ISSUE_TEMPLATE\technical_debt.md') -Force
+
+    Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
+Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('gh ' + ($args -join ' '))
+if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; exit 0 }
+if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; exit 0 }
+if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
+    $n = @(Get-Content -LiteralPath $env:OR_STUB_LOG | Where-Object { $_ -like 'gh issue create*' }).Count
+    $bf = $args[([array]::IndexOf($args, '--body-file') + 1)]
+    Copy-Item -LiteralPath $bf -Destination (Join-Path $env:OR_STUB_BODIES "$n.md") -Force
+    "https://github.com/dlrivada/Encina/issues/$(1000 + $n)"
+    exit 0
+}
+exit 0
+'@
+    $env:OR_STUB_LOG = $log
+    $env:OR_STUB_BODIES = $bodies
+    $script = Join-Path $main 'tools\ai\audit\open-remediation.ps1'
+    $rem = Join-Path $main 'artifacts\knowledge\remediation'
+    $csv = Join-Path $rem 'opened.csv'
+
+    function Invoke-Open([string]$ExtraArgs) {
+        if (Test-Path $log) { Remove-Item $log -Force }
+        Get-ChildItem $bodies -File -ErrorAction SilentlyContinue | Remove-Item -Force
+        $command = "function gh { & '$stubs\gh-stub.ps1' @args }; & '$script' -Issue 2 $ExtraArgs; exit `$LASTEXITCODE"
+        $out = & pwsh -NoProfile -Command $command 2>&1 | ForEach-Object { "$_" }
+        $creates = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'gh issue create*' }) } else { @() }
+        return @{ Exit = $LASTEXITCODE; Text = ($out -join "`n"); Creates = $creates }
+    }
+
+    Write-Text (Join-Path $rem '2-docs-a.md') (New-DocsDraft '[DEBT] Docs page A is stale' 'docs/a.md' 'Low' 'Small' '- #50 - related A')
+    Write-Text (Join-Path $rem '2-docs-b.md') (New-DocsDraft '[DEBT] Docs page B is stale' 'docs/b.md' 'High' 'Medium' "- #50 - related A again`n- #51 - related B")
+    Write-Text (Join-Path $rem '2-test-c.md') $testDraft
+
+    # --- 1. three drafts -> one issue ---------------------------------------------------------------------------
+    $r1 = Invoke-Open '-Consolidate'
+    Assert-That 'consolidate exits 0' ($r1.Exit -eq 0) $r1.Text
+    Assert-That 'exactly one gh issue create' ($r1.Creates.Count -eq 1) ($r1.Creates -join ' | ')
+    $create = [string]($r1.Creates | Select-Object -First 1)
+    Assert-That 'title' ($create.Contains('--title [DEBT] Delta re-audit (rules-2026-10) of #2: 3 findings (docs and coverage obligations) --body-file')) $create
+    Assert-That 'labels are technical-debt and area-testing' ($create.Contains('--label technical-debt') -and $create.Contains('--label area-testing')) $create
+    Assert-That 'no milestone' (-not $create.Contains('--milestone')) $create
+    $body = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
+    Assert-That 'marker is the first line' ($body.TrimStart().StartsWith('<!-- local-draft: none, reason: consolidated from 3 verified remediation drafts of the #2 delta audit -->')) $body
+    $headers = @([regex]::Matches($body, '(?m)^## (.+?)\s*$') | ForEach-Object { $_.Groups[1].Value })
+    $expectedHeaders = @('Type', 'Description', 'Location', 'Current Behavior', 'Expected Behavior', 'Root Cause', 'Proposed Fix', 'Priority', 'Effort Estimate', 'Related Issues')
+    Assert-That 'template headers verbatim and in order' (($headers -join '|') -eq ($expectedHeaders -join '|')) ($headers -join '|')
+    Assert-That 'three checkboxes with the severity' ($body.Contains('- [ ] Docs page A is stale (Low)') -and $body.Contains('- [ ] Docs page B is stale (High)') -and $body.Contains('- [ ] Raise the unit target for Encina.Foo (Medium)')) $body
+    Assert-That 'type ticks Documentation gap and Missing tests' ($body.Contains('- [x] Documentation gap') -and $body.Contains('- [x] Missing tests') -and $body.Contains('- [ ] Other')) $body
+    Assert-That 'priority is the highest (High) and effort the largest (Medium)' ($body -match '(?m)^- \[x\] \*\*High\*\*' -and $body -notmatch '(?m)^- \[x\] \*\*Low\*\*' -and $body -match '(?m)^- \[x\] Medium \(1-4 hours\)') $body
+    $kept = $true; $missing = @()
+    foreach ($needle in 'DESCRIPTION of docs/a.md', 'CURRENT of docs/b.md', 'EXPECTED of docs/a.md', 'nested text', 'ROOT of docs/b.md', 'FIX of docs/a.md', 'TEST DESCRIPTION.', 'Encina.Foo | 62.3%', 'TESTPLAN item', 'None (pure unit tests)', '`docs/a.md`', '`docs/b.md`', 'Encina.Foo') {
+        if (-not $body.Contains($needle)) { $kept = $false; $missing += $needle }
+    }
+    Assert-That 'every draft text is kept' $kept ($missing -join ', ')
+    Assert-That 'per-finding subsections' ($body.Contains('### Docs page A is stale') -and $body.Contains('### Raise the unit target for Encina.Foo') -and $body.Contains('#### Nested heading in docs/a.md')) $body
+    Assert-That 'related issues are the union plus the audited issue' ($body.Contains('#50 - related A') -and $body.Contains('#51 - related B') -and $body.Contains('#999 - TEST related') -and $body.Contains('- #2 (audited issue)') -and -not $body.Contains('This issue') -and -not $body.Contains('related A again')) $body
+    $rows = @(Get-Content $csv)
+    Assert-That 'opened.csv has 3 rows with the same URL' ($rows.Count -eq 3 -and @($rows | ForEach-Object { ($_ -split ',')[1] } | Select-Object -Unique).Count -eq 1 -and $rows[0].StartsWith('2-docs-a.md,https://github.com/')) ($rows -join ' | ')
+
+    # --- 2. idempotent re-run ----------------------------------------------------------------------------------
+    $r2 = Invoke-Open '-Consolidate'
+    Assert-That 're-run opens nothing' ($r2.Exit -eq 0 -and $r2.Creates.Count -eq 0 -and @(Get-Content $csv).Count -eq 3) $r2.Text
+
+    # --- 3. a bug goes to its own issue --------------------------------------------------------------------------
+    Write-Text (Join-Path $rem '2-bug-d.md') $bugDraft
+    Write-Text (Join-Path $rem '2-docs-e.md') (New-DocsDraft '[DEBT] Docs page E is stale' 'docs/e.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '2-docs-f.md') (New-DocsDraft '[DEBT] Docs page F is stale' 'docs/f.md' 'Medium' 'Small' '')
+    $r3 = Invoke-Open '-Consolidate'
+    Assert-That 'bug plus consolidated: two issues' ($r3.Exit -eq 0 -and $r3.Creates.Count -eq 2) ($r3.Creates -join ' | ')
+    $bugCreate = @($r3.Creates | Where-Object { $_.Contains('--title [BUG] Something is wrong') })
+    $consCreate = @($r3.Creates | Where-Object { $_ -like '*Delta re-audit*: 2 findings*' })
+    Assert-That 'bug is its own issue with the Hardening milestone' ($bugCreate.Count -eq 1 -and $bugCreate[0].Contains('--milestone v0.14.0') -and $bugCreate[0].Contains('--label bug')) ($r3.Creates -join ' | ')
+    Assert-That 'consolidated issue holds only the two non-bug drafts' ($consCreate.Count -eq 1) ($r3.Creates -join ' | ')
+    $consBody = (Get-ChildItem $bodies -File | ForEach-Object { Get-Content -Raw $_.FullName } | Where-Object { $_ -match 'Delta re-audit' }) -join ''
+    Assert-That 'bug text is not in the consolidated issue' (-not $consBody.Contains('BUG DESCRIPTION') -and $consBody.Contains('Docs page E is stale')) $consBody
+    $rows3 = @(Get-Content $csv)
+    $bugUrl = (($rows3 | Where-Object { $_ -like '2-bug-d.md,*' }) -split ',')[1]
+    $eUrl = (($rows3 | Where-Object { $_ -like '2-docs-e.md,*' }) -split ',')[1]
+    $fUrl = (($rows3 | Where-Object { $_ -like '2-docs-f.md,*' }) -split ',')[1]
+    Assert-That 'opened.csv now has 6 rows, bug pointing to its own URL' ($rows3.Count -eq 6 -and $bugUrl -and $eUrl -eq $fUrl -and $bugUrl -ne $eUrl) ($rows3 -join ' | ')
+
+    # --- 4. without -Consolidate: one issue per draft -----------------------------------------------------------
+    Write-Text (Join-Path $rem '2-docs-g.md') (New-DocsDraft '[DEBT] Docs page G is stale' 'docs/g.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '2-docs-h.md') (New-DocsDraft '[DEBT] Docs page H is stale' 'docs/h.md' 'Low' 'Small' '')
+    $r4 = Invoke-Open ''
+    Assert-That 'without -Consolidate every draft is its own issue' ($r4.Exit -eq 0 -and $r4.Creates.Count -eq 2 -and -not ($r4.Creates -join ' ').Contains('Delta re-audit')) ($r4.Creates -join ' | ')
+}
+finally {
+    if (Test-Path $base) {
+        Get-ChildItem -LiteralPath $base -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $_.IsReadOnly = $false }
+        Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if ($failures.Count -gt 0) { Write-Host "`n$($failures.Count) assertion(s) failed."; exit 1 }
+Write-Host "`nAll open-remediation assertions passed."
+exit 0
