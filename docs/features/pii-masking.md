@@ -239,6 +239,7 @@ services.AddEncinaPII(options =>
 | `DefaultMode` | `MaskingMode` | `Partial` | Default masking mode for all strategies |
 | `HashKey` | `string?` | `null` | Secret key for `MaskingMode.Hash` (HMAC-SHA256); at least `MinimumHashKeyBytes` (32) UTF-8 bytes when set; required when `DefaultMode` is `Hash` unless `AllowUnkeyedHash` is set; never serialized or printed |
 | `AllowUnkeyedHash` | `bool` | `false` | Explicit opt-out that lets Hash run without a key using unkeyed SHA-256; logs one warning per service provider when the options are validated without a key |
+| `RegexTimeout` | `TimeSpan` | 100 ms | Match timeout for every custom regex (`Mask(value, pattern)` and `[PII(Pattern = ...)]`); must be greater than zero and shorter than about 24 days, checked by `PIIOptionsValidator`. An invalid pattern or a timeout masks the whole value (same length, mask characters), never returns it; a warning with only the pattern length is logged (EventId 8021) |
 | `MaskInResponses` | `bool` | `true` | Enable pipeline behavior for responses |
 | `MaskInLogs` | `bool` | `true` | Enable `PIILoggerExtensions` masking |
 | `MaskInAuditTrails` | `bool` | `true` | Enable `MaskForAudit` integration |
@@ -285,6 +286,8 @@ flowchart LR
 - Response is `Either.Left` (error path)
 - Response type has no PII attributes and no sensitive field matches
 
+**Failure behavior (fail closed)**: when masking the response fails, the behavior returns an `EncinaError` with code `pii.masking_failed` (`PIIErrors.MaskingFailed`) instead of the unmasked response. Likewise `IPIIMasker.MaskObject<T>` throws on a serialization or masking failure rather than returning the unmasked object (EventId 8015, exception redacted). A PII-marked get-only string property is no longer skipped silently; masking throws `InvalidOperationException` when a masked value cannot be applied to the copy.
+
 ---
 
 ## Audit Trail Integration
@@ -298,7 +301,7 @@ var auditMasker = provider.GetRequiredService<IPiiMasker>();
 // piiMasker == auditMasker (same instance)
 ```
 
-The audit pipeline uses `MaskForAudit<T>()` to redact PII before persisting audit records.
+The audit pipeline uses `MaskForAudit<T>()` to redact PII before persisting audit records. When masking or serialization fails, `MaskForAudit` throws instead of returning the unmasked object (the failure is logged with EventId 8022 and a redacted exception); the audit caller treats it as "no payload hash".
 
 ---
 
@@ -316,7 +319,7 @@ logger.LogErrorMasked(masker, ex, "Error processing: {@Order}", order);
 logger.LogMasked(masker, LogLevel.Debug, "Debug data: {@Data}", data);
 ```
 
-**Safety**: If masking fails, the original message is logged with `[MASKING FAILED]` prefix — never silently drops logs.
+**Safety**: If masking fails, the log entry carries `[MASKING FAILED]` instead of the raw data — the unmasked values are never logged, and the log call is not dropped.
 
 ---
 
@@ -399,7 +402,7 @@ Returns `Healthy`, `Degraded` (some strategies missing), or `Unhealthy` (critica
 
 | Error Code | Description | Metadata |
 |------------|-------------|----------|
-| `pii.masking_failed` | Masking operation error | `piiType`, `propertyName` |
+| `pii.masking_failed` | Masking the response failed; `PIIMaskingPipelineBehavior` returns this error (`PIIErrors.MaskingFailed`) instead of the unmasked response | `typeName`, `stage` |
 | `pii.strategy_not_found` | No strategy for PIIType | `piiType` |
 | `pii.invalid_configuration` | Invalid options | `stage` |
 
