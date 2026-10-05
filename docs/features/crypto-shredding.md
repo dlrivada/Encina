@@ -324,7 +324,7 @@ await keyProvider.DeleteSubjectKeysAsync(registered.PatientId.Value.ToString("D"
 
 ### Validation
 
-When `ValidateOnStartup` is `true`, a hosted service (`CryptoShreddingStartupValidationHostedService`) runs before the host serves traffic. It checks, in order:
+When `ValidateOnStartup` is `true`, a hosted service (`CryptoShreddingStartupValidationHostedService`) runs before the host serves traffic, in `IHostedLifecycleService.StartingAsync`, so it fails before any hosted service (including Marten's async daemon) starts. It checks, in order:
 
 1. the Marten serializer is a `CryptoShredderSerializer` and the contract modifier is still installed: each captured `JsonSerializerOptions` holds the exact resolver instance that was installed, its resolver chain is unchanged, and a nested canary serializes to a `cs2` token;
 2. the infrastructure (see the configuration problems below);
@@ -438,7 +438,7 @@ Notes:
 
 - **Re-saving a forgotten subject.** When the key provider reports the subject as forgotten and the value equals `AnonymizedPlaceholder`, the serializer writes the tombstone instead of throwing, so a snapshot or read model that carries the placeholder can be saved again (EventId 8474). Any other value for a forgotten subject still throws `KeyUnavailable`.
 - **Key rotation.** The token carries the key version; `vN` and `vN+1` tokens decrypt in the same call.
-- **A handler that throws** is logged (EventId 8475) and its exception is swallowed: the handler is a notification hook and does not break reads.
+- **A handler that throws** is logged as a Warning (EventId 8475, `ForgottenSubjectHandlerFailed`, with the exception type and stack trace only through `ForLogging()`, never its message or the subject id) and swallowed: the handler is a notification hook, not part of the fail-closed path, so the read still succeeds. Cancellation of the caller's `CancellationToken` is not swallowed.
 - **Sync and async.** Marten's `ISerializer.FromJson` is synchronous, so the sync path blocks on the key provider; the async path passes the `CancellationToken` through.
 - **`object`-typed members** are encrypted on write; read back, such a member is a `JsonElement` that holds the token (unreadable, not plaintext). Use `[JsonDerivedType]` for round trips.
 
@@ -542,7 +542,7 @@ services.AddEncinaMartenGdpr(options =>
 
 - **`MartenEventPersonalDataLocator`** (`IPersonalDataLocator`, added to the registrations): reads the event store and returns one `PersonalDataLocation` per non-null crypto field of the requested subject. `FieldName` is the path of the field: a top-level property keeps its bare name, nested members use dots, sequence elements `[]`, dictionary values `{}` (`Email`, `Contact.Email`, `Items[].Note`, `Notes{}.Text`). A path never contains an index or a key. `ErasureScope.SpecificFields` matches the full path. The locator decrypts only the fields of the requested subject, so an unreadable event of another subject does not block access, portability or erasure. It returns `Left(crypto.serializer_unsupported)` when the store serializer is not the crypto-shredding serializer, and `Left(crypto.key_store_error)` when reading the requested subject's data fails; it never reports a partial inventory.
 - **`CryptoShredErasureStrategy`**: deletes the subject's keys. It is idempotent: a `crypto.subject_forgotten` result counts as success (EventId 8480), so several locations of one subject do not report failures.
-- **`CryptoShredRoutingErasureStrategy`** (internal, registered as `IDataErasureStrategy`): the DSR executor applies one strategy to every location, so this router sends the locations produced by the Marten locator to `CryptoShredErasureStrategy` and every other location to the strategy that was registered before `AddEncinaMartenGdpr`, or fails with `crypto.erasure_strategy_missing` when there is none.
+- **`CryptoShredRoutingErasureStrategy`** (internal, registered as `IDataErasureStrategy`): the DSR executor applies one strategy to every location, so this router sends the locations produced by the Marten locator to `CryptoShredErasureStrategy` and every other location to the strategy that was registered before `AddEncinaMartenGdpr`, or fails with `crypto.erasure_strategy_missing` when there is none. The router recognises Marten locations first by the marker the Marten locator puts on each `PersonalDataLocation` instance; a location without the marker (copied or rehydrated between locate and erase) whose `EntityType` is, or reaches, a `[CryptoShredded]` owner is still crypto-shredded, and one whose entity type cannot be classified fails instead of reaching the inner strategy.
 
 Registration order:
 
