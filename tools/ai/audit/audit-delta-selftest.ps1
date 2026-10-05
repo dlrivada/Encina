@@ -186,9 +186,11 @@ exit 0
         Git -C $wt commit -q -m "audit #97: $stage stage" -m "Stage: $stage" | Out-Null
     }
     Write-Text (Join-Path $stagesDir 'lessons.md') "No lessons recorded across the pipeline stages for #97.`n"
-    $d3 = Invoke-Script 'audit-done.ps1' @()
+    $d3 = Invoke-Script 'audit-done.ps1' @('-NoPublish')
     Assert-That 'the delta of 97 publishes although the original audit has no stages folder (validator accepts a delta-only audit folder)' ($d3.Exit -eq 0) $d3.Text
     $diff97 = @(Git -C $main diff --name-only origin/main "knowledge/audit-97-$folder")
+    $d3b = Invoke-Script 'audit-done.ps1' @()
+    Assert-That 'the real publish of 97 then closes the audit' ($d3b.Exit -eq 0 -and -not (Test-Path $currentAudit)) $d3b.Text
     Assert-That 'its publish layout is audits/97/delta-2026-10/ only' ((@($diff97 | Where-Object { $_ -notlike "docs/knowledge/audits/97/$folder/*" }).Count -eq 0) -and $diff97.Count -eq 6) ($diff97 -join "`n")
 
     $r3 = Invoke-Script 'audit-next.ps1' @('-Delta', $set)
