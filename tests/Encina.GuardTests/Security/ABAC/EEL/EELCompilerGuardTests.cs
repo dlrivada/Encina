@@ -9,18 +9,10 @@ namespace Encina.GuardTests.Security.ABAC.EEL;
 /// each compiled expression emits a Roslyn script assembly that is never unloaded; the caching and
 /// disposal tests create their own instance.
 /// </summary>
-public class EELCompilerGuardTests(EELCompilerGuardTests.CompilerFixture fixture)
-    : IClassFixture<EELCompilerGuardTests.CompilerFixture>
+public class EELCompilerGuardTests
 {
-    /// <summary>Owns the compiler shared by the tests of this class.</summary>
-    public sealed class CompilerFixture : IDisposable
-    {
-        public EELCompiler Compiler { get; } = new();
-
-        public void Dispose() => Compiler.Dispose();
-    }
-
-    private readonly EELCompiler _compiler = fixture.Compiler;
+    // Static and never disposed, so it survives repeated runs in the same process.
+    private static readonly EELCompiler _compiler = new();
 
     #region CompileAsync Guards
 

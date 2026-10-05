@@ -11,10 +11,9 @@ namespace Encina.UnitTests.Security.ABAC.EEL;
 /// Loads test cases from JSON files in TestData/ and verifies each expression
 /// evaluates to the expected result or produces the expected error.
 /// </summary>
-[Collection(EELCompilerFixture.Name)]
-public sealed class EELConformanceTests(EELCompilerFixture fixture)
+public sealed class EELConformanceTests
 {
-    private readonly EELCompiler _compiler = fixture.Compiler;
+    private static readonly EELCompiler _compiler = SharedEELCompiler.Instance;
 
     #region Success Tests
 

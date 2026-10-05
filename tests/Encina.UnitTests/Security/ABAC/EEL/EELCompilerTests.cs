@@ -10,12 +10,11 @@ namespace Encina.UnitTests.Security.ABAC.EEL;
 /// Unit tests for <see cref="EELCompiler"/>: compilation, caching, evaluation,
 /// and error handling of Encina Expression Language expressions.
 /// </summary>
-[Collection(EELCompilerFixture.Name)]
-public sealed class EELCompilerTests(EELCompilerFixture fixture)
+public sealed class EELCompilerTests
 {
-    // Shared compiler: every test here asserts on its own distinct expression or on behavior that
-    // holds with a warm cache. Tests that need a fresh instance create it locally.
-    private readonly EELCompiler _compiler = fixture.Compiler;
+    // Shared static compiler: every test here asserts on values or on behavior that holds with a
+    // warm cache. Tests that need a fresh instance create it locally.
+    private static readonly EELCompiler _compiler = SharedEELCompiler.Instance;
 
     private static EELGlobals MakeGlobals(
         Action<IDictionary<string, object?>>? configureUser = null,
@@ -287,7 +286,9 @@ public sealed class EELCompilerTests(EELCompilerFixture fixture)
     [Fact]
     public async Task CompileAsync_ConcurrentCalls_AllSucceed()
     {
-        using var compiler = new EELCompiler(); // fresh: a cold cache is what makes the calls race
+        // Fresh compiler: a cold cache is what makes the calls race (a warm cache takes the lock-free
+        // fast path). Its 10 distinct compilations stay loaded for the process; see #1859.
+        using var compiler = new EELCompiler();
         var tasks = Enumerable.Range(0, 10)
             .Select(i => compiler.CompileAsync($"{i} < 100").AsTask())
             .ToList();
