@@ -55,6 +55,7 @@ public sealed class MongoDbIndexCreatorTests
         var sagas = Indexes<SagaState>();
         var scheduled = Indexes<ScheduledMessage>();
         var audit = Indexes<AuditLogDocument>();
+        var operationAudit = Indexes<OperationAuditEntryDocument>();
         var sut = CreateSut(new EncinaMongoDbOptions
         {
             UseOutbox = true,
@@ -62,6 +63,7 @@ public sealed class MongoDbIndexCreatorTests
             UseSagas = true,
             UseScheduling = true,
             UseAuditLogStore = true,
+            UseOperationAuditStore = true,
         });
 
         await sut.StartAsync(CancellationToken.None);
@@ -71,7 +73,35 @@ public sealed class MongoDbIndexCreatorTests
         await sagas.Received(1).CreateManyAsync(Arg.Any<IEnumerable<CreateIndexModel<SagaState>>>(), Arg.Any<CancellationToken>());
         await scheduled.Received(1).CreateManyAsync(Arg.Any<IEnumerable<CreateIndexModel<ScheduledMessage>>>(), Arg.Any<CancellationToken>());
         await audit.Received(1).CreateManyAsync(Arg.Any<IEnumerable<CreateIndexModel<AuditLogDocument>>>(), Arg.Any<CancellationToken>());
+        await operationAudit.Received(1).CreateManyAsync(Arg.Any<IEnumerable<CreateIndexModel<OperationAuditEntryDocument>>>(), Arg.Any<CancellationToken>());
         _logger.Collector.GetSnapshot().Any(r => r.Exception is not null).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task StartAsync_OperationAuditStoreEnabled_CreatesTheSevenQueryIndexes()
+    {
+        var operationAudit = Indexes<OperationAuditEntryDocument>();
+        IReadOnlyList<CreateIndexModel<OperationAuditEntryDocument>>? created = null;
+        _ = operationAudit.CreateManyAsync(
+            Arg.Do<IEnumerable<CreateIndexModel<OperationAuditEntryDocument>>>(models => created = models.ToList()),
+            Arg.Any<CancellationToken>());
+        var sut = CreateSut(new EncinaMongoDbOptions { UseOperationAuditStore = true });
+
+        await sut.StartAsync(CancellationToken.None);
+
+        created.ShouldNotBeNull();
+        created.Select(m => m.Options.Name).ShouldBe(
+        [
+            "IX_OperationAuditEntries_Entity",
+            "IX_OperationAuditEntries_Timestamp",
+            "IX_OperationAuditEntries_Outcome",
+            "IX_OperationAuditEntries_UserId",
+            "IX_OperationAuditEntries_TenantId",
+            "IX_OperationAuditEntries_CorrelationId",
+            "IX_OperationAuditEntries_Action"
+        ]);
+        created.Where(m => m.Options.Sparse == true).Select(m => m.Options.Name).ShouldBe(
+            ["IX_OperationAuditEntries_UserId", "IX_OperationAuditEntries_TenantId"]);
     }
 
     [Fact]
@@ -85,6 +115,7 @@ public sealed class MongoDbIndexCreatorTests
             UseSagas = false,
             UseScheduling = false,
             UseAuditLogStore = false,
+            UseOperationAuditStore = false,
         });
 
         await sut.StartAsync(CancellationToken.None);
