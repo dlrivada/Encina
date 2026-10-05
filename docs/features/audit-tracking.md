@@ -1211,8 +1211,8 @@ store.Clear();  // Reset between tests
 | Provider | GUID Column | DateTime Column | Payload Column | Index Support |
 |----------|-------------|-----------------|----------------|---------------|
 | SQL Server | `UNIQUEIDENTIFIER` | `DATETIMEOFFSET` | `NVARCHAR(MAX)` | Full |
-| PostgreSQL | `UUID` | `TIMESTAMPTZ` | `JSONB` | Full + JSON |
-| MySQL | `CHAR(36)` | `DATETIME(6)` | `JSON` | Full + JSON |
+| PostgreSQL | `UUID` | `TIMESTAMPTZ` | `TEXT` | Full + JSON |
+| MySQL | `CHAR(36)` | `DATETIME(6)` | `LONGTEXT` | Full + JSON |
 | MongoDB | `UUID` (BSON) | `Date` | `Document` | Full + TTL |
 | EF Core | Provider-dependent | Provider-dependent | Provider-dependent | Via migrations |
 
