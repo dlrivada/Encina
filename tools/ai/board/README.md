@@ -1,9 +1,11 @@
-# Control board statistics (#1382)
+# Control board tooling (#1382, #1732)
 
-Two scripts produce the data behind the maintainer's private control board (a claude.ai
-artifact) "Week" tab: what was done since a given date, broken down by session and by day (time,
-prompts, reply latency, tokens per model, agents, PRs and issues, the local model). Neither script
-publishes anything; the orchestrator uploads the resulting files to the board.
+This directory holds the tooling behind the maintainer's private control board (a claude.ai
+artifact). Two scripts produce the data of the "Week" tab (#1382): what was done since a given
+date, broken down by session and by day (time, prompts, reply latency, tokens per model, agents,
+PRs and issues, the local model). The board reconciler (#1732, last section) keeps the board's work,
+flow and audit collections current. None of the scripts publishes anything; the orchestrator
+uploads the resulting files to the board.
 
 ## `session-stats.cs`
 
@@ -50,3 +52,100 @@ Parameters:
 
 `-SessionMeta` and `-Plan` are both optional and both private: keep the files themselves under
 `artifacts/` (git-ignored), never under version control.
+
+## Board reconciler (#1732)
+
+`reconcile-board.ps1` keeps the board's db collections `work/<id>`, `flow/<issue>`, `audits/<n>` and
+`meta/board` current from GitHub (open PRs, PRs merged in the last 14 days with `Fixes #n`, closed
+issues), the git worktrees (commits ahead of `origin/main`) and, in the **main** checkout,
+`artifacts/knowledge/current-audit.json` and `progress.csv`. It is deterministic (no model), only
+reads and emits `ArtifactData` batch writes (it never applies them), never deletes a document and
+never touches `dash/*`, `stats/*`, `gates/*` or `prio/*`.
+
+```powershell
+pwsh -NoProfile -File tools/ai/board/reconcile-board.ps1 -CurrentDir <tmp> -Versions <tmp>/versions.json -Out <tmp>/batch.json
+```
+
+It needs PowerShell 7.5+ (`ConvertFrom-Json -DateKind`).
+
+| Parameter | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `-CurrentDir` | yes | — | The folder an `ArtifactData list ... out_dir` call produced: `work/*.json`, `flow/*.json`, `audits/*.json`, `meta/board.json`. Each file holds a document's data only; the file name is the `doc_id`. |
+| `-Versions` | yes | — | The versions sidecar (see below). |
+| `-Out` | yes | — | The batch file to write. |
+| `-Repo` | no | `dlrivada/Encina` | The GitHub repository queried through `gh`. |
+| `-MainRoot` | no | derived from `git rev-parse --git-common-dir` | The main checkout, where the audit progress files are read. |
+| `-NowUtc` | no | the current UTC time | The reference time (tests pass a fixed value). |
+| `-CreateOp` | no | `create` | The batch operation name for a new document. |
+| `-UpdateOp` | no | `update` | The batch operation name for an existing document. |
+| `-MergedDays` | no | `14` | How far back merged PRs and closed issues are read. |
+| `-MaxWrites` | no | `50` | Writes per batch file. |
+
+The output is a JSON array of `{ op, collection, doc_id, if_version?, data }`, only for documents
+whose data differ. At most 50 writes go in one file: when there are more, `-Out` becomes
+`<name>-001.json`, `<name>-002.json` and so on. Stdout prints `WRITES <n> SKIPPED <m>` followed by the
+file paths, one per line. The `create`/`update` operation names are an assumption: confirm them
+against the `ArtifactData` batch contract on the first real run and pass `-CreateOp`/`-UpdateOp` if
+they differ.
+
+### The versions sidecar
+
+`ArtifactData list` with `out_dir` writes only each document's data; the document's version appears
+only in the tool result text (for example `1698 ... version 8`). The session that runs the
+reconciler writes `<dir>/versions.json` from those results before running it:
+
+```json
+{ "work/1698": 8, "flow/1698": 3, "meta/board": 2, "audits/29": 5 }
+```
+
+Every write to an existing document is pinned with `if_version`. An existing document missing from
+the sidecar is skipped with a `WARN` on stderr and never written unpinned (a write without a version
+could overwrite a concurrent manual edit); the run still exits 0 so the other writes can be applied.
+New documents carry no version.
+
+### Rules
+
+| Situation | Result |
+| --- | --- |
+| Card or flow front with a merged PR | Card `merged` (flow `merged` + stage `done`), with the merge time. |
+| Open PR | Card `pr-open`; flow `in-progress` + stage `review`. |
+| Draft open PR | A running card stays `running` and flow is left alone; only the PR number is recorded. |
+| Worktree with commits ahead of main and no PR | Card `running`. |
+| `running` worker card with no worktree and no PR | Card `stopped`, with a note. |
+| PR closed without merging | Card `stopped`, with a note. |
+| Card that groups several issues | Finished only by a PR that closes all of them. |
+| PR older than the window | Resolved with `gh pr view`. |
+| Flow front whose issue closed with no PR | Flow `closed`, stage `close-out`. |
+| Open, non-bot PR that closes an issue and has no card | New card (id = the issue number). |
+| `progress.csv` row `done` | Audit `closed` / `done`. |
+| Audit missing from the board | Created. |
+| Audit in `current-audit.json` | Audit `open`. |
+| `meta/board` status | Regenerated: open audit, open PRs, PRs merged in the last 48 hours (capped at 12), card counts. Hand-written text after ` Notes: ` is preserved. |
+
+The reconciler is idempotent: a second run on a reconciled board writes nothing.
+
+### Scheduled task
+
+A Claude session that the orchestrator creates after merge runs this every 30 minutes:
+
+1. `ArtifactData list` for `work`, `flow`, `audits` and `meta` with `out_dir` set to `<tmp>/work`, `<tmp>/flow`, `<tmp>/audits` and `<tmp>/meta`.
+2. Write `<tmp>/versions.json` from the versions in those list results.
+3. Run `pwsh -NoProfile -File tools/ai/board/reconcile-board.ps1 -CurrentDir <tmp> -Versions <tmp>/versions.json -Out <tmp>/batch.json`.
+4. Apply each printed batch file with `ArtifactData batch`. The batch call takes inline writes, so the session reads the file and passes its array as the `writes` argument, one call per file.
+5. Report the `WRITES`/`SKIPPED` line. If `SKIPPED` is above 0, list again and retry once.
+
+### Event reminder hook
+
+`.claude/hooks/board-event-reminder.ps1` is a `PostToolUse` hook (matcher `Bash|PowerShell|Agent|Task`
+in `.claude/settings.json`). It fires after `gh pr create`, `gh pr merge`, `audit-done.ps1`,
+`audit-commit-stage.ps1` and after an `issue-worker` or `docs-writer` spawn, and adds the context
+`Board: update work/flow/audits for <event> now (or let the 30-minute reconciler do it)`. It never
+blocks. Its tests are in `.claude/hooks/tests/Test-Hooks.ps1`.
+
+### Self-test
+
+```powershell
+pwsh -NoProfile -File tools/ai/board/reconcile-board-selftest.ps1
+```
+
+Runs the reconciler against fixtures with stubbed `gh` and `git`; exits 1 on any failure.
