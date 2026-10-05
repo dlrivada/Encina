@@ -186,6 +186,27 @@ public sealed class PIIFailClosedTests : IDisposable
         Should.Throw<InvalidOperationException>(() => sut.MaskObject(new GetOnlyDto()));
     }
 
+    private class BaseDto
+    {
+        public string Title { get; set; } = "t";
+    }
+
+    private sealed class DerivedDto : BaseDto
+    {
+        [PII(PIIType.Email)]
+        public string Email { get; set; } = "john@example.com";
+    }
+
+    [Fact]
+    public void MaskObject_DerivedInstanceDeclaredAsBase_DoesNotFailOnDerivedOnlyMembers()
+    {
+        var sut = CreateMasker(new PIIOptions(), new FakeLogger<PIIMasker>());
+
+        var result = sut.MaskObject<BaseDto>(new DerivedDto());
+
+        result.Title.ShouldBe("t");
+    }
+
     [Fact]
     public void MaskForAudit_Object_GetOnlyPiiProperty_Throws()
     {

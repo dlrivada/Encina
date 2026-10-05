@@ -351,6 +351,12 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     {
         foreach (var (property, maskedValue) in applied)
         {
+            // A member declared on a derived type does not exist on a copy deserialized as its base type.
+            if (!property.Property.DeclaringType!.IsInstanceOfType(result))
+            {
+                continue;
+            }
+
             var actual = property.GetValue(result) as string;
             if (!string.Equals(actual, maskedValue, StringComparison.Ordinal))
             {
