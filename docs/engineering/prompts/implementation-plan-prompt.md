@@ -12,6 +12,8 @@ Issue bodies themselves follow the templates in `.github/ISSUE_TEMPLATE/` (heade
 
 Three lines differ from the maintainer's original wording, aligned with `CLAUDE.md` on 2026-09-22: the database provider count (10, SQLite is out of the matrix), the Event ID rule (register the range in `EventIdRanges.cs` first, ADR-021) and the test verification criterion (per-flag coverage targets from the manifest, not a single 85%).
 
+**Checking a plan.** `tools/ai/plans/check-plan.ps1` checks every plan structurally against section 2 (a to f) of this prompt. Before opening the PR, run `pwsh tools/ai/plans/check-plan.ps1 -Path docs/plans/<feature>-implementation-plan-<issue>.md`; `-Changed` checks every plan changed against `origin/main`, and `-SelfTest` tests the checker itself. The `plan-conformance` workflow runs the same script on pull requests. Plans written before 2026-09-22 are exempt through an allow-list inside the script. The plan holds only what this prompt asks for: the maintainer's decisions on the Design Choices are recorded as an issue comment (`Decision (maintainer, <yyyy-MM-dd>): ...`), never as a plan section, and review logs go to PR or issue comments (see the implementation-plan skill, `.claude/skills/implementation-plan/SKILL.md`).
+
 ---
 
 ```text
