@@ -60,7 +60,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **B) Current-law-complete set + one draft value** (`ManifestlyUnfounded`, `Excessive`, `IdentityNotVerifiable`, `RestrictedByLaw`, `RightNotApplicable`, `Other`; draft: `AbusiveIntent`) | Every common lawful refusal has its own code with an article anchor; `Other` stays rare; the draft value is the only one gated | Two values more than the issue; `RightNotApplicable` overlaps in spirit with the per-category exemptions of P-02 (resolved by Design Choice 4) |
 | **C) Open string codes with a registry** (`DSRRejectionCode` value object, application registers codes) | Fully extensible per jurisdiction | Loses compile-time safety and cheap aggregation; persisted strings drift; no fixed set for the article-coverage specification (#1212) to cite |
 
-### Chosen Option: **B — Current-law-complete set plus one gated draft value** (recommended, pending the maintainer)
+### Chosen Option: **B — Current-law-complete set plus one gated draft value** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -82,7 +82,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **B) Required code, explanation required only for `Other`** | Matches the issue's "Other requires free text" literally; less typing for common cases | A refusal for `ManifestlyUnfounded` with no recorded demonstration fails the Art. 12(5) burden of proof; Art. 12(4) reasons to the subject would be a bare code |
 | **C) Optional code (`DSRRejectionReason?`), free text required** — the issue's "backward compatible" wording | No caller changes | Codes become optional, so statistics are incomplete forever; a compatibility path, which `AGENTS.md` §1 and §3 forbid pre-1.0 |
 
-### Chosen Option: **A — Required code plus required explanation** (recommended, pending the maintainer)
+### Chosen Option: **A — Required code plus required explanation** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -105,7 +105,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **C) No gate; document that `AbusiveIntent` is draft** | Simplest | Violates REQ-024 and AC-024 (default must follow current law) |
 | **D) Gate in the aggregate (pass the flag into `Deny`)** | Invariant enforced even when the aggregate is used without the service | Leaks configuration into the domain; every caller passes a flag |
 
-### Chosen Option: **A — Option checked by the service** (recommended, pending the maintainer)
+### Chosen Option: **A — Option checked by the service** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -127,7 +127,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **B) P-02 first defines its outcome shape; #814 adds the enum to it later** | P-02 is P0 in v0.14.0 and is not blocked | #814 would then change P-02's persisted shape, the breaking change both issues try to avoid |
 | **C) Independent types (whole-request enum here, separate per-category codes in P-02)** | No coordination | Two vocabularies for one legal act (a refusal); reports must join them; contradicts the SPEC-002 §3.5 row ("the reason codes of REQ-004 (P-02) stay current-law codes" in the same shape) |
 
-### Chosen Option: **A — #814 defines the shared vocabulary first** (recommended, pending the maintainer)
+### Chosen Option: **A — #814 defines the shared vocabulary first** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -148,7 +148,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **B) Add `CountRequestsBySubjectAsync(subjectId, right, since)`** | Convenient evidence for repetitive requests | New query surface for a judgement the law leaves to the controller; overlaps the existing query |
 | **C) Automatic flagging of repetitive requests (threshold option)** | Hands-off | A fixed threshold is a legal decision Encina must not take; risk of refusing lawful requests |
 
-### Chosen Option: **A — Record only** (recommended, pending the maintainer)
+### Chosen Option: **A — Record only** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -168,7 +168,7 @@ Nothing of #814 is implemented. The refusal path is free text only:
 | **B) Instrument every lifecycle command now** | Closes the whole gap at once | Mixes an unrelated fix into a shape-change PR; more CRAP-gate surface |
 | **C) Leave the deny path as is** | Smallest diff | The reason codes exist to be counted; leaving the counter dormant defeats the issue's motivation |
 
-### Chosen Option: **A — Deny path now, the rest as a debt issue** (recommended, pending the maintainer)
+### Chosen Option: **A — Deny path now, the rest as a debt issue** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -661,8 +661,17 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. Maintainer decides Design Choices 1-6 (each is a recommendation).
-2. Link this plan from #814; add a comment on #1188 that P-02 reuses `DSRRejectionReason` (Design Choice 4).
-3. Open the two issue drafts under `artifacts/issues/plan-814-*.md`.
-4. Implement Phases 1-5 in one worktree (one `issue-worker`); the PR references `Fixes #814` and records the ADR-018 evaluation above.
+1. Done: the maintainer decided Design Choices 1-6. See Maintainer Decisions.
+2. Link this plan from #814, and comment on #1188 that P-02 reuses `DSRRejectionReason` (Design Choice 4).
+3. Done: the two issue drafts were opened as #1936 (inert options) and #1937 (lifecycle telemetry).
+4. Implement Phases 1-5 in one worktree with one `issue-worker`. The PR references `Fixes #814` and records the ADR-018 evaluation above.
 5. Close before `1.0.0-rc.1` (AC-024).
+
+## Maintainer Decisions
+
+1. (2026-10-06) Option B: the complete current-law set (`ManifestlyUnfounded`, `Excessive`, `IdentityNotVerifiable`, `RestrictedByLaw`, `RightNotApplicable`, `Other`), plus the gated draft value `AbusiveIntent`. Every member has an explicit number, none 0.
+2. (2026-10-06) Option A: the code and the explanation are both required. `RejectionReason` becomes the code and the free text becomes `RejectionExplanation`.
+3. (2026-10-06) Option A: `EnableOmnibusArticle12RefusalGrounds` is checked by the service and is off by default. While it is off, `AbusiveIntent` returns `dsr.rejection_reason_not_enabled`.
+4. (2026-10-06) Option A: #814 lands first and defines the shared reason codes, which P-02 (#1188) reuses.
+5. (2026-10-06) Option A: record only. The controller judges "Excessive" from the request history; there is no new query and no automatic flag.
+6. (2026-10-06) Option A: this PR wires only the deny path. The rest of the DSR lifecycle telemetry is #1937.

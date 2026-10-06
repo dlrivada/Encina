@@ -63,7 +63,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **B) An `IsExempt` flag plus exemption fields on the existing `PurposeDefinitionEntry`** | One catalogue; smallest options change | Consent-only fields (`RequiresExplicitOptIn`, `CanBeWithdrawnAnytime`, `DefaultExpirationDays`) become meaningless for exempt entries; easy to flip a consent purpose to exempt by mistake |
 | **C) A separate `IConsentExemptionRegistry` service registered in DI (`services.AddConsentExemption(...)`)** | Runtime-mutable; per-tenant registries possible | A second registration surface for one concept; options validation cannot see it at startup; diverges from the existing `DefinePurpose` style |
 
-### Chosen Option: **A — separate `DefineExemptPurpose` catalogue** (recommended, pending the maintainer)
+### Chosen Option: **A — separate `DefineExemptPurpose` catalogue** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -84,7 +84,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **B) A `ConsentExemptionBasis` enum on each definition: current-law bases (ePrivacy Art. 5(3) transmission, strictly necessary for a service the subject requested) act by default; draft bases (Art. 88a audience measurement, security) act only when `EnableDraftOmnibusExemptions` is `true`** | Follows current law by default and still delivers what current law allows; the basis is recorded in each `ConsentExemptionApplied`, so the audit says *why* no consent was asked; adoption of COM(2025) 837 becomes a default flip, not a model change | Larger scope than the issue body; overlaps the terminal-storage channel of #1199 (P-11); the enum names legal provisions that need careful XML documentation |
 | **C) A per-definition `IsDraftLaw` flag the application sets** | Flexible | Puts the legal classification on the application; nothing stops a draft exemption being marked current law; contradicts REQ-024 ("named by its draft article") |
 
-### Chosen Option: **B — basis enum, draft bases gated** (recommended, pending the maintainer)
+### Chosen Option: **B — basis enum, draft bases gated** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -107,7 +107,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **C) Record it once per (tenant, subject, purpose) on a new `ConsentExemptionAggregate` stream with its own projection and `ConsentExemptionReadModel`; deterministic stream id makes the write idempotent** | Existing consent queries and states untouched; one write per subject and purpose, then cached; the event carries purpose, basis, definition version and timestamps, which is what an auditor needs; duplicate concurrent writes collapse on `StreamAlreadyExists` (`src/Encina.Marten/MartenAggregateRepository.cs:311-319`) | New aggregate, projection, read model and registration (~5 files); an Art. 15 export must query both read models |
 | **D) No per-subject record: log and trace each use, record only the definitions at startup** | Cheapest | Does not meet the issue's acceptance criterion "exemption still recorded in audit trail" for the subject; logs are not an audit store (SPEC-002 REQ-062 forbids subject ids in telemetry) |
 
-### Chosen Option: **C — separate `ConsentExemptionAggregate`** (recommended, pending the maintainer)
+### Chosen Option: **C — separate `ConsentExemptionAggregate`** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -129,7 +129,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **B) The `ConsentExemptionBasis` enum of Design Choice 2 is the recorded ground, plus an optional free-text `LawfulBasisReference` string (for example "GDPR Art. 6(1)(f)")** | No new dependency; the audit names the provision that exempts; the Art. 6 note stays available for the RoPA | The Art. 6 reference is a string, not a typed value; the issue's sample code changes |
 | **C) A local copy of the Art. 6 enum inside Consent** | Typed, no dependency | Duplicated domain type that drifts from GDPR's and from #1196 |
 
-### Chosen Option: **B — exempting provision plus an optional Art. 6 reference string** (recommended, pending the maintainer)
+### Chosen Option: **B — exempting provision plus an optional Art. 6 reference string** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -150,7 +150,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **B) The pipeline asks `IConsentExemptionPolicy` which purposes are actively exempt, records those through `IConsentExemptionService`, and sends only the remaining purposes to `IConsentValidator`** | Validator contract unchanged; one decision point (the policy) shared with the solicitation answer; a request mixing consent and exempt purposes still needs consent for the consent ones | The policy is called on every request with `[RequireConsent]` (a dictionary lookup, cached definitions) |
 | **C) A separate `ConsentExemptionPipelineBehavior` registered before the consent behavior** | Isolated | Two behaviors must agree on which purposes the other handles; ordering dependency between behaviors; double attribute scan |
 
-### Chosen Option: **B — partition in the existing behavior** (recommended, pending the maintainer)
+### Chosen Option: **B — partition in the existing behavior** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -171,7 +171,7 @@ Add **consent-exempt purposes** to `Encina.Compliance.Consent`: purposes that an
 | **B) Synchronous `IConsentExemptionPolicy.IsExempt(purpose)` only; the application combines it with `HasValidConsentAsync`** | Smallest | Every application re-implements the combination; #810 would add its own query, giving two half-answers |
 | **C) No API; the application reads `ConsentOptions.ExemptPurposeDefinitions`** | Nothing to build | Ignores the draft gate and any overridden policy; the acceptance criterion "exempt purposes bypass consent prompt" is not testable in Encina |
 
-### Chosen Option: **A — one solicitation answer on `IConsentService`** (recommended, pending the maintainer)
+### Chosen Option: **A — one solicitation answer on `IConsentService`** (decided by the maintainer, 2026-10-06)
 
 ### Rationale
 
@@ -816,8 +816,17 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer reviews the six Design Choices and records the decisions (the orchestrator adds the decisions section).
+1. Done: the maintainer has decided the six Design Choices (see Maintainer Decisions).
 2. Link this plan from #811.
 3. Decide the order with #810 (Prerequisites & Dependencies).
 4. Implement Phases 1-9 in one worktree with one `issue-worker`; each phase is a self-contained commit.
 5. The pull request references `Fixes #811`, reports per-flag coverage and CRAP of the touched files, and records the ADR-018 evaluation (the matrix above).
+
+## Maintainer Decisions
+
+1. (2026-10-06) Option A: exempt purposes are defined in a separate `DefineExemptPurpose` catalogue. `IConsentExemptionPolicy` can be overridden for per-tenant needs.
+2. (2026-10-06) Option B: a `ConsentExemptionBasis` enum. The current-law bases (ePrivacy Art. 5(3)) are active by default. The draft Omnibus Art. 88a bases are active only when `EnableDraftOmnibusExemptions = true`.
+3. (2026-10-06) Option C: a separate `ConsentExemptionAggregate`, with one stream per (tenant, subject, purpose) and a deterministic stream id. When the stream already exists, the exemption is already recorded.
+4. (2026-10-06) Option B: the record keeps the exempting provision plus an optional `LawfulBasisReference` string. Consent takes no dependency on GDPR.
+5. (2026-10-06) Option B: the existing behavior splits the purposes into exempt and non-exempt, records the exempt ones and validates the rest. A failed record blocks in Block mode (fail closed) and is only logged in Warn mode.
+6. (2026-10-06) Option A: one `IConsentService.GetSolicitationDecisionAsync` answer (`Solicit` / `ConsentActive` / `Exempt`), shared with #810, which adds `CooldownActive`.
