@@ -5,13 +5,11 @@
 
 **Blazor Server integration for Encina's authorization pipeline.**
 
-Resolves the current caller's principal from `AuthenticationStateProvider` when there is no ambient `HttpContext`, so `[Authorize]` and `[ResourceAuthorize]` on commands and queries keep working inside a Blazor Server interactive circuit.
+Binds the request identity of a Blazor Server circuit from its `AuthenticationState`, so `[Authorize]` and `[ResourceAuthorize]` on commands and queries keep working inside an interactive circuit.
 
 ## Why this package exists
 
-`Encina.AspNetCore`'s `AuthorizationPipelineBehavior` asks an `IPrincipalResolver` for the caller's `ClaimsPrincipal` instead of reading `IHttpContextAccessor` directly. The default resolver, `HttpContextPrincipalResolver`, reads `IHttpContextAccessor.HttpContext?.User` and returns `null` — which the behavior treats as "not authenticated" — when there is no `HttpContext`.
-
-A Blazor Server interactive circuit has no `HttpContext` for the whole lifetime of the circuit after the initial negotiate request; this is standard, documented ASP.NET Core Blazor Server behavior, not a bug in the framework. Any `[Authorize]` command or query sent from a component's event handler was therefore denied unconditionally, regardless of whether the user was signed in. `Encina.AspNetCore.Blazor` provides `AuthenticationStatePrincipalResolver`, which prefers `HttpContext.User` when a request is served over classic HTTP (a Blazor Server prerender, an API controller, or a non-Blazor page in the same app) and falls back to `AuthenticationStateProvider.GetAuthenticationStateAsync().User` — the mechanism Blazor components normally get their identity from via `CascadingAuthenticationState` — only when there is no `HttpContext`.
+A Blazor Server circuit has no `HttpContext` after the initial negotiate request, and its connection (`/_blazor`) carries no request identity: `UseEncinaContext()` runs it anonymous. Without this package every `[Authorize]` command sent from a component's event handler would be denied. `AddEncinaBlazorAuthorization()` registers a circuit handler that fills that gap with the circuit's own `AuthenticationState`.
 
 ## Installation
 
@@ -21,7 +19,7 @@ dotnet add package Encina.AspNetCore.Blazor
 
 ## Quick start
 
-Register Encina, `Encina.AspNetCore`, Blazor Server, then this package last, so `AddEncinaBlazorAuthorization()` replaces the default resolver:
+Register Encina, `Encina.AspNetCore`, Blazor Server, then this package after Blazor Server:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -46,15 +44,21 @@ builder.Services.AddEncinaAuthorization(
     });
 
 // Blazor Server hosting
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+builder.Services.AddServerSideBlazor();
 
-// Replaces the default HTTP-only IPrincipalResolver with one that
-// also resolves the principal from AuthenticationStateProvider.
+// Runs each circuit activity in one inbound identity scope
+// built from the circuit's current AuthenticationState.
 builder.Services.AddEncinaBlazorAuthorization();
+
+var app = builder.Build();
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseEncinaContext();
+app.UseAuthorization();
 ```
 
-The middleware pipeline still needs `app.UseAuthentication()` and `app.UseAuthorization()` in the usual order, as described in the [`Encina.AspNetCore` README](../Encina.AspNetCore/README.md#2-configure-middleware-pipeline).
+The pipeline order is described in the [`Encina.AspNetCore` README](../Encina.AspNetCore/README.md#2-request-identity).
 
 A command or query authorized with `[Authorize]` behaves the same whether it is sent from an interactive Blazor Server component or from an HTTP endpoint in the same application:
 
@@ -77,31 +81,22 @@ public record UpdateOrderCommand(OrderId Id, string NewStatus) : ICommand<Order>
 }
 ```
 
-Inside the circuit, `AuthenticationStatePrincipalResolver` has no `HttpContext` to read, so it awaits `AuthenticationStateProvider.GetAuthenticationStateAsync()` and hands `AuthorizationPipelineBehavior` the circuit's authenticated principal instead of `null`.
-
 ## Reference
-
-### `AuthenticationStatePrincipalResolver`
-
-Implements `Encina.AspNetCore.IPrincipalResolver`.
-
-```csharp
-public AuthenticationStatePrincipalResolver(
-    AuthenticationStateProvider authenticationStateProvider,
-    IHttpContextAccessor? httpContextAccessor = null)
-```
-
-`ResolvePrincipalAsync(CancellationToken)` returns `httpContextAccessor.HttpContext.User` when an `HttpContext` is present; otherwise it returns the `ClaimsPrincipal` from `authenticationStateProvider.GetAuthenticationStateAsync()`.
 
 ### `ServiceCollectionExtensions.AddEncinaBlazorAuthorization(IServiceCollection)`
 
-- Calls `services.AddHttpContextAccessor()`, so requests served over classic HTTP in the same application still resolve the principal from `HttpContext.User`.
-- Replaces the registered `IPrincipalResolver` with a **scoped** `AuthenticationStatePrincipalResolver` — scoped because `AuthenticationStateProvider` is itself scoped per Blazor circuit.
-- Call it after registering Blazor Server (`AddServerSideBlazor()` or `AddRazorComponents().AddInteractiveServerComponents()`), which registers `AuthenticationStateProvider`.
+Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped circuit handler. Call it after registering Blazor Server (`AddServerSideBlazor()` or `AddRazorComponents().AddInteractiveServerComponents()`), which registers `AuthenticationStateProvider`.
+
+| Situation | Identity the code sees |
+|---|---|
+| Inside a circuit activity (UI event, JavaScript interop call) | The user of the current `AuthenticationState`, in one inbound identity scope per activity |
+| The authentication state changed | The new state, applied at the next activity |
+| Outside an activity (a continuation that outlives it, a timer) | Anonymous |
+| The scope is refused | The activity still runs, anonymous, under a masking scope |
 
 ## Dependencies
 
-- `Encina.AspNetCore` (defines `IPrincipalResolver` and `AuthorizationPipelineBehavior`)
+- `Encina.AspNetCore` (defines `AuthorizationPipelineBehavior` and `UseEncinaContext()`)
 - `Microsoft.AspNetCore.App` (framework reference; brings in `Microsoft.AspNetCore.Components.Authorization` and `Microsoft.AspNetCore.Http`)
 
 ## See also
