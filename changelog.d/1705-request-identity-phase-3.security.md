@@ -2,3 +2,4 @@
 - WebSocket upgrades are recognised from the request itself (`Upgrade: websocket` with `IHttpUpgradeFeature`, any extended CONNECT), before `UseWebSockets` runs, so raw and GraphQL WebSocket endpoints never keep the connect-time user (#1705).
 - An anonymous HTTP request is an inbound request: it can no longer open a service identity scope (`RunAsServiceAsync`) without `AllowOverInbound` (#1705).
 - The user id no longer reaches the authorization logs (EventIds 200/201) or their error details (`identityKind` replaces `userId`), nor the EF Core audit and soft-delete logs (EventIds 3000/3050); they record the identity kind (#1705).
+- `IResourceAuthorizer` evaluates the request identity (`IRequestContext.Identity`) instead of `HttpContext.User`, so a SignalR hub or Blazor circuit no longer authorizes resources as the connect-time principal; an unauthenticated identity is denied with `encina.authorization.unauthenticated` (#1705).
