@@ -36,8 +36,8 @@ internal sealed class StrykerServerRecycler : ITestSessionLifetimeHandler
     /// <summary>The variable that names a file the recycle line is also appended to.</summary>
     public const string LogFileVariable = "ENCINA_MTP_RECYCLE_LOG";
 
-    /// <summary>The default private-memory threshold: 6 GB.</summary>
-    public const long DefaultThresholdMb = 6144;
+    /// <summary>The default private-memory threshold: 4 GB.</summary>
+    public const long DefaultThresholdMb = 4096;
 
     private const long BytesPerMb = 1024L * 1024L;
 
