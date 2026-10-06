@@ -50,7 +50,7 @@ internal sealed partial class RequestContextScopeFactory
             .WithCausationId(persisted.CausationId);
 
         LogTenantChange(nameof(RunRestoredAsync), ambient, context);
-        RequestIdentityLog.IdentityRestored(_logger, context.Identity.Kind, context.CorrelationId);
+        RequestIdentityLog.IdentityRestored(_logger, context.IssuedIdentity.Kind, context.CorrelationId);
         return Open(context, work, cancellationToken);
     }
 

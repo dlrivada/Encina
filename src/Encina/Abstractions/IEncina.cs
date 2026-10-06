@@ -56,9 +56,12 @@ public interface IEncina
     /// anonymous context is always accepted. A context with an authenticated identity is refused
     /// with <see cref="RequestIdentityErrorCodes.ScopeConflict"/> when the scope that issued that
     /// identity has ended, when the current flow runs (or ran) for a user and the identity is not
-    /// that user's, or when the identity was not issued by a scope and is not the identity of an
-    /// active scope in the current flow. When the current flow runs for a user, a context with a
-    /// different tenant is refused with <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
+    /// that user's, when the current flow runs (or ran) for an inbound request, an <c>External</c>
+    /// restored message or a connection and the identity is not the ambient one (open a scope with
+    /// <see cref="IdentityScopeOptions.AllowOverInbound"/> instead), or when the identity was not
+    /// issued by a scope and is not the identity of an active scope in the current flow. When the
+    /// current flow runs for a user, a context with a different tenant is refused with
+    /// <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the operation.</param>
     /// <returns>Response produced by the handler after flowing through the pipeline.</returns>
@@ -95,9 +98,10 @@ public interface IEncina
     /// Context the handlers run with. It takes precedence over the ambient context and is the
     /// ambient context for the duration of the dispatch. The same rules as the explicit
     /// <c>Send</c> overload apply: an authenticated identity whose issuing scope has ended, that is
-    /// not the user of the current flow, or that was not issued by an active scope of the same
-    /// identity is refused with <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, and a
-    /// different tenant under a user with <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
+    /// not the user of the current flow, that is not the ambient identity of a flow with an inbound
+    /// request, <c>External</c> restored message or connection, or that was not issued by an active
+    /// scope of the same identity is refused with <see cref="RequestIdentityErrorCodes.ScopeConflict"/>,
+    /// and a different tenant under a user with <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the dispatch.</param>
     /// <exception cref="ArgumentNullException"><paramref name="context"/> is <c>null</c>.</exception>
@@ -149,12 +153,14 @@ public interface IEncina
     /// the ambient context while the stream is enumerated. The context is checked at the first
     /// <c>MoveNextAsync</c>, with the same rules as the explicit <c>Send</c> overload: an
     /// authenticated identity whose issuing scope has ended, that is not the user of the current
-    /// flow, or that was not issued by an active scope of the same identity is refused with
-    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, and a different tenant under a user
-    /// with <see cref="RequestIdentityErrorCodes.TenantConflict"/>. Once the issuing scope ends,
-    /// the remaining steps read no identity through <see cref="IRequestContextAccessor"/>; the
-    /// <see cref="IRequestContext"/> object a stream behavior captured keeps its values, so consume
-    /// a stream inside the scope that opened it.
+    /// flow, that is not the ambient identity of a flow with an inbound request, <c>External</c>
+    /// restored message or connection, or that was not issued by an active scope of the same
+    /// identity is refused with <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, and a
+    /// different tenant under a user with <see cref="RequestIdentityErrorCodes.TenantConflict"/>.
+    /// Once the issuing scope ends, the remaining steps read no identity through
+    /// <see cref="IRequestContextAccessor"/>, and the <see cref="IRequestContext"/> object a stream
+    /// behavior captured reads <see cref="RequestIdentity.Anonymous"/> as its identity (its other
+    /// values are kept), so every gate denies; consume a stream inside the scope that opened it.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
     /// <returns>
