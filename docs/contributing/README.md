@@ -64,15 +64,24 @@ The root contains `Encina.slnx`, which is the solution file for the project (sou
 
 ### 2.2 `src/` by family
 
-The `src/` directory holds the 105 projects of the solution plus the two unsupported SQLite packages, grouped into functional families (source: repository listing; AGENTS.md §5). The core family includes `Encina` and `Encina.Messaging`, which provide the base abstractions and shared messaging interfaces like `IOutboxStore` and `IInboxStore` (source: AGENTS.md §3). Database providers are split into ADO.NET, Dapper, and EF Core families, each supporting SqlServer, PostgreSQL, and MySQL (source: AGENTS.md §5). The ADO family includes `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, and the unsupported `Encina.ADO.Sqlite` (source: repository listing). The Dapper family includes `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL`, and the unsupported `Encina.Dapper.Sqlite` (source: repository listing). The EF Core family includes `Encina.EntityFrameworkCore` (source: repository listing). The MongoDB family includes `Encina.MongoDB` (source: repository listing).
+The `src/` directory groups the projects of the solution into functional families (source: repository listing; AGENTS.md §5). The core family includes `Encina` and `Encina.Messaging`, which provide the base abstractions and shared messaging interfaces like `IOutboxStore` and `IInboxStore` (source: AGENTS.md §3). The database families are:
+
+| Family | Packages | Database providers | Source |
+| :--- | :--- | :--- | :--- |
+| ADO.NET | `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL` | SqlServer, PostgreSQL, MySQL | repository listing; AGENTS.md §5 |
+| Dapper | `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` | SqlServer, PostgreSQL, MySQL | repository listing; AGENTS.md §5 |
+| EF Core | `Encina.EntityFrameworkCore` | SqlServer, PostgreSQL, MySQL | repository listing; AGENTS.md §5 |
+| MongoDB | `Encina.MongoDB` | MongoDB | repository listing; AGENTS.md §5 |
+
+Oracle ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md)) and SQLite ([ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)) were removed and have no package in `src/`.
 
 Caching providers include `Encina.Caching`, `Encina.Caching.Memory`, `Encina.Caching.Hybrid`, `Encina.Caching.Redis`, `Encina.Caching.Valkey`, `Encina.Caching.Dragonfly`, `Encina.Caching.Garnet`, and `Encina.Caching.KeyDB` (source: repository listing). These implement `ICacheProvider` for different backends (source: AGENTS.md §5). Messaging transports include `Encina.RabbitMQ`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Kafka`, `Encina.NATS`, `Encina.Redis.PubSub`, `Encina.MQTT`, `Encina.InMemory`, `Encina.gRPC`, and `Encina.GraphQL` (source: repository listing). These implement `IMessageTransport` for various brokers and protocols (source: AGENTS.md §5). Distributed locks include `Encina.DistributedLock`, `Encina.DistributedLock.InMemory`, `Encina.DistributedLock.Redis`, and `Encina.DistributedLock.SqlServer` (source: repository listing). Validation providers include `Encina.FluentValidation`, `Encina.DataAnnotations`, and `Encina.MiniValidator` (source: repository listing). Scheduling includes `Encina.Hangfire` and `Encina.Quartz` (source: repository listing). Event sourcing includes `Encina.Marten`, `Encina.Marten.GDPR`, and `Encina.Audit.Marten` (source: repository listing). Cloud/serverless includes `Encina.AzureFunctions` and `Encina.AwsLambda` (source: repository listing). Resilience includes `Encina.Polly`, `Encina.Extensions.Resilience` (source: repository listing). Observability includes `Encina.OpenTelemetry` (source: repository listing). Security includes `Encina.Security`, `Encina.Security.ABAC`, `Encina.Security.ABAC.Analyzers`, `Encina.Security.AntiTampering`, `Encina.Security.Audit`, `Encina.Security.Encryption`, `Encina.Security.PII`, `Encina.Security.Sanitization`, `Encina.Security.Secrets` and its backend packages (`Encina.Security.Secrets.*`; the former `Encina.Secrets.*` family was removed by SPEC-000 DEC-001) (source: repository listing; CLAUDE.md, Active Plans). Compliance includes `Encina.Compliance.AIAct`, `Encina.Compliance.Anonymization`, `Encina.Compliance.Attestation`, `Encina.Compliance.BreachNotification`, `Encina.Compliance.Consent`, `Encina.Compliance.CrossBorderTransfer`, `Encina.Compliance.DataResidency`, `Encina.Compliance.DataSubjectRights`, `Encina.Compliance.DPIA`, `Encina.Compliance.GDPR`, `Encina.Compliance.LawfulBasis`, `Encina.Compliance.NIS2`, `Encina.Compliance.PrivacyByDesign`, `Encina.Compliance.ProcessorAgreements`, and `Encina.Compliance.Retention` (source: repository listing). Testing packages include `Encina.Testing`, `Encina.Testing.Architecture`, `Encina.Testing.Bogus`, `Encina.Testing.Fakes`, `Encina.Testing.FsCheck`, `Encina.Testing.Pact`, `Encina.Testing.Respawn`, `Encina.Testing.Shouldly`, `Encina.Testing.Testcontainers`, `Encina.Testing.TUnit`, `Encina.Testing.Verify`, and `Encina.Testing.WireMock` (source: repository listing). The remaining packages cover DDD building blocks, tenancy, change data capture, identifiers, message encryption and web or CLI integration: `Encina.Cli`, `Encina.Refit`, `Encina.SignalR`, `Encina.AspNetCore`, `Encina.Tenancy`, `Encina.Tenancy.AspNetCore`, `Encina.DomainModeling`, `Encina.Cdc`, `Encina.Cdc.Debezium`, `Encina.Cdc.MongoDb`, `Encina.Cdc.MySql`, `Encina.Cdc.PostgreSql`, `Encina.Cdc.SqlServer`, `Encina.GuardClauses`, `Encina.IdGeneration`, `Encina.Messaging.Encryption`, `Encina.Messaging.Encryption.AwsKms`, `Encina.Messaging.Encryption.AzureKeyVault`, `Encina.Messaging.Encryption.DataProtection`, and `Encina.Aspire.Testing` (source: repository listing).
 
 | Family | Count | Example Packages | Purpose |
 |--------|-------|------------------|---------|
 | Core | 2 | `Encina`, `Encina.Messaging` | Base abstractions and messaging interfaces |
-| ADO | 4 | `Encina.ADO.SqlServer` | ADO.NET data access |
-| Dapper | 4 | `Encina.Dapper.SqlServer` | Dapper data access |
+| ADO | 3 | `Encina.ADO.SqlServer` | ADO.NET data access |
+| Dapper | 3 | `Encina.Dapper.SqlServer` | Dapper data access |
 | EF Core | 1 | `Encina.EntityFrameworkCore` | Entity Framework Core data access |
 | MongoDB | 1 | `Encina.MongoDB` | MongoDB data access |
 | Caching | 8 | `Encina.Caching.Redis` | Caching providers |
@@ -109,7 +118,16 @@ All test outputs must go to the `artifacts/` directory, never to the repository 
 
 ### 3.1 You touch a provider-dependent feature (a store, repository, unit of work, SQL)
 
-When your change implements a store, repository, unit of work, or any feature that interacts with database-specific SQL, the Multi-Provider Implementation Rule applies. This rule is mandatory for all 10 database providers. These providers consist of three implementations for ADO.NET (SqlServer, PostgreSQL, MySQL), three for Dapper (SqlServer, PostgreSQL, MySQL), three for EF Core (SqlServer, PostgreSQL, MySQL), and one for MongoDB. Oracle and SQLite are excluded from this count because they were removed from the pre-1.0 scope or lack production features, respectively (source: AGENTS.md §5).
+When your change implements a store, repository, unit of work, or any feature that interacts with database-specific SQL, the Multi-Provider Implementation Rule applies. This rule is mandatory for all 10 database providers (source: AGENTS.md §5):
+
+| Family | SqlServer | PostgreSQL | MySQL |
+| :--- | :-: | :-: | :-: |
+| ADO.NET | yes | yes | yes |
+| Dapper | yes | yes | yes |
+| EF Core | yes | yes | yes |
+| MongoDB | one provider | | |
+
+Oracle ([ADR-009](../architecture/adr/009-remove-oracle-provider-pre-1.0.md)) and SQLite ([ADR-024](../architecture/adr/024-remove-sqlite-provider-pre-1.0.md)) were removed from the pre-1.0 scope and are not part of this count.
 
 Beyond database providers, Encina uses specialized provider categories for specific feature areas. You must determine which category applies to your feature using the Provider Applicability Matrix.
 

@@ -19,7 +19,7 @@ This guide helps developers choose the right integration testing approach and pr
 flowchart TD
     Q1{"Do you need AppHost<br/>orchestration (multiple<br/>services, dependencies)?"}
     Q1 -->|"YES"| Q2{"Is this testing a<br/>full Aspire AppHost<br/>configuration?"}
-    Q1 -->|"NO"| Q3{"Do you need Oracle,<br/>NATS, or MQTT?"}
+    Q1 -->|"NO"| Q3{"Do you need<br/>NATS or MQTT?"}
 
     Q2 -->|"YES"| A1["USE ASPIRE<br/>HOSTING.TESTING"]
     Q2 -->|"NO"| A5["Consider Testcontainers<br/>for fine-grained control,<br/>or Aspire if testing<br/>multi-service communication"]
@@ -36,7 +36,6 @@ flowchart TD
 | Scenario | Recommended Approach | Reason |
 |----------|---------------------|--------|
 | Single database test | Testcontainers | Simpler, lower overhead |
-| Oracle database | Testcontainers | Not supported in Aspire |
 | NATS/MQTT messaging | Testcontainers | Limited Aspire support |
 | Full AppHost validation | Aspire | Production parity |
 | Multi-service orchestration | Aspire | Built-in dependency management |
@@ -493,45 +492,6 @@ public sealed class KafkaAppHost
 
 The following providers are **NOT supported by Aspire.Hosting** and must use Testcontainers:
 
-### Oracle Database
-
-```csharp
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-
-public sealed class OracleFixture : DatabaseFixture<IContainer>
-{
-    private IContainer? _container;
-    private string _connectionString = string.Empty;
-
-    public override string ConnectionString => _connectionString;
-
-    protected override async Task<IContainer> CreateContainerAsync()
-    {
-        // Uses GenericContainer since there's no official Oracle module
-        _container = new ContainerBuilder()
-            .WithImage("gvenzl/oracle-free:23-slim-faststart")
-            .WithPortBinding(1521, true)
-            .WithEnvironment("ORACLE_PASSWORD", "OraclePwd123")
-            .WithEnvironment("APP_USER", "encina")
-            .WithEnvironment("APP_USER_PASSWORD", "SimplePwd123")
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("DATABASE IS READY TO USE!"))
-            .WithCleanUp(true)
-            .Build();
-
-        await _container.StartAsync();
-
-        var port = _container.GetMappedPublicPort(1521);
-        _connectionString = $"Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)" +
-            $"(HOST=localhost)(PORT={port}))(CONNECT_DATA=(SERVICE_NAME=FREEPDB1)));" +
-            $"User Id=encina;Password=SimplePwd123;";
-
-        return _container;
-    }
-}
-```
-
 ### NATS
 
 ```csharp
@@ -815,7 +775,7 @@ When considering migration from Testcontainers to Aspire:
 
 ### Pre-Migration Assessment
 
-- [ ] Identify all providers used (check for Oracle/NATS/MQTT blockers)
+- [ ] Identify all providers used (check for NATS/MQTT blockers)
 - [ ] Count affected test files and fixtures
 - [ ] Evaluate test complexity (single vs multi-service)
 - [ ] Review custom container configurations
