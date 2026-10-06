@@ -80,7 +80,7 @@ public sealed class AnonymousMarkerScopeTests
         var result = await UnderMarker(AnonymousMarker.Connection, () => Factory.RunAsServiceAsync(
             ScopeTestHost.Job, ScopeTestHost.Capture, new IdentityScopeOptions(AllowOverInbound: true)));
 
-        result.ShouldBeSuccess().UserId.ShouldBe("service:test-job");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
         _host.EventIds.ShouldContain(174);
         _host.EventIds.ShouldNotContain(166);
     }
@@ -110,7 +110,7 @@ public sealed class AnonymousMarkerScopeTests
             InboundRequestInfo.ForCircuit(TestIdentity.Principal("alice"), "circuit-1"), ScopeTestHost.Capture));
 
         var context = result.ShouldBeSuccess();
-        context.UserId.ShouldBe("alice");
+        context.Issued().UserId.ShouldBe("alice");
         ((RequestContext)context).Origin.ShouldBe(RequestOrigin.Inbound);
         _host.EventIds.ShouldContain(172);
     }
@@ -121,7 +121,7 @@ public sealed class AnonymousMarkerScopeTests
         var result = await UnderMarker(AnonymousMarker.Connection, () => Factory.RunInboundAsync(
             new InboundRequestInfo(TestIdentity.Principal("alice")), ScopeTestHost.Capture));
 
-        result.ShouldBeSuccess().UserId.ShouldBe("alice");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("alice");
         _host.EventIds.ShouldContain(175);
         _host.EventIds.ShouldNotContain(172);
     }

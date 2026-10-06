@@ -9,7 +9,10 @@ namespace Encina;
 /// <remarks>
 /// <para>
 /// Immutable by design - all <c>With*</c> methods return new instances.
-/// Thread-safe for concurrent access.
+/// Thread-safe for concurrent access. The one value that changes over time is what
+/// <see cref="Identity"/> reports: an identity issued by an identity scope reads as
+/// <see cref="RequestIdentity.Anonymous"/> once that scope ends, so code that needs one consistent
+/// identity for several decisions reads <see cref="Identity"/> once and keeps the result.
 /// </para>
 /// <para>
 /// The public factories create <b>anonymous</b> contexts only. An authenticated
@@ -26,8 +29,37 @@ public sealed class RequestContext : IRequestContext
     /// <inheritdoc />
     public string? CausationId { get; private init; }
 
+    // The identity as issued. Readers outside the identity machinery go through Identity, which
+    // applies the liveness check; copies (With*, nested dispatch) carry this value, so a copy never
+    // resurrects an identity whose issuing scope has ended.
+    private readonly RequestIdentity _identity = RequestIdentity.Anonymous;
+
     /// <inheritdoc />
-    public RequestIdentity Identity { get; private init; } = RequestIdentity.Anonymous;
+    /// <remarks>
+    /// <para>
+    /// <b>Liveness.</b> An identity issued by an identity scope (or an entry point that opens one)
+    /// reads as <see cref="RequestIdentity.Anonymous"/> once that scope has ended, on this instance
+    /// and on every copy of it. Every consumer (pipeline behaviors, handlers, gates, compliance
+    /// extractors, audit) therefore sees an ended scope as anonymous without checking it itself: a
+    /// stream behavior that kept its <see cref="IRequestContext"/> after the scope ended, or a
+    /// fire-and-forget dispatch whose gates run later, is denied by every gate that requires an
+    /// authenticated caller. The value can change between two reads (live, then anonymous); read it
+    /// once when several decisions must agree. Identities built without an issuer
+    /// (<see cref="RequestIdentity.Anonymous"/>, the <c>Encina.Testing</c> builders) are returned as they are.
+    /// </para>
+    /// </remarks>
+    public RequestIdentity Identity
+    {
+        get => IsReadable(_identity) ? _identity : RequestIdentity.Anonymous;
+        private init => _identity = value;
+    }
+
+    /// <summary>
+    /// Gets the identity as issued, without the liveness check of <see cref="Identity"/>. Internal:
+    /// only the identity machinery reads it (binding the issuer, the facts of a holder, the
+    /// explicit-context and setter rules), never a gate.
+    /// </summary>
+    internal RequestIdentity IssuedIdentity => _identity;
 
     /// <inheritdoc />
     public string? IdempotencyKey { get; init; }
@@ -60,7 +92,7 @@ public sealed class RequestContext : IRequestContext
     {
         CorrelationId = source.CorrelationId;
         CausationId = source.CausationId;
-        Identity = source.Identity;
+        _identity = source._identity;
         IdempotencyKey = source.IdempotencyKey;
         TenantId = source.TenantId;
         Timestamp = source.Timestamp;
@@ -143,6 +175,20 @@ public sealed class RequestContext : IRequestContext
             Metadata = ImmutableDictionary<string, object?>.Empty
         };
     }
+
+    /// <summary>
+    /// Gets the identity <paramref name="context"/> carries as issued: <see cref="IssuedIdentity"/> for
+    /// a <see cref="RequestContext"/>, the reported identity for any other implementation, and
+    /// <see langword="null"/> when <paramref name="context"/> is <see langword="null"/> or reports none.
+    /// </summary>
+    internal static RequestIdentity? IssuedIdentityOf(IRequestContext? context) =>
+        context is RequestContext own ? own._identity : context?.Identity;
+
+    /// <summary>
+    /// Determines whether <paramref name="identity"/> still reads as a caller: it has no issuer, or
+    /// the scope that issued it is still active.
+    /// </summary>
+    internal static bool IsReadable(RequestIdentity identity) => identity.Issuer is not { IsLive: false };
 
     /// <summary>
     /// The correlation id of a context created without one: <see cref="Activity.Current"/>'s id or a new GUID.

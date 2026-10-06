@@ -13,24 +13,22 @@ namespace Encina.Caching;
 internal static class CacheUserIdentity
 {
     /// <summary>
-    /// Determines whether <paramref name="context"/> carries an authenticated user identity.
+    /// Determines whether <paramref name="identity"/> is an authenticated user identity.
     /// </summary>
-    internal static bool IsUser(IRequestContext context) =>
-        context.Identity is { Kind: IdentityKind.User, UserId: not null };
+    internal static bool IsUser([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] RequestIdentity? identity) =>
+        identity is { Kind: IdentityKind.User, UserId: not null };
 
     /// <summary>
-    /// Gets the identity kind of <paramref name="context"/>, reading a missing identity as anonymous.
-    /// </summary>
-    internal static IdentityKind KindOf(IRequestContext context) =>
-        context.Identity?.Kind ?? IdentityKind.Anonymous;
-
-    /// <summary>
-    /// Returns the user id of <paramref name="context"/> for a <c>VaryByUser</c> key.
+    /// Returns the user id of <paramref name="context"/> for a <c>VaryByUser</c> key, reading the
+    /// identity once (it reads anonymous as soon as its scope ends).
     /// </summary>
     /// <exception cref="InvalidOperationException">The identity is not an authenticated user.</exception>
-    internal static string RequireUserId(IRequestContext context) =>
-        IsUser(context)
-            ? context.Identity.UserId!
+    internal static string RequireUserId(IRequestContext context)
+    {
+        var identity = context.Identity;
+        return IsUser(identity)
+            ? identity.UserId!
             : throw new InvalidOperationException(
-                $"A VaryByUser cache key requires an authenticated user identity, but the request identity is {KindOf(context)}. Bypass the cache for this request instead of sharing one key across callers.");
+                $"A VaryByUser cache key requires an authenticated user identity, but the request identity is {identity?.Kind ?? IdentityKind.Anonymous}. Bypass the cache for this request instead of sharing one key across callers.");
+    }
 }

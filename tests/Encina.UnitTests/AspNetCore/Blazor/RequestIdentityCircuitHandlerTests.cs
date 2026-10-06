@@ -56,8 +56,8 @@ public sealed class RequestIdentityCircuitHandlerTests
         var seen = await InCircuit(() => RunActivity(handler));
 
         seen.ShouldNotBeNull();
-        seen.UserId.ShouldBe("circuit-user");
-        seen.Identity.Roles.ShouldContain("Admin");
+        seen.Issued().UserId.ShouldBe("circuit-user");
+        seen.Issued().Roles.ShouldContain("Admin");
         ((RequestContext)seen).Origin.ShouldBe(RequestOrigin.Inbound);
         _host.EventIds.ShouldContain(172);
         _host.EventIds.ShouldNotContain(167);
@@ -75,7 +75,7 @@ public sealed class RequestIdentityCircuitHandlerTests
             return (during, _host.Accessor.RequestContext);
         });
 
-        inside!.UserId.ShouldBe("circuit-user");
+        inside.Issued().UserId.ShouldBe("circuit-user");
         outside.ShouldNotBeNull();
         outside.Identity.Kind.ShouldBe(IdentityKind.Anonymous);
     }
@@ -94,10 +94,10 @@ public sealed class RequestIdentityCircuitHandlerTests
             return (one, two);
         });
 
-        first!.UserId.ShouldBe("before");
+        first.Issued().UserId.ShouldBe("before");
         second.ShouldNotBeNull();
-        second.UserId.ShouldBe("after");
-        second.Identity.Roles.ShouldContain("Admin");
+        second.Issued().UserId.ShouldBe("after");
+        second.Issued().Roles.ShouldContain("Admin");
     }
 
     [Fact]

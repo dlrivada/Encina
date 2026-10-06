@@ -1,5 +1,6 @@
 using Encina.Testing;
 using Encina.Testing.Identity;
+using Encina.UnitTests.Core.Identity;
 using Shouldly;
 using Xunit;
 
@@ -106,7 +107,7 @@ public class RequestContextAccessorTests
         // Assert
         afterFirstAwait.ShouldBe(context);
         afterSecondAwait.ShouldBe(context);
-        afterSecondAwait?.UserId.ShouldBe("user-123");
+        afterSecondAwait.Issued().UserId.ShouldBe("user-123");
     }
 
     [Fact]
