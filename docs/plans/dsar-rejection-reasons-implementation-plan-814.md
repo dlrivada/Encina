@@ -647,7 +647,7 @@ No blocking prerequisites.
 | Dependency | Issue | Notes |
 |-----------|-------|-------|
 | P-02 erasure arbitration | [#1188](https://github.com/dlrivada/Encina/issues/1188) (open) | Should land **after** #814 and reuse `DSRRejectionReason` in its per-category outcome (Design Choice 4) |
-| P-09 representation fields | [#1197](https://github.com/dlrivada/Encina/issues/1197) (open) | Changes the same event family; sequence the two PRs to avoid conflicts in `DSRRequestEvents.cs` |
+| P-09 representation fields | [#1197](https://github.com/dlrivada/Encina/issues/1197) (open) | Changes the same event family; #814 lands before #1197 to avoid conflicts in `DSRRequestEvents.cs` |
 | P-07 access withholding reasons | [#1195](https://github.com/dlrivada/Encina/issues/1195) (open) | Its withholding reasons are per field, not per request; keep vocabularies distinct but cross-reference in docs |
 | P-17 DSR article coverage | [#1212](https://github.com/dlrivada/Encina/issues/1212) (open) | Cites `DSRRejectionReason` and the draft gate |
 | Integration tests for DSR | [#1204](https://github.com/dlrivada/Encina/issues/1204) (open) | Phase 4 creates the first DSR Marten integration test; #1204 extends it |

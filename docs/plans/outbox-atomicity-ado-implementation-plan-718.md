@@ -969,7 +969,7 @@ REFERENCE FILES:
    - `changelog.d/718-outbox-atomicity.fixed.md` (lost events on all 10 providers);
    - `changelog.d/718-outbox-post-processor.removed.md` (#1935);
    - a `changed` fragment for the constructor changes of both `TransactionPipelineBehavior`s and the four units of work.
-3. **ADR**: `docs/architecture/adr/037-transactional-outbox.md` (next free number; check `docs/architecture/adr/index.md`). It records Design Choices 1-5, the neutral lease contract, the EF execution-strategy limit and the MongoDB replica-set requirement. Add it to the index.
+3. **ADR**: `docs/architecture/adr/037-transactional-outbox.md` (reserved; check `docs/architecture/adr/index.md`). It records Design Choices 1-6, the neutral lease contract, the EF execution-strategy limit and the MongoDB replica-set requirement. Add it to the index.
 4. **Feature guide**: `docs/features/transactional-outbox.md`, a how-to page per the encina-docs skill. It covers the composition matrix, a provider table, handler examples and the limits (read/write separation, sharding, MongoDB standalone, EF retrying strategies).
 5. **Package READMEs**: `src/Encina.Messaging/README.md`, the six ADO.NET/Dapper READMEs, `src/Encina.EntityFrameworkCore/README.md` (`:135,145`) and `src/Encina.MongoDB/README.md`.
 6. **`docs/INVENTORY.md`**: new and deleted files.
@@ -991,7 +991,7 @@ CONTEXT:
 - Documentation follows the encina-docs skill (Diataxis, one quadrant per page, no hand-typed coverage figures).
 
 TASK:
-Complete the XML docs, changelog fragments, ADR 037 (or the next free number),
+Complete the XML docs, changelog fragments, ADR 037,
 docs/features/transactional-outbox.md, the nine package READMEs, docs/INVENTORY.md, ROADMAP.md and PublicAPI files; run
 the Release build and the full test suite.
 
@@ -1182,6 +1182,10 @@ REFERENCE FILES:
 |-------|----------|
 | #719 | Dapper twin; Phase 6 |
 | #1935 | Closed as duplicate of #718; EF Core (Phase 7), MongoDB (Phase 8), removal of `OutboxPostProcessor` (Phase 9) |
+
+### EventId reservation and ordering
+
+#718 reserves EventIds 2961-2969 and lands before #1200 (EventIds 2970-2976) and #1251 (EventIds 2977-2988).
 
 ### Follow-ups and overlaps
 
