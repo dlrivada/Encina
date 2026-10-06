@@ -186,7 +186,8 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     private void PopulateAuditFields(DbContext context)
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
+        var identity = GetCurrentRequestContext()?.Identity ?? RequestIdentity.Anonymous;
+        var userId = identity.UserId;
 
         var entries = context.ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
@@ -210,7 +211,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 
         if (_options.LogAuditChanges && (addedCount > 0 || modifiedCount > 0))
         {
-            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, userId ?? "(anonymous)");
+            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, identity.Kind);
         }
     }
 
@@ -253,19 +254,15 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     }
 
     /// <summary>
-    /// Resolves the current user ID from the request context.
+    /// Resolves the ambient request context: the one <c>IEncina.Send/Publish/Stream</c> or
+    /// <c>UseEncinaContext()</c> put on the accessor. There is no other source.
     /// </summary>
-    /// <returns>The current user ID, or <c>null</c> if not available.</returns>
-    private string? GetCurrentUserId()
+    /// <returns>The ambient request context, or <c>null</c> if none is available.</returns>
+    private IRequestContext? GetCurrentRequestContext()
     {
         try
         {
-            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
-            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
-            // register one by hand.
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.UserId;
+            return _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
         }
         catch (Exception ex)
         {
@@ -281,8 +278,9 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     private void CaptureChangesForAuditLog(DbContext context)
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
-        var correlationId = GetCorrelationId();
+        var requestContext = GetCurrentRequestContext();
+        var userId = requestContext?.Identity?.UserId;
+        var correlationId = requestContext?.CorrelationId;
 
         var entries = context.ChangeTracker.Entries()
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
@@ -366,24 +364,6 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             dict[property.Name] = values[property];
         }
         return JsonSerializer.Serialize(dict);
-    }
-
-    /// <summary>
-    /// Gets the correlation ID from the request context if available.
-    /// </summary>
-    /// <returns>The correlation ID, or <c>null</c> if not available.</returns>
-    private string? GetCorrelationId()
-    {
-        try
-        {
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.CorrelationId;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>
@@ -498,12 +478,12 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 3000,
         Level = LogLevel.Debug,
-        Message = "Audit fields populated: {AddedCount} added, {ModifiedCount} modified by user {UserId}")]
+        Message = "Audit fields populated: {AddedCount} added, {ModifiedCount} modified by a {IdentityKind} identity")]
     public static partial void AuditFieldsPopulated(
         ILogger logger,
         int addedCount,
         int modifiedCount,
-        string userId);
+        IdentityKind identityKind);
 
     [LoggerMessage(
         EventId = 3001,

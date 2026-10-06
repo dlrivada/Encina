@@ -87,7 +87,7 @@ public sealed class TenantResolutionMiddlewareTests
         var accessor = Substitute.For<IRequestContextAccessor>();
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert
         _nextCalled.ShouldBeTrue();
@@ -108,7 +108,7 @@ public sealed class TenantResolutionMiddlewareTests
         var accessor = Substitute.For<IRequestContextAccessor>();
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert
         context.Response.StatusCode.ShouldBe(400);
@@ -126,7 +126,7 @@ public sealed class TenantResolutionMiddlewareTests
         var accessor = Substitute.For<IRequestContextAccessor>();
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert
         _nextCalled.ShouldBeTrue();
@@ -153,7 +153,7 @@ public sealed class TenantResolutionMiddlewareTests
         accessor.RequestContext.Returns(requestContext);
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert
         _nextCalled.ShouldBeTrue();
@@ -161,18 +161,15 @@ public sealed class TenantResolutionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_TenantResolved_WithoutAContext_StampsTheNewContextFromTheRequestTimeProvider()
+    public async Task InvokeAsync_TenantResolved_WithoutAContext_StampsTheNewContextFromTheInjectedTimeProvider()
     {
         // Arrange
         var now = new DateTimeOffset(2026, 10, 5, 9, 30, 0, TimeSpan.Zero);
         var (middleware, accessor, captured) = ArrangeTenantResolvedWithoutContext();
         var context = CreateHttpContext();
-        context.RequestServices = new ServiceCollection()
-            .AddSingleton<TimeProvider>(new FakeTimeProvider(now))
-            .BuildServiceProvider();
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, new FakeTimeProvider(now));
 
         // Assert
         captured().ShouldNotBeNull();
@@ -181,20 +178,25 @@ public sealed class TenantResolutionMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_TenantResolved_WithoutAContextOrRequestServices_FallsBackToTheSystemClock()
+    public async Task InvokeAsync_NullArguments_Throw()
     {
-        // Arrange
-        var (middleware, accessor, captured) = ArrangeTenantResolvedWithoutContext();
-        var context = CreateHttpContext();
-        context.RequestServices = null!;
-        var before = TimeProvider.System.GetUtcNow();
+        var middleware = CreateMiddleware();
+        var accessor = Substitute.For<IRequestContextAccessor>();
 
-        // Act
-        await middleware.InvokeAsync(context, accessor);
+        await Should.ThrowAsync<ArgumentNullException>(() => middleware.InvokeAsync(null!, accessor, TimeProvider.System));
+        await Should.ThrowAsync<ArgumentNullException>(() => middleware.InvokeAsync(CreateHttpContext(), null!, TimeProvider.System));
+        await Should.ThrowAsync<ArgumentNullException>(() => middleware.InvokeAsync(CreateHttpContext(), accessor, null!));
+    }
 
-        // Assert
-        captured().ShouldNotBeNull();
-        captured()!.Timestamp.ShouldBeInRange(before, TimeProvider.System.GetUtcNow());
+    [Fact]
+    public void AddEncinaTenancyAspNetCore_RegistersTheClock_ForTheMiddleware()
+    {
+        var services = new ServiceCollection();
+
+        services.AddEncinaTenancyAspNetCore();
+
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<TimeProvider>().ShouldBeSameAs(TimeProvider.System);
     }
 
     private (TenantResolutionMiddleware Middleware, IRequestContextAccessor Accessor, Func<IRequestContext?> Captured) ArrangeTenantResolvedWithoutContext()
@@ -244,7 +246,7 @@ public sealed class TenantResolutionMiddlewareTests
         var accessor = Substitute.For<IRequestContextAccessor>();
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert: tenant was validated and not found, so 400 is returned
         context.Response.StatusCode.ShouldBe(400);
@@ -275,7 +277,7 @@ public sealed class TenantResolutionMiddlewareTests
         accessor.RequestContext.Returns(requestContext);
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert
         _nextCalled.ShouldBeTrue();
@@ -312,7 +314,7 @@ public sealed class TenantResolutionMiddlewareTests
         context.TraceIdentifier = "trace-42";
 
         // Act
-        await middleware.InvokeAsync(context, accessor);
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
 
         // Assert - the tenant reaches the rest of the pipeline instead of being dropped.
         seenByNext.ShouldNotBeNull();
@@ -341,7 +343,7 @@ public sealed class TenantResolutionMiddlewareTests
             _tenantStore);
 
         // Act
-        await middleware.InvokeAsync(CreateHttpContext(), accessor);
+        await middleware.InvokeAsync(CreateHttpContext(), accessor, TimeProvider.System);
 
         // Assert
         seenByNext.ShouldBeNull();

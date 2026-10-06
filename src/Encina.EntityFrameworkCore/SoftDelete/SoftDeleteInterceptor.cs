@@ -115,7 +115,8 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
     private void ConvertToSoftDelete(DbContext context)
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
+        var identity = GetCurrentIdentity();
+        var userId = identity.UserId;
 
         var deletedEntries = context.ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Deleted && e.Entity is ISoftDeletableEntity)
@@ -147,29 +148,25 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
 
         if (_options.LogSoftDeletes && softDeletedCount > 0)
         {
-            Log.SoftDeleteConverted(_logger, softDeletedCount, userId ?? "(anonymous)");
+            Log.SoftDeleteConverted(_logger, softDeletedCount, identity.Kind);
         }
     }
 
     /// <summary>
-    /// Resolves the current user ID from the request context.
+    /// Resolves the caller identity from the ambient request context (the one
+    /// <c>IEncina.Send/Publish/Stream</c> or <c>UseEncinaContext()</c> put on the accessor).
     /// </summary>
-    /// <returns>The current user ID, or <c>null</c> if not available.</returns>
-    private string? GetCurrentUserId()
+    /// <returns>The caller identity; the anonymous identity when none is available.</returns>
+    private RequestIdentity GetCurrentIdentity()
     {
         try
         {
-            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
-            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
-            // register one by hand.
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.UserId;
+            return _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.Identity ?? RequestIdentity.Anonymous;
         }
         catch (Exception ex)
         {
             Log.FailedToResolveUserId(_logger, ex.ForLogging());
-            return null;
+            return RequestIdentity.Anonymous;
         }
     }
 }
@@ -182,11 +179,11 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 3050,
         Level = LogLevel.Debug,
-        Message = "Soft delete converted: {SoftDeletedCount} entities soft-deleted by user {UserId}")]
+        Message = "Soft delete converted: {SoftDeletedCount} entities soft-deleted by a {IdentityKind} identity")]
     public static partial void SoftDeleteConverted(
         ILogger logger,
         int softDeletedCount,
-        string userId);
+        IdentityKind identityKind);
 
     [LoggerMessage(
         EventId = 3051,

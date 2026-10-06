@@ -73,7 +73,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// <param name="cacheProvider">The cache provider for storing and retrieving cached query results.</param>
     /// <param name="keyGenerator">The cache key generator for creating deterministic cache keys from SQL commands.</param>
     /// <param name="options">The query cache configuration options.</param>
-    /// <param name="serviceProvider">The service provider for resolving optional dependencies like <c>IRequestContext</c>.</param>
+    /// <param name="serviceProvider">The service provider for resolving optional dependencies like <c>IRequestContextAccessor</c>.</param>
     /// <param name="logger">The logger for diagnostic messages.</param>
     /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when any required parameter is <c>null</c>.</exception>
@@ -371,15 +371,14 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     }
 
     /// <summary>
-    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by <see cref="IRequestContextAccessor"/>
-    /// wins, a DI-registered one is only a fallback.
+    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by
+    /// <see cref="IRequestContextAccessor"/>. There is no other source.
     /// </summary>
     private IRequestContext? ResolveRequestContext()
     {
         try
         {
-            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext
-                ?? _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext;
+            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext;
         }
         catch (Exception ex)
         {

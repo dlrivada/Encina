@@ -254,9 +254,9 @@ public class QueryCacheInterceptorTests
     }
 
     [Fact]
-    public void ReaderExecuting_WithAnEmptyAccessor_FallsBackToTheRegisteredRequestContext()
+    public void ReaderExecuting_WithAnEmptyAccessor_IgnoresARegisteredRequestContext()
     {
-        // Arrange
+        // Arrange: the accessor is the only source (#1705 Phase 3: no DI fallback)
         var registered = RequestContext.CreateForTest(tenantId: "registered-tenant");
         var emptyAccessor = Substitute.For<IRequestContextAccessor>();
         emptyAccessor.RequestContext.Returns((IRequestContext?)null);
@@ -264,12 +264,15 @@ public class QueryCacheInterceptorTests
         _serviceProvider.GetService(typeof(IRequestContext)).Returns(registered);
 
         var (interceptor, command, eventData) = ArrangeCacheMiss();
+        _keyGenerator.Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>())
+            .Returns(new QueryCacheKey("key", ["Order"]));
 
         // Act
         interceptor.ReaderExecuting(command, eventData, default);
 
         // Assert
-        _keyGenerator.Received(1).Generate(command, eventData.Context!, registered);
+        _keyGenerator.Received(1).Generate(command, eventData.Context!);
+        _keyGenerator.DidNotReceive().Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), Arg.Any<IRequestContext>());
     }
 
     private (QueryCacheInterceptor Interceptor, DbCommand Command, CommandEventData EventData) ArrangeCacheMiss()

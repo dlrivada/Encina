@@ -45,14 +45,23 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
             LogSoftDeletes = logSoftDeletes
         };
 
+        // The interceptor reads only the ambient accessor (#1705 Phase 3). With registerAccessor the
+        // real accessor is used and a requestContext is registered as a plain service, which the
+        // interceptor must ignore; otherwise the requestContext is what the accessor holds.
         var services = new ServiceCollection();
-        if (requestContext is not null)
-        {
-            services.AddSingleton(requestContext);
-        }
         if (registerAccessor)
         {
             services.AddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+            if (requestContext is not null)
+            {
+                services.AddSingleton(requestContext);
+            }
+        }
+        else if (requestContext is not null)
+        {
+            var accessor = Substitute.For<IRequestContextAccessor>();
+            accessor.RequestContext.Returns(requestContext);
+            services.AddSingleton(accessor);
         }
         var sp = services.BuildServiceProvider();
 
