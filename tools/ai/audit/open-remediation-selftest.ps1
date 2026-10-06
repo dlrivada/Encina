@@ -173,8 +173,13 @@ try {
 
     Write-Text (Join-Path $stubs 'gh-stub.ps1') @'
 Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('gh ' + ($args -join ' '))
-if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; exit 0 }
-if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; exit 0 }
+if ($args[0] -eq 'label') { 'technical-debt'; 'area-testing'; 'bug'; 'p0-mandatory'; 'p1-recommended'; 'p2-post-1.0'; exit 0 }
+if ($args[0] -eq 'api') { "v0.14.0 $([char]0x2014) Hardening"; "v0.19.0 $([char]0x2014) Providers & Testing"; "v0.21.0 $([char]0x2014) Documentation"; exit 0 }
+if ($args[0] -eq 'project') {
+    Add-Content -LiteralPath $env:OR_STUB_LOG -Value ('TOKENS:[' + $env:GITHUB_TOKEN + $env:GH_TOKEN + ']')
+    if ($env:OR_STUB_PROJECT_FAIL) { 'project scope missing'; $global:LASTEXITCODE = 1; exit 1 }
+    exit 0
+}
 if ($args[0] -eq 'issue' -and $args[1] -eq 'list') {
     if ($env:OR_STUB_EXISTING) { $env:OR_STUB_EXISTING } else { '[]' }
     exit 0
@@ -189,6 +194,8 @@ if ($args[0] -eq 'issue' -and $args[1] -eq 'create') {
 exit 0
 '@
     $env:OR_STUB_LOG = $log
+    # The script must clear these for the project call only (#1926); the stub logs what it sees.
+    $env:GITHUB_TOKEN = 'tok-must-be-cleared'; $env:GH_TOKEN = 'tok-must-be-cleared'
     $env:OR_STUB_BODIES = $bodies
     $script = Join-Path $main 'tools\ai\audit\open-remediation.ps1'
     $rem = Join-Path $main 'artifacts\knowledge\remediation'
@@ -216,7 +223,9 @@ exit 0
     $create = [string]($r1.Creates | Select-Object -First 1)
     Assert-That 'title' ($create.Contains('--title [DEBT] Delta re-audit (rules-2026-10) of #2: 3 findings (docs and coverage obligations) --body-file')) $create
     Assert-That 'labels are technical-debt and area-testing' ($create.Contains('--label technical-debt') -and $create.Contains('--label area-testing')) $create
-    Assert-That 'no milestone' (-not $create.Contains('--milestone')) $create
+    Assert-That 'tests route: v0.19.0 milestone and p1-recommended' ($create.Contains("--milestone v0.19.0 $([char]0x2014) Providers & Testing") -and $create.Contains('--label p1-recommended') -and -not $create.Contains('p0-mandatory')) $create
+    $projCalls = @(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/issues/1001' })
+    Assert-That 'the issue is added to project 1 with the keyring token (GITHUB_TOKEN and GH_TOKEN cleared)' ($projCalls.Count -eq 1 -and @(Get-Content $log | Where-Object { $_ -eq 'TOKENS:[]' }).Count -eq 1) ((Get-Content $log) -join ' | ')
     $body = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
     Assert-That 'marker is the first line' ($body.TrimStart().StartsWith('<!-- local-draft: none, reason: consolidated from 3 verified remediation drafts of the #2 delta audit -->')) $body
     $headers = @([regex]::Matches($body, '(?m)^## (.+?)\s*$') | ForEach-Object { $_.Groups[1].Value })
@@ -342,6 +351,31 @@ exit 0
     $before8e = @(Get-Content $csv).Count
     $r8e = Invoke-Open '-Consolidate' 5
     Assert-That -Name 'a single oversized draft (not first) fails naming it, creates nothing (bug included), writes no rows' -Condition ($r8e.Exit -ne 0 -and $r8e.Creates.Count -eq 0 -and $r8e.Text.Contains('5-delta-docs-b.md') -and @(Get-Content $csv).Count -eq $before8e) -Detail $r8e.Text
+
+    # --- 9. milestone and priority routes, project add (#1926) ---------------------------------------------------
+    $docsMs = "v0.21.0 $([char]0x2014) Documentation"; $testsMs = "v0.19.0 $([char]0x2014) Providers & Testing"; $hardMs = "v0.14.0 $([char]0x2014) Hardening"
+    # 9a. a docs-only consolidated issue -> Documentation + p1.
+    Write-Text (Join-Path $rem '6-delta-docs-a.md') (New-DocsDraft '[DEBT] Docs only A' 'docs/oa.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '6-delta-docs-b.md') (New-DocsDraft '[DEBT] Docs only B' 'docs/ob.md' 'Low' 'Small' '')
+    $r9a = Invoke-Open '-Consolidate' 6
+    Assert-That -Name 'docs-only consolidated: Documentation milestone and p1-recommended' -Condition ($r9a.Exit -eq 0 -and $r9a.Creates.Count -eq 1 -and $r9a.Creates[0].Contains("--milestone $docsMs") -and $r9a.Creates[0].Contains('--label p1-recommended')) -Detail ($r9a.Text + ' | ' + ($r9a.Creates -join ' | '))
+
+    # 9b. per-draft routes: docs, code debt, tests and a header milestone that wins.
+    Write-Text (Join-Path $rem '7-docs.md') (New-DocsDraft '[DEBT] Route docs' 'docs/r1.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '7-code.md') ((New-DocsDraft '[DEBT] Route code' 'src/r2.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code'))
+    Write-Text (Join-Path $rem '7-test.md') $testDraft
+    Write-Text (Join-Path $rem '7-win.md') ((New-DocsDraft '[DEBT] Route header wins' 'src/r3.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code').Replace('milestone:', "milestone: $testsMs"))
+    $r9b = Invoke-Open '' 7
+    $c = @{}; foreach ($line in $r9b.Creates) { foreach ($t in 'Route docs', 'Route code', 'Raise the unit target', 'Route header wins') { if ($line.Contains($t)) { $c[$t] = $line } } }
+    Assert-That -Name 'per-draft routes: docs -> Documentation/p1, code -> Hardening/p0, test -> Providers & Testing/p1, header milestone wins' -Condition ($r9b.Exit -eq 0 -and $r9b.Creates.Count -eq 4 -and $c['Route docs'].Contains("--milestone $docsMs") -and $c['Route docs'].Contains('--label p1-recommended') -and $c['Route code'].Contains("--milestone $hardMs") -and $c['Route code'].Contains('--label p0-mandatory') -and $c['Raise the unit target'].Contains("--milestone $testsMs") -and $c['Raise the unit target'].Contains('--label p1-recommended') -and $c['Route header wins'].Contains("--milestone $testsMs") -and $c['Route header wins'].Contains('--label p0-mandatory')) -Detail ($r9b.Text + ' | ' + ($r9b.Creates -join ' | '))
+    Assert-That -Name 'every created issue is added to project 1' -Condition (@(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' }).Count -eq 4) -Detail ((Get-Content $log) -join ' | ')
+
+    # 9c. a project failure fails loudly (exit 1, message), after the row is written so a re-run never duplicates.
+    Write-Text (Join-Path $rem '8-docs.md') (New-DocsDraft '[DEBT] Project fails' 'docs/pf.md' 'Low' 'Small' '')
+    $env:OR_STUB_PROJECT_FAIL = '1'
+    $r9c = Invoke-Open '' 8
+    $env:OR_STUB_PROJECT_FAIL = ''
+    Assert-That -Name 'a failed project add exits 1 naming the issue and keeps the row' -Condition ($r9c.Exit -ne 0 -and $r9c.Text.Contains('gh project item-add failed') -and @(Get-Content $csv | Where-Object { $_ -like '8-docs.md,*' }).Count -eq 1) -Detail $r9c.Text
 }
 finally {
     if (Test-Path $base) {

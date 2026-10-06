@@ -13,6 +13,12 @@
 # opens with a line naming its place (no URLs: the later parts do not exist yet), and each draft's row carries the
 # URL of the part that holds it. A single draft that alone exceeds the limit fails the run naming it. -WhatIf prints
 # each part's title and writes one preview file per part (delta-<n>-consolidated.part<k>.preview.md).
+#
+# Every issue is opened complete (#1926): a milestone and one priority label from its route (bug, code debt and
+# security -> v0.14.0 Hardening + p0-mandatory; docs-only -> v0.21.0 Documentation + p1-recommended; tests and any
+# consolidated issue with a tests draft -> v0.19.0 Providers & Testing + p1-recommended; a draft header milestone
+# wins), then added to project 1 with the keyring token (GITHUB_TOKEN/GH_TOKEN cleared for that call); a failed
+# project add fails the run loudly.
 
 param(
     [Parameter(Mandatory)][int]$Issue,
@@ -29,10 +35,56 @@ $dir = Join-Path $root 'artifacts\knowledge\remediation'
 $opened = Join-Path $dir 'opened.csv'
 $labels = gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name'
 if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh label list failed (exit $LASTEXITCODE); refusing to open issues without the label list"; exit 1 }
-$ms = gh api repos/dlrivada/Encina/milestones --jq '.[].title'
+$ms = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title'
 if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh api milestones failed (exit $LASTEXITCODE); refusing to open issues without the milestone list"; exit 1 }
 
-function Get-HardeningMilestone { "v0.14.0 $([char]0x2014) Hardening" }
+# An issue is opened complete or not at all (#1926): every issue carries a milestone and one priority label,
+# derived from its route; a milestone in the draft header wins. The real titles use an em dash (U+2014);
+# [char]0x2014 keeps this file ASCII-only while matching them exactly.
+$dash = [char]0x2014
+$Routes = @{
+    hardening = @{ Milestone = "v0.14.0 $dash Hardening"; Priority = 'p0-mandatory' }
+    docs      = @{ Milestone = "v0.21.0 $dash Documentation"; Priority = 'p1-recommended' }
+    tests     = @{ Milestone = "v0.19.0 $dash Providers & Testing"; Priority = 'p1-recommended' }
+}
+$PriorityLabels = @('p0-mandatory', 'p1-recommended', 'p2-post-1.0')
+
+# bug, code debt and security -> hardening; docs-only -> docs; tests and coverage obligations -> tests.
+function Get-Route([string]$Title, [string]$Kind) {
+    if ($Title.StartsWith('[BUG]')) { return 'hardening' }
+    if ($Title.StartsWith('[TEST]') -or $Kind -eq 'test') { return 'tests' }
+    if ($Kind -eq 'docs') { return 'docs' }
+    return 'hardening'
+}
+
+# Fails loudly when the route's milestone or priority label does not exist in the repository.
+function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[]]$DraftLabels, [string]$Name) {
+    $r = $Routes[$Route]
+    $milestone = if ($DraftMilestone -and ($ms -contains $DraftMilestone)) { $DraftMilestone } else { $r.Milestone }
+    if (-not ($ms -contains $milestone)) { Write-Error "open-remediation: milestone '$milestone' for $Name does not exist; no issue was created"; exit 1 }
+    $lab = @($DraftLabels)
+    if (-not ($lab | Where-Object { $PriorityLabels -contains $_ })) {
+        if (-not ($labels -contains $r.Priority)) { Write-Error "open-remediation: priority label '$($r.Priority)' for $Name does not exist; no issue was created"; exit 1 }
+        $lab += $r.Priority
+    }
+    return @{ Milestone = $milestone; Labels = $lab }
+}
+
+# Adds the issue to project 1. The default token cannot write projects, so the call runs with the keyring token
+# (GITHUB_TOKEN and GH_TOKEN cleared for this call only). Fails loudly, never skips.
+function Add-ToProject([string]$Url) {
+    $savedG = $env:GITHUB_TOKEN; $savedH = $env:GH_TOKEN
+    try {
+        $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
+        Remove-Item Env:\GITHUB_TOKEN, Env:\GH_TOKEN -ErrorAction SilentlyContinue
+        $out = & gh project item-add 1 --owner dlrivada --url $Url 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh project item-add failed for $Url (exit $LASTEXITCODE): $($out -join ' '); the issue exists, add it to project 1 by hand"; exit 1 }
+    }
+    finally {
+        if ($null -ne $savedG) { $env:GITHUB_TOKEN = $savedG }
+        if ($null -ne $savedH) { $env:GH_TOKEN = $savedH }
+    }
+}
 
 function Get-Draft([System.IO.FileInfo]$File) {
     $raw = Get-Content -Raw $File.FullName
@@ -45,13 +97,14 @@ function Get-Draft([System.IO.FileInfo]$File) {
     $m = ([regex]::Match($h, 'milestone:[ \t]*(.*)')).Groups[1].Value.Trim()
     # The real GitHub milestone title uses an em dash (U+2014); [char]0x2014 keeps this file's own bytes
     # ASCII-only while still matching that title exactly, so --milestone below resolves it (#1345 review).
-    if (-not ($ms -contains $m)) { $m = if ($title.StartsWith('[BUG]')) { Get-HardeningMilestone } else { '' } }
+    $kind = ([regex]::Match($h, 'kind:[ \t]*(.*)')).Groups[1].Value.Trim().ToLowerInvariant()
+    $meta = Resolve-RouteMetadata (Get-Route $title $kind) $m $lab $File.Name
     [pscustomobject]@{
         File   = $File
         Title  = $title
-        Labels = $lab
-        Milestone = $m
-        Kind   = ([regex]::Match($h, 'kind:[ \t]*(.*)')).Groups[1].Value.Trim().ToLowerInvariant()
+        Labels = $meta.Labels
+        Milestone = $meta.Milestone
+        Kind   = $kind
         Body   = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
     }
 }
@@ -72,7 +125,9 @@ function New-Issue([string]$Title, [string]$Body, [string[]]$Lab, [string]$Miles
 
 function Open-Draft($Draft) {
     $url = New-Issue $Draft.Title $Draft.Body $Draft.Labels $Draft.Milestone $Draft.File.BaseName
+    # The row is written before the project call, so a project failure never makes a re-run open a duplicate.
     Add-Content $opened "$($Draft.File.Name),$url"
+    Add-ToProject $url
     "$url  $($Draft.Title)"
 }
 
@@ -294,7 +349,10 @@ function Get-ConsolidatedPlan($Drafts) {
         $lab = @('technical-debt'); if ($built.AnyTest) { $lab += 'area-testing' }
         $lab = @($lab | Where-Object { $labels -contains $_ })
         if (-not $lab) { $lab = @('technical-debt') }
-        [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $lab; Drafts = @($g | ForEach-Object { $_.Draft }) }
+        # Any tests draft -> tests route; docs-only -> docs route; otherwise code debt -> hardening.
+        $route = if ($built.AnyTest) { 'tests' } elseif (@($g | Where-Object { $_.Draft.Kind -ne 'docs' }).Count -eq 0) { 'docs' } else { 'hardening' }
+        $meta = Resolve-RouteMetadata $route '' $lab "the consolidated issue of #$Issue (part $j)"
+        [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $meta.Labels; Milestone = $meta.Milestone; Drafts = @($g | ForEach-Object { $_.Draft }) }
     }
     return , @($plan)
 }
@@ -326,9 +384,11 @@ function Open-Consolidated($plan) {
             "$url  $($p.Title) (already exists; reused, nothing created)"
         }
         else {
-            $url = New-Issue $p.Title $p.Body $p.Labels '' "consolidated-$Issue-part$($p.Part)"
+            $url = New-Issue $p.Title $p.Body $p.Labels $p.Milestone "consolidated-$Issue-part$($p.Part)"
             "$url  $($p.Title)"
         }
+        # Also for a reused issue: item-add is idempotent and a crashed run may have stopped before this call.
+        Add-ToProject $url
         foreach ($d in $p.Drafts) { $rows.Add("$($d.File.Name),$url") }
     }
     Add-Content $opened @($rows)

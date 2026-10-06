@@ -1,0 +1,173 @@
+name: Issue hygiene
+
+# An issue is complete or it does not exist (maintainer rule of 2026-10-06, #1926): it has a milestone, one
+# priority label (p0-mandatory, p1-recommended or p2-post-1.0; an [EPIC] needs none) and it is on user project 1.
+#
+# On every issue event this workflow
+#   - adds the issue to user project 1 when it is not there (needs PROJECT_TOKEN), and
+#   - labels it needs-triage and comments once when the milestone or the priority label is missing, and removes
+#     the label again when both are present.
+# The weekly run (and workflow_dispatch) lists every open issue missing a milestone, a priority label or the
+# project in the job summary.
+#
+# Setup (one time, by the maintainer):
+#   - Repository secret PROJECT_TOKEN: a classic personal access token with the `project` scope (and `repo`).
+#     The default GITHUB_TOKEN cannot write user projects. Without the secret the job warns and still does the
+#     label, comment and summary parts with GITHUB_TOKEN; the project parts are skipped.
+#   - The needs-triage label is created by the job when it is missing; to create it by hand:
+#       gh label create needs-triage --repo dlrivada/Encina --color FBCA04 --description "Missing milestone or priority label"
+
+on:
+  issues:
+    types: [opened, edited, milestoned, demilestoned, labeled, unlabeled]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: issue-hygiene-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  hygiene:
+    name: Issue hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Check milestone, priority label and project
+        uses: actions/github-script@v9
+        env:
+          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const PRIORITY = ['p0-mandatory', 'p1-recommended', 'p2-post-1.0'];
+            const TRIAGE = 'needs-triage';
+            const MARKER = '<!-- issue-hygiene -->';
+            const PROJECT_NUMBER = 1;
+            const projectToken = process.env.PROJECT_TOKEN;
+            const pg = projectToken ? github.getOctokit(projectToken) : null;
+            if (!pg) {
+              core.warning('Secret PROJECT_TOKEN is not set: project membership is not checked or fixed; only the milestone and priority label parts run.');
+            }
+
+            const isEpic = (issue) => issue.title.startsWith('[EPIC]');
+            const labelNames = (issue) => issue.labels.map(l => (typeof l === 'string' ? l : l.name));
+            function missingOf(issue) {
+              const missing = [];
+              if (!issue.milestone) missing.push('milestone');
+              if (!isEpic(issue) && !labelNames(issue).some(n => PRIORITY.includes(n))) missing.push('priority label (' + PRIORITY.join(' | ') + ')');
+              return missing;
+            }
+
+            async function ensureTriageLabel() {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: TRIAGE });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({ owner, repo, name: TRIAGE, color: 'FBCA04', description: 'Missing milestone or priority label' });
+              }
+            }
+
+            async function getProjectId() {
+              const r = await pg.graphql(
+                'query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id } } }',
+                { login: owner, number: PROJECT_NUMBER });
+              const id = r.user && r.user.projectV2 && r.user.projectV2.id;
+              if (!id) throw new Error('user project ' + PROJECT_NUMBER + ' not found for ' + owner);
+              return id;
+            }
+
+            async function isOnProject(nodeId) {
+              const r = await pg.graphql(
+                'query($id:ID!){ node(id:$id){ ... on Issue { projectItems(first:50){ nodes{ project{ number owner{ ... on User { login } } } } } } } }',
+                { id: nodeId });
+              const nodes = (r.node && r.node.projectItems && r.node.projectItems.nodes) || [];
+              return nodes.some(n => n.project.number === PROJECT_NUMBER && n.project.owner && n.project.owner.login === owner);
+            }
+
+            async function addToProject(nodeId) {
+              const projectId = await getProjectId();
+              await pg.graphql(
+                'mutation($p:ID!,$c:ID!){ addProjectV2ItemById(input:{projectId:$p,contentId:$c}){ item{ id } } }',
+                { p: projectId, c: nodeId });
+            }
+
+            async function handleIssue(issue) {
+              if (pg) {
+                try {
+                  if (!(await isOnProject(issue.node_id))) {
+                    await addToProject(issue.node_id);
+                    core.info('#' + issue.number + ' added to project ' + PROJECT_NUMBER);
+                  }
+                } catch (e) {
+                  core.warning('#' + issue.number + ' project check failed: ' + e.message);
+                }
+              }
+
+              const missing = missingOf(issue);
+              const hasTriage = labelNames(issue).includes(TRIAGE);
+              if (missing.length > 0) {
+                if (!hasTriage) {
+                  await ensureTriageLabel();
+                  await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [TRIAGE] });
+                }
+                const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: issue.number, per_page: 100 });
+                if (!comments.some(c => c.body && c.body.includes(MARKER))) {
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: issue.number,
+                    body: MARKER + '\nThis issue is incomplete. Missing: ' + missing.join(', ') + '.\n\nAn issue needs a milestone and one priority label (`p0-mandatory`, `p1-recommended` or `p2-post-1.0`; an `[EPIC]` needs no priority). The `needs-triage` label is removed automatically once both are set.'
+                  });
+                }
+              } else if (hasTriage) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: TRIAGE });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+              }
+            }
+
+            if (context.eventName === 'issues') {
+              await handleIssue(context.payload.issue);
+              return;
+            }
+
+            // Scheduled / manual run: report every open issue that is not complete.
+            const open = (await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 }))
+              .filter(i => !i.pull_request);
+
+            let onProject = null;
+            if (pg) {
+              onProject = new Set();
+              let cursor = null;
+              for (;;) {
+                const r = await pg.graphql(
+                  'query($login:String!,$number:Int!,$after:String){ user(login:$login){ projectV2(number:$number){ items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ content{ ... on Issue { number repository{ nameWithOwner } } } } } } } }',
+                  { login: owner, number: PROJECT_NUMBER, after: cursor });
+                const items = r.user.projectV2.items;
+                for (const n of items.nodes) {
+                  if (n.content && n.content.number && n.content.repository && n.content.repository.nameWithOwner === owner + '/' + repo) onProject.add(n.content.number);
+                }
+                if (!items.pageInfo.hasNextPage) break;
+                cursor = items.pageInfo.endCursor;
+              }
+            }
+
+            const rows = [];
+            for (const issue of open) {
+              const missing = missingOf(issue);
+              if (onProject && !onProject.has(issue.number)) missing.push('project');
+              if (missing.length > 0) rows.push([issue.html_url, issue.title, missing.join(', ')]);
+            }
+
+            const header = [{ data: 'Issue', header: true }, { data: 'Title', header: true }, { data: 'Missing', header: true }];
+            core.summary.addHeading('Incomplete open issues (' + rows.length + ' of ' + open.length + ')', 2);
+            if (!pg) core.summary.addRaw('PROJECT_TOKEN is not set: project membership was not checked.\n\n', true);
+            if (rows.length > 0) core.summary.addTable([header, ...rows]);
+            else core.summary.addRaw('Every open issue has a milestone, a priority label and a project.\n', true);
+            await core.summary.write();
