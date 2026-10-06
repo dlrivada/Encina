@@ -39,7 +39,7 @@ flowchart TB
 
     subgraph database["Database Tests<br/>(Real DB)"]
         DB1["Testcontainers"]
-        DB2["- SqlServer<br/>- PostgreSQL<br/>- MySQL<br/>- Oracle<br/>- Redis"]
+        DB2["- SqlServer<br/>- PostgreSQL<br/>- MySQL<br/>- Redis"]
     end
 ```
 

@@ -318,7 +318,6 @@ When refactoring from direct Testcontainers to centralized fixtures:
 | `SqlServerFixture` | `Testcontainers.MsSql` | SQL Server |
 | `PostgreSqlFixture` | `Testcontainers.PostgreSql` | PostgreSQL |
 | `MySqlFixture` | `Testcontainers.MySql` | MySQL |
-| `OracleFixture` | `Testcontainers` (Generic) | Oracle |
 | `MongoDbFixture` | `Testcontainers.MongoDB` | MongoDB |
 | `RedisFixture` | `Testcontainers.Redis` | Redis |
 | `RabbitMqFixture` | `Testcontainers.RabbitMq` | RabbitMQ |
