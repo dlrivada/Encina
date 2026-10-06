@@ -60,7 +60,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<QueryCacheInterceptor> _logger;
     private readonly TimeProvider _timeProvider;
-    private bool? _multiTenant;
+    private readonly Lazy<bool> _multiTenant;
 
     // Thread-safe storage for the pending cache key generated during ReaderExecuting,
     // consumed by ReaderExecuted to store the result in cache.
@@ -100,6 +100,9 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         _serviceProvider = serviceProvider;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+
+        // Read once, thread-safely: registrations do not change after the provider is built.
+        _multiTenant = new Lazy<bool>(DetectMultiTenancy, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     // ──────────────────────────────────────────────
@@ -112,6 +115,9 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result)
     {
+        // A key left by an earlier command that failed (CommandFailed runs instead of ReaderExecuted)
+        // must never be used to store this command's rows, above all when this one is bypassed.
+        PendingCacheKey.Value = null;
         if (!ShouldCache(eventData))
         {
             return base.ReaderExecuting(command, eventData, result);
@@ -196,6 +202,14 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     // ──────────────────────────────────────────────
     //  Read Caching: ReaderExecuted (cache population)
     // ──────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <remarks>A failed command populates nothing: the key of its cache miss is discarded.</remarks>
+    public override void CommandFailed(DbCommand command, CommandErrorEventData eventData)
+    {
+        PendingCacheKey.Value = null;
+        base.CommandFailed(command, eventData);
+    }
 
     /// <inheritdoc/>
     public override DbDataReader ReaderExecuted(
@@ -365,8 +379,10 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
 
     // Multi-tenancy is on when Encina.Tenancy registered its tenant provider (AddEncinaTenancy).
     // Read once: registrations do not change after the provider is built.
-    private bool IsMultiTenant() =>
-        _multiTenant ??= (_serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService)
+    private bool IsMultiTenant() => _multiTenant.Value;
+
+    private bool DetectMultiTenancy() =>
+        (_serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService)
             ?.IsService(typeof(ITenantProvider)) == true;
 
     /// <summary>

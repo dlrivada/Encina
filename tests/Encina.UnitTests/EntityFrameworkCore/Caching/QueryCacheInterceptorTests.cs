@@ -326,6 +326,43 @@ public class QueryCacheInterceptorTests
     }
 
     [Fact]
+    public void ABypassedQueryAfterAFailedTenantQuery_NeverWritesTheStaleKey()
+    {
+        // Tenant A misses the cache and its command fails; a tenant-less query then runs in the same flow.
+        var interceptor = CreateInterceptor();
+        var command = Substitute.For<DbCommand>();
+        var eventData = CreateCommandEventData(Substitute.For<DbContext>());
+        EnableMultiTenancy(RequestContext.CreateForTest(tenantId: "tenant-a"));
+        _keyGenerator.Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), Arg.Any<IRequestContext>())
+            .Returns(new QueryCacheKey("sm:qc:tenant-a:Order:hash", ["Order"]));
+        _cacheProvider.GetAsync<CachedQueryResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<CachedQueryResult?>(null));
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(RequestContext.CreateForTest());
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+        interceptor.ReaderExecuting(command, eventData, default);
+        interceptor.ReaderExecuted(command, null!, Substitute.For<DbDataReader>());
+
+        _cacheProvider.DidNotReceiveWithAnyArgs().SetAsync<CachedQueryResult>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public void CommandFailed_DiscardsThePendingKey()
+    {
+        var interceptor = CreateInterceptor();
+        var command = Substitute.For<DbCommand>();
+        var (_, _, eventData) = ArrangeCacheMiss();
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        interceptor.CommandFailed(command, null!);
+        interceptor.ReaderExecuted(command, null!, Substitute.For<DbDataReader>());
+
+        _cacheProvider.DidNotReceiveWithAnyArgs().SetAsync<CachedQueryResult>(default!, default!, default, default);
+    }
+
+    [Fact]
     public async Task ReaderExecutingAsync_MultiTenantWithATenant_KeysByThatTenant()
     {
         var tenantContext = RequestContext.CreateForTest(tenantId: "tenant-a");
