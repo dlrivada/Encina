@@ -51,7 +51,7 @@ public static class HttpAuditContextExtensions
     /// <returns>The IP address if present in metadata; otherwise, <c>null</c>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <remarks>
-    /// The IP address is typically set by <see cref="EncinaContextMiddleware"/> from HTTP context.
+    /// The IP address is typically set by <c>UseEncinaContext()</c> from HTTP context.
     /// Used by audit trail components to record the source of requests.
     /// </remarks>
     public static string? GetIpAddress(this IRequestContext context)
@@ -98,7 +98,7 @@ public static class HttpAuditContextExtensions
     /// <returns>The User-Agent if present in metadata; otherwise, <c>null</c>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <remarks>
-    /// The User-Agent is typically set by <see cref="EncinaContextMiddleware"/> from HTTP headers.
+    /// The User-Agent is typically set by <c>UseEncinaContext()</c> from HTTP headers.
     /// Used by audit trail components to identify the client application or browser.
     /// </remarks>
     public static string? GetUserAgent(this IRequestContext context)

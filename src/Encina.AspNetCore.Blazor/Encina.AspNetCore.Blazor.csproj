@@ -3,7 +3,7 @@
   <PropertyGroup>
     <ProjectGuid>{AE0E0130-579F-4D2B-8021-66A66653CE4A}</ProjectGuid>
     <PackageId>Encina.AspNetCore.Blazor</PackageId>
-    <Description>Blazor Server integration for Encina's authorization pipeline. Resolves the current caller's principal from AuthenticationStateProvider when there is no ambient HttpContext, so [Authorize] requests work inside interactive circuits.</Description>
+    <Description>Blazor Server integration for Encina's request identity. Binds the circuit's current AuthenticationStateProvider principal to every circuit activity, so [Authorize], ABAC and audit see the signed-in user inside interactive circuits.</Description>
     <PackageTags>encina;aspnetcore;blazor;authorization;cqrs;rop</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -37,6 +37,12 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Encina.PropertyTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.GuardTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Encina.AspNetCore.Benchmarks</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

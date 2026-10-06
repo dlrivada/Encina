@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using BenchmarkDotNet.Attributes;
 using Encina.AspNetCore.Authorization;
+using Encina.Testing.Identity;
 using Encina.UnitTests.AspNetCore;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +12,8 @@ namespace Encina.AspNetCore.Benchmarks;
 
 /// <summary>
 /// Benchmarks for <see cref="AuthorizationPipelineBehavior{TRequest, TResponse}"/>.
-/// Measures performance impact of authorization checks in the pipeline.
+/// Measures performance impact of authorization checks in the pipeline; the caller is the request
+/// identity the context carries (#1705).
 /// </summary>
 [MemoryDiagnoser]
 [MarkdownExporter]
@@ -26,75 +27,60 @@ public class AuthorizationPipelineBehaviorBenchmarks
     private AuthorizedRequest _authorizedRequest = null!;
     private RoleBasedRequest _roleBasedRequest = null!;
     private PolicyBasedRequest _policyBasedRequest = null!;
-    private IRequestContext _context = null!;
+    private IRequestContext _anonymousContext = null!;
+    private IRequestContext _userContext = null!;
+    private IRequestContext _adminContext = null!;
     private RequestHandlerCallback<string> _nextStep = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        // Setup requests
         _unauthorizedRequest = new UnauthorizedRequest();
         _authorizedRequest = new AuthorizedRequest();
         _roleBasedRequest = new RoleBasedRequest();
         _policyBasedRequest = new PolicyBasedRequest();
 
-        // Setup context
-        _context = RequestContext.CreateForTest();
+        _anonymousContext = RequestContext.CreateForTest();
+        _userContext = TestRequestContext.For(TestIdentity.User("user-123"));
+        _adminContext = TestRequestContext.For(TestIdentity.User("user-123", ["Admin"]));
 
-        // Setup next step
         _nextStep = () => ValueTask.FromResult(Right<EncinaError, string>("success"));
 
-        // Setup behaviors
         var authService = new TestAuthorizationService(shouldSucceed: true);
         var options = Options.Create(new AuthorizationConfiguration());
 
-        // No authorization required
-        var noAuthAccessor = new HttpContextAccessor { HttpContext = null };
         _noAuthBehavior = new AuthorizationPipelineBehavior<UnauthorizedRequest, string>(
-            authService, new HttpContextPrincipalResolver(noAuthAccessor), options,
-            NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
-
-        // Simple authentication
-        var authAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123") };
+            authService, options, NullLogger<AuthorizationPipelineBehavior<UnauthorizedRequest, string>>.Instance);
         _authBehavior = new AuthorizationPipelineBehavior<AuthorizedRequest, string>(
-            authService, new HttpContextPrincipalResolver(authAccessor), options,
-            NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
-
-        // Role-based authorization
-        var roleAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123", roles: ["Admin"]) };
+            authService, options, NullLogger<AuthorizationPipelineBehavior<AuthorizedRequest, string>>.Instance);
         _roleBehavior = new AuthorizationPipelineBehavior<RoleBasedRequest, string>(
-            authService, new HttpContextPrincipalResolver(roleAccessor), options,
-            NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
-
-        // Policy-based authorization
-        var policyAccessor = new HttpContextAccessor { HttpContext = CreateAuthenticatedContext("user-123") };
+            authService, options, NullLogger<AuthorizationPipelineBehavior<RoleBasedRequest, string>>.Instance);
         _policyBehavior = new AuthorizationPipelineBehavior<PolicyBasedRequest, string>(
-            authService, new HttpContextPrincipalResolver(policyAccessor), options,
-            NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
+            authService, options, NullLogger<AuthorizationPipelineBehavior<PolicyBasedRequest, string>>.Instance);
     }
 
     [Benchmark(Baseline = true)]
     public async Task<Either<EncinaError, string>> NoAuthorization()
     {
-        return await _noAuthBehavior.Handle(_unauthorizedRequest, _context, _nextStep, CancellationToken.None);
+        return await _noAuthBehavior.Handle(_unauthorizedRequest, _anonymousContext, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
     public async Task<Either<EncinaError, string>> SimpleAuthentication()
     {
-        return await _authBehavior.Handle(_authorizedRequest, _context, _nextStep, CancellationToken.None);
+        return await _authBehavior.Handle(_authorizedRequest, _userContext, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
     public async Task<Either<EncinaError, string>> RoleBasedAuthorization()
     {
-        return await _roleBehavior.Handle(_roleBasedRequest, _context, _nextStep, CancellationToken.None);
+        return await _roleBehavior.Handle(_roleBasedRequest, _adminContext, _nextStep, CancellationToken.None);
     }
 
     [Benchmark]
     public async Task<Either<EncinaError, string>> PolicyBasedAuthorization()
     {
-        return await _policyBehavior.Handle(_policyBasedRequest, _context, _nextStep, CancellationToken.None);
+        return await _policyBehavior.Handle(_policyBasedRequest, _userContext, _nextStep, CancellationToken.None);
     }
 
     // Test types
@@ -108,26 +94,4 @@ public class AuthorizationPipelineBehaviorBenchmarks
 
     [Authorize(Policy = "RequireElevation")]
     private sealed record PolicyBasedRequest : IRequest<string>;
-
-    // Helper method
-    private static DefaultHttpContext CreateAuthenticatedContext(string userId, string[]? roles = null)
-    {
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, userId)
-        };
-
-        if (roles != null)
-        {
-            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        }
-
-        var identity = new ClaimsIdentity(claims, "Test");
-        var principal = new ClaimsPrincipal(identity);
-
-        return new DefaultHttpContext
-        {
-            User = principal
-        };
-    }
 }

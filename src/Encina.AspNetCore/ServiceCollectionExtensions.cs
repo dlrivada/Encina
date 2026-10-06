@@ -19,12 +19,17 @@ public static class ServiceCollectionExtensions
     /// <para>
     /// This method registers:
     /// <list type="bullet">
-    /// <item><description><see cref="IRequestContextAccessor"/> for ambient context access</description></item>
-    /// <item><description>Default configuration options</description></item>
+    /// <item><description>the request identity model (<c>AddEncinaRequestIdentity()</c>): the
+    /// <see cref="IRequestContextAccessor"/>, the <see cref="RequestIdentityOptions"/> claim map and the
+    /// <see cref="IRequestContextScopeFactory"/> that <c>UseEncinaContext()</c> uses;</description></item>
+    /// <item><description>the <see cref="EncinaAspNetCoreOptions"/> header names;</description></item>
+    /// <item><description><see cref="Microsoft.AspNetCore.Http.IHttpContextAccessor"/>, for
+    /// <see cref="HttpRegionContextProvider"/>.</description></item>
     /// </list>
     /// </para>
     /// <para>
-    /// After calling this method, use <c>app.UseEncinaContext()</c> in your middleware pipeline.
+    /// After calling this method, use <c>app.UseEncinaContext()</c> in your middleware pipeline, after
+    /// <c>UseRouting()</c> and <c>UseAuthentication()</c>.
     /// </para>
     /// </remarks>
     /// <example>
@@ -37,9 +42,10 @@ public static class ServiceCollectionExtensions
     ///
     /// var app = builder.Build();
     ///
+    /// app.UseRouting();
     /// app.UseAuthentication();
-    /// app.UseAuthorization();
     /// app.UseEncinaContext();
+    /// app.UseAuthorization();
     ///
     /// app.MapControllers();
     /// app.Run();
@@ -62,7 +68,13 @@ public static class ServiceCollectionExtensions
     /// {
     ///     options.CorrelationIdHeader = "X-Request-ID";
     ///     options.TenantIdHeader = "X-Tenant";
-    ///     options.UserIdClaimType = "sub";
+    /// });
+    ///
+    /// // Claim types are configured once for every entry point:
+    /// builder.Services.AddEncinaRequestIdentity(options =>
+    /// {
+    ///     options.UserIdClaimTypes.Clear();
+    ///     options.UserIdClaimTypes.Add("sub");
     /// });
     /// </code>
     /// </example>
@@ -70,19 +82,16 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<EncinaAspNetCoreOptions> configureOptions)
     {
-        // Register options
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureOptions);
+
         services.Configure(configureOptions);
 
-        // Register request context accessor as singleton (AsyncLocal-based)
-        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+        // The accessor, the claim map and the scope factory that UseEncinaContext() opens scopes with.
+        services.AddEncinaRequestIdentity();
 
-        // Register HttpContextAccessor (required by authorization behavior)
+        // HttpRegionContextProvider reads the request through IHttpContextAccessor.
         services.AddHttpContextAccessor();
-
-        // Register the default, HTTP-based principal resolver used by AuthorizationPipelineBehavior.
-        // Transports without an ambient HttpContext (e.g. Blazor Server) replace this via
-        // Encina.AspNetCore.Blazor's AddEncinaBlazorAuthorization().
-        services.TryAddSingleton<IPrincipalResolver, HttpContextPrincipalResolver>();
 
         return services;
     }
@@ -139,11 +148,14 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="AuthorizationConfiguration"/> via <c>IOptions&lt;T&gt;</c></description></item>
     /// <item><description>A <c>"RequireAuthenticated"</c> policy if not already registered</description></item>
     /// <item><description><see cref="IResourceAuthorizer"/> as a scoped service (thin facade over <see cref="Microsoft.AspNetCore.Authorization.IAuthorizationService"/>)</description></item>
+    /// <item><description><see cref="AuthorizationPipelineBehavior{TRequest, TResponse}"/> as a pipeline behavior</description></item>
     /// </list>
     /// </para>
     /// <para>
     /// This method complements — not replaces — <see cref="AddAuthorization(EncinaConfiguration)"/>.
-    /// You can call both, or use this method alone which also registers the behavior.
+    /// You can call both (the behavior is registered once), or use this method alone, which also
+    /// registers the behavior. The behavior evaluates the request identity that
+    /// <c>UseEncinaContext()</c> binds (<see cref="RequestIdentity.Principal"/>).
     /// </para>
     /// </remarks>
     /// <example>
@@ -166,17 +178,21 @@ public static class ServiceCollectionExtensions
         Action<AuthorizationConfiguration>? configureAuthorization = null,
         Action<AuthorizationOptions>? configurePolicies = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         // Register AuthorizationConfiguration via IOptions<T>
         services.Configure<AuthorizationConfiguration>(config =>
         {
             configureAuthorization?.Invoke(config);
         });
 
-        // Ensure HttpContextAccessor is available
+        // The behavior logs; ResourceAuthorizer reads the request through IHttpContextAccessor.
+        services.AddLogging();
         services.AddHttpContextAccessor();
 
-        // Register the default, HTTP-based principal resolver used by AuthorizationPipelineBehavior.
-        services.TryAddSingleton<IPrincipalResolver, HttpContextPrincipalResolver>();
+        // The [Authorize] gate itself. TryAddEnumerable: it is added even when other behaviors are
+        // registered, and once when AddEncina's cfg.AddAuthorization() registered it too.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(IPipelineBehavior<,>), typeof(AuthorizationPipelineBehavior<,>)));
 
         // Register the "RequireAuthenticated" policy if not already configured
         services.AddAuthorizationBuilder()

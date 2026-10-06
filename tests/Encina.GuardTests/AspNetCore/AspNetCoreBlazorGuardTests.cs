@@ -1,30 +1,39 @@
-using Encina.AspNetCore;
 using Encina.AspNetCore.Blazor;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 namespace Encina.GuardTests.AspNetCore;
 
 /// <summary>
-/// Guard tests covering null-guard clauses for public Encina.AspNetCore.Blazor APIs.
+/// Guard tests covering null-guard clauses for Encina.AspNetCore.Blazor.
 /// </summary>
 [Trait("Category", "Guard")]
 public sealed class AspNetCoreBlazorGuardTests
 {
     [Fact]
-    public void Constructor_NullAuthenticationStateProvider_Throws()
+    public void CircuitHandler_NullAuthenticationStateProvider_Throws()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new AuthenticationStatePrincipalResolver(null!));
+            new RequestIdentityCircuitHandler(null!, Substitute.For<IInternalRequestContextScopeFactory>()))
+            .ParamName.ShouldBe("authenticationStateProvider");
     }
 
     [Fact]
-    public void Constructor_ValidAuthenticationStateProvider_Succeeds()
+    public void CircuitHandler_NullScopes_Throws()
     {
-        var provider = Substitute.For<AuthenticationStateProvider>();
-        var accessor = Substitute.For<IHttpContextAccessor>();
+        Should.Throw<ArgumentNullException>(() =>
+            new RequestIdentityCircuitHandler(Substitute.For<AuthenticationStateProvider>(), null!))
+            .ParamName.ShouldBe("scopes");
+    }
 
-        Should.NotThrow(() => new AuthenticationStatePrincipalResolver(provider, accessor));
+    [Fact]
+    public void CircuitHandler_NullNext_Throws()
+    {
+        var handler = new RequestIdentityCircuitHandler(
+            Substitute.For<AuthenticationStateProvider>(), Substitute.For<IInternalRequestContextScopeFactory>());
+
+        Should.Throw<ArgumentNullException>(() => handler.CreateInboundActivityHandler(null!))
+            .ParamName.ShouldBe("next");
     }
 
     [Fact]
@@ -35,13 +44,13 @@ public sealed class AspNetCoreBlazorGuardTests
     }
 
     [Fact]
-    public void AddEncinaBlazorAuthorization_ValidServices_RegistersResolver()
+    public void AddEncinaBlazorAuthorization_ValidServices_RegistersTheCircuitHandler()
     {
         var services = new ServiceCollection();
 
         var result = services.AddEncinaBlazorAuthorization();
 
-        result.ShouldNotBeNull();
-        services.ShouldContain(sd => sd.ServiceType == typeof(IPrincipalResolver));
+        result.ShouldBeSameAs(services);
+        services.ShouldContain(sd => sd.ServiceType == typeof(CircuitHandler) && sd.ImplementationType == typeof(RequestIdentityCircuitHandler));
     }
 }
