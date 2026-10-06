@@ -18,7 +18,7 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
 
 - A `[FEATURE]` gets no worker brief until its plan exists, passes `check-plan`, and the maintainer has answered every Design Choice.
 - The plan is generated with the prompt verbatim: only `{{ISSUE_URL}}`, `{{ISSUE_NUMBER}}` and `{{FEATURE_NAME}}` are replaced. No added, renamed or reordered sections.
-- Nothing else lives in the plan file. Maintainer decisions go to an issue comment, and review logs go to PR or issue comments (see steps 8 and 9).
+- The only addition the plan allows is the optional last section `## Maintainer Decisions` (step 8). Review logs go to PR or issue comments, never into the plan (step 9).
 
 ## Procedure
 
@@ -39,15 +39,9 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
    It checks the section order, the Design Choices (at least 4, each with options, chosen option and rationale), the per-phase Tasks and Prompt blocks, the four Research tables, the combined prompt, the 12-function matrix and the file name. `-Changed` checks every plan changed against `origin/main`; `-SelfTest` tests the checker. The `plan-conformance` workflow runs the same script on the pull request.
 6. Open deferred integrations as issues with the `open-issue` skill and reference them in the plan.
 7. Ship the plan in its own PR (use the `pr-cycle` skill), or as the first commit of the feature PR when the maintainer prefers. Comment on the issue with the plan's link.
-8. Present every Design Choice to the maintainer in the chat (the question, the options, your recommendation) and wait for the answers. Record them as one comment on the issue, never as a plan section:
-
-   ```text
-   Decision (maintainer, <yyyy-MM-dd>): Design Choice 1 <name>: <option>. Design Choice 2 <name>: <option>. ...
-   ```
-
-   If an answer changes a choice, update that decision in the plan so the plan and the comment agree, and run `check-plan` again.
+8. Present every Design Choice to the maintainer in the chat (the question, the options, your recommendation) and wait for the answers. Record the answers in the plan, in one optional `## Maintainer Decisions` section placed last, after `## Next Steps`, with a dated entry per decision (`yyyy-MM-dd`; the heading variant "Decisions of the maintainer" is also accepted). Update `Chosen Option` in every Design Choice the maintainer changed, so the choices and the section agree. Commit both in the plan PR and run `check-plan` again. Also post a short issue comment that links to the section.
 9. Put review logs (adversarial review, CodeRabbit resolution) in PR or issue comments, never in the plan.
-10. After the decision comment exists, remove the `needs-decision` label from the issue. Implementation starts after that. Write no worker brief for the feature before the plan, a passing `check-plan` and the decision comment all exist.
+10. After the `## Maintainer Decisions` section is merged or committed in the plan PR, remove the `needs-decision` label from the issue. Implementation starts after that. Write no worker brief for the feature before the plan, a passing `check-plan` and the `## Maintainer Decisions` section all exist.
 
 ## Delegation
 

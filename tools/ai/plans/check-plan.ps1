@@ -89,6 +89,8 @@ $SectionDefs = @(
     @{ Name = 'Cross-Cutting Integration Matrix'; Pattern = '^Cross-Cutting Integration Matrix$'; Required = $true }
     @{ Name = 'Prerequisites & Dependencies';     Pattern = '^Prerequisites (&|and) Dependencies$'; Required = $false }
     @{ Name = 'Next Steps';                       Pattern = '^Next Steps$';                       Required = $true }
+    # Optional, and only as the last '##' section. 'Decisions of the maintainer' is the variant #751 uses.
+    @{ Name = 'Maintainer Decisions';             Pattern = '^(Maintainer decisions|Decisions of the maintainer)(\s*\(.*\))?$'; Required = $false }
 )
 
 # AGENTS.md section 6, in order; compared after lower-casing and dropping spaces and hyphens.
@@ -261,7 +263,7 @@ function Test-Sections($Sections) {
             if ($s.Name -match $SectionDefs[$d].Pattern) { $pos = $d; break }
         }
         if ($pos -lt 0) {
-            $gaps.Add((New-Gap 'sections' $s.Line "unexpected '##' section '$($s.Name)' (not in the prompt; review logs and maintainer decisions go to issue or PR comments)"))
+            $gaps.Add((New-Gap 'sections' $s.Line "unexpected '##' section '$($s.Name)' (not in the prompt; review logs go to PR or issue comments; the only allowed extra is a last 'Maintainer Decisions' section)"))
             continue
         }
         if ($seen.ContainsKey($pos)) {
@@ -389,6 +391,11 @@ function Test-Phases($L, $Section) {
         }
     }
     return $gaps
+}
+
+function Test-Decisions($L, $Section) {
+    if (Test-HasLine $L ($Section.Index + 1) $Section.End '\b\d{4}-\d{2}-\d{2}\b') { return @() }
+    return @(New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated entry; each decision needs its date (yyyy-MM-dd)")
 }
 
 function Test-Research($L, $Section) {
@@ -533,6 +540,7 @@ function Test-Plan([string]$File, [switch]$SkipIssue) {
         @{ Name = 'Research'; Fn = { param($l, $s) Test-Research $l $s } }
         @{ Name = 'Combined AI Agent Prompts'; Fn = { param($l, $s) Test-Combined $l $s } }
         @{ Name = 'Cross-Cutting Integration Matrix'; Fn = { param($l, $s) Test-Matrix $l $s } }
+        @{ Name = 'Maintainer Decisions'; Fn = { param($l, $s) Test-Decisions $l $s } }
     )
     foreach ($c in $checks) {
         $sec = Find-Section $sections $c.Name
@@ -571,6 +579,8 @@ function Invoke-SelfTest {
     $dir = Join-Path $PSScriptRoot 'fixtures'
     $cases = @(
         @{ File = 'conforming-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'conforming-decisions-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'fail-decisions-order-implementation-plan-1.md'; Fails = @('sections') }
         @{ File = 'fail-sections-implementation-plan-1.md'; Fails = @('sections') }
         @{ File = 'fail-design-choices-implementation-plan-1.md'; Fails = @('design-choices') }
         @{ File = 'fail-phases-implementation-plan-1.md'; Fails = @('phases') }
