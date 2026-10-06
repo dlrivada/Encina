@@ -47,7 +47,7 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
 
    If an answer changes a choice, update that decision in the plan so the plan and the comment agree, and run `check-plan` again.
 9. Put review logs (adversarial review, CodeRabbit resolution) in PR or issue comments, never in the plan.
-10. After the decision comment exists, remove the `needs-decision` label from the issue. Implementation starts after that, and `worker-brief` requires the plan, a passing `check-plan` and the decision comment.
+10. After the decision comment exists, remove the `needs-decision` label from the issue. Implementation starts after that. Write no worker brief for the feature before the plan, a passing `check-plan` and the decision comment all exist.
 
 ## Delegation
 

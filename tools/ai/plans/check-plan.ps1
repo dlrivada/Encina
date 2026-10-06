@@ -160,6 +160,8 @@ function Get-DetailsBlocks($L, [int]$From, [int]$To) {
     for ($i = $From; $i -le $To; $i++) {
         if ($L[$i].Kind -ne 'text') { continue }
         $t = $L[$i].Text
+        # Inline code spans and HTML comments may mention <details> without opening one.
+        $t = [regex]::Replace([regex]::Replace($t, '`[^`]*`', ''), '<!--.*?-->', '')
         $o = [regex]::Matches($t, '<details\b', 'IgnoreCase').Count
         $c = [regex]::Matches($t, '</details\s*>', 'IgnoreCase').Count
         if ($o -gt 0 -and $depth -eq 0 -and $null -eq $cur) { $cur = @{ Start = $i } }
@@ -313,7 +315,7 @@ function Test-DesignChoices($L, $Section) {
         elseif ($proscons.Rows.Count -lt 2) {
             $gaps.Add((New-Gap 'design-choices' $proscons.Line "$where lists $($proscons.Rows.Count) option(s) in its Pros/Cons table; compare at least 2"))
         }
-        if (-not (Test-HasLine $L $s $e '^\s*(#{2,6}\s*|\*\*)?Chosen Option\s*:\s*\S')) {
+        if (-not (Test-HasLine $L $s $e '^\s*(#{2,6}\s*|\*\*)?Chosen Option\*{0,2}\s*:\s*\*{0,2}\s*\S')) {
             $gaps.Add((New-Gap 'design-choices' $line "$where has no 'Chosen Option: <name>' line"))
         }
         $rat = $null
@@ -472,30 +474,28 @@ function Test-Matrix($L, $Section) {
         if ((Format-Key $c[1]) -ne (Format-Key $fn)) {
             $gaps.Add((New-Gap 'matrix' $row.Line "matrix row $($i + 1) is '$($c[1])'; expected '$fn'"))
         }
-        if ($c[2] -notmatch '[✅⏭❌]') {
-            $gaps.Add((New-Gap 'matrix' $row.Line "matrix row $($i + 1) ($fn) has no status (use the emoji for Include, Defer or N/A from the prompt: check mark, next-track, cross mark)"))
+        if ([regex]::Matches($c[2], '[✅⏭❌]').Count -ne 1) {
+            $gaps.Add((New-Gap 'matrix' $row.Line "matrix row $($i + 1) ($fn) needs exactly one status emoji (Include, Defer or N/A from the prompt: check mark, next-track, cross mark); found '$($c[2])'"))
         }
-        if ((($c[3..($c.Count - 1)]) -join '').Trim() -eq '') {
-            $gaps.Add((New-Gap 'matrix' $row.Line "matrix row $($i + 1) ($fn) has an empty note"))
+        $note = (($c[3..($c.Count - 1)]) -join '').Trim()
+        if ($note -eq '' -or $note -eq 'Justification') {
+            $gaps.Add((New-Gap 'matrix' $row.Line "matrix row $($i + 1) ($fn) has an empty or placeholder note"))
         }
     }
     return $gaps
 }
 
-# gh availability is decided once per run.
-$script:GhState = $null
+# No separate "is gh authenticated" probe (gh auth status can fail on an invalid GITHUB_TOKEN while a
+# keyring account works): the real call decides, and a failure other than 404 skips with a notice.
+$script:GhMissingReported = $false
 function Get-IssueTitle([string]$Number) {
-    if ($null -eq $script:GhState) {
-        $script:GhState = 'unavailable'
-        if (Get-Command gh -ErrorAction SilentlyContinue) {
-            gh auth status *> $null
-            if ($LASTEXITCODE -eq 0) { $script:GhState = 'ready' }
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        if (-not $script:GhMissingReported) {
+            $script:GhMissingReported = $true
+            Write-Host 'NOTICE gh is not installed: the issue check ([FEATURE] title) is skipped'
         }
-        if ($script:GhState -ne 'ready') {
-            Write-Host "NOTICE gh is not installed or not authenticated: the issue check ([FEATURE] title) is skipped"
-        }
+        return $null
     }
-    if ($script:GhState -ne 'ready') { return $null }
     # REST, not GraphQL: the gate must not depend on the GraphQL rate limit.
     $out = (gh api "repos/dlrivada/Encina/issues/$Number" --jq .title 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -eq 0 -and $out -ne '') { return $out }
@@ -616,8 +616,8 @@ function Stop-Usage([string]$Message) {
 $modes = @($PSBoundParameters.ContainsKey('Path'), $Changed.IsPresent, $All.IsPresent, $SelfTest.IsPresent) | Where-Object { $_ }
 if ($modes.Count -ne 1) { Stop-Usage 'give exactly one of -Path, -Changed, -All, -SelfTest' }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$plansDir = Join-Path $repoRoot 'docs\plans'
+$repoRoot = (Resolve-Path (Join-Path (Join-Path (Join-Path $PSScriptRoot '..') '..') '..')).Path
+$plansDir = Join-Path (Join-Path $repoRoot 'docs') 'plans'
 
 $script:Failures = 0
 if ($SelfTest) {
@@ -636,6 +636,7 @@ else {
     $base = $BaseRef
     git -C $repoRoot rev-parse --verify --quiet $base *> $null
     if ($LASTEXITCODE -ne 0) {
+        if ($PSBoundParameters.ContainsKey('BaseRef')) { Stop-Usage "base ref '$BaseRef' not found (fetch it: git fetch origin main)" }
         git -C $repoRoot rev-parse --verify --quiet main *> $null
         if ($LASTEXITCODE -ne 0) { Stop-Usage "base ref '$BaseRef' not found (fetch it: git fetch origin main)" }
         $base = 'main'
