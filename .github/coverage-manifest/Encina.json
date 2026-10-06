@@ -148,7 +148,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 0 },
+      "justifications": {
+        "unit": "Security-critical explicit-context rule order and setter rule; unit tests drive every rule (measured 94%).",
+        "guard": "Internal static helper with no public argument guards; the null checks live in RequestContext.CopyOf and the dispatcher, so no guard test reaches this file."
+      }
     },
     "Core/ChainFacts.cs": {
       "defaultTests": [],
@@ -197,7 +202,12 @@
         "guard"
       ],
       "defaultRule": "*Accessor.cs",
-      "reason": "AsyncLocal-backed ambient IRequestContextAccessor implementation"
+      "reason": "AsyncLocal-backed ambient IRequestContextAccessor implementation",
+      "targets": { "unit": 95, "guard": 5 },
+      "justifications": {
+        "unit": "Holder chain, fact inheritance, issuer-aware reads and End are pure logic driven by the accessor lifetime tests (measured 98%).",
+        "guard": "Only Push and End carry null guards; the rest of the file is holder logic outside guard reach (measured 9%)."
+      }
     },
     "Core/RequestContextDispatchExtensions.cs": {
       "defaultTests": [
@@ -407,7 +417,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Scope issuer token: one-time binding and liveness (unit), null holder guard (guard)"
+      "reason": "Scope issuer token: one-time binding and liveness (unit), null holder guard (guard)",
+      "targets": { "unit": 100, "guard": 15 },
+      "justifications": {
+        "unit": "Two members (IsLive, Bind), fully driven by binding and liveness tests.",
+        "guard": "Only the null-holder guard of Bind is guard-reachable (measured 20%)."
+      }
     },
     "Identity/IdentityKind.cs": {
       "defaultTests": [],
@@ -420,7 +435,12 @@
         "contract"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Positional record without guards (guard not applicable); used by the scope factory contract"
+      "reason": "Positional record without guards (guard not applicable); used by the scope factory contract",
+      "targets": { "unit": 100, "contract": 100 },
+      "justifications": {
+        "unit": "Positional record constructed by every scope test.",
+        "contract": "The scope factory contract constructs it with a tenant and the inbound opt-in."
+      }
     },
     "Identity/IInternalRequestContextScopeFactory.cs": {
       "defaultTests": [],
@@ -434,7 +454,13 @@
         "contract"
       ],
       "defaultRule": "*.cs",
-      "reason": "Inbound scope input record: ForCircuit guard and ToString (unit, guard); used by the scope factory contract"
+      "reason": "Inbound scope input record: ForCircuit guard and ToString (unit, guard); used by the scope factory contract",
+      "targets": { "unit": 100, "guard": 25, "contract": 60 },
+      "justifications": {
+        "unit": "Record, ForCircuit and ToString are driven by the inbound tests.",
+        "guard": "Only the ForCircuit correlation-id guard is guard-reachable (measured 27%).",
+        "contract": "The contract builds it for RunInboundAsync; ForCircuit and ToString are not part of the factory contract (measured 64%)."
+      }
     },
     "Identity/InboundRequestNormalizer.cs": {
       "defaultTests": [
@@ -442,7 +468,12 @@
         "contract"
       ],
       "defaultRule": "*.cs",
-      "reason": "Normalization of client-controlled inbound members, reached through RunInboundAsync (unit bounds tests, contract)"
+      "reason": "Normalization of client-controlled inbound members, reached through RunInboundAsync (unit bounds tests, contract)",
+      "targets": { "unit": 90, "contract": 60 },
+      "justifications": {
+        "unit": "Every bound (ids 128, idempotency key 255, user agent 512, data region 16, IP parsing) has a unit test (measured 95%).",
+        "contract": "RunInboundAsync in the contract normalizes a principal-only request, which reaches the common paths (measured 63%)."
+      }
     },
     "Identity/IRequestContextScopeFactory.cs": {
       "defaultTests": [],
@@ -477,7 +508,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Startup validator requiring the default accessor (unit via Host.StartAsync, guard)"
+      "reason": "Startup validator requiring the default accessor (unit via Host.StartAsync, guard)",
+      "targets": { "unit": 100, "guard": 25 },
+      "justifications": {
+        "unit": "Validated through Host.StartAsync with a custom accessor and through every AddEncina host.",
+        "guard": "Only the constructor null guard is guard-reachable (measured 29%)."
+      }
     },
     "Identity/RequestContextIdentityExtensions.cs": {
       "defaultTests": [
@@ -494,7 +530,13 @@
         "contract"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract"
+      "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract",
+      "targets": { "unit": 95, "guard": 20, "contract": 80 },
+      "justifications": {
+        "unit": "Security-critical: every refusal, the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
+        "guard": "Constructor and member null guards only (measured 22%).",
+        "contract": "The contract drives every member, refusals and invalidation (measured 87%)."
+      }
     },
     "Identity/RequestContextScopeFactory.Restore.cs": {
       "defaultTests": [
@@ -503,7 +545,13 @@
         "contract"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract"
+      "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract",
+      "targets": { "unit": 95, "guard": 0, "contract": 70 },
+      "justifications": {
+        "unit": "Every validation branch and the Internal/External rules have unit tests (measured 100%).",
+        "guard": "The two null guards sit in the member body shared with the main file's guard run; the measured share is 3%, so no target is set.",
+        "contract": "The contract restores a user and refuses a reserved subject (measured 78%)."
+      }
     },
     "Identity/RequestContextScopeFactoryExtensions.cs": {
       "defaultTests": [
@@ -512,7 +560,13 @@
         "contract"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Task-returning overloads of the scope factory (unit, guard, contract)"
+      "reason": "Task-returning overloads of the scope factory (unit, guard, contract)",
+      "targets": { "unit": 100, "guard": 40, "contract": 40 },
+      "justifications": {
+        "unit": "All four overloads and the Unit adapter are driven by unit tests.",
+        "guard": "Factory and work null guards of every overload (measured 43%).",
+        "contract": "The contract uses the service overload with a refusal (measured 43%)."
+      }
     },
     "Identity/RequestIdentity.cs": {
       "defaultTests": [
@@ -520,7 +574,12 @@
         "guard"
       ],
       "defaultRule": "*Entity.cs",
-      "reason": "Identity value type: invariant and user-id rule (unit), argument guards (guard)"
+      "reason": "Identity value type: invariant and user-id rule (unit), argument guards (guard)",
+      "targets": { "unit": 95, "guard": 45 },
+      "justifications": {
+        "unit": "Identity value type: user-id rule, ForService, principal copies and IsSameAs are pure logic (measured 98%).",
+        "guard": "Guard tests reach ForUser, ForService, HasClaim and ToPersisted guards plus the constructor path they run (measured 54%)."
+      }
     },
     "Identity/RequestIdentityErrorCodes.cs": {
       "defaultTests": [
@@ -567,7 +626,12 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Declaration builder: entries and blank-entry guards"
+      "reason": "Declaration builder: entries and blank-entry guards",
+      "targets": { "unit": 100, "guard": 30 },
+      "justifications": {
+        "unit": "Builder entries, blank-entry checks and Build are fully driven.",
+        "guard": "Null and blank entry guards (measured 35%)."
+      }
     },
     "Identity/ServiceIdentityCatalog.cs": {
       "defaultTests": [
@@ -575,7 +639,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Frozen catalog lookup (unit) and null guards (guard)"
+      "reason": "Frozen catalog lookup (unit) and null guards (guard)",
+      "targets": { "unit": 100, "guard": 60 },
+      "justifications": {
+        "unit": "Lookup and construction are fully driven.",
+        "guard": "Constructor and TryGet null guards (measured 67%)."
+      }
     },
     "Identity/ServiceIdentityCatalogOptions.cs": {
       "defaultTests": [
@@ -583,7 +652,12 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "*Options.cs default; idempotent declarations and conflicts"
+      "reason": "*Options.cs default; idempotent declarations and conflicts",
+      "targets": { "unit": 100, "guard": 30 },
+      "justifications": {
+        "unit": "Declare (new, identical repeat, conflict) is fully driven.",
+        "guard": "Only the Declare null guard is guard-reachable (measured 36%)."
+      }
     },
     "Identity/ServiceIdentityCatalogOptionsValidator.cs": {
       "defaultTests": [
@@ -592,14 +666,24 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "*Validator.cs default; generated declarations (name pattern, built-in prefix, wildcards) in property tests"
+      "reason": "*Validator.cs default; generated declarations (name pattern, built-in prefix, wildcards) in property tests",
+      "targets": { "unit": 100, "guard": 20, "property": 75 },
+      "justifications": {
+        "unit": "Every rule (pattern, prefix, wildcard, conflicts, forbidden claim types) has a unit test.",
+        "guard": "Constructor and Validate null guards (measured 25%).",
+        "property": "Generated declarations drive the name, prefix and wildcard rules; the forbidden-claim rule is unit-only (measured 83%)."
+      }
     },
     "Identity/ServiceIdentityDefinition.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Immutable declaration built by ServiceIdentityBuilder; equivalence for idempotent declarations (unit); no public guards"
+      "reason": "Immutable declaration built by ServiceIdentityBuilder; equivalence for idempotent declarations (unit); no public guards",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Construction, ToString and IsEquivalentTo are fully driven."
+      }
     },
     "Modules/Diagnostics/ModuleActivitySource.cs": {
       "defaultTests": [
