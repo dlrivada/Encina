@@ -28,7 +28,7 @@ $env:CLAUDE_PROJECT_DIR = $repo
 # #1926: check-issue-template also requires an existing milestone, the template's default label and a priority
 # label. The milestone list comes from a seeded cache file (ENCINA_MILESTONES_CACHE), never from the network.
 $hardening = "v0.14.0 $([char]0x2014) Hardening"
-[IO.File]::WriteAllLines((Join-Path $work 'milestones.txt'), [string[]]@($hardening, 'v0.21.0 - Documentation'), [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllLines((Join-Path $work 'milestones.txt'), [string[]]@("open`t$hardening", "open`tv0.21.0 - Documentation", "closed`tv0.1.0 - Old"), [Text.UTF8Encoding]::new($false))
 $env:ENCINA_MILESTONES_CACHE = Join-Path $work 'milestones.txt'
 foreach ($pair in @(@('feature-ok.md', 'feature_request.md'), @('spike-ok.md', 'architecture_spike.md'))) {
     $tplHeaders = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$($pair[1])") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
@@ -215,6 +215,14 @@ $cases = @(
     @($issue, 'PowerShell', "gh issue create --title `"[BUG] x`" --body-file bug-ok.md --milestone `"$hardening`" --label bug --label p0-mandatory", 0, 'hygiene: BUG complete'),
     @($issue, 'PowerShell', "gh issue create --title `"[EPIC] x`" --body-file epic-ok.md --milestone `"$hardening`" --label epic", 0, 'hygiene: EPIC is exempt from the priority label'),
     @($issue, 'PowerShell', 'gh issue create --title "[EPIC] x" --body-file epic-ok.md --label epic', 2, 'hygiene: EPIC still needs a milestone'),
+    # #1926 (PR review): variable [EPIC] title, label case, the last --milestone, closed milestones.
+    @($issue, 'PowerShell', "gh issue create --title `$t --body-file epic-ok.md --milestone `"$hardening`" --label epic", 0, 'hygiene: variable title keeps the EPIC exemption (no priority demanded)'),
+    @($issue, 'PowerShell', 'gh issue create --title $t --body-file epic-ok.md --label epic', 2, 'hygiene: variable title still needs a milestone'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label Technical-Debt --label P1-Recommended", 0, 'hygiene: labels compare case-insensitively'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --milestone `"v9.9.9 - Nope`" --label technical-debt --label p1-recommended", 2, 'hygiene: the last --milestone is judged'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"v9.9.9 - Nope`" --milestone `"$hardening`" --label technical-debt --label p1-recommended", 0, 'hygiene: the last --milestone is the valid one'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone "v0.1.0 - Old" --label technical-debt --label p1-recommended', 2, 'hygiene: a closed milestone is denied'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md -m `"$hardening`" -l technical-debt -l p1-recommended", 0, 'hygiene: short -m and -l forms'),
     # Maintainer decision 2026-10-06: [FEATURE] and [SPIKE] are created with needs-decision.
     @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended", 2, 'hygiene: FEATURE without needs-decision'),
     @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 0, 'hygiene: FEATURE with needs-decision'),
@@ -1025,6 +1033,22 @@ try {
     try {
         $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
         Invoke-HookCase $issue $json 2 'hygiene: milestone lookup failure denies'
+    }
+    finally { $env:ENCINA_MILESTONES_CACHE = $savedCache; $env:ENCINA_ISSUE_GH = $savedGh }
+
+    # #1926: a cache older than 12 hours is not trusted: with the lookup unusable the call is denied; the same
+    # file made fresh again is accepted.
+    $staleCache = Join-Path $work 'stale-milestones.txt'
+    Copy-Item -LiteralPath (Join-Path $work 'milestones.txt') -Destination $staleCache -Force
+    (Get-Item -LiteralPath $staleCache).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddHours(-13)
+    $savedCache = $env:ENCINA_MILESTONES_CACHE; $savedGh = $env:ENCINA_ISSUE_GH
+    $env:ENCINA_MILESTONES_CACHE = $staleCache
+    $env:ENCINA_ISSUE_GH = Join-Path $work 'no-such-gh.exe'
+    try {
+        $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
+        Invoke-HookCase $issue $json 2 'hygiene: a cache older than 12 hours is not trusted'
+        (Get-Item -LiteralPath $staleCache).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddHours(-1)
+        Invoke-HookCase $issue $json 0 'hygiene: a cache younger than 12 hours is trusted'
     }
     finally { $env:ENCINA_MILESTONES_CACHE = $savedCache; $env:ENCINA_ISSUE_GH = $savedGh }
 

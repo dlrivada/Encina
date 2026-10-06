@@ -223,7 +223,7 @@ exit 0
     $create = [string]($r1.Creates | Select-Object -First 1)
     Assert-That 'title' ($create.Contains('--title [DEBT] Delta re-audit (rules-2026-10) of #2: 3 findings (docs and coverage obligations) --body-file')) $create
     Assert-That 'labels are technical-debt and area-testing' ($create.Contains('--label technical-debt') -and $create.Contains('--label area-testing')) $create
-    Assert-That 'tests route: v0.19.0 milestone and p1-recommended' ($create.Contains("--milestone v0.19.0 $([char]0x2014) Providers & Testing") -and $create.Contains('--label p1-recommended') -and -not $create.Contains('p0-mandatory')) $create
+    Assert-That 'tests route: v0.19.0 milestone; priority is the highest draft priority (High -> p0-mandatory)' ($create.Contains("--milestone v0.19.0 $([char]0x2014) Providers & Testing") -and $create.Contains('--label p0-mandatory') -and -not $create.Contains('p1-recommended')) $create
     $projCalls = @(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/issues/1001' })
     Assert-That 'the issue is added to project 1 with the keyring token (GITHUB_TOKEN and GH_TOKEN cleared)' ($projCalls.Count -eq 1 -and @(Get-Content $log | Where-Object { $_ -eq 'TOKENS:[]' }).Count -eq 1) ((Get-Content $log) -join ' | ')
     $body = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
@@ -358,17 +358,26 @@ exit 0
     Write-Text (Join-Path $rem '6-delta-docs-a.md') (New-DocsDraft '[DEBT] Docs only A' 'docs/oa.md' 'Low' 'Small' '')
     Write-Text (Join-Path $rem '6-delta-docs-b.md') (New-DocsDraft '[DEBT] Docs only B' 'docs/ob.md' 'Low' 'Small' '')
     $r9a = Invoke-Open '-Consolidate' 6
-    Assert-That -Name 'docs-only consolidated: Documentation milestone and p1-recommended' -Condition ($r9a.Exit -eq 0 -and $r9a.Creates.Count -eq 1 -and $r9a.Creates[0].Contains("--milestone $docsMs") -and $r9a.Creates[0].Contains('--label p1-recommended')) -Detail ($r9a.Text + ' | ' + ($r9a.Creates -join ' | '))
+    Assert-That -Name 'docs-only consolidated: Documentation milestone and the drafts own priority (Low -> p2-post-1.0)' -Condition ($r9a.Exit -eq 0 -and $r9a.Creates.Count -eq 1 -and $r9a.Creates[0].Contains("--milestone $docsMs") -and $r9a.Creates[0].Contains('--label p2-post-1.0')) -Detail ($r9a.Text + ' | ' + ($r9a.Creates -join ' | '))
 
     # 9b. per-draft routes: docs, code debt, tests and a header milestone that wins.
     Write-Text (Join-Path $rem '7-docs.md') (New-DocsDraft '[DEBT] Route docs' 'docs/r1.md' 'Low' 'Small' '')
-    Write-Text (Join-Path $rem '7-code.md') ((New-DocsDraft '[DEBT] Route code' 'src/r2.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code'))
+    Write-Text (Join-Path $rem '7-code.md') ((New-DocsDraft '[DEBT] Route code' 'src/r2.cs' 'Medium' 'Small' '').Replace('kind: docs', 'kind: code'))
     Write-Text (Join-Path $rem '7-test.md') $testDraft
-    Write-Text (Join-Path $rem '7-win.md') ((New-DocsDraft '[DEBT] Route header wins' 'src/r3.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code').Replace('milestone:', "milestone: $testsMs"))
+    Write-Text (Join-Path $rem '7-win.md') ((New-DocsDraft '[DEBT] Route header wins' 'src/r3.cs' 'High' 'Small' '').Replace('kind: docs', 'kind: code').Replace('milestone:', "milestone: $testsMs"))
+    # A draft without a Priority section takes its route's default priority.
+    Write-Text (Join-Path $rem '7-nop.md') ([regex]::Replace((New-DocsDraft '[DEBT] Route no priority' 'src/r4.cs' 'Low' 'Small' '').Replace('kind: docs', 'kind: code'), '(?s)## Priority.*?(?=## Effort)', ''))
     $r9b = Invoke-Open '' 7
-    $c = @{}; foreach ($line in $r9b.Creates) { foreach ($t in 'Route docs', 'Route code', 'Raise the unit target', 'Route header wins') { if ($line.Contains($t)) { $c[$t] = $line } } }
-    Assert-That -Name 'per-draft routes: docs -> Documentation/p1, code -> Hardening/p0, test -> Providers & Testing/p1, header milestone wins' -Condition ($r9b.Exit -eq 0 -and $r9b.Creates.Count -eq 4 -and $c['Route docs'].Contains("--milestone $docsMs") -and $c['Route docs'].Contains('--label p1-recommended') -and $c['Route code'].Contains("--milestone $hardMs") -and $c['Route code'].Contains('--label p0-mandatory') -and $c['Raise the unit target'].Contains("--milestone $testsMs") -and $c['Raise the unit target'].Contains('--label p1-recommended') -and $c['Route header wins'].Contains("--milestone $testsMs") -and $c['Route header wins'].Contains('--label p0-mandatory')) -Detail ($r9b.Text + ' | ' + ($r9b.Creates -join ' | '))
-    Assert-That -Name 'every created issue is added to project 1' -Condition (@(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' }).Count -eq 4) -Detail ((Get-Content $log) -join ' | ')
+    $c = @{}; foreach ($line in $r9b.Creates) { foreach ($t in 'Route docs', 'Route code', 'Raise the unit target', 'Route header wins', 'Route no priority') { if ($line.Contains($t)) { $c[$t] = $line } } }
+    Assert-That -Name 'per-draft routes: docs Low -> Documentation/p2, code Medium -> Hardening/p1, test (no priority) -> Providers & Testing/p1, header milestone wins with High -> p0' -Condition ($r9b.Exit -eq 0 -and $r9b.Creates.Count -eq 5 -and $c['Route docs'].Contains("--milestone $docsMs") -and $c['Route docs'].Contains('--label p2-post-1.0') -and $c['Route code'].Contains("--milestone $hardMs") -and $c['Route code'].Contains('--label p1-recommended') -and $c['Raise the unit target'].Contains("--milestone $testsMs") -and $c['Raise the unit target'].Contains('--label p1-recommended') -and $c['Route header wins'].Contains("--milestone $testsMs") -and $c['Route header wins'].Contains('--label p0-mandatory')) -Detail ($r9b.Text + ' | ' + ($r9b.Creates -join ' | '))
+    Assert-That -Name 'a code draft without a Priority section gets the route default (Hardening, p0-mandatory)' -Condition ($c['Route no priority'].Contains("--milestone $hardMs") -and $c['Route no priority'].Contains('--label p0-mandatory')) -Detail ($c['Route no priority'])
+    Assert-That -Name 'every created issue is added to project 1' -Condition (@(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' }).Count -eq 5) -Detail ((Get-Content $log) -join ' | ')
+
+    # 9b2. a mixed code + docs consolidation goes to Hardening (never Documentation), with the highest priority.
+    Write-Text (Join-Path $rem '9-delta-docs-a.md') (New-DocsDraft '[DEBT] Mixed docs' 'docs/m1.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '9-delta-code-b.md') ((New-DocsDraft '[DEBT] Mixed code' 'src/m2.cs' 'Medium' 'Small' '').Replace('kind: docs', 'kind: code'))
+    $r9m = Invoke-Open '-Consolidate' 9
+    Assert-That -Name 'mixed code + docs consolidation: Hardening milestone and the highest draft priority (Medium -> p1)' -Condition ($r9m.Exit -eq 0 -and $r9m.Creates.Count -eq 1 -and $r9m.Creates[0].Contains("--milestone $hardMs") -and $r9m.Creates[0].Contains('--label p1-recommended') -and -not $r9m.Creates[0].Contains($docsMs)) -Detail ($r9m.Text + ' | ' + ($r9m.Creates -join ' | '))
 
     # 9c. a project failure fails loudly (exit 1, message), after the row is written so a re-run never duplicates.
     Write-Text (Join-Path $rem '8-docs.md') (New-DocsDraft '[DEBT] Project fails' 'docs/pf.md' 'Low' 'Small' '')

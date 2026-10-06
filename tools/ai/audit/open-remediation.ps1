@@ -14,10 +14,12 @@
 # URL of the part that holds it. A single draft that alone exceeds the limit fails the run naming it. -WhatIf prints
 # each part's title and writes one preview file per part (delta-<n>-consolidated.part<k>.preview.md).
 #
-# Every issue is opened complete (#1926): a milestone and one priority label from its route (bug, code debt and
-# security -> v0.14.0 Hardening + p0-mandatory; docs-only -> v0.21.0 Documentation + p1-recommended; tests and any
-# consolidated issue with a tests draft -> v0.19.0 Providers & Testing + p1-recommended; a draft header milestone
-# wins), then added to project 1 with the keyring token (GITHUB_TOKEN/GH_TOKEN cleared for that call); a failed
+# Every issue is opened complete (#1926): a milestone from its route (bug, code debt, security and any mix of code
+# and docs -> v0.14.0 Hardening; docs-only -> v0.21.0 Documentation; a tests draft, alone or in a consolidated
+# issue -> v0.19.0 Providers & Testing; a draft header milestone wins) and one priority label from the draft's own
+# Priority section (High p0-mandatory, Medium p1-recommended, Low p2-post-1.0; a consolidated issue takes the
+# highest of its drafts); only a draft without a Priority section gets its route's default (Hardening
+# p0-mandatory, Documentation and Providers & Testing p1-recommended). Then added to project 1 with the keyring token (GITHUB_TOKEN/GH_TOKEN cleared for that call); a failed
 # project add fails the run loudly (the row is already written, so a re-run does not retry it: add the issue by hand;
 # the weekly issue-hygiene workflow lists any issue missing from the project).
 
@@ -62,16 +64,28 @@ function Get-Route([string]$Title, [string]$Kind) {
     return 'hardening'
 }
 
-# Fails loudly when the route's milestone or priority label does not exist in the repository.
-function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[]]$DraftLabels, [string]$Name) {
+# The priority a draft states in its own Priority section (High, Medium or Low ticked), or '' when it has none.
+$PriorityByName = @{ High = 'p0-mandatory'; Medium = 'p1-recommended'; Low = 'p2-post-1.0' }
+function Get-DraftPriority([string]$Body) {
+    $sec = [regex]::Match($Body, '(?ms)^##[ \t]+Priority[ \t]*\r?$(.*?)(?=^##[ \t]|\z)')
+    if (-not $sec.Success) { return '' }
+    $o = [regex]::Match($sec.Groups[1].Value, '(?m)^\s*-\s*\[[xX]\]\s*\*{0,2}(High|Medium|Low)\b')
+    if ($o.Success) { return $o.Groups[1].Value }
+    return ''
+}
+
+# Fails loudly when the route's milestone or priority label does not exist in the repository. $Priority is the
+# draft's own priority (High, Medium, Low or ''); the route's default label applies only when there is none.
+function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[]]$DraftLabels, [string]$Name, [string]$Priority = '') {
     $r = $Routes[$Route]
+    $prioLabel = if ($Priority -and $PriorityByName.ContainsKey($Priority)) { $PriorityByName[$Priority] } else { $r.Priority }
     if ($DraftMilestone -and -not ($ms -contains $DraftMilestone)) { Write-Warning "open-remediation: the header milestone '$DraftMilestone' of $Name is not an existing milestone; using the route's $($r.Milestone)" }
     $milestone = if ($DraftMilestone -and ($ms -contains $DraftMilestone)) { $DraftMilestone } else { $r.Milestone }
     if (-not ($ms -contains $milestone)) { Write-Error "open-remediation: milestone '$milestone' for $Name does not exist; no issue was created"; exit 1 }
     $lab = @($DraftLabels)
     if (-not ($lab | Where-Object { $PriorityLabels -contains $_ })) {
-        if (-not ($labels -contains $r.Priority)) { Write-Error "open-remediation: priority label '$($r.Priority)' for $Name does not exist; no issue was created"; exit 1 }
-        $lab += $r.Priority
+        if (-not ($labels -contains $prioLabel)) { Write-Error "open-remediation: priority label '$prioLabel' for $Name does not exist; no issue was created"; exit 1 }
+        $lab += $prioLabel
     }
     return @{ Milestone = $milestone; Labels = $lab }
 }
@@ -104,8 +118,11 @@ function Get-Draft([System.IO.FileInfo]$File) {
     # The real GitHub milestone title uses an em dash (U+2014); [char]0x2014 keeps this file's own bytes
     # ASCII-only while still matching that title exactly, so --milestone below resolves it (#1345 review).
     $kind = ([regex]::Match($h, 'kind:[ \t]*(.*)')).Groups[1].Value.Trim().ToLowerInvariant()
-    $meta = Resolve-RouteMetadata (Get-Route $title $kind) $m $lab $File.Name
+    $bodyText = ($raw -replace '(?s)^\s*<!--.*?-->\s*', '').Trim()
+    $prio = Get-DraftPriority $bodyText
+    $meta = Resolve-RouteMetadata (Get-Route $title $kind) $m $lab $File.Name $prio
     [pscustomobject]@{
+        Priority = $prio
         File   = $File
         Title  = $title
         Labels = $meta.Labels
@@ -357,7 +374,10 @@ function Get-ConsolidatedPlan($Drafts) {
         if (-not $lab) { $lab = @('technical-debt') }
         # Any tests draft -> tests route; docs-only -> docs route; otherwise code debt -> hardening.
         $route = if ($built.AnyTest) { 'tests' } elseif (@($g | Where-Object { $_.Draft.Kind -ne 'docs' }).Count -eq 0) { 'docs' } else { 'hardening' }
-        $meta = Resolve-RouteMetadata $route '' $lab "the consolidated issue of #$Issue (part $j)"
+        # The highest priority any draft of the part states; the route's default only when none states one.
+        $topPrio = ''
+        foreach ($rank in 'High', 'Medium', 'Low') { if (-not $topPrio -and @($g | Where-Object { $_.Draft.Priority -eq $rank }).Count) { $topPrio = $rank } }
+        $meta = Resolve-RouteMetadata $route '' $lab "the consolidated issue of #$Issue (part $j)" $topPrio
         [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $meta.Labels; Milestone = $meta.Milestone; Drafts = @($g | ForEach-Object { $_.Draft }) }
     }
     return , @($plan)

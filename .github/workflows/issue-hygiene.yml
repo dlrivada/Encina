@@ -5,14 +5,15 @@ name: Issue hygiene
 #
 # On every issue event this workflow
 #   - adds the issue to user project 1 when it is not there (needs PROJECT_TOKEN), and
-#   - labels it needs-triage and comments once when the milestone or the priority label is missing, and removes
+#   - labels it needs-triage (and, for an issue by the owner, a member or a collaborator, comments once) when the milestone or the priority label is missing, and removes
 #     the label again when both are present.
 # The weekly run (and workflow_dispatch) lists every open issue missing a milestone, a priority label or the
 # project in the job summary.
 #
 # Setup (one time, by the maintainer):
-#   - Repository secret PROJECT_TOKEN: a classic personal access token with the `project` scope (and `repo`).
-#     The default GITHUB_TOKEN cannot write user projects. Without the secret the job warns and still does the
+#   - Repository secret PROJECT_TOKEN: a classic personal access token with the `project` scope only (the
+#     repository is public and the project is user-owned, so `repo` is not needed). The default GITHUB_TOKEN
+#     cannot write user projects. Without the secret the job warns and still does the
 #     label, comment and summary parts with GITHUB_TOKEN; the project parts are skipped.
 #   - The needs-triage label is created by the job when it is missing; to create it by hand:
 #       gh label create needs-triage --repo dlrivada/Encina --color FBCA04 --description "Missing milestone or priority label"
@@ -119,6 +120,8 @@ jobs:
                   await ensureTriageLabel();
                   await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [TRIAGE] });
                 }
+                // Outside reporters cannot set a milestone or a priority label: they are labelled silently.
+                if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(issue.author_association)) return;
                 const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: issue.number, per_page: 100 });
                 if (!comments.some(c => c.body && c.body.includes(MARKER))) {
                   await github.rest.issues.createComment({

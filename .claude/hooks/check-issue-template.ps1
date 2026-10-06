@@ -28,8 +28,14 @@
 # here; see docs/knowledge/issues/1410.md).
 #
 # Only the arguments of the `gh issue create` statement itself are read, never the rest of the command line.
-# Allowed without checks: issues on another repository (-R/--repo), --web, --template, calls without a body,
-# and titles or bodies that come from a variable or a subexpression without visible headers. Headers inside
+# Allowed without the body checks: issues on another repository (-R/--repo), --web, --template, calls without a
+# body, and titles or bodies that come from a variable or a subexpression without visible headers.
+#
+# #1926: before any of those body skips, every `gh issue create` on this repository (except --web/--template)
+# must also carry an existing, open --milestone (the last one counts; list cached 12 hours, a failed lookup
+# denies), the template's default label, one priority label (an [EPIC] needs none) and, for [FEATURE] and
+# [SPIKE], needs-decision; labels compare case-insensitively. A variable title is judged on the milestone only
+# (its prefix is unknown, so the label checks are skipped and the message says so). Headers inside
 # fenced code blocks do not count. Exit code 2 blocks the call and shows stderr to Claude; any failure of the
 # hook itself allows the call.
 
@@ -262,7 +268,8 @@ try {
     # Milestone titles of the repository: a cache file (ENCINA_MILESTONES_CACHE, default
     # <root>/artifacts/issue-hygiene/milestones.txt) younger than 12 hours, otherwise a `gh api` lookup that
     # refreshes it. Returns $null when the lookup fails, so the caller denies instead of allowing.
-    function Get-MilestoneTitles([string]$Root) {
+    # Every milestone, open and closed, as `<state><TAB><title>` lines (a line without a tab is an open title).
+    function Get-MilestoneLines([string]$Root) {
         $cache = if ($env:ENCINA_MILESTONES_CACHE) { $env:ENCINA_MILESTONES_CACHE } elseif ($Root) { Join-Path $Root 'artifacts/issue-hygiene/milestones.txt' } else { $null }
         if ($cache -and (Test-Path -LiteralPath $cache) -and ((Get-Item -LiteralPath $cache).LastWriteTimeUtc -gt (Get-Date).ToUniversalTime().AddHours(-12))) {
             $cached = @(Get-Content -LiteralPath $cache -Encoding utf8 | Where-Object { $_.Trim() })
@@ -272,46 +279,60 @@ try {
         $saved = [Console]::OutputEncoding
         try {
             [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-            $titles = @(& $gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title' 2>$null | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
-            if ($LASTEXITCODE -ne 0 -or $titles.Count -eq 0) { return $null }
+            $lines = @(& $gh api 'repos/dlrivada/Encina/milestones?state=all&per_page=100' --paginate --jq '.[] | .state + "\t" + .title' 2>$null | ForEach-Object { "$_".TrimEnd() } | Where-Object { $_ })
+            if ($LASTEXITCODE -ne 0 -or $lines.Count -eq 0) { return $null }
         }
         catch { return $null }
         finally { [Console]::OutputEncoding = $saved }
         if ($cache) {
             try {
                 New-Item -ItemType Directory -Force (Split-Path -Parent $cache) | Out-Null
-                [IO.File]::WriteAllLines($cache, [string[]]$titles, [Text.UTF8Encoding]::new($false))
+                [IO.File]::WriteAllLines($cache, [string[]]$lines, [Text.UTF8Encoding]::new($false))
             }
             catch { }
         }
-        return $titles
+        return $lines
     }
 
     # Returns the list of missing metadata items for one `gh issue create` statement (empty when complete).
-    # A dynamic (variable) milestone or label value cannot be read, so it counts as present.
-    function Get-MissingMetadata($Options, [string]$Prefix, [string]$DefaultLabel, [string]$Root) {
+    # A dynamic (variable) milestone or label value cannot be read, so it counts as present. With a variable
+    # title ($TitleKnown false) the prefix is unknown: the default-label, needs-decision and priority checks
+    # are skipped (an [EPIC] title is exempt from the priority and a variable title may be one); the milestone
+    # is still checked. Labels compare case-insensitively like GitHub; the last --milestone wins like gh.
+    function Get-MissingMetadata($Options, [bool]$TitleKnown, [string]$Prefix, [string]$DefaultLabel, [string]$Root) {
         $missing = [System.Collections.Generic.List[string]]::new()
 
+        # No @() around Get-OptionValues: it already returns the array wrapped (`, @(...)`), and @() would nest it.
         $milestone = Get-OptionValues $Options @('-m', '--milestone')
         if ($milestone.Count -eq 0) { $missing.Add('--milestone "<existing milestone title>"') }
-        elseif (-not $milestone[0].Dynamic) {
-            $titles = Get-MilestoneTitles $Root
-            if ($null -eq $titles) { $missing.Add("milestone '$($milestone[0].Value)' could not be verified (the milestone lookup failed: run gh auth status, or seed artifacts/issue-hygiene/milestones.txt)") }
-            elseif ($titles -cnotcontains $milestone[0].Value) { $missing.Add("milestone '$($milestone[0].Value)' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones; a milestone created in the last 12 hours needs artifacts/issue-hygiene/milestones.txt deleted to refresh the cache)") }
+        elseif (-not $milestone[-1].Dynamic) {
+            $wanted = [string]$milestone[-1].Value
+            $lines = Get-MilestoneLines $Root
+            if ($null -eq $lines) { $missing.Add("milestone '$wanted' could not be verified (the milestone lookup failed: run gh auth status, or seed artifacts/issue-hygiene/milestones.txt)") }
+            else {
+                $state = $null
+                foreach ($line in $lines) {
+                    $parts = $line -split "`t", 2
+                    $t = if ($parts.Count -eq 2) { $parts[1] } else { $parts[0] }
+                    if ($t -ceq $wanted) { $state = if ($parts.Count -eq 2) { $parts[0] } else { 'open' }; break }
+                }
+                if ($null -eq $state) { $missing.Add("milestone '$wanted' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones; a milestone created in the last 12 hours needs artifacts/issue-hygiene/milestones.txt deleted to refresh the cache)") }
+                elseif ($state -ne 'open') { $missing.Add("milestone '$wanted' is closed; pick an open milestone") }
+            }
         }
 
         $labelValues = Get-OptionValues $Options @('-l', '--label')
-        if (-not ($labelValues | Where-Object { $_.Dynamic })) {
+        if ($TitleKnown -and -not ($labelValues | Where-Object { $_.Dynamic })) {
             $labels = @($labelValues | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-            if ($DefaultLabel -and $labels -cnotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
+            if ($DefaultLabel -and $labels -inotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
             # Maintainer decision 2026-10-06: a feature or spike has open options, so it is created undecided.
-            if (($Prefix -eq '[FEATURE]' -or $Prefix -eq '[SPIKE]') -and $labels -cnotcontains 'needs-decision') { $missing.Add("--label needs-decision (a $Prefix issue is created with its options open until the maintainer decides)") }
-            if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -ccontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
+            if (($Prefix -eq '[FEATURE]' -or $Prefix -eq '[SPIKE]') -and $labels -inotcontains 'needs-decision') { $missing.Add("--label needs-decision (a $Prefix issue is created with its options open until the maintainer decides)") }
+            if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -icontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
         }
         return , $missing
     }
 
-    $LocalDraftMessage ="Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
+    $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
 
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
@@ -339,9 +360,10 @@ try {
             $metaTemplates = Get-Templates $root
             if ($metaPrefix -and $metaTemplates.ContainsKey($metaPrefix)) { $metaDefaultLabel = $metaTemplates[$metaPrefix].DefaultLabel }
         }
-        $missingMeta = Get-MissingMetadata $options $metaPrefix $metaDefaultLabel $root
+        $missingMeta = Get-MissingMetadata $options (-not $title[0].Dynamic) $metaPrefix $metaDefaultLabel $root
         if ($missingMeta.Count -gt 0) {
-            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).")
+            $dynamicNote = if ($title[0].Dynamic) { ' The title is a variable, so the default-label, needs-decision and priority checks were not judged; type the title literally to have them checked.' } else { '' }
+            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).$dynamicNote")
             exit 2
         }
 
