@@ -1,6 +1,5 @@
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using static LanguageExt.Prelude;
 
 namespace Encina.AspNetCore.Authorization;
@@ -9,17 +8,25 @@ namespace Encina.AspNetCore.Authorization;
 /// Default implementation of <see cref="IResourceAuthorizer"/> that delegates
 /// to ASP.NET Core's <see cref="IAuthorizationService"/>.
 /// </summary>
+/// <remarks>
+/// The caller is the ambient request identity (<see cref="IRequestContextAccessor"/>), the same one
+/// the <c>[Authorize]</c> gate evaluates; never <c>HttpContext.User</c>, which on a long-lived
+/// connection is the connect-time principal (#1705).
+/// </remarks>
 internal sealed class ResourceAuthorizer : IResourceAuthorizer
 {
     private readonly IAuthorizationService _authorizationService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IRequestContextAccessor _requestContextAccessor;
 
     public ResourceAuthorizer(
         IAuthorizationService authorizationService,
-        IHttpContextAccessor httpContextAccessor)
+        IRequestContextAccessor requestContextAccessor)
     {
+        ArgumentNullException.ThrowIfNull(authorizationService);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
+
         _authorizationService = authorizationService;
-        _httpContextAccessor = httpContextAccessor;
+        _requestContextAccessor = requestContextAccessor;
     }
 
     /// <inheritdoc />
@@ -50,12 +57,12 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
         object resource,
         string policy)
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext is null)
+        // No readable context, or a non-conforming one, reads as anonymous and is denied.
+        if (_requestContextAccessor.RequestContext?.Identity is not { IsAuthenticated: true } identity)
         {
             return Left<EncinaError, bool>(EncinaErrors.Create( // NOSONAR S6966
-                EncinaErrorCodes.AuthorizationUnauthorized,
-                "Authorization requires HTTP context but none is available.",
+                EncinaErrorCodes.AuthorizationUnauthenticated,
+                "Resource authorization requires an authenticated request identity.",
                 details: new Dictionary<string, object?>
                 {
                     ["resourceType"] = resource.GetType().FullName,
@@ -63,17 +70,8 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
                 }));
         }
 
-        var user = httpContext.User;
-        if (user?.Identity?.IsAuthenticated is not true)
-        {
-            return Left<EncinaError, bool>(EncinaErrors.Unauthorized( // NOSONAR S6966
-                new Dictionary<string, object?>
-                {
-                    ["resourceType"] = resource.GetType().FullName,
-                    ["policy"] = policy
-                }));
-        }
-
+        // An authenticated identity built without a principal (builders only) satisfies no policy.
+        var user = identity.Principal ?? new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
         var result = await _authorizationService
             .AuthorizeAsync(user, resource, policy)
             .ConfigureAwait(false);

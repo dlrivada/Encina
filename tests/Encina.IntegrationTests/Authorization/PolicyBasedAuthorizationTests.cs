@@ -119,7 +119,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         result.IfLeft(error =>
         {
             error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -365,22 +365,15 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         string? userId,
         string[]? roles = null)
     {
+        // The real authorization service and policies; the caller is the request identity the
+        // accessor holds (#1705: never HttpContext.User).
         var scope = _serviceProvider.CreateScope();
-        var httpContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(userId is null
+            ? RequestContext.CreateForTest()
+            : TestRequestContext.For(TestIdentity.User(userId, roles, claims: [new Claim(ClaimTypes.NameIdentifier, userId)])));
 
-        if (userId is not null)
-        {
-            httpContextAccessor.HttpContext = CreateHttpContext(userId, roles);
-        }
-        else
-        {
-            httpContextAccessor.HttpContext = new DefaultHttpContext
-            {
-                RequestServices = scope.ServiceProvider
-            };
-        }
-
-        var authorizer = scope.ServiceProvider.GetRequiredService<IResourceAuthorizer>();
+        var authorizer = new ResourceAuthorizer(scope.ServiceProvider.GetRequiredService<IAuthorizationService>(), accessor);
         return (authorizer, scope);
     }
 

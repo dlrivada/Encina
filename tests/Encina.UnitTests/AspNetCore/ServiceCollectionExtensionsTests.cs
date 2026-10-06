@@ -175,17 +175,17 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAuthorization_WhenCalled_RegistersHttpContextAccessor()
+    public void AddEncinaAuthorization_WhenCalled_ResolvesTheResourceAuthorizer_OnTheRequestIdentityAccessor()
     {
         var services = new ServiceCollection();
-        services.AddLogging();
         services.AddRouting();
 
         services.AddEncinaAuthorization();
         using var provider = BuildValidatedProvider(services);
+        using var scope = provider.CreateScope();
 
-        var http = provider.GetService<IHttpContextAccessor>();
-        http.ShouldNotBeNull();
+        scope.ServiceProvider.GetRequiredService<IResourceAuthorizer>().ShouldNotBeNull();
+        provider.GetRequiredService<IRequestContextAccessor>().ShouldBeOfType<RequestContextAccessor>();
     }
 
     [Fact]

@@ -186,9 +186,9 @@ public static class ServiceCollectionExtensions
             configureAuthorization?.Invoke(config);
         });
 
-        // The behavior logs; ResourceAuthorizer reads the request through IHttpContextAccessor.
+        // The behavior logs; ResourceAuthorizer reads the request identity from the accessor.
         services.AddLogging();
-        services.AddHttpContextAccessor();
+        services.AddEncinaRequestIdentity();
 
         // The [Authorize] gate itself. TryAddEnumerable: it is added even when other behaviors are
         // registered, and once when AddEncina's cfg.AddAuthorization() registered it too.

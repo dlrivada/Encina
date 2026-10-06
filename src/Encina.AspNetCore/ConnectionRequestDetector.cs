@@ -44,17 +44,17 @@ internal static class ConnectionRequestDetector
     private static bool IsEventStreamGet(HttpRequest request) =>
         HttpMethods.IsGet(request.Method) && AcceptsEventStream(request.Headers.Accept);
 
-    // Parsed media types (parameters and q ignored, wildcards excluded); a malformed header errs on the skip.
+    // Parsed media types (parameters and q ignored, wildcards excluded). The raw text check runs first,
+    // so a GET without the media type pays no parsing; a header with any malformed entry errs on the skip.
     private static bool AcceptsEventStream(StringValues accept)
     {
-        if (StringValues.IsNullOrEmpty(accept))
+        if (!accept.Any(static value => value?.Contains(EventStreamMediaType, StringComparison.OrdinalIgnoreCase) == true))
         {
             return false;
         }
 
-        return MediaTypeHeaderValue.TryParseList(accept, out var mediaTypes)
-            ? mediaTypes.Any(static mediaType => mediaType.MediaType.Equals(EventStreamMediaType, StringComparison.OrdinalIgnoreCase))
-            : accept.Any(static value => value?.Contains(EventStreamMediaType, StringComparison.OrdinalIgnoreCase) == true);
+        return !MediaTypeHeaderValue.TryParseStrictList(accept, out var mediaTypes)
+            || mediaTypes.Any(static mediaType => mediaType.MediaType.Equals(EventStreamMediaType, StringComparison.OrdinalIgnoreCase));
     }
 
     // Comma-separated protocol tokens, each optionally "name/version".

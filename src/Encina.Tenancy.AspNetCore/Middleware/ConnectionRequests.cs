@@ -43,14 +43,13 @@ internal static class ConnectionRequests
 
     private static bool AcceptsEventStream(StringValues accept)
     {
-        if (StringValues.IsNullOrEmpty(accept))
+        if (!accept.Any(static value => value?.Contains(EventStreamMediaType, StringComparison.OrdinalIgnoreCase) == true))
         {
             return false;
         }
 
-        return MediaTypeHeaderValue.TryParseList(accept, out var mediaTypes)
-            ? mediaTypes.Any(static mediaType => mediaType.MediaType.Equals(EventStreamMediaType, StringComparison.OrdinalIgnoreCase))
-            : accept.Any(static value => value?.Contains(EventStreamMediaType, StringComparison.OrdinalIgnoreCase) == true);
+        return !MediaTypeHeaderValue.TryParseStrictList(accept, out var mediaTypes)
+            || mediaTypes.Any(static mediaType => mediaType.MediaType.Equals(EventStreamMediaType, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool ListsToken(StringValues values, string token) =>
