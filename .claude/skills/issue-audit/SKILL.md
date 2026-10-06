@@ -204,7 +204,7 @@ ticks "Documentation gap" too. This closes the exact instability audit #17 hit: 
 one detail used to re-roll every other draft's own Type tick as well (#1492).
 
 Regenerating just one or two findings' drafts (a verifier `FAIL` naming only those) does not have to touch
-every other draft: `-Prepare -Only "<stage> <n>"` (one finding per run, e.g. `-Only "code 3"`; PowerShell rejects a repeated parameter and `pwsh -File` does not split a list, #1645) prepares
+every other draft: `-Prepare -Only "<stage> <n>"` (e.g. `-Only "code 3"`, or `-Only "code 3,tests 2"` as one comma-separated value, because PowerShell rejects a repeated parameter and `pwsh -File` hands a list over as one string; every list switch splits it, #1863) prepares
 only the named finding's group; every other finding keeps its draft, input and `stages/remediation.md` line
 byte-identical, and the manifest marks it `"regenerate": false` with its existing line, so the drafter rewrites
 only the named drafts (#1492 decision 3). It requires `stages/remediation.md` to already carry a line for every
@@ -214,7 +214,7 @@ rather than guessing.
 Some real duplicates can never pass `Test-DuplicateEvidence`: a candidate that only MENTIONS the finding's file
 and symbol as one item of a numbered list inside its own Description is exactly what #1393 excludes from
 evidence (audit #18's docs finding 12 vs. #1177, which lists it as item 6 of a drift report). For that case,
-`-DuplicateOf "<stage> <n>=<issue>"` (one value per run, e.g. `-DuplicateOf "docs 12=1177"`; several values are #1645) records the named finding
+`-DuplicateOf "<stage> <n>=<issue>"` (e.g. `-DuplicateOf "docs 12=1177"`; several overrides go in one comma-separated value, #1863) records the named finding
 as a duplicate of the given issue by explicit, logged override -- once `audit-verifier` or the orchestrator has
 confirmed it, never guessed by the script or the drafter. It format-validates each entry up front and (unless
 `-NoGh`) verifies the target is a real OPEN issue via `gh issue view`, before touching any file; a key that does
@@ -314,6 +314,18 @@ anything. Its `stages/verification.md` starts with `Verdict: PASS` or `Verdict: 
   (checked by reading `stages/verification.md`'s first line). Re-spawn the named stage's agent, re-commit it,
   then re-spawn `audit-verifier` for a fresh verdict. Update the board: `verdict=FAIL` and add a `gates/<id>`
   entry describing the correction; clear it (or add a `verdict=PASS` entry) once the re-run passes.
+  - A correction that says a finding "is not a duplicate" of the open issue the evidence matched, or that
+    findings "must not be merged", is applied by re-running `audit-draft-remediation.ps1 -Prepare`, not by opening
+    the issue by hand (#1863). `-NotDuplicate "<stage> <n>"` skips the evidence duplicate decision AND the
+    location merge for that finding, so it gets its own draft with the normal draft line (the manifest records
+    `duplicateSource` `manual not-duplicate`, and the matched issue is listed as related). `-NoMerge "<stage> <n>"`
+    keeps a finding out of every location merge: it is never merged into another, and nothing is merged into it
+    (audit #25: tests 11 is a defect that shared a location with tests 9, a missing test). Several findings go in
+    one comma-separated value, `-NotDuplicate "tests 8,tests 9"` (this works through `pwsh -File`), and both
+    combine with `-Only`, which still prepares the named findings. Both persist in the manifest
+    (`notDuplicateOverrides`, `noMergeOverrides`) through later `-Prepare` runs, each is a lesson, and a finding
+    named in both `-NotDuplicate` and `-DuplicateOf`, or an unknown key, fails before anything is written. Then
+    re-spawn `remediation-drafter` for the changed drafts and run `-Finalize`.
 - Re-committing a stage's artifact AFTER a PASS verdict (e.g. regenerating remediation drafts once more)
   makes that verdict stale by the same git-history check (#1555): `audit-stage-guard.ps1` then allows
   re-spawning `audit-verifier` on its own, and `audit-done.ps1` refuses to close the audit until it does.

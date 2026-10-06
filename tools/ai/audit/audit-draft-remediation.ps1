@@ -26,13 +26,22 @@
 #      placeholders, and that stages/remediation.md carries the manifest's line for every finding. It prints
 #      every problem and exits 1 when any remains; the orchestrator re-spawns the drafter with that output.
 #
-# -Only "<stage> <n>" (one value per run today, because PowerShell rejects a repeated parameter and pwsh -File does
-# not split a list; comma-separated values are #1645's scope; -Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
+# Every list parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge) takes an array in-process and a
+# single comma-separated string under `pwsh -File` ('tests 8,tests 9'; #1863, which settles #1645's limitation).
+#
+# -NotDuplicate "<stage> <n>" (-Prepare only; #1863): the verifier ruled the finding is not a duplicate. It skips the
+# evidence duplicate decision AND the location merge, so the finding gets its own draft with the normal draft line;
+# the manifest records duplicateSource 'manual not-duplicate'. -NoMerge "<stage> <n>" (#1863): the finding is never
+# merged into another by location and nothing is merged into it. Both persist through later -Prepare runs (the
+# manifest's notDuplicateOverrides/noMergeOverrides), are lessons, and apply to the named findings under -Only. A
+# finding named in both -NotDuplicate and -DuplicateOf, or an unknown key, fails before anything is written.
+#
+# -Only "<stage> <n>" (-Prepare only; #1492 decision 3, widened by #1491 decision 4): prepares only
 # the named finding's location group. Every other finding keeps its draft, its input and its stages/remediation.md
 # line untouched: the manifest carries that line verbatim with "regenerate": false. Requires an existing
 # stages/remediation.md with a line for every other finding.
 #
-# -DuplicateOf "<stage> <n>=<issue>" (one value per run today, like -Only; #1645; -Prepare only; #1534): records the named finding's whole
+# -DuplicateOf "<stage> <n>=<issue>" (-Prepare only; #1534): records the named finding's whole
 # group as a duplicate of the given OPEN issue by explicit, logged override (" (manual override)" on its line,
 # a lesson in the manifest). A malformed entry or an unknown key fails before any file is touched; the issue
 # must be OPEN (checked with gh unless -NoGh). An override's group is always prepared, even without -Only.
@@ -79,7 +88,9 @@ param(
     [switch]$NoGh,
     [string[]]$Only,
     [string[]]$DuplicateOf,
-    [string[]]$MergeInto
+    [string[]]$MergeInto,
+    [string[]]$NotDuplicate,
+    [string[]]$NoMerge
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,21 +102,38 @@ function Stop-Remediation([string]$Message) {
     exit 1
 }
 
+# #1863: PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b',
+# so every list parameter accepts an array (in-process) and a single comma-separated string alike.
+function Expand-Specs([string[]]$Values) {
+    return , @($Values | Where-Object { $null -ne $_ } | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+}
+$Only = Expand-Specs $Only
+$DuplicateOf = Expand-Specs $DuplicateOf
+$MergeInto = Expand-Specs $MergeInto
+$NotDuplicate = Expand-Specs $NotDuplicate
+$NoMerge = Expand-Specs $NoMerge
+
 if ($Prepare -eq $Finalize) { Stop-Remediation 'pass exactly one of -Prepare or -Finalize.' }
-if ($Finalize -and (($Only -and $Only.Count -gt 0) -or ($DuplicateOf -and $DuplicateOf.Count -gt 0) -or ($MergeInto -and $MergeInto.Count -gt 0))) {
-    Stop-Remediation '-Only, -DuplicateOf and -MergeInto apply to -Prepare only.'
+if ($Finalize -and ($Only.Count -gt 0 -or $DuplicateOf.Count -gt 0 -or $MergeInto.Count -gt 0 -or $NotDuplicate.Count -gt 0 -or $NoMerge.Count -gt 0)) {
+    Stop-Remediation '-Only, -DuplicateOf, -MergeInto, -NotDuplicate and -NoMerge apply to -Prepare only.'
+}
+
+# '<stage> <n>' values (-Only, -NotDuplicate, -NoMerge) to a set of 'stage|n' keys.
+function ConvertTo-KeySet([string]$Option, [string[]]$Specs) {
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($spec in $Specs) {
+        $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
+        if ($specParts.Count -ne 2) { Stop-Remediation "$Option value '$spec' must be '<stage> <n>' (e.g. 'code 3')." }
+        [void]$set.Add("$($specParts[0])|$($specParts[1])")
+    }
+    return , $set
 }
 
 # Fail-fast argument parsing, before any file or gh call (#1492 decision 3, #1534).
 $onlyKeys = $null
-if ($Only -and $Only.Count -gt 0) {
-    $onlyKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($spec in $Only) {
-        $specParts = @($spec -split '\s+' | Where-Object { $_ -ne '' })
-        if ($specParts.Count -ne 2) { Stop-Remediation "-Only value '$spec' must be '<stage> <n>' (e.g. 'code 3')." }
-        [void]$onlyKeys.Add("$($specParts[0])|$($specParts[1])")
-    }
-}
+if ($Only.Count -gt 0) { $onlyKeys = ConvertTo-KeySet '-Only' $Only }
+$newNotDuplicateKeys = ConvertTo-KeySet '-NotDuplicate' $NotDuplicate
+$newNoMergeKeys = ConvertTo-KeySet '-NoMerge' $NoMerge
 $duplicateOfEntries = $null
 if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
     $duplicateOfEntries = [ordered]@{}
@@ -118,6 +146,10 @@ if ($DuplicateOf -and $DuplicateOf.Count -gt 0) {
             Stop-Remediation "-DuplicateOf has conflicting entries for '$($dupKey -replace '\|', ' ')' (#$($duplicateOfEntries[$dupKey]) and #$dupIssue)."
         }
         $duplicateOfEntries[$dupKey] = $dupIssue
+    }
+    # #1863 decision 4: a finding cannot be both a manual duplicate and a manual not-duplicate.
+    foreach ($dupKey in $duplicateOfEntries.Keys) {
+        if ($newNotDuplicateKeys.Contains($dupKey)) { Stop-Remediation "'$($dupKey -replace '\|', ' ')' is named in both -DuplicateOf and -NotDuplicate; choose one." }
     }
 }
 
@@ -139,10 +171,7 @@ function ConvertTo-MergeEntries([string[]]$Specs) {
     }
     return , $entries
 }
-# PowerShell rejects a repeated parameter name and `pwsh -File` hands "a","b" over as the one string 'a,b', so
-# several overrides arrive as one comma-separated value: -MergeInto 'docs 6=code 2','docs 5=code 3'.
-if ($MergeInto) { $MergeInto = @($MergeInto | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() -ne '' }) }
-$newMergeEntries = if ($MergeInto -and $MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeInto } else { [ordered]@{} }
+$newMergeEntries = if ($MergeInto.Count -gt 0) { ConvertTo-MergeEntries $MergeInto } else { [ordered]@{} }
 $mergeIntoEntries = $null   # the effective set (previous manifest's merges plus this run's), built in -Prepare
 
 $mainRoot = Get-MainRoot $PSScriptRoot
@@ -453,11 +482,40 @@ if (Test-Path -LiteralPath $manifestPath) {
 }
 foreach ($mergeSrc in $newMergeEntries.Keys) { $mergeIntoEntries[$mergeSrc] = $newMergeEntries[$mergeSrc] }
 
+# #1863: -NotDuplicate and -NoMerge persist like merges: the previous manifest's overrides are re-applied by every
+# later -Prepare (full or -Only), so an -Only run never silently re-merges or re-matches a finding the verifier
+# ruled on. A kept -NotDuplicate is dropped when this run's -DuplicateOf names that finding (the newer decision
+# wins); a kept override whose finding no longer exists is dropped with a note. -NotDuplicate implies -NoMerge.
+$notDuplicateKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$noMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($k in $newNotDuplicateKeys) { [void]$notDuplicateKeys.Add($k) }
+foreach ($k in $newNoMergeKeys) { [void]$noMergeKeys.Add($k) }
+if (Test-Path -LiteralPath $manifestPath) {
+    $previousOverrides = $null
+    try { $previousOverrides = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $previousOverrides = $null }
+    if ($previousOverrides) {
+        foreach ($pair in @(@{ Option = '-NotDuplicate'; Set = $notDuplicateKeys; Names = @($previousOverrides.notDuplicateOverrides) }, @{ Option = '-NoMerge'; Set = $noMergeKeys; Names = @($previousOverrides.noMergeOverrides) })) {
+            foreach ($keptName in @($pair.Names | Where-Object { $_ })) {
+                $keptKey = (@($keptName -split '\s+' | Where-Object { $_ -ne '' }) -join '|')
+                if (-not $allFindingKeys.Contains($keptKey)) { $mergeNotes.Add("dropped the $($pair.Option) override '$keptName' of the previous manifest: that finding is no longer in the stage artifacts."); continue }
+                if ($pair.Option -eq '-NotDuplicate' -and $duplicateOfEntries -and $duplicateOfEntries.Contains($keptKey)) { $mergeNotes.Add("dropped the -NotDuplicate override '$keptName' of the previous manifest: this run's -DuplicateOf names it."); continue }
+                if ($pair.Set.Add($keptKey) -and -not ($newNotDuplicateKeys.Contains($keptKey) -or $newNoMergeKeys.Contains($keptKey))) { $mergeNotes.Add("keeping the $($pair.Option) override '$keptName' of the previous manifest.") }
+            }
+        }
+    }
+}
+foreach ($k in $notDuplicateKeys) { [void]$noMergeKeys.Add($k) }
+
 $requestedKeys = @()
+foreach ($k in $newNotDuplicateKeys) { $requestedKeys += [pscustomobject]@{ Option = '-NotDuplicate'; Key = $k } }
+foreach ($k in $newNoMergeKeys) { $requestedKeys += [pscustomobject]@{ Option = '-NoMerge'; Key = $k } }
 if ($duplicateOfEntries) { $requestedKeys += @($duplicateOfEntries.Keys | ForEach-Object { [pscustomobject]@{ Option = '-DuplicateOf'; Key = $_ } }) }
 foreach ($mergeSrc in $mergeIntoEntries.Keys) {
     $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeSrc }
     $requestedKeys += [pscustomobject]@{ Option = '-MergeInto'; Key = $mergeIntoEntries[$mergeSrc] }
+    foreach ($mergeEnd in $mergeSrc, $mergeIntoEntries[$mergeSrc]) {
+        if ($noMergeKeys.Contains($mergeEnd)) { Stop-Remediation "-MergeInto '$($mergeSrc -replace '\|', ' ')=$($mergeIntoEntries[$mergeSrc] -replace '\|', ' ')' names '$($mergeEnd -replace '\|', ' ')', which -NoMerge or -NotDuplicate keeps out of every merge." }
+    }
 }
 if ($onlyKeys) { $requestedKeys += @($onlyKeys | ForEach-Object { [pscustomobject]@{ Option = '-Only'; Key = $_ } }) }
 foreach ($requested in $requestedKeys) {
@@ -476,7 +534,22 @@ if ($duplicateOfEntries -and -not $NoGh) {
 
 # #1491: groups by leading location anchor, computed from the FULL finding set so an -Only run picks the same
 # group and primary a full run would.
-$groups = Group-FindingsByLocation $allFindings
+$groups = [System.Collections.Generic.List[object]]::new([object[]]@(Group-FindingsByLocation $allFindings))
+# #1863: a -NoMerge or -NotDuplicate finding is never merged by location, and nothing is merged into it: it leaves
+# its location group and stands alone, so it gets its own draft whatever else cites its file:line.
+$leftGroupIndexByKey = @{}   # no-merge key -> the index of the group it left (its siblings are re-prepared with it)
+foreach ($noMergeKey in $noMergeKeys) {
+    foreach ($splitGroup in @($groups)) {
+        $splitMember = @($splitGroup.Members | Where-Object { "$($_.Stage)|$($_.Id)" -ieq $noMergeKey }) | Select-Object -First 1
+        if ($null -eq $splitMember -or $splitGroup.Members.Count -le 1) { continue }
+        $leftGroupIndexByKey[$noMergeKey] = $groups.IndexOf($splitGroup)
+        [void]$splitGroup.Members.Remove($splitMember)
+        $aloneMembers = [System.Collections.Generic.List[pscustomobject]]::new()
+        $aloneMembers.Add($splitMember)
+        $groups.Add([pscustomobject]@{ Anchor = $splitGroup.Anchor; Members = $aloneMembers })
+        break
+    }
+}
 $groupIndexByKey = @{}
 for ($gi = 0; $gi -lt $groups.Count; $gi++) {
     $groups[$gi] | Add-Member -NotePropertyName Primary -NotePropertyValue (Get-GroupPrimary $groups[$gi].Members)
@@ -609,6 +682,11 @@ if ($onlyKeys) {
     }
     foreach ($dupGroupIdx in $groupDuplicateIssue.Keys) { if ($seenGroups.Add($dupGroupIdx)) { $touchedGroupIndexes.Add($dupGroupIdx) } }
     foreach ($mergeGroupIdx in $mergeTargetGroupIndexes) { if ($seenGroups.Add($mergeGroupIdx)) { $touchedGroupIndexes.Add($mergeGroupIdx) } }
+    # #1863: an override of this run always takes effect on its own finding, and on the group it left.
+    foreach ($overrideKey in @($newNotDuplicateKeys) + @($newNoMergeKeys)) {
+        if ($seenGroups.Add($groupIndexByKey[$overrideKey])) { $touchedGroupIndexes.Add($groupIndexByKey[$overrideKey]) }
+        if ($leftGroupIndexByKey.ContainsKey($overrideKey) -and $seenGroups.Add($leftGroupIndexByKey[$overrideKey])) { $touchedGroupIndexes.Add($leftGroupIndexByKey[$overrideKey]) }
+    }
 }
 else { for ($gi = 0; $gi -lt $groups.Count; $gi++) { if ($groups[$gi].Members.Count -gt 0) { $touchedGroupIndexes.Add($gi) } } }
 
@@ -650,6 +728,8 @@ foreach ($splitNote in @($script:SplitFindingsNotes)) {
 if ($duplicateOfEntries) {
     foreach ($dupKey in $duplicateOfEntries.Keys) { $lessons.Add("$($dupKey -replace '\|', ' '): recorded as duplicate of #$($duplicateOfEntries[$dupKey]) by manual override") }
 }
+foreach ($k in $notDuplicateKeys) { if ($touchedMemberKeys.Contains($k)) { $lessons.Add("$($k -replace '\|', ' '): recorded as not a duplicate and kept out of location merges by manual override") } }
+foreach ($k in $noMergeKeys) { if ($touchedMemberKeys.Contains($k) -and -not $notDuplicateKeys.Contains($k)) { $lessons.Add("$($k -replace '\|', ' '): kept out of location merges by manual override") } }
 # A kept merge's lesson stays with the stage file's own lines (keptLessons) unless its source is prepared again.
 foreach ($mergeLesson in $mergeLessonItems) { if ($touchedMemberKeys.Contains($mergeLesson.Key)) { $lessons.Add($mergeLesson.Text) } }
 
@@ -673,7 +753,8 @@ foreach ($gi in $touchedGroupIndexes) {
         $duplicateOfIssue = $groupDuplicateIssue[$gi]
         $duplicateSource = 'manual override'
     }
-    elseif (-not $NoGh) {
+    elseif ($notDuplicateKeys.Contains($primaryKey)) { $duplicateSource = 'manual not-duplicate' }
+    if (-not $groupDuplicateIssue.ContainsKey($gi) -and -not $NoGh) {
         # One search per term (GitHub ANDs a space-separated query), merged by number, capped at 10.
         $candidatesByNumber = [ordered]@{}
         foreach ($term in (Get-SearchTerms $primary.Text)) {
@@ -694,7 +775,9 @@ foreach ($gi in $touchedGroupIndexes) {
             [pscustomobject]@{ Number = $number; Title = [string]$c.title; TitleAndBody = if ($cached) { "$($cached.title)`n$($cached.body)" } else { '' } }
         }
         $evidenceCandidates = @($evidenceCandidates)
-        $duplicateOfIssue = Find-DuplicateAmongCandidates $primary.Text $evidenceCandidates
+        # #1863: a -NotDuplicate finding skips the evidence decision; a candidate that would have matched is
+        # then listed as partially or possibly related like any other.
+        $duplicateOfIssue = if ($duplicateSource -eq 'manual not-duplicate') { $null } else { Find-DuplicateAmongCandidates $primary.Text $evidenceCandidates }
         if ($duplicateOfIssue) { $duplicateSource = 'evidence' }
         else {
             foreach ($c in $evidenceCandidates) {
@@ -825,6 +908,8 @@ $manifest = [ordered]@{
     lessons        = @($lessons)
     keptLessons    = @($keptLessons)
     mergeOverrides = @($mergeIntoEntries.Keys | ForEach-Object { "$($_ -replace '\|', ' ')=$($mergeIntoEntries[$_] -replace '\|', ' ')" })
+    notDuplicateOverrides = @($notDuplicateKeys | ForEach-Object { $_ -replace '\|', ' ' })
+    noMergeOverrides      = @($noMergeKeys | Where-Object { -not $notDuplicateKeys.Contains($_) } | ForEach-Object { $_ -replace '\|', ' ' })
     routes         = $routes
     findings       = @($findingEntries)
 }
