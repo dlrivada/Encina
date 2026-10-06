@@ -18,7 +18,10 @@ internal interface IRequestIdentityFactory
     /// authenticated principal without a user-id claim, a reserved or malformed user id, and
     /// conflicting authenticated identities all map to <see cref="RequestIdentity.Anonymous"/>.
     /// </summary>
-    RequestIdentity Create(ClaimsPrincipal? principal);
+    /// <param name="principal">The principal to map.</param>
+    /// <param name="issuer">The scope that issues the identity, or <see langword="null"/>.</param>
+    /// <returns>The identity, stamped with <paramref name="issuer"/> and the configured per-token claim types.</returns>
+    RequestIdentity Create(ClaimsPrincipal? principal, IdentityIssuer? issuer = null);
 
     /// <summary>
     /// Resolves the tenant id from the authenticated identities of <paramref name="principal"/>, or

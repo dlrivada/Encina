@@ -2052,3 +2052,70 @@ static Encina.Validation.EndpointValidator.ValidateHost(string? host, string! pr
 static Encina.Validation.EndpointValidator.ValidateUri(System.Uri? uri, string! propertyName, Encina.Validation.EndpointPolicy! policy) -> string?
 static Encina.Validation.EndpointValidator.ValidateUrl(string? url, string! propertyName, Encina.Validation.EndpointPolicy! policy) -> string?
 static readonly Encina.Diagnostics.EventIdRanges.CdcMySql -> (int Min, int Max)
+Encina.IdentityScopeOptions
+Encina.IdentityScopeOptions.AllowOverInbound.get -> bool
+Encina.IdentityScopeOptions.AllowOverInbound.init -> void
+Encina.IdentityScopeOptions.IdentityScopeOptions(string? TenantId = null, bool AllowOverInbound = false) -> void
+Encina.IdentityScopeOptions.TenantId.get -> string?
+Encina.IdentityScopeOptions.TenantId.init -> void
+Encina.InboundRequestInfo
+Encina.InboundRequestInfo.CorrelationId.get -> string?
+Encina.InboundRequestInfo.CorrelationId.init -> void
+Encina.InboundRequestInfo.DataRegion.get -> string?
+Encina.InboundRequestInfo.DataRegion.init -> void
+Encina.InboundRequestInfo.IdempotencyKey.get -> string?
+Encina.InboundRequestInfo.IdempotencyKey.init -> void
+Encina.InboundRequestInfo.InboundRequestInfo(System.Security.Claims.ClaimsPrincipal? Principal, string? CorrelationId = null, string? TenantHeaderValue = null, string? IdempotencyKey = null, string? IpAddress = null, string? UserAgent = null, string? DataRegion = null) -> void
+Encina.InboundRequestInfo.IpAddress.get -> string?
+Encina.InboundRequestInfo.IpAddress.init -> void
+Encina.InboundRequestInfo.Principal.get -> System.Security.Claims.ClaimsPrincipal?
+Encina.InboundRequestInfo.Principal.init -> void
+Encina.InboundRequestInfo.TenantHeaderValue.get -> string?
+Encina.InboundRequestInfo.TenantHeaderValue.init -> void
+Encina.InboundRequestInfo.UserAgent.get -> string?
+Encina.InboundRequestInfo.UserAgent.init -> void
+const Encina.InboundRequestInfo.MaxDataRegionLength = 16 -> int
+const Encina.InboundRequestInfo.MaxIdLength = 128 -> int
+const Encina.InboundRequestInfo.MaxIdempotencyKeyLength = 255 -> int
+const Encina.InboundRequestInfo.MaxUserAgentLength = 512 -> int
+override Encina.InboundRequestInfo.ToString() -> string!
+static Encina.InboundRequestInfo.ForCircuit(System.Security.Claims.ClaimsPrincipal? principal, string! correlationId) -> Encina.InboundRequestInfo!
+Encina.IRequestContextScopeFactory
+Encina.IRequestContextScopeFactory.RunAsPrincipalAsync<T>(System.Security.Claims.ClaimsPrincipal! principal, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunAsServiceAsync<T>(string! serviceId, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunInboundAsync<T>(Encina.InboundRequestInfo! request, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IRequestContextScopeFactory.RunRestoredAsync<T>(Encina.PersistedRequestIdentity! persisted, Encina.PersistedIdentitySource source, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!>! work, string? trustedTenantId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, T>>!
+Encina.IServiceIdentityCatalog
+Encina.IServiceIdentityCatalog.TryGet(string! name, out Encina.ServiceIdentityDefinition! definition) -> bool
+Encina.PersistedIdentitySource
+Encina.PersistedIdentitySource.External = 2 -> Encina.PersistedIdentitySource
+Encina.PersistedIdentitySource.Internal = 1 -> Encina.PersistedIdentitySource
+Encina.RequestContextScopeFactoryExtensions
+static Encina.RequestContextScopeFactoryExtensions.RunAsPrincipalAsync(this Encina.IRequestContextScopeFactory! factory, System.Security.Claims.ClaimsPrincipal! principal, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunAsServiceAsync(this Encina.IRequestContextScopeFactory! factory, string! serviceId, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, Encina.IdentityScopeOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunInboundAsync(this Encina.IRequestContextScopeFactory! factory, Encina.InboundRequestInfo! request, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+static Encina.RequestContextScopeFactoryExtensions.RunRestoredAsync(this Encina.IRequestContextScopeFactory! factory, Encina.PersistedRequestIdentity! persisted, Encina.PersistedIdentitySource source, System.Func<Encina.IRequestContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! work, string? trustedTenantId = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<LanguageExt.Either<Encina.EncinaError, LanguageExt.Unit>>!
+const Encina.RequestIdentityErrorCodes.InvalidPersistedIdentity = "encina.identity.invalid_persisted_identity" -> string!
+const Encina.RequestIdentityErrorCodes.ReservedServiceIdentity = "encina.identity.reserved_service_identity" -> string!
+const Encina.RequestIdentityErrorCodes.TenantConflict = "encina.identity.tenant_conflict" -> string!
+const Encina.RequestIdentityErrorCodes.UnknownServiceIdentity = "encina.identity.unknown_service_identity" -> string!
+const Encina.RequestIdentityErrorCodes.UnsupportedAccessor = "encina.identity.unsupported_accessor" -> string!
+static Encina.RequestIdentityErrors.InvalidPersistedIdentity(string! reason) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.ReservedServiceIdentity(string! serviceName) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.TenantConflict(Encina.IdentityKind ambientKind, Encina.IdentityKind requestedKind) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.UnknownServiceIdentity(string! serviceName) -> Encina.EncinaError
+static Encina.RequestIdentityErrors.UnsupportedAccessor() -> Encina.EncinaError
+Encina.RequestIdentityOptions.PerTokenClaimTypes.get -> System.Collections.Generic.IList<string!>!
+static Encina.RequestIdentityOptions.DefaultPerTokenClaimTypes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+static Encina.RequestIdentityServiceCollectionExtensions.AddEncinaServiceIdentity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Encina.ServiceIdentityBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Encina.ServiceIdentityBuilder
+Encina.ServiceIdentityBuilder.ServiceIdentityBuilder() -> void
+Encina.ServiceIdentityBuilder.WithClaim(string! type, string! value) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityBuilder.WithPermissions(params string![]! permissions) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityBuilder.WithRoles(params string![]! roles) -> Encina.ServiceIdentityBuilder!
+Encina.ServiceIdentityDefinition
+Encina.ServiceIdentityDefinition.Claims.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, string!>>!
+Encina.ServiceIdentityDefinition.Name.get -> string!
+Encina.ServiceIdentityDefinition.Permissions.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Encina.ServiceIdentityDefinition.Roles.get -> System.Collections.Generic.IReadOnlySet<string!>!
+override Encina.ServiceIdentityDefinition.ToString() -> string!

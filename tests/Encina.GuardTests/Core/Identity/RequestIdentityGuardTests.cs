@@ -60,10 +60,10 @@ public sealed class RequestIdentityGuardTests
         Should.Throw<ArgumentNullException>(() => RequestContext.CopyOf(null!));
 
     [Fact]
-    public void AccessorPushAndPop_Null_Throw()
+    public void AccessorPushAndEnd_Null_Throw()
     {
         Should.Throw<ArgumentNullException>(() => RequestContextAccessor.Push(null!));
-        Should.Throw<ArgumentNullException>(() => RequestContextAccessor.Pop(null!));
+        Should.Throw<ArgumentNullException>(() => RequestContextAccessor.End(null!));
     }
 
     [Fact]

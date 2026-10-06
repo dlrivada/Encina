@@ -108,18 +108,27 @@ public sealed class RequestContext : IRequestContext
         string correlationId,
         string? tenantId = null,
         string? idempotencyKey = null) =>
-        CreateAt(timestamp, correlationId, RequestIdentity.Anonymous, tenantId, idempotencyKey);
+        Build(timestamp, correlationId, RequestIdentity.Anonymous, tenantId, idempotencyKey);
 
     /// <summary>
-    /// Creates a context carrying <paramref name="identity"/>. Internal: only identity entry points
-    /// and the declared test seam call it.
+    /// Creates a context carrying <paramref name="identity"/>. Internal: in production only
+    /// <c>RequestContextScopeFactory</c> calls it (architecture test); the declared test seam
+    /// (<c>Encina.Testing</c>) calls it to build test contexts.
     /// </summary>
     internal static RequestContext CreateAt(
         DateTimeOffset timestamp,
         string correlationId,
         RequestIdentity identity,
         string? tenantId = null,
-        string? idempotencyKey = null)
+        string? idempotencyKey = null) =>
+        Build(timestamp, correlationId, identity, tenantId, idempotencyKey);
+
+    private static RequestContext Build(
+        DateTimeOffset timestamp,
+        string correlationId,
+        RequestIdentity identity,
+        string? tenantId,
+        string? idempotencyKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
         ArgumentNullException.ThrowIfNull(identity);
@@ -247,6 +256,15 @@ public sealed class RequestContext : IRequestContext
     /// </summary>
     internal RequestContext WithOrigin(RequestOrigin origin) =>
         new(this) { Origin = origin };
+
+    /// <summary>
+    /// Creates a copy with <paramref name="items"/> added to its metadata.
+    /// </summary>
+    internal RequestContext WithMetadataItems(IEnumerable<KeyValuePair<string, object?>> items)
+    {
+        var metadata = Metadata as ImmutableDictionary<string, object?> ?? Metadata.ToImmutableDictionary();
+        return new RequestContext(this) { Metadata = metadata.SetItems(items) };
+    }
 
     /// <summary>
     /// Returns the correlation id, identity kind, tenant id and idempotency key. The user id is never printed.

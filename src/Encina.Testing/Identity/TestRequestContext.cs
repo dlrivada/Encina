@@ -4,9 +4,18 @@ namespace Encina.Testing.Identity;
 /// Builds <see cref="IRequestContext"/> instances that carry a given identity, for tests.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <see cref="RequestContext.CreateForTest"/> is anonymous-only and the identity-taking factory is
-/// internal, so this class is the supported way for tests to run a request as a user (ADR-035,
-/// declared test seam). Pair it with <see cref="TestIdentity"/>.
+/// internal, so this class builds the contexts that handlers, behaviors and gates receive when a
+/// test calls them directly (ADR-035, declared test seam). Pair it with <see cref="TestIdentity"/>.
+/// </para>
+/// <para>
+/// It never binds an identity: the contexts it builds have no issuing scope, so passing one with an
+/// authenticated identity to <c>IEncina.Send</c>, <c>Publish</c> or <c>Stream</c> is refused
+/// (<see cref="RequestIdentityErrorCodes.ScopeConflict"/>) unless an active scope of the same
+/// identity is ambient. A test that dispatches with an identity binds it through
+/// <see cref="IRequestContextScopeFactory"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
