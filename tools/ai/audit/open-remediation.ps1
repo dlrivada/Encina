@@ -8,6 +8,11 @@
 # non-bug draft becomes a checklist item and a per-finding subsection of ONE technical_debt.md issue; a [BUG]
 # draft is still opened as its own issue. Every draft still gets its own row in opened.csv (pointing at the
 # consolidated issue URL) so audit-done.ps1's "every draft opened" check keeps working. Full audits do not use it.
+# When one body would exceed GitHub's 65,000-character limit (#1863), the drafts are split, whole and docs before
+# tests, into the fewest parts that each fit; each part is titled "... (part k/n)" with its own finding count and
+# opens with a line naming its place (no URLs: the later parts do not exist yet), and each draft's row carries the
+# URL of the part that holds it. A single draft that alone exceeds the limit fails the run naming it. -WhatIf prints
+# each part's title and writes one preview file per part (delta-<n>-consolidated.part<k>.preview.md).
 
 param(
     [Parameter(Mandatory)][int]$Issue,
@@ -126,10 +131,16 @@ function Get-TickedOptions([string]$Text) {
     @($Text -split "`r?`n" | ForEach-Object { if ($_ -match '^\s*-\s*\[[xX]\]\s*(.+?)\s*$') { $Matches[1] -replace '\*', '' } })
 }
 
-function Open-Consolidated($Drafts) {
-    $k = $Drafts.Count
+# GitHub rejects an issue body over 65,000 characters. $PartReserve leaves room for the one-line "part k of n" note
+# that is added to each part after the split is decided.
+$MaxBody = 65000
+$PartReserve = 400
+
+# Builds the consolidated body of the given parsed drafts. $PartNote (empty for a single issue) is one line placed
+# right after the local-draft marker. Returns @{ Body; AnyTest; K }.
+function Build-ConsolidatedBody($parsed, [string]$PartNote) {
+    $k = @($parsed).Count
     $tpl = Get-TemplateSections (Join-Path $root '.github\ISSUE_TEMPLATE\technical_debt.md')
-    $parsed = foreach ($d in $Drafts) { [pscustomobject]@{ Draft = $d; Sections = @(Split-Sections $d.Body); Test = $d.Title.StartsWith('[TEST]') } }
     $short = { param($t) ($t -replace '^\[[A-Z-]+\]\s*', '').Trim() }
 
     # Per-draft subsections for each target header, keeping every piece of the draft's text.
@@ -200,6 +211,7 @@ function Open-Consolidated($Drafts) {
     $nothing = 'No finding supplies text for this section; see the per-finding text in the other sections.'
     $bodyParts = [System.Collections.Generic.List[string]]::new()
     $bodyParts.Add("<!-- local-draft: none, reason: consolidated from $k verified remediation drafts of the #$Issue delta audit -->")
+    if ($PartNote) { $bodyParts.Add($PartNote) }
     foreach ($t in $tpl) {
         $text = switch ($t.Name) {
             'Type' {
@@ -228,44 +240,90 @@ function Open-Consolidated($Drafts) {
         }
         $bodyParts.Add("## $($t.Name)`n`n$text")
     }
-    $body = ($bodyParts -join "`n`n") + "`n"
+    return @{ Body = (($bodyParts -join "`n`n") + "`n"); AnyTest = $anyTest; K = $k }
+}
 
-    $noun = if ($k -eq 1) { 'finding' } else { 'findings' }
+# Splits the ordered parsed drafts into the fewest consecutive groups whose bodies each fit $Limit characters
+# (greedy: a draft is never split, and a group is closed only when the next draft would overflow it).
+# Fails (exit 1) when one draft alone does not fit.
+function Split-ForLimit($parsed, [int]$Limit) {
+    $groups = [System.Collections.Generic.List[object]]::new()
+    $cur = [System.Collections.Generic.List[object]]::new()
+    foreach ($p in $parsed) {
+        $try = @($cur) + $p
+        if ((Build-ConsolidatedBody $try '').Body.Length -le $Limit) { $cur.Add($p); continue }
+        if ($cur.Count -eq 0) {
+            $len = (Build-ConsolidatedBody @($p) '').Body.Length
+            Write-Error "open-remediation: the draft $($p.Draft.File.Name) alone makes a $len-character body, over the $Limit-character budget of a GitHub issue (65,000 limit); shorten that draft; no issue was created"
+            exit 1
+        }
+        $groups.Add(@($cur)); $cur = [System.Collections.Generic.List[object]]::new(); $cur.Add($p)
+    }
+    if ($cur.Count) { $groups.Add(@($cur)) }
+    return , $groups
+}
+
+function Open-Consolidated($Drafts) {
+    # Docs drafts before tests drafts, the existing per-draft order kept inside each group.
+    $parsed = @(foreach ($d in $Drafts) { [pscustomobject]@{ Draft = $d; Sections = @(Split-Sections $d.Body); Test = $d.Title.StartsWith('[TEST]') } })
+    $parsed = @(@($parsed | Where-Object { -not $_.Test }) + @($parsed | Where-Object { $_.Test }))
+
+    # Keep one issue when it fits; otherwise the fewest parts that each fit.
+    if ((Build-ConsolidatedBody $parsed '').Body.Length -le $MaxBody) {
+        $groups = [System.Collections.Generic.List[object]]::new(); $groups.Add(@($parsed))
+    }
+    else { $groups = Split-ForLimit $parsed ($MaxBody - $PartReserve) }
+    $n = $groups.Count
     $topic = switch ($Set) { 'rules-2026-10' { ' (docs and coverage obligations)' } default { '' } }
-    $title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $k $noun$topic"
-    $lab = @('technical-debt'); if ($anyTest) { $lab += 'area-testing' }
-    $lab = @($lab | Where-Object { $labels -contains $_ })
-    if (-not $lab) { $lab = @('technical-debt') }
+
+    $plan = for ($i = 0; $i -lt $n; $i++) {
+        $g = @($groups[$i]); $j = $i + 1
+        # Each part states its place; no URLs, because the later parts do not exist yet when it is created.
+        $note = if ($n -gt 1) { "Part $j of $n of the delta re-audit (``$Set``) of #${Issue}: the other parts are the issues titled with the same text and (part k/$n); each finding is in exactly one part." } else { '' }
+        $built = Build-ConsolidatedBody $g $note
+        if ($built.Body.Length -gt $MaxBody) {
+            Write-Error "open-remediation: part $j of $n is $($built.Body.Length) characters, over the 65,000 limit of a GitHub issue; no issue was created"
+            exit 1
+        }
+        $noun = if ($built.K -eq 1) { 'finding' } else { 'findings' }
+        $suffix = if ($n -gt 1) { " (part $j/$n)" } else { '' }
+        $lab = @('technical-debt'); if ($built.AnyTest) { $lab += 'area-testing' }
+        $lab = @($lab | Where-Object { $labels -contains $_ })
+        if (-not $lab) { $lab = @('technical-debt') }
+        [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $lab; Drafts = @($g | ForEach-Object { $_.Draft }) }
+    }
 
     if ($WhatIf) {
         $pdir = Join-Path $root 'artifacts\issues'
         New-Item -ItemType Directory -Force $pdir | Out-Null
-        $preview = Join-Path $pdir "delta-$Issue-consolidated.preview.md"
-        Set-Content -LiteralPath $preview $body -Encoding utf8
-        "WhatIf: $title"
-        "WhatIf: preview written to $preview; nothing created, no rows written"
+        foreach ($p in $plan) {
+            $name = if ($n -gt 1) { "delta-$Issue-consolidated.part$($p.Part).preview.md" } else { "delta-$Issue-consolidated.preview.md" }
+            $preview = Join-Path $pdir $name
+            Set-Content -LiteralPath $preview $p.Body -Encoding utf8
+            "WhatIf: $($p.Title)"
+            "WhatIf: preview written to $preview ($($p.Body.Length) characters); nothing created, no rows written"
+        }
         return
     }
 
-    if ($body.Length -gt 65000) {
-        Write-Error "open-remediation: the consolidated body is $($body.Length) characters, over the 65,000 limit of a GitHub issue; split the drafts into smaller sets"
-        exit 1
+    # Create every part first, then write the rows: a crashed run is recovered by the same-title reuse below.
+    $rows = [System.Collections.Generic.List[string]]::new()
+    foreach ($p in $plan) {
+        # Reuse an issue with the exact same title instead of creating a duplicate.
+        $json = & gh issue list --repo dlrivada/Encina --state all --search "$($p.Title) in:title" --json number,title --limit 100
+        if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh issue list failed (exit $LASTEXITCODE)"; exit 1 }
+        $found = @(("$($json -join "`n")" | ConvertFrom-Json) | Where-Object { $_.title -ceq $p.Title }) | Select-Object -First 1
+        if ($found) {
+            $url = "https://github.com/dlrivada/Encina/issues/$($found.number)"
+            "$url  $($p.Title) (already exists; reused, nothing created)"
+        }
+        else {
+            $url = New-Issue $p.Title $p.Body $p.Labels '' "consolidated-$Issue-part$($p.Part)"
+            "$url  $($p.Title)"
+        }
+        foreach ($d in $p.Drafts) { $rows.Add("$($d.File.Name),$url") }
     }
-
-    # Reuse an issue with the exact same title instead of creating a duplicate.
-    $json = & gh issue list --repo dlrivada/Encina --state all --search "$title in:title" --json number,title --limit 100
-    if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh issue list failed (exit $LASTEXITCODE)"; exit 1 }
-    $found = @(("$($json -join "`n")" | ConvertFrom-Json) | Where-Object { $_.title -ceq $title }) | Select-Object -First 1
-    if ($found) {
-        $url = "https://github.com/dlrivada/Encina/issues/$($found.number)"
-        $msg = "$url  $title (already exists; reused, nothing created)"
-    }
-    else {
-        $url = New-Issue $title $body $lab '' "consolidated-$Issue"
-        $msg = "$url  $title"
-    }
-    Add-Content $opened @($Drafts | ForEach-Object { "$($_.File.Name),$url" })
-    $msg
+    Add-Content $opened @($rows)
 }
 
 # --- main ------------------------------------------------------------------------------------------------------

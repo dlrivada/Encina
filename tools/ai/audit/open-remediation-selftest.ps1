@@ -9,7 +9,10 @@
 #      draft, every draft's text, and opened.csv with one row per draft pointing to the same URL;
 #   2. a re-run opens nothing (idempotent);
 #   3. a [BUG] draft goes to its own issue and is left out of the consolidated one;
-#   4. without -Consolidate every draft is its own issue (full audits unchanged).
+#   4. without -Consolidate every draft is its own issue (full audits unchanged);
+#   5. the 65,000-character limit (#1863): under it one unchanged issue; over it the fewest parts, each draft
+#      whole, rows pointing at the part that holds the draft, -WhatIf previews per part; a single oversized draft
+#      fails naming it with nothing created.
 #
 # Exit code: 0 if every assertion passes, 1 otherwise.
 
@@ -191,13 +194,13 @@ exit 0
     $rem = Join-Path $main 'artifacts\knowledge\remediation'
     $csv = Join-Path $rem 'opened.csv'
 
-    function Invoke-Open([string]$ExtraArgs) {
+    function Invoke-Open([string]$ExtraArgs, [int]$IssueNo = 2) {
         if (Test-Path $log) { Remove-Item $log -Force }
         Get-ChildItem $bodies -File -ErrorAction SilentlyContinue | Remove-Item -Force
-        $command = "function gh { & '$stubs\gh-stub.ps1' @args }; & '$script' -Issue 2 $ExtraArgs; exit `$LASTEXITCODE"
+        $command = "function gh { & '$stubs\gh-stub.ps1' @args }; & '$script' -Issue $IssueNo $ExtraArgs; exit `$LASTEXITCODE"
         $out = & pwsh -NoProfile -Command $command 2>&1 | ForEach-Object { "$_" }
         $creates = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'gh issue create*' }) } else { @() }
-        return @{ Exit = $LASTEXITCODE; Text = ($out -join "`n"); Creates = $creates }
+        return @{ Exit = $LASTEXITCODE; Text = ($out -join "`n"); Creates = @($creates) }
     }
 
     Write-Text (Join-Path $rem '2-delta-docs-a.md') (New-DocsDraft '[DEBT] Docs page A is stale' 'docs/a.md' 'Low' 'Small' '- #50 - related A')
@@ -286,6 +289,52 @@ exit 0
     # --- 7. -WhatIf without -Consolidate: nothing is opened ------------------------------------------------------
     $r7 = Invoke-Open '-WhatIf'
     Assert-That -Name '-WhatIf without -Consolidate prints the titles, creates nothing, writes no rows' -Condition ($r7.Exit -eq 0 -and $r7.Creates.Count -eq 0 -and $r7.Text.Contains('WhatIf: would open: [DEBT] Docs page K is stale') -and @(Get-Content $csv).Count -eq $before) -Detail $r7.Text
+
+    # --- 8. the 65,000-character limit (#1863) -------------------------------------------------------------------
+    function New-BigDraft([string]$Text, [string]$Marker, [int]$Chars) { return $Text.Replace($Marker, $Marker + "`n`n" + ('x' * $Chars)) }
+    $urlOf = { param($file, $rowsList) (($rowsList | Where-Object { $_ -like "$file,*" }) -split ',')[1] }
+
+    # 8a. under the limit: one issue, no part suffix, no part note.
+    Write-Text (Join-Path $rem '3-delta-docs-a.md') (New-DocsDraft '[DEBT] Small A' 'docs/sa.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '3-delta-docs-b.md') (New-DocsDraft '[DEBT] Small B' 'docs/sb.md' 'Low' 'Small' '')
+    $r8a = Invoke-Open '-Consolidate' 3
+    $rows8a = @(Get-Content $csv | Where-Object { $_ -like '3-delta-*' })
+    Assert-That -Name 'under the limit: one issue, no part suffix, both rows on its URL' -Condition ($r8a.Exit -eq 0 -and $r8a.Creates.Count -eq 1 -and $r8a.Creates[0].Contains('of #3: 2 findings (docs and coverage obligations) --body-file') -and -not $r8a.Creates[0].Contains('(part ') -and $rows8a.Count -eq 2 -and (& $urlOf '3-delta-docs-a.md' $rows8a) -eq (& $urlOf '3-delta-docs-b.md' $rows8a)) -Detail ($r8a.Text + ' | ' + ($rows8a -join ' | '))
+
+    # 8b. over the limit: docs A and B (about 25k each) and the test draft (25k) cannot share one body -> two parts.
+    Write-Text (Join-Path $rem '4-delta-docs-a.md') (New-BigDraft (New-DocsDraft '[DEBT] Big A' 'docs/ba.md' 'Low' 'Small' '') 'DESCRIPTION of docs/ba.md.' 25000)
+    Write-Text (Join-Path $rem '4-delta-docs-b.md') (New-BigDraft (New-DocsDraft '[DEBT] Big B' 'docs/bb.md' 'Low' 'Small' '') 'DESCRIPTION of docs/bb.md.' 25000)
+    Write-Text (Join-Path $rem '4-delta-test-c.md') (New-BigDraft $testDraft 'TEST DESCRIPTION.' 25000)
+    $r8b = Invoke-Open '-Consolidate' 4
+    $rows8b = @(Get-Content $csv | Where-Object { $_ -like '4-delta-*' })
+    $b1 = if (Test-Path (Join-Path $bodies '1.md')) { Get-Content -Raw (Join-Path $bodies '1.md') } else { '' }
+    $b2 = if (Test-Path (Join-Path $bodies '2.md')) { Get-Content -Raw (Join-Path $bodies '2.md') } else { '' }
+    Assert-That -Name 'over the limit: two parts titled (part k/2) with their own counts, each body under 65,000' -Condition ($r8b.Exit -eq 0 -and $r8b.Creates.Count -eq 2 -and $r8b.Creates[0].Contains('of #4: 2 findings (docs and coverage obligations) (part 1/2) --body-file') -and $r8b.Creates[1].Contains('of #4: 1 finding (docs and coverage obligations) (part 2/2) --body-file') -and $b1.Length -gt 0 -and $b1.Length -le 65000 -and $b2.Length -gt 0 -and $b2.Length -le 65000) -Detail ($r8b.Text + ' | ' + ($r8b.Creates -join ' | ') + " | $($b1.Length) $($b2.Length)")
+    Assert-That -Name 'over the limit: each draft whole in its part (docs first, tests last) and the part note present' -Condition ($b1.Contains('Big A') -and $b1.Contains('Big B') -and -not $b1.Contains('TEST DESCRIPTION.') -and $b2.Contains('TEST DESCRIPTION.') -and -not $b2.Contains('Big A') -and $b1.Contains('Part 1 of 2 of the delta re-audit') -and $b2.Contains('Part 2 of 2 of the delta re-audit') -and $b1.Contains('x' * 25000) -and $b2.Contains('x' * 25000)) -Detail "$($b1.Length) $($b2.Length)"
+    Assert-That -Name 'over the limit: each row points at the part holding the draft' -Condition ($rows8b.Count -eq 3 -and (& $urlOf '4-delta-docs-a.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-docs-b.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-test-c.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1002') -Detail ($rows8b -join ' | ')
+
+    # 8c. a re-run after the split opens nothing; a later draft is refused while any part exists.
+    $r8c = Invoke-Open '-Consolidate' 4
+    Assert-That -Name 'after a split, a re-run opens nothing' -Condition ($r8c.Exit -eq 0 -and $r8c.Creates.Count -eq 0 -and @(Get-Content $csv | Where-Object { $_ -like '4-delta-*' }).Count -eq 3) -Detail $r8c.Text
+
+    # 8d. -WhatIf on a split: one preview per part, nothing created.
+    Remove-Item (Join-Path $rem '4-delta-docs-a.md'), (Join-Path $rem '4-delta-docs-b.md'), (Join-Path $rem '4-delta-test-c.md') -Force
+    Write-Text $csv ((@(Get-Content $csv | Where-Object { $_ -notlike '4-delta-*' }) -join "`n") + "`n")
+    Write-Text (Join-Path $rem '4-delta-docs-a.md') (New-BigDraft (New-DocsDraft '[DEBT] Big A' 'docs/ba.md' 'Low' 'Small' '') 'DESCRIPTION of docs/ba.md.' 25000)
+    Write-Text (Join-Path $rem '4-delta-docs-b.md') (New-BigDraft (New-DocsDraft '[DEBT] Big B' 'docs/bb.md' 'Low' 'Small' '') 'DESCRIPTION of docs/bb.md.' 25000)
+    Write-Text (Join-Path $rem '4-delta-test-c.md') (New-BigDraft $testDraft 'TEST DESCRIPTION.' 25000)
+    $before8d = @(Get-Content $csv).Count
+    $r8d = Invoke-Open '-Consolidate -WhatIf' 4
+    $pv1 = Join-Path $main 'artifacts\issues\delta-4-consolidated.part1.preview.md'
+    $pv2 = Join-Path $main 'artifacts\issues\delta-4-consolidated.part2.preview.md'
+    Assert-That -Name '-WhatIf on a split: part titles printed, one preview per part under the limit, nothing created or written' -Condition ($r8d.Exit -eq 0 -and $r8d.Creates.Count -eq 0 -and $r8d.Text.Contains('(part 1/2)') -and $r8d.Text.Contains('(part 2/2)') -and (Test-Path $pv1) -and (Test-Path $pv2) -and (Get-Content -Raw $pv1).Length -le 65000 -and (Get-Content -Raw $pv2).Length -le 65000 -and @(Get-Content $csv).Count -eq $before8d) -Detail $r8d.Text
+
+    # 8e. one draft alone over the limit: fails naming it, nothing created, no rows.
+    Write-Text (Join-Path $rem '5-delta-docs-a.md') (New-BigDraft (New-DocsDraft '[DEBT] Huge' 'docs/huge.md' 'Low' 'Small' '') 'DESCRIPTION of docs/huge.md.' 70000)
+    Write-Text (Join-Path $rem '5-delta-docs-b.md') (New-DocsDraft '[DEBT] Fine' 'docs/fine.md' 'Low' 'Small' '')
+    $before8e = @(Get-Content $csv).Count
+    $r8e = Invoke-Open '-Consolidate' 5
+    Assert-That -Name 'a single oversized draft fails naming it, creates nothing, writes no rows' -Condition ($r8e.Exit -ne 0 -and $r8e.Creates.Count -eq 0 -and $r8e.Text.Contains('5-delta-docs-a.md') -and @(Get-Content $csv).Count -eq $before8e) -Detail $r8e.Text
 }
 finally {
     if (Test-Path $base) {
