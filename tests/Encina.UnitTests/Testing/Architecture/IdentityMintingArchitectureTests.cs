@@ -34,7 +34,7 @@ public sealed class IdentityMintingArchitectureTests
             Method(typeof(RequestIdentity), nameof(RequestIdentity.ForService)),
             Method(typeof(RequestContext), nameof(RequestContext.CreateAt))
         ];
-        HashSet<Type> allowed = [typeof(RequestContextScopeFactory), typeof(ClaimsRequestIdentityFactory)];
+        System.Collections.Generic.HashSet<Type> allowed = [typeof(RequestContextScopeFactory), typeof(ClaimsRequestIdentityFactory)];
 
         var callers = CallersOf(minting);
 
@@ -67,13 +67,13 @@ public sealed class IdentityMintingArchitectureTests
         offenders.ShouldBeEmpty();
     }
 
-    private static MethodBase Method(Type type, string name) =>
+    private static MethodInfo Method(Type type, string name) =>
         type.GetMethods(AllDeclared).Single(method => method.Name == name);
 
-    private static HashSet<Type> CallersOf(IReadOnlyCollection<MethodBase> targets)
+    private static System.Collections.Generic.HashSet<Type> CallersOf(IReadOnlyCollection<MethodBase> targets)
     {
         var targetSet = targets.ToHashSet();
-        var callers = new HashSet<Type>();
+        var callers = new System.Collections.Generic.HashSet<Type>();
         foreach (var method in Production.Value.SelectMany(LoadableTypes).SelectMany(static type => type.GetMethods(AllDeclared).Cast<MethodBase>().Concat(type.GetConstructors(AllDeclared))))
         {
             if (CalledMethods(method).Any(targetSet.Contains))
@@ -179,6 +179,8 @@ public sealed class IdentityMintingArchitectureTests
     private static bool IsProductionAssemblyName(string name) =>
         name.StartsWith("Encina", StringComparison.Ordinal)
         && !IsTestingAssembly(name)
+        // Test packages of other areas (Encina.Aspire.Testing) are test seams too, not production.
+        && !name.Split('.').Contains("Testing", StringComparer.Ordinal)
         && !name.Contains("Tests", StringComparison.Ordinal)
         && !name.Contains("Benchmarks", StringComparison.Ordinal)
         && !name.Contains("TestInfrastructure", StringComparison.Ordinal);
