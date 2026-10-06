@@ -648,7 +648,7 @@ REFERENCE FILES:
 3. `src/Encina.Compliance.BreachNotification/README.md`: an "Authority reporting" section with configuration and the current-law default.
 4. `docs/features/breach-notification.md`: rewrite "Notification Workflow → Authority Notification (Article 33)" around `IBreachReportingService`; add "Routing to several authorities" and "Digital Omnibus single entry point (draft, off)". Follow `.claude/skills/encina-docs/SKILL.md` (one Diátaxis quadrant per page; a how-to may be split out).
 5. `docs/INVENTORY.md`: the new `Reporting/` files.
-6. ADR at the next free number in `docs/architecture/adr/`: "Incident reporting adapters on the breach stream" (Design Choices 1, 4, 6 and 7 as decided by the maintainer); add it to `docs/architecture/adr/index.md`.
+6. ADR 040 in `docs/architecture/adr/`: "Incident reporting adapters on the breach stream" (Design Choices 1, 4, 6 and 7 as decided by the maintainer); add it to `docs/architecture/adr/index.md`.
 7. `ROADMAP.md`: mark #812's abstraction delivered in v0.15.0 and the ENISA adapter pending on the ENISA specification.
 8. `PublicAPI.Unshipped.txt` of `Encina.Compliance.BreachNotification` and `Encina`: complete (RS0016 and RS0017 clean).
 9. The article-coverage specification #1208 gets a row for COM(2025) 837 SEP (Partial: slot, adapter pending); note it on #1208 rather than editing a specification that does not exist yet.
@@ -668,7 +668,7 @@ Issue #812, plan docs/plans/enisa-single-entry-point-implementation-plan-812.md.
 
 TASK:
 Complete XML docs, write the two changelog fragments, update the package README,
-docs/features/breach-notification.md, docs/INVENTORY.md, ROADMAP.md, the ADR (next free number) and its
+docs/features/breach-notification.md, docs/INVENTORY.md, ROADMAP.md, ADR 040 and its
 index entry, the PublicAPI files, and run the build and test verification.
 
 KEY RULES:

@@ -630,7 +630,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **ADR** `docs/architecture/adr/037-release-readiness-gate.md` (037 is the next free number in `docs/architecture/adr/index.md` today; reserve it in the plan PR). It records:
+1. **ADR** `docs/architecture/adr/038-release-readiness-gate.md` (reserved; see `docs/architecture/adr/index.md`). It records:
    - the registry, the profiles and the fail-closed facts snapshot;
    - the enforcement through `ci-result` that keeps REQ-020's required checks unchanged;
    - the maintainer's answers to the Design Choices.
@@ -660,7 +660,7 @@ CONTEXT:
 - #1655 tracks the 85% coverage lines in agent and skill instructions, including .opencode/skills/release-checklist/SKILL.md.
 
 TASK:
-1. Write ADR 037 "Release readiness gate" with the alternatives of the plan's Design Choices and the maintainer's decisions.
+1. Write ADR 038 "Release readiness gate" with the alternatives of the plan's Design Choices and the maintainer's decisions.
 2. Update docs/releases/RELEASE-PROCESS.md (profiles, sign-off file, gate commands in steps 1 and 2) and add docs/releases/release-readiness.md (how-to: add, retire and answer items).
 3. Replace the checklist in .opencode/skills/release-checklist/SKILL.md with instructions to run the gate.
 4. Add release-readiness.cs to .github/scripts/README-workflows.md.
@@ -732,7 +732,7 @@ REFERENCE FILES:
 | Registry | 1 | `.github/release-checklist.json` (~70 items) |
 | Self-test fixtures | ~25 | `.github/scripts/fixtures/release-readiness/` |
 | CI | 1-2 | `ci.yml` (job + self-test step), optional dry-run workflow |
-| Documentation | 5 | ADR 037, `RELEASE-PROCESS.md`, `release-readiness.md`, `README-workflows.md`, `.opencode/skills/release-checklist/SKILL.md` |
+| Documentation | 5 | ADR 038, `RELEASE-PROCESS.md`, `release-readiness.md`, `README-workflows.md`, `.opencode/skills/release-checklist/SKILL.md` |
 | Changelog fragment | 1 | `changelog.d/104-release-readiness-gate.added.md` |
 | **Total** | **~34-35** | No `src/` file |
 
@@ -760,7 +760,7 @@ Phase 3: --render-checklist (checklist.md, PR body), --evidence (docs/releases/v
 Phase 4: ci.yml job release-readiness on release/* heads feeding ci-result; self-test step in coverage-citations; workflow_dispatch dry run; deferred-1.0 label; runbook steps.
 Phase 5: validation, resilience (retry), idempotency (deterministic output), audit trail (collector identity).
 Phase 6: fixtures and --self-test cases for every evaluator, each profile, fail-closed and determinism; first live run on the v0.14.0 release.
-Phase 7: ADR 037, RELEASE-PROCESS.md, how-to page, .opencode release-checklist skill pointer, README-workflows.md, changelog fragment.
+Phase 7: ADR 038, RELEASE-PROCESS.md, how-to page, .opencode release-checklist skill pointer, README-workflows.md, changelog fragment.
 
 KEY PATTERNS:
 - Two stages: --collect writes facts.json; --evaluate/--evidence read only facts and the sign-off file (offline, deterministic, --now for time).
@@ -835,7 +835,7 @@ The gate itself has no prerequisite: it can land now and report red items until 
 
 ## Next Steps
 
-1. The maintainer answers Design Choices 1-8; the orchestrator records the answers in a "Maintainer Decisions" section and reserves ADR 037 in `docs/architecture/adr/index.md` in the plan PR.
+1. The maintainer answers Design Choices 1-8; the orchestrator records the answers in a "Maintainer Decisions" section and reserves ADR 038 in `docs/architecture/adr/index.md` in the plan PR.
 2. The orchestrator opens the drafted issues (the fourth only if Design Choice 7 is C) and links this plan from #104.
 3. One `issue-worker` implements Phases 1-3, 5 and 6 in its own worktree. The orchestrator applies the Phase 4 `ci.yml` patch and creates the `deferred-1.0` label. `docs-writer` writes the Phase 7 pages.
 4. First live run on the `v0.14.0` release PR; false positives fixed in the same PR.

@@ -1011,7 +1011,7 @@ REFERENCE FILES:
 | #1591 Exception messages in activity tags and store errors | open | The registries touched here keep their old `ex.Message` uses for #1591; new code does not add any |
 | Issue file `plan-1196-lawfulbasis-autoregistration-errors.md` | to open | Duplicate registration on every start and swallowed `Left`; Phase 4 fixes only the `Left` part |
 | Issue file `plan-1196-lawfulbasis-queries-ignore-tenant.md` | to open | Closed by Phase 8 if Design Choice 7 is A |
-| Issue file `plan-1196-lawfulbasis-sparse-eventids.md` | to open | Pre-existing EventId gaps in `LawfulBasisLogMessages.cs` |
+| #1950 | open | Pre-existing EventId gaps in `LawfulBasisLogMessages.cs` |
 | Issue file `plan-1196-ropa-edit-history.md` | to open | Deferred audit of relational RoPA edits |
 | Issue file `plan-1196-explicit-consent-marker.md` | to open | Consent records cannot show that consent was explicit (Art. 9(2)(a)) |
 
