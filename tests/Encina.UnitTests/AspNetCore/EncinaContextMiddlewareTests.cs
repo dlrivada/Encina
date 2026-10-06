@@ -189,19 +189,21 @@ public sealed class EncinaContextMiddlewareTests
     }
 
     [Fact]
-    public async Task TheIpAddress_ComesFromXForwardedFor_ThenFromTheConnection()
+    public async Task TheIpAddress_IsTheConnectionAddress_AndXForwardedForIsIgnored()
     {
-        var forwarded = new DefaultHttpContext();
-        forwarded.Request.Headers["X-Forwarded-For"] = "203.0.113.7, 10.0.0.1";
-        var direct = new DefaultHttpContext();
-        direct.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.4");
+        // X-Forwarded-For is client-controlled; trusted proxies go through UseForwardedHeaders().
+        var spoofed = new DefaultHttpContext();
+        spoofed.Request.Headers["X-Forwarded-For"] = "203.0.113.7, 10.0.0.1";
+        spoofed.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.4");
+        var headerOnly = new DefaultHttpContext();
+        headerOnly.Request.Headers["X-Forwarded-For"] = "203.0.113.7";
 
-        await InvokeAsync(CreateMiddleware(), forwarded);
-        var forwardedIp = _seen!.GetIpAddress();
-        await InvokeAsync(CreateMiddleware(), direct);
+        await InvokeAsync(CreateMiddleware(), spoofed);
+        var spoofedIp = _seen!.GetIpAddress();
+        await InvokeAsync(CreateMiddleware(), headerOnly);
 
-        forwardedIp.ShouldBe("203.0.113.7");
-        _seen!.GetIpAddress().ShouldBe("198.51.100.4");
+        spoofedIp.ShouldBe("198.51.100.4");
+        _seen!.GetIpAddress().ShouldBeNull();
     }
 
     [Fact]
@@ -232,18 +234,29 @@ public sealed class EncinaContextMiddlewareTests
     }
 
     [Fact]
+    public void CreateInboundRequestInfo_TakesTheIpFromTheConnection_AfterUseForwardedHeadersRewroteIt()
+    {
+        // UseForwardedHeaders with a trusted proxy rewrites RemoteIpAddress; the builder reads that.
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("2001:db8::7");
+        context.Request.Headers["X-Forwarded-For"] = "203.0.113.99";
+
+        context.CreateInboundRequestInfo().IpAddress.ShouldBe("2001:db8::7");
+    }
+
+    [Fact]
     public void CreateInboundRequestInfo_CopiesThePrincipal_AndBlankHeadersAreAbsent()
     {
         var principal = TestIdentity.Principal("alice");
         var context = new DefaultHttpContext { User = principal };
         context.Request.Headers["X-Idempotency-Key"] = "   ";
-        context.Request.Headers["X-Forwarded-For"] = " , 10.0.0.1";
+        context.Request.Headers["X-Forwarded-For"] = "203.0.113.7";
 
         var info = context.CreateInboundRequestInfo();
 
         info.Principal.ShouldBeSameAs(principal);
         info.IdempotencyKey.ShouldBeNull();
-        info.IpAddress.ShouldBeNull();
+        info.IpAddress.ShouldBeNull("X-Forwarded-For is never read; only RemoteIpAddress");
         info.ToString().ShouldBe(nameof(InboundRequestInfo));
     }
 

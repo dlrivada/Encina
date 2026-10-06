@@ -11,7 +11,6 @@ namespace Encina.AspNetCore;
 /// </summary>
 public static class HttpContextInboundRequestExtensions
 {
-    private const string ForwardedForHeader = "X-Forwarded-For";
     private const string UserAgentHeader = "User-Agent";
 
     /// <summary>
@@ -26,9 +25,15 @@ public static class HttpContextInboundRequestExtensions
     /// The header names come from <see cref="EncinaAspNetCoreOptions"/> registered in
     /// <see cref="HttpContext.RequestServices"/> (the defaults when none is registered). The correlation
     /// id is the <see cref="EncinaAspNetCoreOptions.CorrelationIdHeader"/> value, otherwise the current
-    /// activity id; the IP address is the first <c>X-Forwarded-For</c> entry, otherwise the remote
-    /// address. Every value except the principal is client-controlled: the scope factory normalizes
-    /// them and never refuses a scope because of them.
+    /// activity id. Every value except the principal and the IP address is client-controlled: the
+    /// scope factory normalizes them and never refuses a scope because of them.
+    /// </para>
+    /// <para>
+    /// <b>IP address.</b> It is <see cref="ConnectionInfo.RemoteIpAddress"/> only; the client-controlled
+    /// <c>X-Forwarded-For</c> header is never read, because the address feeds the audit trail. An
+    /// application behind a reverse proxy registers <c>app.UseForwardedHeaders()</c> with
+    /// <c>ForwardedHeadersOptions.KnownProxies</c> or <c>KnownNetworks</c> (before
+    /// <c>UseEncinaContext()</c>), so ASP.NET Core rewrites <c>RemoteIpAddress</c> from trusted proxies only.
     /// </para>
     /// <para>
     /// <b>Server-sent events.</b> A GET request whose <c>Accept</c> header lists
@@ -83,15 +88,11 @@ public static class HttpContextInboundRequestExtensions
             CorrelationId: Header(headers, options.CorrelationIdHeader) ?? Activity.Current?.Id,
             TenantHeaderValue: Header(headers, options.TenantIdHeader),
             IdempotencyKey: Header(headers, options.IdempotencyKeyHeader),
-            IpAddress: ForwardedFor(headers) ?? context.Connection.RemoteIpAddress?.ToString(),
+            IpAddress: context.Connection.RemoteIpAddress?.ToString(),
             UserAgent: Header(headers, UserAgentHeader),
             DataRegion: Header(headers, options.DataRegionHeaderName));
     }
 
     private static string? Header(IHeaderDictionary headers, string name) =>
         headers.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value) ? value.ToString() : null;
-
-    // "client, proxy1, proxy2": the first entry is the original client.
-    private static string? ForwardedFor(IHeaderDictionary headers) =>
-        Header(headers, ForwardedForHeader)?.Split(',', StringSplitOptions.TrimEntries)[0] is { Length: > 0 } first ? first : null;
 }
