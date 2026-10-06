@@ -1,0 +1,17 @@
+Remediation for #21:
+- tests 1 (Major): draft 21-delta-2026-10-tests-1-github-coverage-manifest-encina-marten-json-167-174.md
+- tests 2 (Major): draft 21-delta-2026-10-tests-2-github-coverage-manifest-encina-marten-json-5-9.md
+- tests 3 (Major): draft 21-delta-2026-10-tests-3-github-coverage-manifest-encina-marten-json-148-152.md
+- tests 4 (Minor): draft 21-delta-2026-10-tests-4-github-coverage-manifest-encina-marten-json-entries-of.md
+- tests 5 (Minor): draft 21-delta-2026-10-tests-5-github-coverage-manifest-encina-marten-json-entries-projecti.md
+- tests 6 (Major): duplicate of #1906 (manual override)
+- docs 1 (Major): duplicate of #1894 (manual override)
+
+## Lessons for the pipeline
+- docs 1: recorded as duplicate of #1894 by manual override
+- tests 6: recorded as duplicate of #1906 by manual override
+- (tests 1) The tests 1 draft no longer describes the rebuild defect: it says the defect is filed as #1906 and that the rebuild integration test is its regression test and lands with or after its fix. The reflection lookups at `MartenProjectionManager.cs:547-551`, `:562-563` and `:569-570` and the dispatcher's own comment (`InlineProjectionDispatcher.cs:57-64`) were re-read, but the Marten 9.38.0 lookup result (`Directory.Packages.props:53`) is the stage's check, which this agent has no shell to repeat.
+- (tests 1, 2, 4) Targets and line sets marked derived or provisional by the tests stage (manager unit 55, the manager integration 180-line estimate, the repository catch-block lines, relay guard 31, factory guard 5, package integration 30) were not run; the drafts keep those labels so the implementer confirms each with a measured run before it enters the manifest.
+- (tests 4) The relay logging fix is stated as commit `a806ab65` (2026-09-27), as the stage recorded it after its own `git log` check; this agent has no shell to repeat it. The issue numbers the stage ties to that commit are not repeated in the draft, because the manifest carries no titles for them, so only the commit is cited. The titles of #1544 and #1348 are also not in the manifest: #1348 is cited by the manifest's partially-related line and #1544 by its subject, and the part of each that is stale (#1348 item 1, fixed at `InlineProjectionRelay.cs:134-137`) or still valid (#1544 narrowed to a direct unit test with headers plus the guard test) is stated in the draft body.
+- (tests 1-5) The Related Issues lines are written as "#N: title. why" and the Description prose does not depend on a bare issue number, so a stripped reference cannot leave dangling text; the only sentence that names a number in running text (the rebuild defect in tests 1) carries its subject next to it.
+- (all drafts) Source facts were re-read in the audit worktree: the manifest entries and package targets (`Encina.Marten.json:5-9, 95-99, 124-237`), `MartenProjectionManager.cs:30-155, 535-575`, `InlineProjectionRelay.cs:50-140`, `InlineProjectionDispatcher.cs:54-340`, `ProjectionContextFactory.cs`, `ProjectionRegistry.cs:28-102`, the interface and class declarations of `IProjection.cs`, `IReadModelRepository.cs`, `ProjectionLog.cs` and `IProjectionManager.cs`, and the test class names and test method lines cited. The Glob tool returned nothing for the existing draft folder, so the absent-path claim (no `RebuildAsync`, `ProjectionManager` or `ProjectionContextFactory` under `tests/Encina.IntegrationTests`) was checked with a count-mode Grep (0 files) while the Marten integration tests served as positive controls for the `MartenCollection` name.
