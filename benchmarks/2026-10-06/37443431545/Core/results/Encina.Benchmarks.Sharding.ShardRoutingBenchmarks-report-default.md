@@ -1,0 +1,29 @@
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+
+Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+
+ Method                           | ShardCount | Mean      | Error      | StdDev     | Median   | Ratio | RatioSD | Rank | Allocated | Alloc Ratio |
+--------------------------------- |----------- |----------:|-----------:|-----------:|---------:|------:|--------:|-----:|----------:|------------:|
+ **'Hash routing'**                   | **3**          |  **3.697 μs** |   **4.023 μs** |  **0.2205 μs** | **3.697 μs** |  **1.00** |    **0.07** |    **3** |      **56 B** |        **1.00** |
+ 'Range routing'                  | 3          |  2.535 μs |  15.705 μs |  0.8609 μs | 2.094 μs |  0.69 |    0.21 |    1 |      48 B |        0.86 |
+ 'Directory routing'              | 3          |  2.607 μs |   2.161 μs |  0.1185 μs | 2.544 μs |  0.71 |    0.05 |    2 |      24 B |        0.43 |
+ 'Geo routing'                    | 3          |  5.004 μs |  12.553 μs |  0.6881 μs | 4.663 μs |  1.36 |    0.18 |    4 |      96 B |        1.71 |
+ 'Hash routing (miss → re-route)' | 3          | 12.408 μs | 189.210 μs | 10.3713 μs | 6.668 μs |  3.36 |    2.44 |    5 |     416 B |        7.43 |
+ GetAllShardIds                   | 3          |  3.416 μs |   3.934 μs |  0.2157 μs | 3.406 μs |  0.93 |    0.07 |    3 |     104 B |        1.86 |
+ GetShardConnectionString         | 3          |  5.707 μs |  42.989 μs |  2.3563 μs | 4.879 μs |  1.55 |    0.56 |    4 |      64 B |        1.14 |
+ 'Directory add + lookup'         | 3          |  6.326 μs |  21.677 μs |  1.1882 μs | 5.992 μs |  1.72 |    0.29 |    5 |     152 B |        2.71 |
+                                  |            |           |            |            |          |       |         |      |           |             |
+ **'Hash routing'**                   | **50**         |  **4.024 μs** |   **6.957 μs** |  **0.3814 μs** | **3.917 μs** |  **1.01** |    **0.12** |    **2** |      **56 B** |        **1.00** |
+ 'Range routing'                  | 50         |  2.458 μs |   2.795 μs |  0.1532 μs | 2.425 μs |  0.61 |    0.06 |    1 |      48 B |        0.86 |
+ 'Directory routing'              | 50         |  3.078 μs |   9.794 μs |  0.5368 μs | 2.815 μs |  0.77 |    0.13 |    1 |      24 B |        0.43 |
+ 'Geo routing'                    | 50         |  5.439 μs |  10.663 μs |  0.5845 μs | 5.365 μs |  1.36 |    0.17 |    3 |      96 B |        1.71 |
+ 'Hash routing (miss → re-route)' | 50         |  8.435 μs |   8.848 μs |  0.4850 μs | 8.626 μs |  2.11 |    0.20 |    4 |     416 B |        7.43 |
+ GetAllShardIds                   | 50         |  3.423 μs |   5.741 μs |  0.3147 μs | 3.246 μs |  0.86 |    0.10 |    1 |     480 B |        8.57 |
+ GetShardConnectionString         | 50         |  4.085 μs |  10.060 μs |  0.5514 μs | 3.808 μs |  1.02 |    0.14 |    2 |      64 B |        1.14 |
+ 'Directory add + lookup'         | 50         |  6.159 μs |  10.122 μs |  0.5548 μs | 5.971 μs |  1.54 |    0.17 |    3 |     152 B |        2.71 |
