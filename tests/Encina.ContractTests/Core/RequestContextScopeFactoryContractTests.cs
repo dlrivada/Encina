@@ -85,6 +85,13 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
         var invalid = await Scopes.RunRestoredAsync(new PersistedRequestIdentity(IdentityKind.User, "service:x", null, "c", null), PersistedIdentitySource.Internal, Work);
         var nested = await Scopes.RunAsPrincipalAsync(Principal(new Claim("oid", "u")), (_, ct) => Scopes.RunAsServiceAsync(Job, Work, cancellationToken: ct));
 
+        var unknownTaskOverload = await Scopes.RunAsServiceAsync("not-declared", (_, _) =>
+        {
+            invoked++;
+            return Task.CompletedTask;
+        });
+
+        unknownTaskOverload.IsLeft.ShouldBeTrue();
         unknown.IsLeft.ShouldBeTrue();
         reserved.IsLeft.ShouldBeTrue();
         invalid.IsLeft.ShouldBeTrue();
