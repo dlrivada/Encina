@@ -69,7 +69,9 @@ try {
             $titleLine = $lines | Where-Object { $_ -match '^title:\s*"(\[[A-Z]+\])' } | Select-Object -First 1
             if (-not $titleLine) { continue }
             $prefix = [regex]::Match($titleLine, '\[[A-Z]+\]').Value
-            $templates[$prefix] = @{ File = $file.Name; Headers = @($lines | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() }) }
+            $labelLine = $lines | Where-Object { $_ -match '^labels:\s*(.+?)\s*$' } | Select-Object -First 1
+            $defaultLabel = if ($labelLine -and $labelLine -match '^labels:\s*"?(?<l>[^",]+)') { $Matches['l'].Trim() } else { '' }
+            $templates[$prefix] = @{ File = $file.Name; DefaultLabel = $defaultLabel; Headers = @($lines | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() }) }
         }
         return $templates
     }
@@ -251,7 +253,65 @@ try {
         return (Test-RemediationDraftMatch $Body $TitleText $Root $since)
     }
 
-    $LocalDraftMessage = "Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
+    # #1926 issue hygiene: an issue is opened complete or not at all (maintainer rule of 2026-10-06). A
+    # `gh issue create` needs an existing milestone, the template's default label and one priority label
+    # (an [EPIC] needs no priority). Project membership is not checked here (the active token cannot write
+    # projects); the issue-hygiene workflow and the open-issue skill's follow-up step add it.
+    $PriorityLabels = @('p0-mandatory', 'p1-recommended', 'p2-post-1.0')
+
+    # Milestone titles of the repository: a cache file (ENCINA_MILESTONES_CACHE, default
+    # <root>/artifacts/issue-hygiene/milestones.txt) younger than 12 hours, otherwise a `gh api` lookup that
+    # refreshes it. Returns $null when the lookup fails, so the caller denies instead of allowing.
+    function Get-MilestoneTitles([string]$Root) {
+        $cache = if ($env:ENCINA_MILESTONES_CACHE) { $env:ENCINA_MILESTONES_CACHE } elseif ($Root) { Join-Path $Root 'artifacts/issue-hygiene/milestones.txt' } else { $null }
+        if ($cache -and (Test-Path -LiteralPath $cache) -and ((Get-Item -LiteralPath $cache).LastWriteTimeUtc -gt (Get-Date).ToUniversalTime().AddHours(-12))) {
+            $cached = @(Get-Content -LiteralPath $cache -Encoding utf8 | Where-Object { $_.Trim() })
+            if ($cached.Count -gt 0) { return $cached }
+        }
+        $gh = if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+        $saved = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+            $titles = @(& $gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title' 2>$null | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+            if ($LASTEXITCODE -ne 0 -or $titles.Count -eq 0) { return $null }
+        }
+        catch { return $null }
+        finally { [Console]::OutputEncoding = $saved }
+        if ($cache) {
+            try {
+                New-Item -ItemType Directory -Force (Split-Path -Parent $cache) | Out-Null
+                [IO.File]::WriteAllLines($cache, [string[]]$titles, [Text.UTF8Encoding]::new($false))
+            }
+            catch { }
+        }
+        return $titles
+    }
+
+    # Returns the list of missing metadata items for one `gh issue create` statement (empty when complete).
+    # A dynamic (variable) milestone or label value cannot be read, so it counts as present.
+    function Get-MissingMetadata($Options, [string]$Prefix, [string]$DefaultLabel, [string]$Root) {
+        $missing = [System.Collections.Generic.List[string]]::new()
+
+        $milestone = Get-OptionValues $Options @('-m', '--milestone')
+        if ($milestone.Count -eq 0) { $missing.Add('--milestone "<existing milestone title>"') }
+        elseif (-not $milestone[0].Dynamic) {
+            $titles = Get-MilestoneTitles $Root
+            if ($null -eq $titles) { $missing.Add("milestone '$($milestone[0].Value)' could not be verified (the milestone lookup failed: run gh auth status, or seed artifacts/issue-hygiene/milestones.txt)") }
+            elseif ($titles -cnotcontains $milestone[0].Value) { $missing.Add("milestone '$($milestone[0].Value)' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones)") }
+        }
+
+        $labelValues = Get-OptionValues $Options @('-l', '--label')
+        if (-not ($labelValues | Where-Object { $_.Dynamic })) {
+            $labels = @($labelValues | ForEach-Object { $_.Value -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+            if ($DefaultLabel -and $labels -cnotcontains $DefaultLabel) { $missing.Add("--label $DefaultLabel (the default label of the $Prefix template)") }
+            # Maintainer decision 2026-10-06: a feature or spike has open options, so it is created undecided.
+            if (($Prefix -eq '[FEATURE]' -or $Prefix -eq '[SPIKE]') -and $labels -cnotcontains 'needs-decision') { $missing.Add("--label needs-decision (a $Prefix issue is created with its options open until the maintainer decides)") }
+            if ($Prefix -ne '[EPIC]' -and -not ($labels | Where-Object { $PriorityLabels -ccontains $_ })) { $missing.Add("one priority label: --label $($PriorityLabels -join ' | ')") }
+        }
+        return , $missing
+    }
+
+    $LocalDraftMessage ="Blocked: gh issue create's --body-file must show it was drafted by the free local model, or by the local-ai-standin agent while the local model is switched off (CLAUDE.md, Model routing; AGENTS.md Sec.2/local-ai-task skill) -- one of: a first line '<!-- local-draft: <path> -->' where <path> exists and a local-ai/ledger.csv or local-ai/standin-ledger.csv row from the last 24 hours names it as outFile; the body file itself being such a recent ledger outFile; or a first line '<!-- local-draft: none, reason: <text> -->' opt-out with a non-empty reason (logged to artifacts/local-ai/opt-outs.log). See the local-ai-task skill."
 
     # Options of `gh issue create` that take a value, so their values are never parsed as options.
     $issueValueOptions = @('-t', '--title', '-b', '--body', '-F', '--body-file', '-R', '--repo', '-l', '--label', '-m', '--milestone', '-a', '--assignee', '-p', '--project', '-T', '--template', '--recover')
@@ -315,6 +375,12 @@ try {
                 [Console]::Error.WriteLine("Blocked: the headers of .github/ISSUE_TEMPLATE/$($template.File) must appear in template order; '$($template.Headers[$i])' comes before '$($template.Headers[$i - 1])'.")
                 exit 2
             }
+        }
+
+        $missingMeta = Get-MissingMetadata $options $prefix.Value $template.DefaultLabel $root
+        if ($missingMeta.Count -gt 0) {
+            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).")
+            exit 2
         }
     }
     exit 0

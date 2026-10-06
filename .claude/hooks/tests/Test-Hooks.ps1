@@ -25,6 +25,17 @@ $sub = Join-Path $work 'sub dir'
 New-Item -ItemType Directory -Force $sub | Out-Null
 $env:CLAUDE_PROJECT_DIR = $repo
 
+# #1926: check-issue-template also requires an existing milestone, the template's default label and a priority
+# label. The milestone list comes from a seeded cache file (ENCINA_MILESTONES_CACHE), never from the network.
+$hardening = "v0.14.0 $([char]0x2014) Hardening"
+[IO.File]::WriteAllLines((Join-Path $work 'milestones.txt'), [string[]]@($hardening, 'v0.21.0 - Documentation'), [Text.UTF8Encoding]::new($false))
+$env:ENCINA_MILESTONES_CACHE = Join-Path $work 'milestones.txt'
+foreach ($pair in @(@('feature-ok.md', 'feature_request.md'), @('spike-ok.md', 'architecture_spike.md'))) {
+    $tplHeaders = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$($pair[1])") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() })
+    Set-Content (Join-Path $work $pair[0]) ('<!-- local-draft: none, reason: hook test fixture, not a drafting task -->' + "`n" + (($tplHeaders | ForEach-Object { "$_`nx" }) -join "`n"))
+}
+$hm = " --milestone `"$hardening`" --label technical-debt --label p1-recommended"
+
 # #1410: two isolated fake repository roots for check-issue-template's local-draft evidence checks, so those
 # tests never read or write the real worktree's own artifacts/ folder. Both copy the real .github/ISSUE_TEMPLATE
 # so the header/order checks still run against the real templates.
@@ -79,6 +90,10 @@ Set-Content (Join-Path $work 'debt-order.md') ($debt -replace '## Type', '## TMP
 Set-Content (Join-Path $work 'debt-case.md') ($debt -replace '## Expected Behavior', '## Expected behavior')
 Set-Content (Join-Path $work 'debt-quoted.md') ($debt -replace '(## Description\r?\n)d', "`$1d`n``````md`n## Related Issues`n``````")
 Set-Content (Join-Path $work 'free.md') "## Summary`nx`n## Proposed fix`ny"
+# #1926 fixtures: a complete [BUG] and [EPIC] body (headers of their templates, opt-out first line).
+$optOutLine = '<!-- local-draft: none, reason: hook test fixture, not a drafting task -->'
+Set-Content (Join-Path $work 'bug-ok.md') ($optOutLine + "`n" + ((@('Description', 'Steps to Reproduce', 'Expected Behavior', 'Actual Behavior', 'Environment', 'Code Sample', 'Stack Trace', 'Additional Context') | ForEach-Object { "## $_`nx" }) -join "`n"))
+Set-Content (Join-Path $work 'epic-ok.md') ($optOutLine + "`n" + ((@('Objective', 'Motivation', 'Scope', 'Child Issues', 'Cross-Cutting Integration', 'Acceptance Criteria', 'Milestone', 'Dependencies', 'Related Issues') | ForEach-Object { "## $_`nx" }) -join "`n"))
 # A line starting with ``` whose info string contains a backtick is inline code, not a fence (CommonMark).
 Set-Content (Join-Path $work 'debt-infostring.md') ($debt -replace '(## Description\r?\n)d', "`$1`````` inline ``code`` ``````")
 Set-Content (Join-Path $work 'free-fenced.md') "Free form.`n``````md`n$($debt)`n``````"
@@ -188,14 +203,31 @@ $cases = @(
     @($attribution, 'Bash', "git commit -m `$'fix: x\n\n$trailer'", 2, 'trailer in a Bash ANSI-C message'),
     @($attribution, 'Bash', "git commit -m `$'fix: it\'s done\n\nPlain body.'", 0, 'clean Bash ANSI-C message with an escaped quote'),
 
-    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md', 0, 'DEBT complete'),
+    @($issue, 'PowerShell', ('gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm), 0, 'DEBT complete'),
+    # #1926 issue hygiene: every missing item blocks; a complete command passes.
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --label technical-debt --label p1-recommended', 2, 'hygiene: no milestone'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone "v9.9.9 - Nope" --label technical-debt --label p1-recommended', 2, 'hygiene: milestone does not exist'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label p1-recommended", 2, 'hygiene: default label missing'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt", 2, 'hygiene: priority label missing'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt --label area-docs", 2, 'hygiene: area label is not a priority'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body-file debt-ok.md --milestone `"$hardening`" --label technical-debt,p0-mandatory", 0, 'hygiene: comma-separated labels complete'),
+    @($issue, 'PowerShell', "gh issue create --title `"[BUG] x`" --body-file bug-ok.md --milestone `"$hardening`" --label technical-debt --label p0-mandatory", 2, 'hygiene: BUG needs the bug label'),
+    @($issue, 'PowerShell', "gh issue create --title `"[BUG] x`" --body-file bug-ok.md --milestone `"$hardening`" --label bug --label p0-mandatory", 0, 'hygiene: BUG complete'),
+    @($issue, 'PowerShell', "gh issue create --title `"[EPIC] x`" --body-file epic-ok.md --milestone `"$hardening`" --label epic", 0, 'hygiene: EPIC is exempt from the priority label'),
+    @($issue, 'PowerShell', 'gh issue create --title "[EPIC] x" --body-file epic-ok.md --label epic', 2, 'hygiene: EPIC still needs a milestone'),
+    # Maintainer decision 2026-10-06: [FEATURE] and [SPIKE] are created with needs-decision.
+    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended", 2, 'hygiene: FEATURE without needs-decision'),
+    @($issue, 'PowerShell', "gh issue create --title `"[FEATURE] x`" --body-file feature-ok.md --milestone `"$hardening`" --label enhancement --label p1-recommended --label needs-decision", 0, 'hygiene: FEATURE with needs-decision'),
+    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0", 2, 'hygiene: SPIKE without needs-decision'),
+    @($issue, 'PowerShell', "gh issue create --title `"[SPIKE] x`" --body-file spike-ok.md --milestone `"$hardening`" --label investigation --label p2-post-1.0 --label needs-decision", 0, 'hygiene: SPIKE with needs-decision'),
+    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-ok.md --milestone $ms --label $l', 0, 'hygiene: dynamic milestone and labels are not judged'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-missing.md', 2, 'DEBT missing Root Cause'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-order.md', 2, 'DEBT out of order'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file free.md', 2, 'free-form body'),
     @($issue, 'PowerShell', 'gh issue create --title "[TECH-DEBT] x" --body-file debt-ok.md', 2, 'non-normalised prefix'),
     @($issue, 'PowerShell', 'gh issue create --title "No prefix" --body-file debt-ok.md', 2, 'no prefix'),
-    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body `"$($debt -replace '"', '')`"", 0, 'inline body complete'),
-    @($issue, 'PowerShell', "gh issue create --title '[DEBT] x' --body-file debt-ok.md", 0, 'single-quoted title'),
+    @($issue, 'PowerShell', "gh issue create --title `"[DEBT] x`" --body `"$($debt -replace '"', '')`"$hm", 0, 'inline body complete'),
+    @($issue, 'PowerShell', "gh issue create --title '[DEBT] x' --body-file debt-ok.md$hm", 0, 'single-quoted title'),
     @($issue, 'PowerShell', 'gh issue create --title $title --body-file $f', 0, 'variables'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body $body', 0, 'inline body from variable'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body (Get-Content b.md -Raw)', 0, 'inline body from subexpression'),
@@ -204,10 +236,10 @@ $cases = @(
     @($issue, 'PowerShell', 'gh issue create -R dlrivada/Encina --title "No prefix" --body-file debt-ok.md', 2, 'explicit Encina repository'),
     @($issue, 'PowerShell', "Select-String -Path x.md -Pattern 'gh issue create --title `"x`"'", 0, 'mentioned inside a string'),
     @($issue, 'PowerShell', 'git checkout -b fix/x; gh issue create --title "[DEBT] x" --template "Technical Debt"', 0, '--template after another statement'),
-    @($issue, 'PowerShell', 'git commit -F msg-ok.txt && gh issue create --title "[DEBT] x" --body-file debt-ok.md', 0, '-F of an earlier git statement'),
+    @($issue, 'PowerShell', ('git commit -F msg-ok.txt && gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm), 0, '-F of an earlier git statement'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body "Free form. Repro: git commit -F msg.txt fails"', 2, '-F inside the body text'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file free-fenced.md', 2, 'headers only inside a fence'),
-    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-quoted.md', 0, 'fenced header quoted in a valid body'),
+    @($issue, 'PowerShell', ('gh issue create --title "[DEBT] x" --body-file debt-quoted.md' + $hm), 0, 'fenced header quoted in a valid body'),
     @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-case.md', 2, 'header case differs'),
     @($issue, 'PowerShell', 'gh issue list --label bug', 0, 'not issue create'),
     @($issue, 'PowerShell', 'gh issue create "--title" "No prefix" --body-file debt-ok.md', 2, 'quoted --title'),
@@ -219,7 +251,7 @@ $cases = @(
     @($issue, 'PowerShell', 'Write-Output gh issue create --title "No prefix" --body-file debt-ok.md', 0, 'gh only as an argument'),
     @($issue, 'PowerShell', '$r = (gh issue create --title "No prefix" --body-file debt-ok.md)', 2, 'assignment of a subexpression'),
     @($issue, 'PowerShell', "gh iss``ue create --title `"No prefix`" --body-file debt-ok.md", 2, 'backtick-escaped verb'),
-    @($issue, 'PowerShell', 'gh issue create --title "[DEBT] x" --body-file debt-infostring.md', 0, 'backtick in fence info string is not a fence'),
+    @($issue, 'PowerShell', ('gh issue create --title "[DEBT] x" --body-file debt-infostring.md' + $hm), 0, 'backtick in fence info string is not a fence'),
     @($issue, 'PowerShell', 'not json', 0, 'malformed payload'),
     @($issue, 'PowerShell', "pwsh -c `"gh issue create --title 'No prefix' --body-file debt-ok.md`"", 2, 'issue create inside pwsh -c'),
 
@@ -954,15 +986,15 @@ try {
     # so Get-RepoRoot's $env:CLAUDE_PROJECT_DIR fallback resolves there instead of the real worktree.
     $caseBPath = Join-Path $issueRoot 'artifacts/local-ai/out/case-b.md'
     $localDraftCases = @(
-        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-a.md", 0, 'local-draft: accepted with pointer + ledger line'),
-        @("gh issue create --title `"[DEBT] x`" --body-file `"$caseBPath`"", 0, 'local-draft: accepted when the body file is itself a ledger outFile'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-a.md$hm", 0, 'local-draft: accepted with pointer + ledger line'),
+        @("gh issue create --title `"[DEBT] x`" --body-file `"$caseBPath`"$hm", 0, 'local-draft: accepted when the body file is itself a ledger outFile'),
         @("gh issue create --title `"[DEBT] x`" --body-file debt-no-evidence.md", 2, 'local-draft: refused with no evidence'),
         @("gh issue create --title `"[DEBT] x`" --body-file debt-optout-empty.md", 2, 'local-draft: refused with an opt-out without a reason'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-g.md", 2, 'local-draft: pointer to a file with no ledger line refused'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-h.md", 2, 'local-draft: ledger line older than 24h refused'),
-        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-s.md", 0, 'local-draft: accepted with pointer + fresh standin-ledger row (#1593)'),
+        @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-s.md$hm", 0, 'local-draft: accepted with pointer + fresh standin-ledger row (#1593)'),
         @("gh issue create --title `"[DEBT] x`" --body-file draft-pointer-t.md", 2, 'local-draft: standin-ledger row 25 hours old refused (#1593)'),
-        @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"", 0, 'local-draft: accepted for an open-remediation draft'),
+        @("gh issue create --title `"$remediationTitle`" --body-file `"$remediationTempBody`"$hm", 0, 'local-draft: accepted for an open-remediation draft'),
         # Adversarial review of #1410: content-only remediation matching would let one legitimately drafted
         # remediation file be replayed under any other title within the 24-hour window; the title carried in
         # the draft's own header must also match --title.
@@ -981,12 +1013,22 @@ try {
         $env:CLAUDE_PROJECT_DIR = $savedProjectDirForLocalDraft
     }
 
+    # #1926: when the milestone lookup fails (no cache, gh unusable) the call is denied, never allowed.
+    $savedCache = $env:ENCINA_MILESTONES_CACHE; $savedGh = $env:ENCINA_ISSUE_GH
+    $env:ENCINA_MILESTONES_CACHE = Join-Path $work 'no-such-dir/milestones.txt'
+    $env:ENCINA_ISSUE_GH = Join-Path $work 'no-such-gh.exe'
+    try {
+        $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
+        Invoke-HookCase $issue $json 2 'hygiene: milestone lookup failure denies'
+    }
+    finally { $env:ENCINA_MILESTONES_CACHE = $savedCache; $env:ENCINA_ISSUE_GH = $savedGh }
+
     # #1410: the opt-out route also logs a line to artifacts/local-ai/opt-outs.log; a dedicated, isolated root
     # so the assertion below reads only what this one case wrote.
     $savedProjectDirForOptOut = $env:CLAUDE_PROJECT_DIR
     $env:CLAUDE_PROJECT_DIR = $optOutRoot
     try {
-        $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-optout.md' } } | ConvertTo-Json -Compress
+        $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-optout.md' + $hm } } | ConvertTo-Json -Compress
         Invoke-HookCase $issue $json 0 'local-draft: accepted with a logged opt-out (temp main root)'
         $optOutLog = Join-Path $optOutRoot 'artifacts/local-ai/opt-outs.log'
         $optOutLogOk = (Test-Path -LiteralPath $optOutLog) -and ((Get-Content -Raw -LiteralPath $optOutLog) -match 'hook test opt-out')
