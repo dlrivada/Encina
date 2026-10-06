@@ -2,9 +2,10 @@ name: Plan conformance
 
 # Structural gate for implementation plans (#1927): every plan changed in a pull request must follow
 # docs/engineering/prompts/implementation-plan-prompt.md, and the checker's self-test must pass.
+# CI always uses -Draft: plans merge with "(recommended, pending the maintainer)" and the maintainer's
+# decisions are recorded when the issue is picked up. The full check (without -Draft) is the pre-brief gate.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'docs/plans/*-implementation-plan-*.md'
       - 'tools/ai/plans/**'
@@ -20,7 +21,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BASE_REF: origin/${{ github.base_ref }}
-      PR_DRAFT: ${{ github.event.pull_request.draft }}
     steps:
       - name: Checkout (full history for the diff against the base)
         uses: actions/checkout@v7
@@ -31,12 +31,6 @@ jobs:
         shell: pwsh
         run: ./tools/ai/plans/check-plan.ps1 -SelfTest
 
-      - name: Check the plans changed in this pull request
+      - name: Check the structure of the plans changed in this pull request
         shell: pwsh
-        # A draft pull request may still await the maintainer's decisions: -Draft skips only that check.
-        # A ready pull request always gets the full check (ready_for_review re-runs this job).
-        run: |
-          $extra = @()
-          if ($env:PR_DRAFT -eq 'true') { $extra += '-Draft' }
-          ./tools/ai/plans/check-plan.ps1 -Changed -BaseRef $env:BASE_REF @extra
-          exit $LASTEXITCODE
+        run: ./tools/ai/plans/check-plan.ps1 -Changed -Draft -BaseRef $env:BASE_REF

@@ -18,8 +18,8 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
 
 - A `[FEATURE]` gets no worker brief until its plan exists, passes `check-plan`, and the maintainer has answered every Design Choice.
 - The plan is generated with the prompt verbatim: only `{{ISSUE_URL}}`, `{{ISSUE_NUMBER}}` and `{{FEATURE_NAME}}` are replaced. No added, renamed or reordered sections.
-- Only the maintainer answers Design Choices, never an agent and never the orchestrator. The agent recommends: until the maintainer decides, each choice reads `### Chosen Option: **X — name** (recommended, pending the maintainer)`.
-- The only addition the plan allows is the mandatory last section `## Maintainer Decisions` (step 8). The plan PR cannot merge before that section exists. Review logs go to PR or issue comments, never into the plan (step 9).
+- Only the maintainer answers Design Choices, never an agent and never the orchestrator. The agent recommends: a plan is written and merged with each choice reading `### Chosen Option: **X — name** (recommended, pending the maintainer)`.
+- The maintainer is asked when work on the issue starts, not when the plan is written. The answers go into the plan's last section `## Maintainer Decisions` (step 8) before the worker brief. Review logs go to PR or issue comments, never into the plan (step 9).
 
 ## Procedure
 
@@ -37,14 +37,14 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
    pwsh tools/ai/plans/check-plan.ps1 -Path docs/plans/<feature>-implementation-plan-<issue>.md
    ```
 
-   While the maintainer has not decided yet, add `-Draft` to validate the structure: it skips only the decisions check (CI never uses it). Without `-Draft` the check fails with "Design Choices await the maintainer" until step 8 is done.
+   When you write the plan, add `-Draft`: it skips only the decisions check, and it is what the `plan-conformance` workflow always uses, so plans merge with pending recommendations. Without `-Draft` the check is the pre-brief gate: it fails with "Design Choices await the maintainer" until step 8 is done.
 
    It checks the section order, the Design Choices (at least 4, each with options, chosen option and rationale), the per-phase Tasks and Prompt blocks, the four Research tables, the combined prompt, the 12-function matrix and the file name. `-Changed` checks every plan changed against `origin/main`; `-SelfTest` tests the checker. The `plan-conformance` workflow runs the same script on the pull request.
 6. Open deferred integrations as issues with the `open-issue` skill and reference them in the plan.
 7. Ship the plan in its own PR (use the `pr-cycle` skill), or as the first commit of the feature PR when the maintainer prefers. Comment on the issue with the plan's link.
-8. Present every Design Choice to the maintainer in the chat (the question, the options, your recommendation) and wait for the answers. Record the answers in the plan, in the mandatory `## Maintainer Decisions` section placed last, after `## Next Steps`: one dated entry per Design Choice, numbered like the choices (`1. (yyyy-MM-dd) ...` or `**D1** (yyyy-MM-dd): ...`; the heading variant "Decisions of the maintainer" is also accepted). Replace the "(recommended, pending the maintainer)" marker and update `Chosen Option` in every Design Choice, so the choices and the section agree; the checker fails any entry that is missing and any marker left behind. Commit both in the plan PR and run `check-plan` again. Also post a short issue comment that links to the section.
+8. When the issue is picked up for implementation (not when the plan is written), the orchestrator presents every Design Choice to the maintainer in the chat (the question, the options, the recommendation) and waits for the answers. It records them in the plan, in the mandatory `## Maintainer Decisions` section placed last, after `## Next Steps`: one dated entry per Design Choice, numbered like the choices (`1. (yyyy-MM-dd) ...` or `**D1** (yyyy-MM-dd): ...`; the heading variant "Decisions of the maintainer" is also accepted). Replace the "(recommended, pending the maintainer)" marker and update `Chosen Option` in every Design Choice, so the choices and the section agree; the checker fails any entry that is missing and any marker left behind. Run `check-plan` without `-Draft`; it must pass. Commit the plan change as the first commit of the implementation PR, or in a small plan PR. Also post a short issue comment that links to the section.
 9. Put review logs (adversarial review, CodeRabbit resolution) in PR or issue comments, never in the plan.
-10. After the `## Maintainer Decisions` section is merged or committed in the plan PR, remove the `needs-decision` label from the issue. Implementation starts after that. Write no worker brief for the feature before the plan, a passing `check-plan` and the `## Maintainer Decisions` section all exist.
+10. After the `## Maintainer Decisions` section is committed, remove the `needs-decision` label from the issue. Implementation starts after that. Write no worker brief for the feature before the plan, a passing `check-plan` and the `## Maintainer Decisions` section all exist.
 
 ## Delegation
 
