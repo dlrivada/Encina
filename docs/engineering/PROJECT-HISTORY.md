@@ -403,7 +403,7 @@
 - HashiCorp Vault provider implements KV v2 secrets engine with specific error mapping codes for 404 and 403 responses (#678).
 - ABAC policy storage uses IPolicyStore with upsert semantics and a dedicated IPolicySerializer for polymorphic IExpression trees using $type discriminators (#691).
 - XACML 3.0 XML is the only standardized policy format for interoperability with external systems (#692).
-- ABAC policy mutations must be audited via IAuditStore (now `IOperationAuditStore`, ADR-036) using a fire-and-forget pattern to avoid blocking operations (#796).
+- ABAC policy mutations must be audited via IAuditStore (now `IOperationAuditStore`, ADR-036) using a fire-and-forget pattern to avoid blocking operations (#796). Superseded by #1677: the persistent PAP now awaits the audit write and does not apply the mutation when the audit fails.
 - Encryption scope is partial, targeting PII fields such as UserId, IpAddress, UserAgent, Payloads, and Metadata only (#799).
 - HttpAttestationProvider must fail closed with IsValid=false if the verification endpoint URL is not configured (#803).
 - HashChainAttestationProvider dynamically supports SHA-256, SHA-384, and SHA-512 via HashChainOptions.HashAlgorithm (#850).

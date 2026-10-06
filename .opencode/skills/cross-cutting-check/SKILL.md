@@ -24,7 +24,7 @@ Ensures every new feature in Encina is evaluated against ALL 12 cross-cutting (t
 | 9 | **Idempotency** | Can this feature receive duplicate requests? | `InboxPipelineBehavior`, deduplication key |
 | 10 | **Multi-Tenancy** | Does this feature store/query data that belongs to a tenant? | `TenantId` field, `ITenantContext` |
 | 11 | **Module Isolation** | In modular monolith, does this feature need module scoping? | `ModuleId` field, `IModuleContext` |
-| 12 | **Audit Trail** | Does this feature perform operations with compliance/security implications? | `IOperationAuditStore`, `IAuditLogStore`, `IReadAuditStore` (ADR-036), audit events |
+| 12 | **Audit Trail** | Does this feature perform operations with compliance/security implications? | `IOperationAuditStore`, `IEntityChangeAuditStore` (today `IAuditLogStore`, #1778), `IReadAuditStore` (ADR-036), audit events |
 
 ## Per-Function Outcomes
 

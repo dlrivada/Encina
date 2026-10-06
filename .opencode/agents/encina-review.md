@@ -40,7 +40,7 @@ Every new feature MUST address all 12:
 9. Idempotency → `InboxPipelineBehavior`, dedup key
 10. Multi-Tenancy → `TenantId`, `ITenantContext`
 11. Module Isolation → `ModuleId`, `IModuleContext`
-12. Audit Trail → `IOperationAuditStore`, `IAuditLogStore`, `IReadAuditStore` (ADR-036), audit events
+12. Audit Trail → `IOperationAuditStore`, `IEntityChangeAuditStore` (today `IAuditLogStore`, #1778), `IReadAuditStore` (ADR-036), audit events
 
 Outcome per function: ✅ Integrate | ⏭️ Defer (with Issue) | ❌ Not Applicable
 
