@@ -138,6 +138,19 @@ public class UsersController : ControllerBase
 - **UserId**: From the authenticated `ClaimsPrincipal`, through `RequestIdentityOptions.UserIdClaimTypes`
 - **TenantId**: From the principal's tenant claim (`RequestIdentityOptions.TenantIdClaimTypes`) or the `X-Tenant-ID` header
 - **IdempotencyKey**: From `X-Idempotency-Key` header
+- **IpAddress**: From `HttpContext.Connection.RemoteIpAddress` only; `X-Forwarded-For` is never read, because the address feeds the audit trail
+
+**Behind a reverse proxy**, register `UseForwardedHeaders()` with the proxies you trust, before `UseEncinaContext()`. ASP.NET Core then rewrites `RemoteIpAddress` from those proxies only:
+
+```csharp
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.KnownProxies.Add(IPAddress.Parse("10.0.0.10")); // or add to KnownNetworks
+});
+
+app.UseForwardedHeaders(); // before UseEncinaContext()
+```
 
 **Automatic Features:**
 

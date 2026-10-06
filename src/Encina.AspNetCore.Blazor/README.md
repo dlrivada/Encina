@@ -19,7 +19,7 @@ dotnet add package Encina.AspNetCore.Blazor
 
 ## Quick start
 
-Register Encina, `Encina.AspNetCore`, Blazor Server, then this package after Blazor Server:
+A complete minimal `Program.cs` in the .NET 10 Blazor Web App shape. `App` is the application's root component (`App.razor`, as in the Blazor Web App template). Register Encina, `Encina.AspNetCore`, Blazor Server components, then this package after them:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -43,8 +43,11 @@ builder.Services.AddEncinaAuthorization(
             .RequireRole("Admin", "OrderManager"));
     });
 
-// Blazor Server hosting
-builder.Services.AddServerSideBlazor();
+builder.Services.AddAuthentication("Cookies").AddCookie();
+builder.Services.AddCascadingAuthenticationState();
+
+// Blazor Server hosting: opens the interactive circuits.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 // Runs each circuit activity in one inbound identity scope
 // built from the circuit's current AuthenticationState.
@@ -56,9 +59,14 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseEncinaContext();
 app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+app.Run();
 ```
 
-The pipeline order is described in the [`Encina.AspNetCore` README](../Encina.AspNetCore/README.md#2-request-identity).
+`AddInteractiveServerRenderMode()` maps the `/_blazor` hub that carries the circuits. The pipeline order is described in the [`Encina.AspNetCore` README](../Encina.AspNetCore/README.md#2-request-identity).
 
 A command or query authorized with `[Authorize]` behaves the same whether it is sent from an interactive Blazor Server component or from an HTTP endpoint in the same application:
 
