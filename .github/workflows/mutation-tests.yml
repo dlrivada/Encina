@@ -473,9 +473,13 @@ jobs:
           # Stryker discards the server's stderr, so each recycle is also
           # appended to ENCINA_MTP_RECYCLE_LOG, which is uploaded with the
           # stryker-logs artifact and counted in the shard summary.
-          # 4096: with 6144 the hook recycled at 6.3-7.6 GB and the cgroup
-          # peak reached memory.max right after a recycle, because the
-          # replacement server, Stryker and the page cache share the cgroup.
+          # 4096: in run 37371127806 (6144) the hook recycled at 6.3-7.6 GB
+          # private memory and cg_peak reached memory.max once, right after
+          # a recycle. Hypothesis: the replacement server, Stryker and the
+          # page cache share the cgroup; the cg_ev_max counter in the
+          # runner-resources log confirms or refutes it. A lower threshold
+          # recycles more often (cold runs), so the next run also checks
+          # the shard's seconds per mutant.
           ENCINA_MTP_RECYCLE_MB: "4096"
           ENCINA_MTP_RECYCLE_LOG: ${{ github.workspace }}/artifacts/mutation/logs/mtp-recycle.log
           # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
