@@ -133,7 +133,11 @@ public sealed class RequestIdentityTests
     {
         var alice = TestIdentity.User("alice", roles: ["reader"], permissions: ["orders:read"]);
 
-        alice.IsSameAs(TestIdentity.User("alice", roles: ["READER"], permissions: ["Orders:Read"])).ShouldBeTrue();
+        alice.IsSameAs(TestIdentity.User("alice", roles: ["reader"], permissions: ["orders:read"])).ShouldBeTrue();
+
+        // Role and permission claim values compare ordinally (as HasClaim does), so a case change
+        // in the claims is a different identity even though the role sets match case-insensitively.
+        alice.IsSameAs(TestIdentity.User("alice", roles: ["READER"], permissions: ["Orders:Read"])).ShouldBeFalse();
         alice.IsSameAs(TestIdentity.User("bob", roles: ["reader"], permissions: ["orders:read"])).ShouldBeFalse();
         alice.IsSameAs(TestIdentity.User("alice", roles: ["reader", "admin"], permissions: ["orders:read"])).ShouldBeFalse();
         alice.IsSameAs(TestIdentity.User("alice", roles: ["reader"], permissions: ["orders:write"])).ShouldBeFalse();

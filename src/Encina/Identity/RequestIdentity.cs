@@ -52,12 +52,35 @@ public sealed class RequestIdentity
     /// </summary>
     public const string ServiceSubjectPrefix = "service:";
 
+    /// <summary>
+    /// The authentication type of the principal of a service identity.
+    /// </summary>
+    internal const string ServiceAuthenticationType = "encina-service";
+
+    /// <summary>
+    /// The claim type that marks the principal of a service identity (value <c>service</c>).
+    /// </summary>
+    internal const string IdentityKindClaimType = "encina:identity_kind";
+
+    /// <summary>
+    /// The authentication type given to the copy of an authenticated identity that reports none, so
+    /// the copy still reads as authenticated.
+    /// </summary>
+    internal const string AuthenticatedFallbackType = "encina-authenticated";
+
     private static readonly FrozenSet<string> EmptySet = Array.Empty<string>().ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    // The claims of the principal's authenticated identities, frozen at creation like the roles and
-    // permissions: a principal mutated after the identity was built never changes what it holds.
+    // The principal built at construction from the caller's authenticated identities (plain
+    // ClaimsIdentity copies). Readers get a clone of it, so nobody can change what the gates saw.
+    private readonly ClaimsPrincipal? _principal;
+
+    // The claims of the stored principal, frozen at creation like the roles and permissions.
     private readonly (string Type, string Value)[] _claims;
 
+    // The claims that count for IsSameAs: _claims minus this identity's own per-token claim types.
+    private readonly (string Type, string Value)[] _comparableClaims;
+
+    private readonly FrozenSet<string> _perTokenClaimTypes;
     private readonly FrozenSet<string> _roles;
     private readonly FrozenSet<string> _permissions;
 
@@ -66,14 +89,19 @@ public sealed class RequestIdentity
         string? userId,
         ClaimsPrincipal? principal,
         FrozenSet<string> roles,
-        FrozenSet<string> permissions)
+        FrozenSet<string> permissions,
+        IdentityIssuer? issuer = null,
+        IReadOnlySet<string>? perTokenClaimTypes = null)
     {
         Kind = kind;
         UserId = userId;
-        Principal = principal;
+        Issuer = issuer;
+        _principal = CopyAuthenticated(principal);
         _roles = roles;
         _permissions = permissions;
-        _claims = FreezeClaims(principal);
+        _claims = FreezeClaims(_principal);
+        _perTokenClaimTypes = ToComparisonSet(perTokenClaimTypes);
+        _comparableClaims = Without(_claims, _perTokenClaimTypes);
     }
 
     /// <summary>
@@ -99,9 +127,34 @@ public sealed class RequestIdentity
     public bool IsAuthenticated => Kind != IdentityKind.Anonymous;
 
     /// <summary>
-    /// Gets the principal the identity was mapped from, or <see langword="null"/> when there is none.
+    /// Gets a copy of the principal the identity was mapped from, or <see langword="null"/> when
+    /// there is none.
     /// </summary>
-    public ClaimsPrincipal? Principal { get; }
+    /// <remarks>
+    /// <para>
+    /// Every read returns a new clone, so code that adds identities or claims to it never changes
+    /// what another gate evaluates. The principal holds only the caller's <b>authenticated</b>
+    /// identities, each copied as a plain <see cref="ClaimsIdentity"/> (claims, authentication
+    /// type, name and role claim types; never the actor or the bootstrap context). An
+    /// authenticated identity that reports no authentication type is copied with the type
+    /// <c>encina-authenticated</c>, so it stays authenticated.
+    /// </para>
+    /// <para>
+    /// Because the copies are plain identities, role checks that a specialised principal answers
+    /// from outside its claims (for example Windows group names answered by a
+    /// <c>WindowsPrincipal</c> from its token) do not match on this principal; only role claims do.
+    /// Map such groups to role claims before the identity is built.
+    /// </para>
+    /// </remarks>
+    public ClaimsPrincipal? Principal =>
+        _principal is null ? null : new ClaimsPrincipal(_principal.Identities.Select(static identity => identity.Clone()));
+
+    /// <summary>
+    /// Gets the scope that issued this identity, or <see langword="null"/> for an identity built
+    /// outside the scope factory (<see cref="Anonymous"/>, test builders). An identity whose issuer
+    /// has ended no longer reads as a caller.
+    /// </summary>
+    internal IdentityIssuer? Issuer { get; }
 
     /// <summary>
     /// Gets the caller's roles (case-insensitive).
@@ -163,11 +216,19 @@ public sealed class RequestIdentity
     /// the declared test seam.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="userId"/> breaks the user-id rule (see <see cref="IsValidUserId"/>).</exception>
+    /// <param name="userId">The user id.</param>
+    /// <param name="principal">The principal the identity is mapped from; only its authenticated identities are kept.</param>
+    /// <param name="roles">The roles.</param>
+    /// <param name="permissions">The permissions.</param>
+    /// <param name="issuer">The issuing scope (scope factory only); <see langword="null"/> for builders.</param>
+    /// <param name="perTokenClaimTypes">The claim types <see cref="IsSameAs"/> ignores; <see langword="null"/> means <see cref="RequestIdentityOptions.DefaultPerTokenClaimTypes"/>.</param>
     internal static RequestIdentity ForUser(
         string userId,
         ClaimsPrincipal? principal = null,
         IEnumerable<string>? roles = null,
-        IEnumerable<string>? permissions = null)
+        IEnumerable<string>? permissions = null,
+        IdentityIssuer? issuer = null,
+        IReadOnlySet<string>? perTokenClaimTypes = null)
     {
         ArgumentNullException.ThrowIfNull(userId);
         if (!IsValidUserId(userId))
@@ -177,18 +238,77 @@ public sealed class RequestIdentity
                 nameof(userId));
         }
 
-        return new RequestIdentity(IdentityKind.User, userId, principal, ToSet(roles), ToSet(permissions));
+        return new RequestIdentity(IdentityKind.User, userId, principal, ToSet(roles), ToSet(permissions), issuer, perTokenClaimTypes);
+    }
+
+    /// <summary>
+    /// Creates a service identity from a declaration. Internal: the scope factory calls it once per
+    /// scope (with an issuer), and the test builders call it without one.
+    /// </summary>
+    /// <param name="definition">The declared service identity.</param>
+    /// <param name="issuer">The issuing scope; <see langword="null"/> for builders.</param>
+    /// <param name="perTokenClaimTypes">The claim types <see cref="IsSameAs"/> ignores; <see langword="null"/> means <see cref="RequestIdentityOptions.DefaultPerTokenClaimTypes"/>.</param>
+    /// <param name="roleClaimType">The claim type of the declared roles on the principal.</param>
+    /// <param name="permissionClaimType">The claim type of the declared permissions on the principal.</param>
+    /// <returns>
+    /// A <see cref="IdentityKind.Service"/> identity with user id <c>service:&lt;name&gt;</c> and a
+    /// principal of authentication type <c>encina-service</c> carrying <c>sub</c>, the identity-kind
+    /// claim, the declared roles, permissions and claims.
+    /// </returns>
+    internal static RequestIdentity ForService(
+        ServiceIdentityDefinition definition,
+        IdentityIssuer? issuer = null,
+        IReadOnlySet<string>? perTokenClaimTypes = null,
+        string roleClaimType = "role",
+        string permissionClaimType = "permission")
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentException.ThrowIfNullOrWhiteSpace(roleClaimType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(permissionClaimType);
+
+        var subject = ServiceSubjectPrefix + definition.Name;
+        List<Claim> claims =
+        [
+            new Claim("sub", subject),
+            new Claim(IdentityKindClaimType, "service")
+        ];
+        claims.AddRange(definition.Roles.Select(role => new Claim(roleClaimType, role)));
+        claims.AddRange(definition.Permissions.Select(permission => new Claim(permissionClaimType, permission)));
+        claims.AddRange(definition.Claims.Select(static claim => new Claim(claim.Key, claim.Value)));
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(claims, ServiceAuthenticationType, ClaimsIdentity.DefaultNameClaimType, roleClaimType));
+
+        return new RequestIdentity(
+            IdentityKind.Service,
+            subject,
+            principal,
+            ToSet(definition.Roles),
+            ToSet(definition.Permissions),
+            issuer,
+            perTokenClaimTypes);
     }
 
     /// <summary>
     /// Determines whether <paramref name="other"/> is the same caller holding the same authority:
-    /// same kind, same user id (ordinal), and the same roles and permissions.
+    /// same kind, same user id (ordinal), the same roles and permissions, and the same authenticated
+    /// claims once the per-token claim types of <b>both</b> identities are removed.
     /// </summary>
+    /// <remarks>
+    /// Claim types compare case-insensitively and values ordinally, as <see cref="HasClaim"/> does.
+    /// The issuer is ignored (it decides staleness, not sameness), and so is the tenant (tenant is
+    /// not identity).
+    /// </remarks>
     internal bool IsSameAs(RequestIdentity other) =>
         Kind == other.Kind
         && string.Equals(UserId, other.UserId, StringComparison.Ordinal)
         && _roles.SetEquals(other._roles)
-        && _permissions.SetEquals(other._permissions);
+        && _permissions.SetEquals(other._permissions)
+        && HasSameClaims(other);
+
+    private bool HasSameClaims(RequestIdentity other) =>
+        Without(_comparableClaims, other._perTokenClaimTypes).ToHashSet(ClaimComparer.Instance)
+            .SetEquals(Without(other._comparableClaims, _perTokenClaimTypes));
 
     /// <summary>
     /// The user-id rule: not blank, no leading or trailing whitespace, no control characters, no
@@ -238,6 +358,49 @@ public sealed class RequestIdentity
                 .Where(static identity => identity.IsAuthenticated)
                 .SelectMany(static identity => identity.Claims)
                 .Select(static claim => (claim.Type, claim.Value))];
+
+    // The stored principal keeps only the authenticated identities, each as a plain ClaimsIdentity:
+    // never identity.Clone(), which would duplicate a WindowsIdentity token handle on every read, and
+    // never the actor or the bootstrap context (which can hold the raw token).
+    private static ClaimsPrincipal? CopyAuthenticated(ClaimsPrincipal? principal)
+    {
+        var copies = principal?.Identities
+            .Where(static identity => identity.IsAuthenticated)
+            .Select(static identity => new ClaimsIdentity(
+                identity.Claims.Select(static claim => new Claim(claim.Type, claim.Value, claim.ValueType, claim.Issuer, claim.OriginalIssuer)),
+                string.IsNullOrEmpty(identity.AuthenticationType) ? AuthenticatedFallbackType : identity.AuthenticationType,
+                identity.NameClaimType,
+                identity.RoleClaimType))
+            .ToList();
+
+        return copies is { Count: > 0 } ? new ClaimsPrincipal(copies) : null;
+    }
+
+    private static FrozenSet<string> ToComparisonSet(IReadOnlySet<string>? perTokenClaimTypes) =>
+        perTokenClaimTypes switch
+        {
+            null => (FrozenSet<string>)RequestIdentityOptions.DefaultPerTokenClaimTypes,
+            FrozenSet<string> frozen when ReferenceEquals(frozen.Comparer, StringComparer.OrdinalIgnoreCase) => frozen,
+            _ => perTokenClaimTypes.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
+        };
+
+    private static (string Type, string Value)[] Without((string Type, string Value)[] claims, FrozenSet<string> claimTypes) =>
+        claimTypes.Count == 0
+            ? claims
+            : Array.FindAll(claims, claim => !claimTypes.Contains(claim.Type));
+
+    // Claim type case-insensitive, value ordinal: the comparison HasClaim uses.
+    private sealed class ClaimComparer : IEqualityComparer<(string Type, string Value)>
+    {
+        internal static readonly ClaimComparer Instance = new();
+
+        public bool Equals((string Type, string Value) x, (string Type, string Value) y) =>
+            string.Equals(x.Type, y.Type, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Value, y.Value, StringComparison.Ordinal);
+
+        public int GetHashCode((string Type, string Value) obj) =>
+            HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Type), StringComparer.Ordinal.GetHashCode(obj.Value));
+    }
 
     // crap-exempt: single-question switch — the actor id of each identity kind.
     private string? ActorId() => Kind switch

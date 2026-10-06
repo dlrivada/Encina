@@ -42,6 +42,18 @@ internal static class AmbientRequestContext
     internal static IdentityKind DispatchIdentityKind => DispatchIdentity.Value;
 
     /// <summary>
+    /// Marks the current flow as a new unit of work with no dispatch in flight. Called by the scope
+    /// factory inside its <c>async</c> body, so the change is confined to the scope: the first
+    /// dispatch inside a scope is an entry point (it keeps the scope's idempotency key), even when the
+    /// scope was opened from a handler.
+    /// </summary>
+    internal static void BeginUnitOfWork()
+    {
+        DispatchInFlight.Value = false;
+        DispatchIdentity.Value = IdentityKind.Anonymous;
+    }
+
+    /// <summary>
     /// Resolves the context a dispatch runs with.
     /// </summary>
     /// <remarks>
@@ -60,13 +72,27 @@ internal static class AmbientRequestContext
     /// key, so it never collides with the outer request in the idempotency stores.</description></item>
     /// </list>
     /// <para>
-    /// <b>Explicit-context rule.</b> An explicit context whose identity is authenticated and differs
-    /// (kind, user id, roles or permissions) from the ambient identity logs Warning 165 with both
-    /// kinds (never ids). When
-    /// the ambient identity is a <see cref="IdentityKind.User"/>, the dispatch is refused with
-    /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>: a dispatch cannot run a user's request
-    /// under someone else's identity. An explicit anonymous context, or one with the ambient
-    /// identity, is accepted silently.
+    /// <b>Explicit-context rule</b>, applied to the snapshot. "The chain has a user" means the facts
+    /// of the current holder chain (a user identity anywhere in it, ended holders included), not
+    /// only the readable ambient identity. The first matching identity rule decides:
+    /// </para>
+    /// <list type="number">
+    /// <item><description>The explicit identity is not authenticated: accepted.</description></item>
+    /// <item><description>Its issuing scope has ended: refused (stale replay), even when it is the
+    /// ambient identity.</description></item>
+    /// <item><description>The chain has a user and the explicit identity is not the readable ambient
+    /// identity: refused.</description></item>
+    /// <item><description>It has no issuer (built outside a scope): accepted only inside an active
+    /// scope of the same identity, otherwise refused.</description></item>
+    /// <item><description>It differs from the ambient identity (and the chain has no user):
+    /// accepted, Warning 165.</description></item>
+    /// <item><description>Otherwise (the same identity): accepted silently.</description></item>
+    /// </list>
+    /// <para>
+    /// Refusals return <see cref="RequestIdentityErrorCodes.ScopeConflict"/> and log Warning 165
+    /// with both kinds (never ids). Then, on every accepted context, when the chain has a user and
+    /// the explicit tenant differs from the ambient tenant, the dispatch is refused with
+    /// <see cref="RequestIdentityErrorCodes.TenantConflict"/> (Warning 165).
     /// </para>
     /// </remarks>
     public static Either<EncinaError, IRequestContext> Resolve(
@@ -78,7 +104,7 @@ internal static class AmbientRequestContext
         var ambient = accessor.RequestContext;
         if (explicitContext is not null)
         {
-            return CheckExplicitContext(explicitContext, ambient, logger);
+            return CheckExplicitContext(explicitContext, ambient, ChainHasUser(accessor, ambient), logger);
         }
 
         if (ambient is null)
@@ -95,6 +121,7 @@ internal static class AmbientRequestContext
     private static Either<EncinaError, IRequestContext> CheckExplicitContext(
         IRequestContext explicitContext,
         IRequestContext? ambient,
+        bool chainHasUser,
         ILogger logger)
     {
         // Check and dispatch the same immutable snapshot: a foreign implementation could return one
@@ -102,64 +129,112 @@ internal static class AmbientRequestContext
         var snapshot = RequestContext.CopyOf(explicitContext);
         var requested = snapshot.Identity;
         var current = IdentityOf(ambient);
-        if (!IsIdentityChange(requested, current))
-        {
-            return Right<EncinaError, IRequestContext>(snapshot);
-        }
 
-        return current.Kind == IdentityKind.User
-            ? Refuse(requested, current, logger)
-            : Accept(snapshot, requested, current, logger);
-    }
-
-    /// <summary>
-    /// Applies the explicit-context rule to a direct set of the ambient context: replacing an ambient
-    /// <see cref="IdentityKind.User"/> with a different authenticated identity logs Warning 165 and
-    /// throws; any other change of authenticated identity logs Warning 165 and is allowed.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The set would replace an ambient user with a different authenticated identity.</exception>
-    internal static void EnsureReplaceable(IRequestContext? ambient, IRequestContext? replacement, ILogger logger)
-    {
-        var requested = IdentityOf(replacement);
-        var current = IdentityOf(ambient);
-        if (!IsIdentityChange(requested, current))
-        {
-            return;
-        }
-
-        if (current.Kind == IdentityKind.User)
+        var verdict = IdentityVerdict(requested, current, chainHasUser);
+        if (verdict == ExplicitIdentityVerdict.Refused)
         {
             RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused");
-            throw new InvalidOperationException(
-                $"The ambient request context carries an authenticated user; it cannot be replaced by a context with a different {requested.Kind} identity. End the user's scope before running as another identity.");
+            return Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind));
         }
 
-        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "accepted");
+        if (chainHasUser && !string.Equals(snapshot.TenantId, ambient?.TenantId, StringComparison.Ordinal))
+        {
+            RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused (tenant)");
+            return Left<EncinaError, IRequestContext>(RequestIdentityErrors.TenantConflict(current.Kind, requested.Kind));
+        }
+
+        if (verdict == ExplicitIdentityVerdict.AcceptedChange)
+        {
+            RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "accepted");
+        }
+
+        return Right<EncinaError, IRequestContext>(snapshot);
     }
 
-    // An anonymous context never changes the identity; an authenticated one does unless it is the same caller.
-    private static bool IsIdentityChange(RequestIdentity requested, RequestIdentity current) =>
-        requested.IsAuthenticated && !requested.IsSameAs(current);
-
-    private static Either<EncinaError, IRequestContext> Refuse(RequestIdentity requested, RequestIdentity current, ILogger logger)
+    // The identity rules of Resolve, first match wins (see the remarks of Resolve).
+    private static ExplicitIdentityVerdict IdentityVerdict(RequestIdentity requested, RequestIdentity current, bool chainHasUser)
     {
-        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused");
-        return Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind));
+        if (!requested.IsAuthenticated)
+        {
+            return ExplicitIdentityVerdict.Accepted;
+        }
+
+        var same = requested.IsSameAs(current);
+        if (IsRefusedIdentity(requested, current, chainHasUser, same))
+        {
+            return ExplicitIdentityVerdict.Refused;
+        }
+
+        return same ? ExplicitIdentityVerdict.Accepted : ExplicitIdentityVerdict.AcceptedChange;
     }
 
-    private static Either<EncinaError, IRequestContext> Accept(
-        IRequestContext explicitContext,
-        RequestIdentity requested,
-        RequestIdentity current,
-        ILogger logger)
+    // Rules 2-4: a stale issuer; a user in the chain and another identity; no issuer outside an
+    // active scope of the same identity.
+    private static bool IsRefusedIdentity(RequestIdentity requested, RequestIdentity current, bool chainHasUser, bool same) =>
+        IsStale(requested) || (chainHasUser && !same) || (requested.Issuer is null && !IsActiveScopeOf(current, same));
+
+    private static bool IsStale(RequestIdentity identity) => identity.Issuer is { IsLive: false };
+
+    // An issuer-less identity is accepted only inside an active scope of the same identity.
+    private static bool IsActiveScopeOf(RequestIdentity current, bool same) =>
+        same && current.IsAuthenticated && current.Issuer is { IsLive: true };
+
+    // With the default accessor, the facts of the holder chain (ended holders included); with any
+    // other accessor (unit tests that substitute it), the readable ambient identity.
+    private static bool ChainHasUser(IRequestContextAccessor accessor, IRequestContext? ambient) =>
+        accessor is RequestContextAccessor
+            ? RequestContextAccessor.CurrentFacts.HasFlag(ChainFacts.User)
+            : IdentityOf(ambient).Kind == IdentityKind.User;
+
+    /// <summary>
+    /// Applies the setter rule of <see cref="RequestContextAccessor.RequestContext"/> and returns the
+    /// snapshot to store.
+    /// </summary>
+    /// <param name="current">The readable ambient context, or <see langword="null"/> when none is readable.</param>
+    /// <param name="value">The value being set.</param>
+    /// <param name="logger">The logger for Warning 165.</param>
+    /// <returns>The immutable snapshot of <paramref name="value"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="value"/> is <see langword="null"/>, or its identity or origin differs from the
+    /// readable context (anonymous with no origin when none is readable), or it changes the tenant
+    /// while a dispatch is in flight.
+    /// </exception>
+    internal static RequestContext EnsureSettable(IRequestContext? current, IRequestContext? value, ILogger logger)
     {
-        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "accepted");
-        return Right<EncinaError, IRequestContext>(explicitContext);
+        var reference = IdentityOf(current);
+        var snapshot = value is null ? null : RequestContext.CopyOf(value);
+        if (snapshot is not null && PreservesIdentityAndOrigin(current, reference, snapshot))
+        {
+            return snapshot;
+        }
+
+        var requestedKind = snapshot?.Identity.Kind ?? IdentityKind.Anonymous;
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requestedKind, reference.Kind, "refused");
+        throw new InvalidOperationException(
+            "The ambient request context can only be replaced by a context with the same identity and origin (and, during a dispatch, the same tenant); it is never cleared. Bind identities through IRequestContextScopeFactory.");
     }
+
+    private static bool PreservesIdentityAndOrigin(IRequestContext? current, RequestIdentity reference, RequestContext snapshot) =>
+        snapshot.Identity.IsSameAs(reference)
+        && snapshot.Origin == OriginOf(current)
+        && !IsTenantChangeInDispatch(current, snapshot);
+
+    private static RequestOrigin OriginOf(IRequestContext? context) =>
+        (context as RequestContext)?.Origin ?? RequestOrigin.Unspecified;
+
+    private static bool IsTenantChangeInDispatch(IRequestContext? current, RequestContext snapshot) =>
+        DispatchInFlight.Value && !string.Equals(current?.TenantId, snapshot.TenantId, StringComparison.Ordinal);
 
     // A missing context, or a non-conforming one whose Identity is null, reads as anonymous.
     private static RequestIdentity IdentityOf(IRequestContext? context) =>
         context?.Identity ?? RequestIdentity.Anonymous;
+
+    private enum ExplicitIdentityVerdict
+    {
+        Accepted,
+        AcceptedChange,
+        Refused
+    }
 
     /// <summary>
     /// Makes <paramref name="context"/> the ambient context and marks a dispatch as in flight until

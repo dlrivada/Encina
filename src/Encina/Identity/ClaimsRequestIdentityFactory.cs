@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -25,6 +26,7 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
     private const string TenantClaimKind = "tenant";
 
     private readonly RequestIdentityOptions _options;
+    private readonly FrozenSet<string> _perTokenClaimTypes;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -39,11 +41,19 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options.Value;
+        _perTokenClaimTypes = _options.PerTokenClaimTypes
+            .Where(static claimType => !string.IsNullOrWhiteSpace(claimType))
+            .ToFrozenSet(StringComparer.OrdinalIgnoreCase);
         _logger = logger ?? NullLogger<ClaimsRequestIdentityFactory>.Instance;
     }
 
+    /// <summary>
+    /// Gets the configured per-token claim types, frozen once.
+    /// </summary>
+    internal FrozenSet<string> PerTokenClaimTypes => _perTokenClaimTypes;
+
     /// <inheritdoc />
-    public RequestIdentity Create(ClaimsPrincipal? principal)
+    public RequestIdentity Create(ClaimsPrincipal? principal, IdentityIssuer? issuer = null)
     {
         var identities = AuthenticatedIdentities(principal);
         if (identities.Count == 0)
@@ -63,7 +73,8 @@ internal sealed class ClaimsRequestIdentityFactory : IRequestIdentityFactory
             return RequestIdentity.Anonymous;
         }
 
-        return RequestIdentity.ForUser(subject, principal, CollectRoles(identities), CollectPermissions(identities));
+        return RequestIdentity.ForUser(
+            subject, principal, CollectRoles(identities), CollectPermissions(identities), issuer, _perTokenClaimTypes);
     }
 
     /// <inheritdoc />

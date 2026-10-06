@@ -216,7 +216,7 @@ public sealed class RequestContextPropagationTests
     }
 
     [Fact]
-    public async Task Send_OutsideAnyHttpContext_WithExplicitContext_CarriesUserAndTenant()
+    public async Task Send_OutsideAnyHttpContext_InsideAPrincipalScope_CarriesUserAndTenant()
     {
         // Arrange - a plain DI container, the way a background job host looks: no ASP.NET Core.
         var capture = new ContextCapture();
@@ -229,24 +229,39 @@ public sealed class RequestContextPropagationTests
 
         const string intendedUserId = "background-job-owner";
         const string intendedTenantId = "tenant-for-the-job";
-        var jobContext = TestRequestContext.WithIdentity(
-            RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "job-correlation"),
-            TestIdentity.User(intendedUserId))
-            .WithTenantId(intendedTenantId);
 
         await using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
         var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
+        var scopes = scope.ServiceProvider.GetRequiredService<IRequestContextScopeFactory>();
 
-        // Act
-        var result = await encina.Send(new CapturingCommand(), jobContext);
+        // A context built outside a scope cannot bind an identity on its own (Q3: issuer-less).
+        var builtContext = TestRequestContext.WithIdentity(
+            RequestContext.CreateAnonymousAt(TimeProvider.System.GetUtcNow(), "job-correlation"),
+            TestIdentity.User(intendedUserId))
+            .WithTenantId(intendedTenantId);
+        var refused = await encina.Send(new CapturingCommand(), builtContext);
+        refused.IsLeft.ShouldBeTrue();
+        refused.IfLeft(error => error.GetEncinaCode().ShouldBe(RequestIdentityErrorCodes.ScopeConflict));
+        capture.BehaviorInvoked.ShouldBeFalse();
+
+        // Act - the job binds its owner through the scope factory and dispatches inside the scope
+        IRequestContext? jobContext = null;
+        var result = await scopes.RunAsPrincipalAsync(
+            TestIdentity.Principal(intendedUserId),
+            async (context, ct) =>
+            {
+                jobContext = context;
+                return await encina.Send(new CapturingCommand(), context, ct);
+            },
+            new IdentityScopeOptions(TenantId: intendedTenantId));
 
         // Assert
         result.ShouldBeSuccess();
         capture.BehaviorInvoked.ShouldBeTrue();
         capture.BehaviorContextUserId.ShouldBe(intendedUserId);
         capture.BehaviorContextTenantId.ShouldBe(intendedTenantId);
-        capture.BehaviorContextCorrelationId.ShouldBe("job-correlation");
+        capture.BehaviorContextCorrelationId.ShouldBe(jobContext!.CorrelationId);
 
         // The explicit context is also the ambient one while the pipeline runs.
         capture.AccessorUserId.ShouldBe(intendedUserId);

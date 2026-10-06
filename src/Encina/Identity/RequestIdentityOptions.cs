@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Security.Claims;
 
 namespace Encina;
@@ -74,4 +75,30 @@ public sealed class RequestIdentityOptions
     /// authenticated principals. Default: <c>tenant_id</c>, <c>tid</c>, <see cref="TenantIdentifierClaimType"/>.
     /// </summary>
     public IList<string> TenantIdClaimTypes { get; } = ["tenant_id", "tid", TenantIdentifierClaimType];
+
+    /// <summary>
+    /// Gets the default per-token claim types: <c>exp</c>, <c>iat</c>, <c>nbf</c>, <c>jti</c>,
+    /// <c>uti</c>, <c>rh</c>, <c>aio</c>, <c>nonce</c>, <c>at_hash</c> and <c>c_hash</c>
+    /// (case-insensitive, frozen).
+    /// </summary>
+    /// <remarks>
+    /// <c>auth_time</c>, <c>amr</c> and <c>acr</c> are deliberately absent: they are step-up and
+    /// max-age signals, so a change in any of them is a different identity. Identities built
+    /// outside the scope factory (the <c>Encina.Testing</c> builders) compare with this set.
+    /// </remarks>
+    public static IReadOnlySet<string> DefaultPerTokenClaimTypes { get; } =
+        new[] { "exp", "iat", "nbf", "jti", "uti", "rh", "aio", "nonce", "at_hash", "c_hash" }
+            .ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the claim types that change with every token of the same session and that identity
+    /// comparison ignores. Default: <see cref="DefaultPerTokenClaimTypes"/>.
+    /// </summary>
+    /// <remarks>
+    /// Two snapshots of one session (before and after a token refresh) stay the same identity
+    /// because these claims are ignored; every other authenticated claim counts. Startup
+    /// validation rejects an entry that names a user-id, role or permission claim type,
+    /// <c>amr</c> or <c>acr</c>.
+    /// </remarks>
+    public IList<string> PerTokenClaimTypes { get; } = [.. DefaultPerTokenClaimTypes.Order(StringComparer.Ordinal)];
 }

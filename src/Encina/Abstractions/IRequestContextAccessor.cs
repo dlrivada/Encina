@@ -28,24 +28,27 @@ namespace Encina;
 /// request; passing it on would make idempotency behaviors treat the nested request as a duplicate
 /// of the outer one. A context passed explicitly to an overload is snapshotted (a foreign
 /// implementation is copied into an immutable <see cref="global::Encina.RequestContext"/>) and the snapshot
-/// is used, unless its authenticated identity (kind, user id, roles or permissions) differs from an
-/// ambient <see cref="IdentityKind.User"/> identity, in which case the dispatch is refused with
-/// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>.
+/// is checked by the explicit-context rule (see
+/// <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, IRequestContext, CancellationToken)"/>).
 /// </para>
 /// <para>
-/// The setter is host infrastructure (request middleware, circuit handlers, identity scopes and
-/// the dispatcher itself). Application code reads the context; it never sets an identity. The
-/// default implementation applies the same rule to the setter: replacing an ambient user with a
-/// different authenticated identity throws <see cref="InvalidOperationException"/>. The rule guards
-/// against a direct overwrite of the current value; identity scopes are what bind an identity to
-/// a region of code.
+/// <b>Binding an identity.</b> Identities are bound to a unit of work only through
+/// <see cref="IRequestContextScopeFactory"/>; the context read here is the one of the innermost
+/// scope (or entry point) of the current flow, and reads as <c>null</c> once that scope has ended.
+/// </para>
+/// <para>
+/// <b>The setter</b> is host infrastructure (request middleware, the dispatcher). Application code
+/// reads the context; it never sets an identity. The default implementation accepts a set only
+/// when it preserves the identity and the origin of the readable context (anonymous with no origin
+/// when none is readable), never clears it, and accepts a tenant change only while no dispatch is
+/// in flight; any other set logs Warning 165 and throws <see cref="InvalidOperationException"/>.
 /// </para>
 /// <para>
 /// The default implementation (<see cref="RequestContextAccessor"/>) stores the value in an
 /// <see cref="AsyncLocal{T}"/>, so it flows across <c>await</c> points and stays isolated between
-/// concurrent logical calls. Entry points without an ambient context (background jobs, webhooks,
-/// outbox or scheduled-message dispatch) pass one explicitly through the
-/// <see cref="IEncina.Send{TResponse}(IRequest{TResponse}, IRequestContext, CancellationToken)"/> overloads.
+/// concurrent logical calls. It is the only supported implementation: identity scopes and the
+/// dispatcher share its store, and <c>AddEncinaRequestIdentity</c> fails startup when another
+/// implementation is registered.
 /// </para>
 /// </remarks>
 public interface IRequestContextAccessor
@@ -53,9 +56,16 @@ public interface IRequestContextAccessor
     /// <summary>
     /// Gets or sets the ambient request context, or <c>null</c> when no context is in flight.
     /// </summary>
+    /// <remarks>
+    /// The default implementation's setter is identity- and origin-preserving: the new value must
+    /// carry the same identity (kind, user id, roles, permissions and non-per-token claims) and the
+    /// same origin as the readable context, it may change the tenant only while no dispatch is in
+    /// flight, and it can never be <see langword="null"/>. Use
+    /// <see cref="IRequestContextScopeFactory"/> to run code as another identity.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// (Default implementation, on set.) The value would replace an ambient user with a different
-    /// authenticated identity.
+    /// (Default implementation, on set.) The value is <see langword="null"/>, or changes the
+    /// identity or the origin, or changes the tenant during a dispatch.
     /// </exception>
     IRequestContext? RequestContext { get; set; }
 }

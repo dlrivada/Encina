@@ -23,8 +23,10 @@ public abstract class EncinaExplicitContextContract
     /// <summary>Creates the implementation under test, answering <see cref="ContractPing"/> with its text upper-cased and streaming 1, 2, 3.</summary>
     protected abstract IEncina CreateSut();
 
+    // An anonymous explicit context: every implementation accepts it. An authenticated one must be
+    // issued by an identity scope (#1705 Phase 2); the Encina-specific tests below cover that rule.
     private static IRequestContext JobContext()
-        => TestRequestContext.For(TestIdentity.User("job-user"), tenantId: "job-tenant", correlationId: "job-correlation");
+        => RequestContext.CreateForTest(tenantId: "job-tenant", correlationId: "job-correlation");
 
     [Fact]
     public async Task Send_WithExplicitContext_ReturnsTheSameOutcomeAsTheAmbientOverload()
@@ -188,14 +190,40 @@ public sealed class EncinaMediatorExplicitContextContractTests : EncinaExplicitC
     }
 
     [Fact]
-    public async Task Send_WithExplicitContext_ThePipelineReceivesThatContext()
+    public async Task Send_WithTheContextOfAnIdentityScope_ThePipelineReceivesThatContext()
     {
         var sut = CreateSut();
-        var context = TestRequestContext.For(TestIdentity.User("explicit-user"), tenantId: "explicit-tenant");
+        var provider = _provider!;
+        var scopes = provider.GetRequiredService<IRequestContextScopeFactory>();
+        IRequestContext? scoped = null;
 
-        await sut.Send(new ContractPing("x"), context);
+        var outcome = await scopes.RunAsPrincipalAsync(
+            TestIdentity.Principal("explicit-user"),
+            async (context, ct) =>
+            {
+                scoped = context;
+                return await sut.Send(new ContractPing("x"), context, ct);
+            },
+            new IdentityScopeOptions(TenantId: "explicit-tenant"));
 
-        _provider!.GetRequiredService<ContextRecorder>().Seen.ShouldBeSameAs(context);
+        outcome.ShouldBeSuccess().ShouldBe("X");
+        var seen = provider.GetRequiredService<ContextRecorder>().Seen;
+        seen.ShouldBeSameAs(scoped);
+        seen.ShouldNotBeNull();
+        seen.UserId.ShouldBe("explicit-user");
+        seen.TenantId.ShouldBe("explicit-tenant");
+    }
+
+    [Fact]
+    public async Task Send_WithABuiltAuthenticatedContext_OutsideAScope_IsRefused_WithoutRunningThePipeline()
+    {
+        var sut = CreateSut();
+
+        var result = await sut.Send(new ContractPing("x"), TestRequestContext.For(TestIdentity.User("explicit-user")));
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ScopeConflict));
+        _provider!.GetRequiredService<ContextRecorder>().Seen.ShouldBeNull();
     }
 }
 

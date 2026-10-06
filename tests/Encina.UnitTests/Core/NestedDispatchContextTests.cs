@@ -349,10 +349,31 @@ public sealed class NestedDispatchContextTests
         return services.BuildServiceProvider();
     }
 
-    /// <summary>The context an entry point (e.g. EncinaContextMiddleware) puts on the accessor.</summary>
-    private static IRequestContext EntryContext(string idempotencyKey = "entry-key")
-        => TestRequestContext.For(TestIdentity.User("user-1"), tenantId: "tenant-1", idempotencyKey: idempotencyKey, correlationId: "corr-1")
-            .WithMetadata("custom", "value");
+    /// <summary>
+    /// Runs <paramref name="body"/> as an entry point does (the request middleware's host-adapter
+    /// path): an inbound scope for <c>user-1</c> in <c>tenant-1</c> with <paramref name="idempotencyKey"/>,
+    /// plus a custom metadata entry set through the identity-preserving setter. The body receives the
+    /// entry context the accessor holds.
+    /// </summary>
+    private static async Task AsEntry(ServiceProvider provider, Func<IRequestContext, Task> body, string idempotencyKey = "entry-key")
+    {
+        var scopes = provider.GetRequiredService<IInternalRequestContextScopeFactory>();
+        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
+        var info = new InboundRequestInfo(TestIdentity.Principal("user-1"), "corr-1", TenantHeaderValue: "tenant-1", IdempotencyKey: idempotencyKey);
+
+        var result = await scopes.RunHostInboundAsync(info, async (context, _) =>
+        {
+            accessor.RequestContext = context.WithMetadata("custom", "value");
+            await body(accessor.RequestContext!);
+            return Right<EncinaError, Unit>(unit);
+        });
+
+        result.ShouldBeSuccess();
+    }
+
+    /// <summary>An explicit context of the entry identity (built, not issued), in the entry tenant.</summary>
+    private static IRequestContext SameUserContext(string? idempotencyKey = null)
+        => TestRequestContext.For(TestIdentity.User("user-1"), tenantId: "tenant-1", idempotencyKey: idempotencyKey);
 
     private static void ShouldBeDerivedFrom(IRequestContext nested, IRequestContext parent)
     {
@@ -374,14 +395,16 @@ public sealed class NestedDispatchContextTests
     public async Task EntryPointDispatch_UsesTheAmbientContextAsIs_IdempotencyKeyIncluded()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new Leaf())).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new Leaf())).ShouldBeSuccess();
 
-        var seen = provider.GetRequiredService<Seen>();
-        seen.Of("behavior:Leaf").ShouldHaveSingleItem().ShouldBeSameAs(entry);
-        entry.IsNestedDispatch().ShouldBeFalse();
+            var seen = provider.GetRequiredService<Seen>();
+            seen.Of("behavior:Leaf").ShouldHaveSingleItem().ShouldBeSameAs(entry);
+            entry.IsNestedDispatch().ShouldBeFalse();
+            entry.IdempotencyKey.ShouldBe("entry-key");
+        });
     }
 
     [Fact]
@@ -389,72 +412,79 @@ public sealed class NestedDispatchContextTests
     {
         var time = new FakeTimeProvider(Start);
         await using var provider = BuildProvider(time);
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new Parent(1))).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new Parent(1))).ShouldBeSuccess();
 
-        var seen = provider.GetRequiredService<Seen>();
-        seen.Of("parent").ShouldHaveSingleItem().ShouldBeSameAs(entry);
-        var nested = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
-        ShouldBeDerivedFrom(nested, entry);
-        nested.Timestamp.ShouldBe(Start.AddSeconds(1));
+            var seen = provider.GetRequiredService<Seen>();
+            seen.Of("parent").ShouldHaveSingleItem().ShouldBeSameAs(entry);
+            var nested = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
+            ShouldBeDerivedFrom(nested, entry);
+            nested.Timestamp.ShouldBe(Start.AddSeconds(1));
 
-        // The handler of the nested request sees the same derived context through the accessor.
-        seen.Of("leaf").ShouldHaveSingleItem().ShouldBeSameAs(nested);
+            // The handler of the nested request sees the same derived context through the accessor.
+            seen.Of("leaf").ShouldHaveSingleItem().ShouldBeSameAs(nested);
+        });
     }
 
     [Fact]
     public async Task SiblingNestedSends_EachGetTheirOwnDerivedContext_AndTimestamp()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new Parent(2))).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new Parent(2))).ShouldBeSuccess();
 
-        var nested = provider.GetRequiredService<Seen>().Of("behavior:Leaf");
-        nested.Length.ShouldBe(2);
-        nested[0].ShouldNotBeSameAs(nested[1]);
-        nested[0].Timestamp.ShouldBe(Start.AddSeconds(1));
-        nested[1].Timestamp.ShouldBe(Start.AddSeconds(2));
-        nested.ShouldAllBe(c => c.IdempotencyKey == null && c.CorrelationId == entry.CorrelationId);
+            var nested = provider.GetRequiredService<Seen>().Of("behavior:Leaf");
+            nested.Length.ShouldBe(2);
+            nested[0].ShouldNotBeSameAs(nested[1]);
+            nested[0].Timestamp.ShouldBe(Start.AddSeconds(1));
+            nested[1].Timestamp.ShouldBe(Start.AddSeconds(2));
+            nested.ShouldAllBe(c => c.IdempotencyKey == null && c.CorrelationId == entry.CorrelationId);
+        });
     }
 
     [Fact]
     public async Task DeeplyNestedSend_StaysDerived_WithoutTheKey()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new GrandParent())).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new GrandParent())).ShouldBeSuccess();
 
-        var seen = provider.GetRequiredService<Seen>();
-        var parent = seen.Of("behavior:Parent").ShouldHaveSingleItem();
-        var leaf = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
-        ShouldBeDerivedFrom(parent, entry);
-        ShouldBeDerivedFrom(leaf, entry);
-        leaf.ShouldNotBeSameAs(parent);
+            var seen = provider.GetRequiredService<Seen>();
+            var parent = seen.Of("behavior:Parent").ShouldHaveSingleItem();
+            var leaf = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
+            ShouldBeDerivedFrom(parent, entry);
+            ShouldBeDerivedFrom(leaf, entry);
+            leaf.ShouldNotBeSameAs(parent);
+        });
     }
 
     [Fact]
     public async Task NestedSend_WithAnExplicitContext_UsesItAsIs()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = EntryContext();
-        var childContext = TestRequestContext.For(TestIdentity.User("user-1"), idempotencyKey: "child-key");
 
-        (await provider.GetRequiredService<IEncina>().Send(new Parent(1, childContext))).ShouldBeSuccess();
+        await AsEntry(provider, async _ =>
+        {
+            // An issuer-less context of the scope's own identity and tenant is accepted inside that scope.
+            var childContext = SameUserContext(idempotencyKey: "child-key");
 
-        provider.GetRequiredService<Seen>().Of("behavior:Leaf").ShouldHaveSingleItem().ShouldBeSameAs(childContext);
+            (await provider.GetRequiredService<IEncina>().Send(new Parent(1, childContext))).ShouldBeSuccess();
+
+            provider.GetRequiredService<Seen>().Of("behavior:Leaf").ShouldHaveSingleItem().ShouldBeSameAs(childContext);
+        });
     }
 
     [Fact]
     public async Task EntryPointDispatch_WithoutAnyContext_IsStampedByTheTimeProvider_AndItsNestedSendIsDerived()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext.ShouldBeNull();
 
         (await provider.GetRequiredService<IEncina>().Send(new Parent(1))).ShouldBeSuccess();
 
@@ -469,60 +499,63 @@ public sealed class NestedDispatchContextTests
     public async Task PublishInsideAHandler_NotificationHandlersAndTheirSends_DoNotInheritTheKey()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new Announce())).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new Announce())).ShouldBeSuccess();
 
-        var seen = provider.GetRequiredService<Seen>();
-        var notificationContext = seen.Of("notification").ShouldHaveSingleItem();
-        ShouldBeDerivedFrom(notificationContext, entry);
-        var leaf = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
-        ShouldBeDerivedFrom(leaf, entry);
-        leaf.ShouldNotBeSameAs(notificationContext);
+            var seen = provider.GetRequiredService<Seen>();
+            var notificationContext = seen.Of("notification").ShouldHaveSingleItem();
+            ShouldBeDerivedFrom(notificationContext, entry);
+            var leaf = seen.Of("behavior:Leaf").ShouldHaveSingleItem();
+            ShouldBeDerivedFrom(leaf, entry);
+            leaf.ShouldNotBeSameAs(notificationContext);
+        });
     }
 
     [Fact]
     public async Task EntryPointPublish_NotificationHandlerSends_DoNotInheritTheKey()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Publish(new Happened())).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Publish(new Happened())).ShouldBeSuccess();
 
-        var seen = provider.GetRequiredService<Seen>();
-        seen.Of("notification").ShouldHaveSingleItem().ShouldBeSameAs(entry);
-        ShouldBeDerivedFrom(seen.Of("behavior:Leaf").ShouldHaveSingleItem(), entry);
+            var seen = provider.GetRequiredService<Seen>();
+            seen.Of("notification").ShouldHaveSingleItem().ShouldBeSameAs(entry);
+            ShouldBeDerivedFrom(seen.Of("behavior:Leaf").ShouldHaveSingleItem(), entry);
+        });
     }
 
     [Fact]
     public async Task DomainEventsPublishedFromAHandler_DoNotInheritTheKey()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = entry;
 
-        (await provider.GetRequiredService<IEncina>().Send(new ShipOrder())).ShouldBeSuccess();
+        await AsEntry(provider, async entry =>
+        {
+            (await provider.GetRequiredService<IEncina>().Send(new ShipOrder())).ShouldBeSuccess();
 
-        ShouldBeDerivedFrom(provider.GetRequiredService<Seen>().Of("domain-event").ShouldHaveSingleItem(), entry);
+            ShouldBeDerivedFrom(provider.GetRequiredService<Seen>().Of("domain-event").ShouldHaveSingleItem(), entry);
+        });
     }
 
     [Fact]
     public async Task EntryPointStream_UsesTheAmbientContextAsIs()
     {
         await using var provider = BuildProvider();
-        var entry = EntryContext();
-        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
         var encina = provider.GetRequiredService<IEncina>();
 
-        accessor.RequestContext = entry;
-        await foreach (var item in encina.Stream(new Ticks(1)))
+        await AsEntry(provider, async entry =>
         {
-            item.ShouldBeSuccess();
-        }
+            await foreach (var item in encina.Stream(new Ticks(1)))
+            {
+                item.ShouldBeSuccess();
+            }
 
-        provider.GetRequiredService<Seen>().Of("tick").ShouldHaveSingleItem().ShouldBeSameAs(entry);
+            provider.GetRequiredService<Seen>().Of("tick").ShouldHaveSingleItem().ShouldBeSameAs(entry);
+        });
     }
 
     // ── Idempotency: inbox ─────────────────────────────────────────────
@@ -533,13 +566,12 @@ public sealed class NestedDispatchContextTests
         var inbox = new FakeInboxStore();
         await using var provider = BuildProvider(inboxStore: inbox);
         var encina = provider.GetRequiredService<IEncina>();
-        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
         var counters = provider.GetRequiredService<Counters>();
+        Either<EncinaError, int> first = default;
+        Either<EncinaError, int> repeated = default;
 
-        accessor.RequestContext = EntryContext("order-1");
-        var first = await encina.Send(new InboxOuter(["a"]));
-        accessor.RequestContext = EntryContext("order-1");
-        var repeated = await encina.Send(new InboxOuter(["a"]));
+        await AsEntry(provider, async _ => first = await encina.Send(new InboxOuter(["a"])), "order-1");
+        await AsEntry(provider, async _ => repeated = await encina.Send(new InboxOuter(["a"])), "order-1");
 
         first.ShouldBeSuccess().ShouldBe(1);
         repeated.ShouldBeSuccess().ShouldBe(1);
@@ -553,9 +585,9 @@ public sealed class NestedDispatchContextTests
     public async Task Inbox_SiblingNestedIdempotentSends_EachRun()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = EntryContext("order-2");
+        Either<EncinaError, int> result = default;
 
-        var result = await provider.GetRequiredService<IEncina>().Send(new InboxOuter(["a", "b", "a"]));
+        await AsEntry(provider, async _ => result = await provider.GetRequiredService<IEncina>().Send(new InboxOuter(["a", "b", "a"])), "order-2");
 
         result.ShouldBeSuccess().ShouldBe(1);
         var counters = provider.GetRequiredService<Counters>();
@@ -569,12 +601,9 @@ public sealed class NestedDispatchContextTests
         var inbox = new FakeInboxStore();
         await using var provider = BuildProvider(inboxStore: inbox);
         var encina = provider.GetRequiredService<IEncina>();
-        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
 
-        accessor.RequestContext = EntryContext("order-3");
-        (await encina.Send(new InboxOuter(["a"], ChildKey: "child-1"))).ShouldBeSuccess();
-        accessor.RequestContext = EntryContext("order-4");
-        (await encina.Send(new InboxOuter(["a"], ChildKey: "child-1"))).ShouldBeSuccess();
+        await AsEntry(provider, async _ => (await encina.Send(new InboxOuter(["a"], ChildKey: "child-1"))).ShouldBeSuccess(), "order-3");
+        await AsEntry(provider, async _ => (await encina.Send(new InboxOuter(["a"], ChildKey: "child-1"))).ShouldBeSuccess(), "order-4");
 
         var counters = provider.GetRequiredService<Counters>();
         counters["outer"].ShouldBe(2);
@@ -586,7 +615,7 @@ public sealed class NestedDispatchContextTests
     public async Task Inbox_EntryPointIdempotentSendWithoutKey_IsStillRejected()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext.ShouldBeNull();
 
         var result = await provider.GetRequiredService<IEncina>().Send(new InboxInner("a"));
 
@@ -601,13 +630,12 @@ public sealed class NestedDispatchContextTests
     {
         await using var provider = BuildProvider();
         var encina = provider.GetRequiredService<IEncina>();
-        var accessor = provider.GetRequiredService<IRequestContextAccessor>();
         var counters = provider.GetRequiredService<Counters>();
+        Either<EncinaError, int> first = default;
+        Either<EncinaError, int> repeated = default;
 
-        accessor.RequestContext = EntryContext("pay-1");
-        var first = await encina.Send(new CacheOuter(["a"]));
-        accessor.RequestContext = EntryContext("pay-1");
-        var repeated = await encina.Send(new CacheOuter(["a"]));
+        await AsEntry(provider, async _ => first = await encina.Send(new CacheOuter(["a"])), "pay-1");
+        await AsEntry(provider, async _ => repeated = await encina.Send(new CacheOuter(["a"])), "pay-1");
 
         first.ShouldBeSuccess().ShouldBe(1);
         repeated.ShouldBeSuccess().ShouldBe(1);
@@ -619,9 +647,9 @@ public sealed class NestedDispatchContextTests
     public async Task DistributedIdempotency_SiblingNestedIdempotentSends_EachRun()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = EntryContext("pay-2");
+        Either<EncinaError, int> result = default;
 
-        var result = await provider.GetRequiredService<IEncina>().Send(new CacheOuter(["a", "a"]));
+        await AsEntry(provider, async _ => result = await provider.GetRequiredService<IEncina>().Send(new CacheOuter(["a", "a"])), "pay-2");
 
         result.ShouldBeSuccess().ShouldBe(1);
         provider.GetRequiredService<Counters>()["a"].ShouldBe(2);
@@ -631,7 +659,7 @@ public sealed class NestedDispatchContextTests
     public async Task DistributedIdempotency_EntryPointSendWithoutKey_IsStillRejected()
     {
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
+        provider.GetRequiredService<IRequestContextAccessor>().RequestContext.ShouldBeNull();
 
         var result = await provider.GetRequiredService<IEncina>().Send(new CacheInner("a"));
 
@@ -659,101 +687,110 @@ public sealed class NestedDispatchContextTests
     public async Task AfterAHandlerThrows_TheAmbientContextAndDispatchStateAreRestored()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var explicitContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IEncina>().Send(new Explode(), explicitContext));
+        await AsEntry(provider, async caller =>
+        {
+            await Should.ThrowAsync<InvalidOperationException>(async () =>
+                await provider.GetRequiredService<IEncina>().Send(new Explode(), SameUserContext()));
 
-        await ShouldBeRestoredAsync(provider, caller);
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 
     [Fact]
     public async Task AfterABehaviorThrows_TheAmbientContextAndDispatchStateAreRestored()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IEncina>().Send(new ExplodeInBehavior(), TestRequestContext.For(TestIdentity.User("user-1"))));
+        await AsEntry(provider, async caller =>
+        {
+            await Should.ThrowAsync<InvalidOperationException>(async () =>
+                await provider.GetRequiredService<IEncina>().Send(new ExplodeInBehavior(), SameUserContext()));
 
-        await ShouldBeRestoredAsync(provider, caller);
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 
     [Fact]
     public async Task AfterCancellation_TheAmbientContextAndDispatchStateAreRestored()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
 
-        var result = await provider.GetRequiredService<IEncina>().Send(new WaitForCancel(), TestRequestContext.For(TestIdentity.User("user-1")), cts.Token);
+        await AsEntry(provider, async caller =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
 
-        result.ShouldBeError();
-        await ShouldBeRestoredAsync(provider, caller);
+            var result = await provider.GetRequiredService<IEncina>().Send(new WaitForCancel(), SameUserContext(), cts.Token);
+
+            result.ShouldBeError();
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 
     [Fact]
     public async Task StreamEarlyBreak_DisposesUnderTheStreamContext_AndRestoresTheCallerContext()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
-        await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext))
+        await AsEntry(provider, async caller =>
         {
-            item.ShouldBeSuccess();
-            break;
-        }
+            var streamContext = SameUserContext();
 
-        var seen = provider.GetRequiredService<Seen>();
-        seen.Of("tick").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
-        seen.Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
-        await ShouldBeRestoredAsync(provider, caller);
+            await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext))
+            {
+                item.ShouldBeSuccess();
+                break;
+            }
+
+            var seen = provider.GetRequiredService<Seen>();
+            seen.Of("tick").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
+            seen.Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 
     [Fact]
     public async Task StreamExceptionMidStream_PropagatesToTheConsumer_AndRestoresTheCallerContext()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
-        var received = 0;
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        await AsEntry(provider, async caller =>
         {
-            await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Ticks(5, ThrowAt: 2), streamContext))
-            {
-                item.ShouldBeSuccess();
-                received++;
-            }
-        });
+            var streamContext = SameUserContext();
+            var received = 0;
 
-        received.ShouldBe(2);
-        provider.GetRequiredService<Seen>().Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
-        await ShouldBeRestoredAsync(provider, caller);
+            await Should.ThrowAsync<InvalidOperationException>(async () =>
+            {
+                await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Ticks(5, ThrowAt: 2), streamContext))
+                {
+                    item.ShouldBeSuccess();
+                    received++;
+                }
+            });
+
+            received.ShouldBe(2);
+            provider.GetRequiredService<Seen>().Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 
     [Fact]
     public async Task StreamDisposeAsync_WithoutFullEnumeration_RunsTheHandlerCleanupUnderTheStreamContext()
     {
         await using var provider = BuildProvider();
-        var caller = EntryContext();
         var accessor = provider.GetRequiredService<IRequestContextAccessor>();
-        accessor.RequestContext = caller;
-        var streamContext = TestRequestContext.For(TestIdentity.User("user-1"));
 
-        var enumerator = provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext).GetAsyncEnumerator();
-        (await enumerator.MoveNextAsync()).ShouldBeTrue();
-        accessor.RequestContext.ShouldBeSameAs(caller);
-        await enumerator.DisposeAsync();
+        await AsEntry(provider, async caller =>
+        {
+            var streamContext = SameUserContext();
 
-        provider.GetRequiredService<Seen>().Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
-        await ShouldBeRestoredAsync(provider, caller);
+            var enumerator = provider.GetRequiredService<IEncina>().Stream(new Ticks(5), streamContext).GetAsyncEnumerator();
+            (await enumerator.MoveNextAsync()).ShouldBeTrue();
+            accessor.RequestContext.ShouldBeSameAs(caller);
+            await enumerator.DisposeAsync();
+
+            provider.GetRequiredService<Seen>().Of("stream-finally").ShouldHaveSingleItem().ShouldBeSameAs(streamContext);
+            await ShouldBeRestoredAsync(provider, caller);
+        });
     }
 }
