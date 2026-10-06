@@ -1,5 +1,6 @@
 using Encina.AspNetCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Encina.UnitTests.AspNetCore;
 
@@ -44,21 +45,26 @@ public sealed class ProblemDetailsExtensionsTests
     [Fact]
     public void ToProblemDetails_Unauthenticated_Returns401()
     {
-        var error = EncinaErrors.Create("authorization.unauthenticated", "Not authenticated");
+        var error = EncinaErrors.Create(EncinaErrorCodes.AuthorizationUnauthenticated, "Not authenticated");
         var context = CreateHttpContext();
 
         var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
     }
 
-    [Fact]
-    public void ToProblemDetails_AuthorizationForbidden_Returns403()
+    [Theory]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData("encina.authorization.some_future_denial")]
+    public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
     {
-        var error = EncinaErrors.Create("authorization.insufficient_permissions", "Forbidden");
+        var error = EncinaErrors.Create(code, "Forbidden");
         var context = CreateHttpContext();
 
         var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
     }
 
     [Fact]

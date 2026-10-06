@@ -274,7 +274,7 @@ public record GetPublicStatusQuery : IQuery<ServiceStatus>;
 | Policy failed | `encina.authorization.policy_failed` |
 | Resource authorization denied | `encina.authorization.resource_denied` |
 
-`ToProblemDetails` and `ToActionResult` choose the HTTP status from the error code (next section). They match the codes without the `encina.` prefix, so the prefixed codes above currently fall to the 500 default unless you pass the `statusCode` argument.
+`ToProblemDetails` and `ToActionResult` choose the HTTP status from the error code (next section): `encina.authorization.unauthenticated` maps to 401 and every other `encina.authorization.*` code maps to 403.
 
 > For full documentation including `IResourceAuthorizer`, policy helpers, and testing patterns, see [Authorization Feature Docs](../../docs/features/authorization.md).
 
@@ -288,8 +288,8 @@ Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 |-------------------|-------------|-------|
 | `validation.*` | 400 | Bad Request |
 | `Encina.guard.validation_failed` | 400 | Bad Request |
-| `authorization.unauthenticated` | 401 | Unauthorized |
-| `authorization.*` | 403 | Forbidden |
+| `encina.authorization.unauthenticated` | 401 | Unauthorized |
+| `encina.authorization.*` | 403 | Forbidden |
 | `*.not_found` | 404 | Not Found |
 | `*.missing` | 404 | Not Found |
 | `Encina.request.handler_missing` | 404 | Not Found |

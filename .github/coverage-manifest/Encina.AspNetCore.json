@@ -203,7 +203,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Static extension methods converting EncinaError to ProblemDetails"
+      "reason": "Error mapper converting EncinaError to ProblemDetails; unit tests cover all code paths, guard tests cover null-parameter checks",
+      "targets": { "unit": 100, "guard": 25 },
+      "justifications": {
+        "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
+        "guard": "Only the null guards on the public error and request parameters need guard tests."
+      }
     },
     "Properties/AssemblyInfo.cs": {
       "defaultTests": [],

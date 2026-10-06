@@ -88,7 +88,13 @@ public static class EncinaErrorCodes
 
     // ── Authorization ──────────────────────────────────────────────
 
-    /// <summary>User is not authenticated when authentication is required.</summary>
+    /// <summary>
+    /// Prefix shared by every <c>encina.authorization.*</c> code. Host adapters map an unknown code
+    /// with this prefix to a denial (403) instead of an internal error.
+    /// </summary>
+    public const string AuthorizationPrefix = "encina.authorization.";
+
+    /// <summary>The caller is not allowed to perform the operation (a denial, not a missing identity).</summary>
     public const string AuthorizationUnauthorized = "encina.authorization.unauthorized";
 
     /// <summary>
