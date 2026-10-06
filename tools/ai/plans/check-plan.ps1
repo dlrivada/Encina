@@ -41,7 +41,8 @@
     Strict mode: ignore the allow-list of plans that predate the current prompt.
 .PARAMETER Draft
     Skips only the decisions check (## Maintainer Decisions), so a plan writer can validate the
-    structure before the maintainer decides. CI never uses it.
+    structure before the maintainer decides. CI always uses it (plans merge with pending
+    recommendations); the full check without -Draft is the gate before a worker brief.
 .PARAMETER BaseRef
     Base of -Changed. Default origin/main.
 #>

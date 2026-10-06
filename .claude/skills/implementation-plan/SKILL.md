@@ -31,15 +31,15 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
    - the test types and coverage flags from `.github/coverage-manifest/<Package>.json`,
    - EventId ranges from `src/Encina/Diagnostics/EventIdRanges.cs` for any new logging.
 4. Save the plan as `docs/plans/<feature>-implementation-plan-<issue>.md`.
-5. Run the structural checker from the repository root and fix every gap it names, until it exits 0:
+5. Run the structural checker from the repository root with `-Draft`, and fix every gap it names until it exits 0:
 
    ```powershell
-   pwsh tools/ai/plans/check-plan.ps1 -Path docs/plans/<feature>-implementation-plan-<issue>.md
+   pwsh tools/ai/plans/check-plan.ps1 -Path docs/plans/<feature>-implementation-plan-<issue>.md -Draft
    ```
 
    When you write the plan, add `-Draft`: it skips only the decisions check, and it is what the `plan-conformance` workflow always uses, so plans merge with pending recommendations. Without `-Draft` the check is the pre-brief gate: it fails with "Design Choices await the maintainer" until step 8 is done.
 
-   It checks the section order, the Design Choices (at least 4, each with options, chosen option and rationale), the per-phase Tasks and Prompt blocks, the four Research tables, the combined prompt, the 12-function matrix and the file name. `-Changed` checks every plan changed against `origin/main`; `-SelfTest` tests the checker. The `plan-conformance` workflow runs the same script on the pull request.
+   It checks the section order, the Design Choices (at least 4, each with options, chosen option and rationale), the per-phase Tasks and Prompt blocks, the four Research tables, the combined prompt, the 12-function matrix, the file name and, without `-Draft`, the decisions (one dated `## Maintainer Decisions` entry per Design Choice and no pending marker left). `-Changed` checks every plan changed against `origin/main`; `-SelfTest` tests the checker. The `plan-conformance` workflow runs the same script on the pull request.
 6. Open deferred integrations as issues with the `open-issue` skill and reference them in the plan.
 7. Ship the plan in its own PR (use the `pr-cycle` skill), or as the first commit of the feature PR when the maintainer prefers. Comment on the issue with the plan's link.
 8. When the issue is picked up for implementation (not when the plan is written), the orchestrator first re-checks every Design Choice against today's code and open issues: a choice may be obsolete, may no longer apply, or may need different options. The plan is updated for any change (an agent may do the re-check; it reports, it never decides). Then the orchestrator presents every Design Choice, plus any other doubt the re-check raised, to the maintainer in the chat (the question, the options, the recommendation) and waits for the answers. It records them in the plan, in the mandatory `## Maintainer Decisions` section placed last, after `## Next Steps`: one dated entry per Design Choice, numbered like the choices (`1. (yyyy-MM-dd) ...` or `**D1** (yyyy-MM-dd): ...`; the heading variant "Decisions of the maintainer" is also accepted). Replace the "(recommended, pending the maintainer)" marker and update `Chosen Option` in every Design Choice, so the choices and the section agree; the checker fails any entry that is missing and any marker left behind. Run `check-plan` without `-Draft`; it must pass. Commit the plan change as the first commit of the implementation PR, or in a small plan PR. Also post a short issue comment that links to the section.
