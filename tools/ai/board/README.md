@@ -3,9 +3,10 @@
 This directory holds the tooling behind the maintainer's private control board (a claude.ai
 artifact). Two scripts produce the data of the "Week" tab (#1382): what was done since a given
 date, broken down by session and by day (time, prompts, reply latency, tokens per model, agents,
-PRs and issues, the local model). The board reconciler (#1732, last section) keeps the board's work,
-flow and audit collections current. None of the scripts publishes anything; the orchestrator
-uploads the resulting files to the board.
+PRs and issues, the local model). The board reconciler (#1732, last section) is a manual tool that
+can bring the board's work, flow and audit collections up to date when run by hand; no scheduled
+run exists. None of the scripts publishes anything; the orchestrator uploads the resulting files
+to the board.
 
 ## `session-stats.cs`
 
@@ -55,8 +56,9 @@ Parameters:
 
 ## Board reconciler (#1732)
 
-`reconcile-board.ps1` keeps the board's db collections `work/<id>`, `flow/<issue>`, `audits/<n>` and
-`meta/board` current from GitHub (open PRs, PRs merged in the last 14 days with `Fixes #n`, closed
+`reconcile-board.ps1` is a manual tool: nothing runs it on a schedule. When run by hand, it brings the
+board's db collections `work/<id>`, `flow/<issue>`, `audits/<n>` and
+`meta/board` up to date from GitHub (open PRs, PRs merged in the last 14 days with `Fixes #n`, closed
 issues), the git worktrees (commits ahead of `origin/main`) and, in the **main** checkout,
 `artifacts/knowledge/current-audit.json` and `progress.csv`. It is deterministic (no model), only
 reads and emits `ArtifactData` batch writes (it never applies them), never deletes a document and
@@ -130,8 +132,8 @@ audit is open or closed.
 ### The versions sidecar
 
 `ArtifactData list` with `out_dir` writes only each document's data; the document's version appears
-only in the tool result text (for example `1698 ... version 8`). The session that runs the
-reconciler writes `<dir>/versions.json` from those results before running it:
+only in the tool result text (for example `1698 ... version 8`). Whoever runs the
+reconciler by hand writes `<dir>/versions.json` from those results before running it:
 
 ```json
 { "work/1698": 8, "flow/1698": 3, "meta/board": 2, "audits/29": 5 }
@@ -175,7 +177,7 @@ The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
 5. meta/board.current is cleared (null) when no audit is open.
 
-6. Safety: the run aborts with an error and writes no batch file if the export lacks work/, flow/, audits/ or meta/board.json, or the versions sidecar is missing; the scheduled session must list all four collections fully before running, so that an incomplete export can never make an existing document look new (a `set` is unpinned).
+6. Safety: the run aborts with an error and writes no batch file if the export lacks work/, flow/, audits/ or meta/board.json, or the versions sidecar is missing; list all four collections fully before running, so that an incomplete export can never make an existing document look new (a `set` is unpinned).
 
 7. -Out may be a bare file name (resolved against the current directory); earlier -Out files are removed first.
 
@@ -183,9 +185,9 @@ The reconciler is idempotent: a second run on a reconciled board writes nothing.
 
 9. Self-test, dry run: a dry run with `-Out` pointing into a directory that holds a stale batch leaves its file set and hashes unchanged; the number of DRIFT lines equals the changes the real run computes; the would-skip count equals the real run's `SKIPPED` and n - k equals its `WRITES`; the `DRY-RUN: -Out ignored` line is printed.
 
-### Scheduled task
+### Running it by hand
 
-A Claude session that the orchestrator creates after merge runs this every 30 minutes:
+To reconcile the board manually:
 
 1. `ArtifactData list` for `work`, `flow`, `audits` and `meta` with `out_dir` set to `<tmp>/work`, `<tmp>/flow`, `<tmp>/audits` and `<tmp>/meta`.
 2. Write `<tmp>/versions.json` from the versions in those list results.
@@ -198,7 +200,7 @@ A Claude session that the orchestrator creates after merge runs this every 30 mi
 `.claude/hooks/board-event-reminder.ps1` is a `PostToolUse` hook (matcher `Bash|PowerShell|Agent|Task`
 in `.claude/settings.json`). It fires after `gh pr create`, `gh pr merge`, `audit-done.ps1`,
 `audit-commit-stage.ps1` and after an `issue-worker` or `docs-writer` spawn, and adds the context
-`Board: update work/flow/audits for <event> now (or let the 30-minute reconciler do it)`. It never
+`Board: update work/flow/audits for <event> now`. It never
 blocks. Its tests are in `.claude/hooks/tests/Test-Hooks.ps1`.
 
 ### Self-test

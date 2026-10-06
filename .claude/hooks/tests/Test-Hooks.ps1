@@ -4214,7 +4214,7 @@ The fluent builder chain described in the documentation is fictional. The parame
 
     # board-event-reminder.ps1 (#1732): a PostToolUse reminder, never blocks (exit 0 always).
     $boardHook = Join-Path $hooks 'board-event-reminder.ps1'
-    $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now \(or let the 30-minute reconciler do it\)"'
+    $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now"'
     foreach ($case in @(
             @('PowerShell', 'gh pr create --title x --body y', 'gh pr create'),
             @('Bash', 'gh pr merge 12 --squash --auto', 'gh pr merge'),
