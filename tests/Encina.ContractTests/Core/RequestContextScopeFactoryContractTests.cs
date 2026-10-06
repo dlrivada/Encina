@@ -42,6 +42,9 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
 
     private static ClaimsPrincipal Principal(params Claim[] claims) => new(new ClaimsIdentity(claims, "contract"));
 
+    // The identity a scope issued, read after the scope ended (Identity then reads Anonymous, #1892).
+    private static RequestIdentity Issued(IRequestContext context) => ((RequestContext)context).IssuedIdentity;
+
     [Fact]
     public async Task RunAsPrincipalAsync_RunInboundAsync_AndRunRestoredAsync_HonourTheConfiguredClaimMap()
     {
@@ -52,11 +55,11 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
         var restored = (await Scopes.RunRestoredAsync(
             new PersistedRequestIdentity(IdentityKind.User, "user-1", "tenant-1", "corr", null), PersistedIdentitySource.Internal, Capture)).ShouldBeSuccess();
 
-        asPrincipal.UserId.ShouldBe("user-1");
+        Issued(asPrincipal).UserId.ShouldBe("user-1");
         asPrincipal.TenantId.ShouldBe("tenant-1");
-        inbound.UserId.ShouldBe("user-1");
-        restored.UserId.ShouldBe("user-1");
-        restored.Identity.HasClaim("oid", "user-1").ShouldBeTrue();
+        Issued(inbound).UserId.ShouldBe("user-1");
+        Issued(restored).UserId.ShouldBe("user-1");
+        Issued(restored).HasClaim("oid", "user-1").ShouldBeTrue();
     }
 
     [Fact]
@@ -65,8 +68,10 @@ public sealed class RequestContextScopeFactoryContractTests : IDisposable
         var service = (await Scopes.RunAsServiceAsync(Job, Capture)).ShouldBeSuccess();
         var principal = (await Scopes.RunAsPrincipalAsync(Principal(new Claim("oid", "u")), Capture)).ShouldBeSuccess();
 
-        service.Identity.Issuer!.IsLive.ShouldBeFalse();
-        principal.Identity.Issuer!.IsLive.ShouldBeFalse();
+        Issued(service).Issuer!.IsLive.ShouldBeFalse();
+        Issued(principal).Issuer!.IsLive.ShouldBeFalse();
+        service.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
+        principal.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
         _provider.GetRequiredService<IRequestContextAccessor>().RequestContext.ShouldBeNull();
     }
 

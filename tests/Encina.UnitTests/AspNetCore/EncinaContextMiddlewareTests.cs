@@ -54,9 +54,9 @@ public sealed class EncinaContextMiddlewareTests
 
         _nextCalls.ShouldBe(1);
         _seen.ShouldNotBeNull();
-        _seen.UserId.ShouldBe("oidc-user-1");
-        _seen.Identity.Roles.ShouldContain("Admin");
-        _seen.Identity.Permissions.ShouldContain("orders:read");
+        _seen.Issued().UserId.ShouldBe("oidc-user-1");
+        _seen.Issued().Roles.ShouldContain("Admin");
+        _seen.Issued().Permissions.ShouldContain("orders:read");
         ((RequestContext)_seen).Origin.ShouldBe(RequestOrigin.Inbound);
         _seen.Timestamp.ShouldBe(_host.Time.GetUtcNow());
         _host.EventIds.ShouldContain(172);
@@ -78,7 +78,8 @@ public sealed class EncinaContextMiddlewareTests
     {
         await InvokeAsync(CreateMiddleware(), new DefaultHttpContext { User = TestIdentity.Principal("alice") });
 
-        _seen!.Identity.Issuer!.IsLive.ShouldBeFalse();
+        _seen.Issued().Issuer!.IsLive.ShouldBeFalse();
+        _seen!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
         _host.Accessor.RequestContext.ShouldBeNull();
         _host.EventIds.ShouldContain(168);
     }
@@ -301,7 +302,7 @@ public sealed class EncinaContextMiddlewareTests
         await InvokeAsync(CreateMiddleware(), context);
 
         var seen = _seen.ShouldBeOfType<RequestContext>();
-        seen.UserId.ShouldBe("mcp-user");
+        seen.Issued().UserId.ShouldBe("mcp-user");
         seen.Origin.ShouldBe(RequestOrigin.Inbound);
     }
 

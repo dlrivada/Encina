@@ -69,9 +69,10 @@ public sealed class ScopeBoundaryTests
         var one = (await host.Factory.RunRestoredAsync(first, PersistedIdentitySource.Internal, ScopeTestHost.ReadAmbient(host.Accessor))).ShouldBeSuccess();
         var two = (await host.Factory.RunRestoredAsync(second, PersistedIdentitySource.Internal, ScopeTestHost.ReadAmbient(host.Accessor))).ShouldBeSuccess();
 
-        one!.UserId.ShouldBe("alice");
+        one.Issued().UserId.ShouldBe("alice");
+        one!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
         two.ShouldNotBeNull();
-        two.UserId.ShouldBeNull();
+        two.Issued().UserId.ShouldBeNull();
         two.TenantId.ShouldBeNull();
         host.Accessor.RequestContext.ShouldBeNull();
     }
@@ -137,13 +138,14 @@ public sealed class ScopeBoundaryTests
         var outcome = await host.Factory.RunAsPrincipalAsync(principal, MutateThenReturn);
         var context = outcome.ShouldBeSuccess();
 
-        context.Identity.Roles.ShouldBe(["reader"]);
-        context.Identity.Principal!.IsInRole("admin").ShouldBeFalse();
-        context.Identity.Principal.IsInRole("root").ShouldBeFalse();
-        context.Identity.HasClaim(ClaimTypes.Role, "root").ShouldBeFalse();
+        var issued = context.Issued();
+        issued.Roles.ShouldBe(["reader"]);
+        issued.Principal!.IsInRole("admin").ShouldBeFalse();
+        issued.Principal.IsInRole("root").ShouldBeFalse();
+        issued.HasClaim(ClaimTypes.Role, "root").ShouldBeFalse();
 
         // Each read returns a fresh clone: a reader cannot change what another gate sees.
-        context.Identity.Principal.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Role, "admin")], "reader-added"));
-        context.Identity.Principal.IsInRole("admin").ShouldBeFalse();
+        issued.Principal.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Role, "admin")], "reader-added"));
+        issued.Principal.IsInRole("admin").ShouldBeFalse();
     }
 }
