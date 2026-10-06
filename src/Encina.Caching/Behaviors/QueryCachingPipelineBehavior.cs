@@ -144,7 +144,19 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         }
 
         var cached = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken).ConfigureAwait(false);
-        return cached.Found && IsSameCaller(context, identity) ? cached : (false, default);
+        if (!cached.Found || !IsSameCaller(context, identity))
+        {
+            return (false, default);
+        }
+
+        // Only a hit that is served is logged and extends a sliding entry.
+        LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, context.CorrelationId);
+        if (CacheAttribute!.SlidingExpiration)
+        {
+            _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
+        }
+
+        return cached;
     }
 
     // A VaryByUser key is built from the pinned snapshot, so a custom generator reads the same identity.
@@ -170,13 +182,6 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
             {
                 LogCacheMiss(_logger, typeof(TRequest).Name, cacheKey, correlationId);
                 return (false, default);
-            }
-
-            LogCacheHit(_logger, typeof(TRequest).Name, cacheKey, correlationId);
-
-            if (CacheAttribute!.SlidingExpiration)
-            {
-                _ = _cacheProvider.RefreshAsync(cacheKey, cancellationToken);
             }
 
             return (true, cached.Value);

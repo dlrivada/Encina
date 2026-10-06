@@ -260,6 +260,7 @@ public sealed class QueryCachingVaryByUserTests
         calls.ShouldBe(1);
         cacheProvider.WrittenKeys.ShouldBeEmpty();
         cacheProvider.ReadKeys.ShouldHaveSingleItem().ShouldContain("u:alice:");
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 3508);
     }
 
     [Fact]
@@ -299,10 +300,16 @@ public sealed class QueryCachingVaryByUserTests
     }
 
     [Fact]
-    public async Task NoUserLessVaryByUserKey_IsEverReadOrWritten()
+    public async Task NoUserLessVaryByUserKey_IsEverReadOrWritten_EvenWithANaiveCustomGenerator()
     {
         var cacheProvider = new RecordingCacheProvider();
-        var sut = CreateBehavior(cacheProvider);
+        var options = Options.Create(new CachingOptions { EnableQueryCaching = true });
+
+        // A naive generator that never refuses: it would write "u::" for an identity read as Anonymous.
+        var naive = Substitute.For<ICacheKeyGenerator>();
+        naive.GenerateKey<PerUserQuery, string>(Arg.Any<PerUserQuery>(), Arg.Any<IRequestContext>())
+            .Returns(call => $"encina:u:{call.Arg<IRequestContext>().Identity?.UserId}:PerUserQuery");
+        var sut = new QueryCachingPipelineBehavior<PerUserQuery, string>(cacheProvider, naive, options, _logger);
         var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
         var racing = Substitute.For<IRequestContext>();
         racing.CorrelationId.Returns("corr-race");
