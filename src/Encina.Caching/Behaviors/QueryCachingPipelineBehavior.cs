@@ -29,6 +29,12 @@ namespace Encina.Caching;
 /// <see cref="IdentityKind.User"/>. Any other identity (anonymous, a service) bypasses the cache with
 /// no read and no write, and logs a Debug message (EventId 3512) with the identity kind only.
 /// </para>
+/// <para>
+/// The identity is read once per request and the key is built from that snapshot. Because an
+/// identity reads as anonymous once its scope ends, a <c>VaryByUser</c> entry is read, served or
+/// written only while the context still reports that same identity; a request whose scope ended
+/// meanwhile runs its handler without the cache, so no response is ever shared across callers.
+/// </para>
 /// </remarks>
 public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -78,26 +84,30 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        if (!ShouldUseCache(context))
+        // The identity is read once: it reads Anonymous as soon as its scope ends (#1892), so the
+        // bypass decision and the key are taken from this snapshot, never from a second read.
+        var identity = context.Identity;
+        if (!ShouldUseCache(identity))
         {
             return await nextStep().ConfigureAwait(false);
         }
 
-        var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, context);
+        var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, KeyContext(context, identity));
 
-        var (found, cachedValue) = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken)
-            .ConfigureAwait(false);
+        var (found, cachedValue) = IsSameCaller(context, identity)
+            ? await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken).ConfigureAwait(false)
+            : (false, default);
 
-        if (found)
+        // A hit read after the scope ended is not served: the caller is no longer that user.
+        if (found && IsSameCaller(context, identity))
         {
             return cachedValue!;
         }
 
-        // Execute handler
         var result = await nextStep().ConfigureAwait(false);
 
-        // Cache successful responses only
-        if (result.IsRight)
+        // Cache successful responses only, and never a response produced after the user's scope ended.
+        if (result.IsRight && IsSameCaller(context, identity))
         {
             await TryCacheResultAsync(result, cacheKey, context.CorrelationId, cancellationToken)
                 .ConfigureAwait(false);
@@ -108,21 +118,30 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
     // Caching is enabled, the request has [Cache], and a per-user entry has a user: any other
     // identity bypasses the cache (no read, no write).
-    private bool ShouldUseCache(IRequestContext context)
+    private bool ShouldUseCache(RequestIdentity? identity)
     {
         if (!_options.EnableQueryCaching || CacheAttribute is null)
         {
             return false;
         }
 
-        if (!CacheAttribute.VaryByUser || CacheUserIdentity.IsUser(context))
+        if (!CacheAttribute.VaryByUser || CacheUserIdentity.IsUser(identity))
         {
             return true;
         }
 
-        LogVaryByUserBypassed(_logger, typeof(TRequest).Name, CacheUserIdentity.KindOf(context));
+        LogVaryByUserBypassed(_logger, typeof(TRequest).Name, identity?.Kind ?? IdentityKind.Anonymous);
         return false;
     }
+
+    // A VaryByUser key is built from the pinned snapshot, so a custom generator reads the same identity.
+    private static IRequestContext KeyContext(IRequestContext context, RequestIdentity? identity) =>
+        CacheAttribute!.VaryByUser ? new IdentityPinnedRequestContext(context, identity!) : context;
+
+    // A VaryByUser entry is read or written only while the live context still reports the very
+    // identity the key was built from (the same instance: an ended scope reads Anonymous).
+    private static bool IsSameCaller(IRequestContext context, RequestIdentity? identity) =>
+        !CacheAttribute!.VaryByUser || ReferenceEquals(context.Identity, identity);
 
     private async ValueTask<(bool Found, TResponse? Value)> TryGetFromCacheAsync(
         string cacheKey,
