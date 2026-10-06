@@ -1,7 +1,7 @@
 {
   "package": "Encina",
   "generated": "2026-10-06T08:27:25Z",
-  "totalFiles": 310,
+  "totalFiles": 328,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -149,6 +149,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
+    },
+    "Core/ChainFacts.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Flags enum without executable code"
     },
     "Core/Encina.cs": {
       "defaultTests": [
@@ -396,12 +401,65 @@
       "defaultRule": "*Factory.cs",
       "reason": "*Factory.cs default; security-critical claim mapping (property test informational)"
     },
+    "Identity/IdentityIssuer.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Scope issuer token: one-time binding and liveness (unit), null holder guard (guard)"
+    },
+    "Identity/IdentityKind.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Enum without executable code"
+    },
+    "Identity/IdentityScopeOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "contract"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "Positional record without guards (guard not applicable); used by the scope factory contract"
+    },
+    "Identity/IInternalRequestContextScopeFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/InboundRequestInfo.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Inbound scope input record: ForCircuit guard and ToString (unit, guard); used by the scope factory contract"
+    },
+    "Identity/InboundRequestNormalizer.cs": {
+      "defaultTests": [
+        "unit",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Normalization of client-controlled inbound members, reached through RunInboundAsync (unit bounds tests, contract)"
+    },
+    "Identity/IRequestContextScopeFactory.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
     "Identity/IRequestIdentityFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
     },
-    "Identity/IdentityKind.cs": {
+    "Identity/IServiceIdentityCatalog.cs": {
+      "defaultTests": [],
+      "defaultRule": "^I[A-Z].*\\.cs$",
+      "reason": "Interfaces have no implementation to test"
+    },
+    "Identity/PersistedIdentitySource.cs": {
       "defaultTests": [],
       "defaultRule": "*.cs",
       "reason": "Enum without executable code"
@@ -413,6 +471,14 @@
       "defaultRule": "*Entity.cs",
       "reason": "Positional record without guards; produced by RequestIdentity.ToPersisted"
     },
+    "Identity/RequestContextAccessorRequirement.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup validator requiring the default accessor (unit via Host.StartAsync, guard)"
+    },
     "Identity/RequestContextIdentityExtensions.cs": {
       "defaultTests": [
         "unit",
@@ -420,6 +486,33 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "UserId projection over IRequestContext.Identity"
+    },
+    "Identity/RequestContextScopeFactory.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract"
+    },
+    "Identity/RequestContextScopeFactory.Restore.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Factory.cs",
+      "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract"
+    },
+    "Identity/RequestContextScopeFactoryExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Task-returning overloads of the scope factory (unit, guard, contract)"
     },
     "Identity/RequestIdentity.cs": {
       "defaultTests": [
@@ -467,6 +560,46 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "*Extensions.cs default; DI tests with ValidateOnBuild and ValidateScopes"
+    },
+    "Identity/ServiceIdentityBuilder.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Builder.cs",
+      "reason": "Declaration builder: entries and blank-entry guards"
+    },
+    "Identity/ServiceIdentityCatalog.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Frozen catalog lookup (unit) and null guards (guard)"
+    },
+    "Identity/ServiceIdentityCatalogOptions.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*Options.cs",
+      "reason": "*Options.cs default; idempotent declarations and conflicts"
+    },
+    "Identity/ServiceIdentityCatalogOptionsValidator.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*Validator.cs",
+      "reason": "*Validator.cs default; generated declarations (name pattern, built-in prefix, wildcards) in property tests"
+    },
+    "Identity/ServiceIdentityDefinition.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Immutable declaration built by ServiceIdentityBuilder; equivalence for idempotent declarations (unit); no public guards"
     },
     "Modules/Diagnostics/ModuleActivitySource.cs": {
       "defaultTests": [
