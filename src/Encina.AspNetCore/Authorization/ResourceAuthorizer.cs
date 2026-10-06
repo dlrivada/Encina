@@ -60,14 +60,7 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
         // No readable context, or a non-conforming one, reads as anonymous and is denied.
         if (_requestContextAccessor.RequestContext?.Identity is not { IsAuthenticated: true } identity)
         {
-            return Left<EncinaError, bool>(EncinaErrors.Create( // NOSONAR S6966
-                EncinaErrorCodes.AuthorizationUnauthenticated,
-                "Resource authorization requires an authenticated request identity.",
-                details: new Dictionary<string, object?>
-                {
-                    ["resourceType"] = resource.GetType().FullName,
-                    ["policy"] = policy
-                }));
+            return Left<EncinaError, bool>(Unauthenticated(resource, policy)); // NOSONAR S6966
         }
 
         // An authenticated identity built without a principal (builders only) satisfies no policy.
@@ -76,24 +69,32 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
             .AuthorizeAsync(user, resource, policy)
             .ConfigureAwait(false);
 
-        if (result.Succeeded)
-        {
-            return Right<EncinaError, bool>(true); // NOSONAR S6966
-        }
+        return result.Succeeded
+            ? Right<EncinaError, bool>(true) // NOSONAR S6966
+            : Left<EncinaError, bool>(Denied(resource, policy, result)); // NOSONAR S6966
+    }
 
-        var failureReasons = result.Failure?.FailureReasons
-            .Select(r => r.Message)
-            .Where(m => !string.IsNullOrEmpty(m))
-            .ToList();
+    private static EncinaError Unauthenticated(object resource, string policy) =>
+        EncinaErrors.Create(
+            EncinaErrorCodes.AuthorizationUnauthenticated,
+            "Resource authorization requires an authenticated request identity.",
+            details: new Dictionary<string, object?>
+            {
+                ["resourceType"] = resource.GetType().FullName,
+                ["policy"] = policy
+            });
 
-        return Left<EncinaError, bool>(EncinaErrors.Create( // NOSONAR S6966
+    private static EncinaError Denied(object resource, string policy, AuthorizationResult result) =>
+        EncinaErrors.Create(
             EncinaErrorCodes.AuthorizationResourceDenied,
             $"Resource authorization denied. Policy '{policy}' was not satisfied for resource of type '{resource.GetType().Name}'.",
             details: new Dictionary<string, object?>
             {
                 ["resourceType"] = resource.GetType().FullName,
                 ["policy"] = policy,
-                ["failureReasons"] = failureReasons
-            }));
-    }
+                ["failureReasons"] = result.Failure?.FailureReasons
+                    .Select(static reason => reason.Message)
+                    .Where(static message => !string.IsNullOrEmpty(message))
+                    .ToList()
+            });
 }
