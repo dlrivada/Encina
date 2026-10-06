@@ -1,8 +1,10 @@
 using System.Data.Common;
 using Encina.Caching;
 using Encina.Diagnostics;
+using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -58,6 +60,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<QueryCacheInterceptor> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly Lazy<bool> _multiTenant;
 
     // Thread-safe storage for the pending cache key generated during ReaderExecuting,
     // consumed by ReaderExecuted to store the result in cache.
@@ -73,7 +76,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// <param name="cacheProvider">The cache provider for storing and retrieving cached query results.</param>
     /// <param name="keyGenerator">The cache key generator for creating deterministic cache keys from SQL commands.</param>
     /// <param name="options">The query cache configuration options.</param>
-    /// <param name="serviceProvider">The service provider for resolving optional dependencies like <c>IRequestContext</c>.</param>
+    /// <param name="serviceProvider">The service provider for resolving optional dependencies like <c>IRequestContextAccessor</c>.</param>
     /// <param name="logger">The logger for diagnostic messages.</param>
     /// <param name="timeProvider">The time provider for obtaining current UTC time. Defaults to <see cref="TimeProvider.System"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown when any required parameter is <c>null</c>.</exception>
@@ -97,6 +100,9 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         _serviceProvider = serviceProvider;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+
+        // Read once, thread-safely: registrations do not change after the provider is built.
+        _multiTenant = new Lazy<bool>(DetectMultiTenancy, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     // ──────────────────────────────────────────────
@@ -109,14 +115,15 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result)
     {
+        // A key left by an earlier command that failed (CommandFailed runs instead of ReaderExecuted)
+        // must never be used to store this command's rows, above all when this one is bypassed.
+        PendingCacheKey.Value = null;
         if (!ShouldCache(eventData))
         {
             return base.ReaderExecuting(command, eventData, result);
         }
 
-        var cacheKey = GenerateCacheKey(command, eventData.Context!);
-
-        if (IsExcluded(cacheKey))
+        if (CacheableKey(command, eventData.Context!) is not { } cacheKey)
         {
             return base.ReaderExecuting(command, eventData, result);
         }
@@ -161,9 +168,7 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
                 .ConfigureAwait(false);
         }
 
-        var cacheKey = GenerateCacheKey(command, eventData.Context!);
-
-        if (IsExcluded(cacheKey))
+        if (CacheableKey(command, eventData.Context!) is not { } cacheKey)
         {
             return await base.ReaderExecutingAsync(command, eventData, result, cancellationToken)
                 .ConfigureAwait(false);
@@ -197,6 +202,14 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     // ──────────────────────────────────────────────
     //  Read Caching: ReaderExecuted (cache population)
     // ──────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <remarks>A failed command populates nothing: the key of its cache miss is discarded.</remarks>
+    public override void CommandFailed(DbCommand command, CommandErrorEventData eventData)
+    {
+        PendingCacheKey.Value = null;
+        base.CommandFailed(command, eventData);
+    }
 
     /// <inheritdoc/>
     public override DbDataReader ReaderExecuted(
@@ -339,14 +352,38 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     /// Generates a cache key from the command and context, optionally including
     /// tenant information when <see cref="IRequestContext"/> is available.
     /// </summary>
-    private QueryCacheKey GenerateCacheKey(DbCommand command, DbContext context)
+    private QueryCacheKey? GenerateCacheKey(DbCommand command, DbContext context)
     {
         var requestContext = ResolveRequestContext();
+
+        // Fail closed for the cache, not the query: with multi-tenancy on, a context without a
+        // tenant (a connection flow, a background job) would share the tenant-less key with every
+        // other tenant, so the query runs uncached.
+        if (IsMultiTenant() && string.IsNullOrWhiteSpace(requestContext?.TenantId))
+        {
+            QueryCacheLog.TenantMissingCacheBypassed(_logger);
+            return null;
+        }
 
         return requestContext is not null
             ? _keyGenerator.Generate(command, context, requestContext)
             : _keyGenerator.Generate(command, context);
     }
+
+    /// <summary>
+    /// The cache key of the query, or <see langword="null"/> when the query must run uncached: the
+    /// tenant is missing under multi-tenancy, or an entity type is excluded.
+    /// </summary>
+    private QueryCacheKey? CacheableKey(DbCommand command, DbContext context) =>
+        GenerateCacheKey(command, context) is { } cacheKey && !IsExcluded(cacheKey) ? cacheKey : null;
+
+    // Multi-tenancy is on when Encina.Tenancy registered its tenant provider (AddEncinaTenancy).
+    // Read once: registrations do not change after the provider is built.
+    private bool IsMultiTenant() => _multiTenant.Value;
+
+    private bool DetectMultiTenancy() =>
+        (_serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService)
+            ?.IsService(typeof(ITenantProvider)) == true;
 
     /// <summary>
     /// Checks whether any of the entity types in the cache key are excluded from caching.
@@ -371,15 +408,14 @@ public sealed class QueryCacheInterceptor : DbCommandInterceptor, ISaveChangesIn
     }
 
     /// <summary>
-    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by <see cref="IRequestContextAccessor"/>
-    /// wins, a DI-registered one is only a fallback.
+    /// Resolves the current <see cref="IRequestContext"/>: the ambient context held by
+    /// <see cref="IRequestContextAccessor"/>. There is no other source.
     /// </summary>
     private IRequestContext? ResolveRequestContext()
     {
         try
         {
-            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext
-                ?? _serviceProvider.GetService(typeof(IRequestContext)) as IRequestContext;
+            return (_serviceProvider.GetService(typeof(IRequestContextAccessor)) as IRequestContextAccessor)?.RequestContext;
         }
         catch (Exception ex)
         {
@@ -638,4 +674,11 @@ internal static partial class QueryCacheLog
         Level = LogLevel.Warning,
         Message = "Failed to resolve IRequestContext for query cache key generation")]
     public static partial void FailedToResolveRequestContext(ILogger logger, Exception exception);
+
+    // Debug: a long-lived connection (hub, WebSocket, SSE) carries no tenant on every query it runs.
+    [LoggerMessage(
+        EventId = 3060,
+        Level = LogLevel.Debug,
+        Message = "Query cache bypassed: multi-tenancy is enabled and the request context has no tenant")]
+    public static partial void TenantMissingCacheBypassed(ILogger logger);
 }

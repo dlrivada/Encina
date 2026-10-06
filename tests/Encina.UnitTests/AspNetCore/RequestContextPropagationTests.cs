@@ -127,11 +127,10 @@ public sealed class RequestContextPropagationTests
         // Assert
         response.EnsureSuccessStatusCode();
         capture.BehaviorInvoked.ShouldBeTrue();
-        // #1705 interim (phases 1-2): the middleware context is anonymous; phase 3 builds the user
-        // identity through the identity scope factory and restores "user-123" here.
-        capture.AccessorUserId.ShouldBeNull();
+        // #1705 Phase 3: the middleware binds the request identity through the scope factory.
+        capture.AccessorUserId.ShouldBe("user-123");
         capture.AccessorTenantId.ShouldBe("tenant-abc");
-        capture.BehaviorContextUserId.ShouldBeNull();
+        capture.BehaviorContextUserId.ShouldBe("user-123");
         capture.BehaviorContextTenantId.ShouldBe("tenant-abc");
     }
 
@@ -162,7 +161,7 @@ public sealed class RequestContextPropagationTests
 
         // Assert
         response.EnsureSuccessStatusCode();
-        capture.BehaviorContextUserId.ShouldBeNull(); // #1705 interim: anonymous until phase 3
+        capture.BehaviorContextUserId.ShouldBe("user-123");
         capture.BehaviorContextTenantId.ShouldBe("tenant-abc");
         capture.BehaviorContextIdempotencyKey.ShouldBe("idem-42");
         capture.BehaviorContextCorrelationId.ShouldBe("corr-7");

@@ -77,57 +77,69 @@ public sealed class TenantResolutionMiddleware
     /// </summary>
     /// <param name="context">The HTTP context.</param>
     /// <param name="contextAccessor">Accessor for updating the request context.</param>
-    public async Task InvokeAsync(HttpContext context, IRequestContextAccessor contextAccessor)
+    /// <param name="timeProvider">The clock that stamps a context this middleware creates.</param>
+    /// <remarks>
+    /// On a request that opens a long-lived connection (a WebSocket upgrade, any extended CONNECT, a
+    /// GET whose <c>Accept</c> lists <c>text/event-stream</c>, a SignalR hub endpoint) the tenant is
+    /// still resolved and validated, and <see cref="TenancyOptions.RequireTenant"/> still answers 400,
+    /// but no request context is written: the connection would keep the connect-time tenant for its
+    /// whole life.
+    /// </remarks>
+    public async Task InvokeAsync(HttpContext context, IRequestContextAccessor contextAccessor, TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(contextAccessor);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         var cancellationToken = context.RequestAborted;
 
-        // Resolve tenant ID using the resolver chain
-        var tenantId = await _resolverChain.ResolveAsync(context, cancellationToken);
-
-        // Validate tenant if required
-        if (_tenancyOptions.ValidateTenantOnRequest && !string.IsNullOrWhiteSpace(tenantId))
-        {
-            var exists = await _tenantStore.ExistsAsync(tenantId, cancellationToken);
-
-            if (!exists)
-            {
-                // Treat as if no tenant was resolved
-                tenantId = null;
-            }
-        }
+        // Resolve and validate the tenant (an unknown tenant counts as no tenant).
+        var tenantId = await ResolveValidTenantAsync(context, cancellationToken);
 
         // Check if tenant is required but not resolved
-        if (_tenancyOptions.RequireTenant && string.IsNullOrWhiteSpace(tenantId))
+        if (_tenancyOptions.RequireTenant && string.IsNullOrWhiteSpace(tenantId) && _aspNetCoreOptions.Return400WhenTenantRequired)
         {
-            if (_aspNetCoreOptions.Return400WhenTenantRequired)
-            {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                context.Response.ContentType = "application/problem+json";
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            context.Response.ContentType = "application/problem+json";
 
-                await context.Response.WriteAsync(
-                    """{"type":"https://tools.ietf.org/html/rfc9110#name-400-bad-request","title":"Tenant identification required","status":400,"detail":"Unable to determine tenant from the request. Ensure a valid tenant identifier is provided via header, claim, route, or subdomain."}""",
-                    cancellationToken);
+            await context.Response.WriteAsync(
+                """{"type":"https://tools.ietf.org/html/rfc9110#name-400-bad-request","title":"Tenant identification required","status":400,"detail":"Unable to determine tenant from the request. Ensure a valid tenant identifier is provided via header, claim, route, or subdomain."}""",
+                cancellationToken);
 
-                return;
-            }
+            return;
         }
 
-        // Put the resolved tenant on the ambient request context, creating one when no earlier
-        // middleware established it, so the tenant always reaches the Encina pipeline.
-        if (!string.IsNullOrWhiteSpace(tenantId))
-        {
-            var requestContext = contextAccessor.RequestContext ?? CreateRequestContext(context);
-            contextAccessor.RequestContext = requestContext.WithTenantId(tenantId);
-        }
-
+        WriteTenant(context, contextAccessor, timeProvider, tenantId);
         await _next(context);
     }
 
-    private static IRequestContext CreateRequestContext(HttpContext context)
+    private async Task<string?> ResolveValidTenantAsync(HttpContext context, CancellationToken cancellationToken)
     {
-        var timeProvider = context.RequestServices?.GetService<TimeProvider>() ?? TimeProvider.System;
-        return RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), ResolveCorrelationId(context));
+        var tenantId = await _resolverChain.ResolveAsync(context, cancellationToken);
+        if (!_tenancyOptions.ValidateTenantOnRequest || string.IsNullOrWhiteSpace(tenantId))
+        {
+            return tenantId;
+        }
+
+        return await _tenantStore.ExistsAsync(tenantId, cancellationToken) ? tenantId : null;
     }
+
+    // Puts the resolved tenant on the ambient request context, creating one when no earlier middleware
+    // established it, so the tenant always reaches the Encina pipeline. Never on a connection request:
+    // that context would outlive the request with the connect-time tenant.
+    private static void WriteTenant(HttpContext context, IRequestContextAccessor contextAccessor, TimeProvider timeProvider, string? tenantId)
+    {
+        if (string.IsNullOrWhiteSpace(tenantId) || ConnectionRequests.IsConnectionRequest(context))
+        {
+            return;
+        }
+
+        var requestContext = contextAccessor.RequestContext ?? CreateRequestContext(context, timeProvider);
+        contextAccessor.RequestContext = requestContext.WithTenantId(tenantId);
+    }
+
+    private static IRequestContext CreateRequestContext(HttpContext context, TimeProvider timeProvider) =>
+        RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), ResolveCorrelationId(context));
 
     private static string ResolveCorrelationId(HttpContext context)
     {

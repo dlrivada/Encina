@@ -1,6 +1,7 @@
 using Encina.AspNetCore;
 using Encina.AspNetCore.Blazor;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
@@ -17,28 +18,37 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaBlazorAuthorization_ReplacesDefaultResolver()
+    public void AddEncinaBlazorAuthorization_RegistersTheCircuitHandlerOnce_AndResolvesItPerCircuit()
     {
-        // Arrange
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddEncinaAspNetCore();
         services.AddScoped<AuthenticationStateProvider, NoOpAuthenticationStateProvider>();
 
-        // Act
         var result = services.AddEncinaBlazorAuthorization();
+        services.AddEncinaBlazorAuthorization();
 
-        // Assert
         result.ShouldBeSameAs(services);
+        services.Count(sd => sd.ServiceType == typeof(CircuitHandler)).ShouldBe(1);
 
-        var resolverDescriptors = services
-            .Where(sd => sd.ServiceType == typeof(IPrincipalResolver))
-            .ToList();
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        scope.ServiceProvider.GetServices<CircuitHandler>().ShouldHaveSingleItem().ShouldBeOfType<RequestIdentityCircuitHandler>();
+    }
 
-        resolverDescriptors.Count.ShouldBe(1);
-        resolverDescriptors[0].ImplementationType.ShouldBe(typeof(AuthenticationStatePrincipalResolver));
+    [Fact]
+    public void AddEncinaBlazorAuthorization_WithoutAddEncinaAspNetCore_RegistersTheScopeFactory()
+    {
+        // AuthenticationStateProvider is Blazor's own registration (AddServerSideBlazor).
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<AuthenticationStateProvider, NoOpAuthenticationStateProvider>();
 
-        using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService<IPrincipalResolver>().ShouldBeOfType<AuthenticationStatePrincipalResolver>();
+        services.AddEncinaBlazorAuthorization();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        provider.GetRequiredService<IInternalRequestContextScopeFactory>()
+            .ShouldBeSameAs(provider.GetRequiredService<IRequestContextScopeFactory>());
     }
 
     private sealed class NoOpAuthenticationStateProvider : AuthenticationStateProvider

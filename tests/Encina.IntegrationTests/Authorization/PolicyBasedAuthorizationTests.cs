@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Encina.AspNetCore;
 using Encina.AspNetCore.Authorization;
 using Encina.Testing;
+using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,6 +22,7 @@ namespace Encina.IntegrationTests.Authorization;
 public class PolicyBasedAuthorizationTests : IAsyncLifetime
 {
     private IServiceProvider _serviceProvider = null!;
+    private IRequestContext _callerContext = null!;
 
     public ValueTask InitializeAsync()
     {
@@ -117,7 +119,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         result.IfLeft(error =>
         {
             error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -130,7 +132,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange
         var behavior = CreateBehavior<AdminCommand, Unit>("user-1", roles: ["Admin"]);
         var request = new AdminCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
         var nextStepCalled = false;
 
         RequestHandlerCallback<Unit> nextStep = () =>
@@ -153,7 +155,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange
         var behavior = CreateBehavior<AdminCommand, Unit>("user-1", roles: ["User"]);
         var request = new AdminCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
 
         RequestHandlerCallback<Unit> nextStep = () =>
             ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
@@ -177,7 +179,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - user-123 owns the order
         var behavior = CreateBehavior<EditOrderCommand, Unit>("user-123");
         var request = new EditOrderCommand("order-1", "user-123");
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
         var nextStepCalled = false;
 
         RequestHandlerCallback<Unit> nextStep = () =>
@@ -200,7 +202,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - user-456 does NOT own the order
         var behavior = CreateBehavior<EditOrderCommand, Unit>("user-456");
         var request = new EditOrderCommand("order-1", "user-123");
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
 
         RequestHandlerCallback<Unit> nextStep = () =>
             ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
@@ -224,7 +226,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - unauthenticated user, auto-apply is enabled
         var behavior = CreateBehavior<PlainIntegrationCommand, Unit>(null);
         var request = new PlainIntegrationCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
 
         RequestHandlerCallback<Unit> nextStep = () =>
             ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
@@ -237,7 +239,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         result.IfLeft(error =>
         {
             error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated),
                 None: () => Assert.Fail("Expected error code"));
         });
     }
@@ -248,7 +250,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - authenticated user, auto-apply default policy
         var behavior = CreateBehavior<PlainIntegrationCommand, Unit>("user-1");
         var request = new PlainIntegrationCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
         var nextStepCalled = false;
 
         RequestHandlerCallback<Unit> nextStep = () =>
@@ -271,7 +273,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - unauthenticated user, auto-apply is enabled
         var behavior = CreateBehavior<PlainIntegrationQuery, string>(null);
         var request = new PlainIntegrationQuery();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
 
         RequestHandlerCallback<string> nextStep = () =>
             ValueTask.FromResult(Right<EncinaError, string>("data"));
@@ -289,7 +291,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         // Arrange - no auth, but [AllowAnonymous] should bypass
         var behavior = CreateBehavior<PublicIntegrationQuery, string>(null);
         var request = new PublicIntegrationQuery();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
         var nextStepCalled = false;
 
         RequestHandlerCallback<string> nextStep = () =>
@@ -314,7 +316,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
             "user-1",
             claims: [new Claim("department", "sales")]);
         var request = new SalesCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
         var nextStepCalled = false;
 
         RequestHandlerCallback<Unit> nextStep = () =>
@@ -339,7 +341,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
             "user-1",
             claims: [new Claim("department", "engineering")]);
         var request = new SalesCommand();
-        var context = RequestContext.CreateForTest();
+        var context = _callerContext;
 
         RequestHandlerCallback<Unit> nextStep = () =>
             ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
@@ -363,22 +365,15 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         string? userId,
         string[]? roles = null)
     {
+        // The real authorization service and policies; the caller is the request identity the
+        // accessor holds (#1705: never HttpContext.User).
         var scope = _serviceProvider.CreateScope();
-        var httpContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(userId is null
+            ? RequestContext.CreateForTest()
+            : TestRequestContext.For(TestIdentity.User(userId, roles, claims: [new Claim(ClaimTypes.NameIdentifier, userId)])));
 
-        if (userId is not null)
-        {
-            httpContextAccessor.HttpContext = CreateHttpContext(userId, roles);
-        }
-        else
-        {
-            httpContextAccessor.HttpContext = new DefaultHttpContext
-            {
-                RequestServices = scope.ServiceProvider
-            };
-        }
-
-        var authorizer = scope.ServiceProvider.GetRequiredService<IResourceAuthorizer>();
+        var authorizer = new ResourceAuthorizer(scope.ServiceProvider.GetRequiredService<IAuthorizationService>(), accessor);
         return (authorizer, scope);
     }
 
@@ -388,26 +383,16 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         Claim[]? claims = null)
         where TRequest : IRequest<TResponse>
     {
+        // The behavior AddEncinaAuthorization registered (#1705: it registers its own behavior), and
+        // the caller as the request identity the dispatch carries.
         using var scope = _serviceProvider.CreateScope();
-        var authorizationService = scope.ServiceProvider.GetRequiredService<IAuthorizationService>();
-        var options = scope.ServiceProvider.GetRequiredService<IOptions<AuthorizationConfiguration>>();
-        var logger = NullLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>.Instance;
+        _callerContext = userId is null
+            ? RequestContext.CreateForTest()
+            : TestRequestContext.For(TestIdentity.User(userId, roles, claims: [new Claim(ClaimTypes.NameIdentifier, userId), .. claims ?? []]));
 
-        HttpContext? httpContext = null;
-        if (userId is not null)
-        {
-            httpContext = CreateHttpContext(userId, roles, claims);
-            httpContext.RequestServices = scope.ServiceProvider;
-        }
-
-        var httpContextAccessor = new HttpContextAccessor { HttpContext = httpContext };
-        var principalResolver = new HttpContextPrincipalResolver(httpContextAccessor);
-
-        return new AuthorizationPipelineBehavior<TRequest, TResponse>(
-            authorizationService,
-            principalResolver,
-            options,
-            logger);
+        return scope.ServiceProvider.GetServices<IPipelineBehavior<TRequest, TResponse>>()
+            .OfType<AuthorizationPipelineBehavior<TRequest, TResponse>>()
+            .Single();
     }
 
     private static DefaultHttpContext CreateHttpContext(

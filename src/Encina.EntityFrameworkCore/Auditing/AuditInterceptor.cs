@@ -185,16 +185,21 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     /// <param name="context">The DbContext to process.</param>
     private void PopulateAuditFields(DbContext context)
     {
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
+        var identity = GetCurrentRequestContext()?.Identity ?? RequestIdentity.Anonymous;
+        var (addedCount, modifiedCount) = PopulateEntries(context, _timeProvider.GetUtcNow().UtcDateTime, identity.UserId);
 
-        var entries = context.ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+        if (_options.LogAuditChanges && (addedCount > 0 || modifiedCount > 0))
+        {
+            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, identity.Kind);
+        }
+    }
 
+    // Populates the creation or modification fields of every added or modified entity.
+    private (int Added, int Modified) PopulateEntries(DbContext context, DateTime nowUtc, string? userId)
+    {
         var addedCount = 0;
         var modifiedCount = 0;
-
-        foreach (var entry in entries)
+        foreach (var entry in context.ChangeTracker.Entries())
         {
             if (entry.State == EntityState.Added)
             {
@@ -208,10 +213,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             }
         }
 
-        if (_options.LogAuditChanges && (addedCount > 0 || modifiedCount > 0))
-        {
-            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, userId ?? "(anonymous)");
-        }
+        return (addedCount, modifiedCount);
     }
 
     /// <summary>
@@ -253,19 +255,15 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     }
 
     /// <summary>
-    /// Resolves the current user ID from the request context.
+    /// Resolves the ambient request context: the one <c>IEncina.Send/Publish/Stream</c> or
+    /// <c>UseEncinaContext()</c> put on the accessor. There is no other source.
     /// </summary>
-    /// <returns>The current user ID, or <c>null</c> if not available.</returns>
-    private string? GetCurrentUserId()
+    /// <returns>The ambient request context, or <c>null</c> if none is available.</returns>
+    private IRequestContext? GetCurrentRequestContext()
     {
         try
         {
-            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
-            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
-            // register one by hand.
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.UserId;
+            return _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
         }
         catch (Exception ex)
         {
@@ -281,11 +279,10 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     private void CaptureChangesForAuditLog(DbContext context)
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
-        var correlationId = GetCorrelationId();
+        var requestContext = GetCurrentRequestContext();
 
         var entries = context.ChangeTracker.Entries()
-            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(static e => ActionOf(e.State) is not null)
             .ToList();
 
         if (entries.Count == 0)
@@ -293,40 +290,33 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             return;
         }
 
-        PendingEntries.Value ??= [];
-        var pendingList = PendingEntries.Value;
-
+        var pendingList = PendingEntries.Value ??= [];
         foreach (var entry in entries)
         {
-            var action = entry.State switch
-            {
-                EntityState.Added => AuditAction.Created,
-                EntityState.Modified => AuditAction.Updated,
-                EntityState.Deleted => AuditAction.Deleted,
-                _ => (AuditAction?)null
-            };
-
-            if (action is null)
-            {
-                continue;
-            }
-
-            var entityType = entry.Entity.GetType().Name;
-            var entityId = GetEntityId(entry);
-            var oldValues = action.Value != AuditAction.Created ? SerializeValues(entry.OriginalValues) : null;
-            var newValues = action.Value != AuditAction.Deleted ? SerializeValues(entry.CurrentValues) : null;
-
-            pendingList.Add(new PendingAuditEntry(
-                entityType,
-                entityId,
-                action.Value,
-                userId,
-                nowUtc,
-                oldValues,
-                newValues,
-                correlationId));
+            pendingList.Add(ToPendingEntry(entry, ActionOf(entry.State)!.Value, requestContext, nowUtc));
         }
     }
+
+    // crap-exempt: single-question switch — the audit action of each entity state (null: not audited).
+    private static AuditAction? ActionOf(EntityState state) => state switch
+    {
+        EntityState.Added => AuditAction.Created,
+        EntityState.Modified => AuditAction.Updated,
+        EntityState.Deleted => AuditAction.Deleted,
+        _ => null
+    };
+
+    // The actor and correlation id come from the ambient request context only.
+    private static PendingAuditEntry ToPendingEntry(EntityEntry entry, AuditAction action, IRequestContext? requestContext, DateTime nowUtc) =>
+        new(
+            entry.Entity.GetType().Name,
+            GetEntityId(entry),
+            action,
+            requestContext?.Identity?.UserId,
+            nowUtc,
+            action != AuditAction.Created ? SerializeValues(entry.OriginalValues) : null,
+            action != AuditAction.Deleted ? SerializeValues(entry.CurrentValues) : null,
+            requestContext?.CorrelationId);
 
     /// <summary>
     /// Gets the entity ID as a string from the entity entry.
@@ -366,24 +356,6 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             dict[property.Name] = values[property];
         }
         return JsonSerializer.Serialize(dict);
-    }
-
-    /// <summary>
-    /// Gets the correlation ID from the request context if available.
-    /// </summary>
-    /// <returns>The correlation ID, or <c>null</c> if not available.</returns>
-    private string? GetCorrelationId()
-    {
-        try
-        {
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.CorrelationId;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>
@@ -498,12 +470,12 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 3000,
         Level = LogLevel.Debug,
-        Message = "Audit fields populated: {AddedCount} added, {ModifiedCount} modified by user {UserId}")]
+        Message = "Audit fields populated: {AddedCount} added, {ModifiedCount} modified by a {IdentityKind} identity")]
     public static partial void AuditFieldsPopulated(
         ILogger logger,
         int addedCount,
         int modifiedCount,
-        string userId);
+        IdentityKind identityKind);
 
     [LoggerMessage(
         EventId = 3001,

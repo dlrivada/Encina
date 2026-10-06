@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using Encina.AspNetCore.Authorization;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
@@ -30,11 +31,17 @@ namespace Encina.AspNetCore;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Important</b>: Requires an authenticated principal, resolved through <see cref="IPrincipalResolver"/>
-/// (by default, <see cref="Microsoft.AspNetCore.Http.HttpContext.User"/> via <see cref="HttpContextPrincipalResolver"/>).
-/// Use after <c>app.UseAuthentication()</c> in the middleware pipeline. Transports without an ambient
-/// <c>HttpContext</c> — such as Blazor Server circuits — can register a different <see cref="IPrincipalResolver"/>
-/// (see <c>Encina.AspNetCore.Blazor</c>).
+/// <b>Caller.</b> The behavior evaluates the request identity of the dispatch,
+/// <see cref="IRequestContext.Identity"/>: its <see cref="RequestIdentity.Principal"/>, which holds
+/// only the caller's authenticated identities. A request that needs authorization is denied with
+/// <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> when the identity is not authenticated,
+/// including a token that the claim map turned into the anonymous identity (no subject, a reserved
+/// <c>service:</c> subject). Over HTTP the identity is bound by <c>app.UseEncinaContext()</c>; in a
+/// Blazor Server circuit by <c>AddEncinaBlazorAuthorization()</c>; in background work by the scope
+/// factory (<see cref="IRequestContextScopeFactory"/>).
+/// </para>
+/// <para>
+/// Logs and error details record the identity kind, never the user id.
 /// </para>
 /// </remarks>
 /// <example>
@@ -70,6 +77,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 {
     private const string MetadataKeyRequestType = "requestType";
     private const string MetadataKeyStage = "stage";
+    private const string MetadataKeyIdentityKind = "identityKind";
     private const string MetadataStageAuthorization = "authorization";
 
     // Cache CQRS type checks and attribute lookups to avoid repeated reflection
@@ -80,22 +88,21 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
 
     private static readonly Type CommandOpenGeneric = typeof(ICommand<>);
 
-    // High-performance logging delegates
+    // High-performance logging delegates. They record the identity kind, never the user id.
     // Event IDs: 200-201 (see EventIdRanges.AspNetCore)
-    private static readonly Action<ILogger, string, string?, string?, Exception?> LogAuthorizationSucceeded =
-        LoggerMessage.Define<string, string?, string?>(
+    private static readonly Action<ILogger, string, string?, IdentityKind, Exception?> LogAuthorizationSucceeded =
+        LoggerMessage.Define<string, string?, IdentityKind>(
             LogLevel.Debug,
             new EventId(200, "AuthorizationSucceeded"),
-            "Authorization succeeded for {RequestType}. Policy: {Policy}, UserId: {UserId}");
+            "Authorization succeeded for {RequestType}. Policy: {Policy}, IdentityKind: {IdentityKind}");
 
-    private static readonly Action<ILogger, string, string?, string?, string, Exception?> LogAuthorizationDenied =
-        LoggerMessage.Define<string, string?, string?, string>(
+    private static readonly Action<ILogger, string, string?, IdentityKind, string, Exception?> LogAuthorizationDenied =
+        LoggerMessage.Define<string, string?, IdentityKind, string>(
             LogLevel.Warning,
             new EventId(201, "AuthorizationDenied"),
-            "Authorization denied for {RequestType}. Policy: {Policy}, UserId: {UserId}, Reason: {Reason}");
+            "Authorization denied for {RequestType}. Policy: {Policy}, IdentityKind: {IdentityKind}, Reason: {Reason}");
 
     private readonly IAuthorizationService _authorizationService;
-    private readonly IPrincipalResolver _principalResolver;
     private readonly AuthorizationConfiguration _configuration;
     private readonly ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> _logger;
 
@@ -103,17 +110,18 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     /// Initializes a new instance of the <see cref="AuthorizationPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
     /// <param name="authorizationService">The ASP.NET Core authorization service.</param>
-    /// <param name="principalResolver">Resolves the current caller's principal in a transport-agnostic way.</param>
     /// <param name="options">CQRS-aware authorization configuration.</param>
     /// <param name="logger">Logger for structured authorization diagnostics.</param>
     public AuthorizationPipelineBehavior(
         IAuthorizationService authorizationService,
-        IPrincipalResolver principalResolver,
         IOptions<AuthorizationConfiguration> options,
         ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>> logger)
     {
+        ArgumentNullException.ThrowIfNull(authorizationService);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _authorizationService = authorizationService;
-        _principalResolver = principalResolver;
         _configuration = options.Value;
         _logger = logger;
     }
@@ -125,214 +133,191 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         RequestHandlerCallback<TResponse> nextStep,
         CancellationToken cancellationToken)
     {
-        var requestType = typeof(TRequest);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(nextStep);
 
-        // 1. Check for AllowAnonymous first - bypasses all authorization
+        var requirements = RequirementsOf(typeof(TRequest));
+        if (requirements is null)
+        {
+            return await nextStep().ConfigureAwait(false);
+        }
+
+        var denial = await AuthorizeAsync(request, context, requirements).ConfigureAwait(false);
+        return denial is { } error
+            ? Left<EncinaError, TResponse>(error)
+            : await nextStep().ConfigureAwait(false);
+    }
+
+    // The denial of the caller, or null when every requirement passes (logged 200).
+    private async Task<EncinaError?> AuthorizeAsync(TRequest request, IRequestContext context, Requirements requirements)
+    {
+        // A non-conforming context whose Identity is null reads as anonymous and is denied.
+        if (context.Identity is not { IsAuthenticated: true } identity)
+        {
+            return Unauthenticated(typeof(TRequest), context.Identity?.Kind ?? IdentityKind.Anonymous);
+        }
+
+        var denial = await EvaluateAsync(request, identity, requirements).ConfigureAwait(false);
+        if (denial is null)
+        {
+            LogAuthorizationSucceeded(_logger, typeof(TRequest).FullName!, requirements.EffectivePolicy, identity.Kind, null);
+        }
+
+        return denial;
+    }
+
+    // The attributes and the CQRS default policy that apply; null when the request needs no authorization.
+    private Requirements? RequirementsOf(Type requestType)
+    {
         if (HasAllowAnonymous(requestType))
         {
-            return await nextStep().ConfigureAwait(false);
+            return null;
         }
 
-        // 2. Collect authorization metadata from attributes
         var authorizeAttributes = GetAuthorizeAttributes(requestType);
         var resourceAuthorizeAttribute = GetResourceAuthorizeAttribute(requestType);
+        var explicitRequirements = authorizeAttributes.Count > 0 || resourceAuthorizeAttribute is not null;
+        var autoAppliedPolicy = explicitRequirements ? null : AutoAppliedPolicy(requestType);
 
-        // 3. Determine if CQRS default policy should apply (when no explicit attributes)
-        string? autoAppliedPolicy = null;
-        if (authorizeAttributes.Count == 0
-            && resourceAuthorizeAttribute is null
-            && _configuration.AutoApplyPolicies)
+        return explicitRequirements || autoAppliedPolicy is not null
+            ? new Requirements(authorizeAttributes, resourceAuthorizeAttribute, autoAppliedPolicy)
+            : null;
+    }
+
+    // The CQRS default policy of a request without explicit attributes, when auto-apply is on.
+    private string? AutoAppliedPolicy(Type requestType)
+    {
+        if (!_configuration.AutoApplyPolicies)
         {
-            autoAppliedPolicy = IsCommand(requestType)
-                ? _configuration.DefaultCommandPolicy
-                : _configuration.DefaultQueryPolicy;
+            return null;
         }
 
-        // 4. If no authorization required at all, proceed
-        if (authorizeAttributes.Count == 0
-            && resourceAuthorizeAttribute is null
-            && autoAppliedPolicy is null)
+        return IsCommand(requestType) ? _configuration.DefaultCommandPolicy : _configuration.DefaultQueryPolicy;
+    }
+
+    // Every requirement must pass (AND); the first failure is the denial.
+    private async Task<EncinaError?> EvaluateAsync(TRequest request, RequestIdentity identity, Requirements requirements)
+    {
+        // An authenticated identity built without a principal (builders only) satisfies no policy or role.
+        var user = identity.Principal ?? new ClaimsPrincipal(new ClaimsIdentity());
+        var denial = await EvaluateAttributesAsync(request, user, identity.Kind, requirements.AuthorizeAttributes).ConfigureAwait(false);
+        if (denial is not null)
         {
-            return await nextStep().ConfigureAwait(false);
+            return denial;
         }
 
-        // 5. Resolve the current caller's principal in a transport-agnostic way (see IPrincipalResolver)
-        var user = await _principalResolver.ResolvePrincipalAsync(cancellationToken).ConfigureAwait(false);
-        if (user is null)
+        return await EvaluatePolicyAsync(request, user, identity.Kind, requirements.ResourceAuthorizeAttribute?.Policy, "resource_authorization").ConfigureAwait(false)
+            ?? await EvaluatePolicyAsync(request, user, identity.Kind, requirements.AutoAppliedPolicy, "auto_applied_policy").ConfigureAwait(false);
+    }
+
+    // Each [Authorize]: its policy, then its roles.
+    private async Task<EncinaError?> EvaluateAttributesAsync(TRequest request, ClaimsPrincipal user, IdentityKind identityKind, List<AuthorizeAttribute> attributes)
+    {
+        foreach (var attribute in attributes)
         {
-            var reason = "Authorization requires HTTP context but none is available.";
-            LogAuthorizationDenied(_logger, requestType.FullName!, null, null, reason, null);
-
-            return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                code: EncinaErrorCodes.AuthorizationUnauthorized,
-                message: reason,
-                details: new Dictionary<string, object?>
-                {
-                    [MetadataKeyRequestType] = requestType.FullName,
-                    [MetadataKeyStage] = MetadataStageAuthorization
-                }));
-        }
-
-        var userId = context.UserId;
-
-        // 6. Check if user is authenticated
-        if (user.Identity?.IsAuthenticated is not true)
-        {
-            var reason = $"Request '{requestType.Name}' requires authentication.";
-            LogAuthorizationDenied(_logger, requestType.FullName!, null, userId, reason, null);
-
-            return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                code: EncinaErrorCodes.AuthorizationUnauthorized,
-                message: reason,
-                details: new Dictionary<string, object?>
-                {
-                    [MetadataKeyRequestType] = requestType.FullName,
-                    [MetadataKeyStage] = MetadataStageAuthorization,
-                    ["requirement"] = "authenticated"
-                }));
-        }
-
-        // 7. Process [Authorize] attributes
-        foreach (var authorizeAttribute in authorizeAttributes)
-        {
-            // Check policy-based authorization
-            if (!string.IsNullOrWhiteSpace(authorizeAttribute.Policy))
+            var denial = await EvaluatePolicyAsync(request, user, identityKind, attribute.Policy, "policy").ConfigureAwait(false)
+                ?? EvaluateRoles(user, identityKind, attribute.Roles);
+            if (denial is not null)
             {
-                var policyResult = await _authorizationService.AuthorizeAsync(
-                    user,
-                    resource: request, // Pass request as resource for resource-based authorization
-                    policyName: authorizeAttribute.Policy)
-                    .ConfigureAwait(false);
-
-                if (!policyResult.Succeeded)
-                {
-                    var reason = $"User does not satisfy policy '{authorizeAttribute.Policy}' required by '{requestType.Name}'.";
-                    LogAuthorizationDenied(_logger, requestType.FullName!, authorizeAttribute.Policy, userId, reason, null);
-
-                    return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                        code: EncinaErrorCodes.AuthorizationPolicyFailed,
-                        message: reason,
-                        details: new Dictionary<string, object?>
-                        {
-                            [MetadataKeyRequestType] = requestType.FullName,
-                            [MetadataKeyStage] = MetadataStageAuthorization,
-                            ["requirement"] = "policy",
-                            ["policy"] = authorizeAttribute.Policy,
-                            ["userId"] = userId,
-                            ["failureReasons"] = policyResult.Failure?.FailureReasons
-                                .Select(r => r.Message)
-                                .ToList()
-                        }));
-                }
-            }
-
-            // Check role-based authorization
-            if (!string.IsNullOrWhiteSpace(authorizeAttribute.Roles))
-            {
-                var requiredRoles = authorizeAttribute.Roles
-                    .Split(',')
-                    .Select(r => r.Trim())
-                    .Where(r => !string.IsNullOrEmpty(r))
-                    .ToList();
-
-                var hasAnyRequiredRole = requiredRoles.Any(user.IsInRole);
-
-                if (!hasAnyRequiredRole)
-                {
-                    var reason = $"User does not have any of the required roles ({string.Join(", ", requiredRoles)}) for '{requestType.Name}'.";
-                    LogAuthorizationDenied(_logger, requestType.FullName!, null, userId, reason, null);
-
-                    return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                        code: EncinaErrorCodes.AuthorizationForbidden,
-                        message: reason,
-                        details: new Dictionary<string, object?>
-                        {
-                            [MetadataKeyRequestType] = requestType.FullName,
-                            [MetadataKeyStage] = MetadataStageAuthorization,
-                            ["requirement"] = "roles",
-                            ["requiredRoles"] = requiredRoles,
-                            ["userId"] = userId
-                        }));
-                }
-            }
-
-            // Note: AuthenticationSchemes is typically handled by ASP.NET Core middleware
-            // before the request reaches Encina, so we don't check it here
-        }
-
-        // 8. Process [ResourceAuthorize] attribute
-        if (resourceAuthorizeAttribute is not null)
-        {
-            var policyResult = await _authorizationService.AuthorizeAsync(
-                user,
-                resource: request!,
-                policyName: resourceAuthorizeAttribute.Policy)
-                .ConfigureAwait(false);
-
-            if (!policyResult.Succeeded)
-            {
-                var failureReasons = policyResult.Failure?.FailureReasons
-                    .Select(r => r.Message)
-                    .Where(m => !string.IsNullOrEmpty(m))
-                    .ToList();
-
-                var reason = $"Resource authorization denied. Policy '{resourceAuthorizeAttribute.Policy}' was not satisfied for request '{requestType.Name}'.";
-                LogAuthorizationDenied(_logger, requestType.FullName!, resourceAuthorizeAttribute.Policy, userId, reason, null);
-
-                return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                    code: EncinaErrorCodes.AuthorizationResourceDenied,
-                    message: reason,
-                    details: new Dictionary<string, object?>
-                    {
-                        [MetadataKeyRequestType] = requestType.FullName,
-                        [MetadataKeyStage] = MetadataStageAuthorization,
-                        ["requirement"] = "resource_authorization",
-                        ["policy"] = resourceAuthorizeAttribute.Policy,
-                        ["userId"] = userId,
-                        ["failureReasons"] = failureReasons
-                    }));
+                return denial;
             }
         }
 
-        // 9. Process CQRS auto-applied default policy
-        if (autoAppliedPolicy is not null)
+        return null;
+    }
+
+    private async Task<EncinaError?> EvaluatePolicyAsync(TRequest request, ClaimsPrincipal user, IdentityKind identityKind, string? policy, string requirement)
+    {
+        if (string.IsNullOrWhiteSpace(policy))
         {
-            var policyResult = await _authorizationService.AuthorizeAsync(
-                user,
-                resource: request,
-                policyName: autoAppliedPolicy)
-                .ConfigureAwait(false);
-
-            if (!policyResult.Succeeded)
-            {
-                var reason = $"User does not satisfy auto-applied default policy '{autoAppliedPolicy}' for '{requestType.Name}'.";
-                LogAuthorizationDenied(_logger, requestType.FullName!, autoAppliedPolicy, userId, reason, null);
-
-                return Left<EncinaError, TResponse>(EncinaErrors.Create( // NOSONAR S6966
-                    code: EncinaErrorCodes.AuthorizationPolicyFailed,
-                    message: reason,
-                    details: new Dictionary<string, object?>
-                    {
-                        [MetadataKeyRequestType] = requestType.FullName,
-                        [MetadataKeyStage] = MetadataStageAuthorization,
-                        ["requirement"] = "auto_applied_policy",
-                        ["policy"] = autoAppliedPolicy,
-                        ["userId"] = userId,
-                        ["isCommand"] = IsCommand(requestType),
-                        ["failureReasons"] = policyResult.Failure?.FailureReasons
-                            .Select(r => r.Message)
-                            .ToList()
-                    }));
-            }
+            return null;
         }
 
-        // 10. All authorization checks passed
-        var effectivePolicy = resourceAuthorizeAttribute?.Policy
-            ?? authorizeAttributes.FirstOrDefault()?.Policy
-            ?? autoAppliedPolicy;
-        LogAuthorizationSucceeded(_logger, requestType.FullName!, effectivePolicy, userId, null);
+        // The request is the resource of every policy (resource-based authorization).
+        var result = await _authorizationService.AuthorizeAsync(user, request, policy).ConfigureAwait(false);
+        return result.Succeeded ? (EncinaError?)null : PolicyDenied(policy, requirement, identityKind, result);
+    }
 
-        return await nextStep().ConfigureAwait(false);
+    private EncinaError? EvaluateRoles(ClaimsPrincipal user, IdentityKind identityKind, string? roles)
+    {
+        if (string.IsNullOrWhiteSpace(roles))
+        {
+            return null;
+        }
+
+        var requiredRoles = roles.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (requiredRoles.Any(user.IsInRole))
+        {
+            return null;
+        }
+
+        var requestType = typeof(TRequest);
+        var reason = $"User does not have any of the required roles ({string.Join(", ", requiredRoles)}) for '{requestType.Name}'.";
+        LogAuthorizationDenied(_logger, requestType.FullName!, null, identityKind, reason, null);
+        return EncinaErrors.Create( // NOSONAR S6966
+            code: EncinaErrorCodes.AuthorizationForbidden,
+            message: reason,
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAuthorization,
+                ["requirement"] = "roles",
+                ["requiredRoles"] = requiredRoles,
+                [MetadataKeyIdentityKind] = identityKind.ToString()
+            });
+    }
+
+    private EncinaError Unauthenticated(Type requestType, IdentityKind identityKind)
+    {
+        var reason = $"Request '{requestType.Name}' requires authentication.";
+        LogAuthorizationDenied(_logger, requestType.FullName!, null, identityKind, reason, null);
+        return EncinaErrors.Create( // NOSONAR S6966
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
+            message: reason,
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyRequestType] = requestType.FullName,
+                [MetadataKeyStage] = MetadataStageAuthorization,
+                ["requirement"] = "authenticated",
+                [MetadataKeyIdentityKind] = identityKind.ToString()
+            });
+    }
+
+    // crap-exempt: single-question switch — the error code and message of each policy requirement kind.
+    private static (string Code, string Reason) DescribePolicyDenial(string requirement, string policy, string requestName) => requirement switch
+    {
+        "resource_authorization" => (EncinaErrorCodes.AuthorizationResourceDenied,
+            $"Resource authorization denied. Policy '{policy}' was not satisfied for request '{requestName}'."),
+        "auto_applied_policy" => (EncinaErrorCodes.AuthorizationPolicyFailed,
+            $"User does not satisfy auto-applied default policy '{policy}' for '{requestName}'."),
+        _ => (EncinaErrorCodes.AuthorizationPolicyFailed,
+            $"User does not satisfy policy '{policy}' required by '{requestName}'.")
+    };
+
+    private EncinaError PolicyDenied(string policy, string requirement, IdentityKind identityKind, AuthorizationResult result)
+    {
+        var requestType = typeof(TRequest);
+        var (code, reason) = DescribePolicyDenial(requirement, policy, requestType.Name);
+        LogAuthorizationDenied(_logger, requestType.FullName!, policy, identityKind, reason, null);
+
+        var details = new Dictionary<string, object?>
+        {
+            [MetadataKeyRequestType] = requestType.FullName,
+            [MetadataKeyStage] = MetadataStageAuthorization,
+            ["requirement"] = requirement,
+            ["policy"] = policy,
+            [MetadataKeyIdentityKind] = identityKind.ToString(),
+            ["failureReasons"] = result.Failure?.FailureReasons
+                .Select(static failure => failure.Message)
+                .Where(static message => !string.IsNullOrEmpty(message))
+                .ToList()
+        };
+        if (requirement == "auto_applied_policy")
+        {
+            details["isCommand"] = IsCommand(requestType);
+        }
+
+        return EncinaErrors.Create(code, reason, details: details); // NOSONAR S6966
     }
 
     /// <summary>
@@ -366,5 +351,15 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
             type.GetCustomAttributes(typeof(ResourceAuthorizeAttribute), inherit: true)
                 .Cast<ResourceAuthorizeAttribute>()
                 .FirstOrDefault());
+    }
+
+    // The requirements of one request type: the explicit attributes and the CQRS default policy.
+    private sealed record Requirements(
+        List<AuthorizeAttribute> AuthorizeAttributes,
+        ResourceAuthorizeAttribute? ResourceAuthorizeAttribute,
+        string? AutoAppliedPolicy)
+    {
+        public string? EffectivePolicy =>
+            ResourceAuthorizeAttribute?.Policy ?? AuthorizeAttributes.FirstOrDefault()?.Policy ?? AutoAppliedPolicy;
     }
 }

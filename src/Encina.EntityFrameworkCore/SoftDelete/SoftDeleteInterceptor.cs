@@ -1,6 +1,7 @@
 using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -115,61 +116,58 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
     private void ConvertToSoftDelete(DbContext context)
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var userId = GetCurrentUserId();
+        var identity = GetCurrentIdentity();
 
         var deletedEntries = context.ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Deleted && e.Entity is ISoftDeletableEntity)
+            .Where(static e => e.State == EntityState.Deleted && e.Entity is ISoftDeletableEntity)
             .ToList();
-
-        var softDeletedCount = 0;
 
         foreach (var entry in deletedEntries)
         {
-            var entity = (ISoftDeletableEntity)entry.Entity;
-
-            // Set soft delete properties
-            entity.IsDeleted = true;
-
-            if (_options.TrackDeletedAt)
-            {
-                entity.DeletedAtUtc = nowUtc;
-            }
-
-            if (_options.TrackDeletedBy && userId is not null)
-            {
-                entity.DeletedBy = userId;
-            }
-
-            // Change state from Deleted to Modified to prevent physical deletion
-            entry.State = EntityState.Modified;
-            softDeletedCount++;
+            MarkSoftDeleted(entry, nowUtc, identity.UserId);
         }
 
-        if (_options.LogSoftDeletes && softDeletedCount > 0)
+        if (_options.LogSoftDeletes && deletedEntries.Count > 0)
         {
-            Log.SoftDeleteConverted(_logger, softDeletedCount, userId ?? "(anonymous)");
+            Log.SoftDeleteConverted(_logger, deletedEntries.Count, identity.Kind);
         }
     }
 
+    // Sets the soft-delete fields and turns the physical delete into an update.
+    private void MarkSoftDeleted(EntityEntry entry, DateTime nowUtc, string? userId)
+    {
+        var entity = (ISoftDeletableEntity)entry.Entity;
+        entity.IsDeleted = true;
+
+        if (_options.TrackDeletedAt)
+        {
+            entity.DeletedAtUtc = nowUtc;
+        }
+
+        if (_options.TrackDeletedBy && userId is not null)
+        {
+            entity.DeletedBy = userId;
+        }
+
+        entry.State = EntityState.Modified;
+    }
+
     /// <summary>
-    /// Resolves the current user ID from the request context.
+    /// Resolves the caller identity from the ambient request context (the one
+    /// <c>IEncina.Send/Publish/Stream</c> or <c>UseEncinaContext()</c> put on the accessor).
     /// </summary>
-    /// <returns>The current user ID, or <c>null</c> if not available.</returns>
-    private string? GetCurrentUserId()
+    /// <returns>The caller identity; the anonymous identity when none is available.</returns>
+    private RequestIdentity GetCurrentIdentity()
     {
         try
         {
-            // The ambient context that IEncina.Send/Publish/Stream (or EncinaContextMiddleware) set on
-            // the accessor wins; a DI-registered IRequestContext is only a fallback for hosts that
-            // register one by hand.
-            var requestContext = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext
-                ?? _serviceProvider.GetService<IRequestContext>();
-            return requestContext?.UserId;
+            var context = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
+            return context?.Identity ?? RequestIdentity.Anonymous;
         }
         catch (Exception ex)
         {
             Log.FailedToResolveUserId(_logger, ex.ForLogging());
-            return null;
+            return RequestIdentity.Anonymous;
         }
     }
 }
@@ -182,11 +180,11 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 3050,
         Level = LogLevel.Debug,
-        Message = "Soft delete converted: {SoftDeletedCount} entities soft-deleted by user {UserId}")]
+        Message = "Soft delete converted: {SoftDeletedCount} entities soft-deleted by a {IdentityKind} identity")]
     public static partial void SoftDeleteConverted(
         ILogger logger,
         int softDeletedCount,
-        string userId);
+        IdentityKind identityKind);
 
     [LoggerMessage(
         EventId = 3051,

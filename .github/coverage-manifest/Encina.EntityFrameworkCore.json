@@ -80,7 +80,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 70, "guard": 80 },
+      "justifications": {
+        "unit": "Field population, audit log entries, the accessor-only source and the 3000 log sentinel are tested; error paths of persistence are not (measured 74%).",
+        "guard": "Guard tests drive the save paths with substitutes (measured 87%)."
+      }
     },
     "Auditing/AuditInterceptorOptions.cs": {
       "defaultTests": [
@@ -210,7 +215,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 25, "guard": 5 },
+      "justifications": {
+        "unit": "Only the request-context resolution and cache-miss key generation changed here; reader materialization is covered by integration tests (measured 28%).",
+        "guard": "Constructor guards only (measured 6%)."
+      }
     },
     "Caching/QueryCacheOptions.cs": {
       "defaultTests": [
@@ -754,7 +764,12 @@
         "guard"
       ],
       "defaultRule": "*Interceptor.cs",
-      "reason": "EF interceptor with mockeable context"
+      "reason": "EF interceptor with mockeable context",
+      "targets": { "unit": 85, "guard": 20 },
+      "justifications": {
+        "unit": "Soft-delete conversion, deleted-by from the ambient accessor and the 3050 log sentinel are tested; the synchronous override is lightly covered (measured 86%).",
+        "guard": "Constructor guards only (measured 20%)."
+      }
     },
     "SoftDelete/SoftDeleteInterceptorOptions.cs": {
       "defaultTests": [

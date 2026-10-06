@@ -45,14 +45,23 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
             LogSoftDeletes = logSoftDeletes
         };
 
+        // The interceptor reads only the ambient accessor (#1705 Phase 3). With registerAccessor the
+        // real accessor is used and a requestContext is registered as a plain service, which the
+        // interceptor must ignore; otherwise the requestContext is what the accessor holds.
         var services = new ServiceCollection();
-        if (requestContext is not null)
-        {
-            services.AddSingleton(requestContext);
-        }
         if (registerAccessor)
         {
             services.AddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+            if (requestContext is not null)
+            {
+                services.AddSingleton(requestContext);
+            }
+        }
+        else if (requestContext is not null)
+        {
+            var accessor = Substitute.For<IRequestContextAccessor>();
+            accessor.RequestContext.Returns(requestContext);
+            services.AddSingleton(accessor);
         }
         var sp = services.BuildServiceProvider();
 
@@ -253,6 +262,79 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
 
         deletedOrder.ShouldNotBeNull();
         deletedOrder.DeletedBy.ShouldBe("ambient-user");
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_LogsEvent3050_WithTheIdentityKind_NeverTheUserId()
+    {
+        // #1705, finding 4: no user id reaches the soft-delete log.
+        const string sentinel = "sentinel-softdelete-8e1a";
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(TestRequestContext.For(TestIdentity.User(sentinel)));
+        var services = new ServiceCollection().AddSingleton(accessor).BuildServiceProvider();
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<SoftDeleteInterceptor>();
+        var interceptor = new SoftDeleteInterceptor(
+            services, new SoftDeleteInterceptorOptions { LogSoftDeletes = true }, _timeProvider, logger);
+        var options = new DbContextOptionsBuilder<SoftDeleteTestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new SoftDeleteTestDbContext(options);
+        var order = new TestSoftDeletableOrder { Id = Guid.NewGuid(), CustomerName = "Test", Total = 1m };
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        context.Orders.Remove(order);
+        await context.SaveChangesAsync();
+
+        order.DeletedBy.ShouldBe(sentinel);
+        var record = logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 3050);
+        record.Message.ShouldContain("User identity");
+        record.Message.ShouldNotContain(sentinel);
+        (record.StructuredState ?? []).ShouldAllBe(pair => !(pair.Value ?? string.Empty).Contains(sentinel));
+    }
+
+    [Theory]
+    [InlineData("no-accessor")]
+    [InlineData("empty-accessor")]
+    [InlineData("null-identity")]
+    [InlineData("throwing-provider")]
+    public async Task SaveChangesAsync_WithoutAReadableCaller_SoftDeletesAnonymously(string source)
+    {
+        var services = Substitute.For<IServiceProvider>();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        switch (source)
+        {
+            case "empty-accessor":
+                accessor.RequestContext.Returns((IRequestContext?)null);
+                services.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+                break;
+            case "null-identity":
+                accessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+                services.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+                break;
+            case "throwing-provider":
+                services.GetService(typeof(IRequestContextAccessor)).Returns(_ => throw new InvalidOperationException("scope disposed"));
+                break;
+        }
+
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<SoftDeleteInterceptor>();
+        var interceptor = new SoftDeleteInterceptor(services, new SoftDeleteInterceptorOptions { LogSoftDeletes = true }, _timeProvider, logger);
+        var options = new DbContextOptionsBuilder<SoftDeleteTestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new SoftDeleteTestDbContext(options);
+        var order = new TestSoftDeletableOrder { Id = Guid.NewGuid(), CustomerName = "Test", Total = 1m };
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        context.Orders.Remove(order);
+        await context.SaveChangesAsync();
+
+        order.IsDeleted.ShouldBeTrue();
+        order.DeletedBy.ShouldBeNull();
+        logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 3050).Message.ShouldContain("Anonymous identity");
     }
 
     [Fact]

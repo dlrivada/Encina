@@ -74,6 +74,48 @@ public sealed class IdentityMintingArchitectureTests
     }
 
     [Fact]
+    public void TheInternalScopeMembers_AreCalledOnlyByTheirDeclaredHosts()
+    {
+        // Phase 3 (#1705): the host adapters reach only the inbound twin and the anonymous marker;
+        // only Encina.Security.ABAC opens a built-in identity. Calls inside Encina itself are the
+        // factory's own.
+        Dictionary<string, string[]> allowedHosts = new(StringComparer.Ordinal)
+        {
+            [nameof(IInternalRequestContextScopeFactory.RunHostInboundAsync)] = ["Encina.AspNetCore", "Encina.AspNetCore.Blazor"],
+            [nameof(IInternalRequestContextScopeFactory.RunAnonymousMarkerAsync)] = ["Encina.AspNetCore", "Encina.AspNetCore.Blazor"],
+            [nameof(IInternalRequestContextScopeFactory.RunAsBuiltInAsync)] = ["Encina.Security.ABAC"]
+        };
+        var internalMembers = typeof(IInternalRequestContextScopeFactory).GetMethods(AllDeclared)
+            .Concat(typeof(RequestContextScopeFactory).GetMethods(AllDeclared).Where(method => allowedHosts.ContainsKey(method.Name)))
+            .Select(static method => method.IsGenericMethod ? method.GetGenericMethodDefinition() : method)
+            .Cast<MethodBase>()
+            .ToHashSet();
+
+        var offenders = new List<string>();
+        var hostCallers = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var assembly in Production.Value.Where(static assembly => assembly.GetName().Name != "Encina"))
+        {
+            var assemblyName = assembly.GetName().Name!;
+            foreach (var called in LoadableTypes(assembly).SelectMany(DeclaredMethods).SelectMany(CalledMethods).Where(internalMembers.Contains))
+            {
+                if (allowedHosts.TryGetValue(called.Name, out var hosts) && hosts.Contains(assemblyName, StringComparer.Ordinal))
+                {
+                    hostCallers.Add($"{assemblyName}:{called.Name}");
+                    continue;
+                }
+
+                offenders.Add($"{assemblyName} calls {called.Name}");
+            }
+        }
+
+        offenders.ShouldBeEmpty();
+        hostCallers.ShouldContain("Encina.AspNetCore:RunHostInboundAsync");
+        hostCallers.ShouldContain("Encina.AspNetCore:RunAnonymousMarkerAsync");
+        hostCallers.ShouldContain("Encina.AspNetCore.Blazor:RunHostInboundAsync");
+        hostCallers.ShouldContain("Encina.AspNetCore.Blazor:RunAnonymousMarkerAsync");
+    }
+
+    [Fact]
     public void NoProductionAssembly_ReferencesEncinaTesting()
     {
         Production.Value.Count.ShouldBeGreaterThan(10);
@@ -88,6 +130,9 @@ public sealed class IdentityMintingArchitectureTests
 
     private static MethodInfo Method(Type type, string name) =>
         type.GetMethods(AllDeclared).Single(method => method.Name == name);
+
+    private static IEnumerable<MethodBase> DeclaredMethods(Type type) =>
+        type.GetMethods(AllDeclared).Cast<MethodBase>().Concat(type.GetConstructors(AllDeclared));
 
     private static System.Collections.Generic.HashSet<Type> CallersOf(IReadOnlyCollection<MethodBase> targets)
     {

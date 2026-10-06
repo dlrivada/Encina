@@ -38,7 +38,7 @@ public static class HttpDataResidencyContextExtensions
     /// <returns>The region code string if present in metadata; otherwise, <c>null</c>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="context"/> is null.</exception>
     /// <remarks>
-    /// The data region is typically set by <see cref="EncinaContextMiddleware"/> from the
+    /// The data region is typically set by <c>UseEncinaContext()</c> from the
     /// <c>X-Data-Region</c> HTTP header. Used by <c>HttpRegionContextProvider</c> to resolve
     /// the current region for data residency enforcement.
     /// </remarks>

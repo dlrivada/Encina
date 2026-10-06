@@ -1,260 +1,180 @@
-using System.Diagnostics;
+using LanguageExt;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Encina.AspNetCore;
 
 /// <summary>
-/// Middleware that enriches <see cref="IRequestContext"/> from ASP.NET Core <see cref="HttpContext"/>.
+/// Middleware that binds the request identity of every HTTP request: it builds an
+/// <see cref="InboundRequestInfo"/> from the <see cref="HttpContext"/> and runs the rest of the
+/// pipeline inside one inbound identity scope, so every <c>IEncina.Send</c>, <c>Publish</c> and
+/// <c>Stream</c> of the request sees the caller's <see cref="RequestIdentity"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This middleware extracts ambient context information from the HTTP request and stores it on the
-/// core <see cref="IRequestContextAccessor"/>. <c>IEncina.Send</c>, <c>Publish</c> and <c>Stream</c> seed
-/// the pipeline's <see cref="IRequestContext"/> from that accessor, so every behavior and handler
-/// invoked during the HTTP request receives this context.
+/// Applications add it with <c>app.UseEncinaContext()</c>. The flow of one request:
 /// </para>
-/// <para>
-/// Extracted information:
-/// <list type="bullet">
-/// <item><description><b>CorrelationId</b>: From X-Correlation-ID header or generates new from Activity.Current</description></item>
-/// <item><description><b>Identity</b>: anonymous; the request identity is built by the identity scope factory (#1705)</description></item>
-/// <item><description><b>TenantId</b>: From claims or X-Tenant-ID header</description></item>
-/// <item><description><b>IdempotencyKey</b>: From X-Idempotency-Key header</description></item>
-/// <item><description><b>IpAddress</b>: From X-Forwarded-For header or Connection.RemoteIpAddress (for audit)</description></item>
-/// <item><description><b>UserAgent</b>: From User-Agent header (for audit)</description></item>
-/// <item><description><b>DataRegion</b>: From X-Data-Region header (for data residency, optional)</description></item>
+/// <list type="number">
+/// <item><description>After a detected misordering (below), every request is answered 500 without
+/// running the rest of the pipeline.</description></item>
+/// <item><description>A connection request (a WebSocket upgrade, any extended CONNECT, a GET whose
+/// <c>Accept</c> lists <c>text/event-stream</c>, a SignalR hub endpoint) binds no identity: the rest
+/// of the pipeline runs under the anonymous connection marker, because the connection outlives the
+/// request that opened it.</description></item>
+/// <item><description>Any other request runs inside one inbound scope opened with the identity
+/// mapped from <see cref="HttpContext.User"/>; when the request completes the scope ends, so a task
+/// that outlives it reads the anonymous identity.</description></item>
+/// <item><description>A refused scope answers 500 without running the rest of the pipeline (a host
+/// misconfiguration, such as <c>UseEncinaContext()</c> registered twice); a request aborted before
+/// the scope opened gets no response.</description></item>
+/// <item><description>When no endpoint was resolved before the middleware and the request ended on a
+/// hub endpoint with an unchanged path, <c>UseEncinaContext()</c> runs before <c>UseRouting()</c>:
+/// Critical 202, once, and every later request of this pipeline is answered 500. When the path
+/// changed inside the pipeline (a rewrite registered after the middleware), Warning 203 and no
+/// latch.</description></item>
 /// </list>
+/// <para>
+/// The latch is a field of this instance, so it lives as long as the pipeline that built it and
+/// never affects another host in the same process.
 /// </para>
 /// </remarks>
-/// <example>
-/// <code>
-/// // In Program.cs or Startup.cs
-/// app.UseEncinaContext();
-///
-/// // Now all Encina requests will have enriched context
-/// var result = await Encina.Send(new CreateUserCommand(...));
-/// </code>
-/// </example>
-public sealed class EncinaContextMiddleware
+internal sealed class EncinaContextMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly EncinaAspNetCoreOptions _options;
+    private readonly ILogger _logger;
+    private int _misordered;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EncinaContextMiddleware"/> class.
     /// </summary>
     /// <param name="next">The next middleware in the pipeline.</param>
-    /// <param name="options">Configuration options.</param>
+    /// <param name="options">The header names.</param>
+    /// <param name="logger">The logger (EventIds 202-203).</param>
     public EncinaContextMiddleware(
         RequestDelegate next,
-        IOptions<EncinaAspNetCoreOptions> options)
+        IOptions<EncinaAspNetCoreOptions> options,
+        ILogger<EncinaContextMiddleware> logger)
     {
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _next = next;
         _options = options.Value;
+        _logger = logger;
     }
+
+    /// <summary>
+    /// Gets a value indicating whether this middleware detected that it runs before routing.
+    /// </summary>
+    internal bool IsMisordered => Volatile.Read(ref _misordered) != 0;
 
     /// <summary>
     /// Invokes the middleware.
     /// </summary>
     /// <param name="context">The HTTP context.</param>
-    /// <param name="contextAccessor">Accessor for setting the request context.</param>
-    public async Task InvokeAsync(HttpContext context, IRequestContextAccessor contextAccessor)
+    /// <param name="scopes">The scope factory (the internal host-adapter members).</param>
+    /// <returns>A task that completes with the request.</returns>
+    public Task InvokeAsync(HttpContext context, IInternalRequestContextScopeFactory scopes)
     {
-        // Extract correlation ID from header or Activity
-        var correlationId = ExtractCorrelationId(context);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(scopes);
 
-        // Extract tenant ID from claims or header
-        var tenantId = ExtractTenantId(context);
-
-        // Extract idempotency key from header
-        var idempotencyKey = ExtractIdempotencyKey(context);
-
-        // Extract audit context (IP address and User-Agent)
-        var ipAddress = ExtractIpAddress(context);
-        var userAgent = ExtractUserAgent(context);
-
-        // Extract data region hint (optional, for data residency module)
-        var dataRegion = ExtractDataRegion(context);
-
-        // Create enriched request context. The caller identity is anonymous here: the request
-        // identity model (#1705) builds it through the identity scope factory, which replaces this
-        // construction.
-        var timeProvider = context.RequestServices?.GetService<TimeProvider>() ?? TimeProvider.System;
-        var requestContext = RequestContext.CreateAnonymousAt(
-            timeProvider.GetUtcNow(),
-            correlationId,
-            tenantId,
-            idempotencyKey)
-            .WithIpAddress(ipAddress)
-            .WithUserAgent(userAgent);
-
-        // Only add data region metadata when the header is present
-        if (!string.IsNullOrEmpty(dataRegion))
+        if (IsMisordered)
         {
-            requestContext = requestContext.WithDataRegion(dataRegion);
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            return Task.CompletedTask;
         }
 
-        // Set context for this request scope
-        contextAccessor.RequestContext = requestContext;
-
-        // Also set correlation ID in response header for traceability
-        if (!string.IsNullOrEmpty(correlationId))
-        {
-            context.Response.Headers[_options.CorrelationIdHeader] = correlationId;
-        }
-
-        await _next(context);
-    }
-
-    private string ExtractCorrelationId(HttpContext context)
-    {
-        // 1. Try to get from header
-        if (context.Request.Headers.TryGetValue(_options.CorrelationIdHeader, out var headerValue) &&
-            !string.IsNullOrWhiteSpace(headerValue))
-        {
-            return headerValue.ToString();
-        }
-
-        // 2. Try to get from Activity.Current (distributed tracing)
-        if (Activity.Current?.Id != null)
-        {
-            return Activity.Current.Id;
-        }
-
-        // 3. Generate new
-        return Activity.Current?.RootId ?? Guid.NewGuid().ToString();
-    }
-
-    private string? ExtractTenantId(HttpContext context)
-    {
-        // 1. Try to get from claims (preferred for authenticated users)
-        var user = context.User;
-        if (user?.Identity?.IsAuthenticated is true)
-        {
-            var tenantClaim = user.FindFirst(_options.TenantIdClaimType);
-            if (tenantClaim != null)
-            {
-                return tenantClaim.Value;
-            }
-
-            // Azure AD tenant ID
-            tenantClaim = user.FindFirst("tid");
-            if (tenantClaim != null)
-            {
-                return tenantClaim.Value;
-            }
-
-            tenantClaim = user.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid");
-            if (tenantClaim != null)
-            {
-                return tenantClaim.Value;
-            }
-        }
-
-        // 2. Fallback to header (for API-to-API calls or custom scenarios)
-        if (context.Request.Headers.TryGetValue(_options.TenantIdHeader, out var headerValue) &&
-            !string.IsNullOrWhiteSpace(headerValue))
-        {
-            return headerValue.ToString();
-        }
-
-        return null;
-    }
-
-    private string? ExtractIdempotencyKey(HttpContext context)
-    {
-        if (context.Request.Headers.TryGetValue(_options.IdempotencyKeyHeader, out var headerValue) &&
-            !string.IsNullOrWhiteSpace(headerValue))
-        {
-            return headerValue.ToString();
-        }
-
-        return null;
+        // Only a request with no endpoint yet can reveal a misordering; the hot path reads the endpoint once.
+        var endpointBefore = context.GetEndpoint();
+        var pathBefore = endpointBefore is null ? context.Request.Path : default;
+        return ConnectionRequestDetector.IsConnectionRequest(context)
+            ? RunConnectionAsync(context, scopes, endpointBefore, pathBefore)
+            : RunInboundAsync(context, scopes, endpointBefore, pathBefore);
     }
 
     /// <summary>
-    /// Extracts the client IP address from the HTTP context.
+    /// Classifies a request after the rest of the pipeline ran: a misordering (no endpoint before, a
+    /// hub endpoint after, same path), a re-route to a hub inside the pipeline (path changed), or
+    /// nothing.
     /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns>The client IP address, or <c>null</c> if unavailable.</returns>
-    /// <remarks>
-    /// <para>
-    /// Priority order:
-    /// <list type="number">
-    /// <item>X-Forwarded-For header (first IP in comma-separated list)</item>
-    /// <item>Connection.RemoteIpAddress</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// X-Forwarded-For is checked first to support reverse proxy scenarios where the
-    /// original client IP is forwarded by the proxy.
-    /// </para>
-    /// </remarks>
-    private static string? ExtractIpAddress(HttpContext context)
+    internal static OrderingSignal Classify(Endpoint? before, Endpoint? after, PathString pathBefore, PathString pathAfter)
     {
-        // 1. Check X-Forwarded-For header (common in reverse proxy scenarios)
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor) &&
-            !string.IsNullOrWhiteSpace(forwardedFor))
+        if (before is not null || !ConnectionRequestDetector.IsHubEndpoint(after))
         {
-            // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
-            // The first one is the original client
-            var firstIp = forwardedFor.ToString().Split(',', StringSplitOptions.TrimEntries)[0];
-            if (!string.IsNullOrWhiteSpace(firstIp))
-            {
-                return firstIp;
-            }
+            return OrderingSignal.None;
         }
 
-        // 2. Fall back to Connection.RemoteIpAddress
-        return context.Connection.RemoteIpAddress?.ToString();
+        return pathBefore == pathAfter ? OrderingSignal.BeforeRouting : OrderingSignal.PathChanged;
+    }
+
+    private async Task RunConnectionAsync(HttpContext context, IInternalRequestContextScopeFactory scopes, Endpoint? endpointBefore, PathString pathBefore)
+    {
+        var result = await scopes.RunAnonymousMarkerAsync(AnonymousMarker.Connection, _ => _next(context), context.RequestAborted)
+            .ConfigureAwait(false);
+        Complete(context, result, endpointBefore, pathBefore);
+    }
+
+    private async Task RunInboundAsync(HttpContext context, IInternalRequestContextScopeFactory scopes, Endpoint? endpointBefore, PathString pathBefore)
+    {
+        var info = HttpContextInboundRequestExtensions.CreateInboundRequestInfo(context, _options);
+        var result = await scopes.RunHostInboundAsync(info, (requestContext, _) => RunNextAsync(context, requestContext), context.RequestAborted)
+            .ConfigureAwait(false);
+        Complete(context, result, endpointBefore, pathBefore);
+    }
+
+    private async Task<Either<EncinaError, Unit>> RunNextAsync(HttpContext context, IRequestContext requestContext)
+    {
+        context.Response.Headers[_options.CorrelationIdHeader] = requestContext.CorrelationId;
+        await _next(context).ConfigureAwait(false);
+        return Unit.Default;
+    }
+
+    // A refused scope never ran the pipeline: an aborted request gets nothing, any other refusal is a
+    // host misconfiguration (the factory already logged its code) and fails closed with 500.
+    private void Complete(HttpContext context, Either<EncinaError, Unit> result, Endpoint? endpointBefore, PathString pathBefore)
+    {
+        result.Match(
+            Right: _ => CheckOrdering(context, endpointBefore, pathBefore),
+            Left: error => Refuse(context, error));
+    }
+
+    private static void Refuse(HttpContext context, EncinaError error)
+    {
+        if (!error.GetCode().Exists(static code => code == EncinaErrorCodes.RequestCancelled))
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        }
+    }
+
+    private void CheckOrdering(HttpContext context, Endpoint? endpointBefore, PathString pathBefore)
+    {
+        var signal = Classify(endpointBefore, context.GetEndpoint(), pathBefore, context.Request.Path);
+        if (signal == OrderingSignal.PathChanged)
+        {
+            EncinaContextMiddlewareLog.EncinaContextPathChanged(_logger);
+        }
+        else if (signal == OrderingSignal.BeforeRouting && Interlocked.Exchange(ref _misordered, 1) == 0)
+        {
+            EncinaContextMiddlewareLog.EncinaContextBeforeRouting(_logger);
+        }
     }
 
     /// <summary>
-    /// Extracts the User-Agent header from the HTTP context.
+    /// What a completed request revealed about the pipeline order.
     /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns>The User-Agent header value, or <c>null</c> if not present.</returns>
-    /// <remarks>
-    /// The User-Agent identifies the client application, browser, or device making the request.
-    /// Useful for audit trails and security analysis.
-    /// </remarks>
-    private static string? ExtractUserAgent(HttpContext context)
+    internal enum OrderingSignal
     {
-        if (context.Request.Headers.TryGetValue("User-Agent", out var userAgent) &&
-            !string.IsNullOrWhiteSpace(userAgent))
-        {
-            return userAgent.ToString();
-        }
+        /// <summary>Nothing to report.</summary>
+        None,
 
-        return null;
-    }
+        /// <summary><c>UseEncinaContext()</c> runs before <c>UseRouting()</c>: latch and Critical 202.</summary>
+        BeforeRouting,
 
-    /// <summary>
-    /// Extracts the data region hint from the HTTP request header.
-    /// </summary>
-    /// <param name="context">The HTTP context.</param>
-    /// <returns>The data region code (e.g., "DE", "US"), or <c>null</c> if the header is absent.</returns>
-    /// <remarks>
-    /// <para>
-    /// The header name is configurable via <see cref="EncinaAspNetCoreOptions.DataRegionHeaderName"/>
-    /// (default: <c>X-Data-Region</c>). When present, the value is stored in
-    /// <see cref="IRequestContext"/> metadata for use by <c>HttpRegionContextProvider</c>.
-    /// </para>
-    /// <para>
-    /// This header is optional — missing or empty headers are silently ignored to avoid
-    /// breaking requests that do not require data residency enforcement.
-    /// </para>
-    /// </remarks>
-    private string? ExtractDataRegion(HttpContext context)
-    {
-        if (context.Request.Headers.TryGetValue(_options.DataRegionHeaderName, out var regionValue) &&
-            !string.IsNullOrWhiteSpace(regionValue))
-        {
-            return regionValue.ToString();
-        }
-
-        return null;
+        /// <summary>A rewrite or re-execute inside the pipeline reached a hub: Warning 203, no latch.</summary>
+        PathChanged
     }
 }

@@ -814,7 +814,7 @@ public class AuditInterceptorTests
     }
 
     [Fact]
-    public async Task SaveChangesAsync_WithAnEmptyAccessor_FallsBackToTheRegisteredRequestContext()
+    public async Task SaveChangesAsync_WithAnEmptyAccessor_IgnoresARegisteredRequestContext()
     {
         // Arrange
         var serviceProvider = CreateServiceProviderWithAccessor(ambient: null, registeredUserId: "registered-user");
@@ -831,36 +831,60 @@ public class AuditInterceptorTests
         // Act
         await context.SaveChangesAsync();
 
-        // Assert
-        entity.CreatedBy.ShouldBe("registered-user");
+        // Assert: the accessor is the only source; a hand-registered context is not a second channel
+        entity.CreatedBy.ShouldBeNull();
+    }
+
+    #endregion
+
+    #region No user id in logs (#1705, finding 4)
+
+    [Fact]
+    public async Task SaveChangesAsync_LogsEvent3000_WithTheIdentityKind_NeverTheUserId()
+    {
+        const string sentinel = "sentinel-audit-4b2f";
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<AuditInterceptor>();
+        var interceptor = new AuditInterceptor(
+            CreateServiceProviderWithUser(sentinel),
+            new AuditInterceptorOptions { Enabled = true, LogAuditChanges = true },
+            TimeProvider.System,
+            logger);
+
+        await using var context = CreateInMemoryContext(interceptor);
+        var entity = new AuditedTestEntity { Name = "Test" };
+        context.AuditedEntities.Add(entity);
+        await context.SaveChangesAsync();
+
+        entity.CreatedBy.ShouldBe(sentinel);
+        var record = logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 3000);
+        record.Message.ShouldContain("User identity");
+        record.Message.ShouldNotContain(sentinel);
+        (record.StructuredState ?? []).ShouldAllBe(pair => !(pair.Value ?? string.Empty).Contains(sentinel));
     }
 
     #endregion
 
     #region Helper Methods
 
+    // The ambient accessor holds `ambient`; a DI-registered IRequestContext of `registeredUserId` sits
+    // next to it, which the interceptor must ignore (#1705 Phase 3: no DI fallback).
     private static IServiceProvider CreateServiceProviderWithAccessor(IRequestContext? ambient, string? registeredUserId)
     {
-        var serviceProvider = CreateServiceProviderWithUser(registeredUserId);
+        var serviceProvider = Substitute.For<IServiceProvider>();
         var accessor = Substitute.For<IRequestContextAccessor>();
         accessor.RequestContext.Returns(ambient);
         serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
-        return serviceProvider;
-    }
-
-    private static IServiceProvider CreateServiceProviderWithUser(string? userId)
-    {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-
-        if (userId is not null)
+        if (registeredUserId is not null)
         {
-            var requestContext = Substitute.For<IRequestContext>();
-            requestContext.Identity.Returns(TestIdentity.User(userId));
-            serviceProvider.GetService(typeof(IRequestContext)).Returns(requestContext);
+            serviceProvider.GetService(typeof(IRequestContext)).Returns(TestRequestContext.For(TestIdentity.User(registeredUserId)));
         }
 
         return serviceProvider;
     }
+
+    // The ambient accessor holds a context of `userId` (none when null).
+    private static IServiceProvider CreateServiceProviderWithUser(string? userId) =>
+        CreateServiceProviderWithAccessor(userId is null ? null : TestRequestContext.For(TestIdentity.User(userId)), registeredUserId: null);
 
     private static TestDbContext CreateInMemoryContext(AuditInterceptor interceptor)
     {

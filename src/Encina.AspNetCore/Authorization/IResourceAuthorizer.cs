@@ -53,8 +53,8 @@ public interface IResourceAuthorizer
     /// <see cref="Either{EncinaError, Boolean}"/>:
     /// <c>Right(true)</c> when the policy is satisfied,
     /// <c>Left(error)</c> with code <see cref="EncinaErrorCodes.AuthorizationResourceDenied"/> when denied,
-    /// or <c>Left(error)</c> with code <see cref="EncinaErrorCodes.AuthorizationUnauthorized"/> when
-    /// no authenticated user is available.
+    /// or <c>Left(error)</c> with code <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> when
+    /// the request identity is not authenticated.
     /// </returns>
     Task<Either<EncinaError, bool>> AuthorizeAsync<TResource>(
         TResource resource,

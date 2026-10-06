@@ -8,6 +8,7 @@ ASP.NET Core integration for Encina with Railway Oriented Programming support. T
 ## Features
 
 - ✅ **Request Context Enrichment** - Automatic extraction of CorrelationId, UserId, TenantId, and IdempotencyKey from HttpContext
+- ✅ **Request Identity** - One inbound identity scope per request, claim types configured once with `AddEncinaRequestIdentity`
 - ✅ **Authorization Pipeline Behavior** - CQRS-aware declarative authorization with `[Authorize]`, `[ResourceAuthorize]`, and auto-applied default policies
 - ✅ **RFC 7807 Problem Details** - Intelligent error mapping from `EncinaError` to standardized HTTP responses
 - ✅ **Thread-Safe Context Access** - fills the AsyncLocal-based `IRequestContextAccessor` from `Encina` core, which `IEncina.Send`/`Publish`/`Stream` use to seed the `IRequestContext` every pipeline behavior receives
@@ -64,8 +65,9 @@ builder.Services.AddEncinaAuthorization(
 ```csharp
 var app = builder.Build();
 
+app.UseRouting();
 app.UseAuthentication(); // Must come before UseEncinaContext
-app.UseEncinaContext(); // Enriches IRequestContext from HttpContext
+app.UseEncinaContext(); // Runs each request in one inbound identity scope (see "Request identity")
 app.UseAuthorization();
 
 app.MapControllers();
@@ -128,14 +130,30 @@ public class UsersController : ControllerBase
 
 ### 1. Request Context Middleware
 
-The `EncinaContextMiddleware` automatically enriches `IRequestContext` from the incoming HTTP request:
+`app.UseEncinaContext()` automatically enriches `IRequestContext` from the incoming HTTP request:
 
 **Extracted Values:**
 
 - **CorrelationId**: From `X-Correlation-ID` header, `Activity.Current.Id`, or auto-generated GUID
-- **UserId**: From `ClaimsPrincipal` (ClaimTypes.NameIdentifier by default)
-- **TenantId**: From `tenant_id` claim or `X-Tenant-ID` header
+- **UserId**: From the authenticated `ClaimsPrincipal`, through `RequestIdentityOptions.UserIdClaimTypes`
+- **TenantId**: From the principal's tenant claim (`RequestIdentityOptions.TenantIdClaimTypes`) or the `X-Tenant-ID` header
 - **IdempotencyKey**: From `X-Idempotency-Key` header
+- **IpAddress**: From `HttpContext.Connection.RemoteIpAddress` only; `X-Forwarded-For` is never read, because the address feeds the audit trail
+
+**Behind a reverse proxy**, register `UseForwardedHeaders()` with the proxies you trust, before `UseEncinaContext()`. ASP.NET Core then rewrites `RemoteIpAddress` from those proxies only:
+
+```csharp
+using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.KnownProxies.Add(IPAddress.Parse("10.0.0.10")); // or add to KnownIPNetworks
+});
+
+app.UseForwardedHeaders(); // before UseEncinaContext()
+```
 
 **Automatic Features:**
 
@@ -170,7 +188,43 @@ public class CreateOrderHandler : ICommandHandler<CreateOrderCommand, Order>
 }
 ```
 
-### 2. Authorization Behavior
+### 2. Request identity
+
+`app.UseEncinaContext()` runs each request in one inbound identity scope built from `HttpContext.User`. `IRequestContext.Identity` carries the result. Claim types are configured once, for every entry point, with `AddEncinaRequestIdentity`:
+
+| `RequestIdentityOptions` list | Default |
+|---|---|
+| `UserIdClaimTypes` | `sub`, `ClaimTypes.NameIdentifier`, `RequestIdentityOptions.ObjectIdentifierClaimType` |
+| `RoleClaimTypes` | `role`, `ClaimTypes.Role` |
+| `PermissionClaimTypes` | `permission` |
+| `TenantIdClaimTypes` | `tenant_id`, `tid`, `RequestIdentityOptions.TenantIdentifierClaimType` |
+
+```csharp
+builder.Services.AddEncinaRequestIdentity(options =>
+{
+    options.UserIdClaimTypes.Clear();
+    options.UserIdClaimTypes.Add("oid");
+    options.PermissionClaimTypes.Add("scope");
+    options.PermissionClaimSeparator = ' ';
+});
+```
+
+**Pipeline order.** `UseRouting`, then `UseRewriter` / `UseStatusCodePagesWithReExecute` / `UseExceptionHandler`, then `UseAuthentication`, then `UseEncinaContext`.
+
+| Misordering | Result |
+|---|---|
+| A request reaches a SignalR hub endpoint with no endpoint resolved before the middleware and an unchanged path | Logs Critical EventId 202 once; every later request is answered 500 |
+| A rewrite inside the middleware re-routes a request to a hub | Logs Warning EventId 203; latches nothing |
+
+**Connection requests run anonymous.** They carry no request identity, so identity gates deny them: WebSocket upgrades, any extended CONNECT, GET with `Accept: text/event-stream`, and SignalR hubs including Blazor's `/_blazor`. Per-invocation hub identity is a follow-up (F2 of issue #1705).
+
+**Streaming POST.** A POST that streams its response (MCP Streamable HTTP) keeps its request identity; the endpoint decides when that principal is stale.
+
+**Server-sent events (opt-in).** Call `RunInboundAsync(context.CreateInboundRequestInfo(), ...)` on `IRequestContextScopeFactory` around one event or one dispatch, never around the whole stream. A tenant resolved from the route or the subdomain is lost on this path. `HttpContext` is pooled: call `CreateInboundRequestInfo` while the request is active and never capture the `HttpContext`.
+
+**Authorization.** `[Authorize]` (`AuthorizationPipelineBehavior`, registered by `AddEncinaAuthorization`) evaluates `IRequestContext.Identity`. An anonymous identity is denied with `encina.authorization.unauthenticated`.
+
+### 3. Authorization Behavior
 
 The `AuthorizationPipelineBehavior` enforces declarative authorization on requests using ASP.NET Core's native authorization system. It supports standard attributes, CQRS-aware default policies, and resource-based authorization.
 
@@ -213,16 +267,18 @@ public record GetPublicStatusQuery : IQuery<ServiceStatus>;
 
 **Error Codes:**
 
-| Scenario | Error Code | HTTP Status |
-|----------|-----------|-------------|
-| Not authenticated | `encina.authorization.unauthorized` | 401 |
-| Missing roles | `encina.authorization.forbidden` | 403 |
-| Policy failed | `encina.authorization.policy_failed` | 403 |
-| Resource authorization denied | `encina.authorization.resource_denied` | 403 |
+| Scenario | Error Code |
+|----------|-----------|
+| Not authenticated (anonymous identity) | `encina.authorization.unauthenticated` |
+| Missing roles | `encina.authorization.forbidden` |
+| Policy failed | `encina.authorization.policy_failed` |
+| Resource authorization denied | `encina.authorization.resource_denied` |
+
+`ToProblemDetails` and `ToActionResult` choose the HTTP status from the error code (next section). They match the codes without the `encina.` prefix, so the prefixed codes above currently fall to the 500 default unless you pass the `statusCode` argument.
 
 > For full documentation including `IResourceAuthorizer`, policy helpers, and testing patterns, see [Authorization Feature Docs](../../docs/features/authorization.md).
 
-### 3. Problem Details Extensions
+### 4. Problem Details Extensions
 
 Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 
@@ -232,8 +288,8 @@ Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 |-------------------|-------------|-------|
 | `validation.*` | 400 | Bad Request |
 | `Encina.guard.validation_failed` | 400 | Bad Request |
-| `encina.authorization.unauthorized` | 401 | Unauthorized |
-| `encina.authorization.*` | 403 | Forbidden |
+| `authorization.unauthenticated` | 401 | Unauthorized |
+| `authorization.*` | 403 | Forbidden |
 | `*.not_found` | 404 | Not Found |
 | `*.missing` | 404 | Not Found |
 | `Encina.request.handler_missing` | 404 | Not Found |
@@ -322,7 +378,7 @@ In Development environment, exception details are automatically included:
 }
 ```
 
-### 4. Request Context Accessor
+### 5. Request Context Accessor
 
 Thread-safe access to `IRequestContext` anywhere in your application:
 
@@ -394,12 +450,6 @@ services.AddEncinaAspNetCore(options =>
     // Header name for idempotency key (default: "X-Idempotency-Key")
     options.IdempotencyKeyHeader = "Idempotency-Key";
 
-    // Claim type for user ID (default: ClaimTypes.NameIdentifier)
-    options.UserIdClaimType = "sub"; // OIDC standard
-
-    // Claim type for tenant ID (default: "tenant_id")
-    options.TenantIdClaimType = "tid"; // Azure AD
-
     // Include request path in Problem Details (default: false)
     options.IncludeRequestPathInProblemDetails = true;
 
@@ -407,6 +457,8 @@ services.AddEncinaAspNetCore(options =>
     options.IncludeExceptionDetails = false;
 });
 ```
+
+Claim types are not configured here; see [Request identity](#2-request-identity).
 
 ## Custom Status Codes
 

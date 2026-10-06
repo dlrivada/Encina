@@ -27,4 +27,18 @@ internal interface IInternalRequestContextScopeFactory
         InboundRequestInfo request,
         Func<IRequestContext, CancellationToken, Task<Either<EncinaError, T>>> work,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs <paramref name="work"/> under an anonymous marker scope (request middleware, circuit
+    /// handler). Always permitted over any chain, because it only downgrades to the anonymous identity;
+    /// the only refusals are the unsupported accessor and a cancelled token.
+    /// </summary>
+    /// <param name="marker">The marker: a connection, or a mask over the ambient context.</param>
+    /// <param name="work">The work, which reads the anonymous identity.</param>
+    /// <param name="cancellationToken">The cancellation token passed to <paramref name="work"/>.</param>
+    /// <returns><c>Right</c> when <paramref name="work"/> ran; <c>Left</c> when the scope was refused.</returns>
+    Task<Either<EncinaError, Unit>> RunAnonymousMarkerAsync(
+        AnonymousMarker marker,
+        Func<CancellationToken, Task> work,
+        CancellationToken cancellationToken = default);
 }

@@ -20,5 +20,13 @@ internal enum RequestOrigin
     Scope = 2,
 
     /// <summary>A deferred message dispatched with its originating actor restored.</summary>
-    Restored = 3
+    Restored = 3,
+
+    /// <summary>
+    /// A long-lived connection (a SignalR or Blazor hub connection, a WebSocket, a server-sent event
+    /// stream) that runs anonymous under the connection marker. Service, principal and restored
+    /// scopes treat it as <see cref="Inbound"/>; per-activity and per-invocation inbound scopes are
+    /// permitted over it.
+    /// </summary>
+    Connection = 4
 }

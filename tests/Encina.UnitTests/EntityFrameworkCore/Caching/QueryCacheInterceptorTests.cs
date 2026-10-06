@@ -254,9 +254,9 @@ public class QueryCacheInterceptorTests
     }
 
     [Fact]
-    public void ReaderExecuting_WithAnEmptyAccessor_FallsBackToTheRegisteredRequestContext()
+    public void ReaderExecuting_WithAnEmptyAccessor_IgnoresARegisteredRequestContext()
     {
-        // Arrange
+        // Arrange: the accessor is the only source (#1705 Phase 3: no DI fallback)
         var registered = RequestContext.CreateForTest(tenantId: "registered-tenant");
         var emptyAccessor = Substitute.For<IRequestContextAccessor>();
         emptyAccessor.RequestContext.Returns((IRequestContext?)null);
@@ -264,12 +264,129 @@ public class QueryCacheInterceptorTests
         _serviceProvider.GetService(typeof(IRequestContext)).Returns(registered);
 
         var (interceptor, command, eventData) = ArrangeCacheMiss();
+        _keyGenerator.Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>())
+            .Returns(new QueryCacheKey("key", ["Order"]));
 
         // Act
         interceptor.ReaderExecuting(command, eventData, default);
 
         // Assert
-        _keyGenerator.Received(1).Generate(command, eventData.Context!, registered);
+        _keyGenerator.Received(1).Generate(command, eventData.Context!);
+        _keyGenerator.DidNotReceive().Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), Arg.Any<IRequestContext>());
+    }
+
+    // ── Multi-tenancy without a tenant (#1705, PR review): cache bypass, never a shared key ──
+
+    private void EnableMultiTenancy(IRequestContext? ambient)
+    {
+        var isService = Substitute.For<IServiceProviderIsService>();
+        isService.IsService(typeof(global::Encina.Tenancy.ITenantProvider)).Returns(true);
+        _serviceProvider.GetService(typeof(IServiceProviderIsService)).Returns(isService);
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(ambient);
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task ReaderExecutingAsync_MultiTenantWithoutATenant_BypassesTheCache_AndLogs3060(string? tenant)
+    {
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<QueryCacheInterceptor>();
+        EnableMultiTenancy(RequestContext.CreateForTest(tenantId: tenant));
+        var interceptor = new QueryCacheInterceptor(_cacheProvider, _keyGenerator, CreateOptions(), _serviceProvider, logger);
+        var command = Substitute.For<DbCommand>();
+        var eventData = CreateCommandEventData(Substitute.For<DbContext>());
+
+        await interceptor.ReaderExecutingAsync(command, eventData, default);
+
+        _keyGenerator.ReceivedCalls().ShouldBeEmpty();
+        await _cacheProvider.DidNotReceiveWithAnyArgs().GetAsync<CachedQueryResult>(default!, default);
+        logger.Collector.GetSnapshot().Single().Id.Id.ShouldBe(3060);
+    }
+
+    [Fact]
+    public async Task ReaderExecuting_OnAConnectionFlowOfAMultiTenantApp_NeverReadsOrWritesTheCache()
+    {
+        // A hub invocation runs under the connection marker: anonymous, no tenant.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var interceptor = CreateInterceptor();
+        var command = Substitute.For<DbCommand>();
+        var eventData = CreateCommandEventData(Substitute.For<DbContext>());
+
+        await host.Factory.RunAnonymousMarkerAsync(AnonymousMarker.Connection, _ =>
+        {
+            EnableMultiTenancy(host.Accessor.RequestContext);
+            interceptor.ReaderExecuting(command, eventData, default);
+            return Task.CompletedTask;
+        });
+
+        _keyGenerator.ReceivedCalls().ShouldBeEmpty();
+        _cacheProvider.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ABypassedQueryAfterAFailedTenantQuery_NeverWritesTheStaleKey()
+    {
+        // Tenant A misses the cache and its command fails; a tenant-less query then runs in the same flow.
+        var interceptor = CreateInterceptor();
+        var command = Substitute.For<DbCommand>();
+        var eventData = CreateCommandEventData(Substitute.For<DbContext>());
+        EnableMultiTenancy(RequestContext.CreateForTest(tenantId: "tenant-a"));
+        _keyGenerator.Generate(Arg.Any<DbCommand>(), Arg.Any<DbContext>(), Arg.Any<IRequestContext>())
+            .Returns(new QueryCacheKey("sm:qc:tenant-a:Order:hash", ["Order"]));
+        _cacheProvider.GetAsync<CachedQueryResult>(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<CachedQueryResult?>(null));
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(RequestContext.CreateForTest());
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+        interceptor.ReaderExecuting(command, eventData, default);
+        interceptor.ReaderExecuted(command, null!, Substitute.For<DbDataReader>());
+
+        _cacheProvider.DidNotReceiveWithAnyArgs().SetAsync<CachedQueryResult>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public void CommandFailed_DiscardsThePendingKey()
+    {
+        var interceptor = CreateInterceptor();
+        var command = Substitute.For<DbCommand>();
+        var (_, _, eventData) = ArrangeCacheMiss();
+        interceptor.ReaderExecuting(command, eventData, default);
+
+        interceptor.CommandFailed(command, null!);
+        interceptor.ReaderExecuted(command, null!, Substitute.For<DbDataReader>());
+
+        _cacheProvider.DidNotReceiveWithAnyArgs().SetAsync<CachedQueryResult>(default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task ReaderExecutingAsync_MultiTenantWithATenant_KeysByThatTenant()
+    {
+        var tenantContext = RequestContext.CreateForTest(tenantId: "tenant-a");
+        EnableMultiTenancy(tenantContext);
+        var (interceptor, command, eventData) = ArrangeCacheMiss();
+
+        await interceptor.ReaderExecutingAsync(command, eventData, default);
+
+        _keyGenerator.Received(1).Generate(command, eventData.Context!, tenantContext);
+    }
+
+    [Fact]
+    public async Task ReaderExecutingAsync_SingleTenantWithoutATenant_StillUsesTheCache()
+    {
+        var ambient = RequestContext.CreateForTest();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(ambient);
+        _serviceProvider.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+        var (interceptor, command, eventData) = ArrangeCacheMiss();
+
+        await interceptor.ReaderExecutingAsync(command, eventData, default);
+
+        _keyGenerator.Received(1).Generate(command, eventData.Context!, ambient);
+        await _cacheProvider.Received(1).GetAsync<CachedQueryResult>("tenant:key", Arg.Any<CancellationToken>());
     }
 
     private (QueryCacheInterceptor Interceptor, DbCommand Command, CommandEventData EventData) ArrangeCacheMiss()

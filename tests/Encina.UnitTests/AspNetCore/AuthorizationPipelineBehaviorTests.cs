@@ -5,8 +5,8 @@ using Encina.Testing;
 using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -14,719 +14,398 @@ using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.AspNetCore;
 
+/// <summary>
+/// Unit tests for <see cref="AuthorizationPipelineBehavior{TRequest, TResponse}"/>: it evaluates the
+/// request identity of the dispatch (<see cref="IRequestContext.Identity"/>, #1705 Phase 3) and never
+/// logs or returns the user id.
+/// </summary>
 public class AuthorizationPipelineBehaviorTests
 {
+    private const string Sentinel = "sentinel-user-5c1e";
+
+    private static readonly string[] AdminRole = ["Admin"];
+    private static readonly string[] UserRole = ["User"];
+    private static readonly string[] ManagerRole = ["Manager"];
+
+    private static IRequestContext UserContext(string userId = "user-123", string[]? roles = null) =>
+        TestRequestContext.For(TestIdentity.User(userId, roles));
+
+    private static async Task<(Either<EncinaError, TResponse> Result, bool NextCalled)> RunAsync<TRequest, TResponse>(
+        TRequest request,
+        IRequestContext context,
+        IAuthorizationService? authorizationService = null,
+        AuthorizationConfiguration? configuration = null,
+        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null)
+        where TRequest : IRequest<TResponse>
+    {
+        var behavior = CreateBehavior<TRequest, TResponse>(authorizationService, configuration, logger);
+        var nextCalled = false;
+        var result = await behavior.Handle(request, context, () =>
+        {
+            nextCalled = true;
+            return ValueTask.FromResult(Right<EncinaError, TResponse>(default!));
+        }, CancellationToken.None);
+        return (result, nextCalled);
+    }
+
+    private static void ShouldBeDeniedWith<T>(Either<EncinaError, T> result, string code, string? messagePart = null)
+    {
+        result.ShouldBeError();
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfNone("none").ShouldBe(code);
+            if (messagePart is not null)
+            {
+                error.Message.ShouldContain(messagePart);
+            }
+        });
+    }
+
+    // ── No requirement ────────────────────────────────────────────────────
+
     [Fact]
     public async Task Handle_NoAuthorizeAttribute_ProceedsToNextStep()
     {
-        // Arrange
-        var behavior = CreateBehavior<UnauthorizedRequest, Unit>();
-        var request = new UnauthorizedRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
+        var (result, nextCalled) = await RunAsync<UnauthorizedRequest, Unit>(new UnauthorizedRequest(), RequestContext.CreateForTest());
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_AuthorizeAttribute_UnauthenticatedUser_ReturnsError()
-    {
-        // Arrange
-        var httpContext = new DefaultHttpContext();
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(httpContext);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("requires authentication");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-        });
-    }
-
-    [Fact]
-    public async Task Handle_AuthorizeAttribute_AuthenticatedUser_ProceedsToNextStep()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(httpContext);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_RoleRequirement_UserHasRole_ProceedsToNextStep()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123", roles: AdminRole);
-        var behavior = CreateBehavior<AdminOnlyRequest, Unit>(httpContext);
-        var request = new AdminOnlyRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_RoleRequirement_UserLacksRole_ReturnsError()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123", roles: UserRole);
-        var behavior = CreateBehavior<AdminOnlyRequest, Unit>(httpContext);
-        var request = new AdminOnlyRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("does not have any of the required roles");
-            error.Message.ShouldContain("Admin");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationForbidden),
-                None: () => Assert.Fail("Expected error code"));
-        });
-    }
-
-    [Fact]
-    public async Task Handle_MultipleRoles_UserHasAnyRole_ProceedsToNextStep()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123", roles: ManagerRole);
-        var behavior = CreateBehavior<MultiRoleRequest, Unit>(httpContext);
-        var request = new MultiRoleRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_PolicyRequirement_PolicySucceeds_ProceedsToNextStep()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: true);
-        var behavior = CreateBehavior<PolicyProtectedRequest, Unit>(httpContext, authorizationService);
-        var request = new PolicyProtectedRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_PolicyRequirement_PolicyFails_ReturnsError()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: false);
-        var behavior = CreateBehavior<PolicyProtectedRequest, Unit>(httpContext, authorizationService);
-        var request = new PolicyProtectedRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("does not satisfy policy");
-            error.Message.ShouldContain("RequireElevation");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationPolicyFailed),
-                None: () => Assert.Fail("Expected error code"));
-        });
-    }
-
-    [Fact]
-    public async Task Handle_MultipleAuthorizeAttributes_AllMustPass()
-    {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123", roles: AdminRole);
-        var authorizationService = new TestAuthorizationService(shouldSucceed: true);
-        var behavior = CreateBehavior<MultipleRequirementsRequest, Unit>(httpContext, authorizationService);
-        var request = new MultipleRequirementsRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-    public async Task Handle_MultipleAuthorizeAttributes_OneFails_ReturnsError()
-    {
-        // Arrange - User has Admin role but fails policy
-        var httpContext = CreateAuthenticatedContext("user-123", roles: AdminRole);
-        var authorizationService = new TestAuthorizationService(shouldSucceed: false);
-        var behavior = CreateBehavior<MultipleRequirementsRequest, Unit>(httpContext, authorizationService);
-        var request = new MultipleRequirementsRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("does not satisfy policy");
-        });
-    }
-
-    [Fact]
-    public async Task Handle_NoHttpContext_ReturnsError()
-    {
-        // Arrange
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(httpContext: null);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("Authorization requires HTTP context");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-        });
-    }
-
-    /// <summary>
-    /// Regression test for #1148 (ported from the verification spike on branch
-    /// <c>spike/verify-request-context</c>, commit <c>9215e9a8</c>,
-    /// <c>AuthorizationPipelineBehaviorBlazorServerSpikeTests</c>). A Blazor Server interactive circuit
-    /// has no <see cref="HttpContext"/> for its whole lifetime after the initial negotiate request, so
-    /// the behavior must resolve the caller's principal through <see cref="IPrincipalResolver"/> instead
-    /// of denying whenever HttpContext is unavailable.
-    /// </summary>
-    [Fact]
-#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
-    public async Task Handle_NoHttpContext_ResolverReturnsAuthenticatedPrincipal_ProceedsToNextStep()
-    {
-        // Arrange: simulates a Blazor Server interactive circuit via a custom IPrincipalResolver that
-        // does not depend on HttpContext (e.g. backed by AuthenticationStateProvider, as
-        // Encina.AspNetCore.Blazor's AuthenticationStatePrincipalResolver does).
-        var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "blazor-user-1")], "TestAuthType"));
-
-        var principalResolver = Substitute.For<IPrincipalResolver>();
-        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(authenticatedUser));
-#pragma warning restore CA2012
-
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
-        var request = new AuthorizedRequest();
-        var context = TestRequestContext.For(TestIdentity.User("blazor-user-1"));
-        var nextStepCalled = false;
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
-        result.ShouldBeSuccess();
-    }
-
-    [Fact]
-#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
-    public async Task Handle_NoHttpContext_ResolverReturnsUnauthenticatedPrincipal_ReturnsError()
-    {
-        // Arrange
-        var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
-        var principalResolver = Substitute.For<IPrincipalResolver>();
-        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(anonymousUser));
-#pragma warning restore CA2012
-
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("requires authentication");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-        });
-    }
-
-    [Fact]
-#pragma warning disable CA2012 // Use ValueTasks correctly - NSubstitute .Returns() stubbing pattern
-    public async Task Handle_NoHttpContext_ResolverReturnsNull_ReturnsError()
-    {
-        // Arrange: a resolver that itself cannot resolve any principal (e.g. missing HttpContext and
-        // no AuthenticationStateProvider) must still deny, exactly as today's HttpContext-null path.
-        var principalResolver = Substitute.For<IPrincipalResolver>();
-        principalResolver.ResolvePrincipalAsync(Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<ClaimsPrincipal?>(null));
-#pragma warning restore CA2012
-
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(principalResolver);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
-                None: () => Assert.Fail("Expected error code"));
-        });
     }
 
     [Fact]
     public async Task Handle_AllowAnonymous_BypassesAuthorization()
     {
-        // Arrange - No HTTP context, no authenticated user
-        var behavior = CreateBehavior<PublicRequest, Unit>(httpContext: null);
-        var request = new PublicRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
+        var (result, nextCalled) = await RunAsync<PublicRequest, Unit>(new PublicRequest(), RequestContext.CreateForTest());
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
     [Fact]
     public async Task Handle_AllowAnonymous_WithAuthorize_AllowAnonymousWins()
     {
-        // Arrange - AllowAnonymous should override Authorize even without authentication
-        var behavior = CreateBehavior<MixedAuthRequest, Unit>(httpContext: null);
-        var request = new MixedAuthRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
+        var (result, nextCalled) = await RunAsync<MixedAuthRequest, Unit>(new MixedAuthRequest(), RequestContext.CreateForTest());
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+    // ── The caller is the request identity ────────────────────────────────
 
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+    [Fact]
+    public async Task Handle_AuthorizeAttribute_AnonymousIdentity_ReturnsUnauthorized()
+    {
+        var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), RequestContext.CreateForTest());
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated, "requires authentication");
+        result.IfLeft(error => error.GetDetails()["identityKind"].ShouldBe(nameof(IdentityKind.Anonymous)));
+    }
+
+    [Fact]
+    public async Task Handle_AuthorizeAttribute_NullIdentity_IsDeniedAsAnonymous()
+    {
+        var context = Substitute.For<IRequestContext>();
+
+        var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), context);
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated);
+    }
+
+    [Fact]
+    public async Task Handle_AuthorizeAttribute_AuthenticatedUser_ProceedsToNextStep()
+    {
+        var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), UserContext());
+
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
     [Fact]
-    public async Task Handle_PolicyAuthorization_ReceivesRequestAsResource()
+    public async Task Handle_AuthorizeAttribute_ServiceIdentity_ProceedsToNextStep()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var capturedResource = (object?)null;
-        var authorizationService = new ResourceCapturingAuthorizationService(
-            shouldSucceed: true,
-            onAuthorize: resource => capturedResource = resource);
-        var behavior = CreateBehavior<PolicyProtectedRequest, Unit>(httpContext, authorizationService);
-        var request = new PolicyProtectedRequest();
-        var context = RequestContext.CreateForTest();
+        var context = TestRequestContext.For(TestIdentity.Service("billing-job", roles: ["Admin"]));
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), context);
 
-        // Act
-        await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        capturedResource.ShouldNotBeNull();
-        capturedResource.ShouldBeOfType<PolicyProtectedRequest>();
-        capturedResource.ShouldBeSameAs(request);
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
     }
 
-    // ── CQRS auto-apply tests ─────────────────────────────────────────
+    [Fact]
+    public async Task Handle_AuthenticatedIdentityWithoutPrincipal_SatisfiesNoRole()
+    {
+        var context = TestRequestContext.For(RequestIdentity.ForUser("no-principal-user"));
+
+        var (result, _) = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), context);
+
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationForbidden);
+    }
+
+    [Fact]
+    public async Task Handle_PolicyAndRoleChecks_SeeOnlyTheIdentityPrincipal_NotAMutatedCopy()
+    {
+        var identity = TestIdentity.User("user-123", UserRole);
+        identity.Principal!.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Role, "Admin")], "late"));
+
+        var (result, _) = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), TestRequestContext.For(identity));
+
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationForbidden);
+    }
+
+    // ── Roles ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_RoleRequirement_UserHasRole_ProceedsToNextStep()
+    {
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), UserContext(roles: AdminRole));
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public async Task Handle_RoleRequirement_UserLacksRole_ReturnsError()
+    {
+        var (result, nextCalled) = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), UserContext(roles: UserRole));
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationForbidden, "required roles");
+        result.IfLeft(error => error.GetDetails()["identityKind"].ShouldBe(nameof(IdentityKind.User)));
+    }
+
+    [Fact]
+    public async Task Handle_MultipleRoles_UserHasAnyRole_ProceedsToNextStep()
+    {
+        var (result, nextCalled) = await RunAsync<MultiRoleRequest, Unit>(new MultiRoleRequest(), UserContext(roles: ManagerRole));
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
+
+    // ── Policies ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_PolicyRequirement_PolicySucceeds_ProceedsToNextStep()
+    {
+        var (result, nextCalled) = await RunAsync<PolicyProtectedRequest, Unit>(
+            new PolicyProtectedRequest(), UserContext(), new TestAuthorizationService(shouldSucceed: true));
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public async Task Handle_PolicyRequirement_PolicyFails_ReturnsError()
+    {
+        var (result, nextCalled) = await RunAsync<PolicyProtectedRequest, Unit>(
+            new PolicyProtectedRequest(), UserContext(), new TestAuthorizationService(shouldSucceed: false));
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationPolicyFailed, "RequireElevation");
+    }
+
+    [Fact]
+    public async Task Handle_MultipleAuthorizeAttributes_AllMustPass()
+    {
+        var (result, nextCalled) = await RunAsync<MultipleRequirementsRequest, Unit>(
+            new MultipleRequirementsRequest(), UserContext(roles: AdminRole), new TestAuthorizationService(shouldSucceed: true));
+
+        nextCalled.ShouldBeTrue();
+        result.ShouldBeSuccess();
+    }
+
+    [Fact]
+    public async Task Handle_MultipleAuthorizeAttributes_OneFails_ReturnsError()
+    {
+        var (result, _) = await RunAsync<MultipleRequirementsRequest, Unit>(
+            new MultipleRequirementsRequest(), UserContext(roles: AdminRole), new TestAuthorizationService(shouldSucceed: false));
+
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationPolicyFailed, "does not satisfy policy");
+    }
+
+    [Fact]
+    public async Task Handle_PolicyAuthorization_ReceivesRequestAsResource_AndTheIdentityPrincipal()
+    {
+        object? capturedResource = null;
+        var request = new PolicyProtectedRequest();
+        var service = new ResourceCapturingAuthorizationService(true, resource => capturedResource = resource);
+
+        await RunAsync<PolicyProtectedRequest, Unit>(request, UserContext("user-777"), service);
+
+        capturedResource.ShouldBeSameAs(request);
+        service.LastUser.ShouldNotBeNull();
+        service.LastUser.FindFirst("sub")!.Value.ShouldBe("user-777");
+    }
+
+    // ── CQRS auto-applied policies ────────────────────────────────────────
 
     [Fact]
     public async Task Handle_CommandWithoutAttributes_AutoApplyEnabled_AppliesDefaultCommandPolicy()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: false);
-        var config = new AuthorizationConfiguration
-        {
-            AutoApplyPolicies = true,
-            DefaultCommandPolicy = "RequireAuthenticated"
-        };
-        var behavior = CreateBehavior<PlainCommand, Unit>(httpContext, authorizationService, config);
-        var request = new PlainCommand();
-        var context = RequestContext.CreateForTest();
+        var config = new AuthorizationConfiguration { AutoApplyPolicies = true, DefaultCommandPolicy = "RequireAuthenticated" };
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+        var (result, _) = await RunAsync<PlainCommand, Unit>(new PlainCommand(), UserContext(), new TestAuthorizationService(false), config);
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationPolicyFailed, "auto-applied default policy");
         result.IfLeft(error =>
         {
-            error.Message.ShouldContain("auto-applied default policy");
             error.Message.ShouldContain("RequireAuthenticated");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationPolicyFailed),
-                None: () => Assert.Fail("Expected error code"));
+            error.GetDetails()["isCommand"].ShouldBe(true);
         });
     }
 
     [Fact]
     public async Task Handle_QueryWithoutAttributes_AutoApplyEnabled_AppliesDefaultQueryPolicy()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: false);
-        var config = new AuthorizationConfiguration
-        {
-            AutoApplyPolicies = true,
-            DefaultQueryPolicy = "ReadOnly"
-        };
-        var behavior = CreateBehavior<PlainQuery, string>(httpContext, authorizationService, config);
-        var request = new PlainQuery();
-        var context = RequestContext.CreateForTest();
+        var config = new AuthorizationConfiguration { AutoApplyPolicies = true, DefaultQueryPolicy = "ReadOnly" };
 
-        RequestHandlerCallback<string> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, string>("ok"));
+        var (result, _) = await RunAsync<PlainQuery, string>(new PlainQuery(), UserContext(), new TestAuthorizationService(false), config);
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationPolicyFailed, "ReadOnly");
+        result.IfLeft(error => error.GetDetails()["isCommand"].ShouldBe(false));
+    }
 
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("auto-applied default policy");
-            error.Message.ShouldContain("ReadOnly");
-        });
+    [Fact]
+    public async Task Handle_AutoApplyEnabled_AnonymousCaller_IsUnauthorized()
+    {
+        var config = new AuthorizationConfiguration { AutoApplyPolicies = true };
+
+        var (result, nextCalled) = await RunAsync<PlainCommand, Unit>(new PlainCommand(), RequestContext.CreateForTest(), configuration: config);
+
+        nextCalled.ShouldBeFalse();
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     [Fact]
     public async Task Handle_AutoApplyPoliciesDisabled_NoDefaultPolicyApplied()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
         var config = new AuthorizationConfiguration { AutoApplyPolicies = false };
-        var behavior = CreateBehavior<PlainCommand, Unit>(httpContext, configuration: config);
-        var request = new PlainCommand();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
+        var (result, nextCalled) = await RunAsync<PlainCommand, Unit>(new PlainCommand(), RequestContext.CreateForTest(), configuration: config);
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
     [Fact]
     public async Task Handle_CommandWithExplicitAttribute_AutoApplyEnabled_DoesNotDoubleApply()
     {
-        // Arrange - Has [Authorize], so auto-apply should NOT kick in
-        var httpContext = CreateAuthenticatedContext("user-123");
         var config = new AuthorizationConfiguration { AutoApplyPolicies = true };
-        var behavior = CreateBehavior<AuthorizedRequest, Unit>(httpContext, configuration: config);
-        var request = new AuthorizedRequest();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
+        var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), UserContext(), new TestAuthorizationService(false), config);
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
     [Fact]
     public async Task Handle_AutoApplySucceeds_ProceedsToNextStep()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: true);
         var config = new AuthorizationConfiguration { AutoApplyPolicies = true };
-        var behavior = CreateBehavior<PlainCommand, Unit>(httpContext, authorizationService, config);
-        var request = new PlainCommand();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
+        var (result, nextCalled) = await RunAsync<PlainCommand, Unit>(new PlainCommand(), UserContext(), new TestAuthorizationService(true), config);
 
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
-    // ── ResourceAuthorize tests ─────────────────────────────────────
+    // ── Resource-based authorization ──────────────────────────────────────
 
     [Fact]
     public async Task Handle_ResourceAuthorizeAttribute_PolicySucceeds_Proceeds()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: true);
-        var behavior = CreateBehavior<ResourceProtectedCommand, Unit>(httpContext, authorizationService);
-        var request = new ResourceProtectedCommand("order-1");
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
+        var (result, nextCalled) = await RunAsync<ResourceProtectedCommand, Unit>(
+            new ResourceProtectedCommand("order-1"), UserContext(), new TestAuthorizationService(true));
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
     [Fact]
     public async Task Handle_ResourceAuthorizeAttribute_PolicyFails_ReturnsResourceDenied()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var authorizationService = new TestAuthorizationService(shouldSucceed: false);
-        var behavior = CreateBehavior<ResourceProtectedCommand, Unit>(httpContext, authorizationService);
-        var request = new ResourceProtectedCommand("order-1");
-        var context = RequestContext.CreateForTest();
+        var (result, _) = await RunAsync<ResourceProtectedCommand, Unit>(
+            new ResourceProtectedCommand("order-1"), UserContext(), new TestAuthorizationService(false));
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        result.ShouldBeError();
-        result.IfLeft(error =>
-        {
-            error.Message.ShouldContain("Resource authorization denied");
-            error.Message.ShouldContain("CanEditOrder");
-            error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationResourceDenied),
-                None: () => Assert.Fail("Expected error code"));
-        });
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationResourceDenied, "Resource authorization denied");
+        result.IfLeft(error => error.Message.ShouldContain("CanEditOrder"));
     }
 
     [Fact]
     public async Task Handle_ResourceAuthorizeAttribute_PassesRequestAsResource()
     {
-        // Arrange
-        var httpContext = CreateAuthenticatedContext("user-123");
-        var capturedResource = (object?)null;
-        var authorizationService = new ResourceCapturingAuthorizationService(
-            shouldSucceed: true,
-            onAuthorize: resource => capturedResource = resource);
-        var behavior = CreateBehavior<ResourceProtectedCommand, Unit>(httpContext, authorizationService);
-        var request = new ResourceProtectedCommand("order-42");
-        var context = RequestContext.CreateForTest();
+        object? capturedResource = null;
+        var service = new ResourceCapturingAuthorizationService(true, resource => capturedResource = resource);
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-            ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
+        await RunAsync<ResourceProtectedCommand, Unit>(new ResourceProtectedCommand("order-42"), UserContext(), service);
 
-        // Act
-        await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        capturedResource.ShouldNotBeNull();
-        capturedResource.ShouldBeOfType<ResourceProtectedCommand>();
-        ((ResourceProtectedCommand)capturedResource).OrderId.ShouldBe("order-42");
+        capturedResource.ShouldBeOfType<ResourceProtectedCommand>().OrderId.ShouldBe("order-42");
     }
 
     [Fact]
     public async Task Handle_ResourceAuthorize_WithAuthorize_BothChecked()
     {
-        // Arrange - Has both [Authorize(Roles="Admin")] and [ResourceAuthorize("CanEdit")]
-        var httpContext = CreateAuthenticatedContext("user-123", roles: AdminRole);
-        var authorizationService = new TestAuthorizationService(shouldSucceed: true);
-        var behavior = CreateBehavior<AuthorizedResourceCommand, Unit>(httpContext, authorizationService);
-        var request = new AuthorizedResourceCommand();
-        var context = RequestContext.CreateForTest();
-        var nextStepCalled = false;
+        var (result, nextCalled) = await RunAsync<AuthorizedResourceCommand, Unit>(
+            new AuthorizedResourceCommand(), UserContext(roles: AdminRole), new TestAuthorizationService(true));
 
-        RequestHandlerCallback<Unit> nextStep = () =>
-        {
-            nextStepCalled = true;
-            return ValueTask.FromResult(Right<EncinaError, Unit>(Unit.Default));
-        };
-
-        // Act
-        var result = await behavior.Handle(request, context, nextStep, CancellationToken.None);
-
-        // Assert
-        nextStepCalled.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
         result.ShouldBeSuccess();
     }
 
-    // Test request types
+    // ── No user id in logs or error details (finding 4) ───────────────────
+
+    [Fact]
+    public async Task Denials_And_Successes_NeverCarryTheUserId()
+    {
+        var logger = new FakeLogger<AuthorizationPipelineBehavior<AdminOnlyRequest, Unit>>();
+        var policyLogger = new FakeLogger<AuthorizationPipelineBehavior<PolicyProtectedRequest, Unit>>();
+        var resourceLogger = new FakeLogger<AuthorizationPipelineBehavior<ResourceProtectedCommand, Unit>>();
+
+        var denied = await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), UserContext(Sentinel, UserRole), logger: logger);
+        await RunAsync<AdminOnlyRequest, Unit>(new AdminOnlyRequest(), UserContext(Sentinel, AdminRole), logger: logger);
+        var policy = await RunAsync<PolicyProtectedRequest, Unit>(new PolicyProtectedRequest(), UserContext(Sentinel), new TestAuthorizationService(false), logger: policyLogger);
+        var resource = await RunAsync<ResourceProtectedCommand, Unit>(new ResourceProtectedCommand("o"), UserContext(Sentinel), new TestAuthorizationService(false), logger: resourceLogger);
+
+        var records = logger.Collector.GetSnapshot().Concat(policyLogger.Collector.GetSnapshot()).Concat(resourceLogger.Collector.GetSnapshot()).ToList();
+        records.Select(static record => record.Id.Id).ShouldBe([201, 200, 201, 201]);
+        foreach (var record in records)
+        {
+            record.Message.ShouldNotContain(Sentinel);
+            record.Message.ShouldContain("IdentityKind: User");
+            foreach (var pair in record.StructuredState ?? [])
+            {
+                (pair.Value ?? string.Empty).ShouldNotContain(Sentinel);
+            }
+        }
+
+        foreach (var result in new[] { denied.Result, policy.Result, resource.Result })
+        {
+            result.IfLeft(error =>
+            {
+                error.GetDetails().ContainsKey("userId").ShouldBeFalse();
+                error.GetDetails()["identityKind"].ShouldBe(nameof(IdentityKind.User));
+                error.GetDetails().Values.Select(static value => value?.ToString() ?? string.Empty).ShouldAllBe(value => !value.Contains(Sentinel));
+            });
+        }
+    }
+
+    // ── Test request types ────────────────────────────────────────────────
+
     private sealed record UnauthorizedRequest : ICommand<Unit>;
 
     [Authorize]
     private sealed record AuthorizedRequest : ICommand<Unit>;
 
     [Authorize(Roles = "Admin")]
-    private sealed record AdminOnlyRequest : ICommand<Unit>;
+    internal sealed record AdminOnlyRequest : ICommand<Unit>;
 
     [Authorize(Roles = "Admin,Manager,Supervisor")]
     private sealed record MultiRoleRequest : ICommand<Unit>;
 
     [Authorize(Policy = "RequireElevation")]
-    private sealed record PolicyProtectedRequest : ICommand<Unit>;
+    internal sealed record PolicyProtectedRequest : ICommand<Unit>;
 
     [Authorize(Roles = "Admin")]
     [Authorize(Policy = "RequireApproval")]
@@ -739,82 +418,28 @@ public class AuthorizationPipelineBehaviorTests
     [AllowAnonymous]
     private sealed record MixedAuthRequest : ICommand<Unit>;
 
-    // CQRS types without attributes (for auto-apply tests)
     private sealed record PlainCommand : ICommand<Unit>;
+
     private sealed record PlainQuery : IQuery<string>;
 
-    // ResourceAuthorize types
     [ResourceAuthorize("CanEditOrder")]
-    private sealed record ResourceProtectedCommand(string OrderId) : ICommand<Unit>;
+    internal sealed record ResourceProtectedCommand(string OrderId) : ICommand<Unit>;
 
     [Authorize(Roles = "Admin")]
     [ResourceAuthorize("CanEdit")]
     private sealed record AuthorizedResourceCommand : ICommand<Unit>;
 
-    // Helper methods
     private static AuthorizationPipelineBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(
-        HttpContext? httpContext = null,
         IAuthorizationService? authorizationService = null,
-        AuthorizationConfiguration? configuration = null)
+        AuthorizationConfiguration? configuration = null,
+        FakeLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>? logger = null)
         where TRequest : IRequest<TResponse>
     {
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = httpContext
-        };
-
-        return CreateBehavior<TRequest, TResponse>(
-            new HttpContextPrincipalResolver(httpContextAccessor),
-            authorizationService,
-            configuration);
-    }
-
-    private static AuthorizationPipelineBehavior<TRequest, TResponse> CreateBehavior<TRequest, TResponse>(
-        IPrincipalResolver principalResolver,
-        IAuthorizationService? authorizationService = null,
-        AuthorizationConfiguration? configuration = null)
-        where TRequest : IRequest<TResponse>
-    {
-        authorizationService ??= new TestAuthorizationService(shouldSucceed: true);
-        configuration ??= new AuthorizationConfiguration();
-
-        var options = Options.Create(configuration);
-        var logger = NullLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>.Instance;
-
         return new AuthorizationPipelineBehavior<TRequest, TResponse>(
-            authorizationService,
-            principalResolver,
-            options,
-            logger);
-    }
-
-    private static readonly string[] AdminRole = ["Admin"];
-    private static readonly string[] UserRole = ["User"];
-    private static readonly string[] ManagerRole = ["Manager"];
-
-    private static DefaultHttpContext CreateAuthenticatedContext(
-        string userId,
-        string[]? roles = null)
-    {
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, userId)
-        };
-
-        if (roles != null)
-        {
-            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        }
-
-        var identity = new ClaimsIdentity(claims, "Test");
-        var principal = new ClaimsPrincipal(identity);
-
-        var httpContext = new DefaultHttpContext
-        {
-            User = principal
-        };
-
-        return httpContext;
+            authorizationService ?? new TestAuthorizationService(shouldSucceed: true),
+            Options.Create(configuration ?? new AuthorizationConfiguration()),
+            (Microsoft.Extensions.Logging.ILogger<AuthorizationPipelineBehavior<TRequest, TResponse>>?)logger
+                ?? NullLogger<AuthorizationPipelineBehavior<TRequest, TResponse>>.Instance);
     }
 }
 
@@ -864,7 +489,7 @@ public class TestAuthorizationService : IAuthorizationService, IAuthorizationHan
 }
 
 /// <summary>
-/// Authorization service that captures the resource passed to it for testing resource-based authorization.
+/// Authorization service that captures the resource and the principal passed to it.
 /// </summary>
 public class ResourceCapturingAuthorizationService : IAuthorizationService, IAuthorizationHandler
 {
@@ -877,19 +502,17 @@ public class ResourceCapturingAuthorizationService : IAuthorizationService, IAut
         _onAuthorize = onAuthorize;
     }
 
+    /// <summary>Gets the principal of the last call.</summary>
+    public ClaimsPrincipal? LastUser { get; private set; }
+
     public Task<AuthorizationResult> AuthorizeAsync(
         ClaimsPrincipal user,
         object? resource,
         IEnumerable<IAuthorizationRequirement> requirements)
     {
+        LastUser = user;
         _onAuthorize(resource);
-
-        var result = _shouldSucceed
-            ? AuthorizationResult.Success()
-            : AuthorizationResult.Failed(
-                AuthorizationFailure.Failed(new[] { new AuthorizationFailureReason(this, "Policy failed") }));
-
-        return Task.FromResult(result);
+        return Task.FromResult(Result());
     }
 
     public Task<AuthorizationResult> AuthorizeAsync(
@@ -897,14 +520,9 @@ public class ResourceCapturingAuthorizationService : IAuthorizationService, IAut
         object? resource,
         string policyName)
     {
+        LastUser = user;
         _onAuthorize(resource);
-
-        var result = _shouldSucceed
-            ? AuthorizationResult.Success()
-            : AuthorizationResult.Failed(
-                AuthorizationFailure.Failed(new[] { new AuthorizationFailureReason(this, $"Policy '{policyName}' failed") }));
-
-        return Task.FromResult(result);
+        return Task.FromResult(Result());
     }
 
     public Task HandleAsync(AuthorizationHandlerContext context)
@@ -912,4 +530,8 @@ public class ResourceCapturingAuthorizationService : IAuthorizationService, IAut
         // Not used in tests
         return Task.CompletedTask;
     }
+
+    private AuthorizationResult Result() => _shouldSucceed
+        ? AuthorizationResult.Success()
+        : AuthorizationResult.Failed(AuthorizationFailure.Failed(new[] { new AuthorizationFailureReason(this, "Policy failed") }));
 }

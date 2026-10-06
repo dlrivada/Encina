@@ -162,10 +162,10 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         ArgumentNullException.ThrowIfNull(work);
 
         // Client-controlled members are normalized below, never refused: the only refusals are host
-        // or transport conditions.
+        // or transport conditions. A connection marker permits one inbound scope per activity.
         var requestedKind = RequestedKindOf(request.Principal);
         var refusal = Precheck(cancellationToken)
-            ?? CheckChain(requestedKind, inboundOptIn: false, out _);
+            ?? CheckChain(requestedKind, inboundOptIn: false, out _, connectionPermitted: true);
         if (refusal is not null)
         {
             return Refuse<T>(refusal, requestedKind);
@@ -190,6 +190,37 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         }
 
         return Open(context, work, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<Either<EncinaError, Unit>> RunAnonymousMarkerAsync(
+        AnonymousMarker marker,
+        Func<CancellationToken, Task> work,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        if (!Enum.IsDefined(marker))
+        {
+            throw new ArgumentOutOfRangeException(nameof(marker), marker, "Unknown anonymous marker.");
+        }
+
+        // Always permitted over any chain: it only downgrades to the anonymous identity, and the new
+        // holder inherits every fact of the chain it covers.
+        var refusal = Precheck(cancellationToken);
+        if (refusal is not null)
+        {
+            return Refuse<Unit>(refusal, IdentityKind.Anonymous);
+        }
+
+        var origin = marker == AnonymousMarker.Connection ? RequestOrigin.Connection : RequestOrigin.Scope;
+        var context = NewContext(RequestIdentity.Anonymous, AmbientCorrelationId(_accessor.RequestContext), tenantId: null, origin);
+        return Open(context, (_, ct) => RunMarkedAsync(work, ct), cancellationToken);
+    }
+
+    private static async Task<Either<EncinaError, Unit>> RunMarkedAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken)
+    {
+        await work(cancellationToken).ConfigureAwait(false);
+        return Unit.Default;
     }
 
     private Task<Either<EncinaError, T>> OpenService<T>(
@@ -318,8 +349,9 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
 
     // The holder-chain refusals (facts of the current holder, ended holders included): a user
     // anywhere refuses every scope; an inbound request anywhere refuses unless the member allows the
-    // per-call opt-in and the caller set it.
-    private EncinaError? CheckChain(IdentityKind requestedKind, bool inboundOptIn, out bool overInbound)
+    // per-call opt-in and the caller set it. A connection marker counts as an inbound request, except
+    // for the inbound members (one scope per circuit activity or hub invocation).
+    private EncinaError? CheckChain(IdentityKind requestedKind, bool inboundOptIn, out bool overInbound, bool connectionPermitted = false)
     {
         var facts = RequestContextAccessor.CurrentFacts;
         overInbound = false;
@@ -328,7 +360,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
             return RequestIdentityErrors.ScopeConflict(IdentityKind.User, requestedKind);
         }
 
-        if (!facts.HasFlag(ChainFacts.Inbound))
+        if (!IsInboundChain(facts, connectionPermitted))
         {
             return null;
         }
@@ -336,6 +368,9 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         overInbound = inboundOptIn;
         return inboundOptIn ? (EncinaError?)null : RequestIdentityErrors.ScopeConflict(KindOf(_accessor.RequestContext), requestedKind);
     }
+
+    private static bool IsInboundChain(ChainFacts facts, bool connectionPermitted) =>
+        facts.HasFlag(ChainFacts.Inbound) || (!connectionPermitted && facts.HasFlag(ChainFacts.Connection));
 
     // The callers pass a refusal they have just checked for a value.
     private Task<Either<EncinaError, T>> Refuse<T>(EncinaError? refusal, IdentityKind requestedKind)

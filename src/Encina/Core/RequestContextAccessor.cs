@@ -234,7 +234,8 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
 
         private static ChainFacts OwnFacts(IdentityKind kind, RequestOrigin origin) =>
             (kind == IdentityKind.User ? ChainFacts.User : ChainFacts.None)
-            | (origin == RequestOrigin.Inbound ? ChainFacts.Inbound : ChainFacts.None);
+            | (origin == RequestOrigin.Inbound ? ChainFacts.Inbound : ChainFacts.None)
+            | (origin == RequestOrigin.Connection ? ChainFacts.Connection : ChainFacts.None);
 
         /// <summary>Ends this holder.</summary>
         internal void Invalidate()

@@ -370,6 +370,7 @@ public sealed class DefaultErrorClassifierTests
     [InlineData(EncinaErrorCodes.RequestHandlerTypeMismatch)]
     [InlineData(EncinaErrorCodes.NotificationMissingHandle)]
     [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthenticated)]
     [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
     [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
     [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]

@@ -178,7 +178,8 @@ public sealed record OperationAuditEntry
     /// </summary>
     /// <remarks>
     /// <c>null</c> for non-HTTP operations or when IP cannot be determined.
-    /// Extracted from <c>X-Forwarded-For</c> header or <c>HttpContext.Connection.RemoteIpAddress</c>.
+    /// Taken from <c>HttpContext.Connection.RemoteIpAddress</c> only (rewritten by
+    /// <c>UseForwardedHeaders()</c> for trusted proxies); the <c>X-Forwarded-For</c> header is never read.
     /// </remarks>
     public string? IpAddress { get; init; }
 
