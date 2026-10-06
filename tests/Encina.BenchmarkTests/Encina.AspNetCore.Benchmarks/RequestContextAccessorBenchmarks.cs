@@ -12,6 +12,7 @@ public class RequestContextAccessorBenchmarks
 {
     private RequestContextAccessor _accessor = null!;
     private IRequestContext _context = null!;
+    private IRequestContext _tenantChangedContext = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -20,6 +21,7 @@ public class RequestContextAccessorBenchmarks
         _context = RequestContext.CreateForTest(
             correlationId: "benchmark-correlation",
             tenantId: "benchmark-tenant");
+        _tenantChangedContext = _context.WithTenantId("benchmark-other-tenant");
     }
 
     [Benchmark(Baseline = true)]
@@ -50,10 +52,14 @@ public class RequestContextAccessorBenchmarks
         return _accessor.RequestContext;
     }
 
+    /// <summary>
+    /// The setter never clears (#1705 Phase 2): what replaced the former null set is an
+    /// identity- and origin-preserving tenant change, the path tenant resolution takes.
+    /// </summary>
     [Benchmark]
-    public void SetNullContext()
+    public void SetTenantChangedContext()
     {
-        _accessor.RequestContext = null;
+        _accessor.RequestContext = _tenantChangedContext;
     }
 
     [BenchmarkCategory("DocRef:bench:aspnetcore/context-create")]
