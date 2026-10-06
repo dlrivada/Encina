@@ -176,10 +176,10 @@ public sealed class IdentityMintingArchitectureTests
     private static bool IsTestingAssembly(string? name) =>
         name is not null && (name == "Encina.Testing" || name.StartsWith("Encina.Testing.", StringComparison.Ordinal));
 
+    // Test packages of every area (Encina.Testing.*, Encina.Aspire.Testing) are test seams, not production.
     private static bool IsProductionAssemblyName(string name) =>
         name.StartsWith("Encina", StringComparison.Ordinal)
         && !IsTestingAssembly(name)
-        // Test packages of other areas (Encina.Aspire.Testing) are test seams too, not production.
         && !name.Split('.').Contains("Testing", StringComparer.Ordinal)
         && !name.Contains("Tests", StringComparison.Ordinal)
         && !name.Contains("Benchmarks", StringComparison.Ordinal)

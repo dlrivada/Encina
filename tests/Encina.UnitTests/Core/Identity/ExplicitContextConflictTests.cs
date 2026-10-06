@@ -151,11 +151,14 @@ public sealed class ExplicitContextConflictTests
         }));
 
         var context = await captured.Task;
-        return (context, async () =>
+
+        async Task Release()
         {
             gate.TrySetResult();
             (await running).ShouldBeSuccess();
-        });
+        }
+
+        return (context, Release);
     }
 
     private void Expect165(string outcome)
@@ -403,7 +406,7 @@ public sealed class ExplicitContextConflictTests
         });
         var foreign = Substitute.For<IRequestContext>();
         foreign.CorrelationId.Returns("corr-foreign");
-            foreign.TenantId.Returns((string?)null);
+        foreign.TenantId.Returns((string?)null);
         foreign.Metadata.Returns(new Dictionary<string, object?>());
         foreign.Identity.Returns(stale);
 
@@ -652,7 +655,7 @@ public sealed class ExplicitContextConflictTests
         var accessor = new RequestContextAccessor();
         var foreign = Substitute.For<IRequestContext>();
         foreign.CorrelationId.Returns("corr-foreign");
-            foreign.TenantId.Returns((string?)null);
+        foreign.TenantId.Returns((string?)null);
         foreign.Metadata.Returns(new Dictionary<string, object?>());
 
         // The check reads Anonymous; every later read of the foreign object would return mallory.
@@ -674,7 +677,7 @@ public sealed class ExplicitContextConflictTests
         var metadata = new Dictionary<string, object?> { ["k"] = "original" };
         var foreign = Substitute.For<IRequestContext>();
         foreign.CorrelationId.Returns("corr-foreign");
-            foreign.TenantId.Returns((string?)null);
+        foreign.TenantId.Returns((string?)null);
         foreign.Metadata.Returns(metadata);
         var encina = provider.GetRequiredService<IEncina>();
 
