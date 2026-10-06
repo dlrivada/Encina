@@ -39,11 +39,23 @@ House-style references: #1050 (`[DEBT]`) and #949 (`[BUG]`).
 Write the body to a scratchpad file and pass it by path, so the hook can read it and quoting cannot break it:
 
 ```powershell
-gh issue create --repo dlrivada/Encina --title "[DEBT] <specific title>" --body-file <file> --label technical-debt --milestone "<milestone>"
+gh issue create --repo dlrivada/Encina --title "[DEBT] <specific title>" --body-file <file> --label technical-debt --label p1-recommended --milestone "<milestone>"
 ```
 
+**An issue is opened complete or not at all** (maintainer rule of 2026-10-06, #1926). The checklist, in the order it is done:
+
+1. Template and body (§1-§2), body drafted per the local-draft rule below.
+2. Labels: the template's default label for its prefix, the area labels that apply (`gh label list`), and exactly one priority label: `p0-mandatory`, `p1-recommended` or `p2-post-1.0` (an `[EPIC]` needs none). A `[FEATURE]` or `[SPIKE]` also gets `needs-decision` (see "Options stay open" below).
+3. Milestone: `--milestone` with the literal title of an existing milestone (`gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title'`; titles use an em dash, copy them exactly). Never create the issue without one.
+4. After the create, add it to user project 1 with the keyring token, because the session token (`GITHUB_TOKEN`/`GH_TOKEN`) cannot write projects: `pwsh -NoProfile -Command "Remove-Item Env:GITHUB_TOKEN,Env:GH_TOKEN -ErrorAction SilentlyContinue; gh project item-add 1 --owner dlrivada --url <issue url>"`.
+5. When the body states a parent, link it as a sub-issue: `gh api repos/dlrivada/Encina/issues/<parent>/sub_issues -F sub_issue_id=<id>`, where `<id>` is the new issue's numeric id (`gh api repos/dlrivada/Encina/issues/<n> --jq .id`).
+6. When the body states a blocker, record it with the issue dependencies API: `gh api repos/dlrivada/Encina/issues/<n>/dependencies/blocked_by -F issue_id=<blocking issue's numeric id>`.
+
+The `check-issue-template` hook enforces steps 2 and 3 (a missing item blocks the call and the message lists every one); it does not check the project (the active token cannot write projects), so step 4 is yours, and the `issue-hygiene` workflow adds anything that slipped through. That workflow needs the repository secret `PROJECT_TOKEN` (a classic personal access token with the `project` scope); without it the workflow only labels `needs-triage` and reports. `open-remediation.ps1` does steps 2-4 for the remediation issues it opens.
+
+**Options stay open.** When an issue has real options (a `[FEATURE]` "Alternatives Considered", a `[SPIKE]` "Options to Evaluate", or a `[BUG]`/`[DEBT]` whose fix lists options), write each option with its pros and cons and your recommendation, and leave the decision open: never write "Rejected" or "Chosen" before the maintainer has decided. The hook requires the `needs-decision` label on every `[FEATURE]` and `[SPIKE]` (it stays advisory for `[BUG]` and `[DEBT]`: add it yourself when their fix has options). Only the maintainer decides. Do not ask the maintainer about the options when opening the issue: the questions come when work on the issue starts (`worker-brief` skill). The answer is recorded in the repository: in the plan's `## Maintainer Decisions` for a feature, and in the closing PR's knowledge record for any other issue. The orchestrator does not write a worker brief for a `needs-decision` issue until the maintainer decides and the label is removed (`worker-brief` skill).
+
 - The `check-issue-template` hook also refuses a `--body-file` with no evidence it was drafted by the free local model, or by `local-ai-standin` when the local model is switched off (#1410, #1593; both leave a ledger row, `ledger.csv` or `standin-ledger.csv`): draft the body with `local-ai-task` first and keep its first line `<!-- local-draft: <path to the local-ai output> -->` in the scratchpad copy, or, when the local model genuinely cannot do the task, use a first line `<!-- local-draft: none, reason: <text> -->` (a non-empty reason; it is logged to `artifacts/local-ai/opt-outs.log`). Neither line is stripped before the call: it is published as the issue's first line of raw markdown too. GitHub's default rendered view hides an HTML comment, but it is still visible in Edit mode, the API and the diff, so keep the reason short and free of anything sensitive.
-- Use the template's default label plus the area labels that apply (`gh label list` when unsure).
 - Pick the milestone from SPEC-000's release scope. Post-1.0 work goes to a post-1.0 milestone, never to the current one by default.
 - A `[FEATURE]` gets an implementation plan before work starts (see the `implementation-plan` skill).
 
@@ -76,4 +88,4 @@ $lines | Select-Object -Skip ([array]::IndexOf($lines, '-->') + 1) | Set-Content
 gh issue create --repo dlrivada/Encina --title "<title>" --body-file '<scratchpad>\<slug>.md' --label "<labels>" --milestone "<milestone>"
 ```
 
-Leave out `--milestone` when the header leaves it empty; §3 still decides the milestone when the worker could not. If the hook blocks the call, the worker's body is wrong: fix the file or send it back, never loosen the check.
+When the header leaves the milestone or the priority label empty, §3 decides them (the hook refuses the call without both); then run §3's project, parent and blocked-by steps. If the hook blocks the call, the worker's body is wrong: fix the file or send it back, never loosen the check.
