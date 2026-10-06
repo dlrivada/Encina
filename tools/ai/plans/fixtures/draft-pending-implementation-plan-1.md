@@ -23,7 +23,7 @@ Minimal plan that follows the structure of the implementation plan prompt. **Pro
 | **A) New package** | Clean separation | One more package |
 | **B) Extend core** | No new package | Bloats core |
 
-### Chosen Option: **A — New package**
+### Chosen Option: **A — New package** (recommended, pending the maintainer)
 
 ### Rationale
 
@@ -41,7 +41,7 @@ Minimal plan that follows the structure of the implementation plan prompt. **Pro
 | **A) Sealed records** | Immutable | No inheritance |
 | **B) Classes** | Flexible | Mutable |
 
-### Chosen Option: **A — Sealed records**
+### Chosen Option: **A — Sealed records** (recommended, pending the maintainer)
 
 ### Rationale
 
@@ -59,7 +59,7 @@ Minimal plan that follows the structure of the implementation plan prompt. **Pro
 | **A) In-memory default** | Zero setup | Not durable |
 | **B) Database only** | Durable | Setup cost |
 
-### Chosen Option: **A — In-memory default**
+### Chosen Option: **A — In-memory default** (recommended, pending the maintainer)
 
 ### Rationale
 
@@ -77,7 +77,7 @@ Minimal plan that follows the structure of the implementation plan prompt. **Pro
 | **A) Options class** | Standard | More types |
 | **B) Fluent only** | Short | Hard to bind |
 
-### Chosen Option: **A — Options class**
+### Chosen Option: **A — Options class** (recommended, pending the maintainer)
 
 ### Rationale
 
@@ -195,12 +195,3 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Review and approve this plan.
-
----
-
-## Maintainer Decisions
-
-1. (2026-10-06) Package Placement: option A, a new package.
-2. (2026-10-06) Domain Model: option A, sealed records.
-3. (2026-10-06) Store Pattern: option A, in-memory default.
-4. (2026-10-06) Configuration: option A, an options class.

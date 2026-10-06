@@ -203,4 +203,3 @@ REFERENCE FILES:
 1. (2026-10-06) Package Placement: option A, a new package.
 2. (2026-10-06) Domain Model: option A, sealed records.
 3. (2026-10-06) Store Pattern: option A, in-memory default.
-4. (2026-10-06) Configuration: option A, an options class.

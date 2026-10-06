@@ -20,6 +20,9 @@
       combined        one <details> with PROJECT CONTEXT, IMPLEMENTATION OVERVIEW, KEY PATTERNS,
                       REFERENCE FILES
       matrix          exactly the 12 functions of AGENTS.md section 6, each with status and note
+      decisions       ## Maintainer Decisions is mandatory and last: one dated entry per Design Choice,
+                      numbered like the choices; no choice may still be 'pending the maintainer'
+                      (skipped by -Draft)
       filename        {feature}-implementation-plan-{issue}.md
       issue           the issue exists and its title starts with [FEATURE]; runs only when gh is
                       installed and authenticated, otherwise it is skipped with a notice
@@ -36,6 +39,9 @@
     Run the checker against the fixtures in tools/ai/plans/fixtures.
 .PARAMETER NoExempt
     Strict mode: ignore the allow-list of plans that predate the current prompt.
+.PARAMETER Draft
+    Skips only the decisions check (## Maintainer Decisions), so a plan writer can validate the
+    structure before the maintainer decides. CI never uses it.
 .PARAMETER BaseRef
     Base of -Changed. Default origin/main.
 #>
@@ -46,6 +52,7 @@ param(
     [switch]$All,
     [switch]$SelfTest,
     [switch]$NoExempt,
+    [switch]$Draft,
     [string]$BaseRef = 'origin/main'
 )
 
@@ -89,7 +96,8 @@ $SectionDefs = @(
     @{ Name = 'Cross-Cutting Integration Matrix'; Pattern = '^Cross-Cutting Integration Matrix$'; Required = $true }
     @{ Name = 'Prerequisites & Dependencies';     Pattern = '^Prerequisites (&|and) Dependencies$'; Required = $false }
     @{ Name = 'Next Steps';                       Pattern = '^Next Steps$';                       Required = $true }
-    # Optional, and only as the last '##' section. 'Decisions of the maintainer' is the variant #751 uses.
+    # Mandatory for non-exempt, non-draft plans (checked by Test-Decisions) and only as the last '##'
+    # section. 'Decisions of the maintainer' is the variant #751 uses.
     @{ Name = 'Maintainer Decisions';             Pattern = '^(Maintainer decisions|Decisions of the maintainer)(\s*\(.*\))?$'; Required = $false }
 )
 
@@ -393,9 +401,36 @@ function Test-Phases($L, $Section) {
     return $gaps
 }
 
-function Test-Decisions($L, $Section) {
-    if (Test-HasLine $L ($Section.Index + 1) $Section.End '\b\d{4}-\d{2}-\d{2}\b') { return @() }
-    return @(New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated entry; each decision needs its date (yyyy-MM-dd)")
+# Only the maintainer answers Design Choices. The section is mandatory for a non-draft plan, needs one
+# dated entry per Design Choice (numbered like the choices), and no choice may still await the maintainer.
+function Test-Decisions($L, $Section, [int]$ChoiceCount) {
+    if ($null -eq $Section) {
+        return @(New-Gap 'decisions' 0 "Design Choices await the maintainer: present them and record the answers in ## Maintainer Decisions (last section, one dated entry per Design Choice, numbered like the choices)")
+    }
+    $gaps = [System.Collections.Generic.List[object]]::new()
+    # Entries: a line starting with a number (1., D1, **D1**, Design Choice 1, | 1 |) plus its continuation lines.
+    $entries = @{}
+    $current = $null
+    for ($i = $Section.Index + 1; $i -le $Section.End; $i++) {
+        if ($L[$i].Kind -ne 'text') { continue }
+        $t = $L[$i].Text
+        if ($t -match '^\s*(?:[-*+]\s+|\|\s*)?(?:\*\*)?(?:D|Design Choice\s+|Decision\s+)?(\d+)\b') {
+            $current = [int]$Matches[1]
+            if (-not $entries.ContainsKey($current)) { $entries[$current] = '' }
+        }
+        if ($null -ne $current) { $entries[$current] += ' ' + $t }
+    }
+    $missing = @(1..$ChoiceCount | Where-Object { -not ($entries.ContainsKey($_) -and $entries[$_] -match '\b\d{4}-\d{2}-\d{2}\b') })
+    if ($ChoiceCount -gt 0 -and $missing.Count -gt 0) {
+        $gaps.Add((New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated (yyyy-MM-dd) entry for Design Choice(s) $($missing -join ', ') of $ChoiceCount; the maintainer answers every choice, numbered like the choices"))
+    }
+    for ($i = 0; $i -lt $L.Count; $i++) {
+        if ($L[$i].N -ge $Section.Line -and $i -le $Section.End) { continue }
+        if ($L[$i].Kind -eq 'text' -and $L[$i].Text -match 'pending the maintainer') {
+            $gaps.Add((New-Gap 'decisions' $L[$i].N "choice still marked 'pending the maintainer' although ## Maintainer Decisions exists; update Chosen Option to the maintainer's answer"))
+        }
+    }
+    return $gaps
 }
 
 function Test-Research($L, $Section) {
@@ -525,7 +560,7 @@ function Test-Issue([string]$FileName) {
     return @()
 }
 
-function Test-Plan([string]$File, [switch]$SkipIssue) {
+function Test-Plan([string]$File, [switch]$SkipIssue, [switch]$Draft) {
     $name = Split-Path -Leaf $File
     $gaps = [System.Collections.Generic.List[object]]::new()
     foreach ($g in (Test-FileName $name)) { $gaps.Add($g) }
@@ -540,11 +575,15 @@ function Test-Plan([string]$File, [switch]$SkipIssue) {
         @{ Name = 'Research'; Fn = { param($l, $s) Test-Research $l $s } }
         @{ Name = 'Combined AI Agent Prompts'; Fn = { param($l, $s) Test-Combined $l $s } }
         @{ Name = 'Cross-Cutting Integration Matrix'; Fn = { param($l, $s) Test-Matrix $l $s } }
-        @{ Name = 'Maintainer Decisions'; Fn = { param($l, $s) Test-Decisions $l $s } }
     )
     foreach ($c in $checks) {
         $sec = Find-Section $sections $c.Name
         if ($null -ne $sec) { foreach ($g in (& $c.Fn $L $sec)) { $gaps.Add($g) } }
+    }
+    if (-not $Draft) {
+        $dsec = Find-Section $sections 'Design Choices'
+        $count = if ($null -ne $dsec) { (Get-DetailsBlocks $L ($dsec.Index + 1) $dsec.End).Count } else { 0 }
+        foreach ($g in (Test-Decisions $L (Find-Section $sections 'Maintainer Decisions') $count)) { $gaps.Add($g) }
     }
     return $gaps
 }
@@ -567,7 +606,7 @@ function Invoke-PlanFiles([string[]]$Files) {
             $exempt++
             continue
         }
-        $gaps = @(Test-Plan $f)
+        $gaps = @(Test-Plan $f -Draft:$Draft)
         if ($gaps.Count -eq 0) { Write-Output "PASS $name"; $passed++ }
         else { Write-Gaps $name $gaps; Write-Output "FAIL $name ($($gaps.Count) gap(s))"; $failed++ }
     }
@@ -578,25 +617,31 @@ function Invoke-PlanFiles([string[]]$Files) {
 function Invoke-SelfTest {
     $dir = Join-Path $PSScriptRoot 'fixtures'
     $cases = @(
+        # Draft = $true: the structural fixtures carry no decisions section, so they run in -Draft mode.
         @{ File = 'conforming-implementation-plan-1.md'; Fails = @() }
-        @{ File = 'conforming-decisions-implementation-plan-1.md'; Fails = @() }
-        @{ File = 'fail-decisions-order-implementation-plan-1.md'; Fails = @('sections') }
-        @{ File = 'fail-sections-implementation-plan-1.md'; Fails = @('sections') }
-        @{ File = 'fail-design-choices-implementation-plan-1.md'; Fails = @('design-choices') }
-        @{ File = 'fail-phases-implementation-plan-1.md'; Fails = @('phases') }
-        @{ File = 'fail-research-implementation-plan-1.md'; Fails = @('research') }
-        @{ File = 'fail-combined-implementation-plan-1.md'; Fails = @('combined') }
-        @{ File = 'fail-matrix-implementation-plan-1.md'; Fails = @('matrix') }
-        @{ File = 'fail-filename.md'; Fails = @('filename') }
+        @{ File = 'draft-pending-implementation-plan-1.md'; Fails = @(); Draft = $true }
+        @{ File = 'draft-pending-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-decisions-unanswered-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-decisions-pending-implementation-plan-1.md'; Fails = @('decisions') }
+        @{ File = 'fail-decisions-order-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
+        @{ File = 'fail-sections-implementation-plan-1.md'; Fails = @('sections'); Draft = $true }
+        @{ File = 'fail-design-choices-implementation-plan-1.md'; Fails = @('design-choices'); Draft = $true }
+        @{ File = 'fail-phases-implementation-plan-1.md'; Fails = @('phases'); Draft = $true }
+        @{ File = 'fail-research-implementation-plan-1.md'; Fails = @('research'); Draft = $true }
+        @{ File = 'fail-combined-implementation-plan-1.md'; Fails = @('combined'); Draft = $true }
+        @{ File = 'fail-matrix-implementation-plan-1.md'; Fails = @('matrix'); Draft = $true }
+        @{ File = 'fail-filename.md'; Fails = @('filename'); Draft = $true }
     )
     $bad = 0
     foreach ($c in $cases) {
         $path = Join-Path $dir $c.File
         if (-not (Test-Path -LiteralPath $path)) { Write-Output "SELFTEST FAIL $($c.File): fixture is missing"; $bad++; continue }
-        $got = @(Test-Plan $path -SkipIssue | ForEach-Object { $_.Check } | Sort-Object -Unique)
+        $isDraft = [bool]$c.Draft
+        $got = @(Test-Plan $path -SkipIssue -Draft:$isDraft | ForEach-Object { $_.Check } | Sort-Object -Unique)
         $want = @($c.Fails)
-        if (($got -join ',') -eq ($want -join ',')) { Write-Output "SELFTEST ok   $($c.File): $(if ($want.Count) { 'fails only [' + ($want -join ',') + ']' } else { 'passes' })" }
-        else { Write-Output "SELFTEST FAIL $($c.File): expected [$($want -join ',')] got [$($got -join ',')]"; $bad++ }
+        $label = "$($c.File)$(if ($isDraft) { ' (-Draft)' })"
+        if (($got -join ',') -eq ($want -join ',')) { Write-Output "SELFTEST ok   ${label}: $(if ($want.Count) { 'fails only [' + ($want -join ',') + ']' } else { 'passes' })" }
+        else { Write-Output "SELFTEST FAIL ${label}: expected [$($want -join ',')] got [$($got -join ',')]"; $bad++ }
     }
     $units = @(
         @{ Name = 'FEATURE title accepted'; Ok = (Test-FeatureTitle '[FEATURE] x') }
@@ -619,7 +664,7 @@ function Invoke-SelfTest {
 
 function Stop-Usage([string]$Message) {
     [Console]::Error.WriteLine("check-plan: $Message")
-    [Console]::Error.WriteLine('usage: check-plan.ps1 (-Path <file> | -Changed | -All | -SelfTest) [-NoExempt] [-BaseRef <ref>]')
+    [Console]::Error.WriteLine('usage: check-plan.ps1 (-Path <file> | -Changed | -All | -SelfTest) [-NoExempt] [-Draft] [-BaseRef <ref>]')
     exit 2
 }
 
