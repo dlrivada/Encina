@@ -148,13 +148,20 @@ internal static class AmbientRequestContext
         }
 
         var same = requested.IsSameAs(current);
-        if (requested.Issuer is { IsLive: false } || (chainHasUser && !same) || (requested.Issuer is null && !IsActiveScopeOf(current, same)))
+        if (IsRefusedIdentity(requested, current, chainHasUser, same))
         {
             return ExplicitIdentityVerdict.Refused;
         }
 
         return same ? ExplicitIdentityVerdict.Accepted : ExplicitIdentityVerdict.AcceptedChange;
     }
+
+    // Rules 2-4: a stale issuer; a user in the chain and another identity; no issuer outside an
+    // active scope of the same identity.
+    private static bool IsRefusedIdentity(RequestIdentity requested, RequestIdentity current, bool chainHasUser, bool same) =>
+        IsStale(requested) || (chainHasUser && !same) || (requested.Issuer is null && !IsActiveScopeOf(current, same));
+
+    private static bool IsStale(RequestIdentity identity) => identity.Issuer is { IsLive: false };
 
     // An issuer-less identity is accepted only inside an active scope of the same identity.
     private static bool IsActiveScopeOf(RequestIdentity current, bool same) =>
@@ -184,10 +191,7 @@ internal static class AmbientRequestContext
     {
         var reference = IdentityOf(current);
         var snapshot = value is null ? null : RequestContext.CopyOf(value);
-        if (snapshot is not null
-            && snapshot.Identity.IsSameAs(reference)
-            && snapshot.Origin == OriginOf(current)
-            && !IsTenantChangeInDispatch(current, snapshot))
+        if (snapshot is not null && PreservesIdentityAndOrigin(current, reference, snapshot))
         {
             return snapshot;
         }
@@ -197,6 +201,11 @@ internal static class AmbientRequestContext
         throw new InvalidOperationException(
             "The ambient request context can only be replaced by a context with the same identity and origin (and, during a dispatch, the same tenant); it is never cleared. Bind identities through IRequestContextScopeFactory.");
     }
+
+    private static bool PreservesIdentityAndOrigin(IRequestContext? current, RequestIdentity reference, RequestContext snapshot) =>
+        snapshot.Identity.IsSameAs(reference)
+        && snapshot.Origin == OriginOf(current)
+        && !IsTenantChangeInDispatch(current, snapshot);
 
     private static RequestOrigin OriginOf(IRequestContext? context) =>
         (context as RequestContext)?.Origin ?? RequestOrigin.Unspecified;
