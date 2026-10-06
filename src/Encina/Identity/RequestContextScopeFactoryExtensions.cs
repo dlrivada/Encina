@@ -94,7 +94,7 @@ public static class RequestContextScopeFactoryExtensions
     /// <param name="persisted">The identity stored with the message.</param>
     /// <param name="source">Where the dispatcher read the message from.</param>
     /// <param name="work">The unit of work.</param>
-    /// <param name="trustedTenantId">For external sources only: the tenant from trusted configuration.</param>
+    /// <param name="configuredTenantId">For external sources only: the tenant from trusted configuration.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns><see cref="Unit"/> when <paramref name="work"/> completed, or the refusal.</returns>
     /// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
@@ -103,11 +103,11 @@ public static class RequestContextScopeFactoryExtensions
         PersistedRequestIdentity persisted,
         PersistedIdentitySource source,
         Func<IRequestContext, CancellationToken, Task> work,
-        string? trustedTenantId = null,
+        string? configuredTenantId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(factory);
-        return factory.RunRestoredAsync(persisted, source, ToUnit(work), trustedTenantId, cancellationToken);
+        return factory.RunRestoredAsync(persisted, source, ToUnit(work), configuredTenantId, cancellationToken);
     }
 
     private static Func<IRequestContext, CancellationToken, Task<Either<EncinaError, Unit>>> ToUnit(

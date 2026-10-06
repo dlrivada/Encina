@@ -12,7 +12,7 @@ namespace Encina;
 /// <example>
 /// <code>
 /// // An inbox fed by an external broker: the row is untrusted, so the message runs anonymous.
-/// await scopes.RunRestoredAsync(persisted, PersistedIdentitySource.External, work, trustedTenantId: inboxTenant, ct);
+/// await scopes.RunRestoredAsync(persisted, PersistedIdentitySource.External, work, configuredTenantId: inboxTenant, ct);
 /// </code>
 /// </example>
 public enum PersistedIdentitySource

@@ -17,8 +17,8 @@ public sealed class RunRestoredAsyncTests
     private readonly ScopeTestHost _host = new();
 
     private Task<Either<EncinaError, IRequestContext>> Restore(
-        PersistedRequestIdentity persisted, PersistedIdentitySource source, string? trustedTenantId = null) =>
-        _host.Factory.RunRestoredAsync(persisted, source, ScopeTestHost.Capture, trustedTenantId);
+        PersistedRequestIdentity persisted, PersistedIdentitySource source, string? configuredTenantId = null) =>
+        _host.Factory.RunRestoredAsync(persisted, source, ScopeTestHost.Capture, configuredTenantId);
 
     private static PersistedRequestIdentity User(string actor = "alice", string? tenant = "t-row") =>
         new(IdentityKind.User, actor, tenant, "corr-1", "cause-1");
@@ -48,7 +48,7 @@ public sealed class RunRestoredAsyncTests
     [Fact]
     public async Task AnInternalRow_IgnoresTheTrustedTenant()
     {
-        var context = (await Restore(User(), PersistedIdentitySource.Internal, trustedTenantId: "configured")).ShouldBeSuccess();
+        var context = (await Restore(User(), PersistedIdentitySource.Internal, configuredTenantId: "configured")).ShouldBeSuccess();
 
         context.TenantId.ShouldBe("t-row");
     }
@@ -139,7 +139,7 @@ public sealed class RunRestoredAsyncTests
     [Fact]
     public async Task AnExternalRow_UsesTheTrustedTenant_WhateverTheRowSays()
     {
-        var context = (await Restore(User(tenant: "row-tenant"), PersistedIdentitySource.External, trustedTenantId: "t1")).ShouldBeSuccess();
+        var context = (await Restore(User(tenant: "row-tenant"), PersistedIdentitySource.External, configuredTenantId: "t1")).ShouldBeSuccess();
 
         context.TenantId.ShouldBe("t1");
     }
@@ -148,9 +148,9 @@ public sealed class RunRestoredAsyncTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("t\n1")]
-    public async Task AnInvalidTrustedTenant_IsRefused(string trustedTenantId)
+    public async Task AnInvalidTrustedTenant_IsRefused(string configuredTenantId)
     {
-        ShouldBeInvalid(await Restore(User(), PersistedIdentitySource.External, trustedTenantId));
+        ShouldBeInvalid(await Restore(User(), PersistedIdentitySource.External, configuredTenantId));
     }
 
     [Fact]

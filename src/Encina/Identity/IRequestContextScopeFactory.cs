@@ -141,7 +141,7 @@ public interface IRequestContextScopeFactory
     /// <param name="persisted">The identity stored with the message.</param>
     /// <param name="source">Where the dispatcher read the message from; required.</param>
     /// <param name="work">The unit of work.</param>
-    /// <param name="trustedTenantId">
+    /// <param name="configuredTenantId">
     /// For <see cref="PersistedIdentitySource.External"/> only: the tenant from the dispatcher's
     /// trusted configuration (a per-inbox or per-endpoint mapping, never a value read from the
     /// message); <see langword="null"/> runs the message with no tenant. Ignored for
@@ -153,7 +153,7 @@ public interface IRequestContextScopeFactory
     /// <see cref="RequestIdentityErrorCodes.InvalidPersistedIdentity"/> and the dispatcher fails the
     /// message by its retry or dead-letter rules. Always validated: the <paramref name="source"/>,
     /// the correlation and causation ids, and (for <see cref="PersistedIdentitySource.External"/>)
-    /// <paramref name="trustedTenantId"/>. For <see cref="PersistedIdentitySource.Internal"/> also
+    /// <paramref name="configuredTenantId"/>. For <see cref="PersistedIdentitySource.Internal"/> also
     /// the kind, the actor and the persisted tenant; an external row's kind, actor and tenant are
     /// ignored, never validated, because it always runs anonymous.
     /// </returns>
@@ -166,7 +166,7 @@ public interface IRequestContextScopeFactory
     /// <para>
     /// An <see cref="PersistedIdentitySource.External"/> message runs as anonymous whatever the row
     /// says, marked as inbound (service and principal scopes inside it need
-    /// <see cref="IdentityScopeOptions.AllowOverInbound"/>), with only <paramref name="trustedTenantId"/>
+    /// <see cref="IdentityScopeOptions.AllowOverInbound"/>), with only <paramref name="configuredTenantId"/>
     /// as its tenant.
     /// </para>
     /// </remarks>
@@ -175,6 +175,6 @@ public interface IRequestContextScopeFactory
         PersistedRequestIdentity persisted,
         PersistedIdentitySource source,
         Func<IRequestContext, CancellationToken, Task<Either<EncinaError, T>>> work,
-        string? trustedTenantId = null,
+        string? configuredTenantId = null,
         CancellationToken cancellationToken = default);
 }

@@ -16,25 +16,25 @@ internal sealed partial class RequestContextScopeFactory
         PersistedRequestIdentity persisted,
         PersistedIdentitySource source,
         Func<IRequestContext, CancellationToken, Task<Either<EncinaError, T>>> work,
-        string? trustedTenantId = null,
+        string? configuredTenantId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(persisted);
         ArgumentNullException.ThrowIfNull(work);
 
         var refusal = Precheck(cancellationToken);
-        refusal ??= ValidatePersisted(persisted, source, trustedTenantId);
+        refusal ??= ValidatePersisted(persisted, source, configuredTenantId);
         refusal ??= CheckChain(persisted.Kind, inboundOptIn: false, out _);
 
         return refusal is not null
             ? Refuse<T>(refusal, persisted.Kind)
-            : OpenRestored(persisted, source, trustedTenantId, work, cancellationToken);
+            : OpenRestored(persisted, source, configuredTenantId, work, cancellationToken);
     }
 
     private Task<Either<EncinaError, T>> OpenRestored<T>(
         PersistedRequestIdentity persisted,
         PersistedIdentitySource source,
-        string? trustedTenantId,
+        string? configuredTenantId,
         Func<IRequestContext, CancellationToken, Task<Either<EncinaError, T>>> work,
         CancellationToken cancellationToken)
     {
@@ -45,7 +45,7 @@ internal sealed partial class RequestContextScopeFactory
         var context = NewContext(
                 external ? RequestIdentity.Anonymous : RestoredIdentity(persisted),
                 persisted.CorrelationId,
-                external ? trustedTenantId : persisted.TenantId,
+                external ? configuredTenantId : persisted.TenantId,
                 external ? RequestOrigin.Inbound : RequestOrigin.Restored)
             .WithCausationId(persisted.CausationId);
 
@@ -73,24 +73,24 @@ internal sealed partial class RequestContextScopeFactory
             ? definition
             : throw new InvalidOperationException("The persisted service identity was validated but is no longer declared.");
 
-    private EncinaError? ValidatePersisted(PersistedRequestIdentity persisted, PersistedIdentitySource source, string? trustedTenantId)
+    private EncinaError? ValidatePersisted(PersistedRequestIdentity persisted, PersistedIdentitySource source, string? configuredTenantId)
     {
-        var reason = SourceProblem(source, trustedTenantId)
+        var reason = SourceProblem(source, configuredTenantId)
             ?? IdsProblem(persisted)
             ?? (source == PersistedIdentitySource.External ? null : ActorProblem(persisted));
 
         return reason is null ? (EncinaError?)null : RequestIdentityErrors.InvalidPersistedIdentity(reason);
     }
 
-    private static string? SourceProblem(PersistedIdentitySource source, string? trustedTenantId)
+    private static string? SourceProblem(PersistedIdentitySource source, string? configuredTenantId)
     {
         if (!Enum.IsDefined(source))
         {
             return "source";
         }
 
-        return source == PersistedIdentitySource.External && trustedTenantId is not null && InboundRequestNormalizer.Id(trustedTenantId) is null
-            ? "trustedTenantId"
+        return source == PersistedIdentitySource.External && configuredTenantId is not null && InboundRequestNormalizer.Id(configuredTenantId) is null
+            ? "configuredTenantId"
             : null;
     }
 
