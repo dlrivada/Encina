@@ -94,12 +94,8 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
         var cacheKey = _keyGenerator.GenerateKey<TRequest, TResponse>(request, KeyContext(context, identity));
 
-        var (found, cachedValue) = IsSameCaller(context, identity)
-            ? await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken).ConfigureAwait(false)
-            : (false, default);
-
-        // A hit read after the scope ended is not served: the caller is no longer that user.
-        if (found && IsSameCaller(context, identity))
+        var (found, cachedValue) = await TryGetForCallerAsync(cacheKey, context, identity, cancellationToken).ConfigureAwait(false);
+        if (found)
         {
             return cachedValue!;
         }
@@ -132,6 +128,23 @@ public sealed partial class QueryCachingPipelineBehavior<TRequest, TResponse> : 
 
         LogVaryByUserBypassed(_logger, typeof(TRequest).Name, identity?.Kind ?? IdentityKind.Anonymous);
         return false;
+    }
+
+    // Reads the entry only while the caller is still the identity the key was built from, and does
+    // not serve a hit read after the scope ended: the caller is no longer that user.
+    private async ValueTask<(bool Found, TResponse? Value)> TryGetForCallerAsync(
+        string cacheKey,
+        IRequestContext context,
+        RequestIdentity? identity,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSameCaller(context, identity))
+        {
+            return (false, default);
+        }
+
+        var cached = await TryGetFromCacheAsync(cacheKey, context.CorrelationId, cancellationToken).ConfigureAwait(false);
+        return cached.Found && IsSameCaller(context, identity) ? cached : (false, default);
     }
 
     // A VaryByUser key is built from the pinned snapshot, so a custom generator reads the same identity.
