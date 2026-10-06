@@ -143,10 +143,13 @@ public class UsersController : ControllerBase
 **Behind a reverse proxy**, register `UseForwardedHeaders()` with the proxies you trust, before `UseEncinaContext()`. ASP.NET Core then rewrites `RemoteIpAddress` from those proxies only:
 
 ```csharp
+using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
-    options.KnownProxies.Add(IPAddress.Parse("10.0.0.10")); // or add to KnownNetworks
+    options.KnownProxies.Add(IPAddress.Parse("10.0.0.10")); // or add to KnownIPNetworks
 });
 
 app.UseForwardedHeaders(); // before UseEncinaContext()
