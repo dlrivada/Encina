@@ -137,27 +137,13 @@ internal static class AmbientRequestContext
         var snapshot = RequestContext.CopyOf(explicitContext);
         var requested = snapshot.IssuedIdentity;
         var current = IdentityOf(ambient);
-        var chainHasUser = facts.HasFlag(ChainFacts.User);
 
         var verdict = IdentityVerdict(requested, current, facts);
-        if (verdict == ExplicitIdentityVerdict.Refused)
+        var refusal = Refusal(verdict, requested.Kind, current.Kind, logger)
+            ?? TenantRefusal(facts, snapshot.TenantId, ambient?.TenantId, requested.Kind, current.Kind, logger);
+        if (refusal is { } error)
         {
-            RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused");
-            return Left<EncinaError, IRequestContext>(RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind));
-        }
-
-        if (verdict == ExplicitIdentityVerdict.RefusedOverInbound)
-        {
-            // The refusal RunAsServiceAsync gives over an inbound chain without AllowOverInbound (167).
-            var error = RequestIdentityErrors.ScopeConflict(current.Kind, requested.Kind);
-            RequestIdentityLog.IdentityScopeRefused(logger, RequestIdentityErrorCodes.ScopeConflict, requested.Kind);
             return Left<EncinaError, IRequestContext>(error);
-        }
-
-        if (chainHasUser && !string.Equals(snapshot.TenantId, ambient?.TenantId, StringComparison.Ordinal))
-        {
-            RequestIdentityLog.ExplicitContextIdentityConflict(logger, requested.Kind, current.Kind, "refused (tenant)");
-            return Left<EncinaError, IRequestContext>(RequestIdentityErrors.TenantConflict(current.Kind, requested.Kind));
         }
 
         if (verdict == ExplicitIdentityVerdict.AcceptedChange)
@@ -168,15 +154,45 @@ internal static class AmbientRequestContext
         return Right<EncinaError, IRequestContext>(snapshot);
     }
 
-    // The identity rules of Resolve, first match wins (see the remarks of Resolve).
-    private static ExplicitIdentityVerdict IdentityVerdict(RequestIdentity requested, RequestIdentity current, ChainFacts facts)
+    // The identity refusals: Warning 165 for rules 2, 3 and 5; for rule 4 (an inbound fact), the
+    // refusal RunAsServiceAsync gives over an inbound chain without AllowOverInbound (167 with the code).
+    private static EncinaError? Refusal(ExplicitIdentityVerdict verdict, IdentityKind requestedKind, IdentityKind currentKind, ILogger logger)
     {
-        if (!requested.IsAuthenticated)
+        switch (verdict)
         {
-            return ExplicitIdentityVerdict.Accepted;
+            case ExplicitIdentityVerdict.Refused:
+                RequestIdentityLog.ExplicitContextIdentityConflict(logger, requestedKind, currentKind, "refused");
+                return RequestIdentityErrors.ScopeConflict(currentKind, requestedKind);
+            case ExplicitIdentityVerdict.RefusedOverInbound:
+                RequestIdentityLog.IdentityScopeRefused(logger, RequestIdentityErrorCodes.ScopeConflict, requestedKind);
+                return RequestIdentityErrors.ScopeConflict(currentKind, requestedKind);
+            default:
+                return null;
+        }
+    }
+
+    // The tenant rule on an accepted context: with a user in the chain, the tenant cannot change.
+    private static EncinaError? TenantRefusal(
+        ChainFacts facts, string? requestedTenant, string? ambientTenant, IdentityKind requestedKind, IdentityKind currentKind, ILogger logger)
+    {
+        if (!facts.HasFlag(ChainFacts.User) || string.Equals(requestedTenant, ambientTenant, StringComparison.Ordinal))
+        {
+            return null;
         }
 
-        var same = requested.IsSameAs(current);
+        RequestIdentityLog.ExplicitContextIdentityConflict(logger, requestedKind, currentKind, "refused (tenant)");
+        return RequestIdentityErrors.TenantConflict(currentKind, requestedKind);
+    }
+
+    // The identity rules of Resolve, first match wins (see the remarks of Resolve).
+    private static ExplicitIdentityVerdict IdentityVerdict(RequestIdentity requested, RequestIdentity current, ChainFacts facts) =>
+        requested.IsAuthenticated
+            ? AuthenticatedVerdict(requested, current, facts, requested.IsSameAs(current))
+            : ExplicitIdentityVerdict.Accepted;
+
+    // Rules 2-7 for an authenticated explicit identity.
+    private static ExplicitIdentityVerdict AuthenticatedVerdict(RequestIdentity requested, RequestIdentity current, ChainFacts facts, bool same)
+    {
         if (IsRefusedIdentity(requested, facts.HasFlag(ChainFacts.User), same))
         {
             return ExplicitIdentityVerdict.Refused;
@@ -187,13 +203,16 @@ internal static class AmbientRequestContext
             return ExplicitIdentityVerdict.RefusedOverInbound;
         }
 
-        if (requested.Issuer is null && !IsActiveScopeOf(current, same))
-        {
-            return ExplicitIdentityVerdict.Refused;
-        }
-
-        return same ? ExplicitIdentityVerdict.Accepted : ExplicitIdentityVerdict.AcceptedChange;
+        return IsIssuerLessOutsideScope(requested, current, same) ? ExplicitIdentityVerdict.Refused : ChangeVerdict(same);
     }
+
+    // Rule 5: an issuer-less identity is accepted only inside an active scope of the same identity.
+    private static bool IsIssuerLessOutsideScope(RequestIdentity requested, RequestIdentity current, bool same) =>
+        requested.Issuer is null && !IsActiveScopeOf(current, same);
+
+    // Rules 6-7: a live different identity is an accepted, logged change; the same identity is silent.
+    private static ExplicitIdentityVerdict ChangeVerdict(bool same) =>
+        same ? ExplicitIdentityVerdict.Accepted : ExplicitIdentityVerdict.AcceptedChange;
 
     // Rules 2-3: a stale issuer; a user in the chain and another identity.
     private static bool IsRefusedIdentity(RequestIdentity requested, bool chainHasUser, bool same) =>
