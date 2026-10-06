@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Encina.Security.Audit;
+using LanguageExt;
 
 namespace Encina.UnitTests.Security.Audit.Relational;
 
@@ -51,10 +52,9 @@ public abstract class OperationAuditStoreUtcTestsBase
         };
 
         // Act
-        var result = await store.RecordAsync(entry, TestContext.Current.CancellationToken);
+        await Settle(store.RecordAsync(entry, TestContext.Current.CancellationToken));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
         AssertBoundAsExpectedUtc(connection, "TimestampUtc", "StartedAtUtc", "CompletedAtUtc");
     }
 
@@ -69,10 +69,9 @@ public abstract class OperationAuditStoreUtcTestsBase
         var store = CreateStore(connection);
 
         // Act
-        var result = await store.GetByUserAsync("user-1", InstantOfKind(kind), InstantOfKind(kind), TestContext.Current.CancellationToken);
+        await Settle(store.GetByUserAsync("user-1", InstantOfKind(kind), InstantOfKind(kind), TestContext.Current.CancellationToken));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
         AssertBoundAsExpectedUtc(connection, "FromUtc", "ToUtc");
     }
 
@@ -88,10 +87,9 @@ public abstract class OperationAuditStoreUtcTestsBase
         var query = new OperationAuditQuery { FromUtc = InstantOfKind(kind), ToUtc = InstantOfKind(kind) };
 
         // Act
-        var result = await store.QueryAsync(query, TestContext.Current.CancellationToken);
+        await Settle(store.QueryAsync(query, TestContext.Current.CancellationToken));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
         AssertBoundAsExpectedUtc(connection, "FromUtc", "ToUtc");
     }
 
@@ -106,11 +104,32 @@ public abstract class OperationAuditStoreUtcTestsBase
         var store = CreateStore(connection);
 
         // Act
-        var result = await store.PurgeEntriesAsync(InstantOfKind(kind), TestContext.Current.CancellationToken);
+        await Settle(store.PurgeEntriesAsync(InstantOfKind(kind), TestContext.Current.CancellationToken));
 
         // Assert
-        result.IsRight.ShouldBeTrue();
         AssertBoundAsExpectedUtc(connection, "OlderThanUtc");
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the store completes against the double. A store whose double aborts
+    /// the command after capturing its parameters (EF Core) returns <see langword="false"/>.
+    /// </summary>
+    protected virtual bool ExpectsSuccess => true;
+
+    private async Task Settle<T>(ValueTask<Either<EncinaError, T>> operation)
+    {
+        try
+        {
+            var result = await operation;
+            if (ExpectsSuccess)
+            {
+                result.IsRight.ShouldBeTrue();
+            }
+        }
+        catch (Exception) when (!ExpectsSuccess)
+        {
+            // The double aborted the command after capturing its parameters.
+        }
     }
 
     private static DateTime InstantOfKind(DateTimeKind kind) => kind switch
@@ -120,8 +139,26 @@ public abstract class OperationAuditStoreUtcTestsBase
         _ => DateTime.SpecifyKind(ExpectedUtc, DateTimeKind.Unspecified)
     };
 
-    private static void AssertBoundAsExpectedUtc(RecordingDbConnection connection, params string[] parameterNames)
+    /// <summary>
+    /// Gets a value indicating whether the store names its date parameters after the criteria. EF Core generates
+    /// its own parameter names, so for it the assertion covers every date value bound, by count.
+    /// </summary>
+    protected virtual bool BindsNamedParameters => true;
+
+    private void AssertBoundAsExpectedUtc(RecordingDbConnection connection, params string[] parameterNames)
     {
+        if (!BindsNamedParameters)
+        {
+            var dates = connection.BoundParameters.Where(p => p.Value is DateTime or DateTimeOffset).ToList();
+            dates.Count.ShouldBe(parameterNames.Length, "number of date parameters bound");
+            foreach (var parameter in dates)
+            {
+                AssertExpectedUtc(parameter.Name, parameter.Value);
+            }
+
+            return;
+        }
+
         foreach (var name in parameterNames)
         {
             var bound = connection.BoundParameters.Where(p => p.Name == name).ToList();
@@ -129,21 +166,26 @@ public abstract class OperationAuditStoreUtcTestsBase
 
             foreach (var parameter in bound)
             {
-                switch (parameter.Value)
-                {
-                    case DateTime dateTime:
-                        dateTime.Kind.ShouldBe(DateTimeKind.Utc, $"parameter {name}");
-                        dateTime.Ticks.ShouldBe(ExpectedUtc.Ticks, $"parameter {name}");
-                        break;
-                    case DateTimeOffset offset:
-                        offset.Offset.ShouldBe(TimeSpan.Zero, $"parameter {name}");
-                        offset.UtcTicks.ShouldBe(ExpectedUtc.Ticks, $"parameter {name}");
-                        break;
-                    default:
-                        Assert.Fail($"parameter {name} is not a date value: {parameter.Value?.GetType().Name ?? "null"}");
-                        break;
-                }
+                AssertExpectedUtc(name, parameter.Value);
             }
+        }
+    }
+
+    private static void AssertExpectedUtc(string name, object? value)
+    {
+        switch (value)
+        {
+            case DateTime dateTime:
+                dateTime.Kind.ShouldBe(DateTimeKind.Utc, $"parameter {name}");
+                dateTime.Ticks.ShouldBe(ExpectedUtc.Ticks, $"parameter {name}");
+                break;
+            case DateTimeOffset offset:
+                offset.Offset.ShouldBe(TimeSpan.Zero, $"parameter {name}");
+                offset.UtcTicks.ShouldBe(ExpectedUtc.Ticks, $"parameter {name}");
+                break;
+            default:
+                Assert.Fail($"parameter {name} is not a date value: {value?.GetType().Name ?? "null"}");
+                break;
         }
     }
 }

@@ -125,14 +125,17 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
             var query = _dbContext.Set<OperationAuditEntryEntity>()
                 .Where(e => e.UserId == userId);
 
-            if (fromUtc.HasValue)
+            var from = AsUtc(fromUtc);
+            var to = AsUtc(toUtc);
+
+            if (from.HasValue)
             {
-                query = query.Where(e => e.TimestampUtc >= fromUtc.Value);
+                query = query.Where(e => e.TimestampUtc >= from.Value);
             }
 
-            if (toUtc.HasValue)
+            if (to.HasValue)
             {
-                query = query.Where(e => e.TimestampUtc <= toUtc.Value);
+                query = query.Where(e => e.TimestampUtc <= to.Value);
             }
 
             var entities = await query
@@ -204,6 +207,8 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         IQueryable<OperationAuditEntryEntity> dbQuery,
         OperationAuditQuery query)
     {
+        var from = AsUtc(query.FromUtc);
+        var to = AsUtc(query.ToUtc);
         var filtered = dbQuery;
         filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.UserId), e => e.UserId == query.UserId);
         filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.TenantId), e => e.TenantId == query.TenantId);
@@ -212,8 +217,8 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.Action), e => e.Action == query.Action);
         filtered = WhereIf(filtered, query.Outcome.HasValue, e => e.Outcome == query.Outcome!.Value);
         filtered = WhereIf(filtered, !string.IsNullOrWhiteSpace(query.CorrelationId), e => e.CorrelationId == query.CorrelationId);
-        filtered = WhereIf(filtered, query.FromUtc.HasValue, e => e.TimestampUtc >= query.FromUtc!.Value);
-        filtered = WhereIf(filtered, query.ToUtc.HasValue, e => e.TimestampUtc <= query.ToUtc!.Value);
+        filtered = WhereIf(filtered, from.HasValue, e => e.TimestampUtc >= from!.Value);
+        filtered = WhereIf(filtered, to.HasValue, e => e.TimestampUtc <= to!.Value);
         return WhereIf(filtered, !string.IsNullOrWhiteSpace(query.IpAddress), e => e.IpAddress == query.IpAddress);
     }
 
@@ -275,8 +280,9 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         try
         {
             // Use ExecuteDeleteAsync for efficient bulk delete (EF Core 7+)
+            var cutoffUtc = AsUtc(olderThanUtc);
             var purgedCount = await _dbContext.Set<OperationAuditEntryEntity>()
-                .Where(e => e.TimestampUtc < olderThanUtc)
+                .Where(e => e.TimestampUtc < cutoffUtc)
                 .ExecuteDeleteAsync(cancellationToken);
 
             return Right(purgedCount);
@@ -325,9 +331,9 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         EntityId = entry.EntityId,
         Outcome = entry.Outcome,
         ErrorMessage = entry.ErrorMessage,
-        TimestampUtc = entry.TimestampUtc,
-        StartedAtUtc = entry.StartedAtUtc,
-        CompletedAtUtc = entry.CompletedAtUtc,
+        TimestampUtc = AsUtc(entry.TimestampUtc),
+        StartedAtUtc = entry.StartedAtUtc.ToUniversalTime(),
+        CompletedAtUtc = entry.CompletedAtUtc.ToUniversalTime(),
         IpAddress = entry.IpAddress,
         UserAgent = entry.UserAgent,
         RequestPayloadHash = entry.RequestPayloadHash,
@@ -350,7 +356,7 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         EntityId = entity.EntityId,
         Outcome = entity.Outcome,
         ErrorMessage = entity.ErrorMessage,
-        TimestampUtc = entity.TimestampUtc,
+        TimestampUtc = AsUtc(entity.TimestampUtc),
         StartedAtUtc = entity.StartedAtUtc,
         CompletedAtUtc = entity.CompletedAtUtc,
         IpAddress = entity.IpAddress,
@@ -360,6 +366,17 @@ public sealed class OperationAuditStoreEF : IOperationAuditStore
         ResponsePayload = entity.ResponsePayload,
         Metadata = DeserializeMetadata(entity.Metadata)
     };
+
+    // A Local value is converted and an Unspecified value (what SQL Server and MySQL return) is taken as UTC:
+    // the columns and properties are UTC by contract. Npgsql rejects a non-UTC DateTime for timestamptz.
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static DateTime? AsUtc(DateTime? value) => value.HasValue ? AsUtc(value.Value) : null;
 
     private static string? SerializeMetadata(IReadOnlyDictionary<string, object?> metadata)
     {

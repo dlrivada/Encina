@@ -313,4 +313,78 @@ public class OperationAuditStoreEFSqlServerIntegrationTests : IAsyncLifetime
         result.IsRight.ShouldBeTrue();
         result.IfRight(count => count.ShouldBe(0));
     }
+
+    #region Time zone handling
+
+    private static DateTime TruncatedUtcNow()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - (now.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public async Task RecordAsync_NonUtcKinds_StoreTheSameInstant(DateTimeKind kind)
+    {
+        var instant = TruncatedUtcNow();
+        var timestamp = kind == DateTimeKind.Local
+            ? instant.ToLocalTime()
+            : DateTime.SpecifyKind(instant, DateTimeKind.Unspecified);
+        var started = new DateTimeOffset(instant.AddMilliseconds(-100)).ToOffset(TimeSpan.FromHours(5));
+        var entry = CreateTestEntry(timestampUtc: timestamp) with { StartedAtUtc = started, CompletedAtUtc = started.AddMilliseconds(100) };
+
+        var recorded = await CreateStore().RecordAsync(entry);
+        var read = await CreateStore().GetByEntityAsync(entry.EntityType, entry.EntityId!);
+
+        recorded.IsRight.ShouldBeTrue();
+        read.IsRight.ShouldBeTrue();
+        read.IfRight(entries =>
+        {
+            var stored = entries.ShouldHaveSingleItem();
+            // The tolerance covers the column precision; a Kind or zone error is hours off.
+            stored.TimestampUtc.ShouldBe(instant, TimeSpan.FromMilliseconds(10));
+            stored.StartedAtUtc.UtcDateTime.ShouldBe(instant.AddMilliseconds(-100), TimeSpan.FromMilliseconds(10));
+            stored.CompletedAtUtc.UtcDateTime.ShouldBe(instant, TimeSpan.FromMilliseconds(10));
+        });
+    }
+
+    [Fact]
+    public async Task QueryAsync_LocalAndUnspecifiedBounds_FilterByInstant()
+    {
+        var now = TruncatedUtcNow();
+        var store = CreateStore();
+        await store.RecordAsync(CreateTestEntry(timestampUtc: now.AddHours(-3)));
+        var recent = CreateTestEntry(timestampUtc: now);
+        await store.RecordAsync(recent);
+
+        var query = new OperationAuditQuery
+        {
+            FromUtc = now.AddHours(-1).ToLocalTime(),
+            ToUtc = DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified)
+        };
+        var result = await CreateStore().QueryAsync(query);
+        var byUser = await CreateStore().GetByUserAsync("test-user", now.AddHours(-1).ToLocalTime(), DateTime.SpecifyKind(now.AddHours(1), DateTimeKind.Unspecified));
+
+        result.IsRight.ShouldBeTrue();
+        byUser.IsRight.ShouldBeTrue();
+        result.IfRight(page => page.Items.ShouldHaveSingleItem().Id.ShouldBe(recent.Id));
+        byUser.IfRight(entries => entries.ShouldHaveSingleItem().Id.ShouldBe(recent.Id));
+    }
+
+    [Fact]
+    public async Task PurgeEntriesAsync_LocalCutoff_PurgesByInstant()
+    {
+        var now = TruncatedUtcNow();
+        var store = CreateStore();
+        await store.RecordAsync(CreateTestEntry(timestampUtc: now.AddDays(-100)));
+        await store.RecordAsync(CreateTestEntry(timestampUtc: now));
+
+        var result = await CreateStore().PurgeEntriesAsync(now.AddDays(-30).ToLocalTime());
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(count => count.ShouldBe(1));
+    }
+
+    #endregion
 }

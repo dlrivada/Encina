@@ -10,6 +10,10 @@ namespace Encina.UnitTests.Dapper.MySQL.Auditing;
 /// Proves <see cref="OperationAuditStoreDapper"/> binds only UTC instants to the driver, and reads MySQL
 /// <c>DATETIME</c> values (which carry no zone) back as UTC, whatever the machine's time zone.
 /// </summary>
+/// <remarks>
+/// On a UTC runner a Local value equals its UTC value, so the read test alone cannot tell
+/// <c>SpecifyKind(..., Utc)</c> from the local-offset default; that difference shows only on a non-UTC machine.
+/// </remarks>
 public sealed class OperationAuditStoreDapperUtcTests : OperationAuditStoreUtcTestsBase
 {
     /// <inheritdoc/>
