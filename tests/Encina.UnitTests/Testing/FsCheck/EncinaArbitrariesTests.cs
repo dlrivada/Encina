@@ -27,7 +27,7 @@ public class EncinaArbitrariesTests
         var gen = EncinaArbitraries.RequestIdentity().Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 200).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 200, size: 10).ToList();
 
         // Assert
         samples.ShouldContain(identity => identity.Kind == IdentityKind.Anonymous);
@@ -56,7 +56,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => !string.IsNullOrEmpty(e.Message));
@@ -70,7 +70,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => e.Exception.IsSome);
@@ -94,7 +94,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(ctx => !string.IsNullOrEmpty(ctx.CorrelationId));
@@ -126,7 +126,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 100).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 100, size: 10).ToList();
 
         // Assert
         samples.Any(e => e.IsLeft).ShouldBeTrue("Should generate at least one Left");
@@ -141,7 +141,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => e.IsRight);
@@ -155,7 +155,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(e => e.IsLeft);
@@ -180,7 +180,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => m.Id != Guid.Empty);
@@ -196,7 +196,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => !m.IsProcessed);
@@ -211,7 +211,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => m.RetryCount > 0);
@@ -237,7 +237,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => !string.IsNullOrEmpty(m.MessageId));
@@ -263,7 +263,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(s => s.SagaId != Guid.Empty);
@@ -297,7 +297,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => m.Id != Guid.Empty);
@@ -313,7 +313,7 @@ public class EncinaArbitrariesTests
         var gen = arb.Generator;
 
         // Act
-        var samples = Gen.Sample(gen, 10, 50).ToList();
+        var samples = Gen.Sample(gen, numberOfSamples: 50, size: 10).ToList();
 
         // Assert
         samples.ShouldAllBe(m => m.IsRecurring);
@@ -338,8 +338,8 @@ public class EncinaArbitrariesTests
         var errorArb = EncinaArbitraries.EncinaError();
         var contextArb = EncinaArbitraries.RequestContext();
 
-        var errorSamples = Gen.Sample(errorArb.Generator, 10, 10).ToList();
-        var contextSamples = Gen.Sample(contextArb.Generator, 10, 10).ToList();
+        var errorSamples = Gen.Sample(errorArb.Generator, numberOfSamples: 10, size: 10).ToList();
+        var contextSamples = Gen.Sample(contextArb.Generator, numberOfSamples: 10, size: 10).ToList();
 
         // Assert
         errorSamples.ShouldNotBeEmpty();
