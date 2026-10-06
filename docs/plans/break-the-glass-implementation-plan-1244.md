@@ -567,9 +567,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `SecurityBreakTheGlass = (9700, 9749)` (free range 9700-9999 per AGENTS.md §7; no other plan claims 97xx); add the field to `src/Encina/PublicAPI.Unshipped.txt`.
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `SecurityBreakTheGlass = (9750, 9799)` (reserved; see `docs/architecture/adr/index.md`); add the field to `src/Encina/PublicAPI.Unshipped.txt`.
 2. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: add `Encina.Security.BreakTheGlass` to `AssemblyRanges`.
-3. `Diagnostics/BreakTheGlassLogMessages.cs` (`[LoggerMessage]`, EventIds 9700-9714 packed): Opened, OpenRefused (reason code), OpenAuditFailed, AccessGranted (request type, gate), AccessAuditFailed, AccessNotEligible, Revoked, Reviewed (outcome), SelfReviewRefused, ExpirySweepCompleted (count), ExpirySweepFailed (error code), ExpiryRecorded, NotificationFailed (error code), InMemoryStoreInUse, StartupValidationFailed. XML doc `Event IDs: 9700-9714 (see EventIdRanges.SecurityBreakTheGlass)`.
+3. `Diagnostics/BreakTheGlassLogMessages.cs` (`[LoggerMessage]`, EventIds 9750-9764 packed): Opened, OpenRefused (reason code), OpenAuditFailed, AccessGranted (request type, gate), AccessAuditFailed, AccessNotEligible, Revoked, Reviewed (outcome), SelfReviewRefused, ExpirySweepCompleted (count), ExpirySweepFailed (error code), ExpiryRecorded, NotificationFailed (error code), InMemoryStoreInUse, StartupValidationFailed. XML doc `Event IDs: 9750-9764 (see EventIdRanges.SecurityBreakTheGlass)`.
 4. `Diagnostics/BreakTheGlassDiagnostics.cs`: `ActivitySource("Encina.Security.BreakTheGlass")`, spans `encina.break_glass.open`, `encina.break_glass.access`, `encina.break_glass.review`, `encina.break_glass.expiry_sweep`; tags `encina.tenant_id`, `encina.break_glass.scope`, `encina.break_glass.outcome`, `encina.break_glass.gate`.
 5. `Meter("Encina.Security.BreakTheGlass")`: `Counter<long>` `encina.break_glass.opened` (tenant, scope, outcome), `encina.break_glass.accesses` (tenant, scope, gate), `encina.break_glass.reviewed` (tenant, outcome), `encina.break_glass.expired` (tenant), `encina.break_glass.audit_failures` (tenant, action); `ObservableGauge<long>` `encina.break_glass.review_queue_depth` is **not** added (it would query the store per scrape).
 
@@ -582,12 +582,12 @@ REFERENCE FILES:
 You are implementing Phase 7 of issue #1244: observability for break-the-glass.
 
 CONTEXT:
-- EventId registry: src/Encina/Diagnostics/EventIdRanges.cs (ADR-021); free range 9700-9999.
+- EventId registry: src/Encina/Diagnostics/EventIdRanges.cs (ADR-021); 9750-9799 reserved.
 - Allocation test: tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs (AssemblyRanges map).
 - Reference diagnostics: src/Encina.Security.Audit/Diagnostics/ReadAudit{ActivitySource,Meter,Log}.cs.
 
 TASK:
-Register SecurityBreakTheGlass = (9700, 9749), write BreakTheGlassLogMessages (9700-9714, packed), the
+Register SecurityBreakTheGlass = (9750, 9799), write BreakTheGlassLogMessages (9750-9764, packed), the
 ActivitySource and Meter listed in the Phase 7 tasks, and call them from the service, gate and sweeper.
 
 KEY RULES:
@@ -751,7 +751,7 @@ REFERENCE FILES:
 | `Encina.Security.Audit` | 5000-5099 | Existing (`SecurityAudit`) |
 | `Encina.Security.ABAC` | 9000-9099 | Existing; gate integration reuses this range for its one new message |
 | `Encina.AspNetCore` | 200-249 | Existing; `AuthorizationElevated` message added inside it |
-| **`Encina.Security.BreakTheGlass`** | **9700-9749** | **New (`SecurityBreakTheGlass`); 9700-9714 used, packed** |
+| **`Encina.Security.BreakTheGlass`** | **9750-9799** | **New (`SecurityBreakTheGlass`); 9750-9764 used, packed** |
 
 ### Estimated File Count
 
@@ -792,7 +792,7 @@ Phase 3: the three gates consult the elevation gate on definite denials only.
 Phase 4: options, validators, AddEncinaBreakTheGlass, expiry sweeper, health check.
 Phase 5: BreakTheGlassStore{ADO,Dapper,EF,MongoDB} on the 10 providers + UseBreakTheGlassStore flags.
 Phase 6: tenancy, read-audit linkage, audit actions, notifications, #751 hook.
-Phase 7: EventIds 9700-9749, ActivitySource and Meter "Encina.Security.BreakTheGlass".
+Phase 7: EventIds 9750-9799, ActivitySource and Meter "Encina.Security.BreakTheGlass".
 Phase 8: unit, guard, contract, property (no access after expiry), integration on 10 providers; load and
          benchmark .md justifications; coverage manifest.
 Phase 9: XML docs, README, feature page, ADR, changelog fragment, INVENTORY/ROADMAP; Release build clean.
@@ -825,7 +825,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | The effective-elevation lookup must see a revocation or an expiry at once; a cache would extend access past the time box. The lookup runs only on a definite denial of an eligible request type, so it is not a hot read |
 | 2 | OpenTelemetry | ✅ Phase 7 | `ActivitySource` and `Meter` "Encina.Security.BreakTheGlass"; spans for open, access, review and sweep; counters with tenant, scope, outcome and gate tags; no subject or user id (REQ-062) |
-| 3 | Structured Logging | ✅ Phase 7 | `[LoggerMessage]` EventIds 9700-9714 in the new `SecurityBreakTheGlass` range 9700-9749 registered in `EventIdRanges.cs` (ADR-021) |
+| 3 | Structured Logging | ✅ Phase 7 | `[LoggerMessage]` EventIds 9750-9764 in the new `SecurityBreakTheGlass` range 9750-9799 registered in `EventIdRanges.cs` (ADR-021) |
 | 4 | Health Checks | ✅ Phase 4 | `BreakTheGlassHealthCheck` probes the new store and the sweeper's last cycle. Differs from the issue's N/A because Design Choice 2 adds a store; becomes N/A if the maintainer chooses the audit-derived option |
 | 5 | Validation | ✅ Phase 2 | `BreakTheGlassRequestValidator` (justification mandatory and bounded, duration capped, scope declared), `BreakTheGlassOptionsValidator` with `ValidateOnStart`, start-up check of eligible request types |
 | 6 | Resilience | ❌ N/A | No external system; store calls return `Left` and the gate fails closed; retrying an authorization decision would delay the denial without changing it, and the provider's database circuit breaker already applies |

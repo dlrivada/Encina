@@ -199,7 +199,7 @@ The DSR service never filters by tenant (the DSR counterpart of #1315, closed fo
 
 - We recommend A, and we recommend moving #1197 into v0.15.0 next to #1255, because #1255 depends on this shape and both are P0.
 - Overlap with #814 is file-level only: #814 changes `DSRRequestDenied` and `DenyRequestAsync`; #1197 changes `DSRRequestSubmitted` and `SubmitRequestAsync`. Neither changes the other's event.
-- EventIds: #814 takes 8311-8312; this plan takes 8313-8316 (DSR) and 8269-8270 (Consent); #1937 keeps 8304-8309 and 8317-8319. If #1937 needs more than nine, it registers a second DSR range rather than reusing these.
+- EventIds: #814 takes 8311-8312; this plan takes 8313-8316 (DSR) and 8275-8276 (Consent, #811 owns 8269-8274); #1937 keeps 8304-8309 and 8317-8319. If #1937 needs more than nine, it registers a second DSR range rather than reusing these.
 - #1937 instruments `SubmitRequestAsync` with `StartAggregateCommand("Submit")`. Whichever lands second adds to the other's activity: if #1197 lands first it starts that activity itself (Phase 7).
 
 </details>
@@ -568,8 +568,8 @@ REFERENCE FILES:
    - counter `consent.represented_acts.total` with tags `consent.operation`, `consent.representation_authority`
    - called by the four commands changed in Phase 2
 2. **Create** `src/Encina.Compliance.Consent/Diagnostics/ConsentRepresentationLogMessages.cs` — `internal static partial class` with `[LoggerMessage]`:
-   - `8269` `ConsentActRecordedByRepresentative(string operation, string authority)` — Information
-   - `8270` `ConsentRepresentationInvalid(string operation, string reasonCode)` — Warning
+   - `8275` `ConsentActRecordedByRepresentative(string operation, string authority)` — Information
+   - `8276` `ConsentRepresentationInvalid(string operation, string reasonCode)` — Warning
 3. **Modify** `src/Encina.Compliance.DataSubjectRights/Diagnostics/DataSubjectRightsDiagnostics.cs`:
    - tags `dsr.represented` (bool), `dsr.representation_authority`, `dsr.subject_status_change` (`access_preferences`, `deceased`, `deceased_revoked`), `dsr.tenant_id` (activity only; reuse #814's constant if it landed)
    - counter `dsr.requests.represented.total` (tags `dsr.right_type`, `dsr.representation_authority`)
@@ -582,7 +582,7 @@ REFERENCE FILES:
    - `8315` `DataSubjectStatusChanged(string change)` — Information
    - `8316` `DataSubjectStatusTransitionRejected(string change)` — Warning
 5. No new EventId range: Consent stays in `ComplianceConsent` (8200-8299), DSR in `ComplianceDSR` (8300-8349); both assemblies are already mapped in `EncinaEventIdAllocationTests.cs:63,66`
-6. XML docs naming the ranges (`/// Event IDs: 8269-8270 (see EventIdRanges.ComplianceConsent)`, `/// Event IDs: 8313-8316 (see EventIdRanges.ComplianceDSR)`)
+6. XML docs naming the ranges (`/// Event IDs: 8275-8276 (see EventIdRanges.ComplianceConsent)`, `/// Event IDs: 8313-8316 (see EventIdRanges.ComplianceDSR)`) and note that #811 owns 8269-8274
 
 </details>
 
@@ -600,7 +600,7 @@ DataSubjectRightsDiagnostics has StartAggregateCommand (line 164) that #1937 wir
 TASK:
 1. ConsentDiagnostics: StartConsentCommand(operation) span "Consent.Command"; tags consent.represented,
    consent.representation_authority, consent.tenant_id (activity only); counter consent.represented_acts.total.
-2. ConsentRepresentationLogMessages ([LoggerMessage] source generator): EventIds 8269 and 8270.
+2. ConsentRepresentationLogMessages ([LoggerMessage] source generator): EventIds 8275 and 8276.
 3. DataSubjectRightsDiagnostics: representation and status-change tags; counters dsr.requests.represented.total and
    dsr.subject_status.changes.total; Submit and status commands start StartAggregateCommand.
 4. DSRLogMessages: EventIds 8313-8316 ([LoggerMessage]).
@@ -659,7 +659,7 @@ REFERENCE FILES:
 CONTEXT:
 Issue #1197, Phases 1-7 are implemented: DataSubjectRepresentation in Encina.Compliance.GDPR; representation on
 ConsentGranted/Withdrawn/Renewed/ReconsentProvided and DSRRequestSubmitted; DataSubjectStatusAggregate with its
-projection and service; diagnostics with EventIds 8269-8270 and 8313-8316. Tests follow AGENTS.md §9: per-flag
+projection and service; diagnostics with EventIds 8275-8276 and 8313-8316. Tests follow AGENTS.md §9: per-flag
 coverage from .github/coverage-manifest/{Package}.json, Shouldly via Encina.Testing.Shouldly, real code executed
 (no reflection-only tests), Marten integration tests through MartenFixture.
 
@@ -827,7 +827,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.Consent` | 8200-8299 (`EventIdRanges.ComplianceConsent`, `EventIdRanges.cs:313`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 (`LoggerMessage.Define`). This plan takes **8269-8270** with the `[LoggerMessage]` source generator in a new partial class |
+| `Encina.Compliance.Consent` | 8200-8299 (`EventIdRanges.ComplianceConsent`, `EventIdRanges.cs:313`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 (`LoggerMessage.Define`). This plan takes **8275-8276** with the `[LoggerMessage]` source generator in a new partial class; #811 owns 8269-8274 |
 | `Encina.Compliance.DataSubjectRights` | 8300-8349 (`EventIdRanges.ComplianceDSR`, `EventIdRanges.cs:316`) | Used: 8300-8303, 8310, 8320-8349; #814 takes 8311-8312. This plan takes **8313-8316**. Left for #1937: 8304-8309, 8317-8319 (nine). If more are needed, register a second DSR range from the free 5450-6999 block and map it in `AssemblyRanges` |
 | `Encina.Compliance.GDPR` | 8100-8199 | Not used: the shared types log nothing |
 
@@ -876,7 +876,7 @@ Phase 4: DataSubjectStatusAggregate (Opened, AccessPreferencesRecorded, Deceased
 Phase 5: DI in AddEncinaDataSubjectRights and AddDSRRequestAggregates; ValidateOnBuild test.
 Phase 6: Tenant scoping (fail closed), audit via events, structural validation; ModuleId carried.
 Phase 7: Consent.Command span and consent.represented_acts.total; dsr.requests.represented.total and
-         dsr.subject_status.changes.total; EventIds 8269-8270 (Consent) and 8313-8316 (DSR).
+         dsr.subject_status.changes.total; EventIds 8275-8276 (Consent) and 8313-8316 (DSR).
 Phase 8: Unit, guard, contract (IRepresentedAct), property (round-trip, id determinism), Marten integration
          (round-trip, old JSON, two tenants); S15 rules skeleton compiled and skipped with a REQ-011 reason;
          load/benchmark justifications updated.
@@ -915,7 +915,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | The status record is read rarely (per request handling) and a stale cached death or prohibition would be worse than a query; Consent and DSR read-model caching are unchanged (the DSR cache keys gain the tenant in the prerequisite bug) |
 | 2 | OpenTelemetry | ✅ Phase 7 | `Consent.Command` span and `DSR.AggregateCommand` spans with representation and status-change tags and the tenant attribute; counters `consent.represented_acts.total`, `dsr.requests.represented.total`, `dsr.subject_status.changes.total` |
-| 3 | Structured Logging | ✅ Phase 7 | `[LoggerMessage]` EventIds 8269-8270 (`ComplianceConsent`) and 8313-8316 (`ComplianceDSR`), no identifiers in messages |
+| 3 | Structured Logging | ✅ Phase 7 | `[LoggerMessage]` EventIds 8275-8276 (`ComplianceConsent`) and 8313-8316 (`ComplianceDSR`), no identifiers in messages |
 | 4 | Health Checks | ❌ N/A | No new external dependency: the status record uses the Marten store the existing DSR health check already covers (`Health/DataSubjectRightsHealthCheck.cs`) |
 | 5 | Validation | ✅ Phase 6 | Structural validation of representation, authorised requesters and prohibition at the service boundary, returning `Left`; no new options |
 | 6 | Resilience | ❌ N/A | No call to an external system; Marten calls follow the existing services' error handling |

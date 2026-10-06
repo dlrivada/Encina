@@ -627,12 +627,11 @@ REFERENCE FILES:
 You are implementing Phase 9 of issue #842 in Encina.Compliance.AIAct.
 
 CONTEXT:
-- The package's range is EventIdRanges.ComplianceAIAct = (9500, 9599); 9500-9512 are used by AIActLogMessages.cs and
-  #847 allocates the next block. Read both files to find the last used id.
+- The package's range is EventIdRanges.ComplianceAIAct = (9500, 9599); 9500-9512 are used by AIActLogMessages.cs, #847 uses 9513-9529, and #842 uses 9530-9547.
 
 TASK:
 Extend AIActDiagnostics with record-keeping activities and instruments, and create AIActRecordKeepingLogMessages.cs with
-[LoggerMessage] methods whose EventIds start at the first free id after #847's block, packed with no gaps.
+[LoggerMessage] methods in EventIds 9530-9547, packed with no gaps.
 
 KEY RULES:
 - ADR-021: never use an id outside ComplianceAIAct; no sparse allocation; run the architecture tests.
@@ -787,8 +786,8 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Compliance.AIAct` (#415) | 9500-9512 | `AIActLogMessages.cs:25`-`157`, in use |
-| `Encina.Compliance.AIAct` (#847) | next block inside 9500-9599 | #847's issue text says 9540-9570; packing rule (ADR-021) asks it to start at 9513 |
-| **`Encina.Compliance.AIAct` (#842)** | **~18 ids right after #847's last id** | **No new range; if 9599 would be exceeded, register a new range from the free 9700-9999 block first** |
+| `Encina.Compliance.AIAct` (#847) | 9513-9529 | #847 is built from Phase 1 to Phase 6 of its plan |
+| **`Encina.Compliance.AIAct` (#842)** | **9530-9547** | **No new range; reserved per plan** |
 
 ### File Count Estimate
 
@@ -837,7 +836,7 @@ Phase 5: CryptoShredAILogRetentionPolicy (destroy period keys older than the cut
 Phase 6: JsonLinesConformityLogExporter (stream, SHA-256 manifest, optional attestation, registry/oversight events).
 Phase 7: AddAIActRecordKeeping(), health check, startup check for crypto-shredding, csproj references.
 Phase 8: TenantId/ModuleId propagation and filtering; audit of exports and disposals in IOperationAuditStore/IReadAuditStore.
-Phase 9: Activities, counters, histogram; [LoggerMessage] EventIds right after #847's block in ComplianceAIAct (9500-9599).
+Phase 9: Activities, counters, histogram; [LoggerMessage] EventIds 9530-9547 in ComplianceAIAct.
 Phase 10: Unit, guard, contract, property, integration (MartenCollection), benchmark; load .md; coverage manifest targets.
 Phase 11: XML docs, changelog fragment, README, feature page, INVENTORY, ADR, PublicAPI, verification.
 
@@ -887,7 +886,7 @@ REFERENCE FILES:
 | Prerequisite | State | Why |
 |---|---|---|
 | [#847](https://github.com/dlrivada/Encina/issues/847) AIAct to Marten event sourcing | Open | Marten references, `AddAIActAggregates()`, system identity, `IAISystemService` for exports |
-| Comment on #847: drop `AISystemComplianceEvaluated` from `AISystemAggregate` (per-request outcomes go to this log) and pack its EventIds from 9513 | To post (orchestrator) | Avoids an unbounded registry stream and a sparse EventId allocation |
+| Comment on #847: drop `AISystemComplianceEvaluated` from `AISystemAggregate` (per-request outcomes go to this log) and reserve EventIds 9513-9529 | To post (orchestrator) | Avoids an unbounded registry stream and a sparse EventId allocation |
 | `Encina.Marten.GDPR` crypto-shredding registered by the application | Available | Required by Design Choice 6; Phase 7 checks it at startup |
 
 ### Recommended (Not Blocking)
