@@ -414,7 +414,8 @@ function Test-Decisions($L, $Section, [int]$ChoiceCount) {
     for ($i = $Section.Index + 1; $i -le $Section.End; $i++) {
         if ($L[$i].Kind -ne 'text') { continue }
         $t = $L[$i].Text
-        if ($t -match '^\s*(?:[-*+]\s+|\|\s*)?(?:\*\*)?(?:D|Design Choice\s+|Decision\s+)?(\d+)\b') {
+        # The number has 1-3 digits, so a wrapped line that starts with a date (2026-...) is not an entry.
+        if ($t -match '^\s*(?:#{1,6}\s+|[-*+]\s+|\|\s*)?(?:\*\*)?(?:D|Design Choice\s+|Decision\s+)?(\d{1,3})\b') {
             $current = [int]$Matches[1]
             if (-not $entries.ContainsKey($current)) { $entries[$current] = '' }
         }
@@ -422,7 +423,7 @@ function Test-Decisions($L, $Section, [int]$ChoiceCount) {
     }
     $missing = @(1..$ChoiceCount | Where-Object { -not ($entries.ContainsKey($_) -and $entries[$_] -match '\b\d{4}-\d{2}-\d{2}\b') })
     if ($ChoiceCount -gt 0 -and $missing.Count -gt 0) {
-        $gaps.Add((New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated (yyyy-MM-dd) entry for Design Choice(s) $($missing -join ', ') of $ChoiceCount; the maintainer answers every choice, numbered like the choices"))
+        $gaps.Add((New-Gap 'decisions' $Section.Line "'$($Section.Name)' has no dated (yyyy-MM-dd) entry for Design Choice(s) $($missing -join ', ') of $ChoiceCount; the maintainer answers every choice, numbered like the choices. Accepted entry starts (1-3 digit number, date anywhere in the entry): '1. (date) ...', '- 1 ...', '**D1** (date): ...', 'D1 ...', 'Design Choice 1 ...', '### 1.', '### D1', '| 1 | ... |'"))
     }
     for ($i = 0; $i -lt $L.Count; $i++) {
         if ($L[$i].N -ge $Section.Line -and $i -le $Section.End) { continue }
@@ -529,9 +530,13 @@ function Test-Matrix($L, $Section) {
 
 # No separate "is gh authenticated" probe (gh auth status can fail on an invalid GITHUB_TOKEN while a
 # keyring account works): the real call decides, and a failure other than 404 skips with a notice.
+# In CI (the CI environment variable is set) an unreadable issue is a gap, never a silent skip.
 $script:GhMissingReported = $false
+$script:IssueSkipReason = ''
 function Get-IssueTitle([string]$Number) {
+    $script:IssueSkipReason = ''
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        $script:IssueSkipReason = 'gh is not installed'
         if (-not $script:GhMissingReported) {
             $script:GhMissingReported = $true
             Write-Host 'NOTICE gh is not installed: the issue check ([FEATURE] title) is skipped'
@@ -542,7 +547,8 @@ function Get-IssueTitle([string]$Number) {
     $out = (gh api "repos/dlrivada/Encina/issues/$Number" --jq .title 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -eq 0 -and $out -ne '') { return $out }
     if ($out -match '404|Not Found') { return '' }
-    Write-Host "NOTICE issue #$Number could not be read ($($out -replace '\s+', ' ')): the issue check is skipped for it"
+    $script:IssueSkipReason = ($out -replace '\s+', ' ')
+    Write-Host "NOTICE issue #$Number could not be read ($($script:IssueSkipReason)): the issue check is skipped for it"
     return $null
 }
 
@@ -550,7 +556,12 @@ function Test-Issue([string]$FileName) {
     if ($FileName -notmatch '-implementation-plan-(\d+)\.md$') { return @() }
     $n = $Matches[1]
     $title = Get-IssueTitle $n
-    if ($null -eq $title) { return @() }
+    if ($null -eq $title) {
+        if (-not [string]::IsNullOrEmpty($env:CI)) {
+            return @(New-Gap 'issue' 0 "issue #$n could not be read in CI ($($script:IssueSkipReason)); the [FEATURE] check cannot be skipped there")
+        }
+        return @()
+    }
     if ($title -eq '') {
         return @(New-Gap 'issue' 0 "issue #$n does not exist in dlrivada/Encina (the number in the file name must be the feature's issue)")
     }
@@ -619,6 +630,7 @@ function Invoke-SelfTest {
     $cases = @(
         # Draft = $true: the structural fixtures carry no decisions section, so they run in -Draft mode.
         @{ File = 'conforming-implementation-plan-1.md'; Fails = @() }
+        @{ File = 'conforming-wrapped-implementation-plan-1.md'; Fails = @() }
         @{ File = 'draft-pending-implementation-plan-1.md'; Fails = @(); Draft = $true }
         @{ File = 'draft-pending-implementation-plan-1.md'; Fails = @('decisions') }
         @{ File = 'fail-decisions-unanswered-implementation-plan-1.md'; Fails = @('decisions') }

@@ -4,6 +4,7 @@ name: Plan conformance
 # docs/engineering/prompts/implementation-plan-prompt.md, and the checker's self-test must pass.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'docs/plans/*-implementation-plan-*.md'
       - 'tools/ai/plans/**'
@@ -19,6 +20,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BASE_REF: origin/${{ github.base_ref }}
+      PR_DRAFT: ${{ github.event.pull_request.draft }}
     steps:
       - name: Checkout (full history for the diff against the base)
         uses: actions/checkout@v7
@@ -31,4 +33,10 @@ jobs:
 
       - name: Check the plans changed in this pull request
         shell: pwsh
-        run: ./tools/ai/plans/check-plan.ps1 -Changed -BaseRef $env:BASE_REF
+        # A draft pull request may still await the maintainer's decisions: -Draft skips only that check.
+        # A ready pull request always gets the full check (ready_for_review re-runs this job).
+        run: |
+          $extra = @()
+          if ($env:PR_DRAFT -eq 'true') { $extra += '-Draft' }
+          ./tools/ai/plans/check-plan.ps1 -Changed -BaseRef $env:BASE_REF @extra
+          exit $LASTEXITCODE
