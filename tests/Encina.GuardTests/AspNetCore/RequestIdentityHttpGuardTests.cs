@@ -82,6 +82,21 @@ public sealed class RequestIdentityHttpGuardTests
     }
 
     [Fact]
+    public async Task ResourceAuthorizer_NullArguments_Throw()
+    {
+        var service = Substitute.For<IAuthorizationService>();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        Should.Throw<ArgumentNullException>(() => new ResourceAuthorizer(null!, accessor)).ParamName.ShouldBe("authorizationService");
+        Should.Throw<ArgumentNullException>(() => new ResourceAuthorizer(service, null!)).ParamName.ShouldBe("requestContextAccessor");
+
+        var authorizer = new ResourceAuthorizer(service, accessor);
+        await Should.ThrowAsync<ArgumentNullException>(() => authorizer.AuthorizeAsync<object>(null!, "policy", CancellationToken.None));
+        await Should.ThrowAsync<ArgumentException>(() => authorizer.AuthorizeAsync(new object(), " ", CancellationToken.None));
+        accessor.RequestContext.Returns((IRequestContext?)null);
+        (await authorizer.AuthorizeAsync((object)new GuardRequest(), "policy", CancellationToken.None)).IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Registrations_NullArguments_Throw()
     {
         Should.Throw<ArgumentNullException>(() => ((IServiceCollection)null!).AddEncinaAspNetCore(_ => { })).ParamName.ShouldBe("services");
