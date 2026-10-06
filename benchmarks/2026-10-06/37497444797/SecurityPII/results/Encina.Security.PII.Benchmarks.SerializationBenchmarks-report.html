@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Security.PII.Benchmarks.SerializationBenchmarks-20261006-172410</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.79GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method            </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Serialize_Small</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>451.8 ns</td><td>0.93 ns</td><td>0.61 ns</td><td>1.00</td><td>0.00</td><td>0.0067</td><td>112 B</td><td>1.00</td>
+</tr><tr><td>Serialize_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,000.4 ns</td><td>3.65 ns</td><td>2.17 ns</td><td>2.21</td><td>0.01</td><td>0.0229</td><td>392 B</td><td>3.50</td>
+</tr><tr><td>Serialize_Large</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>2,207.8 ns</td><td>23.30 ns</td><td>15.41 ns</td><td>4.89</td><td>0.03</td><td>0.2251</td><td>3784 B</td><td>33.79</td>
+</tr><tr><td>SerializeRoundtrip_Small</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>996.0 ns</td><td>3.78 ns</td><td>2.50 ns</td><td>2.20</td><td>0.01</td><td>0.0134</td><td>232 B</td><td>2.07</td>
+</tr><tr><td>SerializeRoundtrip_Large</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>5,079.7 ns</td><td>103.61 ns</td><td>68.53 ns</td><td>11.24</td><td>0.15</td><td>0.4578</td><td>7688 B</td><td>68.64</td>
+</tr><tr><td>ParseAndModify_Small</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>1,792.8 ns</td><td>8.88 ns</td><td>5.87 ns</td><td>3.97</td><td>0.01</td><td>0.0496</td><td>840 B</td><td>7.50</td>
+</tr><tr><td>MaskObject_Small</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>4,742.6 ns</td><td>6.62 ns</td><td>4.38 ns</td><td>10.50</td><td>0.02</td><td>0.1144</td><td>2032 B</td><td>18.14</td>
+</tr><tr><td>MaskObject_Medium</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>MaskObject_Large</td><td>Job-YFEFPZ</td><td>10</td><td>Default</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>Serialize_Small</td><td>ShortRun</td><td>3</td><td>1</td><td>441.3 ns</td><td>85.76 ns</td><td>4.70 ns</td><td>1.00</td><td>0.01</td><td>0.0067</td><td>112 B</td><td>1.00</td>
+</tr><tr><td>Serialize_Medium</td><td>ShortRun</td><td>3</td><td>1</td><td>1,020.1 ns</td><td>72.84 ns</td><td>3.99 ns</td><td>2.31</td><td>0.02</td><td>0.0229</td><td>392 B</td><td>3.50</td>
+</tr><tr><td>Serialize_Large</td><td>ShortRun</td><td>3</td><td>1</td><td>2,226.6 ns</td><td>606.67 ns</td><td>33.25 ns</td><td>5.05</td><td>0.08</td><td>0.2251</td><td>3784 B</td><td>33.79</td>
+</tr><tr><td>SerializeRoundtrip_Small</td><td>ShortRun</td><td>3</td><td>1</td><td>981.4 ns</td><td>36.65 ns</td><td>2.01 ns</td><td>2.22</td><td>0.02</td><td>0.0134</td><td>232 B</td><td>2.07</td>
+</tr><tr><td>SerializeRoundtrip_Large</td><td>ShortRun</td><td>3</td><td>1</td><td>4,983.6 ns</td><td>429.95 ns</td><td>23.57 ns</td><td>11.29</td><td>0.11</td><td>0.4578</td><td>7688 B</td><td>68.64</td>
+</tr><tr><td>ParseAndModify_Small</td><td>ShortRun</td><td>3</td><td>1</td><td>1,785.5 ns</td><td>112.89 ns</td><td>6.19 ns</td><td>4.05</td><td>0.04</td><td>0.0496</td><td>840 B</td><td>7.50</td>
+</tr><tr><td>MaskObject_Small</td><td>ShortRun</td><td>3</td><td>1</td><td>4,690.5 ns</td><td>140.36 ns</td><td>7.69 ns</td><td>10.63</td><td>0.10</td><td>0.1144</td><td>2032 B</td><td>18.14</td>
+</tr><tr><td>MaskObject_Medium</td><td>ShortRun</td><td>3</td><td>1</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>MaskObject_Large</td><td>ShortRun</td><td>3</td><td>1</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

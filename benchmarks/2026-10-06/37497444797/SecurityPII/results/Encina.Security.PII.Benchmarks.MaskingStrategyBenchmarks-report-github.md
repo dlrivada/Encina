@@ -1,0 +1,39 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  Job-YFEFPZ : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+
+WarmupCount=3  
+
+```
+| Method              | Job        | IterationCount | LaunchCount | Mean      | Error     | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|-------------------- |----------- |--------------- |------------ |----------:|----------:|---------:|------:|--------:|-------:|----------:|------------:|
+| Email_Partial       | Job-YFEFPZ | 10             | Default     | 103.70 ns |  1.465 ns | 0.969 ns |  1.00 |    0.01 | 0.0134 |     224 B |        1.00 |
+| Phone_Partial       | Job-YFEFPZ | 10             | Default     | 428.61 ns |  2.817 ns | 1.863 ns |  4.13 |    0.04 | 0.0310 |     520 B |        2.32 |
+| CreditCard_Partial  | Job-YFEFPZ | 10             | Default     | 515.70 ns |  3.866 ns | 2.301 ns |  4.97 |    0.05 | 0.0324 |     544 B |        2.43 |
+| SSN_Partial         | Job-YFEFPZ | 10             | Default     | 423.73 ns |  5.887 ns | 3.894 ns |  4.09 |    0.05 | 0.0310 |     520 B |        2.32 |
+| Name_Partial        | Job-YFEFPZ | 10             | Default     | 192.19 ns |  1.542 ns | 1.020 ns |  1.85 |    0.02 | 0.0167 |     280 B |        1.25 |
+| Address_Partial     | Job-YFEFPZ | 10             | Default     | 128.55 ns |  1.559 ns | 1.031 ns |  1.24 |    0.01 | 0.0196 |     328 B |        1.46 |
+| DateOfBirth_Partial | Job-YFEFPZ | 10             | Default     | 244.07 ns |  7.471 ns | 4.942 ns |  2.35 |    0.05 | 0.0229 |     384 B |        1.71 |
+| IPAddress_Partial   | Job-YFEFPZ | 10             | Default     | 193.71 ns |  1.335 ns | 0.883 ns |  1.87 |    0.02 | 0.0157 |     264 B |        1.18 |
+| Custom_FullMasking  | Job-YFEFPZ | 10             | Default     |  66.85 ns |  0.312 ns | 0.186 ns |  0.64 |    0.01 | 0.0076 |     128 B |        0.57 |
+| Email_Short         | Job-YFEFPZ | 10             | Default     |  80.39 ns |  1.004 ns | 0.664 ns |  0.78 |    0.01 | 0.0076 |     128 B |        0.57 |
+| Email_Long          | Job-YFEFPZ | 10             | Default     | 116.47 ns |  2.438 ns | 1.451 ns |  1.12 |    0.02 | 0.0196 |     328 B |        1.46 |
+| RegexPattern        | Job-YFEFPZ | 10             | Default     | 641.86 ns |  3.550 ns | 2.113 ns |  6.19 |    0.06 | 0.0229 |     392 B |        1.75 |
+|                     |            |                |             |           |           |          |       |         |        |           |             |
+| Email_Partial       | ShortRun   | 3              | 1           | 105.89 ns | 13.177 ns | 0.722 ns |  1.00 |    0.01 | 0.0134 |     224 B |        1.00 |
+| Phone_Partial       | ShortRun   | 3              | 1           | 431.57 ns | 50.374 ns | 2.761 ns |  4.08 |    0.03 | 0.0310 |     520 B |        2.32 |
+| CreditCard_Partial  | ShortRun   | 3              | 1           | 512.58 ns | 75.692 ns | 4.149 ns |  4.84 |    0.04 | 0.0324 |     544 B |        2.43 |
+| SSN_Partial         | ShortRun   | 3              | 1           | 404.33 ns | 78.652 ns | 4.311 ns |  3.82 |    0.04 | 0.0310 |     520 B |        2.32 |
+| Name_Partial        | ShortRun   | 3              | 1           | 195.56 ns | 31.668 ns | 1.736 ns |  1.85 |    0.02 | 0.0167 |     280 B |        1.25 |
+| Address_Partial     | ShortRun   | 3              | 1           | 130.05 ns | 16.013 ns | 0.878 ns |  1.23 |    0.01 | 0.0196 |     328 B |        1.46 |
+| DateOfBirth_Partial | ShortRun   | 3              | 1           | 228.55 ns | 11.090 ns | 0.608 ns |  2.16 |    0.01 | 0.0229 |     384 B |        1.71 |
+| IPAddress_Partial   | ShortRun   | 3              | 1           | 189.26 ns |  7.397 ns | 0.405 ns |  1.79 |    0.01 | 0.0157 |     264 B |        1.18 |
+| Custom_FullMasking  | ShortRun   | 3              | 1           |  61.93 ns |  4.592 ns | 0.252 ns |  0.58 |    0.00 | 0.0076 |     128 B |        0.57 |
+| Email_Short         | ShortRun   | 3              | 1           |  84.90 ns |  2.576 ns | 0.141 ns |  0.80 |    0.00 | 0.0076 |     128 B |        0.57 |
+| Email_Long          | ShortRun   | 3              | 1           | 114.11 ns | 12.968 ns | 0.711 ns |  1.08 |    0.01 | 0.0196 |     328 B |        1.46 |
+| RegexPattern        | ShortRun   | 3              | 1           | 629.78 ns |  9.712 ns | 0.532 ns |  5.95 |    0.04 | 0.0229 |     392 B |        1.75 |
