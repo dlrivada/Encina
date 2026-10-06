@@ -40,7 +40,7 @@ public class HttpResponseDataExtensionsTests
     {
         // Arrange
         var error = EncinaErrors.Create(
-            code: "authorization.unauthenticated",
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
             message: "Authentication required");
 
         // Act
@@ -55,7 +55,7 @@ public class HttpResponseDataExtensionsTests
     {
         // Arrange
         var error = EncinaErrors.Create(
-            code: "authorization.insufficient_roles",
+            code: EncinaErrorCodes.AuthorizationForbidden,
             message: "Insufficient permissions");
 
         // Act
@@ -200,8 +200,11 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Theory]
-    [InlineData("authorization.policy_failed")]
-    [InlineData("authorization.role_required")]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
+    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData("encina.authorization.some_future_denial")]
     public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
     {
         // Arrange
