@@ -1,0 +1,34 @@
+name: Plan conformance
+
+# Structural gate for implementation plans (#1927): every plan changed in a pull request must follow
+# docs/engineering/prompts/implementation-plan-prompt.md, and the checker's self-test must pass.
+on:
+  pull_request:
+    paths:
+      - 'docs/plans/*-implementation-plan-*.md'
+      - 'tools/ai/plans/**'
+      - '.github/workflows/plan-conformance.yml'
+
+jobs:
+  plan-conformance:
+    name: Plan conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASE_REF: origin/${{ github.base_ref }}
+    steps:
+      - name: Checkout (full history for the diff against the base)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Self-test of the checker
+        shell: pwsh
+        run: ./tools/ai/plans/check-plan.ps1 -SelfTest
+
+      - name: Check the plans changed in this pull request
+        shell: pwsh
+        run: ./tools/ai/plans/check-plan.ps1 -Changed -BaseRef $env:BASE_REF
