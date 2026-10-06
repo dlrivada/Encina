@@ -473,6 +473,29 @@ public sealed class AuditedReadOnlyRepositoryTests
         h.LoggedEntries[0].UserId.ShouldBe("user-99");
     }
 
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task ExcludeSystemAccess_ADeclaredServiceScope_IsSystemAccess(bool excludeSystemAccess, int expectedEntries)
+    {
+        // The service identity comes from a declared test service opened with RunAsServiceAsync.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var h = new Harness(samplingRate: 1.0);
+        h.Options.ExcludeSystemAccess = excludeSystemAccess;
+        h.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<ReadOnlyAuditedTestEntity>().AsReadOnly());
+
+        var outcome = await host.Factory.RunAsServiceAsync(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job, async (context, ct) =>
+        {
+            context.Identity.Kind.ShouldBe(IdentityKind.Service);
+            h.RequestContext.Identity.Returns(context.Identity);
+            await h.Create().GetAllAsync(ct);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        h.LoggedEntries.Count.ShouldBe(expectedEntries);
+    }
+
     [Fact]
     public async Task UnregisteredEntity_DoesNotAudit()
     {

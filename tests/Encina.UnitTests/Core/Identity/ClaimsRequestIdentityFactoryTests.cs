@@ -47,7 +47,9 @@ public sealed class ClaimsRequestIdentityFactoryTests
 
         identity.Kind.ShouldBe(IdentityKind.User);
         identity.UserId.ShouldBe("alice");
-        identity.Principal.ShouldBeSameAs(principal);
+        // The identity keeps a copy of the authenticated identities, never the caller's object.
+        identity.Principal.ShouldNotBeSameAs(principal);
+        identity.Principal!.FindFirst("sub")!.Value.ShouldBe("alice");
     }
 
     [Fact]

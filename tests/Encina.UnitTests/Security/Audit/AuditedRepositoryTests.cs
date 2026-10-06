@@ -584,6 +584,29 @@ public sealed class AuditedRepositoryTests
         harness.LoggedEntries[0].UserId.ShouldBe("user-42");
     }
 
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task ExcludeSystemAccess_ADeclaredServiceScope_IsSystemAccess(bool excludeSystemAccess, int expectedEntries)
+    {
+        // The service identity comes from a declared test service opened with RunAsServiceAsync.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var harness = new Harness(samplingRate: 1.0);
+        harness.Options.ExcludeSystemAccess = excludeSystemAccess;
+        harness.Inner.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<AuditedTestEntity>().AsReadOnly());
+
+        var outcome = await host.Factory.RunAsServiceAsync(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job, async (context, ct) =>
+        {
+            context.Identity.Kind.ShouldBe(IdentityKind.Service);
+            harness.RequestContext.Identity.Returns(context.Identity);
+            await harness.CreateRepository().GetAllAsync(ct);
+        });
+
+        outcome.IsRight.ShouldBeTrue();
+        harness.LoggedEntries.Count.ShouldBe(expectedEntries);
+    }
+
     [Fact]
     public async Task UnregisteredEntityType_NoSamplingRate_DoesNotAudit()
     {

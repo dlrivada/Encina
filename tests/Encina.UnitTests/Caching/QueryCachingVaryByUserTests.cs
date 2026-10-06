@@ -87,4 +87,48 @@ public sealed class QueryCachingVaryByUserTests
         bob.ShouldBeSuccess().ShouldBe("bob-data");
         _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 3512);
     }
+
+    [Fact]
+    public async Task ADeclaredServiceScope_BypassesTheCache_AndLogsWhyWithTheKindOnly()
+    {
+        // The service identity comes from a declared test service opened with RunAsServiceAsync.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        var cacheProvider = Substitute.For<ICacheProvider>();
+        var sut = CreateBehavior(cacheProvider);
+        var calls = 0;
+
+        var outcome = await host.Factory.RunAsServiceAsync(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job, async (context, ct) =>
+            await sut.Handle(
+                new PerUserQuery("q"),
+                context,
+                () =>
+                {
+                    calls++;
+                    return ValueTask.FromResult(Right<EncinaError, string>("fresh"));
+                },
+                ct));
+
+        outcome.ShouldBeSuccess().ShouldBe("fresh");
+        calls.ShouldBe(1);
+        cacheProvider.ReceivedCalls().ShouldBeEmpty();
+        var record = _logger.Collector.GetSnapshot().Single(r => r.Id.Id == 3512);
+        record.Message.ShouldContain("Service");
+        record.Message.ShouldNotContain(global::Encina.UnitTests.Core.Identity.ScopeTestHost.Job);
+    }
+
+    [Fact]
+    public async Task ABuiltServiceIdentity_BypassesTheCache()
+    {
+        var cacheProvider = Substitute.For<ICacheProvider>();
+        var sut = CreateBehavior(cacheProvider);
+
+        var result = await sut.Handle(
+            new PerUserQuery("q"),
+            TestRequestContext.For(TestIdentity.Service("nightly-report", roles: ["reporter"])),
+            () => ValueTask.FromResult(Right<EncinaError, string>("fresh")),
+            CancellationToken.None);
+
+        result.ShouldBeSuccess().ShouldBe("fresh");
+        cacheProvider.ReceivedCalls().ShouldBeEmpty();
+    }
 }

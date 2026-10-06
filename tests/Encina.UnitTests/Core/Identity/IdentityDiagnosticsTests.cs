@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Encina.Testing;
 using Encina.Testing.Identity;
 
 namespace Encina.UnitTests.Core.Identity;
@@ -33,17 +34,38 @@ public sealed class IdentityDiagnosticsTests
     {
         var services = new ServiceCollection();
         services.AddEncina();
+        services.AddEncinaServiceIdentity(ScopeTestHost.Job);
         services.AddScoped<IRequestHandler<Probe, string?>, ProbeHandler>();
         services.AddScoped<IStreamRequestHandler<Count, int>, CountHandler>();
         return services.BuildServiceProvider();
     }
 
-    private static IRequestContext User(string id) => TestRequestContext.For(TestIdentity.User(id));
+    /// <summary>
+    /// Runs <paramref name="dispatch"/> with no identity, inside a user scope or inside a service
+    /// scope opened through the factory (an identity is never bound by an explicit context alone).
+    /// </summary>
+    private static async Task RunAs(ServiceProvider provider, string expected, string userId, Func<Task> dispatch)
+    {
+        var scopes = provider.GetRequiredService<IRequestContextScopeFactory>();
+        switch (expected)
+        {
+            case "user":
+                (await scopes.RunAsPrincipalAsync(TestIdentity.Principal(userId), (_, _) => dispatch())).ShouldBeSuccess();
+                break;
+            case "service":
+                (await scopes.RunAsServiceAsync(ScopeTestHost.Job, (_, _) => dispatch())).ShouldBeSuccess();
+                break;
+            default:
+                await dispatch();
+                break;
+        }
+    }
 
     [Theory]
-    [InlineData(false, "anonymous")]
-    [InlineData(true, "user")]
-    public async Task Send_TagsTheDispatchActivityWithTheIdentityKind(bool authenticated, string expected)
+    [InlineData("anonymous")]
+    [InlineData("user")]
+    [InlineData("service")]
+    public async Task Send_TagsTheDispatchActivityWithTheIdentityKind(string expected)
     {
         var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
         using var listener = new ActivityListener
@@ -66,19 +88,19 @@ public sealed class IdentityDiagnosticsTests
         };
         ActivitySource.AddActivityListener(listener);
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
-        var context = authenticated ? User("sentinel-tag-user") : RequestContext.CreateForTest();
 
-        (await provider.GetRequiredService<IEncina>().Send(new Probe(), context)).IsRight.ShouldBeTrue();
+        await RunAs(provider, expected, "sentinel-tag-user", async () =>
+            (await provider.GetRequiredService<IEncina>().Send(new Probe())).IsRight.ShouldBeTrue());
 
         tags.ShouldContain(expected);
         tags.ShouldNotContain("sentinel-tag-user");
     }
 
     [Theory]
-    [InlineData(false, "anonymous")]
-    [InlineData(true, "user")]
-    public async Task Stream_TagsTheStreamActivityWithTheIdentityKind(bool authenticated, string expected)
+    [InlineData("anonymous")]
+    [InlineData("user")]
+    [InlineData("service")]
+    public async Task Stream_TagsTheStreamActivityWithTheIdentityKind(string expected)
     {
         var tags = new System.Collections.Concurrent.ConcurrentBag<string?>();
         using var listener = new ActivityListener
@@ -95,13 +117,14 @@ public sealed class IdentityDiagnosticsTests
         };
         ActivitySource.AddActivityListener(listener);
         await using var provider = BuildProvider();
-        provider.GetRequiredService<IRequestContextAccessor>().RequestContext = null;
-        var context = authenticated ? User("stream-user") : RequestContext.CreateForTest();
 
-        await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Count(), context))
+        await RunAs(provider, expected, "stream-user", async () =>
         {
-            item.IsRight.ShouldBeTrue();
-        }
+            await foreach (var item in provider.GetRequiredService<IEncina>().Stream(new Count()))
+            {
+                item.IsRight.ShouldBeTrue();
+            }
+        });
 
         tags.ShouldContain(expected);
     }

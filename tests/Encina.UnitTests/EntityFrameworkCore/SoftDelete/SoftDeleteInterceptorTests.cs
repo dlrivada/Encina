@@ -203,11 +203,12 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        new RequestContextAccessor().RequestContext = TestRequestContext.For(TestIdentity.User("ambient-user"));
-
-        // Act
-        context.Orders.Remove(order);
-        await context.SaveChangesAsync();
+        // Act: the ambient user is bound through the scope factory
+        await new Core.Identity.ScopeTestHost().InUserScope("ambient-user", async _ =>
+        {
+            context.Orders.Remove(order);
+            return await context.SaveChangesAsync();
+        });
 
         // Assert
         var deletedOrder = await context.Orders
@@ -238,11 +239,12 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        new RequestContextAccessor().RequestContext = TestRequestContext.For(TestIdentity.User("ambient-user"));
-
-        // Act
-        context.Orders.Remove(order);
-        await context.SaveChangesAsync();
+        // Act: the ambient user is bound through the scope factory
+        await new Core.Identity.ScopeTestHost().InUserScope("ambient-user", async _ =>
+        {
+            context.Orders.Remove(order);
+            return await context.SaveChangesAsync();
+        });
 
         // Assert
         var deletedOrder = await context.Orders

@@ -296,7 +296,7 @@ public sealed class TenantResolutionMiddlewareTests
             .Returns(new ValueTask<string?>("tenant-x"));
 
         var accessor = new RequestContextAccessor();
-        accessor.RequestContext = null;
+        accessor.RequestContext.ShouldBeNull();
         IRequestContext? seenByNext = null;
         var middleware = new TenantResolutionMiddleware(
             _ =>
@@ -327,7 +327,7 @@ public sealed class TenantResolutionMiddlewareTests
     {
         // Arrange
         var accessor = new RequestContextAccessor();
-        accessor.RequestContext = null;
+        accessor.RequestContext.ShouldBeNull();
         IRequestContext? seenByNext = null;
         var middleware = new TenantResolutionMiddleware(
             _ =>
