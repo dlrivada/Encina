@@ -61,6 +61,7 @@ app.UseEncinaContext();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
