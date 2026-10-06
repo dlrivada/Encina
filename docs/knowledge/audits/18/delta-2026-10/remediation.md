@@ -1,0 +1,35 @@
+Remediation for #18:
+- tests 1 (Major): draft 18-delta-2026-10-tests-1-github-coverage-manifest-encina-rabbitmq-json-57-lines.md
+- tests 2 (Major): draft 18-delta-2026-10-tests-2-github-coverage-manifest-encina-kafka-json-57-lines.md
+- tests 3 (Major): draft 18-delta-2026-10-tests-3-github-coverage-manifest-encina-nats-json-64-lines.md
+- tests 4 (Major): draft 18-delta-2026-10-tests-4-github-coverage-manifest-encina-azureservicebus-json-57-line.md
+- tests 5 (Major): draft 18-delta-2026-10-tests-5-github-coverage-manifest-encina-amazonsqs-json-64-lines.md
+- tests 6 (Major): draft 18-delta-2026-10-tests-6-github-coverage-manifest-encina-redis-pubsub-json-49.md
+- tests 7 (Major): draft 18-delta-2026-10-tests-7-github-coverage-manifest-encina-inmemory-json-46-lines.md
+- tests 8 (Major): duplicate of #1627
+- tests 9 (Major): draft 18-delta-2026-10-tests-9-github-coverage-manifest-encina-grpc-json-70-lines.md
+- tests 10 (Major): draft 18-delta-2026-10-tests-10-github-coverage-manifest-encina-graphql-json-52-lines.md
+- docs 1 (Major): draft 18-delta-2026-10-docs-1-point-1-visual-and-scannable-docs-messaging-transports.md
+- docs 2 (Minor): draft 18-delta-2026-10-docs-2-point-1-diagram-edges-docs-messaging-transports-md.md
+- docs 3 (Blocker): duplicate of #1619
+- docs 4 (Major): draft 18-delta-2026-10-docs-4-point-2-docs-messaging-transports-md-313-314.md
+- docs 5 (Minor): draft 18-delta-2026-10-docs-5-point-3-figures-cited-never-hand-typed-docs.md
+- docs 6 (Major): draft 18-delta-2026-10-docs-6-point-4-placement-and-neighbours-docs-messaging-transports.md
+- docs 7 (Major): draft 18-delta-2026-10-docs-7-point-5-adequate-docs-for-a-feature-in.md
+- docs 8 (Major): draft 18-delta-2026-10-docs-8-point-5-tutorials-and-learning-paths-the-feature.md
+- docs 9 (Major): duplicate of #1882 (manual override)
+- docs 10 (Minor): duplicate of #1886 (manual override)
+
+## Lessons for the pipeline
+- docs 9: recorded as duplicate of #1882 by manual override
+- docs 10: recorded as duplicate of #1886 by manual override
+- (tests 1-6, 9, 10) The tests stage now cites the open umbrella issue #1847 (item "Per-file coverage targets and justifications for nine transport and API bridge publishers") for the unit and guard values of the nine publisher files, and the orchestrator posted the amendment table there on 2026-10-06. The drafts therefore do not claim that no open issue sets targets for the publishers, do not repeat the publisher unit and guard values, and keep only what that item does not cover: the package `targets` keys, the integration, contract and property flags, the non-publisher files, the classification defects of the record files and the missing tests. Each lists #1847 under Related Issues.
+- (docs 7) The README gap of the nine transport packages is listed under Related Issues as already tracked in #1847 (its logging-README item covers the 11 packages without a README), framed as logging coverage rather than as transport options; the draft keeps the transport-options angle.
+- (tests 8) Still recorded as a duplicate of #1627 (the MQTT subscribe-path coverage issue); the orchestrator posted a retarget comment there (the tests stage had refreshed state: 69.86%, 102/146, 44 missed lines, the casts at `src/Encina.MQTT/MQTTMessagePublisher.cs:126` and `:160`). No draft exists for it.
+- (docs 3) Still recorded as a duplicate of #1619 (the Azure Service Bus sample issue); the missing MQTT `SubscribeAsync(topicString, (topic, message) => ...)` call at `docs/messaging/transports.md:449` was added to #1622 (the MQTT sample issue) by comment, so no sibling issue is needed.
+- (docs 10) Now a manual duplicate of #1886, which lists both parts of the finding (the `AddEncina` configuration flags in the Quick Start of `docs/messaging/index.md` and the "documentation coming soon" placeholders); no docs 10 draft exists.
+- (tests 7) The InMemory issue ("Encina.InMemory has no tests and its coverage manifest marks InMemoryMessageBus.cs as an interface", #1626) is stale for the bus and the options, as the finding says (it claims 0/110 and 0/5), but still valid for the manifest entry, the registration at 0/13 and the missing guard tests; the draft restates only what is still open.
+- (tests 1-7, 9, 10) The finding's per-file targets marked "derived" or "provisional" were not run (the tests stage wrote no tests); the drafts keep that wording, so the implementer must confirm each value with a measured run before it enters the manifest. The ceilings for `GrpcMediatorService.cs` (defensive branches 319-323 and 345-348) and the unreachable `InMemoryMessageBus.cs` lines come from reading the code, not from a run.
+- (tests 1-3, 5, 6) A `[CollectionDefinition]` collection exists for every broker fixture (`RabbitMqCollection`, `KafkaCollection`, `NatsCollection`, `LocalStackCollection`, `RedisCollection` in `tests/Encina.TestInfrastructure/Fixtures/`, also `MqttCollection`), while the four existing health-check integration classes use `IClassFixture<...>` (`tests/Encina.IntegrationTests/MessageBrokers/*/*HealthCheckIntegrationTests.cs:14`). `AGENTS.md` section 9 forbids `IClassFixture` for database fixtures only, so this is not a finding; the drafts name the collection for the new integration tests. The first version of the drafts said "none defined" because the tests stage text does not mention them: read the Fixtures folder for `CollectionDefinition` before writing a Collection Fixture section.
+- (docs 1) `docs/messaging/sagas.md` also has lines with an emoji (earlier count-mode Grep: 9 lines in `transports.md`, 8 in `sagas.md`, 0 in `index.md`); no finding of this delta covers them, so the emoji draft is limited to the nine lines of `transports.md`.
+- (all drafts) The Glob tool and brace globs in Grep are unreliable for existence checks (Grep with `Encina.{RabbitMQ,Kafka,...}/README.md` returned no match, and Glob has missed existing worktree paths in earlier runs), so every absent-path claim was checked with a plain per-directory Grep or the "path does not exist" error as a second check, with a positive control: no README in the nine package directories (the full list of 66 `src/**/README.md` hits contains `src/Encina.GraphQL/README.md` and none of the nine), no `docs/learning-paths` directory, no `src/Encina.Dapper.Oracle` reference in `Encina.slnx`, and no mention of the Azure Service Bus, Amazon SQS, gRPC, GraphQL or InMemory packages under `tests/Encina.IntegrationTests`.
