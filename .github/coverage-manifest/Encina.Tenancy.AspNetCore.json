@@ -1,7 +1,7 @@
 {
   "package": "Encina.Tenancy.AspNetCore",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 12,
+  "totalFiles": 13,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -35,13 +35,27 @@
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
     },
+    "Middleware/ConnectionRequests.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Private copy of the connection-request predicate (no public guards)",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "The shared predicate table runs every case against this copy (measured 100%)."
+      }
+    },
     "Middleware/TenantResolutionMiddleware.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*Middleware.cs",
-      "reason": "Middleware with mockeable HttpContext"
+      "reason": "Middleware with mockeable HttpContext; guards are covered by unit tests",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Resolution, validation, 400, connection skip and context write have unit tests (measured 100%)."
+      }
     },
     "Resolution/ITenantResolver.cs": {
       "defaultTests": [],
@@ -94,7 +108,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 95, "guard": 60 },
+      "justifications": {
+        "unit": "Registration tests including the TimeProvider registration (measured 100%).",
+        "guard": "Null guards and registration into an empty collection (measured 67%)."
+      }
     }
   }
 }

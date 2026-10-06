@@ -1,7 +1,7 @@
 {
   "package": "Encina.AspNetCore",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 24,
+  "totalFiles": 25,
   "targets": {
     "unit": 60,
     "guard": 15
@@ -12,7 +12,11 @@
         "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Extension methods for IApplicationBuilder — no ThrowIfNull guards on parameters"
+      "reason": "Extension methods for IApplicationBuilder — no ThrowIfNull guards on parameters",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "One-line UseMiddleware registration driven by every pipeline test (measured 100%)."
+      }
     },
     "Authorization/AuthorizationConfiguration.cs": {
       "defaultTests": [
@@ -55,7 +59,22 @@
         "unit"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Pipeline behavior — no constructor null guards; contract is IPipelineBehavior which is tested at core level. ContractTests project lacks ASP.NET Core FrameworkReference."
+      "reason": "Pipeline behavior — no constructor null guards; contract is IPipelineBehavior which is tested at core level. ContractTests project lacks ASP.NET Core FrameworkReference.",
+      "targets": { "unit": 95 },
+      "justifications": {
+        "unit": "Every requirement kind, the unauthenticated denial and the log and detail contents have unit tests (measured 100%)."
+      }
+    },
+    "ConnectionRequestDetector.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal static connection-request predicate (no public guards)",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Security-critical predicate: every branch has a case in the shared predicate table (measured 100%)."
+      }
     },
     "DPIAEndpointExtensions.cs": {
       "defaultTests": [
@@ -70,7 +89,11 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with default values, no guard clauses"
+      "reason": "Configuration POCO with default values, no guard clauses",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Defaults and setters are asserted (measured 100%)."
+      }
     },
     "EncinaContextMiddleware.cs": {
       "defaultTests": [
@@ -78,7 +101,17 @@
         "guard"
       ],
       "defaultRule": "*Middleware.cs",
-      "reason": "Middleware with constructor accepting RequestDelegate and mockeable HttpContext invoke path"
+      "reason": "Security-critical request middleware: inbound scope, connection skip, refusals, misordering latch",
+      "targets": { "unit": 95, "guard": 20 },
+      "justifications": {
+        "unit": "Every branch (latch, connection marker, refusals, 202/203) has unit and TestServer tests (measured 100%).",
+        "guard": "Constructor and InvokeAsync null guards only (measured 25%)."
+      }
+    },
+    "EncinaContextMiddlewareLog.cs": {
+      "defaultTests": [],
+      "defaultRule": "*.cs",
+      "reason": "Source-generated LoggerMessage declarations without hand-written executable lines"
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -125,13 +158,18 @@
       "defaultRule": "*Extensions.cs",
       "reason": "4 extension methods each with ThrowIfNull(context) guard clause"
     },
-    "HttpContextPrincipalResolver.cs": {
+    "HttpContextInboundRequestExtensions.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Resolver.cs",
-      "reason": "Default IPrincipalResolver reading IHttpContextAccessor.HttpContext, with a null guard on the constructor dependency"
+      "defaultRule": "*Extensions.cs",
+      "reason": "Public InboundRequestInfo builder with a null guard",
+      "targets": { "unit": 100, "guard": 90 },
+      "justifications": {
+        "unit": "Every header, fallback and option source is asserted through the middleware and builder tests (measured 100%).",
+        "guard": "The guard test calls the builder on a default context, which runs the whole method (measured 100%)."
+      }
     },
     "HttpDataResidencyContextExtensions.cs": {
       "defaultTests": [
@@ -150,11 +188,6 @@
       "reason": "Region context provider with mockeable HttpContext and IOptions dependencies"
     },
     "Modules/IModuleWithHealthChecks.cs": {
-      "defaultTests": [],
-      "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interface — no implementation to test"
-    },
-    "IPrincipalResolver.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interface — no implementation to test"
@@ -178,7 +211,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "DI registration extensions — exercise AddEncinaAspNetCore service registration"
+      "reason": "DI registration extensions — exercise AddEncinaAspNetCore service registration",
+      "targets": { "unit": 95, "guard": 30 },
+      "justifications": {
+        "unit": "Registration tests build the provider with ValidateOnBuild and ValidateScopes for every method (measured 100%).",
+        "guard": "Null guards of AddEncinaAspNetCore and AddEncinaAuthorization (measured 33%)."
+      }
     }
   }
 }

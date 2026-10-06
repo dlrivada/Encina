@@ -7,13 +7,18 @@
     "guard": 20
   },
   "files": {
-    "AuthenticationStatePrincipalResolver.cs": {
+    "RequestIdentityCircuitHandler.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
-      "defaultRule": "*Resolver.cs",
-      "reason": "Principal resolver with a guard clause on the required AuthenticationStateProvider dependency; httpContextAccessor is optional"
+      "defaultRule": "*Handler.cs",
+      "reason": "Circuit activity handler binding one inbound scope per activity, masked on refusal",
+      "targets": { "unit": 95, "guard": 40 },
+      "justifications": {
+        "unit": "Activity scope, refresh, outside-activity reads, mask and failure branches have unit tests (measured 100%).",
+        "guard": "Constructor and CreateInboundActivityHandler null guards (measured 43%)."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -21,7 +26,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "DI registration extension with a ThrowIfNull(services) guard clause"
+      "reason": "DI registration extension with a ThrowIfNull(services) guard clause",
+      "targets": { "unit": 100, "guard": 100 },
+      "justifications": {
+        "unit": "Registration test resolves the handler per circuit scope under ValidateOnBuild (measured 100%).",
+        "guard": "The guard tests register into an empty collection, running the whole method (measured 100%)."
+      }
     }
   }
 }

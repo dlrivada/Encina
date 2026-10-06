@@ -1,0 +1,4 @@
+- A pipeline that runs `UseEncinaContext()` before `UseRouting()` fails closed: the first request that reaches a SignalR hub endpoint with an unchanged path logs Critical EventId 202 and every later request is answered 500; a rewrite registered inside the middleware that reaches a hub logs Warning EventId 203 and blocks nothing (#1705).
+- WebSocket upgrades are recognised from the request itself (`Upgrade: websocket` with `IHttpUpgradeFeature`, any extended CONNECT), before `UseWebSockets` runs, so raw and GraphQL WebSocket endpoints never keep the connect-time user (#1705).
+- An anonymous HTTP request is an inbound request: it can no longer open a service identity scope (`RunAsServiceAsync`) without `AllowOverInbound` (#1705).
+- The user id no longer reaches the authorization logs (EventIds 200/201) or their error details (`identityKind` replaces `userId`), nor the EF Core audit and soft-delete logs (EventIds 3000/3050); they record the identity kind (#1705).
