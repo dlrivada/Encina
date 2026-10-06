@@ -152,7 +152,9 @@ public interface IEncina
     /// flow, or that was not issued by an active scope of the same identity is refused with
     /// <see cref="RequestIdentityErrorCodes.ScopeConflict"/>, and a different tenant under a user
     /// with <see cref="RequestIdentityErrorCodes.TenantConflict"/>. Once the issuing scope ends,
-    /// the remaining steps read no identity.
+    /// the remaining steps read no identity through <see cref="IRequestContextAccessor"/>; the
+    /// <see cref="IRequestContext"/> object a stream behavior captured keeps its values, so consume
+    /// a stream inside the scope that opened it.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
     /// <returns>

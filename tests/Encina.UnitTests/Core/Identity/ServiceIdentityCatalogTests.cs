@@ -129,6 +129,10 @@ public sealed class ServiceIdentityCatalogTests
         Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithRoles("*").Build("job", false))).Failed.ShouldBeTrue();
         Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithPermissions("jobs:*").Build("job", false))).Failed.ShouldBeTrue();
         Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim("sub", "x").Build("job", false))).Failed.ShouldBeTrue();
+        Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim("role", "admin").Build("job", false))).Failed.ShouldBeTrue();
+        Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim("permission", "*").Build("job", false))).Failed.ShouldBeTrue();
+        Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim("tid", "t1").Build("job", false))).Failed.ShouldBeTrue();
+        Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim("department", "finance").Build("job", false))).Succeeded.ShouldBeTrue();
         Validator().Validate(null, Declared(new ServiceIdentityBuilder().WithClaim(RequestIdentity.IdentityKindClaimType, "user").Build("job", false))).Failed.ShouldBeTrue();
 
         var conflicting = Declared(new ServiceIdentityBuilder().Build("job", false));

@@ -261,6 +261,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
     {
         var holder = RequestContextAccessor.Push(context);
         context.Identity.Issuer?.Bind(holder);
+        AmbientRequestContext.BeginUnitOfWork();
         try
         {
             return await work(context, cancellationToken).ConfigureAwait(false);

@@ -13,9 +13,11 @@ namespace Encina;
 /// packages, and every built-in identity uses it.</description></item>
 /// <item><description>A name is declared once (an identical repeat is not a conflict).</description></item>
 /// <item><description>No role or permission contains the wildcard <c>*</c>.</description></item>
-/// <item><description>No declared claim uses a user-id claim type of
-/// <see cref="RequestIdentityOptions.UserIdClaimTypes"/> or the identity-kind claim type: the
-/// subject of a service is always <c>service:&lt;name&gt;</c>.</description></item>
+/// <item><description>No declared claim uses <c>sub</c>, a user-id, role, permission or tenant claim
+/// type of <see cref="RequestIdentityOptions"/>, or the identity-kind claim type: the subject of a
+/// service is always <c>service:&lt;name&gt;</c>, its authority is only what
+/// <see cref="ServiceIdentityBuilder.WithRoles"/> and <see cref="ServiceIdentityBuilder.WithPermissions"/>
+/// declare, and its tenant is chosen per scope.</description></item>
 /// </list>
 /// </remarks>
 internal sealed partial class ServiceIdentityCatalogOptionsValidator : IValidateOptions<ServiceIdentityCatalogOptions>
@@ -83,13 +85,20 @@ internal sealed partial class ServiceIdentityCatalogOptionsValidator : IValidate
 
         if (definition.Claims.Any(claim => IsForbiddenClaimType(claim.Key)))
         {
-            yield return $"Service identity '{definition.Name}' declares a claim with a user-id or identity-kind claim type; the subject of a service is always 'service:<name>'.";
+            yield return $"Service identity '{definition.Name}' declares a claim with a user-id, role, permission, tenant or identity-kind claim type; declare roles and permissions with WithRoles and WithPermissions, and choose the tenant per scope.";
         }
     }
 
+    // Authority is declared only through WithRoles/WithPermissions (where wildcards are checked), and
+    // tenant is chosen per scope: a declared claim may not carry a subject, role, permission or tenant.
     private bool IsForbiddenClaimType(string claimType) =>
         string.Equals(claimType, RequestIdentity.IdentityKindClaimType, StringComparison.OrdinalIgnoreCase)
-        || _identityOptions.UserIdClaimTypes.Contains(claimType, StringComparer.OrdinalIgnoreCase);
+        || string.Equals(claimType, "sub", StringComparison.OrdinalIgnoreCase)
+        || _identityOptions.UserIdClaimTypes
+            .Concat(_identityOptions.RoleClaimTypes)
+            .Concat(_identityOptions.PermissionClaimTypes)
+            .Concat(_identityOptions.TenantIdClaimTypes)
+            .Contains(claimType, StringComparer.OrdinalIgnoreCase);
 
     [GeneratedRegex("^[a-z0-9][a-z0-9.-]{0,62}$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex NamePattern();

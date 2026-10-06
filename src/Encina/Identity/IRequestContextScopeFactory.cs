@@ -149,10 +149,13 @@ public interface IRequestContextScopeFactory
     /// </param>
     /// <param name="cancellationToken">The cancellation token passed to <paramref name="work"/>.</param>
     /// <returns>
-    /// The result of <paramref name="work"/>, or a refusal; every validation failure (an undefined
-    /// <paramref name="source"/>, an invalid kind, actor, tenant, correlation or causation id, an
-    /// invalid <paramref name="trustedTenantId"/>) is <see cref="RequestIdentityErrorCodes.InvalidPersistedIdentity"/>
-    /// and the dispatcher fails the message by its retry or dead-letter rules.
+    /// The result of <paramref name="work"/>, or a refusal; every validation failure is
+    /// <see cref="RequestIdentityErrorCodes.InvalidPersistedIdentity"/> and the dispatcher fails the
+    /// message by its retry or dead-letter rules. Always validated: the <paramref name="source"/>,
+    /// the correlation and causation ids, and (for <see cref="PersistedIdentitySource.External"/>)
+    /// <paramref name="trustedTenantId"/>. For <see cref="PersistedIdentitySource.Internal"/> also
+    /// the kind, the actor and the persisted tenant; an external row's kind, actor and tenant are
+    /// ignored, never validated, because it always runs anonymous.
     /// </returns>
     /// <remarks>
     /// <para>

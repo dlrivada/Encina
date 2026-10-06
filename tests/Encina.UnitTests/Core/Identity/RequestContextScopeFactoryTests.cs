@@ -544,6 +544,21 @@ public sealed class RequestContextScopeFactoryTests
         context.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
     }
 
+    [Fact]
+    public async Task AScopeOpenedDuringADispatch_IsANewUnitOfWork_AndTheDispatchStateComesBack()
+    {
+        await Task.Yield();
+        var dispatch = AmbientRequestContext.Enter(_host.Accessor, RequestContext.CreateForTest());
+        AmbientRequestContext.IsDispatchInFlight.ShouldBeTrue();
+
+        var inside = await Factory.RunInboundAsync(new InboundRequestInfo(null, IdempotencyKey: "k1"), (context, _) =>
+            Task.FromResult(Right<EncinaError, (bool, string?)>((AmbientRequestContext.IsDispatchInFlight, context.IdempotencyKey))));
+
+        inside.ShouldBeSuccess().ShouldBe((false, "k1"));
+        AmbientRequestContext.IsDispatchInFlight.ShouldBeTrue();
+        dispatch.Dispose();
+    }
+
     // ── Guards ───────────────────────────────────────────────────────────
 
     [Fact]

@@ -42,6 +42,18 @@ internal static class AmbientRequestContext
     internal static IdentityKind DispatchIdentityKind => DispatchIdentity.Value;
 
     /// <summary>
+    /// Marks the current flow as a new unit of work with no dispatch in flight. Called by the scope
+    /// factory inside its <c>async</c> body, so the change is confined to the scope: the first
+    /// dispatch inside a scope is an entry point (it keeps the scope's idempotency key), even when the
+    /// scope was opened from a handler.
+    /// </summary>
+    internal static void BeginUnitOfWork()
+    {
+        DispatchInFlight.Value = false;
+        DispatchIdentity.Value = IdentityKind.Anonymous;
+    }
+
+    /// <summary>
     /// Resolves the context a dispatch runs with.
     /// </summary>
     /// <remarks>

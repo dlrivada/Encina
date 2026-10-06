@@ -55,6 +55,25 @@ public sealed class IdentityMintingArchitectureTests
     }
 
     [Fact]
+    public void TheBindingPrimitives_AreCalledOnlyByTheScopeFactoryAndTheDispatcher()
+    {
+        MethodBase[] binding =
+        [
+            Method(typeof(RequestContextAccessor), nameof(RequestContextAccessor.Push)),
+            Method(typeof(RequestContextAccessor), nameof(RequestContextAccessor.SetUnchecked)),
+            Method(typeof(RequestContextAccessor), nameof(RequestContextAccessor.Install)),
+            Method(typeof(RequestContextAccessor), nameof(RequestContextAccessor.End)),
+            Method(typeof(RequestContext), nameof(RequestContext.WithIdentity)),
+            Method(typeof(RequestContext), nameof(RequestContext.WithOrigin)),
+            Method(typeof(IdentityIssuer), nameof(IdentityIssuer.Bind))
+        ];
+        System.Collections.Generic.HashSet<Type> allowed =
+            [typeof(RequestContextScopeFactory), typeof(RequestContextAccessor), typeof(AmbientRequestContext)];
+
+        CallersOf(binding).Where(caller => !allowed.Contains(caller)).Select(static caller => caller.FullName).ShouldBeEmpty();
+    }
+
+    [Fact]
     public void NoProductionAssembly_ReferencesEncinaTesting()
     {
         Production.Value.Count.ShouldBeGreaterThan(10);
