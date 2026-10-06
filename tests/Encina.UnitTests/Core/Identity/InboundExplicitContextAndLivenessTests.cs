@@ -57,10 +57,23 @@ public sealed class InboundExplicitContextAndLivenessTests
         }
     }
 
-    public sealed class ItemsHandler : IStreamRequestHandler<Items, string>
+    /// <summary>A notification whose handler counts its invocations.</summary>
+    public sealed record Ping : INotification;
+
+    public sealed class PingHandler(Invocations invocations) : INotificationHandler<Ping>
+    {
+        public Task<Either<EncinaError, Unit>> Handle(Ping notification, CancellationToken cancellationToken)
+        {
+            invocations.Add();
+            return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
+        }
+    }
+
+    public sealed class ItemsHandler(Invocations invocations) : IStreamRequestHandler<Items, string>
     {
         public async IAsyncEnumerable<Either<EncinaError, string>> Handle(Items request, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            invocations.Add();
             for (var i = 0; i < request.Count; i++)
             {
                 await Task.Yield();
@@ -110,6 +123,7 @@ public sealed class InboundExplicitContextAndLivenessTests
         services.AddScoped<IRequestHandler<Counted, string?>, CountedHandler>();
         services.AddScoped<IRequestHandler<Gated, string?>, GatedHandler>();
         services.AddScoped<IStreamRequestHandler<Items, string>, ItemsHandler>();
+        services.AddScoped<INotificationHandler<Ping>, PingHandler>();
         services.AddScoped<IPipelineBehavior<Gated, string?>, AuthenticatedGate>();
         services.AddScoped<IStreamPipelineBehavior<Items, string>, AuthenticatedStreamGate>();
         return services.BuildServiceProvider();
@@ -214,7 +228,23 @@ public sealed class InboundExplicitContextAndLivenessTests
     }
 
     [Fact]
-    public async Task Publish_And_Stream_WithAnotherLiveIdentity_OverAnInboundRequest_AreRefused()
+    public async Task Publish_WithAnotherLiveIdentity_OverAnInboundRequest_IsRefused_WithoutInvokingHandlers()
+    {
+        await using var provider = BuildProvider();
+        var (other, release) = await LiveScopeElsewhere(provider, Principal("mallory"));
+
+        var outcome = await provider.GetRequiredService<IRequestContextScopeFactory>().RunInboundAsync(
+            new InboundRequestInfo(null),
+            async (_, ct) => await provider.GetRequiredService<IEncina>().Publish(new Ping(), other, ct));
+
+        ShouldBeLeftWith(outcome, RequestIdentityErrorCodes.ScopeConflict);
+        _invocations.Count.ShouldBe(0);
+        Expect167WithTheCodeOnly();
+        await release();
+    }
+
+    [Fact]
+    public async Task Stream_WithAnotherLiveIdentity_OverAnInboundRequest_IsRefused_WithoutInvokingTheHandler()
     {
         await using var provider = BuildProvider();
         var (other, release) = await LiveScopeElsewhere(provider, Principal("mallory"));
@@ -235,6 +265,7 @@ public sealed class InboundExplicitContextAndLivenessTests
         outcome.ShouldBeSuccess();
         var refused = items.ShouldHaveSingleItem();
         ShouldBeLeftWith(refused, RequestIdentityErrorCodes.ScopeConflict);
+        _invocations.Count.ShouldBe(0);
         await release();
     }
 

@@ -160,7 +160,8 @@ public interface IEncina
     /// Once the issuing scope ends, the remaining steps read no identity through
     /// <see cref="IRequestContextAccessor"/>, and the <see cref="IRequestContext"/> object a stream
     /// behavior captured reads <see cref="RequestIdentity.Anonymous"/> as its identity (its other
-    /// values are kept), so every gate denies; consume a stream inside the scope that opened it.
+    /// values are kept), so every gate that requires an authenticated caller denies; consume a
+    /// stream inside the scope that opened it.
     /// </param>
     /// <param name="cancellationToken">Optional token to cancel the stream iteration.</param>
     /// <returns>

@@ -34,8 +34,9 @@ namespace Encina;
 /// request can never open a service scope by clearing or re-setting its context.
 /// </para>
 /// <para>
-/// An identity issued by an identity scope reads as no context once that scope has ended, wherever
-/// the context was copied to.
+/// An identity issued by an identity scope reads as no context through the accessor once that scope
+/// has ended; a copy of the context kept elsewhere reports <see cref="RequestIdentity.Anonymous"/>
+/// as its identity (see <see cref="global::Encina.RequestContext.Identity"/>).
 /// </para>
 /// <para>
 /// The public setter is host infrastructure; application code reads the context and never sets it.

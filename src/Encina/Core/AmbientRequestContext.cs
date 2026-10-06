@@ -130,8 +130,9 @@ internal static class AmbientRequestContext
         ChainFacts facts,
         ILogger logger)
     {
-        // Check and dispatch the same immutable snapshot: a foreign implementation could return one
-        // identity to the check and another to the handlers. The rule judges the identity as issued,
+        // Check and dispatch the same snapshot: a foreign implementation could return one identity
+        // to the check and another to the handlers. The snapshot's identity can only go from live to
+        // anonymous afterwards (its scope ends), never to another caller. The rule judges the identity as issued,
         // so an identity whose scope has ended is refused as a stale replay, not read as anonymous.
         var snapshot = RequestContext.CopyOf(explicitContext);
         var requested = snapshot.IssuedIdentity;

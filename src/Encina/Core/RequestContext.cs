@@ -9,7 +9,10 @@ namespace Encina;
 /// <remarks>
 /// <para>
 /// Immutable by design - all <c>With*</c> methods return new instances.
-/// Thread-safe for concurrent access.
+/// Thread-safe for concurrent access. The one value that changes over time is what
+/// <see cref="Identity"/> reports: an identity issued by an identity scope reads as
+/// <see cref="RequestIdentity.Anonymous"/> once that scope ends, so code that needs one consistent
+/// identity for several decisions reads <see cref="Identity"/> once and keeps the result.
 /// </para>
 /// <para>
 /// The public factories create <b>anonymous</b> contexts only. An authenticated
@@ -39,7 +42,9 @@ public sealed class RequestContext : IRequestContext
     /// and on every copy of it. Every consumer (pipeline behaviors, handlers, gates, compliance
     /// extractors, audit) therefore sees an ended scope as anonymous without checking it itself: a
     /// stream behavior that kept its <see cref="IRequestContext"/> after the scope ended, or a
-    /// fire-and-forget dispatch whose gates run later, is denied. Identities built without an issuer
+    /// fire-and-forget dispatch whose gates run later, is denied by every gate that requires an
+    /// authenticated caller. The value can change between two reads (live, then anonymous); read it
+    /// once when several decisions must agree. Identities built without an issuer
     /// (<see cref="RequestIdentity.Anonymous"/>, the <c>Encina.Testing</c> builders) are returned as they are.
     /// </para>
     /// </remarks>
