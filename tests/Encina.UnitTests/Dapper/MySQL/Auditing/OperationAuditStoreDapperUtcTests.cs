@@ -20,7 +20,7 @@ public sealed class OperationAuditStoreDapperUtcTests : OperationAuditStoreUtcTe
     {
         // Arrange: MySQL returns DATETIME as an Unspecified DateTime holding the stored UTC wall clock.
         var stored = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 10, 0, 0), DateTimeKind.Unspecified);
-        var connection = new RecordingDbConnection { ReaderRows = SingleRow(stored) };
+        var connection = new RecordingDbConnection { ReaderRows = SingleRow(stored, stored.AddMinutes(5)) };
         var store = new OperationAuditStoreDapper(connection);
 
         // Act
@@ -34,10 +34,10 @@ public sealed class OperationAuditStoreDapperUtcTests : OperationAuditStoreUtcTe
         entry.StartedAtUtc.Offset.ShouldBe(TimeSpan.Zero);
         entry.StartedAtUtc.UtcTicks.ShouldBe(expectedUtc.UtcTicks);
         entry.CompletedAtUtc.Offset.ShouldBe(TimeSpan.Zero);
-        entry.CompletedAtUtc.UtcTicks.ShouldBe(expectedUtc.UtcTicks);
+        entry.CompletedAtUtc.UtcTicks.ShouldBe(expectedUtc.AddMinutes(5).UtcTicks);
     }
 
-    private static DataTable SingleRow(DateTime stored)
+    private static DataTable SingleRow(DateTime stored, DateTime completed)
     {
         var table = new DataTable();
         table.Columns.Add("Id", typeof(Guid));
@@ -60,7 +60,7 @@ public sealed class OperationAuditStoreDapperUtcTests : OperationAuditStoreUtcTe
         table.Columns.Add("Metadata", typeof(string));
         table.Rows.Add(
             Guid.NewGuid(), "correlation-1", DBNull.Value, DBNull.Value, "Create", "Order", DBNull.Value,
-            (int)AuditOutcome.Success, DBNull.Value, stored, stored, stored,
+            (int)AuditOutcome.Success, DBNull.Value, stored, stored, completed,
             DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value);
         return table;
     }

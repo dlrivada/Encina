@@ -11,7 +11,9 @@ namespace Encina.UnitTests.Security.Audit.Relational;
 /// The store is given a <see cref="RecordingDbConnection"/> and every bound parameter is inspected, so the
 /// assertion sits at the boundary where the store passes values to the driver and does not depend on the time
 /// zone of the machine that runs the test: the inputs carry explicit instants (10:00 UTC), whatever
-/// <see cref="TimeZoneInfo.Local"/> is.
+/// <see cref="TimeZoneInfo.Local"/> is. On a UTC runner a <see cref="DateTimeKind.Local"/> input equals its UTC
+/// value, so the Local cases only detect a missing normalisation (the Kind stays Local) and a wrong
+/// reinterpretation is caught only on a non-UTC machine; the Unspecified and offset cases discriminate everywhere.
 /// </para>
 /// <para>
 /// A <see cref="DateTimeKind.Local"/> input is built from the UTC instant with <see cref="DateTime.ToLocalTime"/>,
