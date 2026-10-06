@@ -18,5 +18,11 @@ internal enum ChainFacts
     /// An inbound request (or an untrusted restored message) was in the chain: service and principal
     /// scopes need an explicit opt-in, the others are refused.
     /// </summary>
-    Inbound = 2
+    Inbound = 2,
+
+    /// <summary>
+    /// A connection marker was in the chain: service, principal, built-in and restored scopes treat it
+    /// as <see cref="Inbound"/>; inbound scopes (one per activity or invocation) are permitted.
+    /// </summary>
+    Connection = 4
 }
