@@ -184,7 +184,7 @@ GitHub archives no log of a job whose runner is lost (the API returns 404 even f
 
 - the date, `/proc/loadavg`, `free -m`, `swapon --show` and `df -h / /mnt`;
 - every process over 200 MB of RSS, largest first, with its pid, ppid and RSS in MB; for a .NET process (one that maps `libcoreclr.so`) also `gc_limit`, the `DOTNET_GCHeapHardLimit` value in the environment the process started with (`/proc/<pid>/environ`; `absent` or `unreadable` when it cannot be read), and the anonymous, file and swap MB from `/proc/<pid>/smaps_rollup`; then the first 400 characters of its command line. The GC heap size itself is not read: `dotnet-counters` would have to be installed and would attach one more .NET process every minute to a VM that is short of memory;
-- the state of the memory cap's cgroup (`cg_mem`, `cg_peak`, `cg_oom_kill`, `cg_procs`);
+- the state of the memory cap's cgroup (`cg_mem`, `cg_peak`, `cg_oom_kill`, `cg_procs`, and the `memory.events` counters `cg_ev_max`, `cg_ev_high` and `cg_ev_oom`; `cg_ev_high` is expected to stay 0 because only `memory.max` is set, so it is a sanity field);
 - the count of `dotnet` processes, plus the count of processes whose command line names `Encina.UnitTests` (test hosts and builds);
 - the kernel OOM lines from `dmesg`, when it is readable;
 - the last 400 bytes of the Stryker console.
@@ -196,7 +196,7 @@ The `stryker-logs-shard-<idx>` artifact (folder `artifacts/mutation/logs`) holds
 | `runner-resources.log` | Every full reading. |
 | `runner-resources-latest.log` | The latest full reading. |
 | `runner-processes-latest.log` | The process lines of the latest reading. |
-| `runner-resources-history.log` | One compact line per minute. After the timestamp comes `top=<pid>/<comm>:<MB>` (the largest process) and the cgroup state, followed by memory, load, `dotnet=N` and `encina_unittests=N`. |
+| `runner-resources-history.log` | One compact line per minute. After the timestamp comes `top=<pid>/<comm>:<MB>` (the largest process) and the cgroup state (including `cg_ev_max`, `cg_ev_high` and `cg_ev_oom` next to `cg_oom_kill`), followed by memory, load, `dotnet=N` and `encina_unittests=N`. |
 | `memory-cap.txt` | Only when an OOM kill occurred under the cap: peak, kill count, the largest process of the last reading and the kernel's OOM lines. |
 | `stryker-console.log` | Stryker's console output. |
 
