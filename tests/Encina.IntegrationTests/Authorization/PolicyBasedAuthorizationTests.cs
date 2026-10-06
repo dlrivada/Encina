@@ -239,7 +239,7 @@ public class PolicyBasedAuthorizationTests : IAsyncLifetime
         result.IfLeft(error =>
         {
             error.GetCode().Match(
-                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthorized),
+                Some: code => code.ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated),
                 None: () => Assert.Fail("Expected error code"));
         });
     }

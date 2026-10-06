@@ -123,6 +123,7 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         EncinaErrorCodes.RequestHandlerTypeMismatch,
         EncinaErrorCodes.NotificationMissingHandle,
         EncinaErrorCodes.AuthorizationUnauthorized,
+        EncinaErrorCodes.AuthorizationUnauthenticated,
         EncinaErrorCodes.AuthorizationForbidden,
         EncinaErrorCodes.AuthorizationPolicyFailed,
         EncinaErrorCodes.AuthorizationResourceDenied,

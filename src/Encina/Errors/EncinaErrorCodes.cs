@@ -91,6 +91,12 @@ public static class EncinaErrorCodes
     /// <summary>User is not authenticated when authentication is required.</summary>
     public const string AuthorizationUnauthorized = "encina.authorization.unauthorized";
 
+    /// <summary>
+    /// The request needs authorization and its request identity is not authenticated (anonymous,
+    /// including a token that the claim map turned into the anonymous identity).
+    /// </summary>
+    public const string AuthorizationUnauthenticated = "encina.authorization.unauthenticated";
+
     /// <summary>Authenticated user does not have sufficient permissions.</summary>
     public const string AuthorizationForbidden = "encina.authorization.forbidden";
 

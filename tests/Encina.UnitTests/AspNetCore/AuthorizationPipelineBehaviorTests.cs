@@ -98,7 +98,7 @@ public class AuthorizationPipelineBehaviorTests
         var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), RequestContext.CreateForTest());
 
         nextCalled.ShouldBeFalse();
-        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthorized, "requires authentication");
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated, "requires authentication");
         result.IfLeft(error => error.GetDetails()["identityKind"].ShouldBe(nameof(IdentityKind.Anonymous)));
     }
 
@@ -110,7 +110,7 @@ public class AuthorizationPipelineBehaviorTests
         var (result, nextCalled) = await RunAsync<AuthorizedRequest, Unit>(new AuthorizedRequest(), context);
 
         nextCalled.ShouldBeFalse();
-        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthorized);
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public class AuthorizationPipelineBehaviorTests
         var (result, nextCalled) = await RunAsync<PlainCommand, Unit>(new PlainCommand(), RequestContext.CreateForTest(), configuration: config);
 
         nextCalled.ShouldBeFalse();
-        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthorized);
+        ShouldBeDeniedWith(result, EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     [Fact]

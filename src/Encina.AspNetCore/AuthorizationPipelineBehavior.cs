@@ -34,7 +34,7 @@ namespace Encina.AspNetCore;
 /// <b>Caller.</b> The behavior evaluates the request identity of the dispatch,
 /// <see cref="IRequestContext.Identity"/>: its <see cref="RequestIdentity.Principal"/>, which holds
 /// only the caller's authenticated identities. A request that needs authorization is denied with
-/// <see cref="EncinaErrorCodes.AuthorizationUnauthorized"/> when the identity is not authenticated,
+/// <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> when the identity is not authenticated,
 /// including a token that the claim map turned into the anonymous identity (no subject, a reserved
 /// <c>service:</c> subject). Over HTTP the identity is bound by <c>app.UseEncinaContext()</c>; in a
 /// Blazor Server circuit by <c>AddEncinaBlazorAuthorization()</c>; in background work by the scope
@@ -236,7 +236,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         var reason = $"Request '{requestType.Name}' requires authentication.";
         LogAuthorizationDenied(_logger, requestType.FullName!, null, identityKind, reason, null);
         return EncinaErrors.Create( // NOSONAR S6966
-            code: EncinaErrorCodes.AuthorizationUnauthorized,
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
             message: reason,
             details: new Dictionary<string, object?>
             {
