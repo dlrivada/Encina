@@ -249,21 +249,25 @@ function Build-ConsolidatedBody($parsed, [string]$PartNote) {
 function Split-ForLimit($parsed, [int]$Limit) {
     $groups = [System.Collections.Generic.List[object]]::new()
     $cur = [System.Collections.Generic.List[object]]::new()
+    # Every draft must fit alone, wherever it sits in the order.
     foreach ($p in $parsed) {
-        $try = @($cur) + $p
-        if ((Build-ConsolidatedBody $try '').Body.Length -le $Limit) { $cur.Add($p); continue }
-        if ($cur.Count -eq 0) {
-            $len = (Build-ConsolidatedBody @($p) '').Body.Length
+        $len = (Build-ConsolidatedBody @($p) '').Body.Length
+        if ($len -gt $Limit) {
             Write-Error "open-remediation: the draft $($p.Draft.File.Name) alone makes a $len-character body, over the $Limit-character budget of a GitHub issue (65,000 limit); shorten that draft; no issue was created"
             exit 1
         }
+    }
+    foreach ($p in $parsed) {
+        $try = @($cur) + $p
+        if ((Build-ConsolidatedBody $try '').Body.Length -le $Limit) { $cur.Add($p); continue }
         $groups.Add(@($cur)); $cur = [System.Collections.Generic.List[object]]::new(); $cur.Add($p)
     }
     if ($cur.Count) { $groups.Add(@($cur)) }
     return , $groups
 }
 
-function Open-Consolidated($Drafts) {
+# Decides the parts (and validates every size) without creating anything, so a failure leaves nothing behind.
+function Get-ConsolidatedPlan($Drafts) {
     # Docs drafts before tests drafts, the existing per-draft order kept inside each group.
     $parsed = @(foreach ($d in $Drafts) { [pscustomobject]@{ Draft = $d; Sections = @(Split-Sections $d.Body); Test = $d.Title.StartsWith('[TEST]') } })
     $parsed = @(@($parsed | Where-Object { -not $_.Test }) + @($parsed | Where-Object { $_.Test }))
@@ -292,7 +296,11 @@ function Open-Consolidated($Drafts) {
         if (-not $lab) { $lab = @('technical-debt') }
         [pscustomobject]@{ Part = $j; Title = "[DEBT] Delta re-audit ($Set) of #${Issue}: $($built.K) $noun$topic$suffix"; Body = $built.Body; Labels = $lab; Drafts = @($g | ForEach-Object { $_.Draft }) }
     }
+    return , @($plan)
+}
 
+function Open-Consolidated($plan) {
+    $n = $plan.Count
     if ($WhatIf) {
         $pdir = Join-Path $root 'artifacts\issues'
         New-Item -ItemType Directory -Force $pdir | Out-Null
@@ -341,11 +349,8 @@ if (-not $Consolidate) {
     return
 }
 
-# A bug is never folded into the batch: it is opened as its own issue, as in a full audit.
-foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) {
-    if ($WhatIf) { "WhatIf: would open its own issue: $($d.Title)" } else { Open-Draft $d }
-}
 $rest = @($drafts | Where-Object { -not $_.Title.StartsWith('[BUG]') })
+$plan = $null
 if ($rest.Count) {
     # One consolidated issue per delta audit: when a non-bug delta draft of this issue already has a row, the
     # consolidated issue exists, so new drafts are never turned into a second issue.
@@ -365,5 +370,12 @@ if ($rest.Count) {
         Write-Error "open-remediation: the consolidated issue of the #$Issue delta audit already exists ($($existing[0].Url)); refusing to open a second one for the new unopened drafts: $names. Add them to that issue by hand (or open a documented follow-up); no rows were written"
         exit 1
     }
-    Open-Consolidated $rest
+    $plan = Get-ConsolidatedPlan $rest
 }
+
+# A bug is never folded into the batch: it is opened as its own issue, as in a full audit. It is opened only after
+# the consolidated plan is validated, so a refusal or a size failure leaves nothing created.
+foreach ($d in @($drafts | Where-Object { $_.Title.StartsWith('[BUG]') })) {
+    if ($WhatIf) { "WhatIf: would open its own issue: $($d.Title)" } else { Open-Draft $d }
+}
+if ($plan) { Open-Consolidated $plan }

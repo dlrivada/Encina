@@ -317,6 +317,11 @@ exit 0
     $r8c = Invoke-Open '-Consolidate' 4
     Assert-That -Name 'after a split, a re-run opens nothing' -Condition ($r8c.Exit -eq 0 -and $r8c.Creates.Count -eq 0 -and @(Get-Content $csv | Where-Object { $_ -like '4-delta-*' }).Count -eq 3) -Detail $r8c.Text
 
+    Write-Text (Join-Path $rem '4-delta-docs-late.md') (New-DocsDraft '[DEBT] Late' 'docs/late.md' 'Low' 'Small' '')
+    $r8c2 = Invoke-Open '-Consolidate' 4
+    Assert-That -Name 'after a split, a later draft is refused: exit 1, nothing created, no rows' -Condition ($r8c2.Exit -ne 0 -and $r8c2.Creates.Count -eq 0 -and $r8c2.Text.Contains('4-delta-docs-late.md') -and @(Get-Content $csv | Where-Object { $_ -like '4-delta-*' }).Count -eq 3) -Detail $r8c2.Text
+    Remove-Item (Join-Path $rem '4-delta-docs-late.md') -Force
+
     # 8d. -WhatIf on a split: one preview per part, nothing created.
     Remove-Item (Join-Path $rem '4-delta-docs-a.md'), (Join-Path $rem '4-delta-docs-b.md'), (Join-Path $rem '4-delta-test-c.md') -Force
     Write-Text $csv ((@(Get-Content $csv | Where-Object { $_ -notlike '4-delta-*' }) -join "`n") + "`n")
@@ -330,11 +335,13 @@ exit 0
     Assert-That -Name '-WhatIf on a split: part titles printed, one preview per part under the limit, nothing created or written' -Condition ($r8d.Exit -eq 0 -and $r8d.Creates.Count -eq 0 -and $r8d.Text.Contains('(part 1/2)') -and $r8d.Text.Contains('(part 2/2)') -and (Test-Path $pv1) -and (Test-Path $pv2) -and (Get-Content -Raw $pv1).Length -le 65000 -and (Get-Content -Raw $pv2).Length -le 65000 -and @(Get-Content $csv).Count -eq $before8d) -Detail $r8d.Text
 
     # 8e. one draft alone over the limit: fails naming it, nothing created, no rows.
-    Write-Text (Join-Path $rem '5-delta-docs-a.md') (New-BigDraft (New-DocsDraft '[DEBT] Huge' 'docs/huge.md' 'Low' 'Small' '') 'DESCRIPTION of docs/huge.md.' 70000)
-    Write-Text (Join-Path $rem '5-delta-docs-b.md') (New-DocsDraft '[DEBT] Fine' 'docs/fine.md' 'Low' 'Small' '')
+    # The huge draft is not first and a [BUG] draft exists: even the bug issue must not be created.
+    Write-Text (Join-Path $rem '5-delta-docs-a.md') (New-DocsDraft '[DEBT] Fine' 'docs/fine.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '5-delta-docs-b.md') (New-BigDraft (New-DocsDraft '[DEBT] Huge' 'docs/huge.md' 'Low' 'Small' '') 'DESCRIPTION of docs/huge.md.' 70000)
+    Write-Text (Join-Path $rem '5-delta-bug-c.md') $bugDraft
     $before8e = @(Get-Content $csv).Count
     $r8e = Invoke-Open '-Consolidate' 5
-    Assert-That -Name 'a single oversized draft fails naming it, creates nothing, writes no rows' -Condition ($r8e.Exit -ne 0 -and $r8e.Creates.Count -eq 0 -and $r8e.Text.Contains('5-delta-docs-a.md') -and @(Get-Content $csv).Count -eq $before8e) -Detail $r8e.Text
+    Assert-That -Name 'a single oversized draft (not first) fails naming it, creates nothing (bug included), writes no rows' -Condition ($r8e.Exit -ne 0 -and $r8e.Creates.Count -eq 0 -and $r8e.Text.Contains('5-delta-docs-b.md') -and @(Get-Content $csv).Count -eq $before8e) -Detail $r8e.Text
 }
 finally {
     if (Test-Path $base) {
