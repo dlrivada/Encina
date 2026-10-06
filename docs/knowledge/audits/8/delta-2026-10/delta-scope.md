@@ -84,7 +84,7 @@ Files changed by the closing commit `062b705e1d163202a6dcf59d29a86f7ad13cec49` (
 | `tests/Encina.Dapper.Sqlite.PropertyTests/XunitConfiguration.cs` | Deleted | same commit |
 | `tests/Encina.TestInfrastructure/Schemas/SqliteSchema.cs` | Deleted | `git log --diff-filter=D -- tests/Encina.TestInfrastructure/Schemas/SqliteSchema.cs` → commit `22494a97` |
 
-Commit `22494a97` ("feat: remove SQLite provider — move to .backup, clean all references (ADR-024)") deleted the whole `Encina.Dapper.Sqlite.PropertyTests` project and every SQLite-specific file under `Encina.TestInfrastructure`, implementing [ADR-024](../../architecture/adr/024-remove-sqlite-provider-pre-1.0.md) (accepted March 2026, decision: "Remove SQLite provider support from the pre-1.0 release scope"). `.backup/sqlite/` is gitignored (commit `87b124b7`, "fix: restore .gitignore for .backup/ — must not be tracked in git") and is not present in this worktree.
+Commit `22494a97` ("feat: remove SQLite provider — move to .backup, clean all references (ADR-024)") deleted the whole `Encina.Dapper.Sqlite.PropertyTests` project and every SQLite-specific file under `Encina.TestInfrastructure`, implementing [ADR-024](../../../../architecture/adr/024-remove-sqlite-provider-pre-1.0.md) (accepted March 2026, decision: "Remove SQLite provider support from the pre-1.0 release scope"). `.backup/sqlite/` is gitignored (commit `87b124b7`, "fix: restore .gitignore for .backup/ — must not be tracked in git") and is not present in this worktree.
 
 Per SPEC-003 §5.1: "Files deleted since are recorded as `code-removed` and are not audited." Every file this issue touched falls in that category; the checklist items below are therefore all `n/a — code removed`, per §15.4's carve-out for ADR-009/ADR-024 removals.
 
