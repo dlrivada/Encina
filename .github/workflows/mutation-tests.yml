@@ -215,6 +215,17 @@ jobs:
                 fi
               done
             fi
+            # Runner-variance margin: runner speed varied ~1.3x between two
+            # runs of the same scope (#1441 phase 2f), so a custom scope gets
+            # 30% more than the resolved timeout, at least 110 minutes, and
+            # never more than the 340-minute workflow ceiling.
+            TIMEOUT=$(( TIMEOUT * 13 / 10 ))
+            if [ "$TIMEOUT" -lt 110 ]; then
+              TIMEOUT=110
+            fi
+            if [ "$TIMEOUT" -gt 340 ]; then
+              TIMEOUT=340
+            fi
             MATRIX=$(jq -nc --arg scope "$CUSTOM_SCOPE" --argjson timeout "$TIMEOUT" \
               '[{idx: "custom", scope: $scope, timeout: $timeout}]')
             MODE="custom"
@@ -473,14 +484,12 @@ jobs:
           # Stryker discards the server's stderr, so each recycle is also
           # appended to ENCINA_MTP_RECYCLE_LOG, which is uploaded with the
           # stryker-logs artifact and counted in the shard summary.
-          # 4096: in run 37371127806 (6144) the hook recycled at 6.3-7.6 GB
-          # private memory and cg_peak reached memory.max once, right after
-          # a recycle. Hypothesis: the replacement server, Stryker and the
-          # page cache share the cgroup; the cg_ev_max counter in the
-          # runner-resources log confirms or refutes it. A lower threshold
-          # recycles more often (cold runs), so the next run also checks
-          # the shard's seconds per mutant.
-          ENCINA_MTP_RECYCLE_MB: "4096"
+          # 4608, chosen from two runs: 37371127806 (6144) had cg_peak hit
+          # the 12 GiB cap right after a recycle; 37454364141 (4096) peaked
+          # at 11487 MB with cg_ev_max 0 but took ~92 min, over the 87 min
+          # timeout, because frequent recycles mean cold runs. 4608 recycles
+          # less often; projected peak ~12.0 GB.
+          ENCINA_MTP_RECYCLE_MB: "4608"
           ENCINA_MTP_RECYCLE_LOG: ${{ github.workspace }}/artifacts/mutation/logs/mtp-recycle.log
           # Stryker's verbosity: a custom-scope dispatch (a diagnostic run)
           # logs at debug level so the log names the mutant under test when

@@ -177,7 +177,7 @@ Stryker.NET 5.0.0 has no option to recycle the test server: the pool resets only
 | 3 | Keep option A of the #1441 research as a safety net: an MTP `ITestSessionLifetimeHandler` in `Encina.UnitTests`, active only when `STRYKER_MUTANT_FILE` is set, that exits at session start above a private-memory threshold so Stryker reruns the mutant on a fresh server | Bounds cause (b) | Implemented in phase 2f (see 6.7) |
 | 4 | Comment on stryker-net#3742 with these figures | Gives upstream the evidence | Open |
 
-A fresh server's first run is 2-3x slower than a warm one (70-122 s against 31-44 s locally), so recycling should be rare, not per mutant. The threshold chosen after the CI verification (6.7, "First CI verification") trades against this: at 4096 MB recycles are expected to be frequent.
+A fresh server's first run is 2-3x slower than a warm one (70-122 s against 31-44 s locally), so recycling should be rare, not per mutant. The threshold chosen after the CI verification (6.7, "First CI verification") trades against this: at 4096 MB recycles were frequent (see "Second CI verification"), so the threshold is now 4608 MB.
 
 ### 6.7 Phase 2f: test server recycler
 
@@ -190,7 +190,7 @@ The recycler is the safety net of step 3. It ends the test server when its priva
 | Files | `tests/Encina.UnitTests/TestHost/StrykerServerRecycleBuilderHook.cs` and `tests/Encina.UnitTests/TestHost/StrykerServerRecycler.cs` |
 | Registration | A `TestingPlatformBuilderHook` item in `tests/Encina.UnitTests/Encina.UnitTests.csproj`, so the generated `SelfRegisteredExtensions` calls it. The xunit.v3 generated entry point uses Microsoft.Testing.Platform (1.9.1) only for `--server`, which is how Stryker starts the test server; other runs use xUnit's console runner and never reach the hook. |
 | Activation | Registers an `ITestSessionLifetimeHandler` only when `STRYKER_MUTANT_FILE` is set (Stryker sets it on every test server it starts) |
-| Trigger | At the start of each test session after the first one in the process, if `Process.PrivateMemorySize64` is above `ENCINA_MTP_RECYCLE_MB` (default 4096 MB, `StrykerServerRecycler.DefaultThresholdMb`; it was 6144 MB until the CI verification) |
+| Trigger | At the start of each test session after the first one in the process, if `Process.PrivateMemorySize64` is above `ENCINA_MTP_RECYCLE_MB` (default 4608 MB, `StrykerServerRecycler.DefaultThresholdMb`; it was 6144 MB, then 4096 MB, see "Second CI verification") |
 | Action | Writes one line starting with `[encina-mtp-recycle]` and kills its own process with `Process.Kill`, not `Environment.Exit`, so no `ProcessExit` handler can delay the exit |
 | First session | Never recycles, so the fresh server of the retry cannot be ended by the hook |
 | Metric | `PrivateMemorySize64` is private bytes on Windows and `VmData` on Linux (dotnet/runtime `ProcessManager.Linux.cs`: `PrivateBytes = (long)procFsStatus.VmData`), the same metric as the 6.2 measurements |
@@ -246,11 +246,25 @@ Both are kills by one test unrelated to the mutated code (shared static state or
 
 New threshold: `ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb` go from 6144 to 4096 MB, so that the cgroup peak is expected to stay below `memory.max`; this has not run in CI yet. The cost is stated under Limits: the idle private memory after runs 1-4 on Linux with the `MALLOC_*` thresholds is 3,956 / 4,205 / 4,420 / 4,670 MB (6.2), so 4096 MB is expected to recycle roughly every other mutant. A fresh server's first session never recycles, so a lower threshold cannot cause RuntimeError.
 
+#### Second CI verification
+
+CI run 37454364141 ran the same custom scope at 4096 MB.
+
+| Measure | 6144 MB (run 37371127806) | 4096 MB (run 37454364141) |
+| --- | --- | --- |
+| cgroup peak | 12288 MB (hit `memory.max`) | 11487 MB |
+| `cg_ev_max` / high / `oom_kill` | `oom_kill` 0 | 0 / 0 / 0 |
+| Recycles | 7 | 24 |
+| Seconds per mutant | not compared | warm 52.8 s, recycled 101 s |
+| Outcome | completed | timed out at 87 min after 55 of 64 testable mutants (about 92 min projected) |
+
+4096 MB fixes the memory cap but recycles so often that the shard overruns its timeout. The new choice is 4608 MB (`ENCINA_MTP_RECYCLE_MB` and `StrykerServerRecycler.DefaultThresholdMb`), with a projected peak of about 12.0 GB. Because runner speed varied about 1.3x between two runs of the same scope, a custom scope's timeout is now `max(timeout * 1.3, 110)` minutes, capped at the 340-minute workflow ceiling; the scheduled shards' `TIMEOUTS` are unchanged. The 4608 MB threshold has not run in CI yet.
+
 #### Limits
 
-- The Linux behaviour (SIGKILL on itself, the `VmData` reading) is confirmed by run 37371127806, but only for the scope above and at the 6144 MB threshold; the 4096 MB threshold has not run in CI yet.
+- The Linux behaviour (SIGKILL on itself, the `VmData` reading) is confirmed by run 37371127806 at 6144 MB and run 37454364141 at 4096 MB; the 4608 MB threshold has not run in CI yet.
 - The retry is a cold run with the timeout computed from the initial run. The initial run is itself cold and mutant 1 after the pool reset always runs cold, so the margin is the same as for every first mutant, but a slower runner narrows it.
-- Without the two `MALLOC_*` thresholds, private memory after one run is about 7.3 GB on Linux (6.2), above the 4,096 MB default, so every mutant after the first on a server would recycle: correct but slower.
+- Without the two `MALLOC_*` thresholds, private memory after one run is about 7.3 GB on Linux (6.2), above the 4,608 MB default, so every mutant after the first on a server would recycle: correct but slower.
 - Even with the thresholds, the 4,096 MB default sits below the idle private memory after runs 2-4, so recycles are frequent, not rare, and cold runs are 2-3x slower than warm ones. The mutation workflow's timeouts are still provisional; the next CI run must report seconds per mutant before they are set.
 - Remove the hook once Stryker can recycle the server ([stryker-net#3742](https://github.com/stryker-mutator/stryker-net/issues/3742)) or #1858 removes the growth and a custom-shard run confirms it.
 
