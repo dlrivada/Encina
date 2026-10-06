@@ -136,39 +136,63 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(nextStep);
 
-        var requestType = typeof(TRequest);
-        var requirements = HasAllowAnonymous(requestType) ? null : RequirementsOf(requestType);
+        var requirements = RequirementsOf(typeof(TRequest));
         if (requirements is null)
         {
             return await nextStep().ConfigureAwait(false);
         }
 
+        var denial = await AuthorizeAsync(request, context, requirements).ConfigureAwait(false);
+        return denial is { } error
+            ? Left<EncinaError, TResponse>(error)
+            : await nextStep().ConfigureAwait(false);
+    }
+
+    // The denial of the caller, or null when every requirement passes (logged 200).
+    private async Task<EncinaError?> AuthorizeAsync(TRequest request, IRequestContext context, Requirements requirements)
+    {
         // A non-conforming context whose Identity is null reads as anonymous and is denied.
-        var denial = context.Identity is { IsAuthenticated: true } identity
-            ? await EvaluateAsync(request, identity, requirements).ConfigureAwait(false)
-            : Unauthenticated(requestType, context.Identity?.Kind ?? IdentityKind.Anonymous);
-        if (denial is { } error)
+        if (context.Identity is not { IsAuthenticated: true } identity)
         {
-            return Left<EncinaError, TResponse>(error);
+            return Unauthenticated(typeof(TRequest), context.Identity?.Kind ?? IdentityKind.Anonymous);
         }
 
-        LogAuthorizationSucceeded(_logger, requestType.FullName!, requirements.EffectivePolicy, context.Identity!.Kind, null);
-        return await nextStep().ConfigureAwait(false);
+        var denial = await EvaluateAsync(request, identity, requirements).ConfigureAwait(false);
+        if (denial is null)
+        {
+            LogAuthorizationSucceeded(_logger, typeof(TRequest).FullName!, requirements.EffectivePolicy, identity.Kind, null);
+        }
+
+        return denial;
     }
 
     // The attributes and the CQRS default policy that apply; null when the request needs no authorization.
     private Requirements? RequirementsOf(Type requestType)
     {
+        if (HasAllowAnonymous(requestType))
+        {
+            return null;
+        }
+
         var authorizeAttributes = GetAuthorizeAttributes(requestType);
         var resourceAuthorizeAttribute = GetResourceAuthorizeAttribute(requestType);
         var explicitRequirements = authorizeAttributes.Count > 0 || resourceAuthorizeAttribute is not null;
-        var autoAppliedPolicy = explicitRequirements || !_configuration.AutoApplyPolicies
-            ? null
-            : IsCommand(requestType) ? _configuration.DefaultCommandPolicy : _configuration.DefaultQueryPolicy;
+        var autoAppliedPolicy = explicitRequirements ? null : AutoAppliedPolicy(requestType);
 
         return explicitRequirements || autoAppliedPolicy is not null
             ? new Requirements(authorizeAttributes, resourceAuthorizeAttribute, autoAppliedPolicy)
             : null;
+    }
+
+    // The CQRS default policy of a request without explicit attributes, when auto-apply is on.
+    private string? AutoAppliedPolicy(Type requestType)
+    {
+        if (!_configuration.AutoApplyPolicies)
+        {
+            return null;
+        }
+
+        return IsCommand(requestType) ? _configuration.DefaultCommandPolicy : _configuration.DefaultQueryPolicy;
     }
 
     // Every requirement must pass (AND); the first failure is the denial.
@@ -176,18 +200,30 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
     {
         // An authenticated identity built without a principal (builders only) satisfies no policy or role.
         var user = identity.Principal ?? new ClaimsPrincipal(new ClaimsIdentity());
-        foreach (var authorizeAttribute in requirements.AuthorizeAttributes)
+        var denial = await EvaluateAttributesAsync(request, user, identity.Kind, requirements.AuthorizeAttributes).ConfigureAwait(false);
+        if (denial is not null)
         {
-            var denial = await EvaluatePolicyAsync(request, user, identity.Kind, authorizeAttribute.Policy, "policy").ConfigureAwait(false)
-                ?? EvaluateRoles(user, identity.Kind, authorizeAttribute.Roles);
+            return denial;
+        }
+
+        return await EvaluatePolicyAsync(request, user, identity.Kind, requirements.ResourceAuthorizeAttribute?.Policy, "resource_authorization").ConfigureAwait(false)
+            ?? await EvaluatePolicyAsync(request, user, identity.Kind, requirements.AutoAppliedPolicy, "auto_applied_policy").ConfigureAwait(false);
+    }
+
+    // Each [Authorize]: its policy, then its roles.
+    private async Task<EncinaError?> EvaluateAttributesAsync(TRequest request, ClaimsPrincipal user, IdentityKind identityKind, List<AuthorizeAttribute> attributes)
+    {
+        foreach (var attribute in attributes)
+        {
+            var denial = await EvaluatePolicyAsync(request, user, identityKind, attribute.Policy, "policy").ConfigureAwait(false)
+                ?? EvaluateRoles(user, identityKind, attribute.Roles);
             if (denial is not null)
             {
                 return denial;
             }
         }
 
-        return await EvaluatePolicyAsync(request, user, identity.Kind, requirements.ResourceAuthorizeAttribute?.Policy, "resource_authorization").ConfigureAwait(false)
-            ?? await EvaluatePolicyAsync(request, user, identity.Kind, requirements.AutoAppliedPolicy, "auto_applied_policy").ConfigureAwait(false);
+        return null;
     }
 
     private async Task<EncinaError?> EvaluatePolicyAsync(TRequest request, ClaimsPrincipal user, IdentityKind identityKind, string? policy, string requirement)

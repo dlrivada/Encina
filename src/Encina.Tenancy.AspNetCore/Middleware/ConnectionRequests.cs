@@ -30,7 +30,9 @@ internal static class ConnectionRequests
         || context.Features.Get<IHttpExtendedConnectFeature>() is { IsExtendedConnect: true }
         || context.WebSockets.IsWebSocketRequest
         || IsEventStreamGet(context.Request)
-        || context.GetEndpoint()?.Metadata.GetMetadata<HubMetadata>() is not null;
+        || IsHubEndpoint(context.GetEndpoint());
+
+    private static bool IsHubEndpoint(Endpoint? endpoint) => endpoint?.Metadata.GetMetadata<HubMetadata>() is not null;
 
     private static bool IsWebSocketUpgrade(HttpContext context) =>
         context.Features.Get<IHttpUpgradeFeature>() is { IsUpgradableRequest: true }

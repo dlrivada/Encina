@@ -1,6 +1,7 @@
 using Encina.Diagnostics;
 using Encina.DomainModeling;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -116,40 +117,39 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var identity = GetCurrentIdentity();
-        var userId = identity.UserId;
 
         var deletedEntries = context.ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Deleted && e.Entity is ISoftDeletableEntity)
+            .Where(static e => e.State == EntityState.Deleted && e.Entity is ISoftDeletableEntity)
             .ToList();
-
-        var softDeletedCount = 0;
 
         foreach (var entry in deletedEntries)
         {
-            var entity = (ISoftDeletableEntity)entry.Entity;
-
-            // Set soft delete properties
-            entity.IsDeleted = true;
-
-            if (_options.TrackDeletedAt)
-            {
-                entity.DeletedAtUtc = nowUtc;
-            }
-
-            if (_options.TrackDeletedBy && userId is not null)
-            {
-                entity.DeletedBy = userId;
-            }
-
-            // Change state from Deleted to Modified to prevent physical deletion
-            entry.State = EntityState.Modified;
-            softDeletedCount++;
+            MarkSoftDeleted(entry, nowUtc, identity.UserId);
         }
 
-        if (_options.LogSoftDeletes && softDeletedCount > 0)
+        if (_options.LogSoftDeletes && deletedEntries.Count > 0)
         {
-            Log.SoftDeleteConverted(_logger, softDeletedCount, identity.Kind);
+            Log.SoftDeleteConverted(_logger, deletedEntries.Count, identity.Kind);
         }
+    }
+
+    // Sets the soft-delete fields and turns the physical delete into an update.
+    private void MarkSoftDeleted(EntityEntry entry, DateTime nowUtc, string? userId)
+    {
+        var entity = (ISoftDeletableEntity)entry.Entity;
+        entity.IsDeleted = true;
+
+        if (_options.TrackDeletedAt)
+        {
+            entity.DeletedAtUtc = nowUtc;
+        }
+
+        if (_options.TrackDeletedBy && userId is not null)
+        {
+            entity.DeletedBy = userId;
+        }
+
+        entry.State = EntityState.Modified;
     }
 
     /// <summary>
@@ -161,7 +161,8 @@ public sealed class SoftDeleteInterceptor : SaveChangesInterceptor
     {
         try
         {
-            return _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext?.Identity ?? RequestIdentity.Anonymous;
+            var context = _serviceProvider.GetService<IRequestContextAccessor>()?.RequestContext;
+            return context?.Identity ?? RequestIdentity.Anonymous;
         }
         catch (Exception ex)
         {

@@ -185,17 +185,21 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     /// <param name="context">The DbContext to process.</param>
     private void PopulateAuditFields(DbContext context)
     {
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var identity = GetCurrentRequestContext()?.Identity ?? RequestIdentity.Anonymous;
-        var userId = identity.UserId;
+        var (addedCount, modifiedCount) = PopulateEntries(context, _timeProvider.GetUtcNow().UtcDateTime, identity.UserId);
 
-        var entries = context.ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+        if (_options.LogAuditChanges && (addedCount > 0 || modifiedCount > 0))
+        {
+            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, identity.Kind);
+        }
+    }
 
+    // Populates the creation or modification fields of every added or modified entity.
+    private (int Added, int Modified) PopulateEntries(DbContext context, DateTime nowUtc, string? userId)
+    {
         var addedCount = 0;
         var modifiedCount = 0;
-
-        foreach (var entry in entries)
+        foreach (var entry in context.ChangeTracker.Entries())
         {
             if (entry.State == EntityState.Added)
             {
@@ -209,10 +213,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             }
         }
 
-        if (_options.LogAuditChanges && (addedCount > 0 || modifiedCount > 0))
-        {
-            Log.AuditFieldsPopulated(_logger, addedCount, modifiedCount, identity.Kind);
-        }
+        return (addedCount, modifiedCount);
     }
 
     /// <summary>
@@ -279,11 +280,9 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
     {
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var requestContext = GetCurrentRequestContext();
-        var userId = requestContext?.Identity?.UserId;
-        var correlationId = requestContext?.CorrelationId;
 
         var entries = context.ChangeTracker.Entries()
-            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(static e => ActionOf(e.State) is not null)
             .ToList();
 
         if (entries.Count == 0)
@@ -291,40 +290,33 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             return;
         }
 
-        PendingEntries.Value ??= [];
-        var pendingList = PendingEntries.Value;
-
+        var pendingList = PendingEntries.Value ??= [];
         foreach (var entry in entries)
         {
-            var action = entry.State switch
-            {
-                EntityState.Added => AuditAction.Created,
-                EntityState.Modified => AuditAction.Updated,
-                EntityState.Deleted => AuditAction.Deleted,
-                _ => (AuditAction?)null
-            };
-
-            if (action is null)
-            {
-                continue;
-            }
-
-            var entityType = entry.Entity.GetType().Name;
-            var entityId = GetEntityId(entry);
-            var oldValues = action.Value != AuditAction.Created ? SerializeValues(entry.OriginalValues) : null;
-            var newValues = action.Value != AuditAction.Deleted ? SerializeValues(entry.CurrentValues) : null;
-
-            pendingList.Add(new PendingAuditEntry(
-                entityType,
-                entityId,
-                action.Value,
-                userId,
-                nowUtc,
-                oldValues,
-                newValues,
-                correlationId));
+            pendingList.Add(ToPendingEntry(entry, ActionOf(entry.State)!.Value, requestContext, nowUtc));
         }
     }
+
+    // crap-exempt: single-question switch — the audit action of each entity state (null: not audited).
+    private static AuditAction? ActionOf(EntityState state) => state switch
+    {
+        EntityState.Added => AuditAction.Created,
+        EntityState.Modified => AuditAction.Updated,
+        EntityState.Deleted => AuditAction.Deleted,
+        _ => null
+    };
+
+    // The actor and correlation id come from the ambient request context only.
+    private static PendingAuditEntry ToPendingEntry(EntityEntry entry, AuditAction action, IRequestContext? requestContext, DateTime nowUtc) =>
+        new(
+            entry.Entity.GetType().Name,
+            GetEntityId(entry),
+            action,
+            requestContext?.Identity?.UserId,
+            nowUtc,
+            action != AuditAction.Created ? SerializeValues(entry.OriginalValues) : null,
+            action != AuditAction.Deleted ? SerializeValues(entry.CurrentValues) : null,
+            requestContext?.CorrelationId);
 
     /// <summary>
     /// Gets the entity ID as a string from the entity entry.

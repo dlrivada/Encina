@@ -294,6 +294,49 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
         (record.StructuredState ?? []).ShouldAllBe(pair => !(pair.Value ?? string.Empty).Contains(sentinel));
     }
 
+    [Theory]
+    [InlineData("no-accessor")]
+    [InlineData("empty-accessor")]
+    [InlineData("null-identity")]
+    [InlineData("throwing-provider")]
+    public async Task SaveChangesAsync_WithoutAReadableCaller_SoftDeletesAnonymously(string source)
+    {
+        var services = Substitute.For<IServiceProvider>();
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        switch (source)
+        {
+            case "empty-accessor":
+                accessor.RequestContext.Returns((IRequestContext?)null);
+                services.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+                break;
+            case "null-identity":
+                accessor.RequestContext.Returns(Substitute.For<IRequestContext>());
+                services.GetService(typeof(IRequestContextAccessor)).Returns(accessor);
+                break;
+            case "throwing-provider":
+                services.GetService(typeof(IRequestContextAccessor)).Returns(_ => throw new InvalidOperationException("scope disposed"));
+                break;
+        }
+
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<SoftDeleteInterceptor>();
+        var interceptor = new SoftDeleteInterceptor(services, new SoftDeleteInterceptorOptions { LogSoftDeletes = true }, _timeProvider, logger);
+        var options = new DbContextOptionsBuilder<SoftDeleteTestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new SoftDeleteTestDbContext(options);
+        var order = new TestSoftDeletableOrder { Id = Guid.NewGuid(), CustomerName = "Test", Total = 1m };
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        context.Orders.Remove(order);
+        await context.SaveChangesAsync();
+
+        order.IsDeleted.ShouldBeTrue();
+        order.DeletedBy.ShouldBeNull();
+        logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 3050).Message.ShouldContain("Anonymous identity");
+    }
+
     [Fact]
     public async Task SaveChangesAsync_WhenInterceptorDisabled_ShouldPerformHardDelete()
     {
