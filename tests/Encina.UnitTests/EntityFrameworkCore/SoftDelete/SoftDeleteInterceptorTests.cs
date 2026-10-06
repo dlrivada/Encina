@@ -265,6 +265,36 @@ public sealed class SoftDeleteInterceptorTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveChangesAsync_LogsEvent3050_WithTheIdentityKind_NeverTheUserId()
+    {
+        // #1705, finding 4: no user id reaches the soft-delete log.
+        const string sentinel = "sentinel-softdelete-8e1a";
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(TestRequestContext.For(TestIdentity.User(sentinel)));
+        var services = new ServiceCollection().AddSingleton(accessor).BuildServiceProvider();
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<SoftDeleteInterceptor>();
+        var interceptor = new SoftDeleteInterceptor(
+            services, new SoftDeleteInterceptorOptions { LogSoftDeletes = true }, _timeProvider, logger);
+        var options = new DbContextOptionsBuilder<SoftDeleteTestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new SoftDeleteTestDbContext(options);
+        var order = new TestSoftDeletableOrder { Id = Guid.NewGuid(), CustomerName = "Test", Total = 1m };
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        context.Orders.Remove(order);
+        await context.SaveChangesAsync();
+
+        order.DeletedBy.ShouldBe(sentinel);
+        var record = logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 3050);
+        record.Message.ShouldContain("User identity");
+        record.Message.ShouldNotContain(sentinel);
+        (record.StructuredState ?? []).ShouldAllBe(pair => !(pair.Value ?? string.Empty).Contains(sentinel));
+    }
+
+    [Fact]
     public async Task SaveChangesAsync_WhenInterceptorDisabled_ShouldPerformHardDelete()
     {
         // Arrange

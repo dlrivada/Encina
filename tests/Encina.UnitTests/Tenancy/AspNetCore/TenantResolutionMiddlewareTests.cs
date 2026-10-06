@@ -134,6 +134,102 @@ public sealed class TenantResolutionMiddlewareTests
 
     #endregion
 
+    #region Connection Requests (#1705 Phase 3, finding 14)
+
+    private static ITenantResolver ResolverOf(string? tenant)
+    {
+        var resolver = Substitute.For<ITenantResolver>();
+        resolver.Priority.Returns(100);
+        resolver.ResolveAsync(Arg.Any<HttpContext>(), Arg.Any<CancellationToken>()).Returns(new ValueTask<string?>(tenant));
+        return resolver;
+    }
+
+    private static DefaultHttpContext CreateSseContext()
+    {
+        var context = CreateHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Headers.Accept = "text/event-stream";
+        return context;
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ConnectionRequest_ResolvesTheTenant_ButWritesNoContext()
+    {
+        var resolver = ResolverOf("tenant-abc");
+        var middleware = CreateMiddleware(resolvers: [resolver]);
+        var accessor = Substitute.For<IRequestContextAccessor>();
+
+        await middleware.InvokeAsync(CreateSseContext(), accessor, TimeProvider.System);
+
+        _nextCalled.ShouldBeTrue();
+        await resolver.Received(1).ResolveAsync(Arg.Any<HttpContext>(), Arg.Any<CancellationToken>());
+        accessor.DidNotReceive().RequestContext = Arg.Any<IRequestContext?>();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ConnectionRequest_StillValidatesTheTenant_AndAnswers400WhenRequired()
+    {
+        // The Accept header is client-controlled: it must not bypass validation or RequireTenant.
+        var middleware = CreateMiddleware(
+            resolvers: [ResolverOf("unknown-tenant")],
+            tenancyOptions: new TenancyOptions { RequireTenant = true, ValidateTenantOnRequest = true },
+            aspNetCoreOptions: new TenancyAspNetCoreOptions { Return400WhenTenantRequired = true });
+        var context = CreateSseContext();
+
+        await middleware.InvokeAsync(context, Substitute.For<IRequestContextAccessor>(), TimeProvider.System);
+
+        context.Response.StatusCode.ShouldBe(400);
+        _nextCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PostThatStreams_IsNotAConnectionRequest_AndGetsTheTenantWritten()
+    {
+        var middleware = CreateMiddleware(resolvers: [ResolverOf("tenant-abc")]);
+        var context = CreateHttpContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Headers.Accept = "text/event-stream";
+        IRequestContext? written = null;
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns((IRequestContext?)null);
+        accessor.When(a => a.RequestContext = Arg.Any<IRequestContext?>()).Do(call => written = call.Arg<IRequestContext?>());
+
+        await middleware.InvokeAsync(context, accessor, TimeProvider.System);
+
+        written.ShouldNotBeNull();
+        written.TenantId.ShouldBe("tenant-abc");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_InsideAnInboundScope_TheTenantIsAddedToTheRequestIdentityContext()
+    {
+        // UseEncinaContext then UseTenantResolution: the setter keeps the identity and origin.
+        var host = new global::Encina.UnitTests.Core.Identity.ScopeTestHost();
+        IRequestContext? seen = null;
+        var inner = new TenantResolutionMiddleware(
+            _ =>
+            {
+                seen = host.Accessor.RequestContext;
+                return Task.CompletedTask;
+            },
+            [ResolverOf("tenant-abc")],
+            Options.Create(new TenancyOptions()),
+            Options.Create(new TenancyAspNetCoreOptions()),
+            _tenantStore);
+
+        await host.InInboundScope(global::Encina.Testing.Identity.TestIdentity.Principal("alice"), async _ =>
+        {
+            await inner.InvokeAsync(CreateHttpContext(), host.Accessor, TimeProvider.System);
+            return 0;
+        });
+
+        seen.ShouldNotBeNull();
+        seen.UserId.ShouldBe("alice");
+        seen.TenantId.ShouldBe("tenant-abc");
+    }
+
+    #endregion
+
     #region Tenant Resolved - Context Updated
 
     [Fact]
