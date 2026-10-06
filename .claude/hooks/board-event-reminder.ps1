@@ -1,6 +1,6 @@
 # PostToolUse hook (PowerShell|Bash and Agent|Task), wired in .claude/settings.json (#1732): after an event
 # that changes the private control board it reminds the orchestrator to update the work/flow/audits
-# collections now, or to let the 30-minute reconciler (tools/ai/board/reconcile-board.ps1) do it.
+# collections now (no scheduled reconciler runs; tools/ai/board/reconcile-board.ps1 is a manual tool).
 #
 # Events: a shell command that ran `gh pr create`, `gh pr merge`, `audit-done.ps1` or `audit-commit-stage.ps1`;
 # an Agent spawn of issue-worker or docs-writer. The hook NEVER blocks: it always exits 0, and a malformed
@@ -39,7 +39,7 @@ try {
         if ($agent -in 'issue-worker', 'docs-writer') { $event = "a $agent spawn" }
     }
     if ($event) {
-        $context = "Board: update work/flow/audits for $event now (or let the 30-minute reconciler do it)"
+        $context = "Board: update work/flow/audits for $event now"
         @{ hookSpecificOutput = @{ hookEventName = 'PostToolUse'; additionalContext = $context } } | ConvertTo-Json -Compress
     }
 }
