@@ -97,7 +97,10 @@ jobs:
                 { p: projectId, c: nodeId });
             }
 
-            async function handleIssue(issue) {
+            async function handleIssue(eventIssue) {
+              // The event payload is a snapshot: a queued run for a later event would otherwise judge stale labels.
+              const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: eventIssue.number });
+              if (issue.state !== 'open') return;
               if (pg) {
                 try {
                   if (!(await isOnProject(issue.node_id))) {
@@ -143,18 +146,23 @@ jobs:
 
             let onProject = null;
             if (pg) {
-              onProject = new Set();
-              let cursor = null;
-              for (;;) {
-                const r = await pg.graphql(
-                  'query($login:String!,$number:Int!,$after:String){ user(login:$login){ projectV2(number:$number){ items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ content{ ... on Issue { number repository{ nameWithOwner } } } } } } } }',
-                  { login: owner, number: PROJECT_NUMBER, after: cursor });
-                const items = r.user.projectV2.items;
-                for (const n of items.nodes) {
-                  if (n.content && n.content.number && n.content.repository && n.content.repository.nameWithOwner === owner + '/' + repo) onProject.add(n.content.number);
+              try {
+                onProject = new Set();
+                let cursor = null;
+                for (;;) {
+                  const r = await pg.graphql(
+                    'query($login:String!,$number:Int!,$after:String){ user(login:$login){ projectV2(number:$number){ items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ content{ ... on Issue { number repository{ nameWithOwner } } } } } } } }',
+                    { login: owner, number: PROJECT_NUMBER, after: cursor });
+                  const items = r.user.projectV2.items;
+                  for (const n of items.nodes) {
+                    if (n.content && n.content.number && n.content.repository && n.content.repository.nameWithOwner === owner + '/' + repo) onProject.add(n.content.number);
+                  }
+                  if (!items.pageInfo.hasNextPage) break;
+                  cursor = items.pageInfo.endCursor;
                 }
-                if (!items.pageInfo.hasNextPage) break;
-                cursor = items.pageInfo.endCursor;
+              } catch (e) {
+                core.warning('Project membership could not be read (PROJECT_TOKEN invalid or expired?): ' + e.message);
+                onProject = null;
               }
             }
 
@@ -167,7 +175,7 @@ jobs:
 
             const header = [{ data: 'Issue', header: true }, { data: 'Title', header: true }, { data: 'Missing', header: true }];
             core.summary.addHeading('Incomplete open issues (' + rows.length + ' of ' + open.length + ')', 2);
-            if (!pg) core.summary.addRaw('PROJECT_TOKEN is not set: project membership was not checked.\n\n', true);
+            if (!onProject) core.summary.addRaw('Project membership was not checked (PROJECT_TOKEN missing or unusable).\n\n', true);
             if (rows.length > 0) core.summary.addTable([header, ...rows]);
             else core.summary.addRaw('Every open issue has a milestone, a priority label and a project.\n', true);
             await core.summary.write();

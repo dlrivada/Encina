@@ -18,7 +18,8 @@
 # security -> v0.14.0 Hardening + p0-mandatory; docs-only -> v0.21.0 Documentation + p1-recommended; tests and any
 # consolidated issue with a tests draft -> v0.19.0 Providers & Testing + p1-recommended; a draft header milestone
 # wins), then added to project 1 with the keyring token (GITHUB_TOKEN/GH_TOKEN cleared for that call); a failed
-# project add fails the run loudly.
+# project add fails the run loudly (the row is already written, so a re-run does not retry it: add the issue by hand;
+# the weekly issue-hygiene workflow lists any issue missing from the project).
 
 param(
     [Parameter(Mandatory)][int]$Issue,
@@ -35,7 +36,11 @@ $dir = Join-Path $root 'artifacts\knowledge\remediation'
 $opened = Join-Path $dir 'opened.csv'
 $labels = gh label list --repo dlrivada/Encina --limit 400 --json name --jq '.[].name'
 if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh label list failed (exit $LASTEXITCODE); refusing to open issues without the label list"; exit 1 }
-$ms = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title'
+# The milestone titles hold an em dash: decode gh's output as UTF-8 whatever the console code page is.
+$savedEncoding = [Console]::OutputEncoding
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+try { $ms = gh api repos/dlrivada/Encina/milestones --paginate --jq '.[].title' }
+finally { [Console]::OutputEncoding = $savedEncoding }
 if ($LASTEXITCODE -ne 0) { Write-Error "open-remediation: gh api milestones failed (exit $LASTEXITCODE); refusing to open issues without the milestone list"; exit 1 }
 
 # An issue is opened complete or not at all (#1926): every issue carries a milestone and one priority label,
@@ -60,6 +65,7 @@ function Get-Route([string]$Title, [string]$Kind) {
 # Fails loudly when the route's milestone or priority label does not exist in the repository.
 function Resolve-RouteMetadata([string]$Route, [string]$DraftMilestone, [string[]]$DraftLabels, [string]$Name) {
     $r = $Routes[$Route]
+    if ($DraftMilestone -and -not ($ms -contains $DraftMilestone)) { Write-Warning "open-remediation: the header milestone '$DraftMilestone' of $Name is not an existing milestone; using the route's $($r.Milestone)" }
     $milestone = if ($DraftMilestone -and ($ms -contains $DraftMilestone)) { $DraftMilestone } else { $r.Milestone }
     if (-not ($ms -contains $milestone)) { Write-Error "open-remediation: milestone '$milestone' for $Name does not exist; no issue was created"; exit 1 }
     $lab = @($DraftLabels)

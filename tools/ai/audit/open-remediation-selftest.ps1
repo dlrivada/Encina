@@ -378,6 +378,7 @@ exit 0
     Assert-That -Name 'a failed project add exits 1 naming the issue and keeps the row' -Condition ($r9c.Exit -ne 0 -and $r9c.Text.Contains('gh project item-add failed') -and @(Get-Content $csv | Where-Object { $_ -like '8-docs.md,*' }).Count -eq 1) -Detail $r9c.Text
 }
 finally {
+    $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
     if (Test-Path $base) {
         Get-ChildItem -LiteralPath $base -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $_.IsReadOnly = $false }
         Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue

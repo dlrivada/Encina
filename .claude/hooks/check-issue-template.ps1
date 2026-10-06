@@ -297,7 +297,7 @@ try {
         elseif (-not $milestone[0].Dynamic) {
             $titles = Get-MilestoneTitles $Root
             if ($null -eq $titles) { $missing.Add("milestone '$($milestone[0].Value)' could not be verified (the milestone lookup failed: run gh auth status, or seed artifacts/issue-hygiene/milestones.txt)") }
-            elseif ($titles -cnotcontains $milestone[0].Value) { $missing.Add("milestone '$($milestone[0].Value)' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones)") }
+            elseif ($titles -cnotcontains $milestone[0].Value) { $missing.Add("milestone '$($milestone[0].Value)' is not an existing milestone title (gh api repos/dlrivada/Encina/milestones; a milestone created in the last 12 hours needs artifacts/issue-hygiene/milestones.txt deleted to refresh the cache)") }
         }
 
         $labelValues = Get-OptionValues $Options @('-l', '--label')
@@ -327,10 +327,26 @@ try {
         if (Test-OptionPresent $options @('-w', '--web', '-T', '--template')) { continue }
 
         $title = Get-OptionValues $options @('-t', '--title')
-        if ($title.Count -eq 0 -or $title[0].Dynamic) { continue }
-        $titleText = $title[0].Value
+        if ($title.Count -eq 0) { continue }
 
         $root = Get-RepoRoot $cwd
+
+        # #1926: the metadata check needs no body, so it runs before any skip below (a variable title or body
+        # file, `--body-file -`, no body). A variable title is judged on milestone and priority only.
+        $metaPrefix = ''; $metaDefaultLabel = ''
+        if (-not $title[0].Dynamic) {
+            $metaPrefix = [regex]::Match($title[0].Value, '^\[[A-Z]+\]').Value
+            $metaTemplates = Get-Templates $root
+            if ($metaPrefix -and $metaTemplates.ContainsKey($metaPrefix)) { $metaDefaultLabel = $metaTemplates[$metaPrefix].DefaultLabel }
+        }
+        $missingMeta = Get-MissingMetadata $options $metaPrefix $metaDefaultLabel $root
+        if ($missingMeta.Count -gt 0) {
+            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).")
+            exit 2
+        }
+
+        if ($title[0].Dynamic) { continue }
+        $titleText = $title[0].Value
 
         $body = $null
         $bodyFile = Get-OptionValues $options @('-F', '--body-file')
@@ -375,12 +391,6 @@ try {
                 [Console]::Error.WriteLine("Blocked: the headers of .github/ISSUE_TEMPLATE/$($template.File) must appear in template order; '$($template.Headers[$i])' comes before '$($template.Headers[$i - 1])'.")
                 exit 2
             }
-        }
-
-        $missingMeta = Get-MissingMetadata $options $prefix.Value $template.DefaultLabel $root
-        if ($missingMeta.Count -gt 0) {
-            [Console]::Error.WriteLine("Blocked: an issue is opened complete or not at all (#1926). Missing: $($missingMeta -join ' | '). Add them to the gh issue create call; the open-issue skill has the full checklist (project add, parent, blocked-by follow the create).")
-            exit 2
         }
     }
     exit 0
