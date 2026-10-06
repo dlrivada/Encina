@@ -32,7 +32,7 @@ public static class HttpContextInboundRequestExtensions
     /// <b>IP address.</b> It is <see cref="ConnectionInfo.RemoteIpAddress"/> only; the client-controlled
     /// <c>X-Forwarded-For</c> header is never read, because the address feeds the audit trail. An
     /// application behind a reverse proxy registers <c>app.UseForwardedHeaders()</c> with
-    /// <c>ForwardedHeadersOptions.KnownProxies</c> or <c>KnownNetworks</c> (before
+    /// <c>ForwardedHeadersOptions.KnownProxies</c> or <c>KnownIPNetworks</c> (before
     /// <c>UseEncinaContext()</c>), so ASP.NET Core rewrites <c>RemoteIpAddress</c> from trusted proxies only.
     /// </para>
     /// <para>
