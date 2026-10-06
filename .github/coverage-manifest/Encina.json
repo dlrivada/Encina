@@ -79,7 +79,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Interface with no coverable lines; its implementation RequestContext carries the targets.",
+        "guard": "Interface with no coverable lines; its implementation RequestContext carries the targets."
+      }
     },
     "Abstractions/IRequestContextAccessor.cs": {
       "defaultTests": [],
@@ -194,7 +199,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 60 },
+      "justifications": {
+        "unit": "Security-critical identity liveness getter, copies and factories; unit tests drive every member (measured 100%).",
+        "guard": "The public factories and With* methods carry argument guards that the guard run exercises (measured 65%)."
+      }
     },
     "Core/RequestContextAccessor.cs": {
       "defaultTests": [
