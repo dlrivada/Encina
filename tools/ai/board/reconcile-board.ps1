@@ -7,8 +7,8 @@
 #                <dir>/flow/*.json, <dir>/audits/*.json, <dir>/meta/board.json. Each file is the document's data
 #                only. The file name (without .json) is the doc_id.
 #   -Versions    a JSON object {"work/1698": 8, "flow/1698": 3, "meta/board": 2, ...}: each EXISTING
-#                document's version, which "list" prints only in its tool result text. The caller (the scheduled
-#                session) writes it from those results. An existing document missing from the sidecar is
+#                document's version, which "list" prints only in its tool result text. The caller (whoever runs
+#                it by hand) writes it from those results. An existing document missing from the sidecar is
 #                SKIPPED with a warning (a write without if_version could overwrite a concurrent manual edit);
 #                a new document needs no version. The run still exits 0 so the other writes can be applied.
 #   gh / git     open PRs (head branch, number, "Fixes #n" issues), PRs merged in the last 14 days, closed
