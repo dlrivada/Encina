@@ -88,7 +88,7 @@ public sealed class PIIOptions
     /// in audit entries via <c>Encina.Security.Audit</c>.
     /// </para>
     /// <para>
-    /// This works in conjunction with <see cref="Audit.AuditOptions.GlobalSensitiveFields"/>
+    /// This works in conjunction with <see cref="Audit.OperationAuditOptions.GlobalSensitiveFields"/>
     /// to provide layered PII protection in audit trails.
     /// </para>
     /// </remarks>
@@ -192,7 +192,7 @@ public sealed class PIIOptions
     /// (e.g., "ssn" matches "SSN", "ssnNumber", "customerSsn").
     /// </para>
     /// <para>
-    /// This follows the same pattern as <see cref="Audit.AuditOptions.GlobalSensitiveFields"/>
+    /// This follows the same pattern as <see cref="Audit.OperationAuditOptions.GlobalSensitiveFields"/>
     /// for consistent sensitive field detection across the security pipeline.
     /// </para>
     /// </remarks>

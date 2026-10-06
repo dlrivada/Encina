@@ -15,7 +15,7 @@ public class DefaultSensitiveDataRedactorGuardTests
 
     public DefaultSensitiveDataRedactorGuardTests()
     {
-        _redactor = new DefaultSensitiveDataRedactor(Options.Create(new AuditOptions()));
+        _redactor = new DefaultSensitiveDataRedactor(Options.Create(new OperationAuditOptions()));
     }
 
     [Fact]

@@ -23,9 +23,9 @@ public sealed class AuditPipelineBehaviorContractTests
         // Arrange
         AuditPipelineBehavior<NonAuditableQuery, string>.ClearCache();
 
-        var auditStore = Substitute.For<IAuditStore>();
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
-        var options = Options.Create(new AuditOptions
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var options = Options.Create(new OperationAuditOptions
         {
             AuditAllCommands = true,
             AuditAllQueries = false
@@ -51,7 +51,7 @@ public sealed class AuditPipelineBehaviorContractTests
             Left: _ => throw new InvalidOperationException("Should not be Left"));
 
         // No audit should have been recorded for a non-auditable query
-        await auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -60,11 +60,11 @@ public sealed class AuditPipelineBehaviorContractTests
         // Arrange
         AuditPipelineBehavior<AuditableCommand, Unit>.ClearCache();
 
-        var auditStore = Substitute.For<IAuditStore>();
-        auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(Right<EncinaError, LanguageExt.Unit>(LanguageExt.Unit.Default));
 
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
         entryFactory.Create(
                 Arg.Any<AuditableCommand>(),
                 Arg.Any<Unit>(),
@@ -75,7 +75,7 @@ public sealed class AuditPipelineBehaviorContractTests
                 Arg.Any<DateTimeOffset>())
             .Returns(CreateTestEntry());
 
-        var options = Options.Create(new AuditOptions { AuditAllCommands = true });
+        var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
         var logger = NullLogger<AuditPipelineBehavior<AuditableCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<AuditableCommand, Unit>(
@@ -112,9 +112,9 @@ public sealed class AuditPipelineBehaviorContractTests
         // Arrange
         AuditPipelineBehavior<SkippedCommand, Unit>.ClearCache();
 
-        var auditStore = Substitute.For<IAuditStore>();
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
-        var options = Options.Create(new AuditOptions { AuditAllCommands = true });
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var options = Options.Create(new OperationAuditOptions { AuditAllCommands = true });
         var logger = NullLogger<AuditPipelineBehavior<SkippedCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<SkippedCommand, Unit>(
@@ -131,15 +131,15 @@ public sealed class AuditPipelineBehaviorContractTests
 
         // Assert
         result.IsRight.ShouldBeTrue();
-        await auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void AuditPipelineBehavior_ImplementsIPipelineBehavior()
     {
-        var auditStore = Substitute.For<IAuditStore>();
-        var entryFactory = Substitute.For<IAuditEntryFactory>();
-        var options = Options.Create(new AuditOptions());
+        var auditStore = Substitute.For<IOperationAuditStore>();
+        var entryFactory = Substitute.For<IOperationAuditEntryFactory>();
+        var options = Options.Create(new OperationAuditOptions());
         var logger = NullLogger<AuditPipelineBehavior<AuditableCommand, Unit>>.Instance;
 
         var sut = new AuditPipelineBehavior<AuditableCommand, Unit>(
@@ -151,10 +151,10 @@ public sealed class AuditPipelineBehaviorContractTests
 
     #region Helpers
 
-    private static AuditEntry CreateTestEntry()
+    private static OperationAuditEntry CreateTestEntry()
     {
         var now = DateTimeOffset.UtcNow;
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid().ToString(),

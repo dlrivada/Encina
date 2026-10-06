@@ -110,13 +110,21 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Events/AuditEntryRecordedEvent.cs": {
+    "Events/OperationAuditEntryRecordedEvent.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Event.cs",
-      "reason": "Domain event"
+      "reason": "Domain event",
+      "targets": {
+        "unit": 95,
+        "guard": 45
+      },
+      "justifications": {
+        "unit": "The event record is fully constructed in unit tests.",
+        "guard": "Guard tests assert the validated properties (measured 47%)."
+      }
     },
     "Events/EncryptedField.cs": {
       "defaultTests": [
@@ -134,13 +142,21 @@
       "defaultRule": "*Event.cs",
       "reason": "Domain event"
     },
-    "Health/MartenAuditHealthCheck.cs": {
+    "Health/MartenOperationAuditHealthCheck.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 90,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the healthy and unhealthy paths (measured 95%).",
+        "guard": "No guard test executes this class yet; its constructor null checks are asserted by unit tests."
+      }
     },
     "MartenAuditErrors.cs": {
       "defaultTests": [
@@ -149,28 +165,50 @@
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods"
     },
-    "MartenAuditOptions.cs": {
+    "MartenOperationAuditOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The options defaults are asserted in unit tests."
+      }
     },
-    "MartenAuditRetentionService.cs": {
+    "MartenOperationAuditRetentionService.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 40,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the purge cycle with a mocked store (measured 42%); the timer loop needs a running host.",
+        "guard": "The existing guard tests use reflection and execute no package code."
+      }
     },
-    "MartenAuditStore.cs": {
+    "MartenOperationAuditStore.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 45,
+        "guard": 5
+      },
+      "justifications": {
+        "unit": "Unit tests mock the session; paths that need a real Marten session are covered outside these flags (measured 50%).",
+        "guard": "Guard tests assert only the constructor null checks (measured 8%)."
+      }
     },
     "MartenReadAuditStore.cs": {
       "defaultTests": [
@@ -180,29 +218,53 @@
       "defaultRule": "*Store.cs",
       "reason": "Abstract/base store with mockeable deps"
     },
-    "Projections/AuditEntryProjection.cs": {
+    "Projections/OperationAuditEntryProjection.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 75,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests run the projection mapping (measured 76%).",
+        "guard": "Guard tests assert only argument validation (measured 15%)."
+      }
     },
-    "Projections/AuditEntryReadModel.cs": {
+    "Projections/OperationAuditEntryReadModel.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 95
+      },
+      "justifications": {
+        "unit": "The read model is fully exercised by projection tests.",
+        "guard": "The read model's property guards are asserted by the guard tests."
+      }
     },
-    "Projections/ConfigureMartenAuditProjections.cs": {
+    "Projections/ConfigureMartenOperationAuditProjections.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run the registration of every projection.",
+        "guard": "No guard test executes this class; its null checks are asserted by unit tests."
+      }
     },
     "Projections/ReadAuditEntryProjection.cs": {
       "defaultTests": [

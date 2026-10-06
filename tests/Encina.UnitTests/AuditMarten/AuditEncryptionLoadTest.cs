@@ -34,7 +34,7 @@ public sealed class AuditEncryptionLoadTest
             TimeProvider.System,
             NullLogger<InMemoryTemporalKeyProvider>.Instance);
 
-        var options = Options.Create(new MartenAuditOptions
+        var options = Options.Create(new MartenOperationAuditOptions
         {
             TemporalGranularity = TemporalKeyGranularity.Monthly
         });
@@ -123,7 +123,7 @@ public sealed class AuditEncryptionLoadTest
         return sorted[Math.Clamp(idx, 0, sorted.Length - 1)];
     }
 
-    private static AuditEntry CreateEntry(string payload) => new()
+    private static OperationAuditEntry CreateEntry(string payload) => new()
     {
         Id = Guid.NewGuid(),
         CorrelationId = Guid.NewGuid().ToString("N"),

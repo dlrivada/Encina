@@ -95,11 +95,11 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
                 .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
             return store;
         });
-        services.AddScoped<IAuditStore>(sp =>
+        services.AddScoped<IOperationAuditStore>(sp =>
         {
             auditStoreScopes.Add(sp.GetRequiredService<ScopeMarker>());
-            var audit = Substitute.For<IAuditStore>();
-            audit.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+            var audit = Substitute.For<IOperationAuditStore>();
+            audit.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
                 .Returns(new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit)));
             return audit;
         });
@@ -287,7 +287,7 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
     {
         private readonly List<ScopeTracker> _policyScopes = [];
         private readonly List<ScopeTracker> _auditScopes = [];
-        private readonly List<AuditEntry> _entries = [];
+        private readonly List<OperationAuditEntry> _entries = [];
         private readonly ServiceProvider _provider;
 
         public FailingStoreHarness(Exception? failure)
@@ -308,13 +308,13 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
                         : throw failure);
                 return store;
             });
-            services.AddScoped<IAuditStore>(sp =>
+            services.AddScoped<IOperationAuditStore>(sp =>
             {
                 _auditScopes.Add(sp.GetRequiredService<ScopeTracker>());
-                var audit = Substitute.For<IAuditStore>();
-                audit.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()).Returns(call =>
+                var audit = Substitute.For<IOperationAuditStore>();
+                audit.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()).Returns(call =>
                 {
-                    _entries.Add(call.Arg<AuditEntry>());
+                    _entries.Add(call.Arg<OperationAuditEntry>());
                     return new ValueTask<Either<EncinaError, Unit>>(Right<EncinaError, Unit>(unit));
                 });
                 return audit;

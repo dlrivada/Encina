@@ -30,12 +30,18 @@
       "defaultRule": "*StoreDapper.cs",
       "reason": "Dapper store with raw SQL — needs real database"
     },
-    "Auditing/AuditStoreDapper.cs": {
+    "Auditing/OperationAuditStoreDapper.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreDapper.cs",
-      "reason": "Dapper store with raw SQL — needs real database"
+      "reason": "Dapper store with raw SQL — needs real database",
+      "targets": {
+        "integration": 85
+      },
+      "justifications": {
+        "integration": "The shipped-script integration tests on a real SQL Server database run every query path (measured 91%); only the driver-failure branches stay uncovered."
+      }
     },
     "Auditing/ReadAuditStoreDapper.cs": {
       "defaultTests": [

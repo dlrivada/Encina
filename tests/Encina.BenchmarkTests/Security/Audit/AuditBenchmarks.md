@@ -14,12 +14,12 @@ Audit store performance is dominated by database write latency, which varies by 
 The `Encina.Audit.Marten.Benchmarks` project already benchmarks the most computationally expensive audit path: temporal crypto-shredding encryption, which adds ~900ns per field.
 
 ### 4. Adequate Coverage from Other Test Types
-- **Unit Tests**: Cover AuditPipelineBehavior, InMemoryAuditStore, AuditEntryFactory
+- **Unit Tests**: Cover AuditPipelineBehavior, InMemoryOperationAuditStore, DefaultOperationAuditEntryFactory
 - **Load Tests**: Validate concurrent write throughput (the actual performance concern)
 - **Integration Tests**: Cover all 10 database providers with real I/O
 
 ### 5. Recommended Alternative
-If audit entry creation overhead becomes a concern, profile the `DefaultAuditEntryFactory` and `RequestMetadataExtractor` using `dotnet-trace` rather than BenchmarkDotNet.
+If audit entry creation overhead becomes a concern, profile the `DefaultOperationAuditEntryFactory` and `RequestMetadataExtractor` using `dotnet-trace` rather than BenchmarkDotNet.
 
 ## Related Files
 - `src/Encina.Security.Audit/` — Source

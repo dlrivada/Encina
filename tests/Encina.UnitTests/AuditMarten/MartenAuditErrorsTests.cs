@@ -77,7 +77,7 @@ public sealed class MartenAuditErrorsTests
     [Fact]
     public void ProjectionFailed_ShouldReturnErrorWithMessage()
     {
-        var error = MartenAuditErrors.ProjectionFailed("AuditEntryProjection");
+        var error = MartenAuditErrors.ProjectionFailed("OperationAuditEntryProjection");
         error.Message.ShouldNotBeNullOrEmpty();
     }
 

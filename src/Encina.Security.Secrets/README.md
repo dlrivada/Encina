@@ -143,7 +143,7 @@ var result = await reader.GetSecretAsync("api-key", ct);
 
 ## Audit Trail
 
-When `EnableAccessAuditing` is set, read/write/rotation operations are automatically recorded via `IAuditStore`:
+When `EnableAccessAuditing` is set, read/write/rotation operations are automatically recorded via `IOperationAuditStore`:
 
 ```csharp
 services.AddEncinaSecrets(options =>
@@ -152,11 +152,13 @@ services.AddEncinaSecrets(options =>
 });
 
 // Register audit infrastructure (from Encina.Security.Audit)
-services.AddSingleton<IAuditStore, YourAuditStore>();
+services.AddSingleton<IOperationAuditStore, YourAuditStore>();
 services.AddSingleton<IRequestContext, YourRequestContext>();
 ```
 
 Each audit entry captures: action (`SecretAccess`, `SecretWrite`, `SecretRotation`), entity, user, tenant, timing, and outcome. Audit failures are logged but **never** block secret operations.
+
+The audited reader decorator runs above the caching decorator, so a cached read is audited too. The audit write uses the caller's `CancellationToken`: a cancellation that arrives after the secret was read can lose the audit row, and the failure to record is logged and never fails the secret operation.
 
 ## Rotation Coordinator
 

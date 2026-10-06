@@ -4860,10 +4860,10 @@ CLI tool para scaffolding de proyectos y componentes Encina.
 > **Nota**: Este issue fue consolidado en #395 (v0.13.0 - Security & Compliance). Ver sección [#395 - Encina.Security.Audit](#395---encinasecurityaudit---audit-trail-logging---implementado-feb-2026) para la implementación completa.
 
 - ✅ `[Auditable]`, `[AuditableAttribute]` atributos
-- ✅ `IAuditStore` con 13 implementaciones (EF Core, Dapper, ADO.NET, MongoDB × 4 DB cada uno)
+- ✅ `IOperationAuditStore` con 13 implementaciones (EF Core, Dapper, ADO.NET, MongoDB × 4 DB cada uno)
 - ✅ `AuditPipelineBehavior<,>` automático
 - ✅ `IPiiMasker` / `DefaultSensitiveDataRedactor` para redacción de datos sensibles
-- ✅ Auto-purge con `AuditRetentionService` y retention policy
+- ✅ Auto-purge con `OperationAuditRetentionService` y retention policy
 - ✅ Captura: UserId, TenantId, IpAddress, UserAgent, Duration, RequestPayload, ResponsePayload
 - ✅ Paquete implementado: `Encina.Security.Audit`
 - Labels: `area-compliance`, `area-gdpr`, `area-security`
@@ -5622,20 +5622,20 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 
 **#395 - Encina.Security.Audit - Audit Trail Logging** ✅ **IMPLEMENTADO (Feb 2026)**:
 
-- `IAuditStore` con `RecordAsync`, `QueryAsync`, `GetByEntityAsync`, `GetByUserAsync`, `GetByCorrelationIdAsync`, `PurgeEntriesAsync`
-- `AuditEntry` con Id, UserId, TenantId, Action, EntityType, EntityId, Outcome, TimestampUtc, Duration, IpAddress, UserAgent, RequestPayload, ResponsePayload, Metadata
+- `IOperationAuditStore` con `RecordAsync`, `QueryAsync`, `GetByEntityAsync`, `GetByUserAsync`, `GetByCorrelationIdAsync`, `PurgeEntriesAsync`
+- `OperationAuditEntry` con Id, UserId, TenantId, Action, EntityType, EntityId, Outcome, TimestampUtc, Duration, IpAddress, UserAgent, RequestPayload, ResponsePayload, Metadata
 - `AuditPipelineBehavior<TRequest, TResponse>` para captura automática de todas las operaciones
 - `[Auditable]` atributo con Action, EntityType, SensitiveFields, IncludePayload, Skip
-- `AuditQuery` con paginación y filtros: UserId, TenantId, EntityType, Action, Outcome, DateRange, Duration
+- `OperationAuditQuery` con paginación y filtros: UserId, TenantId, EntityType, Action, Outcome, DateRange, Duration
 - `PagedResult<T>` para resultados paginados con navegación
 - `DefaultSensitiveDataRedactor` (implementa `IPiiMasker`) para redacción automática de campos sensibles
-- `AuditRetentionService` (BackgroundService) para auto-purge basado en RetentionDays
+- `OperationAuditRetentionService` (BackgroundService) para auto-purge basado en RetentionDays
 - **Store implementations para todos los 10 providers**:
-  - `AuditStoreEF` (EF Core: SQL Server, PostgreSQL, MySQL)
-  - `AuditStoreDapper` (Dapper: SQL Server, PostgreSQL, MySQL)
-  - `AuditStoreADO` (ADO.NET: SQL Server, PostgreSQL, MySQL)
-  - `AuditStoreMongoDB` (MongoDB)
-  - `InMemoryAuditStore` (Testing/Development)
+  - `OperationAuditStoreEF` (EF Core: SQL Server, PostgreSQL, MySQL)
+  - `OperationAuditStoreDapper` (Dapper: SQL Server, PostgreSQL, MySQL)
+  - `OperationAuditStoreADO` (ADO.NET: SQL Server, PostgreSQL, MySQL)
+  - `OperationAuditStoreMongoDB` (MongoDB)
+  - `InMemoryOperationAuditStore` (Testing/Development)
 - **Paquete**: `Encina.Security.Audit` (core) + store implementations en cada provider package
 - **Documentación**: [docs/features/audit-tracking.md](./features/audit-tracking.md)
 - Labels: `area-security`, `area-observability`, `area-auditing`, `area-gdpr`, `industry-best-practice`, `eu-regulation`
@@ -5754,7 +5754,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ Todos retornan `ValueTask<Either<EncinaError, T>>` (Railway Oriented Programming)
 - ✅ Typed secrets: `GetSecretAsync<T>()` con JSON deserialization
 - ✅ `CachedSecretReaderDecorator` con `IMemoryCache`, TTL configurable (default 5 min), solo cachea Right results
-- ✅ `AuditedSecretReaderDecorator` / `AuditedSecretWriterDecorator` / `AuditedSecretRotatorDecorator` vía `IAuditStore`
+- ✅ `AuditedSecretReaderDecorator` / `AuditedSecretWriterDecorator` / `AuditedSecretRotatorDecorator` vía `IOperationAuditStore`
 - ✅ `FailoverSecretReader` — multi-provider chain, primer Right gana, `SecretsErrors.FailoverExhausted` si todos fallan
 - ✅ `SecretRotationCoordinator` — orquesta generate → rotate → notify con múltiples `ISecretRotationHandler`
 - ✅ `[InjectSecret("name")]` — inyección de secretos en propiedades de pipeline requests vía `SecretInjectionPipelineBehavior`

@@ -26,22 +26,22 @@ public class AuditAndComplianceGuardTests
 
     #endregion
 
-    #region AuditStoreMongoDB
+    #region OperationAuditStoreMongoDB
 
     [Fact]
     public void AuditStore_NullClient_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new AuditStoreMongoDB(null!, Opts, NullLogger<AuditStoreMongoDB>.Instance));
+            new OperationAuditStoreMongoDB(null!, Opts, NullLogger<OperationAuditStoreMongoDB>.Instance));
 
     [Fact]
     public void AuditStore_NullOptions_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new AuditStoreMongoDB(Substitute.For<IMongoClient>(), null!, NullLogger<AuditStoreMongoDB>.Instance));
+            new OperationAuditStoreMongoDB(Substitute.For<IMongoClient>(), null!, NullLogger<OperationAuditStoreMongoDB>.Instance));
 
     [Fact]
     public void AuditStore_NullLogger_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new AuditStoreMongoDB(Substitute.For<IMongoClient>(), Opts, null!));
+            new OperationAuditStoreMongoDB(Substitute.For<IMongoClient>(), Opts, null!));
 
     #endregion
 

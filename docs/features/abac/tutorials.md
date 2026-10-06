@@ -654,7 +654,7 @@ public sealed class AuditLogObligationHandler(
             var severity = obligation.AttributeAssignments
                 .FirstOrDefault(a => a.AttributeId == "severity")?.Value?.ToString();
 
-            await auditService.LogAsync(new AuditEntry
+            await auditService.LogAsync(new OperationAuditEntry
             {
                 UserId = context.SubjectAttributes.GetValueOrDefault("userId")?.ToString()
                     ?? "unknown",
@@ -872,7 +872,7 @@ public sealed class EmergencyAuditHandler(
         var userId = context.SubjectAttributes.GetValueOrDefault("userId")?.ToString();
         var patientId = context.ResourceAttributes.GetValueOrDefault("patientId")?.ToString();
 
-        await auditService.LogAsync(new AuditEntry
+        await auditService.LogAsync(new OperationAuditEntry
         {
             UserId = userId ?? "unknown",
             Action = "EMERGENCY_PATIENT_ACCESS",

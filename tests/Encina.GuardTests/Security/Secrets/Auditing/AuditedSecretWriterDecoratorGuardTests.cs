@@ -7,6 +7,7 @@ using Encina.Testing.Identity;
 
 using LanguageExt;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using NSubstitute;
@@ -19,7 +20,8 @@ namespace Encina.GuardTests.Security.Secrets.Auditing;
 public sealed class AuditedSecretWriterDecoratorGuardTests
 {
     private readonly ISecretWriter _inner = Substitute.For<ISecretWriter>();
-    private readonly IAuditStore _auditStore = Substitute.For<IAuditStore>();
+    private readonly IOperationAuditStore _auditStore = Substitute.For<IOperationAuditStore>();
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContext _requestContext = Substitute.For<IRequestContext>();
     private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
     private readonly SecretsOptions _options = new();
@@ -27,6 +29,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     public AuditedSecretWriterDecoratorGuardTests()
     {
         _requestContextAccessor.RequestContext.Returns(_requestContext);
+        _scopeFactory = new ServiceCollection().AddSingleton(_auditStore).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
     #region Constructor Guards
@@ -35,25 +38,25 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     public void Constructor_NullInner_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretWriterDecorator(
-            null!, _auditStore, _requestContextAccessor, _options,
+            null!, _scopeFactory, _requestContextAccessor, _options,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("inner");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretWriterDecorator(
             _inner, null!, _requestContextAccessor, _options,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("auditStore");
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
     public void Constructor_NullRequestContextAccessor_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretWriterDecorator(
-            _inner, _auditStore, null!, _options,
+            _inner, _scopeFactory, null!, _options,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("requestContextAccessor");
     }
@@ -62,7 +65,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretWriterDecorator(
-            _inner, _auditStore, _requestContextAccessor, null!,
+            _inner, _scopeFactory, _requestContextAccessor, null!,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
     }
@@ -71,7 +74,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var act = () => new AuditedSecretWriterDecorator(
-            _inner, _auditStore, _requestContextAccessor, _options, null!);
+            _inner, _scopeFactory, _requestContextAccessor, _options, null!);
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
     }
 
@@ -84,7 +87,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
     {
         var options = new SecretsOptions { EnableAccessAuditing = false };
         var sut = new AuditedSecretWriterDecorator(
-            _inner, _auditStore, _requestContextAccessor, options,
+            _inner, _scopeFactory, _requestContextAccessor, options,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
 
         _inner.SetSecretAsync("test-secret", "value", Arg.Any<CancellationToken>())
@@ -102,11 +105,11 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
         var options = new SecretsOptions { EnableAccessAuditing = true };
         _requestContext.CorrelationId.Returns("corr-123");
         _requestContext.Identity.Returns(TestIdentity.User("user-1"));
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(Either<EncinaError, Unit>.Right(Unit.Default));
 
         var sut = new AuditedSecretWriterDecorator(
-            _inner, _auditStore, _requestContextAccessor, options,
+            _inner, _scopeFactory, _requestContextAccessor, options,
             NullLogger<AuditedSecretWriterDecorator>.Instance);
 
         _inner.SetSecretAsync("test-secret", "value", Arg.Any<CancellationToken>())
@@ -115,7 +118,7 @@ public sealed class AuditedSecretWriterDecoratorGuardTests
         var result = await sut.SetSecretAsync("test-secret", "value");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.Received(1).RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.Received(1).RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion

@@ -45,20 +45,34 @@
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
-    "Auditing/AuditEntryEntity.cs": {
+    "Auditing/OperationAuditEntryEntity.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Entity.cs",
-      "reason": "Domain entity"
+      "reason": "Domain entity",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Plain entity, fully exercised by the mapping tests.",
+        "guard": "A plain entity has no parameters to guard."
+      }
     },
-    "Auditing/AuditEntryEntityConfiguration.cs": {
+    "Auditing/OperationAuditEntryEntityConfiguration.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Configuration.cs",
-      "reason": "EF entity type configuration"
+      "reason": "EF entity type configuration",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The model-building tests run every property and index configuration."
+      }
     },
     "Auditing/AuditInterceptor.cs": {
       "defaultTests": [
@@ -97,12 +111,18 @@
       "defaultRule": "*StoreEF.cs",
       "reason": "EF Core store — needs real DbContext"
     },
-    "Auditing/AuditStoreEF.cs": {
+    "Auditing/OperationAuditStoreEF.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreEF.cs",
-      "reason": "EF Core store — needs real DbContext"
+      "reason": "EF Core store — needs real DbContext",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The integration tests on real SQL Server and PostgreSQL databases run every query path (measured 85%); EF Core MySQL is skipped until Pomelo supports EF Core 10."
+      }
     },
     "Auditing/IndexFilters.cs": {
       "defaultTests": [

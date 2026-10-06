@@ -15,7 +15,7 @@ using static LanguageExt.Prelude;
 namespace Encina.Audit.Marten;
 
 /// <summary>
-/// Maps <see cref="AuditEntry"/> and <see cref="ReadAuditEntry"/> domain models to their
+/// Maps <see cref="OperationAuditEntry"/> and <see cref="ReadAuditEntry"/> domain models to their
 /// corresponding encrypted event-sourced events using temporal encryption keys.
 /// </summary>
 /// <remarks>
@@ -43,7 +43,7 @@ public sealed class AuditEventEncryptor
     };
 
     private readonly ITemporalKeyProvider _keyProvider;
-    private readonly MartenAuditOptions _options;
+    private readonly MartenOperationAuditOptions _options;
     private readonly ILogger<AuditEventEncryptor> _logger;
 
     /// <summary>
@@ -54,7 +54,7 @@ public sealed class AuditEventEncryptor
     /// <param name="logger">Logger for structured diagnostic logging.</param>
     public AuditEventEncryptor(
         ITemporalKeyProvider keyProvider,
-        IOptions<MartenAuditOptions> options,
+        IOptions<MartenOperationAuditOptions> options,
         ILogger<AuditEventEncryptor> logger)
     {
         ArgumentNullException.ThrowIfNull(keyProvider);
@@ -67,17 +67,17 @@ public sealed class AuditEventEncryptor
     }
 
     /// <summary>
-    /// Maps an <see cref="AuditEntry"/> to an <see cref="AuditEntryRecordedEvent"/> with
+    /// Maps an <see cref="OperationAuditEntry"/> to an <see cref="OperationAuditEntryRecordedEvent"/> with
     /// encrypted PII fields.
     /// </summary>
     /// <param name="entry">The audit entry to encrypt and map.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// <c>Right&lt;AuditEntryRecordedEvent&gt;</c> with the encrypted event on success, or
+    /// <c>Right&lt;OperationAuditEntryRecordedEvent&gt;</c> with the encrypted event on success, or
     /// <c>Left&lt;EncinaError&gt;</c> if encryption fails (e.g., temporal key destroyed).
     /// </returns>
-    public async ValueTask<Either<EncinaError, AuditEntryRecordedEvent>> EncryptAuditEntryAsync(
-        AuditEntry entry,
+    public async ValueTask<Either<EncinaError, OperationAuditEntryRecordedEvent>> EncryptAuditEntryAsync(
+        OperationAuditEntry entry,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -87,7 +87,7 @@ public sealed class AuditEventEncryptor
         var keyResult = await _keyProvider.GetOrCreateKeyAsync(period, cancellationToken)
             .ConfigureAwait(false);
 
-        return keyResult.Match<Either<EncinaError, AuditEntryRecordedEvent>>(
+        return keyResult.Match<Either<EncinaError, OperationAuditEntryRecordedEvent>>(
             Right: keyInfo =>
             {
                 try
@@ -95,7 +95,7 @@ public sealed class AuditEventEncryptor
                     var keyMaterial = keyInfo.KeyMaterial;
                     var keyId = keyInfo.KeyId;
 
-                    var encryptedEvent = new AuditEntryRecordedEvent
+                    var encryptedEvent = new OperationAuditEntryRecordedEvent
                     {
                         // Plaintext structural fields
                         Id = entry.Id,

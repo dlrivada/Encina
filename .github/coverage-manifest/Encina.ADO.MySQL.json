@@ -30,12 +30,18 @@
       "defaultRule": "*StoreADO.cs",
       "reason": "ADO.NET store with raw SQL — needs real database"
     },
-    "Auditing/AuditStoreADO.cs": {
+    "Auditing/OperationAuditStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The shipped-script integration tests on a real MySQL database run every query path (measured 86-88%); only the driver-failure branches stay uncovered."
+      }
     },
     "Auditing/ReadAuditStoreADO.cs": {
       "defaultTests": [

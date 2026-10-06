@@ -67,7 +67,7 @@ Further decisions:
 5. **The "CUD" mislabel is fixed** in the XML documentation of `IReadAuditStore` and in `docs/features/read-auditing.md`.
 6. **A Marten implementation of the entity-change store is not part of 1.0.** Marten is the event-sourcing provider (ADR-027) and its audit stores exist for the compliance modules (ADR-019); the entity-change interceptor is EF Core only. The decision is revisited if a non-EF writer appears.
 7. **No compatibility layer.** The old names are removed in the same change that introduces the new ones (pre-1.0, AGENTS.md section 1).
-8. **`TimeProvider` is new work for all three stores.** None of the operation, entity-change or read stores takes it today (only the decorators and the interceptor do). The operation store gets it in #1633 together with the rename; the other two in their follow-up issues.
+8. **`TimeProvider` is new work for all three stores' writers.** For the operation audit path, #1633 delivers it where the clock is read: `AuditPipelineBehavior` and the three audited secret decorators (reader, writer, rotator) take an optional `TimeProvider` (default `TimeProvider.System`) and stamp `StartedAtUtc`, `CompletedAtUtc` and `TimestampUtc` from it. The operation stores themselves never read the clock (they persist the timestamps the writer built), and the retention services already took a `TimeProvider`. The entity-change and read stores get theirs in their follow-up issues.
 
 ## Diagram
 

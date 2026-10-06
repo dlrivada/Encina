@@ -17,7 +17,7 @@ namespace Encina.Security.Audit;
 /// Consider using this implementation only when:
 /// <list type="bullet">
 /// <item>Requests do not contain PII</item>
-/// <item>Payload hashing is disabled via <c>AuditOptions.IncludePayloadHash = false</c></item>
+/// <item>Payload hashing is disabled via <c>OperationAuditOptions.IncludePayloadHash = false</c></item>
 /// <item>PII is handled at a different layer (e.g., API gateway)</item>
 /// </list>
 /// </para>

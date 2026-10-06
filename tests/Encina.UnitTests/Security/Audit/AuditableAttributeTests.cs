@@ -117,7 +117,7 @@ public class AuditableAttributeTests
         // Act
         var attribute = new AuditableAttribute();
 
-        // Assert - null means "use the default from AuditOptions"
+        // Assert - null means "use the default from OperationAuditOptions"
         attribute.IncludePayload.ShouldBeNull();
     }
 

@@ -184,7 +184,7 @@ public static class ServiceCollectionExtensions
         RegisterAuditingInterceptor(services, config);
         RegisterAuditLogStore(services, config);
         RegisterSoftDeleteInterceptor(services, config);
-        RegisterSecurityAuditStore(services, config);
+        RegisterOperationAuditStore(services, config);
         RegisterReadAuditStore(services, config);
         RegisterAnonymization(services, config);
         RegisterABACPolicyStore(services, config);
@@ -404,15 +404,18 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the security audit trail store when
-    /// <see cref="MessagingConfiguration.UseSecurityAuditStore"/> is enabled.
+    /// Registers the operation audit trail store when
+    /// <see cref="MessagingConfiguration.UseOperationAuditStore"/> is enabled.
     /// </summary>
-    private static void RegisterSecurityAuditStore(IServiceCollection services, MessagingConfiguration config)
+    private static void RegisterOperationAuditStore(IServiceCollection services, MessagingConfiguration config)
     {
-        if (!config.UseSecurityAuditStore) return;
+        if (!config.UseOperationAuditStore) return;
 
-        // Register security audit trail store (Encina.Security.Audit)
-        services.AddScoped<IAuditStore, AuditStoreEF>();
+        // Same rule as the ADO, Dapper and MongoDB providers: the in-memory default from
+        // Encina.Security.Audit is removed so the database store wins in any registration order,
+        // and a store the application registered itself is never overridden (#1269).
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+        services.TryAddScoped<IOperationAuditStore, OperationAuditStoreEF>();
     }
 
     /// <summary>

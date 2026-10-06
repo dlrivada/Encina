@@ -11,8 +11,8 @@ namespace Encina.Security.Audit;
 /// <para>
 /// <b>Default Behavior:</b>
 /// <list type="bullet">
-/// <item>Commands are audited by default (controlled by <c>AuditOptions.AuditAllCommands</c>)</item>
-/// <item>Queries are NOT audited by default (controlled by <c>AuditOptions.AuditAllQueries</c>)</item>
+/// <item>Commands are audited by default (controlled by <c>OperationAuditOptions.AuditAllCommands</c>)</item>
+/// <item>Queries are NOT audited by default (controlled by <c>OperationAuditOptions.AuditAllQueries</c>)</item>
 /// <item>Entity type and action are extracted from type name (e.g., <c>CreateOrderCommand</c> → Entity: "Order", Action: "Create")</item>
 /// </list>
 /// </para>
@@ -91,7 +91,7 @@ public sealed class AuditableAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is <c>null</c>, which defers to <c>AuditOptions.IncludePayloadHash</c>.
+    /// Default is <c>null</c>, which defers to <c>OperationAuditOptions.IncludePayloadHash</c>.
     /// </para>
     /// <para>
     /// Set to <c>false</c> to disable payload hashing for requests with large payloads
@@ -135,7 +135,7 @@ public sealed class AuditableAttribute : Attribute
     /// Common values: "Low", "Medium", "High", "Critical", "PII", "PHI", "Financial".
     /// </para>
     /// <para>
-    /// This value is stored in <see cref="AuditEntry.Metadata"/> under the key "SensitivityLevel".
+    /// This value is stored in <see cref="OperationAuditEntry.Metadata"/> under the key "SensitivityLevel".
     /// </para>
     /// </remarks>
     /// <example>
@@ -172,12 +172,12 @@ public sealed class AuditableAttribute : Attribute
     /// <remarks>
     /// <para>
     /// Specifies request-specific field names that contain sensitive data and should be
-    /// replaced with "[REDACTED]" in <see cref="AuditEntry.RequestPayload"/> and
-    /// <see cref="AuditEntry.ResponsePayload"/>.
+    /// replaced with "[REDACTED]" in <see cref="OperationAuditEntry.RequestPayload"/> and
+    /// <see cref="OperationAuditEntry.ResponsePayload"/>.
     /// </para>
     /// <para>
     /// These fields are redacted in addition to global sensitive fields defined in
-    /// <c>AuditOptions.GlobalSensitiveFields</c>. Field matching is case-insensitive.
+    /// <c>OperationAuditOptions.GlobalSensitiveFields</c>. Field matching is case-insensitive.
     /// </para>
     /// <para>
     /// Common sensitive field names are already handled globally (e.g., "password", "token",

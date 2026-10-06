@@ -65,13 +65,21 @@
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB"
     },
-    "Auditing/AuditEntryDocument.cs": {
+    "Auditing/OperationAuditEntryDocument.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The mapping tests run the entry-to-document conversions (measured 85%).",
+        "guard": "A document POCO has no parameters to guard."
+      }
     },
     "Auditing/AuditLogDocument.cs": {
       "defaultTests": [
@@ -88,12 +96,18 @@
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB"
     },
-    "Auditing/AuditStoreMongoDB.cs": {
+    "Auditing/OperationAuditStoreMongoDB.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
-      "reason": "MongoDB store — needs real MongoDB"
+      "reason": "MongoDB store — needs real MongoDB",
+      "targets": {
+        "integration": 80
+      },
+      "justifications": {
+        "integration": "The integration tests on a real MongoDB run every query path (measured 82%); only the driver-failure branches stay uncovered."
+      }
     },
     "Auditing/ReadAuditEntryDocument.cs": {
       "defaultTests": [

@@ -51,7 +51,7 @@ public sealed class MartenReadAuditStoreQueryTests
     {
         var session = Substitute.For<IDocumentSession>();
         var keyProvider = new InMemoryTemporalKeyProvider(TimeProvider.System, NullLogger<InMemoryTemporalKeyProvider>.Instance);
-        var options = Options.Create(new MartenAuditOptions());
+        var options = Options.Create(new MartenOperationAuditOptions());
         var encryptor = new AuditEventEncryptor(keyProvider, options, NullLogger<AuditEventEncryptor>.Instance);
         var logger = new FakeLogger<MartenReadAuditStore>();
         return (new MartenReadAuditStore(session, encryptor, keyProvider, options, logger), logger, session);
@@ -117,5 +117,60 @@ public sealed class MartenReadAuditStoreQueryTests
 
         result.IsLeft.ShouldBeTrue();
         RedactedExceptionLogAssert.LoggedOnlyRedacted(logger, Sentinel);
+    }
+
+    private static ReadAuditEntryReadModel ReadModel(string? metadataJson) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = "alice",
+        TenantId = "t1",
+        EntityType = "Patient",
+        EntityId = "p1",
+        AccessMethod = ReadAccessMethod.Api,
+        Purpose = "Treatment review",
+        CorrelationId = "c1",
+        AccessedAtUtc = Base,
+        EntityCount = 3,
+        MetadataJson = metadataJson
+    };
+
+    [Fact]
+    public void MapToReadAuditEntry_CopiesEveryFieldAndDeserializesMetadata()
+    {
+        var model = ReadModel("{\"key\":\"value\"}");
+
+        var entry = MartenReadAuditStore.MapToReadAuditEntry(model);
+
+        entry.Id.ShouldBe(model.Id);
+        entry.UserId.ShouldBe("alice");
+        entry.TenantId.ShouldBe("t1");
+        entry.EntityType.ShouldBe("Patient");
+        entry.EntityId.ShouldBe("p1");
+        entry.AccessMethod.ShouldBe(ReadAccessMethod.Api);
+        entry.Purpose.ShouldBe("Treatment review");
+        entry.CorrelationId.ShouldBe("c1");
+        entry.AccessedAtUtc.ShouldBe(Base);
+        entry.EntityCount.ShouldBe(3);
+        entry.Metadata.ShouldContainKey("key");
+    }
+
+    [Fact]
+    public void MapToReadAuditEntry_WithoutMetadata_ReturnsEmptyMetadata()
+    {
+        MartenReadAuditStore.MapToReadAuditEntry(ReadModel(null)).Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToReadAuditEntry_WithShreddedMetadataPlaceholder_ReturnsEmptyMetadata()
+    {
+        var model = ReadModel(MartenOperationAuditOptions.DefaultShreddedPlaceholder);
+
+        MartenReadAuditStore.MapToReadAuditEntry(model).Metadata.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void MapToReadAuditEntry_WithJsonNullMetadata_ReturnsEmptyMetadata()
+    {
+        MartenReadAuditStore.MapToReadAuditEntry(ReadModel("null")).Metadata.ShouldBeEmpty();
     }
 }

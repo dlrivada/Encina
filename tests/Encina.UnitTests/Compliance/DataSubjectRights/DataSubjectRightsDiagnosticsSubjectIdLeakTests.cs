@@ -36,7 +36,7 @@ namespace Encina.UnitTests.Compliance.DataSubjectRights;
 /// <see cref="ProcessingRestrictionPipelineBehavior{TRequest, TResponse}"/>.
 /// </summary>
 /// <remarks>
-/// The audit trail is out of scope: an <c>IAuditStore</c> that legitimately records the subject id
+/// The audit trail is out of scope: an <c>IOperationAuditStore</c> that legitimately records the subject id
 /// is the access-controlled place for it (see the knowledge record for #1429).
 /// </remarks>
 #pragma warning disable CA2012 // Use ValueTasks correctly (NSubstitute Returns with ValueTask)

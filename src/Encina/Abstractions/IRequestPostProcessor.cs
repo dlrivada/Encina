@@ -23,7 +23,7 @@ namespace Encina;
 ///         Either&lt;EncinaError, TResponse&gt; response,
 ///         CancellationToken cancellationToken)
 ///     {
-///         await _auditLogger.LogAsync(new AuditEntry
+///         await _auditLogger.LogAsync(new OperationAuditEntry
 ///         {
 ///             UserId = context.UserId,
 ///             Action = typeof(TRequest).Name,

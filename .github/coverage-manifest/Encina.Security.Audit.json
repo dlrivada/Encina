@@ -1,19 +1,19 @@
 {
   "package": "Encina.Security.Audit",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 38,
+  "totalFiles": 39,
   "targets": {
     "contract": 15,
     "guard": 20,
     "unit": 70
   },
   "files": {
-    "Abstractions/IAuditEntryFactory.cs": {
+    "Abstractions/IOperationAuditEntryFactory.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
     },
-    "Abstractions/IAuditStore.cs": {
+    "Abstractions/IOperationAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
       "reason": "Interfaces have no implementation to test"
@@ -65,20 +65,34 @@
       "defaultRule": "*Repository.cs",
       "reason": "Abstract/base repository"
     },
-    "AuditEntry.cs": {
+    "OperationAuditEntry.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "The entry record and its duration calculation are fully unit-tested.",
+        "guard": "Guard tests assert the required properties (measured 94%)."
+      }
     },
-    "AuditOptions.cs": {
+    "OperationAuditOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The options defaults and helpers are fully unit-tested."
+      }
     },
     "AuditOutcome.cs": {
       "defaultTests": [
@@ -97,29 +111,53 @@
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate"
     },
-    "AuditQuery.cs": {
+    "OperationAuditQuery.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Query.cs",
-      "reason": "Query DTO"
+      "reason": "Query DTO",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests run every filter builder and paging helper.",
+        "guard": "The query DTO has no guarded parameters."
+      }
     },
-    "AuditRetentionService.cs": {
+    "OperationAuditRetentionService.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests run the purge loop with a fake clock and a scoped store (measured 85%).",
+        "guard": "Guard tests assert only the constructor null checks (measured 14%)."
+      }
     },
-    "DefaultAuditEntryFactory.cs": {
+    "DefaultOperationAuditEntryFactory.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 80,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests cover payload, metadata and identity steps (measured 86%).",
+        "guard": "Guard tests cover the argument validation (measured 82%)."
+      }
     },
     "DefaultSensitiveDataRedactor.cs": {
       "defaultTests": [
@@ -152,13 +190,21 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
-    "Health/AuditStoreHealthCheck.cs": {
+    "Health/OperationAuditStoreHealthCheck.cs": {
       "defaultTests": [
         "unit",
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 95,
+        "guard": 25
+      },
+      "justifications": {
+        "unit": "Unit tests run the healthy and failing paths.",
+        "guard": "Guard tests assert only the constructor null checks (measured 26%)."
+      }
     },
     "Health/ReadAuditStoreHealthCheck.cs": {
       "defaultTests": [
@@ -168,10 +214,17 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check with mockeable service dependencies"
     },
-    "InMemoryAuditStore.cs": {
+    "InMemoryOperationAuditStore.cs": {
       "defaultTests": [],
       "defaultRule": "*Store.cs",
-      "reason": "Interface — no implementation"
+      "reason": "In-memory implementation of IOperationAuditStore for development and tests",
+      "override": ["unit"],
+      "targets": {
+        "unit": 80
+      },
+      "justifications": {
+        "unit": "The in-memory store's filter, paging and purge logic is pure and fully unit-testable (measured 84%)."
+      }
     },
     "InMemoryReadAuditStore.cs": {
       "defaultTests": [],
@@ -292,6 +345,19 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration"
+    },
+    "OperationAuditStoreRegistration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Static registration helper with pure logic; null guards are asserted by unit tests",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover every branch of the in-memory default detection, including decorated and keyed registrations."
+      }
     }
   }
 }

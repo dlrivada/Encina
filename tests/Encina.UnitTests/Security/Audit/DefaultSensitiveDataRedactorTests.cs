@@ -13,7 +13,7 @@ public class DefaultSensitiveDataRedactorTests
 
     public DefaultSensitiveDataRedactorTests()
     {
-        var options = Options.Create(new AuditOptions());
+        var options = Options.Create(new OperationAuditOptions());
         _redactor = new DefaultSensitiveDataRedactor(options);
     }
 
@@ -341,7 +341,7 @@ public class DefaultSensitiveDataRedactorTests
     public void MaskForAudit_WithGlobalSensitiveFields_ShouldRedactThem()
     {
         // Arrange
-        var options = Options.Create(new AuditOptions
+        var options = Options.Create(new OperationAuditOptions
         {
             GlobalSensitiveFields = ["CustomField", "DateOfBirth"]
         });

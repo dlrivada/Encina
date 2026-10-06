@@ -36,29 +36,12 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         try
         {
-            if (_options.UseOutbox)
+            foreach (var (enabled, createIndexes) in FeatureIndexCreators())
             {
-                await CreateOutboxIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseInbox)
-            {
-                await CreateInboxIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseSagas)
-            {
-                await CreateSagaIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseScheduling)
-            {
-                await CreateSchedulingIndexesAsync(database, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (_options.UseAuditLogStore)
-            {
-                await CreateAuditLogIndexesAsync(database, cancellationToken).ConfigureAwait(false);
+                if (enabled)
+                {
+                    await createIndexes(database, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             Log.IndexesCreatedSuccessfully(_logger);
@@ -71,6 +54,17 @@ internal sealed class MongoDbIndexCreator : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    // One entry per feature flag, in creation order.
+    private (bool Enabled, Func<IMongoDatabase, CancellationToken, Task> CreateIndexes)[] FeatureIndexCreators() =>
+    [
+        (_options.UseOutbox, CreateOutboxIndexesAsync),
+        (_options.UseInbox, CreateInboxIndexesAsync),
+        (_options.UseSagas, CreateSagaIndexesAsync),
+        (_options.UseScheduling, CreateSchedulingIndexesAsync),
+        (_options.UseAuditLogStore, CreateAuditLogIndexesAsync),
+        (_options.UseOperationAuditStore, CreateOperationAuditIndexesAsync),
+    ];
 
     private async Task CreateOutboxIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
     {
@@ -224,6 +218,47 @@ internal sealed class MongoDbIndexCreator : IHostedService
 
         await collection.Indexes.CreateManyAsync(indexModels, cancellationToken).ConfigureAwait(false);
         Log.CreatedAuditLogIndexes(_logger);
+    }
+
+    // Mirrors the seven indexes the relational providers ship in 028_CreateOperationAuditEntriesTable.sql.
+    private async Task CreateOperationAuditIndexesAsync(IMongoDatabase database, CancellationToken cancellationToken)
+    {
+        var collection = database.GetCollection<OperationAuditEntryDocument>(_options.Collections.OperationAuditEntries);
+
+        await collection.Indexes.CreateManyAsync(BuildOperationAuditIndexModels(), cancellationToken).ConfigureAwait(false);
+        Log.CreatedOperationAuditIndexes(_logger);
+    }
+
+    private static List<CreateIndexModel<OperationAuditEntryDocument>> BuildOperationAuditIndexModels()
+    {
+        var keys = Builders<OperationAuditEntryDocument>.IndexKeys;
+
+        return
+        [
+            new(
+                keys.Ascending(d => d.EntityType).Ascending(d => d.EntityId),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_Entity" }),
+            // Time-based queries and the retention purge
+            new(
+                keys.Ascending(d => d.TimestampUtc),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_Timestamp" }),
+            new(
+                keys.Ascending(d => d.Outcome),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_Outcome" }),
+            // Sparse: only documents that have a value are indexed
+            new(
+                keys.Ascending(d => d.UserId),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_UserId", Sparse = true }),
+            new(
+                keys.Ascending(d => d.TenantId),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_TenantId", Sparse = true }),
+            new(
+                keys.Ascending(d => d.CorrelationId),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_CorrelationId" }),
+            new(
+                keys.Ascending(d => d.Action),
+                new CreateIndexOptions { Name = "IX_OperationAuditEntries_Action" })
+        ];
     }
 
 }

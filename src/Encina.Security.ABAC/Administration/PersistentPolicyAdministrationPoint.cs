@@ -48,18 +48,18 @@ namespace Encina.Security.ABAC.Administration;
 /// <para>
 /// <b>Lifetimes</b>: this PAP is a singleton. It never captures a scoped service: every operation
 /// (a read or a mutation) opens its own async DI scope and resolves the <see cref="IPolicyStore"/>
-/// from it, and a mutation resolves its <see cref="IAuditStore"/> in a separate scope, so two
+/// from it, and a mutation resolves its <see cref="IOperationAuditStore"/> in a separate scope, so two
 /// concurrent operations never share a store instance and the audit write never shares a unit of
 /// work with the policy write (database stores are scoped).
 /// </para>
 /// <para>
-/// <b>Audit trail (fail closed)</b>: when an <see cref="IAuditStore"/> is registered, each mutation
+/// <b>Audit trail (fail closed)</b>: when an <see cref="IOperationAuditStore"/> is registered, each mutation
 /// awaits the audit write <em>before</em> the change is
 /// applied. A <c>Left</c>, an exception or a timeout of that write fails the policy change with
 /// <see cref="ABACErrors.PolicyChangeAuditFailedCode"/> and nothing is persisted, so no policy
 /// change is ever committed without its audit record. When the change itself is then rejected by
 /// the policy store, a second entry with outcome <see cref="AuditOutcome.Error"/> records that
-/// the announced change did not happen. With no <see cref="IAuditStore"/> registered, policy
+/// the announced change did not happen. With no <see cref="IOperationAuditStore"/> registered, policy
 /// change auditing is not configured and mutations are applied without a record, and a Warning (EventId 9097) says so once per instance. This supports
 /// NIS2 Art. 10 and SOX §404 compliance requirements.
 /// </para>
@@ -109,9 +109,9 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// </summary>
     /// <param name="scopeFactory">
     /// Scope factory used to open one DI scope per operation (and a separate one for the
-    /// <see cref="IAuditStore"/> of a mutation). The <see cref="IPolicyStore"/> (a scoped service
+    /// <see cref="IOperationAuditStore"/> of a mutation). The <see cref="IPolicyStore"/> (a scoped service
     /// in every database provider) is resolved from the operation's scope, so this singleton
-    /// never captures a scoped service. When no <see cref="IAuditStore"/> is registered, policy change auditing is
+    /// never captures a scoped service. When no <see cref="IOperationAuditStore"/> is registered, policy change auditing is
     /// not configured.
     /// </param>
     /// <param name="logger">Logger for structured PAP logging.</param>
@@ -668,7 +668,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
 
         if (auditStore is null)
         {
-            WarnUnauditedOnce("no IAuditStore is registered");
+            WarnUnauditedOnce("no IOperationAuditStore is registered");
             return await apply();
         }
 
@@ -688,11 +688,11 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// Resolves the audit store from the per-write scope. A store whose own dependencies cannot be
     /// built fails the change closed, like a failed write, instead of surfacing a raw exception.
     /// </summary>
-    private Either<EncinaError, Unit> ResolveAuditStore(IServiceProvider scopedProvider, PolicyChange change, out IAuditStore? auditStore)
+    private Either<EncinaError, Unit> ResolveAuditStore(IServiceProvider scopedProvider, PolicyChange change, out IOperationAuditStore? auditStore)
     {
         try
         {
-            auditStore = scopedProvider.GetService<IAuditStore>();
+            auditStore = scopedProvider.GetService<IOperationAuditStore>();
             return unit;
         }
         catch (Exception ex)
@@ -704,7 +704,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     }
 
     private async ValueTask<Either<EncinaError, Unit>> ApplyAuditedAsync(
-        IAuditStore auditStore,
+        IOperationAuditStore auditStore,
         PolicyActor actor,
         PolicyChange change,
         Func<ValueTask<Either<EncinaError, Unit>>> apply,
@@ -744,7 +744,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// caller's cancellation so the trail is completed, and it never replaces the original outcome.
     /// </summary>
     private async ValueTask RecordFailedChangeAsync(
-        IAuditStore auditStore,
+        IOperationAuditStore auditStore,
         PolicyActor actor,
         PolicyChange change,
         object? beforeState,
@@ -756,8 +756,8 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     }
 
     private async ValueTask<Either<EncinaError, Unit>> RecordAuditAsync(
-        IAuditStore auditStore,
-        AuditEntry entry,
+        IOperationAuditStore auditStore,
+        OperationAuditEntry entry,
         CancellationToken cancellationToken)
     {
         using var timeout = new CancellationTokenSource(AuditWriteTimeout, _timeProvider);
@@ -782,7 +782,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         }
     }
 
-    private AuditEntry BuildEntry(
+    private OperationAuditEntry BuildEntry(
         PolicyActor actor,
         PolicyChange change,
         object? beforeState,
@@ -792,7 +792,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     {
         var now = _timeProvider.GetUtcNow();
 
-        return new AuditEntry
+        return new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = actor.CorrelationId,

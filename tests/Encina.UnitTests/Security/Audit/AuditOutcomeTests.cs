@@ -98,7 +98,7 @@ public class AuditOutcomeTests
     public void JsonSerialization_WithAuditEntry_ShouldWorkCorrectly()
     {
         // Arrange
-        var entry = new AuditEntry
+        var entry = new OperationAuditEntry
         {
             Id = Guid.NewGuid(),
             CorrelationId = "test-correlation",
@@ -114,7 +114,7 @@ public class AuditOutcomeTests
 
         // Act
         var json = JsonSerializer.Serialize(entry, options);
-        var deserialized = JsonSerializer.Deserialize<AuditEntry>(json, options);
+        var deserialized = JsonSerializer.Deserialize<OperationAuditEntry>(json, options);
 
         // Assert
         deserialized.ShouldNotBeNull();

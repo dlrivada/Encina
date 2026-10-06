@@ -27,7 +27,7 @@ Encina provides 12 transversal (cross-cutting) functions that infrastructure sub
 9. Idempotency (`InboxPipelineBehavior`, dedup)
 10. Multi-Tenancy (`TenantId`, `ITenantContext`)
 11. Module Isolation (`ModuleId`, `IModuleContext`)
-12. Audit Trail (`IAuditStore`, audit events)
+12. Audit Trail (`IOperationAuditStore`, audit events)
 
 During the ABAC feature implementation (v0.12.0), we discovered that the caching infrastructure existed but was not integrated into most subsystems. A comprehensive audit revealed this pattern extended across all 12 transversal functions, resulting in **67 integration gaps** (18 caching + 49 others).
 

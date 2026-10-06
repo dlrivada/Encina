@@ -617,6 +617,7 @@ public static class ServiceCollectionExtensions
     {
         RegisterMessagingPatterns(services, options);
         RegisterAuditLogStore(services, options);
+        RegisterOperationAuditStore(services, options);
         RegisterReadAuditStore(services, options);
         RegisterAnonymization(services, options);
         RegisterABACPolicyStore(services, options);
@@ -640,6 +641,20 @@ public static class ServiceCollectionExtensions
         if (!options.UseAuditLogStore) return;
 
         services.AddScoped<IAuditLogStore, AuditLogStoreMongoDB>();
+    }
+
+    /// <summary>
+    /// Registers the operation audit store when <see cref="EncinaMongoDbOptions.UseOperationAuditStore"/>
+    /// is enabled. The in-memory default from <c>Encina.Security.Audit</c> is removed so the
+    /// database-backed store wins in any registration order; a store the application registered
+    /// itself is never removed and keeps winning (#1269).
+    /// </summary>
+    private static void RegisterOperationAuditStore(IServiceCollection services, EncinaMongoDbOptions options)
+    {
+        if (!options.UseOperationAuditStore) return;
+
+        OperationAuditStoreRegistration.RemoveInMemoryDefault(services);
+        services.TryAddScoped<IOperationAuditStore, OperationAuditStoreMongoDB>();
     }
 
     /// <summary>

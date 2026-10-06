@@ -16,7 +16,7 @@ namespace Encina.AspNetCore;
 /// </list>
 /// </para>
 /// <para>
-/// These keys are read by <c>Encina.Security.Audit.DefaultAuditEntryFactory</c>
+/// These keys are read by <c>Encina.Security.Audit.DefaultOperationAuditEntryFactory</c>
 /// when creating audit entries.
 /// </para>
 /// </remarks>

@@ -6,6 +6,7 @@ using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Auditing;
 using Encina.Testing.Identity;
 using LanguageExt;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -15,7 +16,8 @@ namespace Encina.UnitTests.Security.Secrets;
 public sealed class AuditedSecretRotatorDecoratorTests
 {
     private readonly ISecretRotator _innerRotator;
-    private readonly IAuditStore _auditStore;
+    private readonly IOperationAuditStore _auditStore;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IRequestContext _requestContext;
     private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly ILogger<AuditedSecretRotatorDecorator> _logger;
@@ -23,7 +25,11 @@ public sealed class AuditedSecretRotatorDecoratorTests
     public AuditedSecretRotatorDecoratorTests()
     {
         _innerRotator = Substitute.For<ISecretRotator>();
-        _auditStore = Substitute.For<IAuditStore>();
+        _auditStore = Substitute.For<IOperationAuditStore>();
+        _scopeFactory = new ServiceCollection()
+            .AddSingleton(_auditStore)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
         _requestContext = Substitute.For<IRequestContext>();
         _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
         _logger = Substitute.For<ILogger<AuditedSecretRotatorDecorator>>();
@@ -33,7 +39,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _requestContext.TenantId.Returns("test-tenant");
         _requestContextAccessor.RequestContext.Returns(_requestContext);
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
     }
 
@@ -44,21 +50,21 @@ public sealed class AuditedSecretRotatorDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretRotatorDecorator(null!, _auditStore, _requestContextAccessor, options, _logger);
+        var act = () => new AuditedSecretRotatorDecorator(null!, _scopeFactory, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("inner");
     }
 
     [Fact]
-    public void Constructor_NullAuditStore_ThrowsArgumentNullException()
+    public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
         var options = CreateOptions(true);
 
         var act = () => new AuditedSecretRotatorDecorator(_innerRotator, null!, _requestContextAccessor, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("auditStore");
+            .ParamName.ShouldBe("scopeFactory");
     }
 
     [Fact]
@@ -66,7 +72,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, null!, options, _logger);
+        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _scopeFactory, null!, options, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("requestContextAccessor");
@@ -75,7 +81,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, _requestContextAccessor, null!, _logger);
+        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _scopeFactory, _requestContextAccessor, null!, _logger);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("options");
@@ -86,7 +92,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
     {
         var options = CreateOptions(true);
 
-        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _auditStore, _requestContextAccessor, options, null!);
+        var act = () => new AuditedSecretRotatorDecorator(_innerRotator, _scopeFactory, _requestContextAccessor, options, null!);
 
         Should.Throw<ArgumentNullException>(act)
             .ParamName.ShouldBe("logger");
@@ -106,7 +112,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         var result = await decorator.RotateSecretAsync("key");
 
         result.IsRight.ShouldBeTrue();
-        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+        await _auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -123,7 +129,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         await decorator.RotateSecretAsync("db-password");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Action == "SecretRotation" &&
                 e.EntityType == "Secret" &&
                 e.EntityId == "db-password" &&
@@ -155,7 +161,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
 
         result.IsLeft.ShouldBeTrue();
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.Outcome == AuditOutcome.Failure &&
                 e.EntityId == "key"),
             Arg.Any<CancellationToken>());
@@ -171,7 +177,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         await decorator.RotateSecretAsync("key");
 
         await _auditStore.Received(1).RecordAsync(
-            Arg.Is<AuditEntry>(e =>
+            Arg.Is<OperationAuditEntry>(e =>
                 e.UserId == "test-user" &&
                 e.TenantId == "test-tenant"),
             Arg.Any<CancellationToken>());
@@ -188,7 +194,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _innerRotator.RotateSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
+        _auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(
                 SecretsErrors.AuditFailed("key")));
 
@@ -204,7 +210,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
         _innerRotator.RotateSecretAsync("key", Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Either<EncinaError, Unit>>(Unit.Default));
 
-        _auditStore.When(x => x.RecordAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>()))
+        _auditStore.When(x => x.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("audit store crashed"));
 
         var result = await decorator.RotateSecretAsync("key");
@@ -217,7 +223,7 @@ public sealed class AuditedSecretRotatorDecoratorTests
     #region Helpers
 
     private AuditedSecretRotatorDecorator CreateDecorator(bool enableAuditing) =>
-        new(_innerRotator, _auditStore, _requestContextAccessor,
+        new(_innerRotator, _scopeFactory, _requestContextAccessor,
             CreateOptions(enableAuditing), _logger);
 
     private static SecretsOptions CreateOptions(bool enableAuditing) =>

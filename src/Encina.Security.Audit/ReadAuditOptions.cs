@@ -8,7 +8,7 @@ namespace Encina.Security.Audit;
 /// These options control which entities are audited for read access and how
 /// the audit trail is managed. Read auditing operates at the repository level
 /// via the <c>AuditedRepository</c> decorator, separate from the CQRS-level
-/// auditing controlled by <see cref="AuditOptions"/>.
+/// auditing controlled by <see cref="OperationAuditOptions"/>.
 /// </para>
 /// <para>
 /// <b>Compliance Considerations:</b>
@@ -107,7 +107,7 @@ public sealed class ReadAuditOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Default is 365 days (1 year). Shorter than CUD audit retention because
+    /// Default is 365 days (1 year). Shorter than the operation audit retention because
     /// read audit volumes are typically much higher.
     /// </para>
     /// <para>

@@ -161,7 +161,7 @@ public sealed record EncryptedField
     /// This is the primary decryption method used by projections, which must handle shredded
     /// entries gracefully.
     /// </remarks>
-    public string? DecryptOrPlaceholder(byte[]? keyMaterial, string shreddedPlaceholder = MartenAuditOptions.DefaultShreddedPlaceholder)
+    public string? DecryptOrPlaceholder(byte[]? keyMaterial, string shreddedPlaceholder = MartenOperationAuditOptions.DefaultShreddedPlaceholder)
     {
         if (Value is null)
         {

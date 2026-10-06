@@ -13,7 +13,7 @@ namespace Encina.Audit.Marten.Projections;
 /// </para>
 /// <para>
 /// When temporal keys have been destroyed via crypto-shredding, PII fields contain the
-/// <see cref="MartenAuditOptions.ShreddedPlaceholder"/> value (default: <c>"[SHREDDED]"</c>)
+/// <see cref="MartenOperationAuditOptions.ShreddedPlaceholder"/> value (default: <c>"[SHREDDED]"</c>)
 /// and <see cref="IsShredded"/> is set to <c>true</c>.
 /// </para>
 /// </remarks>
