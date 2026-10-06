@@ -222,7 +222,7 @@ Phase 2 has been reorganized into 10 incremental milestones for better manageabi
   - ✅ Lawful Basis [#779](https://github.com/dlrivada/Encina/issues/779) — Extracted to `Encina.Compliance.LawfulBasis` + migrated to Marten event sourcing
   - ✅ Breach Notification [#780](https://github.com/dlrivada/Encina/issues/780) — Migrated to Marten event sourcing
   - ✅ DPIA [#781](https://github.com/dlrivada/Encina/issues/781) — Migrated to Marten event sourcing
-- ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IAuditStore with temporal crypto-shredding for compliance-grade audit trails
+- ✅ Encina.Audit.Marten [#800](https://github.com/dlrivada/Encina/issues/800) — Event-sourced IOperationAuditStore with temporal crypto-shredding for compliance-grade audit trails
 - ✅ NIS2 Directive compliance [#414](https://github.com/dlrivada/Encina/issues/414) — Stateless rule engine for Art. 21 measures, MFA enforcement, encryption validation, supply chain security, incident timelines, management accountability
 - ✅ AI Act compliance [#415](https://github.com/dlrivada/Encina/issues/415) — `Encina.Compliance.AIAct` with EU AI Act (EU 2024/1689) risk classification, prohibited practices detection, human oversight enforcement, transparency obligations, attribute-based pipeline behavior, 135 tests
 
@@ -464,7 +464,7 @@ Key areas already completed:
   - API Versioning Integration [#348](https://github.com/dlrivada/Encina/issues/348) — Versioned handlers with `[ApiVersion]`, VersionedRequestDispatcher
   - Request Batching [#349](https://github.com/dlrivada/Encina/issues/349) — BatchCommand/BatchQuery with AllOrNothing, PartialSuccess strategies
   - Domain vs Integration Events [#350](https://github.com/dlrivada/Encina/issues/350) — IDomainEvent, IIntegrationEvent, DomainEventDispatcher (DDD best practice)
-  - Audit Trail Behavior [#351](https://github.com/dlrivada/Encina/issues/351) — `[Auditable]` attribute, IAuditStore, sensitive data redaction (GDPR/compliance)
+  - Audit Trail Behavior [#351](https://github.com/dlrivada/Encina/issues/351) — `[Auditable]` attribute, IOperationAuditStore, sensitive data redaction (GDPR/compliance)
   - Modular Monolith [#352](https://github.com/dlrivada/Encina/issues/352) — EncinaModule, IModuleEventBus, module isolation (architecture 2025)
   - ✅ CDC Integration [#353](https://github.com/dlrivada/Encina/issues/353) — Change Data Capture with SQL Server, Debezium/Kafka providers - **COMPLETED**
   - Enhanced Streaming [#354](https://github.com/dlrivada/Encina/issues/354) — Stream pipeline behaviors, backpressure, parallel processing

@@ -99,7 +99,7 @@ Every feature that creates entities, stores, pipeline behaviors, background serv
 | 9 | Idempotency | Can receive duplicates? | `InboxPipelineBehavior`, deduplication key |
 | 10 | Multi-tenancy | Stores/queries tenant data? | `TenantId`, `ITenantContext` |
 | 11 | Module isolation | Needs module scoping? | `ModuleId`, `IModuleContext` |
-| 12 | Audit trail | Compliance/security implications? | `IAuditStore`, audit events |
+| 12 | Audit trail | Compliance/security implications? | `IOperationAuditStore`, `IAuditLogStore`, `IReadAuditStore` (ADR-036), audit events |
 
 Common misses: a new store or entity misses OpenTelemetry, `TenantId`, `ModuleId`, health check; a background service misses locks, leader election, logging; an external integration misses resilience, health check, OpenTelemetry; a pipeline behavior misses validation, idempotency, audit; a messaging pattern misses transactions, locks, multi-tenancy.
 
