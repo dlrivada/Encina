@@ -20,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $base = Join-Path ([IO.Path]::GetTempPath()) ("open-remediation-selftest-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $failures = [System.Collections.Generic.List[string]]::new()
+$savedGhToken = $env:GITHUB_TOKEN; $savedGhToken2 = $env:GH_TOKEN
 
 function Assert-That([string]$Name, [bool]$Condition, [string]$Detail = '') {
     if ($Condition) { Write-Host "PASS  $Name" }
@@ -321,6 +322,8 @@ exit 0
     Assert-That -Name 'over the limit: two parts titled (part k/2) with their own counts, each body under 65,000' -Condition ($r8b.Exit -eq 0 -and $r8b.Creates.Count -eq 2 -and $r8b.Creates[0].Contains('of #4: 2 findings (docs and coverage obligations) (part 1/2) --body-file') -and $r8b.Creates[1].Contains('of #4: 1 finding (docs and coverage obligations) (part 2/2) --body-file') -and $b1.Length -gt 0 -and $b1.Length -le 65000 -and $b2.Length -gt 0 -and $b2.Length -le 65000) -Detail ($r8b.Text + ' | ' + ($r8b.Creates -join ' | ') + " | $($b1.Length) $($b2.Length)")
     Assert-That -Name 'over the limit: each draft whole in its part (docs first, tests last) and the part note present' -Condition ($b1.Contains('Big A') -and $b1.Contains('Big B') -and -not $b1.Contains('TEST DESCRIPTION.') -and $b2.Contains('TEST DESCRIPTION.') -and -not $b2.Contains('Big A') -and $b1.Contains('Part 1 of 2 of the delta re-audit') -and $b2.Contains('Part 2 of 2 of the delta re-audit') -and $b1.Contains('x' * 25000) -and $b2.Contains('x' * 25000)) -Detail "$($b1.Length) $($b2.Length)"
     Assert-That -Name 'over the limit: each row points at the part holding the draft' -Condition ($rows8b.Count -eq 3 -and (& $urlOf '4-delta-docs-a.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-docs-b.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1001' -and (& $urlOf '4-delta-test-c.md' $rows8b) -eq 'https://github.com/dlrivada/Encina/issues/1002') -Detail ($rows8b -join ' | ')
+    $items8b = @(Get-Content $log | Where-Object { $_ -like 'gh project item-add 1 --owner dlrivada --url *' })
+    Assert-That -Name 'split path: each part is added to project 1 (two item-add calls, one per part URL)' -Condition ($items8b.Count -eq 2 -and $items8b[0].EndsWith('/issues/1001') -and $items8b[1].EndsWith('/issues/1002')) -Detail ($items8b -join ' | ')
 
     # 8c. a re-run after the split opens nothing; a later draft is refused while any part exists.
     $r8c = Invoke-Open '-Consolidate' 4
@@ -379,15 +382,25 @@ exit 0
     $r9m = Invoke-Open '-Consolidate' 9
     Assert-That -Name 'mixed code + docs consolidation: Hardening milestone and the highest draft priority (Medium -> p1)' -Condition ($r9m.Exit -eq 0 -and $r9m.Creates.Count -eq 1 -and $r9m.Creates[0].Contains("--milestone $hardMs") -and $r9m.Creates[0].Contains('--label p1-recommended') -and -not $r9m.Creates[0].Contains($docsMs)) -Detail ($r9m.Text + ' | ' + ($r9m.Creates -join ' | '))
 
-    # 9c. a project failure fails loudly (exit 1, message), after the row is written so a re-run never duplicates.
+    # 9c. a project failure is a loud warning (the issue URL and the retry command), never an undone issue or a
+    # failed run (#1987); the row is written, so a re-run never duplicates.
     Write-Text (Join-Path $rem '8-docs.md') (New-DocsDraft '[DEBT] Project fails' 'docs/pf.md' 'Low' 'Small' '')
     $env:OR_STUB_PROJECT_FAIL = '1'
     $r9c = Invoke-Open '' 8
     $env:OR_STUB_PROJECT_FAIL = ''
-    Assert-That -Name 'a failed project add exits 1 naming the issue and keeps the row' -Condition ($r9c.Exit -ne 0 -and $r9c.Text.Contains('gh project item-add failed') -and @(Get-Content $csv | Where-Object { $_ -like '8-docs.md,*' }).Count -eq 1) -Detail $r9c.Text
+    $retry = 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/issues/1001'
+    Assert-That -Name 'a failed project add warns with the issue URL and the retry command, exits 0 and keeps the issue and its row' -Condition ($r9c.Exit -eq 0 -and $r9c.Creates.Count -eq 1 -and $r9c.Text.Contains('gh project item-add failed') -and $r9c.Text.Contains($retry) -and @(Get-Content $csv | Where-Object { $_ -like '8-docs.md,*' }).Count -eq 1) -Detail $r9c.Text
+
+    # 9d. the same failure on the consolidated path: warning, exit 0, rows written for every draft.
+    Write-Text (Join-Path $rem '10-delta-docs-a.md') (New-DocsDraft '[DEBT] Consolidated project fails A' 'docs/cf1.md' 'Low' 'Small' '')
+    Write-Text (Join-Path $rem '10-delta-docs-b.md') (New-DocsDraft '[DEBT] Consolidated project fails B' 'docs/cf2.md' 'Low' 'Small' '')
+    $env:OR_STUB_PROJECT_FAIL = '1'
+    $r9d = Invoke-Open '-Consolidate' 10
+    $env:OR_STUB_PROJECT_FAIL = ''
+    Assert-That -Name 'a failed project add on the consolidated path warns with the retry command, exits 0 and keeps both rows' -Condition ($r9d.Exit -eq 0 -and $r9d.Creates.Count -eq 1 -and $r9d.Text.Contains($retry) -and @(Get-Content $csv | Where-Object { $_ -like '10-delta-*' }).Count -eq 2) -Detail $r9d.Text
 }
 finally {
-    $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
+    $env:GITHUB_TOKEN = $savedGhToken; $env:GH_TOKEN = $savedGhToken2
     if (Test-Path $base) {
         Get-ChildItem -LiteralPath $base -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $_.IsReadOnly = $false }
         Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue

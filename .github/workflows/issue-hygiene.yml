@@ -1,20 +1,21 @@
 name: Issue hygiene
 
 # An issue is complete or it does not exist (maintainer rule of 2026-10-06, #1926): it has a milestone, one
-# priority label (p0-mandatory, p1-recommended or p2-post-1.0; an [EPIC] needs none) and it is on user project 1.
+# priority label (p0-mandatory, p1-recommended or p2-post-1.0; an [EPIC] needs none) and it is on user project 1
+# (the project part is done locally, see below).
 #
 # On every issue event this workflow
-#   - adds the issue to user project 1 when it is not there (needs PROJECT_TOKEN), and
 #   - labels it needs-triage (and, for an issue by the owner, a member or a collaborator, comments once) when the milestone or the priority label is missing, and removes
 #     the label again when both are present.
-# The weekly run (and workflow_dispatch) lists every open issue missing a milestone, a priority label or the
-# project in the job summary.
+# The weekly run (and workflow_dispatch) lists every open issue missing a milestone or a priority label in the job
+# summary, with the project column when the default token can read the project.
+#
+# Project membership is not written here: the default GITHUB_TOKEN cannot write user projects and no long-lived
+# secret is used (maintainer decision 2026-10-07, #1987). open-remediation.ps1 adds the issues it opens, the
+# open-issue skill adds the others, and tools/ai/issues/check-project-membership.ps1 (run locally) finds the web-created
+# ones.
 #
 # Setup (one time, by the maintainer):
-#   - Repository secret PROJECT_TOKEN: a classic personal access token with the `project` scope only (the
-#     repository is public and the project is user-owned, so `repo` is not needed). The default GITHUB_TOKEN
-#     cannot write user projects. Without the secret the job warns and still does the
-#     label, comment and summary parts with GITHUB_TOKEN; the project parts are skipped.
 #   - The needs-triage label is created by the job when it is missing; to create it by hand:
 #       gh label create needs-triage --repo dlrivada/Encina --color FBCA04 --description "Missing milestone or priority label"
 
@@ -38,10 +39,8 @@ jobs:
       issues: write
       contents: read
     steps:
-      - name: Check milestone, priority label and project
+      - name: Check milestone and priority label
         uses: actions/github-script@v9
-        env:
-          PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -50,11 +49,6 @@ jobs:
             const TRIAGE = 'needs-triage';
             const MARKER = '<!-- issue-hygiene -->';
             const PROJECT_NUMBER = 1;
-            const projectToken = process.env.PROJECT_TOKEN;
-            const pg = projectToken ? github.getOctokit(projectToken) : null;
-            if (!pg) {
-              core.warning('Secret PROJECT_TOKEN is not set: project membership is not checked or fixed; only the milestone and priority label parts run.');
-            }
 
             const isEpic = (issue) => issue.title.startsWith('[EPIC]');
             const labelNames = (issue) => issue.labels.map(l => (typeof l === 'string' ? l : l.name));
@@ -74,44 +68,10 @@ jobs:
               }
             }
 
-            async function getProjectId() {
-              const r = await pg.graphql(
-                'query($login:String!,$number:Int!){ user(login:$login){ projectV2(number:$number){ id } } }',
-                { login: owner, number: PROJECT_NUMBER });
-              const id = r.user && r.user.projectV2 && r.user.projectV2.id;
-              if (!id) throw new Error('user project ' + PROJECT_NUMBER + ' not found for ' + owner);
-              return id;
-            }
-
-            async function isOnProject(nodeId) {
-              const r = await pg.graphql(
-                'query($id:ID!){ node(id:$id){ ... on Issue { projectItems(first:50){ nodes{ project{ number owner{ ... on User { login } } } } } } } }',
-                { id: nodeId });
-              const nodes = (r.node && r.node.projectItems && r.node.projectItems.nodes) || [];
-              return nodes.some(n => n.project.number === PROJECT_NUMBER && n.project.owner && n.project.owner.login === owner);
-            }
-
-            async function addToProject(nodeId) {
-              const projectId = await getProjectId();
-              await pg.graphql(
-                'mutation($p:ID!,$c:ID!){ addProjectV2ItemById(input:{projectId:$p,contentId:$c}){ item{ id } } }',
-                { p: projectId, c: nodeId });
-            }
-
             async function handleIssue(eventIssue) {
               // The event payload is a snapshot: a queued run for a later event would otherwise judge stale labels.
               const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: eventIssue.number });
               if (issue.state !== 'open') return;
-              if (pg) {
-                try {
-                  if (!(await isOnProject(issue.node_id))) {
-                    await addToProject(issue.node_id);
-                    core.info('#' + issue.number + ' added to project ' + PROJECT_NUMBER);
-                  }
-                } catch (e) {
-                  core.warning('#' + issue.number + ' project check failed: ' + e.message);
-                }
-              }
 
               const missing = missingOf(issue);
               const hasTriage = labelNames(issue).includes(TRIAGE);
@@ -148,25 +108,28 @@ jobs:
               .filter(i => !i.pull_request);
 
             let onProject = null;
-            if (pg) {
-              try {
-                onProject = new Set();
-                let cursor = null;
-                for (;;) {
-                  const r = await pg.graphql(
-                    'query($login:String!,$number:Int!,$after:String){ user(login:$login){ projectV2(number:$number){ items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ content{ ... on Issue { number repository{ nameWithOwner } } } } } } } }',
-                    { login: owner, number: PROJECT_NUMBER, after: cursor });
-                  const items = r.user.projectV2.items;
-                  for (const n of items.nodes) {
-                    if (n.content && n.content.number && n.content.repository && n.content.repository.nameWithOwner === owner + '/' + repo) onProject.add(n.content.number);
-                  }
-                  if (!items.pageInfo.hasNextPage) break;
-                  cursor = items.pageInfo.endCursor;
+            let projectReadError = null;
+            // A permission failure (the default token cannot see a user project) differs from a transient one.
+            const isPermissionError = (e) => e && !/rate limit|abuse/i.test(String(e.message)) && (e.status === 401 || e.status === 403 ||/FORBIDDEN|NOT_FOUND|Resource not accessible|Could not resolve/i.test(String(e.message)) || e instanceof TypeError);
+            // Reading a public user project may work with the default token; when it does not, the column is dropped.
+            try {
+              onProject = new Set();
+              let cursor = null;
+              for (;;) {
+                const r = await github.graphql(
+                  'query($login:String!,$number:Int!,$after:String){ user(login:$login){ projectV2(number:$number){ items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ content{ ... on Issue { number repository{ nameWithOwner } } } } } } } }',
+                  { login: owner, number: PROJECT_NUMBER, after: cursor });
+                const items = r.user.projectV2.items;
+                for (const n of items.nodes) {
+                  if (n.content && n.content.number && n.content.repository && n.content.repository.nameWithOwner === owner + '/' + repo) onProject.add(n.content.number);
                 }
-              } catch (e) {
-                core.warning('Project membership could not be read (PROJECT_TOKEN invalid or expired?): ' + e.message);
-                onProject = null;
+                if (!items.pageInfo.hasNextPage) break;
+                cursor = items.pageInfo.endCursor;
               }
+            } catch (e) {
+              core.warning('Project membership could not be read with the default token: ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+              onProject = null;
+              projectReadError = e;
             }
 
             const rows = [];
@@ -178,7 +141,8 @@ jobs:
 
             const header = [{ data: 'Issue', header: true }, { data: 'Title', header: true }, { data: 'Missing', header: true }];
             core.summary.addHeading('Incomplete open issues (' + rows.length + ' of ' + open.length + ')', 2);
-            if (!onProject) core.summary.addRaw('Project membership was not checked (PROJECT_TOKEN missing or unusable).\n\n', true);
+            const whyNotChecked = isPermissionError(projectReadError) ? 'the default token cannot read the project' : 'the read failed (see the job log warning)';
+            if (!onProject) core.summary.addRaw('Project membership is not checked here (' + whyNotChecked + '); run tools/ai/issues/check-project-membership.ps1 locally to find open issues that are not on project 1 (-Add adds them).\n\n', true);
             if (rows.length > 0) core.summary.addTable([header, ...rows]);
-            else core.summary.addRaw('Every open issue has a milestone, a priority label and a project.\n', true);
+            else core.summary.addRaw(onProject ? 'Every open issue has a milestone, a priority label and a project.\n' : 'Every open issue has a milestone and a priority label.\n', true);
             await core.summary.write();
