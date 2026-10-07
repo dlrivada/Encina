@@ -57,6 +57,10 @@ public sealed class ProblemDetailsExtensionsTests
     [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
     [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
     [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
+    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
+    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
     [InlineData("encina.authorization.some_future_denial")]
     public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
     {

@@ -558,7 +558,8 @@ EncinaErrors.Create("order.already_shipped", "Cannot modify order that has been 
 
 // Authorization errors (handled by library via EncinaErrorCodes constants)
 EncinaErrors.Forbidden("RequireElevation"); // encina.authorization.forbidden
-EncinaErrors.Unauthorized();                // encina.authorization.unauthorized
+EncinaErrors.Unauthorized();                // access denied (403)
+EncinaErrors.Unauthenticated();             // encina.authorization.unauthenticated (401)
 ```
 
 ### 2. Rich Error Details

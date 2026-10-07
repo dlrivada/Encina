@@ -127,6 +127,10 @@ public sealed class DefaultErrorClassifier : IErrorClassifier
         EncinaErrorCodes.AuthorizationForbidden,
         EncinaErrorCodes.AuthorizationPolicyFailed,
         EncinaErrorCodes.AuthorizationResourceDenied,
+        EncinaErrorCodes.AuthorizationInsufficientRoles,
+        EncinaErrorCodes.AuthorizationPermissionDenied,
+        EncinaErrorCodes.AuthorizationClaimMissing,
+        EncinaErrorCodes.AuthorizationNotOwner,
 
         // Validation failures (Encina.GuardClauses, Encina.DomainModeling, compliance modules)
         "encina.guard.validation_failed",
