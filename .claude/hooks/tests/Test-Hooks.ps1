@@ -3761,6 +3761,13 @@ Two SagaStoreADO test classes duplicate the same setup.
             $r = Invoke-Remediation $remWt1863 (@('-Prepare', '-NoGh') + $case.Args)
             Test-RemediationCase "#1863 $($case.Label) stops with a message and changes no file" { $r.Code -ne 0 -and $r.Output -match [regex]::Escape($case.Match) -and (Get-Tree1863) -eq $before1863 }
         }
+        # #1863 (review): a list parameter supplied but empty after splitting on commas is a usage error (exit 2).
+        foreach ($emptyParam in @('-Only', '-DuplicateOf', '-MergeInto', '-NotDuplicate', '-NoMerge')) {
+            $emptyRun = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', $emptyParam, ',,,')
+            Test-RemediationCase "#1863 $emptyParam ',,,' exits 2 naming the parameter and changes no file" {
+                $emptyRun.Code -eq 2 -and $emptyRun.Output -match ([regex]::Escape($emptyParam) + ' was supplied but names no finding') -and (Get-Tree1863) -eq $before1863
+            }
+        }
         $finalize1863 = Invoke-Remediation $remWt1863 @('-Finalize', '-NoMerge', 'docs 1')
         Test-RemediationCase '#1863 -Finalize with -NoMerge is an error' { $finalize1863.Code -ne 0 -and $finalize1863.Output -match 'apply to -Prepare only' }
 
@@ -3799,6 +3806,19 @@ Two SagaStoreADO test classes duplicate the same setup.
         Test-RemediationCase '#1863 -Only code 2 -NoMerge docs 1: docs 1, code 1 (the group it left) and code 2 are prepared; the rest keep their lines' {
             $onlyNm1863.Code -eq 0 -and (Get-ManifestFinding $onlyNmManifest1863 'docs 1').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'code 1').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'code 2').regenerate -and
             -not (Get-ManifestFinding $onlyNmManifest1863 'code 3').regenerate -and (Get-ManifestFinding $onlyNmManifest1863 'docs 1').draftFile -and @((Get-ManifestFinding $onlyNmManifest1863 'code 1').groupMembers).Count -eq 1
+        }
+
+        # A -NoMerge split from a group whose remaining members a kept merge moved into its target (code 1 and docs 1
+        # share a location, mergeOverrides holds code 1=code 2): the merge target stays valid and is re-prepared.
+        Reset-Base1863
+        $null = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-MergeInto', 'code 1=code 2')
+        Write-StageFromManifest (Get-RemediationManifest $remWt1863 $remN1863)
+        $splitMerge1863 = Invoke-Remediation $remWt1863 @('-Prepare', '-NoGh', '-Only', 'code 3', '-NoMerge', 'docs 1')
+        $splitMergeManifest1863 = Get-RemediationManifest $remWt1863 $remN1863
+        Test-RemediationCase '#1863 -Only code 3 -NoMerge docs 1 with code 1=code 2 kept: code 1 stays merged into code 2, which is re-prepared without docs 1; docs 1 has its own draft' {
+            $splitMerge1863.Code -eq 0 -and (@($splitMergeManifest1863.mergeOverrides) -join '|') -eq 'code 1=code 2' -and (Get-ManifestFinding $splitMergeManifest1863 'code 2').regenerate -and
+            (Get-ManifestFinding $splitMergeManifest1863 'code 2').draftFile -and (Get-ManifestFinding $splitMergeManifest1863 'docs 1').draftFile -and
+            (@((Get-ManifestFinding $splitMergeManifest1863 'code 2').groupMembers) -join '|') -notmatch 'docs 1'
         }
 
         # The comma-separated string form (what `pwsh -File` hands over) for all five list parameters.

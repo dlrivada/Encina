@@ -28,6 +28,7 @@
 #
 # Every list parameter (-Only, -DuplicateOf, -MergeInto, -NotDuplicate, -NoMerge) takes an array in-process and a
 # single comma-separated string under `pwsh -File` ('tests 8,tests 9'; #1863, which settles #1645's limitation).
+# A list parameter that is supplied but empty after splitting (-Only ',,,') is a usage error: exit 2, nothing touched.
 #
 # -NotDuplicate "<stage> <n>" (-Prepare only; #1863): the verifier ruled the finding is not a duplicate. It skips the
 # evidence duplicate decision AND the location merge, so the finding gets its own draft with the normal draft line;
@@ -112,6 +113,15 @@ $DuplicateOf = Expand-Specs $DuplicateOf
 $MergeInto = Expand-Specs $MergeInto
 $NotDuplicate = Expand-Specs $NotDuplicate
 $NoMerge = Expand-Specs $NoMerge
+
+# #1863: a list parameter that was supplied but is empty after normalisation (e.g. -Only ',,,') is a usage error
+# (exit 2), never a silent fall-through to a full -Prepare; checked before anything on disk is touched.
+foreach ($listParam in @(@{ Name = 'Only'; Count = $Only.Count }, @{ Name = 'DuplicateOf'; Count = $DuplicateOf.Count }, @{ Name = 'MergeInto'; Count = $MergeInto.Count }, @{ Name = 'NotDuplicate'; Count = $NotDuplicate.Count }, @{ Name = 'NoMerge'; Count = $NoMerge.Count })) {
+    if ($PSBoundParameters.ContainsKey($listParam.Name) -and $listParam.Count -eq 0) {
+        [Console]::Error.WriteLine("audit-draft-remediation: -$($listParam.Name) was supplied but names no finding after splitting on commas; pass at least one value or omit the parameter.")
+        exit 2
+    }
+}
 
 if ($Prepare -eq $Finalize) { Stop-Remediation 'pass exactly one of -Prepare or -Finalize.' }
 if ($Finalize -and ($Only.Count -gt 0 -or $DuplicateOf.Count -gt 0 -or $MergeInto.Count -gt 0 -or $NotDuplicate.Count -gt 0 -or $NoMerge.Count -gt 0)) {
@@ -574,8 +584,8 @@ if ($duplicateOfEntries) {
 $manualMergeKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $mergeTargetGroupIndexes = [System.Collections.Generic.List[int]]::new()   # groups of THIS run's -MergeInto only
 $mergeLessonItems = [System.Collections.Generic.List[pscustomobject]]::new()
+$groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
 if ($mergeIntoEntries.Count -gt 0) {
-    $groupMergedInto = @{}   # a plain hashtable: an ordered dictionary would read an int key as a position
     $mergeSourceOrder = [System.Collections.Generic.List[int]]::new()
     foreach ($mergeSrc in $mergeIntoEntries.Keys) {
         $mergeTgt = $mergeIntoEntries[$mergeSrc]
@@ -639,6 +649,13 @@ if ($mergeIntoEntries.Count -gt 0) {
         # when -Only names one of its findings (or the run is a full one).
         if ($newMergeEntries.Contains($mergeSrc) -and -not $mergeTargetGroupIndexes.Contains($tgtIdx)) { $mergeTargetGroupIndexes.Add($tgtIdx) }
     }
+}
+# #1863: a -NoMerge split can leave a group whose remaining members a manual merge then moved into its target,
+# emptying it. The group those members live in now is the merge target, so the left-group index follows the merge
+# and never points at an emptied group (its remaining members must be re-prepared with the split).
+foreach ($leftKey in @($leftGroupIndexByKey.Keys)) {
+    $leftIdx = [int]$leftGroupIndexByKey[$leftKey]
+    if ($groupMergedInto.ContainsKey($leftIdx)) { $leftGroupIndexByKey[$leftKey] = [int]$groupMergedInto[$leftIdx] }
 }
 foreach ($note in $mergeNotes) { "audit-draft-remediation: $note" }
 
