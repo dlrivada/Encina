@@ -16,7 +16,8 @@ $ErrorActionPreference = 'Stop'
 try {
     . (Join-Path $PSScriptRoot '_command-text.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $command = [string]$payload.tool_input.command
     if ([string]::IsNullOrWhiteSpace($command)) { exit 0 }
     if ($command -notmatch '\bgit\b|\bgh\b') { exit 0 }

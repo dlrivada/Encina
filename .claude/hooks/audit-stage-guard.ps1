@@ -45,7 +45,8 @@ $ErrorActionPreference = 'Stop'
 $auditStageSpawn = $false
 
 try {
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     if ([string]$payload.tool_name -notin 'Agent', 'Task') { exit 0 }
 
     $subagent = [string]$payload.tool_input.subagent_type

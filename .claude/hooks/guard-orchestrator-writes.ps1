@@ -55,7 +55,8 @@ try {
     . (Join-Path $PSScriptRoot '_repo-paths.ps1')
     . (Join-Path $PSScriptRoot '_write-targets.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     # agent_id/agent_type: present (agent_type names the caller) for a subagent's own tool call, absent for the
     # main session's (https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/sub-agents.md).
     $governed = @('issue-worker', 'mechanical-fixer', 'docs-writer')

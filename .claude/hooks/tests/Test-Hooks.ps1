@@ -1052,6 +1052,18 @@ try {
     }
     finally { $env:ENCINA_MILESTONES_CACHE = $savedCache; $env:ENCINA_ISSUE_GH = $savedGh }
 
+    # #1926: the payload is decoded as UTF-8 whatever the console input code page is. The child sets an OEM
+    # code page (850) before running the hook, as a Windows console does under the Claude Code harness; the
+    # seeded milestone title contains an em dash, so a payload decoded with the console code page is denied.
+    $oemJson = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file debt-ok.md' + $hm } } | ConvertTo-Json -Compress
+    $oemWrapper = "[Console]::InputEncoding = [Text.Encoding]::GetEncoding(850); & '$issue'; exit `$LASTEXITCODE"
+    $oemOutput = $oemJson | pwsh -NoProfile -Command $oemWrapper 2>&1
+    $oemCode = $LASTEXITCODE
+    $script:total++
+    if ($oemCode -ne 0) { $script:failed++ }
+    "{0} [{1}, expected 0] check-issue-template.ps1: a non-ASCII milestone title survives a non-UTF-8 console input code page (#1926)" -f ($(if ($oemCode -eq 0) { 'PASS' } else { 'FAIL' })), $oemCode
+    if ($oemCode -ne 0) { "      output: $(Get-FlatOutput $oemOutput)" }
+
     # #1410: the opt-out route also logs a line to artifacts/local-ai/opt-outs.log; a dedicated, isolated root
     # so the assertion below reads only what this one case wrote.
     $savedProjectDirForOptOut = $env:CLAUDE_PROJECT_DIR
