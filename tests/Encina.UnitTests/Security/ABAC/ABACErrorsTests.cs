@@ -25,7 +25,6 @@ public sealed class ABACErrorsTests
     [InlineData(nameof(ABACErrors.DuplicatePolicyCode), "abac.duplicate_policy")]
     [InlineData(nameof(ABACErrors.DuplicatePolicySetCode), "abac.duplicate_policy_set")]
     [InlineData(nameof(ABACErrors.CombiningFailedCode), "abac.combining_failed")]
-    [InlineData(nameof(ABACErrors.MissingContextCode), "abac.missing_context")]
     [InlineData(nameof(ABACErrors.ObligationFailedCode), "abac.obligation_failed")]
     [InlineData(nameof(ABACErrors.FunctionNotFoundCode), "abac.function_not_found")]
     [InlineData(nameof(ABACErrors.FunctionErrorCode), "abac.function_error")]
@@ -54,7 +53,6 @@ public sealed class ABACErrorsTests
             ABACErrors.DuplicatePolicyCode,
             ABACErrors.DuplicatePolicySetCode,
             ABACErrors.CombiningFailedCode,
-            ABACErrors.MissingContextCode,
             ABACErrors.ObligationFailedCode,
             ABACErrors.FunctionNotFoundCode,
             ABACErrors.FunctionErrorCode,
@@ -222,12 +220,23 @@ public sealed class ABACErrorsTests
     }
 
     [Fact]
-    public void MissingContext_ReturnsCorrectCode()
+    public void UnauthenticatedCaller_UsesTheSharedCodeAndTheAbacGate()
     {
-        var error = ABACErrors.MissingContext(typeof(string));
+        var error = ABACErrors.UnauthenticatedCaller(typeof(string));
 
-        error.GetCode().IfNone("").ShouldBe(ABACErrors.MissingContextCode);
-        error.Message.ShouldContain("String");
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        var details = error.GetDetails();
+        details["gate"].ShouldBe("abac");
+        details["requestType"].ShouldBe(typeof(string).FullName);
+        details.ShouldNotContainKey("userId");
+        error.Message.ShouldBe("ABAC evaluation requires an authenticated caller. Access denied.");
+    }
+
+    [Fact]
+    public void UnauthenticatedCaller_NullRequestType_Throws()
+    {
+        Should.Throw<ArgumentNullException>(() => ABACErrors.UnauthenticatedCaller(null!))
+            .ParamName.ShouldBe("requestType");
     }
 
     [Fact]

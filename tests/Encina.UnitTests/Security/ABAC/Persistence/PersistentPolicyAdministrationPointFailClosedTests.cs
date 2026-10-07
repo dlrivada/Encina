@@ -70,28 +70,40 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
     }
 
     [Fact]
-    public async Task SeedingHostedService_WithoutPrincipal_SeedsThroughTheSystemActorScope()
+    public async Task SeedingHostedService_WithoutPrincipal_SeedsUnderTheBuiltInServiceIdentityOnly()
     {
         var store = CreateStoreForNewStandalonePolicy();
         var auditStore = Substitute.For<IOperationAuditStore>();
         auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, Unit>>(Either<EncinaError, Unit>.Right(Prelude.unit)));
-        var pap = CreateSut(store, auditStore, accessor: null);
-        var options = new ABACOptions();
-        options.SeedPolicies.Add(CreatePolicy("seeded"));
-        var seeder = new ABACPolicySeedingHostedService(
-            pap, Microsoft.Extensions.Options.Options.Create(options), NullLogger<ABACPolicySeedingHostedService>.Instance);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped(_ => store);
+        services.AddScoped(_ => auditStore);
+        services.AddEncinaABAC(options =>
+        {
+            options.UsePersistentPAP = true;
+            options.SeedPolicies.Add(CreatePolicy("seeded"));
+        });
+        await using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        var pap = provider.GetRequiredService<IPolicyAdministrationPoint>();
+        var seeder = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<ABACPolicySeedingHostedService>().Single();
 
         await seeder.StartAsync(CancellationToken.None);
 
         await store.Received(1).SavePolicyAsync(Arg.Is<Policy>(p => p.Id == "seeded"), Arg.Any<CancellationToken>());
         await auditStore.Received(1).RecordAsync(
-            Arg.Is<OperationAuditEntry>(e => e.UserId == "system" && e.EntityId == "seeded"), Arg.Any<CancellationToken>());
-        (await pap.AddPolicyAsync(CreatePolicy("after"), parentPolicySetId: null)).IsLeft.ShouldBeTrue();
+            Arg.Is<OperationAuditEntry>(e => e.UserId == "service:encina.abac.policy-seeding" && e.EntityId == "seeded"),
+            Arg.Any<CancellationToken>());
+        var after = await pap.AddPolicyAsync(CreatePolicy("after"), parentPolicySetId: null);
+        after.IsLeft.ShouldBeTrue("the seeding identity ends with the seeding scope; a later change without a caller is refused");
+        after.IfLeft(error => error.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangePrincipalRequiredCode));
     }
 
     private static PersistentPolicyAdministrationPoint CreateSut(
-        IPolicyStore store, IOperationAuditStore? auditStore, IRequestContextAccessor? accessor)
+        IPolicyStore store, IOperationAuditStore? auditStore, IRequestContextAccessor accessor)
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => store);
@@ -129,7 +141,6 @@ public sealed class PersistentPolicyAdministrationPointFailClosedTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddSingleton(CreateAccessor("alice"));
         // Both stores are scoped, like every database provider's: the singleton PAP resolves them
         // per operation in its own scope.

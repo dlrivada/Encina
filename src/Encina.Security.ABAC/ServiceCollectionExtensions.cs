@@ -10,6 +10,7 @@ using Encina.Security.ABAC.Providers;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Encina.Security.ABAC;
@@ -42,7 +43,9 @@ public static class ServiceCollectionExtensions
     /// <item><description><see cref="IPolicyInformationPoint"/> → <see cref="DefaultPolicyInformationPoint"/> (Singleton)</description></item>
     /// <item><description><see cref="IAttributeProvider"/> → <see cref="DefaultAttributeProvider"/> (Scoped)</description></item>
     /// <item><description><see cref="ObligationExecutor"/> (Scoped)</description></item>
-    /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient)</description></item>
+    /// <item><description><see cref="ABACPipelineBehavior{TRequest, TResponse}"/> (Transient, added with <c>TryAddEnumerable</c>)</description></item>
+    /// <item><description>The request identity model (<see cref="RequestIdentityServiceCollectionExtensions.AddEncinaRequestIdentity"/>): the PEP reads the caller from <see cref="IRequestContext.Identity"/></description></item>
+    /// <item><description>A startup check that logs Warning 9085 once when the final options set <see cref="ABACEnforcementMode.Disabled"/></description></item>
     /// </list>
     /// <para>
     /// <b>Default registrations:</b>
@@ -56,14 +59,16 @@ public static class ServiceCollectionExtensions
     /// <see cref="PersistentPolicyAdministrationPoint"/> is registered instead of the default
     /// <see cref="InMemoryPolicyAdministrationPoint"/>. This requires an <see cref="IPolicyStore"/>
     /// to be registered by a database provider package. Policy changes are attributed to the
-    /// principal of the request context and refused without one; when an <c>IOperationAuditStore</c> is
+    /// authenticated caller of the request context (<see cref="IRequestContext.Identity"/>: a user,
+    /// or a declared service identity) and refused without one; when an <c>IOperationAuditStore</c> is
     /// registered (scoped or not), each change is audited fail closed in its own DI scope.
     /// </para>
     /// <para>
     /// <b>Policy seeding:</b>
     /// When <see cref="ABACOptions.SeedPolicySets"/> or <see cref="ABACOptions.SeedPolicies"/>
     /// contain entries, an <see cref="ABACPolicySeedingHostedService"/> is registered to seed
-    /// them into the PAP at application startup.
+    /// them into the PAP at application startup, under the built-in service identity
+    /// <c>service:encina.abac.policy-seeding</c>, which this method declares.
     /// </para>
     /// </remarks>
     /// <example>
@@ -107,10 +112,13 @@ public static class ServiceCollectionExtensions
         var optionsInstance = new ABACOptions();
         configure?.Invoke(optionsInstance);
 
-        // Register the ambient request context accessor so the persistent PAP can resolve the
-        // current actor for audit entries even when the host only wires Encina.Security.ABAC,
-        // without the core mediator's AddEncina() (TryAdd is idempotent when both are called).
-        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
+        // The request identity model (ambient accessor, scope factory, service identity catalog):
+        // the persistent PAP reads the actor from it and policy seeding runs under a built-in
+        // service identity, even when the host wires only Encina.Security.ABAC (idempotent).
+        services.AddEncinaRequestIdentity();
+
+        // Warning 9085 once at startup when the final options disable enforcement.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ABACEnforcementModeStartupCheck>());
 
         // ── Function registry (Singleton) ──────────────────────────
         // Register with factory so custom functions from options are loaded
@@ -167,6 +175,8 @@ public static class ServiceCollectionExtensions
     {
         if (optionsInstance.SeedPolicySets.Count > 0 || optionsInstance.SeedPolicies.Count > 0)
         {
+            // Seeding runs under this built-in service identity (declaration is idempotent).
+            services.AddBuiltInServiceIdentity(ABACPolicySeedingHostedService.ServiceIdentityName);
             services.AddHostedService<ABACPolicySeedingHostedService>();
         }
 
@@ -251,7 +261,7 @@ public static class ServiceCollectionExtensions
         return new PersistentPolicyAdministrationPoint(
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<ILogger<PersistentPolicyAdministrationPoint>>(),
-            sp.GetService<IRequestContextAccessor>(),
+            sp.GetRequiredService<IRequestContextAccessor>(),
             sp.GetService<TimeProvider>(),
             ResolvePolicyStore);
     }

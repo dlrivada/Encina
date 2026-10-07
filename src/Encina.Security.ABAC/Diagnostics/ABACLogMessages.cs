@@ -314,6 +314,17 @@ internal static partial class ABACLogMessages
     internal static partial void ObligationHandlerThrew(
         ILogger logger, Exception exception, string obligationId);
 
+    // ── Enforcement Disabled (9085) ──────────────────────────────────
+    // Event ID 9085 (see EventIdRanges.SecurityABAC) is the "Enforcement Disabled" id of the
+    // decision audit trail (#751), allocated by #1705: it is logged once at startup when the
+    // final options disable enforcement; #751 adds its once-per-request-type call to this method.
+
+    [LoggerMessage(
+        EventId = 9085,
+        Level = LogLevel.Warning,
+        Message = "ABAC enforcement is disabled (EnforcementMode = Disabled): requests with [RequirePolicy] or [RequireCondition] run without any ABAC evaluation")]
+    internal static partial void EnforcementDisabled(ILogger logger);
+
     // ── Fail-Closed Messages (9091-9093) ─────────────────────────────
     // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 are reserved for the
     // decision audit trail of #751). Codes and exception types only, never a user identifier,
@@ -322,8 +333,8 @@ internal static partial class ABACLogMessages
     [LoggerMessage(
         EventId = 9091,
         Level = LogLevel.Warning,
-        Message = "ABAC denied {RequestType}: no authenticated security context with a user is available ({ErrorCode}). The request is denied in every enforcement mode")]
-    internal static partial void MissingSecurityContext(
+        Message = "ABAC denied {RequestType}: the request has no authenticated caller ({ErrorCode}). The request is denied in every enforcement mode")]
+    internal static partial void UnauthenticatedCaller(
         ILogger logger, string requestType, string errorCode);
 
     [LoggerMessage(

@@ -14,7 +14,8 @@ namespace Encina.GuardTests.Security.ABAC;
 
 /// <summary>
 /// Guard clause tests for <see cref="ABACPipelineBehavior{TRequest, TResponse}"/>.
-/// Verifies constructor parameter validation and Handle method guards.
+/// Verifies constructor parameter validation and Handle method guards. The caller comes from the
+/// <see cref="IRequestContext"/> that <c>Handle</c> receives (#1705 Phase 4).
 /// </summary>
 public class ABACPipelineBehaviorGuardTests
 {
@@ -32,7 +33,6 @@ public class ABACPipelineBehaviorGuardTests
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             null!,
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
@@ -48,7 +48,6 @@ public class ABACPipelineBehaviorGuardTests
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             Substitute.For<IPolicyDecisionPoint>(),
             null!,
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
@@ -59,28 +58,11 @@ public class ABACPipelineBehaviorGuardTests
     }
 
     [Fact]
-    public void Constructor_NullSecurityContextAccessor_ThrowsArgumentNullException()
-    {
-        var act = () => new ABACPipelineBehavior<TestRequest, string>(
-            Substitute.For<IPolicyDecisionPoint>(),
-            Substitute.For<IAttributeProvider>(),
-            null!,
-            CreateObligationExecutor(),
-            Compiler,
-            Options.Create(new ABACOptions()),
-            NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>());
-
-        Should.Throw<ArgumentNullException>(act)
-            .ParamName.ShouldBe("securityContextAccessor");
-    }
-
-    [Fact]
     public void Constructor_NullObligationExecutor_ThrowsArgumentNullException()
     {
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             Substitute.For<IPolicyDecisionPoint>(),
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             null!,
             Compiler,
             Options.Create(new ABACOptions()),
@@ -96,7 +78,6 @@ public class ABACPipelineBehaviorGuardTests
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             Substitute.For<IPolicyDecisionPoint>(),
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
             null!,
             Options.Create(new ABACOptions()),
@@ -112,7 +93,6 @@ public class ABACPipelineBehaviorGuardTests
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             Substitute.For<IPolicyDecisionPoint>(),
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
             Compiler,
             null!,
@@ -128,7 +108,6 @@ public class ABACPipelineBehaviorGuardTests
         var act = () => new ABACPipelineBehavior<TestRequest, string>(
             Substitute.For<IPolicyDecisionPoint>(),
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<global::Encina.Security.ISecurityContextAccessor>(),
             CreateObligationExecutor(),
             Compiler,
             Options.Create(new ABACOptions()),
@@ -157,7 +136,7 @@ public class ABACPipelineBehaviorGuardTests
         var options = new ABACOptions { EnforcementMode = ABACEnforcementMode.Disabled };
         var sut = CreateBehavior(abacOptions: options);
         var request = new TestRequest();
-        var context = Substitute.For<IRequestContext>();
+        var context = TestRequestContext.For(TestIdentity.Anonymous);
         var called = false;
         RequestHandlerCallback<string> next = () =>
         {
@@ -171,6 +150,29 @@ public class ABACPipelineBehaviorGuardTests
         // Assert
         called.ShouldBeTrue();
         result.IsRight.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region Handle — Unauthenticated Caller
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_AnonymousCaller_DeniesWithTheSharedUnauthenticatedCode(ABACEnforcementMode mode)
+    {
+        var sut = CreateBehavior(pdp: PdpReturning(Effect.Permit), abacOptions: new ABACOptions { EnforcementMode = mode });
+        RequestHandlerCallback<string> next = () =>
+            ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
+
+        var result = await sut.Handle(new TestRequest(), TestRequestContext.For(TestIdentity.Anonymous), next, CancellationToken.None);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+            error.GetDetails()["gate"].ShouldBe("abac");
+        });
     }
 
     #endregion
@@ -192,7 +194,7 @@ public class ABACPipelineBehaviorGuardTests
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("reached"));
 
         // Act
-        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), UserContext(), next, CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBe(proceeds);
@@ -211,7 +213,7 @@ public class ABACPipelineBehaviorGuardTests
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
 
         // Act
-        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), UserContext(), next, CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue();
@@ -229,7 +231,7 @@ public class ABACPipelineBehaviorGuardTests
             ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("should-not-reach"));
 
         // Act
-        var result = await sut.Handle(new TestRequest(), Substitute.For<IRequestContext>(), next, CancellationToken.None);
+        var result = await sut.Handle(new TestRequest(), UserContext(), next, CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("obligation failure should deny even when the policy permits per XACML 7.18");
@@ -238,6 +240,9 @@ public class ABACPipelineBehaviorGuardTests
     #endregion
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    // An authenticated user: an anonymous caller denies before evaluation (#1676, #1705).
+    private static IRequestContext UserContext() => TestRequestContext.For(TestIdentity.User("guard-user"));
 
     private static IPolicyDecisionPoint PdpReturning(Effect effect, IReadOnlyList<Obligation>? obligations = null)
     {
@@ -267,25 +272,19 @@ public class ABACPipelineBehaviorGuardTests
     {
         pdp ??= Substitute.For<IPolicyDecisionPoint>();
         var attributeProvider = CreateDefaultAttributeProvider();
-        // An authenticated user: a missing one denies before evaluation (#1676).
-        var securityContext = Substitute.For<global::Encina.Security.ISecurityContext>();
-        securityContext.UserId.Returns("guard-user");
-        securityContext.IsAuthenticated.Returns(true);
-        var securityContextAccessor = Substitute.For<global::Encina.Security.ISecurityContextAccessor>();
-        securityContextAccessor.SecurityContext.Returns(securityContext);
         var obligationExecutor = CreateObligationExecutor();
         var effectiveOptions = abacOptions ?? new ABACOptions();
         var options = Options.Create(effectiveOptions);
         var logger = NullLoggerFactory.Instance.CreateLogger<ABACPipelineBehavior<TestRequest, string>>();
 
         return new ABACPipelineBehavior<TestRequest, string>(
-            pdp, attributeProvider, securityContextAccessor, obligationExecutor, Compiler, options, logger);
+            pdp, attributeProvider, obligationExecutor, Compiler, options, logger);
     }
 
     private static IAttributeProvider CreateDefaultAttributeProvider()
     {
         var provider = Substitute.For<IAttributeProvider>();
-        provider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        provider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<IReadOnlyDictionary<string, object>>(
                 new Dictionary<string, object>()));
         provider.GetResourceAttributesAsync<TestRequest>(Arg.Any<TestRequest>(), Arg.Any<CancellationToken>())

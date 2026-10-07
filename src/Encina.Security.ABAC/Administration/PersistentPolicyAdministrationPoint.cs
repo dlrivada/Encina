@@ -39,11 +39,16 @@ namespace Encina.Security.ABAC.Administration;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Principal</b>: every mutation (add, update, remove) is attributed to the principal of the
-/// ambient <see cref="IRequestContext"/> and is refused with
-/// <see cref="ABACErrors.PolicyChangePrincipalRequiredCode"/> when none can be resolved. The only
-/// exception is the explicit system-actor scope that internal callers open (the policy seeding
-/// hosted service at startup); the audit entry then records the actor as <c>system</c>.
+/// <b>Actor</b>: every mutation (add, update, remove) is attributed to the authenticated caller of
+/// the ambient <see cref="IRequestContext"/> (<see cref="IRequestContext.Identity"/>, read once per
+/// change): a user, or a declared service identity such as the built-in
+/// <c>service:encina.abac.policy-seeding</c> that startup seeding runs under. An anonymous caller is
+/// refused with <see cref="ABACErrors.PolicyChangePrincipalRequiredCode"/>. The audit entry records
+/// the caller's user id, tenant and correlation id, and the metadata <c>actor</c> is the identity
+/// kind in lowercase (<c>user</c> or <c>service</c>). In an HTTP request the caller comes from
+/// <c>UseEncinaContext()</c>; background work opens a declared service identity with
+/// <see cref="IRequestContextScopeFactory.RunAsServiceAsync{T}"/>. This PAP records the actor but
+/// does not authorize it: the application gates its policy-administration path.
 /// </para>
 /// <para>
 /// <b>Lifetimes</b>: this PAP is a singleton. It never captures a scoped service: every operation
@@ -70,14 +75,12 @@ namespace Encina.Security.ABAC.Administration;
 /// </remarks>
 public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdministrationPoint
 {
-    private const string SystemActorId = "system";
-
     /// <summary>The longest an audit write may take before the policy change fails closed.</summary>
     private static readonly TimeSpan AuditWriteTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly Func<IServiceProvider, IPolicyStore> _storeResolver;
-    private readonly IRequestContextAccessor? _requestContextAccessor;
+    private readonly IRequestContextAccessor _requestContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<PersistentPolicyAdministrationPoint> _logger;
     private int _unauditedWarningLogged;
@@ -88,7 +91,16 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly record struct PolicyActor(string UserId, string? TenantId, string CorrelationId, bool IsSystem);
+    /// <summary>
+    /// The actor of one policy change. <see cref="ToString"/> prints the identity kind only, so the
+    /// user id, tenant and correlation id never reach a log or a diagnostic through it.
+    /// </summary>
+    internal readonly record struct PolicyActor(string UserId, string? TenantId, string CorrelationId, IdentityKind Kind)
+    {
+        /// <summary>Returns the identity kind only, for example <c>PolicyActor { Kind = User }</c>.</summary>
+        /// <returns>A string without the user id, tenant or correlation id.</returns>
+        public override string ToString() => $"PolicyActor {{ Kind = {Kind} }}";
+    }
 
     /// <summary>
     /// The state of one PAP operation: the policy store of the operation's own DI scope, plus the
@@ -116,10 +128,9 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     /// </param>
     /// <param name="logger">Logger for structured PAP logging.</param>
     /// <param name="requestContextAccessor">
-    /// Optional accessor for the ambient request context, used to resolve the principal of each
-    /// change at the moment it is made (this PAP is registered as a singleton, so the context
-    /// cannot be captured at construction time). Without a resolvable principal every mutation is
-    /// refused, except inside the internal system-actor scope.
+    /// Accessor for the ambient request context, read when each change is made to resolve its
+    /// actor (this PAP is registered as a singleton, so the context cannot be captured at
+    /// construction time). A change whose context has no authenticated caller is refused.
     /// </param>
     /// <param name="timeProvider">
     /// Optional time provider for every timestamp and the audit write timeout.
@@ -133,12 +144,13 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
     public PersistentPolicyAdministrationPoint(
         IServiceScopeFactory scopeFactory,
         ILogger<PersistentPolicyAdministrationPoint> logger,
-        IRequestContextAccessor? requestContextAccessor = null,
+        IRequestContextAccessor requestContextAccessor,
         TimeProvider? timeProvider = null,
         Func<IServiceProvider, IPolicyStore>? storeResolver = null)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(requestContextAccessor);
 
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -624,27 +636,21 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         return await body(new PolicyOperation(_storeResolver(scope.ServiceProvider), actor));
     }
 
+    // The actor is the authenticated caller of the ambient context (a user or a declared service
+    // identity). The identity is read once: it turns anonymous when its scope ends (#1892), so the
+    // user id and the kind always come from the same snapshot.
     private bool TryResolveActor(out PolicyActor actor)
     {
-        var context = _requestContextAccessor?.RequestContext;
-        var isSystem = PolicyChangeActorScope.IsSystemActorActive;
-        var userId = isSystem ? SystemActorId : UserIdOf(context);
-        if (string.IsNullOrWhiteSpace(userId))
+        var context = _requestContextAccessor.RequestContext;
+        if (context?.Identity is not { IsAuthenticated: true, UserId: { } userId } identity)
         {
             actor = default;
             return false;
         }
 
-        actor = new PolicyActor(userId, TenantIdOf(context), CorrelationIdOf(context), isSystem);
+        actor = new PolicyActor(userId, context.TenantId, context.CorrelationId, identity.Kind);
         return true;
     }
-
-    private static string? UserIdOf(IRequestContext? context) => context?.UserId;
-
-    private static string? TenantIdOf(IRequestContext? context) => context?.TenantId;
-
-    private static string CorrelationIdOf(IRequestContext? context) =>
-        context?.CorrelationId ?? Guid.NewGuid().ToString();
 
     /// <summary>
     /// Applies a change after its audit record is written. The audit store is resolved in its own
@@ -815,7 +821,7 @@ public sealed partial class PersistentPolicyAdministrationPoint : IPolicyAdminis
         var metadata = new Dictionary<string, object?>
         {
             ["source"] = "PersistentPolicyAdministrationPoint",
-            ["actor"] = actor.IsSystem ? SystemActorId : "principal"
+            ["actor"] = ABACSubjectAttributes.KindName(actor.Kind)
         };
 
         if (writeAheadEntryId is { } writeAheadId)

@@ -1,6 +1,5 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly -- NSubstitute mock setup pattern
 
-using Encina.Security;
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.EEL;
 
@@ -72,28 +71,16 @@ public sealed class ABACPipelineBehaviorContractTests
         return new ABACPipelineBehavior<TRequest, TResponse>(
             pdp,
             CreateAttributeProvider(),
-            CreateSecurityContextAccessor(),
             oblExec,
             Compiler,
             Options.Create(options ?? new ABACOptions()),
             NullLogger<ABACPipelineBehavior<TRequest, TResponse>>.Instance);
     }
 
-    private static ISecurityContextAccessor CreateSecurityContextAccessor()
-    {
-        var secCtx = Substitute.For<ISecurityContext>();
-        secCtx.UserId.Returns("test-user");
-        secCtx.IsAuthenticated.Returns(true);
-
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns(secCtx);
-        return accessor;
-    }
-
     private static IAttributeProvider CreateAttributeProvider()
     {
         var provider = Substitute.For<IAttributeProvider>();
-        provider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        provider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
         provider.GetResourceAttributesAsync<TestPolicyCommand>(Arg.Any<TestPolicyCommand>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
@@ -108,7 +95,8 @@ public sealed class ABACPipelineBehaviorContractTests
             Left: err => err.GetCode().IfNone("<none>"));
 
     private static async Task<(Either<EncinaError, string> Result, bool NextCalled)> SendAsync(
-        ABACPipelineBehavior<TestPolicyCommand, string> behavior)
+        ABACPipelineBehavior<TestPolicyCommand, string> behavior,
+        RequestIdentity? caller = null)
     {
         var nextCalled = false;
         RequestHandlerCallback<string> next = () =>
@@ -117,8 +105,45 @@ public sealed class ABACPipelineBehaviorContractTests
             return ValueTask.FromResult(Right<EncinaError, string>("reached"));
         };
 
-        var result = await behavior.Handle(new TestPolicyCommand("hello"), RequestContext.Create(), next, CancellationToken.None);
+        // The PEP reads the caller from the context it receives (#1705): an authenticated user by default.
+        var context = TestRequestContext.For(caller ?? TestIdentity.User("test-user"));
+        var result = await behavior.Handle(new TestPolicyCommand("hello"), context, next, CancellationToken.None);
         return (result, nextCalled);
+    }
+
+    // -- Unauthenticated caller --
+
+    [Theory]
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_WhenCallerIsAnonymous_ShouldDenyAsUnauthenticatedInEveryEnforcingMode(ABACEnforcementMode mode)
+    {
+        // Arrange
+        var pdp = PdpReturning(MakeDecision(Effect.Permit));
+        var behavior = CreateBehavior<TestPolicyCommand, string>(pdp, new ABACOptions { EnforcementMode = mode });
+
+        // Act
+        var (result, nextCalled) = await SendAsync(behavior, TestIdentity.Anonymous);
+
+        // Assert
+        nextCalled.ShouldBeFalse("an unauthenticated caller is never evaluated");
+        CodeOf(result).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Handle_WhenCallerIsAServiceIdentity_ShouldEvaluateThePolicy()
+    {
+        // Arrange
+        var pdp = PdpReturning(MakeDecision(Effect.Permit));
+        var behavior = CreateBehavior<TestPolicyCommand, string>(pdp);
+
+        // Act
+        var (result, nextCalled) = await SendAsync(behavior, TestIdentity.Service("billing-job"));
+
+        // Assert
+        result.IsRight.ShouldBeTrue("a service identity is evaluated like a user; the policy decides");
+        nextCalled.ShouldBeTrue();
     }
 
     // -- Disabled mode --

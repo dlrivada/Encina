@@ -18,8 +18,8 @@ namespace Encina.Security.ABAC.Providers;
 /// <example>
 /// <code>
 /// var provider = new DefaultAttributeProvider();
-/// var subjectAttrs = await provider.GetSubjectAttributesAsync("user-123");
-/// // subjectAttrs is an empty dictionary
+/// var subjectAttrs = await provider.GetSubjectAttributesAsync(context.Identity);
+/// // subjectAttrs is an empty dictionary; the PEP still adds subject-id and identity-kind
 /// </code>
 /// </example>
 public sealed class DefaultAttributeProvider : IAttributeProvider
@@ -29,12 +29,13 @@ public sealed class DefaultAttributeProvider : IAttributeProvider
 
     /// <inheritdoc />
     /// <remarks>
-    /// Always returns an empty dictionary. Override by registering a custom
+    /// Always returns an empty dictionary; the Policy Enforcement Point still adds the built-in
+    /// <c>subject-id</c> and <c>identity-kind</c> attributes. Override by registering a custom
     /// <see cref="IAttributeProvider"/> implementation that resolves subject
     /// attributes from claims, user databases, or identity providers.
     /// </remarks>
     public ValueTask<IReadOnlyDictionary<string, object>> GetSubjectAttributesAsync(
-        string userId,
+        RequestIdentity identity,
         CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult(EmptyAttributes);

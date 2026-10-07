@@ -51,9 +51,6 @@ public static class ABACErrors
     /// <summary>Error code when the combining algorithm produced Indeterminate.</summary>
     public const string CombiningFailedCode = "abac.combining_failed";
 
-    /// <summary>Error code when the security context is not available.</summary>
-    public const string MissingContextCode = "abac.missing_context";
-
     /// <summary>Error code when a mandatory obligation handler failed (access must be denied per XACML spec).</summary>
     public const string ObligationFailedCode = "abac.obligation_failed";
 
@@ -87,7 +84,7 @@ public static class ABACErrors
     /// <summary>Error code when an obligation or advice handler threw an exception instead of returning a result.</summary>
     public const string ObligationHandlerExceptionCode = "abac.obligation_handler_exception";
 
-    /// <summary>Error code when a policy change is refused because no principal can be resolved to attribute it to.</summary>
+    /// <summary>Error code when a policy change is refused because the request context has no authenticated caller to attribute it to.</summary>
     public const string PolicyChangePrincipalRequiredCode = "abac.policy_change_principal_required";
 
     /// <summary>Error code when the audit record of a policy change could not be written, so the change was not applied.</summary>
@@ -366,21 +363,31 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when the security context, or the user it should carry, is not available
-    /// for ABAC evaluation. The Policy Enforcement Point returns it in every enforcement mode.
+    /// Creates the error the Policy Enforcement Point returns when the request has no authenticated
+    /// caller (<see cref="IRequestContext.Identity"/> is anonymous). It is returned in every
+    /// enforcement mode, before any attribute is collected.
     /// </summary>
     /// <param name="requestType">The request type that required ABAC evaluation.</param>
-    /// <returns>An error indicating the security context is missing.</returns>
-    public static EncinaError MissingContext(Type requestType) =>
-        EncinaErrors.Create(
-            code: MissingContextCode,
-            message: $"Authenticated security context with a user is not available for ABAC evaluation of '{requestType.Name}'. Access denied.",
+    /// <returns>
+    /// An error with the shared code <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> and
+    /// the detail <c>gate = abac</c>, so every host answers it as unauthenticated. The message is fixed
+    /// and carries no caller data.
+    /// </returns>
+    public static EncinaError UnauthenticatedCaller(Type requestType)
+    {
+        ArgumentNullException.ThrowIfNull(requestType);
+
+        return EncinaErrors.Create(
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
+            message: "ABAC evaluation requires an authenticated caller. Access denied.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyRequestType] = requestType.FullName,
                 [MetadataKeyStage] = MetadataStageAbac,
-                ["requirement"] = "abac_context"
+                ["gate"] = "abac",
+                ["requirement"] = "authenticated"
             });
+    }
 
     /// <summary>
     /// Creates an error when a mandatory obligation handler failed.
@@ -532,14 +539,15 @@ public static class ABACErrors
             });
 
     /// <summary>
-    /// Creates an error when a policy change is refused because the request context carries no
-    /// principal to attribute the change to. The message is fixed and carries no caller data.
+    /// Creates an error when a policy change is refused because the request context has no
+    /// authenticated caller (a user or a declared service identity) to attribute the change to.
+    /// The message is fixed and carries no caller data.
     /// </summary>
-    /// <returns>An error indicating that a policy change needs an authenticated principal.</returns>
+    /// <returns>An error indicating that a policy change needs an authenticated caller.</returns>
     public static EncinaError PolicyChangePrincipalRequired() =>
         EncinaErrors.Create(
             code: PolicyChangePrincipalRequiredCode,
-            message: "A policy change requires a resolvable principal; none is available in the current request context.",
+            message: "A policy change requires an authenticated caller; the current request context has none.",
             details: new Dictionary<string, object?>
             {
                 [MetadataKeyStage] = MetadataStageAbac
