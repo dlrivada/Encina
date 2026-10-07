@@ -497,6 +497,8 @@ The implementation is one private `async` method: `Push` (visible to `work` and 
 
 ### Chosen Option: **A**
 
+> 2026-10-07: no longer applies — done by #1635 (PR #1781); see Maintainer decisions, entry 7.
+
 ### Rationale
 
 - Verified: `EncinaConfiguration.cs:239-241` uses `TryAddEnumerable`; `Security/ServiceCollectionExtensions.cs:81` and `ABAC/ServiceCollectionExtensions.cs:142` use `TryAddTransient` on the open generic.
@@ -1306,7 +1308,7 @@ src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs; 
 | #1635 (open-generic `TryAddTransient`) | ABAC, Security and AspNetCore authorization subset delivered here; orchestrator updates #1635 to say so. Remaining ~19 packages stay there. |
 | SPEC-002 REQ-015 / DEC-011, P-50 (#1164) | Owns deferred dispatch (outbox, inbox, scheduler); #1705 delivers `PersistedRequestIdentity`, `PersistedIdentitySource` and `RunRestoredAsync`; P-50 wires which dispatcher passes `External` (D3: an inbox fed by an external broker) and the per-inbox or per-endpoint `trustedTenantId` mapping that an External restore needs to carry a tenant at all (E2: the persisted tenant is ignored); the orchestrator comments the contract on #1164. |
 | #1855 (dead-flow scope refusal, Q1) | Closed as absorbed: the holder-origin refusal is Phase 2 (M6). |
-| #751 (ABAC decision audit, plan merged) | Should start after #1705. Its plan is updated in Phase 7 (lines :194, :217, :322, :382, :394, :549, :753). |
+| #751 (ABAC decision audit, plan merged) | Starts when Phase 4 merges (decision N9, 2026-10-07). Its plan is updated in Phase 7 (lines :194, :217, :322, :382, :394, :549, :753). |
 | #1678 (named pipeline stages) | Not blocking: ABAC and Security deny independently, order irrelevant for fail-closed. |
 | #1674 (audit store coherence spike) | Not blocking; `IdentityKind` becomes available for audit rows. |
 | #1704 (persistent PAP debt) | Item (2) resolved: jobs change policies under a declared service identity; persistent-pap.md updated. Orchestrator comments on #1704. |
@@ -1342,9 +1344,9 @@ One dated entry per Design Choice, numbered like the choices; each maps the choi
 2. (2026-10-05) HTTP integration: the existing `UseEncinaContext()` builds the identity through one claim mapping; connection requests, misordered routing and the SSE opt-in follow MQ-1, MQ-2 (item 11), D1, D2 (item 12), E1 and E3 (item 13).
 3. (2026-10-05) Non-HTTP identity: declared service identities and the delegate-only, `Either`-returning scope API (C1, Q1, Q3, Q4 in item 10; scope lifetime and tenant binding in item 6; D3 and E2 in items 12 and 13; the four implementation choices of the plan round accepted on 2026-10-05: required `PersistedIdentitySource`, `AllowOverInbound` logs 174, `InboundScopeOpened` 172 at Debug, input limits 128/512/16).
 4. (2026-10-05) Claim mapping: one ordered map in core (`RequestIdentityOptions`, sub then NameIdentifier then the Azure AD object id, decided 2026-10-03); per-token claim exclusion Q2 (item 10), principal cloning D4 (item 12), and no claim value or user id in logs, tags or `ToString` (item 4).
-5. (2026-10-07) Registration and startup validation: registration completeness by construction with no "source" validator (AGENTS.md; "Everything else follows from AGENTS.md" below); Phase 4 applies it with N4 (the persistent PAP's `IRequestContextAccessor` is required, `GetRequiredService`) and N6 (a startup hosted check reads the final `IOptions<ABACOptions>` for the 9085 warning).
+5. (2026-10-07) Registration and startup validation: the maintainer chose **A** — every `AddEncina*` that needs the identity `TryAdd`s the core identity services, proven by DI tests with `ValidateOnBuild` and `ValidateScopes`; no "source" validator. Phase 4 applies it with N4 (the persistent PAP's `IRequestContextAccessor` is required, `GetRequiredService`) and N6 (a startup hosted check reads the final `IOptions<ABACOptions>` for the 9085 warning).
 6. (2026-10-05) Fail-closed rules and the only logged opt-outs: item 2 (a service identity never turns a deny gate into an allow; anonymous and unattributable identities deny), item 4, the 2026-10-06 decision to refuse explicit identity changes over an inbound chain (#1892), and N7 (2026-10-07: `RunAsBuiltInAsync` `Left` during seeding becomes an exception carrying the code only).
-7. (2026-10-03) Behavior registration: ABAC and Security move to `TryAddEnumerable` (the #1635 subset delivered here); the documented order is `AddEncinaSecurity` before `AddEncinaABAC` (decision of 2026-10-03 recorded in the #751 plan); both behaviors deny independently, so order is not a fail-closed concern.
+7. (2026-10-07) Behavior registration: no longer applies — resolved by #1635 (PR #1781, merged 2026-10-05), which registers the ABAC and Security behaviors with `TryAddEnumerable`; #1705 drops that sub-task. Kept: the documented order `AddEncinaSecurity` before `AddEncinaABAC` (decision of 2026-10-03 in the #751 plan) and the full-stack DI test asserting both behaviors.
 8. (2026-10-07) Scope boundary: what #1705 does not do stays in F1-F3, F5 and F6 (F1 covers only jobs with no originating request, F4 is dropped, item 1; one PR per phase, 2026-10-05); the Phase 4 re-check adds N2, N8, N10, N11 and N12 (separate [BUG] and [FEATURE] issues, #1704 items, the PAP records but does not authorize the actor, the MongoDB scenario waits for #1719) and the per-phase manifests and changelog rule (item 14).
 
 ### Decision log
