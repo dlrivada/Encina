@@ -51,10 +51,17 @@ public static class ConditionBuilder
     /// </summary>
     /// <param name="category">The attribute category (Subject, Resource, Action, Environment).</param>
     /// <param name="attributeId">The attribute identifier within the category.</param>
-    /// <param name="dataType">The expected XACML data type (e.g., <see cref="XACMLDataTypes.String"/>).</param>
+    /// <param name="dataType">
+    /// The XACML data type of the values to select, one of the <see cref="XACMLDataTypes"/> constants
+    /// (e.g., <see cref="XACMLDataTypes.String"/>). It must equal the stored values' data type
+    /// exactly; values of any other type (or a short name such as <c>"string"</c>) are not seen.
+    /// </param>
     /// <param name="mustBePresent">
-    /// If <c>true</c>, a missing attribute causes an Indeterminate result.
-    /// If <c>false</c> (default), a missing attribute produces an empty bag.
+    /// If <c>true</c>, a missing attribute (absent, or with no value of <paramref name="dataType"/>)
+    /// causes an Indeterminate result, which denies.
+    /// If <c>false</c> (default), a missing attribute produces an empty bag, so a mistyped
+    /// designator silently makes a Deny rule or target NotApplicable; use <c>true</c> for
+    /// attributes that Deny rules depend on.
     /// </param>
     /// <returns>A new <see cref="AttributeDesignator"/> expression node.</returns>
     public static AttributeDesignator Attribute(

@@ -168,7 +168,7 @@ Equality functions compare two values of the same type and return a boolean resu
 | `double-equal` | `DoubleEqual` | `(double, double)` | `bool` | Double equality (uses `Double.Equals`) |
 | `date-equal` | `DateEqual` | `(DateOnly, DateOnly)` | `bool` | Date equality |
 | `dateTime-equal` | `DateTimeEqual` | `(DateTime, DateTime)` | `bool` | DateTime equality |
-| `time-equal` | `TimeEqual` | `(TimeOnly, TimeOnly)` | `bool` | Time equality |
+| `time-equal` | `TimeEqual` | `(TimeSpan, TimeSpan)` | `bool` | Time equality |
 
 ### `string-equal`
 - **Constant**: `XACMLFunctionIds.StringEqual`
@@ -214,7 +214,7 @@ Equality functions compare two values of the same type and return a boolean resu
 
 ### `time-equal`
 - **Constant**: `XACMLFunctionIds.TimeEqual`
-- **Parameters**: `(TimeOnly, TimeOnly)`
+- **Parameters**: `(TimeSpan, TimeSpan)`
 - **Returns**: `bool`
 - **Description**: Returns true if both time values are identical.
 - **XACML Reference**: A.3.1
@@ -439,35 +439,35 @@ String comparisons use `StringComparison.Ordinal` for lexicographic ordering. Th
 
 | Function ID | Constant | Parameters | Returns | Description |
 |---|---|---|---|---|
-| `time-greater-than` | `TimeGreaterThan` | `(TimeOnly, TimeOnly)` | `bool` | Chronological: first > second |
-| `time-less-than` | `TimeLessThan` | `(TimeOnly, TimeOnly)` | `bool` | Chronological: first < second |
-| `time-greater-than-or-equal` | `TimeGreaterThanOrEqual` | `(TimeOnly, TimeOnly)` | `bool` | Chronological: first >= second |
-| `time-less-than-or-equal` | `TimeLessThanOrEqual` | `(TimeOnly, TimeOnly)` | `bool` | Chronological: first <= second |
+| `time-greater-than` | `TimeGreaterThan` | `(TimeSpan, TimeSpan)` | `bool` | Chronological: first > second |
+| `time-less-than` | `TimeLessThan` | `(TimeSpan, TimeSpan)` | `bool` | Chronological: first < second |
+| `time-greater-than-or-equal` | `TimeGreaterThanOrEqual` | `(TimeSpan, TimeSpan)` | `bool` | Chronological: first >= second |
+| `time-less-than-or-equal` | `TimeLessThanOrEqual` | `(TimeSpan, TimeSpan)` | `bool` | Chronological: first <= second |
 
 ### `time-greater-than`
 - **Constant**: `XACMLFunctionIds.TimeGreaterThan`
-- **Parameters**: `(TimeOnly, TimeOnly)`
+- **Parameters**: `(TimeSpan, TimeSpan)`
 - **Returns**: `bool`
 - **Description**: Returns true if the first time is chronologically after the second.
 - **XACML Reference**: A.3.2
 
 ### `time-less-than`
 - **Constant**: `XACMLFunctionIds.TimeLessThan`
-- **Parameters**: `(TimeOnly, TimeOnly)`
+- **Parameters**: `(TimeSpan, TimeSpan)`
 - **Returns**: `bool`
 - **Description**: Returns true if the first time is chronologically before the second.
 - **XACML Reference**: A.3.2
 
 ### `time-greater-than-or-equal`
 - **Constant**: `XACMLFunctionIds.TimeGreaterThanOrEqual`
-- **Parameters**: `(TimeOnly, TimeOnly)`
+- **Parameters**: `(TimeSpan, TimeSpan)`
 - **Returns**: `bool`
 - **Description**: Returns true if the first time is at or after the second.
 - **XACML Reference**: A.3.2
 
 ### `time-less-than-or-equal`
 - **Constant**: `XACMLFunctionIds.TimeLessThanOrEqual`
-- **Parameters**: `(TimeOnly, TimeOnly)`
+- **Parameters**: `(TimeSpan, TimeSpan)`
 - **Returns**: `bool`
 - **Description**: Returns true if the first time is at or before the second.
 - **XACML Reference**: A.3.2
@@ -1036,29 +1036,29 @@ For each type `T`, four functions are registered:
 
 ### `time-one-and-only`
 - **Constant**: `XACMLFunctionIds.TimeOneAndOnly`
-- **Parameters**: `(Bag<TimeOnly>)`
-- **Returns**: `TimeOnly`
+- **Parameters**: `(Bag<TimeSpan>)`
+- **Returns**: `TimeSpan`
 - **Description**: Extracts the single value from a time bag. Throws an error if the bag does not contain exactly one value.
 - **XACML Reference**: A.3.10
 
 ### `time-bag-size`
 - **Constant**: `XACMLFunctionIds.TimeBagSize`
-- **Parameters**: `(Bag<TimeOnly>)`
+- **Parameters**: `(Bag<TimeSpan>)`
 - **Returns**: `int`
 - **Description**: Returns the number of values in a time bag.
 - **XACML Reference**: A.3.10
 
 ### `time-is-in`
 - **Constant**: `XACMLFunctionIds.TimeIsIn`
-- **Parameters**: `(TimeOnly, Bag<TimeOnly>)`
+- **Parameters**: `(TimeSpan, Bag<TimeSpan>)`
 - **Returns**: `bool`
 - **Description**: Returns true if the time value exists in the bag.
 - **XACML Reference**: A.3.10
 
 ### `time-bag`
 - **Constant**: `XACMLFunctionIds.TimeBag`
-- **Parameters**: `(TimeOnly, TimeOnly, ...)` -- variadic
-- **Returns**: `Bag<TimeOnly>`
+- **Parameters**: `(TimeSpan, TimeSpan, ...)` -- variadic
+- **Returns**: `Bag<TimeSpan>`
 - **Description**: Creates a new time bag containing the given values.
 - **XACML Reference**: A.3.10
 
@@ -1508,8 +1508,10 @@ All functions operate on values whose types correspond to the XACML 3.0 / XML Sc
 | `XACMLDataTypes.Double` | `http://www.w3.org/2001/XMLSchema#double` | `double` |
 | `XACMLDataTypes.Date` | `http://www.w3.org/2001/XMLSchema#date` | `DateOnly` |
 | `XACMLDataTypes.DateTime` | `http://www.w3.org/2001/XMLSchema#dateTime` | `DateTime` |
-| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `TimeOnly` |
-| `XACMLDataTypes.AnyURI` | `http://www.w3.org/2001/XMLSchema#anyURI` | `string` |
+| `XACMLDataTypes.Time` | `http://www.w3.org/2001/XMLSchema#time` | `TimeSpan` (time of day) |
+| `XACMLDataTypes.AnyURI` | `http://www.w3.org/2001/XMLSchema#anyURI` | `Uri` |
+
+Attribute values from `IAttributeProvider` are inferred as Time only when they are `TimeSpan`; a `TimeOnly` value is inferred as String, so a Time designator does not see it. The time functions coerce their arguments to `TimeSpan` (`FunctionHelpers.CoerceToTime`).
 
 ---
 

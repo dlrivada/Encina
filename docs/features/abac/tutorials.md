@@ -656,18 +656,16 @@ public sealed class AuditLogObligationHandler(
 
             await auditService.LogAsync(new OperationAuditEntry
             {
-                UserId = context.SubjectAttributes.GetValueOrDefault("userId")?.ToString()
-                    ?? "unknown",
+                UserId = GetSingleValue(context.SubjectAttributes, "userId") ?? "unknown",
                 Action = action ?? "unknown",
                 Severity = severity ?? "Normal",
                 TimestampUtc = DateTime.UtcNow,
-                ResourceType = context.ResourceAttributes.GetValueOrDefault("resourceType")
-                    ?.ToString()
+                ResourceType = GetSingleValue(context.ResourceAttributes, "resourceType")
             }, cancellationToken);
 
             logger.LogInformation(
                 "Audit obligation fulfilled for user {UserId}",
-                context.SubjectAttributes.GetValueOrDefault("userId"));
+                GetSingleValue(context.SubjectAttributes, "userId"));
 
             return Unit.Default;
         }
@@ -677,6 +675,13 @@ public sealed class AuditLogObligationHandler(
             return EncinaError.Create("AUDIT_FAILURE", "Audit logging failed — access denied");
         }
     }
+
+    // Each attribute id maps to an AttributeBag; read the value of a single-value attribute.
+    private static string? GetSingleValue(
+        IReadOnlyDictionary<string, AttributeBag> attributes, string attributeId)
+        => attributes.TryGetValue(attributeId, out var bag) && bag.Count == 1
+            ? bag.Values[0].Value?.ToString()
+            : null;
 }
 ```
 
@@ -869,8 +874,13 @@ public sealed class EmergencyAuditHandler(
         PolicyEvaluationContext context,
         CancellationToken cancellationToken = default)
     {
-        var userId = context.SubjectAttributes.GetValueOrDefault("userId")?.ToString();
-        var patientId = context.ResourceAttributes.GetValueOrDefault("patientId")?.ToString();
+        // Each attribute id maps to an AttributeBag; read the value of a single-value attribute.
+        var userId = context.SubjectAttributes.TryGetValue("userId", out var userBag) && userBag.Count == 1
+            ? userBag.Values[0].Value?.ToString()
+            : null;
+        var patientId = context.ResourceAttributes.TryGetValue("patientId", out var patientBag) && patientBag.Count == 1
+            ? patientBag.Values[0].Value?.ToString()
+            : null;
 
         await auditService.LogAsync(new OperationAuditEntry
         {

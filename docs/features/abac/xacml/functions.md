@@ -40,7 +40,7 @@ Test whether two values of the same type are equal. Used heavily in `Match` elem
 | `double-equal` | `(double, double) -> bool` | Double equality |
 | `date-equal` | `(DateOnly, DateOnly) -> bool` | Date equality |
 | `dateTime-equal` | `(DateTime, DateTime) -> bool` | DateTime equality |
-| `time-equal` | `(TimeOnly, TimeOnly) -> bool` | Time equality |
+| `time-equal` | `(TimeSpan, TimeSpan) -> bool` | Time equality |
 
 ```csharp
 // Condition: subject.role == "admin"

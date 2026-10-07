@@ -2,7 +2,7 @@ namespace Encina.Security.ABAC;
 
 /// <summary>
 /// Represents the attribute context used during XACML policy evaluation, containing
-/// all resolved attributes organized by XACML 3.0 attribute categories.
+/// all resolved attributes organized by XACML 3.0 attribute category and attribute identifier.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -12,21 +12,35 @@ namespace Encina.Security.ABAC;
 /// <see cref="EnvironmentAttributes"/>, and <see cref="ActionAttributes"/>.
 /// </para>
 /// <para>
-/// Each attribute category is represented as an <see cref="AttributeBag"/>, supporting
-/// multi-valued attributes as required by the XACML specification.
+/// Each category maps an attribute identifier (for example <c>"department"</c>) to the
+/// <see cref="AttributeBag"/> of that attribute, so every attribute keeps its own multi-valued
+/// bag as required by the XACML specification. An <see cref="AttributeDesignator"/> selects the
+/// bag stored under its <see cref="AttributeDesignator.Category"/> and
+/// <see cref="AttributeDesignator.AttributeId"/>, keeping only the values whose
+/// <see cref="AttributeValue.DataType"/> equals <see cref="AttributeDesignator.DataType"/>
+/// (XACML 3.0 §7.3.5); a value of one attribute never satisfies a designator for another.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// var context = new PolicyEvaluationContext
 /// {
-///     SubjectAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "admin" }),
-///     ResourceAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "financial-report" }),
-///     EnvironmentAttributes = AttributeBag.Empty,
-///     ActionAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "read" }),
+///     SubjectAttributes = new Dictionary&lt;string, AttributeBag&gt;
+///     {
+///         ["role"] = AttributeBag.Of(
+///             new AttributeValue { DataType = XACMLDataTypes.String, Value = "admin" })
+///     },
+///     ResourceAttributes = new Dictionary&lt;string, AttributeBag&gt;
+///     {
+///         ["classification"] = AttributeBag.Of(
+///             new AttributeValue { DataType = XACMLDataTypes.String, Value = "financial-report" })
+///     },
+///     EnvironmentAttributes = new Dictionary&lt;string, AttributeBag&gt;(),
+///     ActionAttributes = new Dictionary&lt;string, AttributeBag&gt;
+///     {
+///         ["name"] = AttributeBag.Of(
+///             new AttributeValue { DataType = XACMLDataTypes.String, Value = "read" })
+///     },
 ///     RequestType = typeof(GetFinancialReportQuery)
 /// };
 /// </code>
@@ -34,40 +48,42 @@ namespace Encina.Security.ABAC;
 public sealed record PolicyEvaluationContext
 {
     /// <summary>
-    /// Attributes describing the subject (user or service) making the access request.
+    /// Attributes describing the subject (user or service) making the access request,
+    /// keyed by attribute identifier.
     /// </summary>
     /// <remarks>
     /// XACML 3.0 §B.2 — Includes attributes such as user ID, roles, department,
     /// clearance level, and group memberships.
     /// </remarks>
-    public required AttributeBag SubjectAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> SubjectAttributes { get; init; }
 
     /// <summary>
-    /// Attributes describing the resource being accessed.
+    /// Attributes describing the resource being accessed, keyed by attribute identifier.
     /// </summary>
     /// <remarks>
     /// XACML 3.0 §B.3 — Includes attributes such as resource type, classification,
     /// owner, and sensitivity label.
     /// </remarks>
-    public required AttributeBag ResourceAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> ResourceAttributes { get; init; }
 
     /// <summary>
-    /// Attributes describing the current environmental conditions.
+    /// Attributes describing the current environmental conditions, keyed by attribute identifier.
     /// </summary>
     /// <remarks>
     /// XACML 3.0 §B.5 — Includes attributes such as current time, IP address,
     /// business hours, and tenant ID.
     /// </remarks>
-    public required AttributeBag EnvironmentAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> EnvironmentAttributes { get; init; }
 
     /// <summary>
-    /// Attributes describing the action being performed on the resource.
+    /// Attributes describing the action being performed on the resource, keyed by attribute identifier.
     /// </summary>
     /// <remarks>
     /// XACML 3.0 §B.4 — Includes attributes such as action name (read, write, delete),
-    /// HTTP method, and operation type.
+    /// HTTP method, and operation type. <see cref="AttributeContextBuilder"/> stores the
+    /// request type name under <c>"name"</c>.
     /// </remarks>
-    public required AttributeBag ActionAttributes { get; init; }
+    public required IReadOnlyDictionary<string, AttributeBag> ActionAttributes { get; init; }
 
     /// <summary>
     /// The type of the Encina request being evaluated (e.g., the command or query type).

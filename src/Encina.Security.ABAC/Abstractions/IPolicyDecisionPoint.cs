@@ -21,17 +21,11 @@ namespace Encina.Security.ABAC;
 /// </remarks>
 /// <example>
 /// <code>
-/// var context = new PolicyEvaluationContext
-/// {
-///     SubjectAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "admin" }),
-///     ResourceAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "financial-report" }),
-///     EnvironmentAttributes = AttributeBag.Empty,
-///     ActionAttributes = AttributeBag.Of(
-///         new AttributeValue { DataType = "string", Value = "read" }),
-///     RequestType = typeof(GetReportQuery)
-/// };
+/// var context = AttributeContextBuilder.Build(
+///     subjectAttributes: new Dictionary&lt;string, object&gt; { ["role"] = "admin" },
+///     resourceAttributes: new Dictionary&lt;string, object&gt; { ["classification"] = "financial-report" },
+///     environmentAttributes: new Dictionary&lt;string, object&gt;(),
+///     requestType: typeof(GetReportQuery));
 ///
 /// PolicyDecision decision = await pdp.EvaluateAsync(context);
 /// if (decision.Effect == Effect.Permit)

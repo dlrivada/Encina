@@ -18,11 +18,13 @@ namespace Encina.Security.ABAC;
 public sealed record AttributeValue : IExpression
 {
     /// <summary>
-    /// The data type of the value (e.g., <c>"string"</c>, <c>"integer"</c>, <c>"boolean"</c>).
+    /// The data type identifier of the value, one of the <see cref="XACMLDataTypes"/> constants
+    /// (e.g., <see cref="XACMLDataTypes.String"/>, <see cref="XACMLDataTypes.Integer"/>).
     /// </summary>
     /// <remarks>
-    /// Should correspond to one of the XACML 3.0 data type identifiers. See <c>XACMLDataTypes</c>
-    /// for the standard set of supported data types.
+    /// An <see cref="AttributeDesignator"/> selects a stored value only when this identifier equals
+    /// its <see cref="AttributeDesignator.DataType"/> exactly, so use the full URI constants of
+    /// <see cref="XACMLDataTypes"/>, never short names such as <c>"string"</c>.
     /// </remarks>
     public required string DataType { get; init; }
 

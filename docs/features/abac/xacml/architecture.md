@@ -435,8 +435,8 @@ The `AttributeContextBuilder` is a static class that transforms raw attribute di
 
 ### Responsibilities
 
-1. Convert `IReadOnlyDictionary<string, object>` to `AttributeBag` instances with inferred XACML data types.
-2. Create an **action** attribute bag from the request type name.
+1. Convert `IReadOnlyDictionary<string, object>` to one single-value `AttributeBag` per attribute id (dictionary key) with inferred XACML data types.
+2. Create the **action** category with one attribute, `"name"`, holding the request type name.
 3. Set the `IncludeAdvice` flag based on configuration.
 
 ```csharp

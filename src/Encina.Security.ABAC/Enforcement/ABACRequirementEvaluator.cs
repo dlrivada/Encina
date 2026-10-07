@@ -224,7 +224,7 @@ internal sealed class ABACRequirementEvaluator
         user = ToExpando(attributes.Subject),
         resource = ToExpando(attributes.Resource),
         environment = ToExpando(attributes.Environment),
-        action = ToExpando(new Dictionary<string, object> { ["name"] = requestType.Name })
+        action = ToExpando(new Dictionary<string, object> { [AttributeContextBuilder.ActionNameAttributeId] = requestType.Name })
     };
 
     private static ExpandoObject ToExpando(IReadOnlyDictionary<string, object> values)

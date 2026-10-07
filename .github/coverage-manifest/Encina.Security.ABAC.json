@@ -1,7 +1,7 @@
 {
   "package": "Encina.Security.ABAC",
   "generated": "2026-10-03T08:13:01Z",
-  "totalFiles": 112,
+  "totalFiles": 113,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -71,11 +71,16 @@
     },
     "Abstractions/IPolicyDecisionPoint.cs": {
       "defaultTests": [
-        "unit",
-        "guard"
+        "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface with no executable lines; its behaviour is measured in Evaluation/XACMLPolicyDecisionPoint.cs. Only its XML example changed (#1983)."
+      }
     },
     "Abstractions/IPolicyInformationPoint.cs": {
       "defaultTests": [],
@@ -108,10 +113,21 @@
     "AttributeContextBuilder.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 85,
+        "guard": 95,
+        "property": 80
+      },
+      "justifications": {
+        "unit": "The designator regression tests build every context through Build and ToAttributeBags (measured 85.7%); the remaining data-type inference arms are measured by the guard flag.",
+        "guard": "The guard tests cover every null argument and every inferred data type arm of ToAttributeBags (measured 100%).",
+        "property": "The property tests build contexts from random dictionaries and read each attribute back through a designator (measured 83.3%)."
+      }
     },
     "Attributes/RequireConditionAttribute.cs": {
       "defaultTests": [
@@ -143,7 +159,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 5,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Only its XML docs changed (#1983); unit tests reach the builder only through policies they build (measured 8.9%), its factories are owned by the guard flag.",
+        "guard": "The guard tests call every factory with valid and invalid arguments (measured 82.2%)."
+      }
     },
     "Builders/ObligationBuilder.cs": {
       "defaultTests": [
@@ -315,7 +339,13 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "The enforcement and designator-agreement unit tests run every policy, condition and verdict path (measured 100%)."
+      }
     },
     "EnvironmentAttributes.cs": {
       "defaultTests": [
@@ -325,13 +355,43 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "Evaluation/AttributeDesignatorResolver.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Designator selection by category, attribute id and data type (#1983)",
+      "targets": {
+        "unit": 100,
+        "guard": 65,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "Unit tests cover every category, an undefined category, a missing attribute, a null bag and the data-type filter (measured 100%).",
+        "guard": "The evaluator guard tests reach the resolver through designators on empty and matching contexts (measured 66.7%); the data-type filtering branch is owned by the unit and property flags.",
+        "property": "The selection property checks random attribute dictionaries against the designator result for every category and data type (measured 94.4%)."
+      }
+    },
     "Evaluation/ConditionEvaluator.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "property"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 75,
+        "property": 35
+      },
+      "justifications": {
+        "unit": "Unit tests cover every expression kind, designator presence rules and function errors (measured 92.7%); the uncovered lines are defensive branches of variable resolution.",
+        "guard": "Guard tests run each expression kind with null and empty inputs (measured 80.5%).",
+        "property": "The designator selection property evaluates designators through Evaluate only, so Apply and VariableReference stay with the unit flag; FsCheck's random inputs decide whether the multi-valued and empty-bag branches run, so the measurement varies between 39% and 41.5%."
+      }
     },
     "Evaluation/TargetEvaluator.cs": {
       "defaultTests": [
@@ -339,7 +399,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests cover every AnyOf/AllOf/Match outcome, attribute presence, data-type filtering, multi-valued bags and a throwing comparison function (measured 100%).",
+        "guard": "Guard tests cover null arguments, empty targets and an unknown function (measured 82.2%)."
+      }
     },
     "Evaluation/XACMLPolicyDecisionPoint.cs": {
       "defaultTests": [
@@ -485,7 +553,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "A record whose accessors every policy evaluation test runs; only its XML example changed (#1983) (measured 100%).",
+        "guard": "Guard tests construct it for the evaluators and builders (measured 100%)."
+      }
     },
     "Model/AllOf.cs": {
       "defaultTests": [
@@ -509,7 +585,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "A record whose accessors every policy evaluation test runs; only its XML example changed (#1983) (measured 100%).",
+        "guard": "Guard tests construct it for the evaluators and builders (measured 100%)."
+      }
     },
     "Model/AttributeAssignment.cs": {
       "defaultTests": [
@@ -525,7 +609,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 80
+      },
+      "justifications": {
+        "unit": "Unit tests cover every factory, SingleValue and its failure (measured 100%).",
+        "guard": "Guard tests reach the bag through the bag and set functions (measured 84.6%); SingleValue's failure is owned by the unit flag."
+      }
     },
     "Model/AttributeCategory.cs": {
       "defaultTests": [
@@ -541,7 +633,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Every designator test constructs the record (measured 100%).",
+        "guard": "Guard tests construct designators for every evaluator (measured 100%)."
+      }
     },
     "Model/AttributeValue.cs": {
       "defaultTests": [
@@ -549,7 +649,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Every evaluation test constructs values (measured 100%).",
+        "guard": "Guard tests construct values for every function (measured 100%)."
+      }
     },
     "Model/CombiningAlgorithmId.cs": {
       "defaultTests": [
@@ -602,7 +710,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "A record whose accessors every policy evaluation test runs; only its XML example changed (#1983) (measured 100%).",
+        "guard": "Guard tests construct it for the evaluators and builders (measured 100%)."
+      }
     },
     "Model/Obligation.cs": {
       "defaultTests": [
@@ -610,7 +726,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "A record whose accessors every policy evaluation test runs; only its XML example changed (#1983) (measured 100%).",
+        "guard": "Guard tests construct it for the evaluators and builders (measured 100%)."
+      }
     },
     "Model/Policy.cs": {
       "defaultTests": [
@@ -634,7 +758,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "Every evaluation test constructs the record, so all its accessors run (measured 100%).",
+        "guard": "The guard tests construct the record with every category (measured 100%)."
+      }
     },
     "Model/PolicyEvaluationResult.cs": {
       "defaultTests": [
@@ -682,7 +814,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "A record whose accessors every policy evaluation test runs; only its XML example changed (#1983) (measured 100%).",
+        "guard": "Guard tests construct it for the evaluators and builders (measured 100%)."
+      }
     },
     "Model/VariableReference.cs": {
       "defaultTests": [

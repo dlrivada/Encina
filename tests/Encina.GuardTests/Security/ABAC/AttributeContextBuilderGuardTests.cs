@@ -42,14 +42,19 @@ public class AttributeContextBuilderGuardTests
     }
 
     [Fact]
-    public void Build_ValidInputs_ReturnsContext()
+    public void Build_ValidInputs_ReturnsContextWithTheActionNameAttribute()
     {
         var context = AttributeContextBuilder.Build(EmptyDict, EmptyDict, EmptyDict, typeof(string));
         context.RequestType.ShouldBe(typeof(string));
-        context.SubjectAttributes.IsEmpty.ShouldBeTrue();
-        context.ResourceAttributes.IsEmpty.ShouldBeTrue();
-        context.EnvironmentAttributes.IsEmpty.ShouldBeTrue();
-        context.ActionAttributes.IsEmpty.ShouldBeFalse(); // auto-generated action bag
+        context.SubjectAttributes.Count.ShouldBe(0);
+        context.ResourceAttributes.Count.ShouldBe(0);
+        context.EnvironmentAttributes.Count.ShouldBe(0);
+
+        // The action category holds one attribute, "name", with the request type name.
+        context.ActionAttributes.Keys.ShouldBe(["name"]);
+        var action = context.ActionAttributes["name"].SingleValue();
+        action.DataType.ShouldBe(XACMLDataTypes.String);
+        action.Value.ShouldBe(nameof(String));
     }
 
     [Fact]
@@ -68,79 +73,74 @@ public class AttributeContextBuilderGuardTests
 
     #endregion
 
-    #region ToBag Guards
+    #region ToAttributeBags Guards
 
     [Fact]
-    public void ToBag_NullAttributes_ThrowsArgumentNullException()
+    public void ToAttributeBags_NullAttributes_ThrowsArgumentNullException()
     {
-        var act = () => AttributeContextBuilder.ToBag(null!);
+        var act = () => AttributeContextBuilder.ToAttributeBags(null!);
         act.ShouldThrow<ArgumentNullException>().ParamName.ShouldBe("attributes");
     }
 
     [Fact]
-    public void ToBag_EmptyDictionary_ReturnsEmptyBag()
+    public void ToAttributeBags_EmptyDictionary_ReturnsNoAttributes()
     {
-        var bag = AttributeContextBuilder.ToBag(EmptyDict);
-        bag.IsEmpty.ShouldBeTrue();
-        bag.ShouldBeSameAs(AttributeBag.Empty);
+        var bags = AttributeContextBuilder.ToAttributeBags(EmptyDict);
+        bags.Count.ShouldBe(0);
     }
 
     [Fact]
-    public void ToBag_WithStringValue_InfersStringDataType()
+    public void ToAttributeBags_KeepsOneBagPerAttributeId()
     {
-        var attrs = new Dictionary<string, object> { ["name"] = "Alice" };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Count.ShouldBe(1);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.String);
-        bag.Values[0].Value.ShouldBe("Alice");
+        var attrs = new Dictionary<string, object> { ["name"] = "Alice", ["age"] = 25 };
+
+        var bags = AttributeContextBuilder.ToAttributeBags(attrs);
+
+        bags.Count.ShouldBe(2);
+        bags["name"].SingleValue().Value.ShouldBe("Alice");
+        bags["age"].SingleValue().Value.ShouldBe(25);
     }
 
     [Fact]
-    public void ToBag_WithIntValue_InfersIntegerDataType()
+    public void ToAttributeBags_ResultCannotBeMutatedThroughADowncast()
     {
-        var attrs = new Dictionary<string, object> { ["age"] = 25 };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.Integer);
+        var bags = AttributeContextBuilder.ToAttributeBags(new Dictionary<string, object> { ["name"] = "Alice" });
+
+        (bags is IDictionary<string, AttributeBag> { IsReadOnly: false }).ShouldBeFalse();
     }
 
-    [Fact]
-    public void ToBag_WithBoolValue_InfersBooleanDataType()
+    public static TheoryData<object, string> InferredDataTypes => new()
     {
-        var attrs = new Dictionary<string, object> { ["active"] = true };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.Boolean);
-    }
+        { "Alice", XACMLDataTypes.String },
+        { (sbyte)1, XACMLDataTypes.Integer },
+        { (byte)1, XACMLDataTypes.Integer },
+        { (short)1, XACMLDataTypes.Integer },
+        { (ushort)1, XACMLDataTypes.Integer },
+        { 25, XACMLDataTypes.Integer },
+        { 25u, XACMLDataTypes.Integer },
+        { 25L, XACMLDataTypes.Integer },
+        { 25UL, XACMLDataTypes.Integer },
+        { true, XACMLDataTypes.Boolean },
+        { 99.5, XACMLDataTypes.Double },
+        { 99.5f, XACMLDataTypes.Double },
+        { 99.5m, XACMLDataTypes.Double },
+        { new DateTime(2026, 10, 7, 9, 0, 0, DateTimeKind.Utc), XACMLDataTypes.DateTime },
+        { new DateTimeOffset(2026, 10, 7, 9, 0, 0, TimeSpan.Zero), XACMLDataTypes.DateTime },
+        { new DateOnly(2026, 10, 7), XACMLDataTypes.Date },
+        { new TimeSpan(9, 30, 0), XACMLDataTypes.Time },
+        { new Uri("https://example.com"), XACMLDataTypes.AnyURI },
+        { Guid.Empty, XACMLDataTypes.String }
+    };
 
-    [Fact]
-    public void ToBag_WithDoubleValue_InfersDoubleDataType()
+    [Theory]
+    [MemberData(nameof(InferredDataTypes))]
+    public void ToAttributeBags_InfersTheXacmlDataType(object value, string expectedDataType)
     {
-        var attrs = new Dictionary<string, object> { ["score"] = 99.5 };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.Double);
-    }
+        var bags = AttributeContextBuilder.ToAttributeBags(new Dictionary<string, object> { ["attribute"] = value });
 
-    [Fact]
-    public void ToBag_WithDateTimeValue_InfersDateTimeDataType()
-    {
-        var attrs = new Dictionary<string, object> { ["timestamp"] = DateTime.UtcNow };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.DateTime);
-    }
-
-    [Fact]
-    public void ToBag_WithUriValue_InfersAnyURIDataType()
-    {
-        var attrs = new Dictionary<string, object> { ["url"] = new Uri("https://example.com") };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.AnyURI);
-    }
-
-    [Fact]
-    public void ToBag_WithUnknownType_InfersStringDataType()
-    {
-        var attrs = new Dictionary<string, object> { ["custom"] = new object() };
-        var bag = AttributeContextBuilder.ToBag(attrs);
-        bag.Values[0].DataType.ShouldBe(XACMLDataTypes.String);
+        var stored = bags["attribute"].SingleValue();
+        stored.DataType.ShouldBe(expectedDataType);
+        stored.Value.ShouldBe(value);
     }
 
     #endregion
