@@ -47,7 +47,8 @@ param([string]$Agent)
 $ErrorActionPreference = 'Stop'
 
 try {
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
 
     $allowlists = @{
         'orchestrator'          = @('issue-worker', 'mechanical-fixer', 'docs-writer', 'docs-reviewer', 'adversarial-reviewer', 'ci-diagnoser', 'pr-watcher', 'site-steward', 'pr-reviewer', 'Explore', 'Plan', 'claude-code-guide', 'general-purpose', 'issue-archivist', 'issue-auditor', 'test-auditor', 'remediation-drafter', 'audit-verifier', 'local-ai-standin')

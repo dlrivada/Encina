@@ -11,7 +11,8 @@ param()
 $ErrorActionPreference = 'Stop'
 
 try {
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $tool = [string]$payload.tool_name
     $event = $null
     if ($tool -in 'Bash', 'PowerShell') {

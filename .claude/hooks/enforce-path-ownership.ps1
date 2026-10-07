@@ -118,7 +118,8 @@ try {
     . (Join-Path $PSScriptRoot '_repo-paths.ps1')
     . (Join-Path $PSScriptRoot '_write-targets.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $tool = [string]$payload.tool_name
     if ($tool -notin 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell') { exit 0 }
 

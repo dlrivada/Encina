@@ -42,7 +42,8 @@ function Write-AllowWithWarning([string]$Text) {
 try {
     . (Join-Path $PSScriptRoot '_repo-paths.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     if ($payload.stop_hook_active -eq $true) { exit 0 }
 
     # agent_id/agent_type: a SubagentStop input always carries both; a plain Stop input (the main session

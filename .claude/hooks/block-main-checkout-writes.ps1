@@ -52,7 +52,8 @@ try {
     . (Join-Path $PSScriptRoot '_repo-paths.ps1')
     . (Join-Path $PSScriptRoot '_write-targets.ps1')
 
-    $payload = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    . (Join-Path $PSScriptRoot '_read-payload.ps1')
+    $payload = Read-HookStdin | ConvertFrom-Json
     $projectDir = [string]$env:CLAUDE_PROJECT_DIR
     if ([string]::IsNullOrWhiteSpace($projectDir)) { exit 0 }
     $layout = Get-RepoLayout $projectDir
