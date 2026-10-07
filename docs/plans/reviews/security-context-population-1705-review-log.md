@@ -1,3 +1,8 @@
+---
+title: "Review log: one request identity (#1705)"
+nav_exclude: true
+---
+
 # Review log: one request identity (#1705)
 
 Purpose: the review resolution tables and review logs of the #1705 implementation plan, kept apart from the plan so the plan follows the sections of the plan prompt. Back to the plan: [security-context-population-implementation-plan-1705.md](../security-context-population-implementation-plan-1705.md).
