@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.EntityFrameworkCore.Benchmarks.OutboxStoreEFBenchmarks-20261007-132246</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                       </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;AddAsync single message&#39;</td><td>34.24 &mu;s</td><td>65.76 &mu;s</td><td>3.604 &mu;s</td><td>1.01</td><td>0.13</td><td>2.86 KB</td><td>1.00</td>
+</tr><tr><td>&#39;GetPendingMessagesAsync batch=10&#39;</td><td>394.66 &mu;s</td><td>513.83 &mu;s</td><td>28.165 &mu;s</td><td>11.61</td><td>1.27</td><td>146.48 KB</td><td>51.23</td>
+</tr><tr><td>&#39;GetPendingMessagesAsync batch=100&#39;</td><td>2,570.56 &mu;s</td><td>131.49 &mu;s</td><td>7.207 &mu;s</td><td>75.64</td><td>6.82</td><td>1341.27 KB</td><td>469.08</td>
+</tr><tr><td>MarkAsProcessedAsync</td><td>100.62 &mu;s</td><td>74.70 &mu;s</td><td>4.095 &mu;s</td><td>2.96</td><td>0.29</td><td>11.91 KB</td><td>4.16</td>
+</tr></tbody></table>
+</body>
+</html>

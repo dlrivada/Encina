@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.Anonymization.AnonymizationServiceBenchmarks-20261007-123413</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 7763 2.45GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Tokenize: UUID format&#39;</td><td>14.254 &mu;s</td><td>4.3971 &mu;s</td><td>0.2410 &mu;s</td><td>1.00</td><td>0.02</td><td>5</td><td>0.2441</td><td>0.1221</td><td>4736 B</td><td>1.00</td>
+</tr><tr><td>&#39;Tokenize: prefixed format&#39;</td><td>14.446 &mu;s</td><td>3.5367 &mu;s</td><td>0.1939 &mu;s</td><td>1.01</td><td>0.02</td><td>5</td><td>0.2441</td><td>0.1221</td><td>4800 B</td><td>1.01</td>
+</tr><tr><td>&#39;Pseudonymize: AES-256-GCM&#39;</td><td>4.867 &mu;s</td><td>0.3250 &mu;s</td><td>0.0178 &mu;s</td><td>0.34</td><td>0.01</td><td>3</td><td>0.0305</td><td>-</td><td>632 B</td><td>0.13</td>
+</tr><tr><td>&#39;Pseudonymize: HMAC-SHA256&#39;</td><td>2.342 &mu;s</td><td>0.1025 &mu;s</td><td>0.0056 &mu;s</td><td>0.16</td><td>0.00</td><td>2</td><td>0.0229</td><td>-</td><td>384 B</td><td>0.08</td>
+</tr><tr><td>&#39;Pseudonymize + Depseudonymize roundtrip&#39;</td><td>8.530 &mu;s</td><td>0.3969 &mu;s</td><td>0.0218 &mu;s</td><td>0.60</td><td>0.01</td><td>4</td><td>0.0610</td><td>-</td><td>1088 B</td><td>0.23</td>
+</tr><tr><td>&#39;Anonymize: data masking (2 fields)&#39;</td><td>1.730 &mu;s</td><td>0.0327 &mu;s</td><td>0.0018 &mu;s</td><td>0.12</td><td>0.00</td><td>1</td><td>0.0553</td><td>-</td><td>936 B</td><td>0.20</td>
+</tr><tr><td>&#39;Risk assessment: 100-record dataset&#39;</td><td>349.355 &mu;s</td><td>52.6414 &mu;s</td><td>2.8855 &mu;s</td><td>24.51</td><td>0.40</td><td>6</td><td>17.0898</td><td>0.4883</td><td>291296 B</td><td>61.51</td>
+</tr></tbody></table>
+</body>
+</html>

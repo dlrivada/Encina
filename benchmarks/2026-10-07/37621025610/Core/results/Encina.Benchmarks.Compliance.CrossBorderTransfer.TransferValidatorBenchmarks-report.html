@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Compliance.CrossBorderTransfer.TransferValidatorBenchmarks-20261007-125531</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+AMD EPYC 9V45 2.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.401
+  [Host]   : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Validate: adequacy decision (fast path)&#39;</td><td>1.606 &mu;s</td><td>0.7351 &mu;s</td><td>0.0403 &mu;s</td><td>1.00</td><td>0.03</td><td>1</td><td>0.0591</td><td>0.0286</td><td>992 B</td><td>1.00</td>
+</tr><tr><td>&#39;Validate: approved transfer&#39;</td><td>3.614 &mu;s</td><td>2.8127 &mu;s</td><td>0.1542 &mu;s</td><td>2.25</td><td>0.10</td><td>2</td><td>0.1106</td><td>0.0534</td><td>1872 B</td><td>1.89</td>
+</tr><tr><td>&#39;Validate: SCC agreement&#39;</td><td>5.831 &mu;s</td><td>6.1318 &mu;s</td><td>0.3361 &mu;s</td><td>3.63</td><td>0.20</td><td>3</td><td>0.1526</td><td>0.0763</td><td>2640 B</td><td>2.66</td>
+</tr><tr><td>&#39;Validate: TIA (deep cascade)&#39;</td><td>6.150 &mu;s</td><td>1.9678 &mu;s</td><td>0.1079 &mu;s</td><td>3.83</td><td>0.10</td><td>3</td><td>0.1755</td><td>0.0916</td><td>2960 B</td><td>2.98</td>
+</tr><tr><td>&#39;Validate: block (full cascade)&#39;</td><td>5.327 &mu;s</td><td>2.7979 &mu;s</td><td>0.1534 &mu;s</td><td>3.32</td><td>0.11</td><td>3</td><td>0.1755</td><td>0.0839</td><td>2944 B</td><td>2.97</td>
+</tr></tbody></table>
+</body>
+</html>
