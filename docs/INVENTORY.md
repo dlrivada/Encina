@@ -5612,7 +5612,7 @@ Basado en investigación exhaustiva de Spring Security, NestJS Guards, MediatR, 
 - ✅ `SecurityPipelineBehavior<TRequest, TResponse>` con evaluación declarativa y short-circuit
 - ✅ 7 atributos de seguridad: `[AllowAnonymous]`, `[DenyAnonymous]`, `[RequireRole]`, `[RequireAllRoles]`, `[RequirePermission]`, `[RequireClaim]`, `[RequireOwnership]`
 - ✅ `SecurityOptions` con claim types configurables y `RequireAuthenticatedByDefault`
-- ✅ `SecurityErrors` con 6 error codes estructurados (`security.unauthenticated`, etc.)
+- ✅ `SecurityErrors` with 5 structured error codes (`encina.authorization.unauthenticated`, etc.)
 - ✅ `SecurityHealthCheck` para verificación de servicios DI
 - ✅ OpenTelemetry: ActivitySource + Meter (4 instruments) + 5 log events (EventId 8000–8004)
 - ✅ 420 unit tests (6 test classes)

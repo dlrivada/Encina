@@ -204,6 +204,10 @@ public class HttpResponseDataExtensionsTests
     [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
     [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
     [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
+    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
+    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
+    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
     [InlineData("encina.authorization.some_future_denial")]
     public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
     {

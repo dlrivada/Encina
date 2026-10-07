@@ -111,4 +111,16 @@ public static class EncinaErrorCodes
 
     /// <summary>Resource-based authorization denied access to the requested resource.</summary>
     public const string AuthorizationResourceDenied = "encina.authorization.resource_denied";
+
+    /// <summary>An authenticated user lacks the required role(s) (a denial, 403).</summary>
+    public const string AuthorizationInsufficientRoles = "encina.authorization.insufficient_roles";
+
+    /// <summary>An authenticated user lacks the required permission(s) (a denial, 403).</summary>
+    public const string AuthorizationPermissionDenied = "encina.authorization.permission_denied";
+
+    /// <summary>An authenticated user lacks a required claim or its claim has the wrong value (a denial, 403).</summary>
+    public const string AuthorizationClaimMissing = "encina.authorization.claim_missing";
+
+    /// <summary>An authenticated user is not the owner of the requested resource (a denial, 403).</summary>
+    public const string AuthorizationNotOwner = "encina.authorization.not_owner";
 }

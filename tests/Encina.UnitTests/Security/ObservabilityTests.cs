@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
+using Encina;
 using Encina.Security;
 using Encina.Security.Diagnostics;
 using Encina.Security.Health;
@@ -102,7 +103,7 @@ public class ObservabilityTests
             var activity = _completedActivities.ShouldHaveSingleItem();
             activity.GetTagItem(SecurityDiagnostics.TagOutcome).ShouldBe("denied");
             activity.GetTagItem(SecurityDiagnostics.TagDenialReason)
-                .ShouldBe(SecurityErrors.UnauthenticatedCode);
+                .ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
             activity.Status.ShouldBe(ActivityStatusCode.Error);
         }
 
@@ -288,7 +289,7 @@ public class ObservabilityTests
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagRequestType)
                 .ShouldBe("DenyAnonymousOnlyCommand");
             GetTagValue(deniedMeasurement.Tags, SecurityDiagnostics.TagDenialReason)
-                .ShouldBe(SecurityErrors.UnauthenticatedCode);
+                .ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
         }
 
         private static TagList ToTagList(ReadOnlySpan<KeyValuePair<string, object?>> tags)

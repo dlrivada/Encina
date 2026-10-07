@@ -4,7 +4,8 @@ namespace Encina.Security;
 /// Factory methods for security-related <see cref="EncinaError"/> instances.
 /// </summary>
 /// <remarks>
-/// Error codes follow the convention <c>security.{category}</c>.
+/// Error codes belong to the <c>encina.authorization.*</c> family of <see cref="EncinaErrorCodes"/>:
+/// unauthenticated and missing-context errors are 401, every other denial is 403.
 /// All errors include structured metadata for observability.
 /// </remarks>
 public static class SecurityErrors
@@ -13,24 +14,6 @@ public static class SecurityErrors
     private const string MetadataKeyStage = "stage";
     private const string MetadataStageSecurity = "security";
 
-    /// <summary>Error code when the user is not authenticated.</summary>
-    public const string UnauthenticatedCode = "security.unauthenticated";
-
-    /// <summary>Error code when the user lacks required roles.</summary>
-    public const string InsufficientRolesCode = "security.insufficient_roles";
-
-    /// <summary>Error code when the user lacks required permissions.</summary>
-    public const string PermissionDeniedCode = "security.permission_denied";
-
-    /// <summary>Error code when a required claim is missing or has wrong value.</summary>
-    public const string ClaimMissingCode = "security.claim_missing";
-
-    /// <summary>Error code when the user is not the resource owner.</summary>
-    public const string NotOwnerCode = "security.not_owner";
-
-    /// <summary>Error code when the security context is not available.</summary>
-    public const string MissingContextCode = "security.missing_context";
-
     /// <summary>
     /// Creates an error for unauthenticated access.
     /// </summary>
@@ -38,7 +21,7 @@ public static class SecurityErrors
     /// <returns>An error indicating the user is not authenticated.</returns>
     public static EncinaError Unauthenticated(Type requestType) =>
         EncinaErrors.Create(
-            code: UnauthenticatedCode,
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
             message: $"Request '{requestType.Name}' requires authentication.",
             details: new Dictionary<string, object?>
             {
@@ -61,7 +44,7 @@ public static class SecurityErrors
         string? userId,
         bool requireAll = false) =>
         EncinaErrors.Create(
-            code: InsufficientRolesCode,
+            code: EncinaErrorCodes.AuthorizationInsufficientRoles,
             message: $"User does not have the required roles ({string.Join(", ", requiredRoles)}) for '{requestType.Name}'.",
             details: new Dictionary<string, object?>
             {
@@ -86,7 +69,7 @@ public static class SecurityErrors
         string? userId,
         bool requireAll = false) =>
         EncinaErrors.Create(
-            code: PermissionDeniedCode,
+            code: EncinaErrorCodes.AuthorizationPermissionDenied,
             message: $"User does not have the required permissions ({string.Join(", ", requiredPermissions)}) for '{requestType.Name}'.",
             details: new Dictionary<string, object?>
             {
@@ -111,7 +94,7 @@ public static class SecurityErrors
         string? claimValue,
         string? userId) =>
         EncinaErrors.Create(
-            code: ClaimMissingCode,
+            code: EncinaErrorCodes.AuthorizationClaimMissing,
             message: claimValue is null
                 ? $"User is missing required claim type '{claimType}' for '{requestType.Name}'."
                 : $"User is missing required claim '{claimType}={claimValue}' for '{requestType.Name}'.",
@@ -137,7 +120,7 @@ public static class SecurityErrors
         string ownerProperty,
         string? userId) =>
         EncinaErrors.Create(
-            code: NotOwnerCode,
+            code: EncinaErrorCodes.AuthorizationNotOwner,
             message: $"User is not the owner of the resource for '{requestType.Name}'.",
             details: new Dictionary<string, object?>
             {
@@ -153,9 +136,14 @@ public static class SecurityErrors
     /// </summary>
     /// <param name="requestType">The request type that required security context.</param>
     /// <returns>An error indicating the security context is missing.</returns>
+    /// <remarks>
+    /// Carries <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/> (401): a missing security context
+    /// is treated as an unauthenticated request until #1705 Phase 5 removes the second identity channel,
+    /// where this error disappears.
+    /// </remarks>
     public static EncinaError MissingContext(Type requestType) =>
         EncinaErrors.Create(
-            code: MissingContextCode,
+            code: EncinaErrorCodes.AuthorizationUnauthenticated,
             message: $"Security context is not available for '{requestType.Name}'. Ensure security middleware is configured.",
             details: new Dictionary<string, object?>
             {

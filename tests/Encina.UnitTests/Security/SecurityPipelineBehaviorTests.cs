@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Encina;
 using Encina.Security;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
@@ -94,7 +95,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     // -- RequireRole --
@@ -130,7 +131,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.InsufficientRolesCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationInsufficientRoles);
     }
 
     [Fact]
@@ -182,7 +183,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.InsufficientRolesCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationInsufficientRoles);
     }
 
     // -- RequirePermission --
@@ -232,7 +233,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.PermissionDeniedCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationPermissionDenied);
     }
 
     [Fact]
@@ -314,7 +315,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.ClaimMissingCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationClaimMissing);
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.ClaimMissingCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationClaimMissing);
     }
 
     // -- RequireOwnership --
@@ -382,7 +383,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.NotOwnerCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationNotOwner);
     }
 
     // -- RequireAuthenticatedByDefault --
@@ -418,7 +419,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     // -- Missing security context --
@@ -439,7 +440,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.MissingContextCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     [Fact]
@@ -458,7 +459,7 @@ public class SecurityPipelineBehaviorTests
         // Assert
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     // -- Multiple attributes combined --
@@ -478,7 +479,7 @@ public class SecurityPipelineBehaviorTests
         // Assert — Should fail on DenyAnonymous, not RequireRole
         result.IsLeft.ShouldBeTrue();
         var error = result.Match(_ => default, e => e);
-        error.GetCode().IfNone("").ShouldBe(SecurityErrors.UnauthenticatedCode);
+        error.GetCode().IfNone("").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
     }
 
     [Fact]
