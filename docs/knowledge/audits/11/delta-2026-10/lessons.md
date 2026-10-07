@@ -1,0 +1,32 @@
+- For a README whose defects already sit in an umbrella delta issue (#1850 here), read that body line by line against the README line numbers first; four of the five rule (a) points were already tracked, and the new value was the residue lines (the `AddEncina` comment, the `Encina.Send` calls, `:222`, `:238-257`, the "Fully Tested" claim).
+Applied: role:docs-reviewer When an umbrella delta issue already holds a README's defects, read its body line by line before writing new findings.
+- A defect issue (#1330) names README sections, not every line that repeats the claim; search the README for the claim's wording ("ValidationException", `error.Exception`) and list every location before deciding what is tracked.
+Applied: role:docs-reviewer A defect issue names sections, not every repetition: search the page for the claim and report the residue locations.
+- Count fenced blocks from the printed fence lines (each block has two: an opening and a closing), not from memory: the first pass said 20 blocks (1 `bash`, 19 `csharp`) and the README has 28 fence lines, which is 14 blocks (1 `bash`, 13 `csharp`) (audit #11 verifier FAIL, correction 1).
+Applied: role:docs-reviewer Count fenced blocks from printed fence lines (two per block), not from memory.
+- The delta brief for rule (b) can name the open consolidated delta issue that already holds the proposals when one exists (#1850 holds both files of this unit); the stage can then re-measure and confirm in one pass instead of deriving everything again, and say so in each finding's tracker sentence.
+Applied: role:test-auditor When an open consolidated delta issue already holds the proposals, say which numbers it confirms instead of new findings.
+- When the original audit said "coverage not run" (as here), a delta stage must still run every flag for the scoped core file; the filtered runs took under two minutes in total and produced the missed-line list that makes the guard justification honest (guard hits include behaviour tests).
+Applied: role:test-auditor If the original audit said coverage not run, the delta still runs every flag for the scoped files.
+- docs 3: recorded as duplicate of #1330 by manual override
+Applied: not applied: record of a manual duplicate override (docs 3), no action.
+- docs 5: recorded as duplicate of #1850 by manual override
+Applied: not applied: record of a manual duplicate override (docs 5), no action.
+- tests 1: recorded as duplicate of #1850 by manual override
+Applied: not applied: record of a manual duplicate override (tests 1), no action.
+- tests 2: recorded as duplicate of #1850 by manual override
+Applied: not applied: record of a manual duplicate override (tests 2), no action.
+- docs 4: recorded as not a duplicate and kept out of location merges by manual override
+Applied: not applied: record of a manual not-duplicate override (docs 4), no action.
+- (docs 4) Tests for the package exist (unit tests under `tests/Encina.UnitTests/FluentValidation/`, property tests in `tests/Encina.PropertyTests/Validation/FluentValidation/ValidationInvariantProperties.cs`), so the "Fully Tested" sentence is uncited and unmeasurable (assembly absent from the Cobertura output), not false; the draft says so. The same phrase is in the READMEs of `Encina.DataAnnotations`, `Encina.MiniValidator` and `Encina.GuardClauses` (count-mode search of `src/**/README.md`: 4 files), which the finding did not report. (State the verified state of an uncited claim: not measurable is not the same as untrue; search sibling READMEs for the same phrase.)
+Applied: role:remediation-drafter Check whether tests exist before calling a "fully tested" claim false; uncited is not false.
+- (docs 1, docs 2, docs 4) The findings name #898 (docs 4) without a title; the manifest has none, so the drafts do not cite it and docs 4 says "tracked in a separate open issue". The orchestrator can add #898 as a comment when opening docs 4. (Issues named by a finding without a manifest title go to the orchestrator as a comment.)
+Applied: applied by the orchestrator: #898 added as a comment on the docs 4 issue when opened.
+- (docs 1, docs 2, docs 4) Pass 2 after a verifier FAIL rewrote all three drafts (not on disk when this run started). The Related Issues line for the consolidated issue carries no second issue number in its title text (the manifest title of #1850 names another issue, and -Finalize would strip it and leave dangling text). Docs 2 Current Behavior now places `using FluentValidation;` at `README.md:28` (Step 1 block) and says the Step 3 (`Right<...>`), Step 4 and ASP.NET (`ValidationException`) blocks show no `using` line for `LanguageExt.Prelude` or `FluentValidation`. A scope search of `src/**/README.md` for "automatically registered" finds the validation-behavior claim only in the FluentValidation README. (Never copy a manifest issue title that contains another issue number into a Related Issues line; write a number-free description.)
+Applied: role:remediation-drafter Never copy a manifest title that contains another issue number into a Related Issues line; the finalizer strips it.
+- (docs 1, docs 2) The `error.Exception` use in the README samples is the subject of #1330 and is left out of the docs 2 draft; the verified facts were re-read in the audit worktree: `MediatorAssemblyScanner.cs:93-98`, `ServiceCollectionExtensions.cs:62-64, :104-106`, `IEncina.cs:46`, and the README lines `:28, :53, :58-61, :86, :94, :105, :239-246`. (Keep each defect with the issue that owns it.)
+Applied: role:remediation-drafter Leave defects owned by an open issue out of a sibling draft; cite that issue instead.
+- After a narrow FAIL whose diff over `src tests docs .github` is empty, closing the pass took: the fence list, the two recounts, the old-phrase grep over stages, drafts and manifest, a header/ticked-box/emoji command over the drafts, the cited README and source lines, the open-issue search limited to issues created today, and `--unified=0` of the two stage files. Measurements carry forward.
+Applied: role:audit-verifier After a narrow FAIL with an empty source diff, re-print only the corrected lines and carry the rest forward.
+- A draft that quotes the offending README line verbatim can contain the very emoji the finding is about; the emoji scan should be read as "quoted evidence" or "decoration" case by case, not as an automatic failure.
+Applied: role:audit-verifier A verbatim quote of the offending line may carry the emoji the finding is about; accept it as evidence.
