@@ -51,6 +51,12 @@ public interface ICacheKeyGenerator
     /// <param name="request">The request to generate a key for.</param>
     /// <param name="context">The request context containing tenant, user, and other metadata.</param>
     /// <returns>A unique cache key for the request.</returns>
+    /// <remarks>
+    /// For a <c>VaryByUser</c> request, <see cref="QueryCachingPipelineBehavior{TRequest, TResponse}"/>
+    /// passes a view of the context whose <see cref="IRequestContext.Identity"/> is pinned to the
+    /// identity it read once, so the key matches its bypass decision; build the key from that
+    /// parameter, do not cast it to <see cref="RequestContext"/>, and do not keep it after the call.
+    /// </remarks>
     string GenerateKey<TRequest, TResponse>(TRequest request, IRequestContext context)
         where TRequest : IRequest<TResponse>;
 

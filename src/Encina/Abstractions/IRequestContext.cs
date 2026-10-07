@@ -83,6 +83,13 @@ public interface IRequestContext
     /// <para>
     /// <c>context.UserId</c> (an extension property) is <c>Identity.UserId</c>.
     /// </para>
+    /// <para>
+    /// On <see cref="RequestContext"/> (every context the pipeline hands out), an identity issued by
+    /// an identity scope reads as <see cref="RequestIdentity.Anonymous"/> once that scope has ended,
+    /// so a context kept beyond its scope (a captured stream context, a fire-and-forget dispatch)
+    /// is denied by every gate that requires an authenticated caller, without a check of its own.
+    /// The value can therefore change between two reads; read it once when several decisions must agree.
+    /// </para>
     /// </remarks>
     RequestIdentity Identity { get; }
 

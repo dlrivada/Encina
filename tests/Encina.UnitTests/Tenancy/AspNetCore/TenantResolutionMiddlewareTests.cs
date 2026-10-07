@@ -224,7 +224,7 @@ public sealed class TenantResolutionMiddlewareTests
         });
 
         seen.ShouldNotBeNull();
-        seen.UserId.ShouldBe("alice");
+        global::Encina.UnitTests.Core.Identity.IssuedIdentityReads.Issued(seen).UserId.ShouldBe("alice");
         seen.TenantId.ShouldBe("tenant-abc");
     }
 

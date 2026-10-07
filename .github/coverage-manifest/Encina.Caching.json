@@ -97,7 +97,30 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 85,
+        "guard": 20,
+        "contract": 0
+      },
+      "justifications": {
+        "unit": "Security-relevant VaryByUser bypass and identity-race paths are unit tested; the uncovered lines are cache-error and sliding-refresh branches (measured 87%).",
+        "guard": "Constructor and Handle null guards only (measured 21%).",
+        "contract": "The behavior implements no Encina-owned abstract contract beyond IPipelineBehavior, whose contract is asserted on the core dispatcher; its observable rules (bypass, per-user isolation, identity race) are behavioral and covered by unit tests, so no contract target applies."
+      }
+    },
+    "Behaviors/IdentityPinnedRequestContext.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal key-generation view of a request context pinned to one identity (#1931); no public surface",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Every member is read by the custom key generator test of QueryCachingVaryByUserTests (measured 100%)."
+      }
     },
     "Configuration/CachingOptions.cs": {
       "defaultTests": [
@@ -124,7 +147,13 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Internal static helper with no public parameters (no guard surface); every branch is exercised by the unit tests of DefaultCacheKeyGenerator, CacheConfiguration and QueryCachingPipelineBehavior"
+      "reason": "Internal static helper with no public parameters (no guard surface); every branch is exercised by the unit tests of DefaultCacheKeyGenerator, CacheConfiguration and QueryCachingPipelineBehavior",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "Two members, both driven by the VaryByUser behavior and key generator tests (measured 100%)."
+      }
     },
     "KeyGeneration/DefaultCacheKeyGenerator.cs": {
       "defaultTests": [

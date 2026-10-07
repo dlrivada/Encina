@@ -278,7 +278,8 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         Func<IRequestContext, CancellationToken, Task<Either<EncinaError, T>>> work,
         CancellationToken cancellationToken)
     {
-        Activity.Current?.SetTag(ActivityTagNames.IdentityKind, EncinaDiagnostics.ToTagValue(context.Identity.Kind));
+        // IssuedIdentity: the issuer is bound only after the push, so Identity still reads anonymous here.
+        Activity.Current?.SetTag(ActivityTagNames.IdentityKind, EncinaDiagnostics.ToTagValue(context.IssuedIdentity.Kind));
         return RunScopeAsync(context, work, cancellationToken);
     }
 
@@ -291,7 +292,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
         CancellationToken cancellationToken)
     {
         var holder = RequestContextAccessor.Push(context);
-        context.Identity.Issuer?.Bind(holder);
+        context.IssuedIdentity.Issuer?.Bind(holder);
         AmbientRequestContext.BeginUnitOfWork();
         try
         {
@@ -405,7 +406,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
     {
         if (ambient?.TenantId is { } ambientTenant && !string.Equals(ambientTenant, context.TenantId, StringComparison.Ordinal))
         {
-            RequestIdentityLog.ScopeTenantChanged(_logger, member, context.Identity.Kind);
+            RequestIdentityLog.ScopeTenantChanged(_logger, member, context.IssuedIdentity.Kind);
         }
     }
 

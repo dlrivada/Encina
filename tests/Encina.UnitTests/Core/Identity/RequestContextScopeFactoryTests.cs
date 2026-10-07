@@ -54,7 +54,7 @@ public sealed class RequestContextScopeFactoryTests
 
         var result = await Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.ReadAmbient(_host.Accessor));
 
-        result.ShouldBeSuccess()!.UserId.ShouldBe("service:test-job");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
         _host.Accessor.RequestContext.ShouldBeSameAs(caller);
     }
 
@@ -84,7 +84,7 @@ public sealed class RequestContextScopeFactoryTests
 
         var result = await Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.Capture);
 
-        result.ShouldBeSuccess().UserId.ShouldBe("service:test-job");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
         _host.Accessor.RequestContext.ShouldBeNull();
     }
 
@@ -94,11 +94,12 @@ public sealed class RequestContextScopeFactoryTests
         var first = (await Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.Capture)).ShouldBeSuccess();
         var second = (await Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.Capture)).ShouldBeSuccess();
 
-        first.Identity.ShouldNotBeSameAs(second.Identity);
-        first.Identity.Issuer.ShouldNotBeNull();
-        first.Identity.Issuer.ShouldNotBeSameAs(second.Identity.Issuer);
-        first.Identity.Issuer!.IsLive.ShouldBeFalse();
-        first.Identity.IsSameAs(second.Identity).ShouldBeTrue();
+        first.Issued().ShouldNotBeSameAs(second.Issued());
+        first.Issued().Issuer.ShouldNotBeNull();
+        first.Issued().Issuer.ShouldNotBeSameAs(second.Issued().Issuer);
+        first.Issued().Issuer!.IsLive.ShouldBeFalse();
+        first.Issued().IsSameAs(second.Issued()).ShouldBeTrue();
+        first.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
     }
 
     // ── Results: Left and exceptions pass through after invalidation ─────
@@ -116,7 +117,7 @@ public sealed class RequestContextScopeFactoryTests
         });
 
         ShouldBeLeftWith(result, "test.failure");
-        inside!.Identity.Issuer!.IsLive.ShouldBeFalse();
+        inside.Issued().Issuer!.IsLive.ShouldBeFalse();
         _host.EventIds.ShouldContain(168);
     }
 
@@ -131,7 +132,7 @@ public sealed class RequestContextScopeFactoryTests
             throw new InvalidOperationException("boom");
         }));
 
-        inside!.Identity.Issuer!.IsLive.ShouldBeFalse();
+        inside.Issued().Issuer!.IsLive.ShouldBeFalse();
         _host.EventIds.ShouldContain(168);
     }
 
@@ -221,8 +222,8 @@ public sealed class RequestContextScopeFactoryTests
         var application = await Factory.RunAsBuiltInAsync(ScopeTestHost.Job, ScopeTestHost.Capture);
 
         var context = builtIn.ShouldBeSuccess();
-        context.UserId.ShouldBe("service:encina.test.seeding");
-        context.Identity.Permissions.ShouldContain("policies:seed");
+        context.Issued().UserId.ShouldBe("service:encina.test.seeding");
+        context.Issued().Permissions.ShouldContain("policies:seed");
         ShouldBeLeftWith(application, RequestIdentityErrorCodes.UnknownServiceIdentity);
         Records.ShouldContain(r => r.Id.Id == 166 && r.Message.Contains(ScopeTestHost.BuiltIn));
     }
@@ -318,7 +319,7 @@ public sealed class RequestContextScopeFactoryTests
         var result = await Factory.RunAsServiceAsync(ScopeTestHost.Job, async (_, ct) =>
             await Factory.RunAsServiceAsync(ScopeTestHost.OtherJob, ScopeTestHost.Capture, cancellationToken: ct));
 
-        result.ShouldBeSuccess().UserId.ShouldBe("service:other-job");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:other-job");
         var opened = Records.Where(r => r.Id.Id == 166).ToList();
         opened[0].Level.ShouldBe(LogLevel.Information);
         opened[1].Level.ShouldBe(LogLevel.Warning);
@@ -330,7 +331,7 @@ public sealed class RequestContextScopeFactoryTests
         var result = await Factory.RunAsServiceAsync(ScopeTestHost.Job, async (_, ct) =>
             await Factory.RunAsPrincipalAsync(TestIdentity.Principal("alice"), ScopeTestHost.Capture, cancellationToken: ct));
 
-        result.ShouldBeSuccess().UserId.ShouldBe("alice");
+        result.ShouldBeSuccess().Issued().UserId.ShouldBe("alice");
         Records.Single(r => r.Id.Id == 169).Level.ShouldBe(LogLevel.Warning);
     }
 
@@ -427,11 +428,11 @@ public sealed class RequestContextScopeFactoryTests
     {
         var context = (await Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.Capture, new IdentityScopeOptions(TenantId: Sentinel))).ShouldBeSuccess();
 
-        context.Identity.Kind.ShouldBe(IdentityKind.Service);
-        context.Identity.Roles.ShouldBe(["job"]);
-        context.Identity.Permissions.ShouldBe(["jobs:run"]);
-        context.Identity.Principal!.IsInRole("job").ShouldBeTrue();
-        context.Identity.HasClaim(RequestIdentity.IdentityKindClaimType, "service").ShouldBeTrue();
+        context.Issued().Kind.ShouldBe(IdentityKind.Service);
+        context.Issued().Roles.ShouldBe(["job"]);
+        context.Issued().Permissions.ShouldBe(["jobs:run"]);
+        context.Issued().Principal!.IsInRole("job").ShouldBeTrue();
+        context.Issued().HasClaim(RequestIdentity.IdentityKindClaimType, "service").ShouldBeTrue();
         var record = Records.Single(r => r.Id.Id == 166);
         record.Message.ShouldContain(ScopeTestHost.Job);
         record.Message.ShouldContain("True");
@@ -448,10 +449,10 @@ public sealed class RequestContextScopeFactoryTests
         var application = (await Factory.RunInboundAsync(info, ScopeTestHost.Capture)).ShouldBeSuccess();
         var host = (await Factory.RunHostInboundAsync(info, ScopeTestHost.Capture)).ShouldBeSuccess();
 
-        application.UserId.ShouldBe(Sentinel);
+        application.Issued().UserId.ShouldBe(Sentinel);
         application.TenantId.ShouldBe(Sentinel + "-t");
         ((RequestContext)application).Origin.ShouldBe(RequestOrigin.Inbound);
-        host.UserId.ShouldBe(Sentinel);
+        host.Issued().UserId.ShouldBe(Sentinel);
         Records.Single(r => r.Id.Id == 175).Level.ShouldBe(LogLevel.Information);
         Records.Single(r => r.Id.Id == 172).Level.ShouldBe(LogLevel.Debug);
         NoSentinelInAnyRecord();

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Encina.Testing;
 using Encina.Testing.Identity;
+using Encina.UnitTests.Core.Identity;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Core;
@@ -286,7 +287,7 @@ public sealed class AmbientRequestContextTests
         parent!.CorrelationId.ShouldNotBeNullOrWhiteSpace();
         outer.ShouldBeSameAs(parent);
         inner.ShouldNotBeSameAs(parent);
-        inner.UserId.ShouldBe("parent-user");
+        inner.Issued().UserId.ShouldBe("parent-user");
         inner.TenantId.ShouldBe("parent-tenant");
         inner.CorrelationId.ShouldBe(parent.CorrelationId);
         inner.IdempotencyKey.ShouldBeNull();

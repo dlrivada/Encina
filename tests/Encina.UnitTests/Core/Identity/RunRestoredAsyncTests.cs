@@ -34,10 +34,10 @@ public sealed class RunRestoredAsyncTests
     {
         var context = (await Restore(User(), PersistedIdentitySource.Internal)).ShouldBeSuccess();
 
-        context.UserId.ShouldBe("alice");
-        context.Identity.Roles.ShouldBeEmpty();
-        context.Identity.Permissions.ShouldBeEmpty();
-        context.Identity.Principal!.Identity!.AuthenticationType.ShouldBe(RequestContextScopeFactory.RestoredAuthenticationType);
+        context.Issued().UserId.ShouldBe("alice");
+        context.Issued().Roles.ShouldBeEmpty();
+        context.Issued().Permissions.ShouldBeEmpty();
+        context.Issued().Principal!.Identity!.AuthenticationType.ShouldBe(RequestContextScopeFactory.RestoredAuthenticationType);
         context.TenantId.ShouldBe("t-row");
         context.CorrelationId.ShouldBe("corr-1");
         context.CausationId.ShouldBe("cause-1");
@@ -60,8 +60,8 @@ public sealed class RunRestoredAsyncTests
 
         var context = (await Restore(persisted, PersistedIdentitySource.Internal)).ShouldBeSuccess();
 
-        context.UserId.ShouldBe("service:test-job");
-        context.Identity.Roles.ShouldBe(["job"]);
+        context.Issued().UserId.ShouldBe("service:test-job");
+        context.Issued().Roles.ShouldBe(["job"]);
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class RunRestoredAsyncTests
             return await _host.Factory.RunAsServiceAsync(ScopeTestHost.Job, ScopeTestHost.Capture, new IdentityScopeOptions(AllowOverInbound: true), ct);
         });
 
-        outcome.ShouldBeSuccess().UserId.ShouldBe("service:test-job");
+        outcome.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
         _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 174).Message.ShouldContain(ScopeTestHost.Job);
     }
 
@@ -189,7 +189,7 @@ public sealed class RunRestoredAsyncTests
 
         var context = (await Restore(persisted, PersistedIdentitySource.Internal)).ShouldBeSuccess();
 
-        context.UserId.ShouldBe("alice");
-        context.Identity.Roles.ShouldBeEmpty();
+        context.Issued().UserId.ShouldBe("alice");
+        context.Issued().Roles.ShouldBeEmpty();
     }
 }

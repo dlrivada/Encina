@@ -34,8 +34,9 @@ namespace Encina;
 /// request can never open a service scope by clearing or re-setting its context.
 /// </para>
 /// <para>
-/// An identity issued by an identity scope reads as no context once that scope has ended, wherever
-/// the context was copied to.
+/// An identity issued by an identity scope reads as no context through the accessor once that scope
+/// has ended; a copy of the context kept elsewhere reports <see cref="RequestIdentity.Anonymous"/>
+/// as its identity (see <see cref="global::Encina.RequestContext.Identity"/>).
 /// </para>
 /// <para>
 /// The public setter is host infrastructure; application code reads the context and never sets it.
@@ -177,7 +178,9 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
             _context = context;
             Parent = parent;
             IsScope = isScope;
-            Kind = context?.Identity?.Kind ?? IdentityKind.Anonymous;
+            // The issued identity: a scope pushes its context before binding the issuer, when the
+            // checked Identity would still read as anonymous and the chain would lose its user fact.
+            Kind = global::Encina.RequestContext.IssuedIdentityOf(context)?.Kind ?? IdentityKind.Anonymous;
             Origin = (context as RequestContext)?.Origin ?? RequestOrigin.Unspecified;
             Facts = inheritedFacts | OwnFacts(Kind, Origin);
         }
@@ -213,7 +216,8 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
         internal IRequestContext? ReadContext()
         {
             var context = IsValid() ? _context : null;
-            return context?.Identity?.Issuer is { IsLive: false } ? null : context;
+            var identity = global::Encina.RequestContext.IssuedIdentityOf(context);
+            return identity is null || global::Encina.RequestContext.IsReadable(identity) ? context : null;
         }
 
         /// <summary>
@@ -232,7 +236,8 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
             return Kind;
         }
 
-        private static ChainFacts OwnFacts(IdentityKind kind, RequestOrigin origin) =>
+        /// <summary>The facts a holder of <paramref name="kind"/> and <paramref name="origin"/> adds to its chain.</summary>
+        internal static ChainFacts OwnFacts(IdentityKind kind, RequestOrigin origin) =>
             (kind == IdentityKind.User ? ChainFacts.User : ChainFacts.None)
             | (origin == RequestOrigin.Inbound ? ChainFacts.Inbound : ChainFacts.None)
             | (origin == RequestOrigin.Connection ? ChainFacts.Connection : ChainFacts.None);

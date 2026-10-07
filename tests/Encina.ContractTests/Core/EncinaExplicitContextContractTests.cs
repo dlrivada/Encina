@@ -210,7 +210,8 @@ public sealed class EncinaMediatorExplicitContextContractTests : EncinaExplicitC
         var seen = provider.GetRequiredService<ContextRecorder>().Seen;
         seen.ShouldBeSameAs(scoped);
         seen.ShouldNotBeNull();
-        seen.UserId.ShouldBe("explicit-user");
+        ((RequestContext)seen).IssuedIdentity.UserId.ShouldBe("explicit-user");
+        seen.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
         seen.TenantId.ShouldBe("explicit-tenant");
     }
 
