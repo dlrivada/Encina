@@ -656,7 +656,7 @@ You are implementing Phase 7 of the release readiness gate for Encina issue #104
 
 CONTEXT:
 - Documentation pages under docs/ are written by the docs-writer agent with the encina-docs skill (Diataxis: one quadrant per page).
-- ADR numbers: take the next free number in docs/architecture/adr/index.md (037 when this plan was written) and reserve it in the reserved-numbers table if not yet done.
+- ADR numbers: ADR 038 is reserved for this plan in docs/architecture/adr/index.md.
 - #1655 tracks the 85% coverage lines in agent and skill instructions, including .opencode/skills/release-checklist/SKILL.md.
 
 TASK:

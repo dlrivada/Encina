@@ -807,7 +807,7 @@ REFERENCE FILES:
 2. `changelog.d/1196-special-category-conditions.added.md`, and `changelog.d/1196-legal-basis-references.changed.md` for the removal of `LegalReference` and the tenant-scoped registry.
 3. `src/Encina.Compliance.GDPR/README.md` and `src/Encina.Compliance.LawfulBasis/README.md` — the Art. 9 ground, references, validation and tenancy.
 4. `docs/features/gdpr-compliance.md` and `docs/features/lawful-basis-validation.md` — usage, configuration (`LegalGroundOptions`, `RequireTenantContext`), the S18 example; follow the `encina-docs` skill (one Diátaxis quadrant per page).
-5. ADR in `docs/architecture/adr/` (next free number in `index.md`): "Legal grounds: Art. 6 basis, Art. 9(2) condition and legal-basis references as one model", recording Design Choices 1, 2, 5 and 7.
+5. ADR in `docs/architecture/adr/` (ADR 045, `045-...`, reserved in `docs/architecture/adr/index.md`): "Legal grounds: Art. 6 basis, Art. 9(2) condition and legal-basis references as one model", recording Design Choices 1, 2, 5 and 7.
 6. `docs/INVENTORY.md` — new files. `ROADMAP.md` — only if the milestone line for P-08 changes. Release notes under `docs/releases/` only if the target version has a folder.
 7. `PublicAPI.Unshipped.txt` of both packages and of every provider package whose public constructor changed.
 8. Article-coverage rows for GDPR Art. 9(2) and LOPDGDD art. 9.2 / DA 17ª handed to #1214 and #1215 (P-17) as a comment, not written here.
