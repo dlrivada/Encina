@@ -53,11 +53,12 @@ An ADR takes the next number that is neither used nor reserved. A plan or spike 
 | 032 | [retention-floor-implementation-plan-1187.md](../../plans/retention-floor-implementation-plan-1187.md) (#1187) | Retention floor and anchored periods | Reserved, ADR not written |
 | 033 | [blocked-data-state-implementation-plan-1189.md](../../plans/blocked-data-state-implementation-plan-1189.md) (#1189) | Composable row filters and blocked data state | Reserved, ADR not written |
 | 035 | [security-context-population-implementation-plan-1705.md](../../plans/security-context-population-implementation-plan-1705.md) (#1705) | One request identity model | Reserved, ADR not written |
-| 037 | [outbox-atomicity-ado-implementation-plan-718.md](../../plans/outbox-atomicity-ado-implementation-plan-718.md) (#718) | Transactional Outbox | Reserved, ADR not written |
-| 038 | [release-readiness-gate-implementation-plan-104.md](../../plans/release-readiness-gate-implementation-plan-104.md) (#104) | Release Readiness Gate | Reserved, ADR not written |
-| 039 | [module-private-stores-implementation-plan-1244.md](../../plans/module-private-stores-implementation-plan-1244.md) (#1244) | Module-Private Stores | Reserved, ADR not written |
-| 040 | [event-anonymization-implementation-plan-812.md](../../plans/event-anonymization-implementation-plan-812.md) (#812) | Event Anonymization | Reserved, ADR not written |
-| 041 | [multi-language-support-implementation-plan-842.md](../../plans/multi-language-support-implementation-plan-842.md) (#842) | Multi-Language Support | Reserved, ADR not written |
-| 042 | [dsr-representation-fields-implementation-plan-1197.md](../../plans/dsr-representation-fields-implementation-plan-1197.md) (#1197) | DSR Representation Fields | Reserved, ADR not written |
-| 043 | [scheduled-message-resiliency-implementation-plan-1251.md](../../plans/scheduled-message-resiliency-implementation-plan-1251.md) (#1251) | Scheduled Message Resiliency | Reserved, ADR not written |
-| 044 | [consent-lifecycle-implementation-plan-847.md](../../plans/consent-lifecycle-implementation-plan-847.md) (#847) | Consent Lifecycle | Reserved, ADR not written |
+| 037 | [outbox-atomicity-ado-implementation-plan-718.md](../../plans/outbox-atomicity-ado-implementation-plan-718.md) (#718) | Transactional outbox | Reserved, ADR not written |
+| 038 | [pre-release-checklist-implementation-plan-104.md](../../plans/pre-release-checklist-implementation-plan-104.md) (#104) | Release readiness gate | Reserved, ADR not written |
+| 039 | [break-the-glass-implementation-plan-1244.md](../../plans/break-the-glass-implementation-plan-1244.md) (#1244) | Break-the-glass emergency access | Reserved, ADR not written |
+| 040 | [enisa-single-entry-point-implementation-plan-812.md](../../plans/enisa-single-entry-point-implementation-plan-812.md) (#812) | Incident reporting adapters on the breach stream | Reserved, ADR not written |
+| 041 | [aiact-record-keeping-implementation-plan-842.md](../../plans/aiact-record-keeping-implementation-plan-842.md) (#842) | AI Act record-keeping log | Reserved, ADR not written |
+| 042 | [data-subject-representation-implementation-plan-1197.md](../../plans/data-subject-representation-implementation-plan-1197.md) (#1197) | Data-subject representation shape | Reserved, ADR not written |
+| 043 | [processor-row-claiming-implementation-plan-1251.md](../../plans/processor-row-claiming-implementation-plan-1251.md) (#1251) | Processor row claiming | Reserved, ADR not written |
+| 044 | [aiact-marten-event-sourcing-implementation-plan-847.md](../../plans/aiact-marten-event-sourcing-implementation-plan-847.md) (#847) | Deterministic natural-key stream identity for compliance aggregates | Reserved, ADR not written |
+| 045 | [special-category-conditions-implementation-plan-1196.md](../../plans/special-category-conditions-implementation-plan-1196.md) (#1196) | Legal grounds: Art. 6 basis and Art. 9(2) condition as one model | Reserved, ADR not written |
