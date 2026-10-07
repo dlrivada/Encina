@@ -49,7 +49,7 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     private static PersistentPolicyAdministrationPoint CreateSut(
         IPolicyStore store,
         IOperationAuditStore? auditStore,
-        IRequestContextAccessor? accessor,
+        IRequestContextAccessor accessor,
         TimeProvider? time = null,
         Microsoft.Extensions.Logging.ILogger<PersistentPolicyAdministrationPoint>? capturedLogger = null)
     {
@@ -732,51 +732,122 @@ public sealed class PersistentPolicyAdministrationPointAuditTests
     [Fact]
     public async Task NoRequestContext_RefusesChangeWithPrincipalRequiredError()
     {
-        // Arrange — SUT with audit but no request context
+        // Arrange — SUT with audit but an accessor with no request context
         var store = Substitute.For<IPolicyStore>();
         var auditStore = Substitute.For<IOperationAuditStore>();
-        var sutNoContext = CreateSut(store, auditStore, accessor: null);
+        var emptyAccessor = Substitute.For<IRequestContextAccessor>();
+        emptyAccessor.RequestContext.Returns((IRequestContext?)null);
+        var sutNoContext = CreateSut(store, auditStore, emptyAccessor);
 
         // Act
         var result = await sutNoContext.AddPolicySetAsync(CreatePolicySet("ps-refused"));
 
         // Assert
-        result.IsLeft.ShouldBeTrue();
-        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangePrincipalRequiredCode));
+        AssertRefused(result);
         await store.DidNotReceive().ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SystemActorScope_AllowsChangeAndRecordsSystemActor()
+    public async Task AnonymousCaller_RefusesChangeWithPrincipalRequiredError()
     {
-        // Arrange — SUT with audit but no request context, inside the explicit system-actor scope
         var store = Substitute.For<IPolicyStore>();
         var auditStore = Substitute.For<IOperationAuditStore>();
-        var sutNoContext = CreateSut(store, auditStore, accessor: null);
+        var sut = CreateSut(store, auditStore, AccessorWith(TestIdentity.Anonymous));
 
-        auditStore.RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
-                Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
+        var result = await sut.AddPolicySetAsync(CreatePolicySet("ps-anonymous"));
 
-        var ps = CreatePolicySet("ps-system");
-        store.ExistsPolicySetAsync("ps-system", Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<Either<EncinaError, bool>>(
-                Either<EncinaError, bool>.Right(false)));
+        AssertRefused(result);
+        await store.DidNotReceive().ExistsPolicySetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await auditStore.DidNotReceive().RecordAsync(Arg.Any<OperationAuditEntry>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SeedingServiceIdentity_RecordsTheServiceSubjectAndServiceActor()
+    {
+        var store = StoreAcceptingNewPolicySet("ps-seeded");
+        var sut = CreateSut(store, _auditStore, AccessorWith(TestIdentity.Service("encina.abac.policy-seeding")));
+
+        (await sut.AddPolicySetAsync(CreatePolicySet("ps-seeded"))).IsRight.ShouldBeTrue();
+
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<OperationAuditEntry>(e =>
+                e.UserId == "service:encina.abac.policy-seeding"
+                && (string?)e.Metadata["actor"] == "service"
+                && e.CorrelationId == "corr-actor"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UserCaller_RecordsTheUserAndUserActor()
+    {
+        var store = StoreAcceptingNewPolicySet("ps-user");
+        var sut = CreateSut(store, _auditStore, AccessorWith(TestIdentity.User("alice"), tenantId: "tenant-x"));
+
+        (await sut.AddPolicySetAsync(CreatePolicySet("ps-user"))).IsRight.ShouldBeTrue();
+
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<OperationAuditEntry>(e =>
+                e.UserId == "alice"
+                && e.TenantId == "tenant-x"
+                && (string?)e.Metadata["actor"] == "user"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ActorIdentity_IsReadOncePerChange()
+    {
+        // The identity can turn anonymous between two reads when its scope ends (#1892): the PAP
+        // reads it once and takes the user id and the kind from that snapshot.
+        var store = StoreAcceptingNewPolicySet("ps-once");
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(TestIdentity.User("alice"), TestIdentity.Anonymous);
+        context.CorrelationId.Returns("corr-once");
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(context);
+        var sut = CreateSut(store, _auditStore, accessor);
+
+        (await sut.AddPolicySetAsync(CreatePolicySet("ps-once"))).IsRight.ShouldBeTrue();
+
+        _ = context.Received(1).Identity;
+        await _auditStore.Received(1).RecordAsync(
+            Arg.Is<OperationAuditEntry>(e => e.UserId == "alice" && (string?)e.Metadata["actor"] == "user"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Constructor_NullAccessor_Throws()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+
+        Should.Throw<ArgumentNullException>(() => new PersistentPolicyAdministrationPoint(
+                services.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<PersistentPolicyAdministrationPoint>.Instance,
+                null!))
+            .ParamName.ShouldBe("requestContextAccessor");
+    }
+
+    private static IRequestContextAccessor AccessorWith(RequestIdentity identity, string? tenantId = null)
+    {
+        var accessor = Substitute.For<IRequestContextAccessor>();
+        accessor.RequestContext.Returns(TestRequestContext.For(identity, tenantId: tenantId, correlationId: "corr-actor"));
+        return accessor;
+    }
+
+    private static IPolicyStore StoreAcceptingNewPolicySet(string id)
+    {
+        var store = Substitute.For<IPolicyStore>();
+        store.ExistsPolicySetAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, bool>>(Either<EncinaError, bool>.Right(false)));
         store.SavePolicySetAsync(Arg.Any<PolicySet>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<Either<EncinaError, LanguageExt.Unit>>(
                 Either<EncinaError, LanguageExt.Unit>.Right(LanguageExt.Prelude.unit)));
+        return store;
+    }
 
-        // Act
-        using (PolicyChangeActorScope.BeginSystemActor())
-        {
-            (await sutNoContext.AddPolicySetAsync(ps)).IsRight.ShouldBeTrue();
-        }
-
-        // Assert
-        PolicyChangeActorScope.IsSystemActorActive.ShouldBeFalse();
-        await auditStore.Received(1).RecordAsync(
-            Arg.Is<OperationAuditEntry>(e => e.UserId == "system" && (string?)e.Metadata["actor"] == "system"),
-            Arg.Any<CancellationToken>());
+    private static void AssertRefused(Either<EncinaError, LanguageExt.Unit> result)
+    {
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e => e.GetCode().IfNone(string.Empty).ShouldBe(ABACErrors.PolicyChangePrincipalRequiredCode));
     }
 }

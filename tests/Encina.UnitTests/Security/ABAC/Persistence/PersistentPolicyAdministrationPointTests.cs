@@ -746,7 +746,8 @@ public sealed class PersistentPolicyAdministrationPointTests
     {
         var act = () => new PersistentPolicyAdministrationPoint(
             null!,
-            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>());
+            NullLoggerFactory.Instance.CreateLogger<PersistentPolicyAdministrationPoint>(),
+            Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act);
     }
@@ -755,7 +756,7 @@ public sealed class PersistentPolicyAdministrationPointTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
-        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!);
+        var act = () => new PersistentPolicyAdministrationPoint(scopeFactory, null!, Substitute.For<IRequestContextAccessor>());
 
         Should.Throw<ArgumentNullException>(act);
     }

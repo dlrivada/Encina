@@ -65,7 +65,8 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
             new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var pap = new PersistentPolicyAdministrationPoint(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<PersistentPolicyAdministrationPoint>.Instance);
+            NullLogger<PersistentPolicyAdministrationPoint>.Instance,
+            Substitute.For<IRequestContextAccessor>());
 
         var first = pap.GetPolicySetsAsync().AsTask();
         var second = pap.GetPolicySetsAsync().AsTask();
@@ -132,7 +133,6 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         var stores = new List<IPolicyStore>();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddSingleton(cache);
         services.AddSingleton(pubSub);
         services.AddSingleton<TimeProvider>(clock);
@@ -205,7 +205,6 @@ public sealed class PersistentPolicyAdministrationPointScopeTests
         var innerReads = 0;
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton(Substitute.For<global::Encina.Security.ISecurityContextAccessor>());
         services.AddEncinaMemoryCache();
         services.AddScoped<IPolicyStore>(_ =>
         {

@@ -17,12 +17,58 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "ABACEnforcementModeStartupCheck.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Startup hosted check that logs Warning 9085 when enforcement is disabled",
+      "targets": {
+        "unit": 100,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "Host start tests cover the Disabled, Warn and Block modes and a later Configure call (measured 100%).",
+        "guard": "The constructor guards and start/stop run in the guard suite (measured 91.7%)."
+      }
+    },
     "ABACErrors.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": {
+        "unit": 85,
+        "guard": 90
+      },
+      "justifications": {
+        "unit": "Factory tests build every error, including the new unauthenticated-caller error (measured 89.2%).",
+        "guard": "Guard tests call every factory and check its code and details (measured 94.0%)."
+      }
+    },
+    "ABACSubjectAttributes.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "contract",
+        "property"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Built-in subject attributes the PEP adds for every authenticated caller",
+      "targets": {
+        "unit": 100,
+        "guard": 80,
+        "contract": 85,
+        "property": 85
+      },
+      "justifications": {
+        "unit": "Direct tests cover the user, service and override cases and every identity kind name (measured 100%).",
+        "guard": "Every guarded PEP call with an authenticated caller builds the built-ins; only the anonymous name branch stays out (measured 83.3%).",
+        "contract": "The PEP contract tests evaluate users and services through it (measured 91.7%).",
+        "property": "The identity properties run it for every generated authenticated caller (measured 91.7%)."
+      }
     },
     "ABACOptions.cs": {
       "defaultTests": [
@@ -39,7 +85,19 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": {
+        "unit": 95,
+        "guard": 85,
+        "contract": 85,
+        "property": 70
+      },
+      "justifications": {
+        "unit": "Unit tests cover every decision, the unauthenticated-caller denial, the built-in attributes and the error paths (measured 96.7%).",
+        "guard": "Guard tests run the constructor guards and every named-policy decision (measured 90.2%).",
+        "contract": "Contract tests run the PEP contract for users, services and anonymous callers (measured 90.8%).",
+        "property": "Identity properties run the PEP for anonymous and authenticated callers in Block and Warn (measured 78.3%)."
+      }
     },
     "ABACPolicySeedingHostedService.cs": {
       "defaultTests": [
@@ -47,12 +105,28 @@
         "guard"
       ],
       "defaultRule": "*HostedService.cs",
-      "reason": "Hosted service — StartAsync/StopAsync testable with mocks"
+      "reason": "Hosted service — StartAsync/StopAsync testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 25,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "Tests run seeding through the real scope factory, the 9096 summary and both refusal mappings (measured 100%).",
+        "guard": "Guard tests cover the constructor guards and the no-seed start; seeding paths need a PAP and belong to the unit flag (measured 26.6%).",
+        "integration": "The SQL Server PAP scenario seeds under the built-in service identity on ADO, Dapper and EF Core (measured 65.8%)."
+      }
     },
     "Abstractions/IAttributeProvider.cs": {
       "defaultTests": [],
       "defaultRule": "^I[A-Z].*\\.cs$",
-      "reason": "Interfaces have no implementation to test"
+      "reason": "Interfaces have no implementation to test",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "An interface has no implementation lines; its implementation is DefaultAttributeProvider."
+      }
     },
     "Abstractions/ICombiningAlgorithm.cs": {
       "defaultTests": [],
@@ -101,14 +175,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
-    },
-    "Administration/PolicyChangeActorScope.cs": {
-      "defaultTests": [
-        "unit"
-      ],
-      "defaultRule": "*.cs",
-      "reason": "Internal helper — static utility class for audit scope management"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 5,
+        "integration": 45
+      },
+      "justifications": {
+        "unit": "Unit tests cover the actor resolution, every mutation, the audit trail and the scope handling (measured 94.5%).",
+        "guard": "Only the constructor and argument guards are guard-testable; the mutation paths need a store (measured 7.4%).",
+        "integration": "The SQL Server scenario runs seeding and user add/update/remove through real stores (measured 51.8%)."
+      }
     },
     "AttributeContextBuilder.cs": {
       "defaultTests": [
@@ -292,7 +369,13 @@
     "Diagnostics/ABACLogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials: the file has no coverable lines; the events are asserted through the PEP, seeding and startup-check tests."
+      }
     },
     "EEL/EELCompiler.cs": {
       "defaultTests": [
@@ -970,7 +1053,15 @@
         "guard"
       ],
       "defaultRule": "*Provider.cs",
-      "reason": "Provider implementation with mockeable deps"
+      "reason": "Provider implementation with mockeable deps",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Direct tests call all three methods (measured 100%).",
+        "guard": "The provider has no arguments to guard: it validates nothing and returns empty dictionaries."
+      }
     },
     "Providers/DefaultPolicyInformationPoint.cs": {
       "defaultTests": [
@@ -986,7 +1077,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 75,
+        "guard": 60
+      },
+      "justifications": {
+        "unit": "Registration tests build the validated provider, the persistent PAP, caching and seeding paths (measured 79.5%).",
+        "guard": "Guard tests call AddEncinaABAC with each option set (measured 68.7%)."
+      }
     },
     "Testing/EELTestHelper.cs": {
       "defaultTests": [

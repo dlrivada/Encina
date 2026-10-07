@@ -4,6 +4,7 @@ using System.Diagnostics;
 
 using Encina.Security.ABAC;
 using Encina.Security.ABAC.EEL;
+using Encina.Testing.Identity;
 
 using LanguageExt;
 
@@ -15,9 +16,6 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using static LanguageExt.Prelude;
-
-using ISecurityContext = global::Encina.Security.ISecurityContext;
-using ISecurityContextAccessor = global::Encina.Security.ISecurityContextAccessor;
 
 namespace Encina.UnitTests.Security.ABAC;
 
@@ -119,14 +117,13 @@ public sealed class ABACPipelineBehaviorTests
         ObligationExecutor? obligationExecutor = null,
         ILogger<ABACPipelineBehavior<TRequest, string>>? logger = null,
         Func<TRequest, IReadOnlyDictionary<string, object>>? resourceOf = null,
-        ISecurityContextAccessor? accessor = null,
         IAttributeProvider? attributeProvider = null)
         where TRequest : IRequest<string>
     {
         if (attributeProvider is null)
         {
             attributeProvider = Substitute.For<IAttributeProvider>();
-            attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            attributeProvider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
                 .Returns(subject ?? new Dictionary<string, object>());
             attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
                 .Returns(call => resourceOf is null
@@ -139,31 +136,19 @@ public sealed class ABACPipelineBehaviorTests
         return new ABACPipelineBehavior<TRequest, string>(
             pdp,
             attributeProvider,
-            accessor ?? AccessorFor("test-user"),
             obligationExecutor ?? Executor(),
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = mode }),
             logger ?? NullLogger<ABACPipelineBehavior<TRequest, string>>.Instance);
     }
 
-    /// <summary>An accessor whose security context carries <paramref name="userId"/>.</summary>
-    private static ISecurityContextAccessor AccessorFor(string? userId, bool isAuthenticated = true)
-    {
-        var securityContext = Substitute.For<ISecurityContext>();
-        securityContext.UserId.Returns(userId);
-        securityContext.IsAuthenticated.Returns(isAuthenticated);
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns(securityContext);
-        return accessor;
-    }
+    /// <summary>A request context whose caller is the authenticated user <paramref name="userId"/>.</summary>
+    private static IRequestContext UserContext(string userId = "test-user") =>
+        TestRequestContext.For(TestIdentity.User(userId));
 
-    /// <summary>An accessor that has no security context at all.</summary>
-    private static ISecurityContextAccessor AccessorWithoutContext()
-    {
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns((ISecurityContext?)null);
-        return accessor;
-    }
+    /// <summary>A request context with no authenticated caller.</summary>
+    private static IRequestContext AnonymousContext() =>
+        TestRequestContext.For(TestIdentity.Anonymous);
 
     private static ObligationExecutor Executor(params IObligationHandler[] handlers) =>
         new(handlers, NullLogger<ObligationExecutor>.Instance);
@@ -171,13 +156,14 @@ public sealed class ABACPipelineBehaviorTests
     private static async Task<(Either<EncinaError, string> Result, bool NextCalled)> SendAsync<TRequest>(
         ABACPipelineBehavior<TRequest, string> behavior,
         TRequest request,
+        IRequestContext? context = null,
         CancellationToken cancellationToken = default)
         where TRequest : IRequest<string>
     {
         var nextCalled = false;
         var result = await behavior.Handle(
             request,
-            Substitute.For<IRequestContext>(),
+            context ?? UserContext(),
             () =>
             {
                 nextCalled = true;
@@ -671,7 +657,7 @@ public sealed class ABACPipelineBehaviorTests
         var pdp = PdpWithDecisions(("policy-a", Decision(Effect.Permit, [Obligation("ob-a", FulfillOn.Permit)])));
         var behavior = CreateBehavior<PolicyARequest>(pdp, obligationExecutor: Executor(handler));
 
-        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cancellationToken: cts.Token));
     }
 
     #endregion
@@ -688,7 +674,7 @@ public sealed class ABACPipelineBehaviorTests
             .Returns<ValueTask<Either<EncinaError, PolicyDecision>>>(_ => throw new OperationCanceledException(cts.Token));
         var behavior = CreateBehavior<PolicyARequest>(pdp);
 
-        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new PolicyARequest(), cancellationToken: cts.Token));
     }
 
     [Fact]
@@ -702,19 +688,18 @@ public sealed class ABACPipelineBehaviorTests
         var behavior = new ABACPipelineBehavior<HrConditionRequest, string>(
             Pdp(),
             AttributeProviderReturningEmpty<HrConditionRequest>(),
-            AccessorFor("test-user"),
             Executor(),
             freshCompiler,
             Options.Create(new ABACOptions()),
             NullLogger<ABACPipelineBehavior<HrConditionRequest, string>>.Instance);
 
-        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new HrConditionRequest(), cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => SendAsync(behavior, new HrConditionRequest(), cancellationToken: cts.Token));
     }
 
     private static IAttributeProvider AttributeProviderReturningEmpty<TRequest>()
     {
         var attributeProvider = Substitute.For<IAttributeProvider>();
-        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
         attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
@@ -778,7 +763,7 @@ public sealed class ABACPipelineBehaviorTests
         const string Sentinel = "SENTINEL-1676-secret-subject-data";
         var pepLogger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
         var attributeProvider = Substitute.For<IAttributeProvider>();
-        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
             .Returns<ValueTask<IReadOnlyDictionary<string, object>>>(_ => throw new InvalidOperationException(Sentinel));
         var behavior = CreateBehavior<PolicyARequest>(
             Pdp(("policy-a", Effect.Permit)), logger: pepLogger, attributeProvider: attributeProvider);
@@ -817,38 +802,25 @@ public sealed class ABACPipelineBehaviorTests
 
     #endregion
 
-    #region Missing security context (#1676)
-
-    public static TheoryData<ABACEnforcementMode, string?, bool> MissingContextCases => new()
-    {
-        // mode, user id, whether the accessor has a context at all
-        { ABACEnforcementMode.Block, null, false },
-        { ABACEnforcementMode.Warn, null, false },
-        { ABACEnforcementMode.Block, null, true },
-        { ABACEnforcementMode.Warn, null, true },
-        { ABACEnforcementMode.Block, "", true },
-        { ABACEnforcementMode.Warn, "", true },
-        { ABACEnforcementMode.Block, "   ", true },
-        { ABACEnforcementMode.Warn, "   ", true }
-    };
+    #region Unauthenticated caller (#1676, #1705 N1)
 
     [Theory]
-    [MemberData(nameof(MissingContextCases))]
-    public async Task Handle_NoSecurityContextOrUser_DeniesWithMissingContextBeforeCollectingAttributes(
-        ABACEnforcementMode mode, string? userId, bool hasContext)
+    [InlineData(ABACEnforcementMode.Block)]
+    [InlineData(ABACEnforcementMode.Warn)]
+    public async Task Handle_AnonymousCaller_DeniesUnauthenticatedWithGateAbacBeforeCollectingAttributes(ABACEnforcementMode mode)
     {
-        // Arrange: the named policy would permit, so only the missing context can deny.
+        // Arrange: the named policy would permit, so only the missing caller can deny.
         var pdp = Pdp(("policy-a", Effect.Permit));
         var attributeProvider = Substitute.For<IAttributeProvider>();
-        var accessor = hasContext ? AccessorFor(userId) : AccessorWithoutContext();
-        var behavior = CreateBehavior<PolicyARequest>(pdp, mode, accessor: accessor, attributeProvider: attributeProvider);
+        var behavior = CreateBehavior<PolicyARequest>(pdp, mode, attributeProvider: attributeProvider);
 
         // Act
-        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest(), context: AnonymousContext());
 
         // Assert
-        Code(result).ShouldBe(ABACErrors.MissingContextCode);
-        nextCalled.ShouldBeFalse("a missing security context is not a definite verdict, so Warn mode denies too");
+        Code(result).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+        result.IfLeft(error => error.GetDetails()["gate"].ShouldBe("abac"));
+        nextCalled.ShouldBeFalse("an unauthenticated caller is not a definite verdict, so Warn mode denies too");
         await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
         await attributeProvider.DidNotReceiveWithAnyArgs().GetResourceAttributesAsync<PolicyARequest>(default!, default);
         await attributeProvider.DidNotReceiveWithAnyArgs().GetEnvironmentAttributesAsync(default);
@@ -858,19 +830,21 @@ public sealed class ABACPipelineBehaviorTests
     [Theory]
     [InlineData(ABACEnforcementMode.Block)]
     [InlineData(ABACEnforcementMode.Warn)]
-    public async Task Handle_UnauthenticatedContextWithUserId_DeniesWithMissingContext(ABACEnforcementMode mode)
+    public async Task Handle_UnauthenticatedPrincipalWithSubjectClaim_IsAnonymousAndDenied(ABACEnforcementMode mode)
     {
-        // Arrange: a user id claim without an authenticated identity must not be evaluated as that user.
+        // Arrange: a substituted context whose identity is anonymous (an unauthenticated principal
+        // with a subject claim maps to Anonymous) must not be evaluated as that user.
         var pdp = Pdp(("policy-a", Effect.Permit));
         var attributeProvider = Substitute.For<IAttributeProvider>();
-        var behavior = CreateBehavior<PolicyARequest>(
-            pdp, mode, accessor: AccessorFor("u1", isAuthenticated: false), attributeProvider: attributeProvider);
+        var behavior = CreateBehavior<PolicyARequest>(pdp, mode, attributeProvider: attributeProvider);
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(RequestIdentity.Anonymous);
 
         // Act
-        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest(), context: context);
 
         // Assert
-        Code(result).ShouldBe(ABACErrors.MissingContextCode);
+        Code(result).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
         nextCalled.ShouldBeFalse();
         await attributeProvider.DidNotReceiveWithAnyArgs().GetSubjectAttributesAsync(default!, default);
         await pdp.DidNotReceiveWithAnyArgs().EvaluatePolicyAsync(default!, default!, default);
@@ -879,27 +853,27 @@ public sealed class ABACPipelineBehaviorTests
     [Theory]
     [InlineData(ABACEnforcementMode.Block)]
     [InlineData(ABACEnforcementMode.Warn)]
-    public async Task Handle_NoSecurityContext_LogsTheCodeAndNeverTheWarnModeBypass(ABACEnforcementMode mode)
+    public async Task Handle_AnonymousCaller_LogsTheCodeAndNeverTheWarnModeBypass(ABACEnforcementMode mode)
     {
         var logger = new FakeLogger<ABACPipelineBehavior<PolicyARequest, string>>();
-        var behavior = CreateBehavior<PolicyARequest>(
-            Pdp(("policy-a", Effect.Permit)), mode, logger: logger, accessor: AccessorWithoutContext());
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Permit)), mode, logger: logger);
 
-        await SendAsync(behavior, new PolicyARequest());
+        await SendAsync(behavior, new PolicyARequest(), context: AnonymousContext());
 
         var records = logger.Collector.GetSnapshot();
-        records.ShouldContain(r => r.Id.Id == 9091 && r.Message.Contains(ABACErrors.MissingContextCode, StringComparison.Ordinal));
-        records.ShouldNotContain(r => r.Id.Id == 9004, "Warn mode must not let a missing context through");
+        records.ShouldContain(r => r.Id.Id == 9091
+            && r.Message.Contains(EncinaErrorCodes.AuthorizationUnauthenticated, StringComparison.Ordinal));
+        records.ShouldNotContain(r => r.Id.Id == 9004, "Warn mode must not let an unauthenticated caller through");
     }
 
     [Fact]
-    public async Task Handle_NoSecurityContext_ErrorCarriesNoUserIdentifier()
+    public async Task Handle_AnonymousCaller_ErrorCarriesNoUserIdentifier()
     {
-        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Permit)), accessor: AccessorFor("   "));
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Permit)));
 
-        var (result, _) = await SendAsync(behavior, new PolicyARequest());
+        var (result, _) = await SendAsync(behavior, new PolicyARequest(), context: AnonymousContext());
 
-        Code(result).ShouldBe(ABACErrors.MissingContextCode);
+        Code(result).ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
         result.IfLeft(error =>
         {
             error.GetDetails().ShouldNotContainKey("userId");
@@ -910,15 +884,15 @@ public sealed class ABACPipelineBehaviorTests
     [Theory]
     [InlineData(ABACEnforcementMode.Block)]
     [InlineData(ABACEnforcementMode.Warn)]
-    public async Task Handle_SecurityContextAccessorThrows_DeniesWithEvaluationFailed(ABACEnforcementMode mode)
+    public async Task Handle_ContextIdentityThrows_DeniesWithEvaluationFailed(ABACEnforcementMode mode)
     {
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns(_ => throw new InvalidOperationException("accessor failed"));
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(_ => throw new InvalidOperationException("context failed"));
         var attributeProvider = Substitute.For<IAttributeProvider>();
         var behavior = CreateBehavior<PolicyARequest>(
-            Pdp(("policy-a", Effect.Permit)), mode, accessor: accessor, attributeProvider: attributeProvider);
+            Pdp(("policy-a", Effect.Permit)), mode, attributeProvider: attributeProvider);
 
-        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest(), context: context);
 
         Code(result).ShouldBe(ABACErrors.EvaluationFailedCode);
         nextCalled.ShouldBeFalse();
@@ -926,26 +900,124 @@ public sealed class ABACPipelineBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_DisabledModeWithoutSecurityContext_StillSkipsEvaluation()
+    public async Task Handle_DisabledModeWithAnonymousCaller_StillSkipsEvaluation()
     {
-        var behavior = CreateBehavior<PolicyARequest>(
-            Pdp(), ABACEnforcementMode.Disabled, accessor: AccessorWithoutContext());
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(), ABACEnforcementMode.Disabled);
 
-        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest());
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest(), context: AnonymousContext());
 
         result.IsRight.ShouldBeTrue();
         nextCalled.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Handle_UnprotectedRequestWithoutSecurityContext_StillSkipsEvaluation()
+    public async Task Handle_UnprotectedRequestWithAnonymousCaller_StillSkipsEvaluation()
     {
-        var behavior = CreateBehavior<UnprotectedRequest>(Pdp(), accessor: AccessorWithoutContext());
+        var behavior = CreateBehavior<UnprotectedRequest>(Pdp());
 
-        var (result, nextCalled) = await SendAsync(behavior, new UnprotectedRequest());
+        var (result, nextCalled) = await SendAsync(behavior, new UnprotectedRequest(), context: AnonymousContext());
 
         result.IsRight.ShouldBeTrue();
         nextCalled.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_IdentityIsReadOnceForTheWholeEvaluation()
+    {
+        // The identity can turn anonymous between two reads when its scope ends (#1892): the PEP
+        // reads it once and derives the subject from that snapshot.
+        var context = Substitute.For<IRequestContext>();
+        context.Identity.Returns(TestIdentity.User("alice"), RequestIdentity.Anonymous);
+        var behavior = CreateBehavior<PolicyARequest>(Pdp(("policy-a", Effect.Permit)));
+
+        var (result, nextCalled) = await SendAsync(behavior, new PolicyARequest(), context: context);
+
+        result.IsRight.ShouldBeTrue();
+        nextCalled.ShouldBeTrue();
+        _ = context.Received(1).Identity;
+    }
+
+    #endregion
+
+    #region Subject attributes from the request identity (#1705 N3)
+
+    [Fact]
+    public async Task Handle_UserCaller_ProviderReceivesTheRequestIdentityAndBuiltInsAreAdded()
+    {
+        var identity = TestIdentity.User("alice");
+        var attributeProvider = ProviderCapturingSubject<PolicyARequest>(new Dictionary<string, object> { ["department"] = "HR" });
+        PolicyEvaluationContext? evaluated = null;
+        var pdp = Substitute.For<IPolicyDecisionPoint>();
+        pdp.EvaluatePolicyAsync(Arg.Any<string>(), Arg.Do<PolicyEvaluationContext>(c => evaluated = c), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, PolicyDecision>(Decision(Effect.Permit))));
+        var behavior = CreateBehavior<PolicyARequest>(pdp, attributeProvider: attributeProvider);
+
+        var (result, _) = await SendAsync(behavior, new PolicyARequest(), context: TestRequestContext.For(identity));
+
+        result.IsRight.ShouldBeTrue();
+        await attributeProvider.Received(1).GetSubjectAttributesAsync(identity, Arg.Any<CancellationToken>());
+        evaluated.ShouldNotBeNull();
+        evaluated.SubjectAttributes[ABACSubjectAttributes.SubjectId].SingleValue().Value.ShouldBe("alice");
+        evaluated.SubjectAttributes[ABACSubjectAttributes.IdentityKind].SingleValue().Value.ShouldBe("user");
+        evaluated.SubjectAttributes["department"].SingleValue().Value.ShouldBe("HR");
+    }
+
+    [Fact]
+    public async Task Handle_ServiceCaller_IsEvaluatedWithServiceSubjectAndKind()
+    {
+        var identity = TestIdentity.Service("billing-job");
+        var attributeProvider = ProviderCapturingSubject<KindConditionRequest>(new Dictionary<string, object>());
+        var behavior = CreateBehavior<KindConditionRequest>(Pdp(), attributeProvider: attributeProvider);
+
+        var (result, nextCalled) = await SendAsync(behavior, new KindConditionRequest(), context: TestRequestContext.For(identity));
+
+        result.IsRight.ShouldBeTrue("the condition reads identity-kind == service from the built-in attributes");
+        nextCalled.ShouldBeTrue();
+        await attributeProvider.Received(1).GetSubjectAttributesAsync(
+            Arg.Is<RequestIdentity>(i => i.Kind == IdentityKind.Service && i.UserId == "service:billing-job"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_UserCaller_DoesNotSatisfyAServiceOnlyCondition()
+    {
+        var behavior = CreateBehavior<KindConditionRequest>(Pdp());
+
+        var (result, nextCalled) = await SendAsync(behavior, new KindConditionRequest(), context: UserContext("alice"));
+
+        Code(result).ShouldBe(ABACErrors.ConditionNotMetCode);
+        nextCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_ProviderReturnsBuiltInNames_BuiltInsWin()
+    {
+        var attributeProvider = ProviderCapturingSubject<KindConditionRequest>(new Dictionary<string, object>
+        {
+            [ABACSubjectAttributes.SubjectId] = "forged",
+            [ABACSubjectAttributes.IdentityKind] = "service"
+        });
+        var behavior = CreateBehavior<KindConditionRequest>(Pdp(), attributeProvider: attributeProvider);
+
+        var (result, nextCalled) = await SendAsync(behavior, new KindConditionRequest(), context: UserContext("alice"));
+
+        Code(result).ShouldBe(ABACErrors.ConditionNotMetCode, "a provider cannot turn a user into a service");
+        nextCalled.ShouldBeFalse();
+    }
+
+    [RequireCondition("((System.Collections.Generic.IDictionary<string, object>)user)[\"identity-kind\"].ToString() == \"service\"")]
+    private sealed record KindConditionRequest : IRequest<string>;
+
+    private static IAttributeProvider ProviderCapturingSubject<TRequest>(IReadOnlyDictionary<string, object> subject)
+    {
+        var attributeProvider = Substitute.For<IAttributeProvider>();
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
+            .Returns(subject);
+        attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, object>());
+        attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, object>());
+        return attributeProvider;
     }
 
     #endregion
@@ -958,7 +1030,6 @@ public sealed class ABACPipelineBehaviorTests
         var act = () => new ABACPipelineBehavior<PolicyARequest, string>(
             Pdp(),
             Substitute.For<IAttributeProvider>(),
-            Substitute.For<ISecurityContextAccessor>(),
             Executor(),
             null!,
             Options.Create(new ABACOptions()),

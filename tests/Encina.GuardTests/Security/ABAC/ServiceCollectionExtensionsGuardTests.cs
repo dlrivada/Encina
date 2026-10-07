@@ -334,7 +334,7 @@ public class ServiceCollectionExtensionsGuardTests
     private sealed class CustomTestAttributeProvider : IAttributeProvider
     {
         public ValueTask<IReadOnlyDictionary<string, object>> GetSubjectAttributesAsync(
-            string userId, CancellationToken cancellationToken = default) =>
+            RequestIdentity identity, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
 
         public ValueTask<IReadOnlyDictionary<string, object>> GetResourceAttributesAsync<TRequest>(

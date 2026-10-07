@@ -25,10 +25,14 @@ namespace Encina.Security.ABAC;
 /// XACML 3.0 §7.18 — The PEP is responsible for:
 /// </para>
 /// <list type="number">
-/// <item><description>Requiring a security context with a user: without one the request is denied
-/// with <see cref="ABACErrors.MissingContextCode"/> in every enforcement mode, before any attribute
-/// is collected.</description></item>
-/// <item><description>Collecting attributes from <see cref="IAttributeProvider"/>.</description></item>
+/// <item><description>Requiring an authenticated caller: <see cref="IRequestContext.Identity"/> is read
+/// once, and an anonymous identity is denied with <see cref="EncinaErrorCodes.AuthorizationUnauthenticated"/>
+/// (<see cref="ABACErrors.UnauthenticatedCaller"/>) in every enforcement mode except
+/// <see cref="ABACEnforcementMode.Disabled"/>, before any attribute is collected. A user and a
+/// declared service identity are both evaluated; policies decide, the PEP never permits a kind by
+/// itself.</description></item>
+/// <item><description>Collecting attributes from <see cref="IAttributeProvider"/>, plus the built-in
+/// subject attributes of <see cref="ABACSubjectAttributes"/>.</description></item>
 /// <item><description>Sending the request to the PDP for evaluation.</description></item>
 /// <item><description>Executing obligations returned with the decision.</description></item>
 /// <item><description>Enforcing the decision (Permit, Deny, NotApplicable, Indeterminate).</description></item>
@@ -69,7 +73,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
     private readonly ABACRequirementEvaluator _requirementEvaluator;
     private readonly IAttributeProvider _attributeProvider;
-    private readonly Security.ISecurityContextAccessor _securityContextAccessor;
     private readonly ObligationExecutor _obligationExecutor;
     private readonly ABACOptions _options;
     private readonly ILogger<ABACPipelineBehavior<TRequest, TResponse>> _logger;
@@ -79,15 +82,17 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     /// </summary>
     /// <param name="pdp">The policy decision point that evaluates each policy named by <see cref="RequirePolicyAttribute"/>.</param>
     /// <param name="attributeProvider">The attribute provider for collecting subject, resource, and environment attributes.</param>
-    /// <param name="securityContextAccessor">Accessor for the current security context.</param>
     /// <param name="obligationExecutor">The executor for processing obligations and advice.</param>
     /// <param name="eelCompiler">The EEL compiler whose cached delegates evaluate <see cref="RequireConditionAttribute"/> expressions.</param>
     /// <param name="options">ABAC configuration options.</param>
     /// <param name="logger">Logger for ABAC evaluation tracing.</param>
+    /// <remarks>
+    /// The caller is read from the <see cref="IRequestContext"/> that <see cref="Handle"/> receives,
+    /// so the behavior resolves no identity service of its own.
+    /// </remarks>
     public ABACPipelineBehavior(
         IPolicyDecisionPoint pdp,
         IAttributeProvider attributeProvider,
-        Security.ISecurityContextAccessor securityContextAccessor,
         ObligationExecutor obligationExecutor,
         EELCompiler eelCompiler,
         IOptions<ABACOptions> options,
@@ -95,7 +100,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
     {
         ArgumentNullException.ThrowIfNull(pdp);
         ArgumentNullException.ThrowIfNull(attributeProvider);
-        ArgumentNullException.ThrowIfNull(securityContextAccessor);
         ArgumentNullException.ThrowIfNull(obligationExecutor);
         ArgumentNullException.ThrowIfNull(eelCompiler);
         ArgumentNullException.ThrowIfNull(options);
@@ -103,7 +107,6 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         _requirementEvaluator = new ABACRequirementEvaluator(pdp, eelCompiler, logger);
         _attributeProvider = attributeProvider;
-        _securityContextAccessor = securityContextAccessor;
         _obligationExecutor = obligationExecutor;
         _options = options.Value;
         _logger = logger;
@@ -145,15 +148,15 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
 
         try
         {
-            // ── 4. Require a security context with a user ───────────
-            var userId = ResolveUserId();
-            if (userId is null)
+            // ── 4. Require an authenticated caller (identity read once) ─
+            var caller = ResolveCaller(context);
+            if (caller is null)
             {
-                return HandleMissingContext(startTimestamp, activity);
+                return HandleUnauthenticatedCaller(startTimestamp, activity);
             }
 
             // ── 5. Collect attributes ───────────────────────────────
-            var attributes = await CollectAttributesAsync(request, userId, cancellationToken)
+            var attributes = await CollectAttributesAsync(request, caller, cancellationToken)
                 .ConfigureAwait(false);
 
             // ── 6. Evaluate the required policies and conditions ────
@@ -357,50 +360,47 @@ public sealed class ABACPipelineBehavior<TRequest, TResponse>
         return ABACErrors.Indeterminate(typeof(TRequest), reason);
     }
 
-    // ── Missing Security Context ────────────────────────────────────
+    // ── Unauthenticated Caller ──────────────────────────────────────
 
-    // The user the subject attributes are collected for, or null when there is no security
-    // context, it is not authenticated or it carries no user (no HttpContext, a background job,
-    // a misconfiguration, an identity that has a user id claim but is not authenticated).
-    private string? ResolveUserId()
-    {
-        var context = _securityContextAccessor.SecurityContext;
-        if (context is null || !context.IsAuthenticated)
-        {
-            return null;
-        }
+    // The caller the subject attributes are collected for, read once from the request context
+    // (the identity can turn anonymous between two reads once its scope ends, #1892), or null when
+    // the request has no authenticated caller (no UseEncinaContext, a job without a service
+    // identity scope, an ended scope). An authenticated identity always carries a user id.
+    private static RequestIdentity? ResolveCaller(IRequestContext context) =>
+        context.Identity is { IsAuthenticated: true } identity ? identity : null;
 
-        return string.IsNullOrWhiteSpace(context.UserId) ? null : context.UserId;
-    }
-
-    // A missing security context is not a definite policy verdict, so it denies in every
+    // An unauthenticated caller is not a definite policy verdict, so it denies in every
     // enforcement mode, before any attribute is collected: nothing is ever evaluated for an
-    // empty user (#1676; AGENTS.md "compliance and security gates fail closed").
-    private Either<EncinaError, TResponse> HandleMissingContext(long startTimestamp, Activity? activity)
+    // anonymous caller (#1676, #1705; AGENTS.md "compliance and security gates fail closed").
+    private Either<EncinaError, TResponse> HandleUnauthenticatedCaller(long startTimestamp, Activity? activity)
     {
         var requestTypeName = typeof(TRequest).Name;
 
-        RecordCompletion(startTimestamp, activity, Effect.Deny, null, ABACErrors.MissingContextCode);
+        RecordCompletion(startTimestamp, activity, Effect.Deny, null, EncinaErrorCodes.AuthorizationUnauthenticated);
 
         ABACDiagnostics.EvaluationDenied.Add(1,
             new KeyValuePair<string, object?>(ABACDiagnostics.TagRequestType, requestTypeName));
 
-        ABACLogMessages.MissingSecurityContext(_logger, requestTypeName, ABACErrors.MissingContextCode);
+        ABACLogMessages.UnauthenticatedCaller(_logger, requestTypeName, EncinaErrorCodes.AuthorizationUnauthenticated);
         ABACLogMessages.EnforcementDenied(_logger, requestTypeName);
 
-        return ABACErrors.MissingContext(typeof(TRequest));
+        return ABACErrors.UnauthenticatedCaller(typeof(TRequest));
     }
 
     // ── Attribute Collection ────────────────────────────────────────
 
     private async ValueTask<ABACCollectedAttributes> CollectAttributesAsync(
         TRequest request,
-        string userId,
+        RequestIdentity caller,
         CancellationToken cancellationToken)
     {
-        var subjectAttributes = await _attributeProvider
-            .GetSubjectAttributesAsync(userId, cancellationToken)
+        var providedSubjectAttributes = await _attributeProvider
+            .GetSubjectAttributesAsync(caller, cancellationToken)
             .ConfigureAwait(false);
+
+        // The built-in subject-id and identity-kind attributes are added last, so a provider
+        // cannot replace them (decision N3 of #1705).
+        var subjectAttributes = ABACSubjectAttributes.WithBuiltIns(providedSubjectAttributes, caller);
 
         var resourceAttributes = await _attributeProvider
             .GetResourceAttributesAsync(request, cancellationToken)

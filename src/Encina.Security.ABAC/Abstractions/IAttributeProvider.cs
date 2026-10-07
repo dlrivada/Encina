@@ -16,15 +16,27 @@ namespace Encina.Security.ABAC;
 /// <see cref="PolicyEvaluationContext"/> before sending it to the
 /// <see cref="IPolicyDecisionPoint"/> for evaluation.
 /// </para>
+/// <para>
+/// The Policy Enforcement Point calls <see cref="GetSubjectAttributesAsync"/> only for an
+/// authenticated caller (a user or a declared service identity), and always adds the built-in
+/// subject attributes <c>subject-id</c> and <c>identity-kind</c> (see
+/// <see cref="ABACPipelineBehavior{TRequest, TResponse}"/>) after the provider's own, so a provider
+/// cannot replace them. Policies select each subject attribute by its id (the dictionary key).
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// public class CustomAttributeProvider : IAttributeProvider
 /// {
 ///     public async ValueTask&lt;IReadOnlyDictionary&lt;string, object&gt;&gt; GetSubjectAttributesAsync(
-///         string userId, CancellationToken ct)
+///         RequestIdentity identity, CancellationToken ct)
 ///     {
-///         var user = await _userService.GetAsync(userId, ct);
+///         if (identity.Kind != IdentityKind.User)
+///         {
+///             return new Dictionary&lt;string, object&gt;();
+///         }
+///
+///         var user = await _userService.GetAsync(identity.UserId!, ct);
 ///         return new Dictionary&lt;string, object&gt;
 ///         {
 ///             ["department"] = user.Department,
@@ -39,11 +51,14 @@ public interface IAttributeProvider
     /// <summary>
     /// Retrieves attributes describing the subject (user or service) making the access request.
     /// </summary>
-    /// <param name="userId">The identifier of the subject.</param>
+    /// <param name="identity">
+    /// The authenticated caller of the request (<see cref="IdentityKind.User"/> or
+    /// <see cref="IdentityKind.Service"/>), read once from <see cref="IRequestContext.Identity"/>.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A dictionary of attribute names to their values.</returns>
     ValueTask<IReadOnlyDictionary<string, object>> GetSubjectAttributesAsync(
-        string userId,
+        RequestIdentity identity,
         CancellationToken cancellationToken = default);
 
     /// <summary>

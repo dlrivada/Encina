@@ -7,6 +7,7 @@ using Encina.Security.ABAC.Administration;
 using Encina.Security.ABAC.CombiningAlgorithms;
 using Encina.Security.ABAC.EEL;
 using Encina.Security.ABAC.Evaluation;
+using Encina.Testing.Identity;
 
 using LanguageExt;
 
@@ -18,9 +19,6 @@ using Microsoft.Extensions.Options;
 using Shouldly;
 
 using static LanguageExt.Prelude;
-
-using ISecurityContext = global::Encina.Security.ISecurityContext;
-using ISecurityContextAccessor = global::Encina.Security.ISecurityContextAccessor;
 
 namespace Encina.UnitTests.Security.ABAC;
 
@@ -60,7 +58,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresPolicyA(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresPolicyA(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("the required policy does not apply, so the request must be denied");
@@ -81,7 +79,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresNestedPolicy(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresNestedPolicy(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("a nested policy is not found by its own name");
@@ -101,7 +99,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresFinanceSet(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresFinanceSet(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("a disabled policy set is NotApplicable, so the request must be denied");
@@ -130,7 +128,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresFinanceSet(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresFinanceSet(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsRight.ShouldBeTrue("permit-overrides of the set permits");
@@ -152,7 +150,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresHrDepartment(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresHrDepartment(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("the required condition is false, so the request must be denied");
@@ -174,7 +172,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresPolicyA(), Substitute.For<IRequestContext>(), Next(() => nextCalled = true), CancellationToken.None);
+            new RequiresPolicyA(), Caller(), Next(() => nextCalled = true), CancellationToken.None);
 
         // Assert
         result.IsLeft.ShouldBeTrue("a store that cannot be read is an error, not a verdict");
@@ -206,7 +204,7 @@ public sealed class ABACRequirementEnforcementTests
 
         // Act
         var result = await behavior.Handle(
-            new RequiresPolicyA(), Substitute.For<IRequestContext>(), Next(() => { }), CancellationToken.None);
+            new RequiresPolicyA(), Caller(), Next(() => { }), CancellationToken.None);
 
         // Assert
         ErrorCode(result).ShouldBe(ABACErrors.IndeterminateCode);
@@ -273,23 +271,16 @@ public sealed class ABACRequirementEnforcementTests
             pdpLogger ?? NullLogger<XACMLPolicyDecisionPoint>.Instance);
 
         var attributeProvider = Substitute.For<IAttributeProvider>();
-        attributeProvider.GetSubjectAttributesAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        attributeProvider.GetSubjectAttributesAsync(Arg.Any<RequestIdentity>(), Arg.Any<CancellationToken>())
             .Returns(subjectAttributes);
         attributeProvider.GetResourceAttributesAsync(Arg.Any<TRequest>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
         attributeProvider.GetEnvironmentAttributesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, object>());
 
-        var securityContext = Substitute.For<ISecurityContext>();
-        securityContext.UserId.Returns("user-1");
-        securityContext.IsAuthenticated.Returns(true);
-        var accessor = Substitute.For<ISecurityContextAccessor>();
-        accessor.SecurityContext.Returns(securityContext);
-
         return new ABACPipelineBehavior<TRequest, string>(
             pdp,
             attributeProvider,
-            accessor,
             new ObligationExecutor(handlers ?? [], NullLogger<ObligationExecutor>.Instance),
             Compiler,
             Options.Create(new ABACOptions { EnforcementMode = mode }),
@@ -306,6 +297,9 @@ public sealed class ABACRequirementEnforcementTests
             .Returns(Left<EncinaError, IReadOnlyList<Policy>>(EncinaErrors.Create("store.down", errorMessage)));
         return pap;
     }
+
+    /// <summary>The request context of an authenticated user, as the PEP receives it.</summary>
+    private static IRequestContext Caller() => TestRequestContext.For(TestIdentity.User("user-1"));
 
     private static RequestHandlerCallback<string> Next(Action onCalled) => () =>
     {

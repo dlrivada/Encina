@@ -124,7 +124,7 @@ Fixed in PR #1650 (open, merges before implementation starts) and outside this p
 | Same, Warn mode | DeniedNotEnforced | Success (`abac.enforced=false`) | NotEnforced | `abac.condition_not_met` | yes |
 | Indeterminate (policy lookup or evaluation failed, condition could not be compiled or evaluated), **every** enforcement mode | Denied | Error | always | `abac.indeterminate` | no |
 | Exception during attribute collection or evaluation (`Handle` catch) | Denied | Error | always | `abac.evaluation_failed` | no |
-| Missing security context (denial added by #1676, `ABACErrors.MissingContext`); the subject is unknown, so the stored subject is none: `UserId` is `null` and only the reason code is stored | Denied | Denied | always | `abac.missing_context` | no |
+| Unauthenticated caller (denial added by #1676, moved to the request identity by #1705 Phase 4: `ABACErrors.UnauthenticatedCaller`); the subject is unknown, so the stored subject is none: `UserId` is `null` and only the reason code is stored | Denied | Denied | always | `encina.authorization.unauthenticated` | no |
 | Cancellation (`OperationCanceledException` while the caller's token is cancelled; `Handle` rethrows) | n/a | n/a (nothing recorded) | n/a | none: cancellation propagates | no |
 | Audit write failed under FailClosed, request would proceed | Denied | not recorded (the write failed) | n/a | `abac.decision_audit_failed` | no |
 
@@ -191,7 +191,7 @@ Fixed in PR #1650 (open, merges before implementation starts) and outside this p
 
 - Options: `Enabled` (false), `Outcomes` (`[Flags]` Granted, Denied, NotEnforced; All), `FailureMode` (FailClosed), `IncludeEvaluationTrace` (true), `MaxTraceEntries` (64), `ResourceIdAttributeName` ("resourceId"), `RecordedAttributeValues` (empty), `WriteTimeout` (5 s). `options.AuditDecisions(o => ...)` is the issue's `AuditAbacDecisions = true` (maintainer-accepted: `DecisionAudit.Enabled` with the `AuditDecisions(...)` shortcut; attribute names only, values only through `RecordedAttributeValues`).
 - Gating uses the **resolved** `IOptions<ABACOptions>` at runtime, never the throw-away options instance built by invoking only the configure lambda (`ServiceCollectionExtensions.cs:114-115`), which cannot see `Enabled` bound from `IConfiguration` or set by a later `Configure<ABACOptions>`. Registration therefore cannot depend on `Enabled`, and **nothing registered by `AddEncinaABAC` has a constructor dependency on `IAuditStore`** (ABAC never registers that store, the application or a provider package does): the recorder (singleton) resolves the store per write in its own scope; the reader (scoped) takes `IServiceProvider` and resolves `IAuditStore` lazily inside `QueryAsync`/`ExportAsync`, returning `Left(ABACErrors.DecisionAuditStoreUnavailable)` (`abac.decision_audit_store_unavailable`, fixed message) when none is registered; the startup check resolves it only when `Enabled`. The recorder, reader, `TimeProvider`, options validator and startup check are always registered and cost nothing when audit is off, and an ABAC app with audit disabled and no `IAuditStore` passes `ValidateOnBuild` and `ValidateScopes`. The PEP checks `options.DecisionAudit.Enabled` per request (the per-request gate for the recorder stays). Registering conditionally was rejected: it needs the unresolved options, the very thing this design avoids.
-- `ABACOptionsValidator` (uses `IServiceProviderIsService`) fails when audit is enabled and: no `IAuditStore` registered with the default recorder, `EnforcementMode` is `Disabled` (the PEP never calls the PDP, `ABACPipelineBehavior.cs:112-115` (main before PR #1650; `:114-120` at `7c092bf2`)), `ISecurityContextAccessor` is not registered (registered by `Encina.Security`, not by ABAC), or timeout/trace bounds are invalid.
+- `ABACOptionsValidator` (uses `IServiceProviderIsService`) fails when audit is enabled and: no `IAuditStore` registered with the default recorder, `EnforcementMode` is `Disabled` (the PEP never calls the PDP, `ABACPipelineBehavior.cs:112-115` (main before PR #1650; `:114-120` at `7c092bf2`)), or timeout/trace bounds are invalid. (Since #1705 Phase 4 the PEP reads the caller from `IRequestContext.Identity` and `AddEncinaABAC` registers the request identity model itself, so there is no identity service to validate.)
 - A one-time Warning per request type when `Disabled` is configured without audit is the logged opt-out required by AGENTS.md section 3.
 - When `Enabled` is false nothing is built per request: no record, no time read, no trace flag, no recorder call, and no `IAuditStore` is resolved (pay-for-what-you-use). Only the idle singleton recorder, the lazily-resolving reader, the validator and the no-op startup check exist in the container.
 - Added option: `AllowCrossTenantQueries` (false), the logged opt-out of the reader tenant gate, meant only for operator tooling in a multi-tenant application (Design 7). Single-tenant applications need no configuration. **How the reader learns that multi-tenancy is enabled (decided here)**: ABAC cannot name Tenancy types (`Encina.Security.ABAC.csproj` references only `Encina.Caching`, `Encina.Security` and `Encina.Security.Audit`, none of which references `Encina.Tenancy`, so ABAC cannot name any Tenancy type), and the only tenant concept in core is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:98`). So: (1) core `Encina` defines a public marker type (name decided at implementation, for example `MultiTenancyMarker`); (2) `Encina.Tenancy`'s registration (`AddEncinaTenancy`) adds it to the container; (3) the reader checks it with `IServiceProviderIsService`. Resolution order in the reader: an ambient tenant (`IRequestContext.TenantId` through `IRequestContextAccessor`) is **always** forced when present; when none is present the reader denies with `tenant_required` if the marker is registered (multi-tenancy enabled), and queries without a tenant filter if it is not (single-tenant application); `AllowCrossTenantQueries` stays the logged opt-out for operator tooling. This fails closed: a multi-tenant application cannot forget an option, because the Tenancy registration sets the signal.
@@ -214,7 +214,7 @@ Fixed in PR #1650 (open, merges before implementation starts) and outside this p
 ### Rationale
 
 - The PEP already passes the real `request` to `GetResourceAttributesAsync` (fixed by #1634, PR #1650).
-- `CorrelationId` and `TenantId` come from `IRequestContext`, `ModuleId` from `context.GetModuleName()`, subject from `ISecurityContextAccessor`; a null context denies with `ABACErrors.MissingContext` (#1676 adds that denial; this plan records the resulting row).
+- `CorrelationId` and `TenantId` come from `IRequestContext`, `ModuleId` from `context.GetModuleName()`, the subject from `context.Identity` (read once; `UserId` and the `IdentityKind`, which the decision row can record); an anonymous identity denies with `ABACErrors.UnauthenticatedCaller` (code `encina.authorization.unauthenticated`, detail `gate=abac`; #1676 added the denial, #1705 Phase 4 moved it to the request identity; this plan records the resulting row).
 - `EntityType` decision: ABAC rows keep `EntityType` = full request type **name** (the XACML action), because the query "by action" must be a server-side filter. `AuditPipelineBehavior` rows take `EntityType` from `RequestMetadataExtractor.ExtractFromTypeName` (verb and suffix stripped: `CreateOrderCommand` gives `Order`; `DefaultAuditEntryFactory.cs:92-94`). The two row kinds therefore join by `CorrelationId` only, not by `EntityType`; `EntityId` is aligned through `AuditRequestConventions`. No "rows line up on EntityType" claim is made anywhere in this plan.
 - Documentation names the `Id`-suffix fallback weakness; `[Auditable]` overrides it.
 
@@ -319,8 +319,8 @@ REFERENCE FILES: src/Encina.Security.ABAC/Model/PolicyDecision.cs, Model/PolicyE
 <details>
 <summary>Tasks</summary>
 
-1. `ABACPipelineBehavior.cs`: the constructor **already takes** `IOptions<ABACOptions>` (verified on the #1634 branch: pdp, attributeProvider, securityContextAccessor, obligationExecutor, eelCompiler, options, logger; re-check after #1650 merges); it gains only `IABACDecisionRecorder decisionRecorder` and `TimeProvider timeProvider` (the request context comes from the `IRequestContext` argument of `Handle`, no constructor change); both new dependencies are always registered (Phase 4). The existing `options` is read per request for `DecisionAudit.Enabled` (Design 5). Split `Handle` into `DecideAsync` (internal `ABACEnforcementVerdict`), `RecordAsync` (applies `Outcomes` filter and `FailureMode`), and enforcement; `nextStep()` only in the last step, outside any try/catch.
-2. Missing security context: the denial and its log event come from #1676 (merged before this phase); this task makes that path pass through record + enforcement and map to the `abac.missing_context` row.
+1. `ABACPipelineBehavior.cs`: the constructor **already takes** `IOptions<ABACOptions>` (after #1705 Phase 4: pdp, attributeProvider, obligationExecutor, eelCompiler, options, logger; no security-context accessor, the caller comes from `context.Identity`); it gains only `IABACDecisionRecorder decisionRecorder` and `TimeProvider timeProvider` (the request context comes from the `IRequestContext` argument of `Handle`, no constructor change); both new dependencies are always registered (Phase 4). The existing `options` is read per request for `DecisionAudit.Enabled` (Design 5). Split `Handle` into `DecideAsync` (internal `ABACEnforcementVerdict`), `RecordAsync` (applies `Outcomes` filter and `FailureMode`), and enforcement; `nextStep()` only in the last step, outside any try/catch.
+2. Unauthenticated caller: the denial (`ABACErrors.UnauthenticatedCaller`, code `encina.authorization.unauthenticated`) and its log event (9091 `UnauthenticatedCaller`) come from #1676 and #1705 Phase 4 (merged before this phase); this task makes that path pass through record + enforcement and map to the unauthenticated-caller row.
 3. Attribute collection: capture attribute names before `ToBag`; read `IABACResourceIdentity`, then `ResourceIdAttributeName`, then `AuditRequestConventions`; take `CorrelationId`/`TenantId` from `IRequestContext`. (Passing `request` to `GetResourceAttributesAsync` is already done by #1634.)
 4. Logs: every new event of this plan logs codes and exception types only (exceptions through `ForLogging()`), with a unit test that a throwing store and a throwing recorder put no exception or error message text in captured log output, activity status or the returned error. Rewriting the existing message sinks of the PEP and PDP is #1591 and #1685, not this task.
 5. Warn mode: record `Outcome = Success` plus `abac.enforced=false` for definite verdicts only (Deny, `abac.policy_not_found`, `abac.condition_not_met`); Indeterminate, exceptions, missing context and failed mandatory obligations stay Denied in every mode (see the decision-path table and the note on PR #1650 head `7c092bf2`).
@@ -379,7 +379,7 @@ REFERENCE FILES: src/Encina.Security.Audit/AuditEntry.cs, AuditQuery.cs, Encina.
 <summary>Tasks</summary>
 
 1. `ABACOptions.cs`: `DecisionAudit`, `AuditDecisions(Action<ABACDecisionAuditOptions>?)`; `ABACDecisionAuditOptions`, `ABACDecisionAuditOutcomes`, `ABACDecisionAuditFailureMode`.
-2. `ServiceCollectionExtensions.cs`: Always registered (the PEP requires them for every closed request type, and the gate is evaluated per request from the resolved `IOptions<ABACOptions>`, not from the temporary options instance at `:114-115`). Nothing registered here depends on `IAuditStore` at construction (Design 5): `TryAddSingleton(TimeProvider.System)`; `TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>` (resolves the store per write); scoped `IABACDecisionAuditReader` (takes `IServiceProvider`, resolves `IAuditStore` inside each call, `Left(DecisionAuditStoreUnavailable)` when missing); `TryAddEnumerable<IValidateOptions<ABACOptions>, ABACOptionsValidator>` + `AddOptions<ABACOptions>().ValidateOnStart()`. The startup check (task 4) is added as a hosted service always and no-ops when `DecisionAudit.Enabled` is false. The registration of the PEP and of `Encina.Security` behaviors is the one #1635 leaves (this plan only adds the small order marker to `AddEncinaSecurity`, task 5, not a change to its behavior registration); if #1635 has not merged when this phase starts, stop and report.
+2. `ServiceCollectionExtensions.cs`: Always registered (the PEP requires them for every closed request type, and the gate is evaluated per request from the resolved `IOptions<ABACOptions>`, not from the temporary options instance at `:114-115`). Nothing registered here depends on `IAuditStore` at construction (Design 5): `TryAddSingleton(TimeProvider.System)`; `TryAddSingleton<IABACDecisionRecorder, AuditStoreABACDecisionRecorder>` (resolves the store per write); scoped `IABACDecisionAuditReader` (takes `IServiceProvider`, resolves `IAuditStore` inside each call, `Left(DecisionAuditStoreUnavailable)` when missing); `TryAddEnumerable<IValidateOptions<ABACOptions>, ABACOptionsValidator>` + `AddOptions<ABACOptions>().ValidateOnStart()`. The startup check (task 4) is added as a hosted service always and no-ops when `DecisionAudit.Enabled` is false. The registration of the PEP and of `Encina.Security` behaviors is the one #1635 left (PR #1781, merged: both use `TryAddEnumerable`; #1705 Phase 4 kept it and added `AddEncinaRequestIdentity()` and the 9085 startup check to `AddEncinaABAC`); this plan only adds the small order marker to `AddEncinaSecurity`, task 5, not a change to its behavior registration.
 3. (Task intentionally absent: the persistent-PAP fix is #1677.)
 4. `ABACDecisionAuditStartupCheck` (`IHostedService`, always registered, returns immediately when `DecisionAudit.Enabled` is false and never resolves `IAuditStore` then): when enabled, scope-resolves the operation-audit store (`IAuditStore` today); Critical 9087 and throw when missing; Warning 9086 when `InMemoryAuditStore`; Warning 9084 for `BestEffort`.
 5. Pipeline order warning (maintainer decision of 2026-10-03): the documented order is `AddEncinaSecurity` before `AddEncinaABAC`. The warning is **captured at registration time**, because a hosted service cannot enumerate `IServiceCollection`: `AddEncinaSecurity` is the only call that inspects the `IServiceCollection` (it is the call that can see an ABAC `IPipelineBehavior<,>` descriptor already registered, which is the bad order) and it registers a small order marker (a singleton recording that ABAC was registered before `Encina.Security`). Ownership: `Encina.Security` owns the order detection and the marker registration; `Encina.Security.ABAC` owns only the startup check that reads the marker and logs Warning 9090 once, and `AddEncinaABAC` does not inspect the collection. The marker type is defined where both can see it (core `Encina` or `Encina.Security`, decided at implementation; ABAC already references `Encina.Security`). The descriptor shape comes from whatever #1635 leaves. It only warns (never throws), runs regardless of `DecisionAudit.Enabled` (the order matters for enforcement too), and is covered by the DI test for both orders (the test asserts the marker and the logged 9090). The general fix is the spike #1678 (named pipeline stages).
@@ -391,7 +391,7 @@ REFERENCE FILES: src/Encina.Security.Audit/AuditEntry.cs, AuditQuery.cs, Encina.
 
 ```text
 CONTEXT: AddEncinaABAC (src/Encina.Security.ABAC/ServiceCollectionExtensions.cs:97-247) reads feature gates from a temporary options instance and registers with TryAdd.
-TASK: Add the DecisionAudit options, validator, registrations, startup check and the pipeline-order startup warning per the plan. The PAP scope/time fix (#1677) and the behavior registration collision (#1635) are separate issues, merged first. Do not register an IAuditStore from ABAC (the app or a provider package chooses it). No service registered by AddEncinaABAC may take IAuditStore in its constructor: the recorder and the reader resolve it lazily per call (reader returns Left(DecisionAuditStoreUnavailable) when missing). With DecisionAudit.Enabled false and no IAuditStore registered the container must still build under ValidateOnBuild + ValidateScopes; with Enabled true and no store the validator/startup check fails at startup, never a silent no-op.
+TASK: Add the DecisionAudit options, validator, registrations, startup check and the pipeline-order startup warning per the plan. The PAP scope/time fix (#1677), the behavior registration collision (#1635, PR #1781) and the PEP on the request identity (#1705 Phase 4, which also allocated 9085 in ABACLogMessages.EnforcementDisabled: reuse that method) are merged. Do not register an IAuditStore from ABAC (the app or a provider package chooses it). No service registered by AddEncinaABAC may take IAuditStore in its constructor: the recorder and the reader resolve it lazily per call (reader returns Left(DecisionAuditStoreUnavailable) when missing). With DecisionAudit.Enabled false and no IAuditStore registered the container must still build under ValidateOnBuild + ValidateScopes; with Enabled true and no store the validator/startup check fails at startup, never a silent no-op.
 ORDER WARNING MECHANISM: only AddEncinaSecurity inspects the IServiceCollection at call time (is an ABAC behavior descriptor already present? that is the bad order) and registers the order marker; AddEncinaABAC does not inspect the collection; a startup check in Encina.Security.ABAC reads the marker and logs 9090.
 KEY RULES: AGENTS.md section 3 registration completeness and ValidateOnBuild + ValidateScopes DI test (both registration orders of AddEncinaSecurity and AddEncinaABAC, audit enabled with a scoped IAuditStore, audit disabled WITH and WITHOUT any IAuditStore, enabled without a store fails, and a CLOSED IPipelineBehavior<TRequest,TResponse> resolved from a scope because ValidateOnBuild skips open generics; follow tests/Encina.UnitTests/Core/AddEncinaServiceGraphTests.cs); the recorder, TimeProvider and options validator are always registered, the feature gate is the resolved IOptions<ABACOptions>, never the temporary options instance; the order warning (EventId 9090) is asserted for ABAC registered before Encina.Security.
 REFERENCE FILES: ServiceCollectionExtensions.cs, ABACOptions.cs, PolicyCachingOptions.cs, EELExpressionPrecompilationService.cs, the DI test added by #1634 (ABACRegistrationTests).
@@ -546,7 +546,7 @@ REFERENCE FILES: changelog.d/README.md, AGENTS.md sections 8 and 11, docs/plans/
 | `ABACDiagnostics`, `ABACLogMessages`, `ABACHealthCheck` | `src/Encina.Security.ABAC/Diagnostics`, `Health` | Observability |
 | `NIS2CompliancePipelineBehavior` (audit part) | `src/Encina.Compliance.NIS2/` | Precedent for a decision record |
 | `PersistentPolicyAdministrationPoint` audit | `src/Encina.Security.ABAC/Administration/` | Existing PAP audit of policy changes; its defects are #1677 |
-| `IRequestContext`, `ISecurityContextAccessor`, `IModuleExecutionContext` | core, `Encina.Security` | Subject, tenant, module |
+| `IRequestContext` (`Identity`: subject and `IdentityKind`, since #1705), `IModuleExecutionContext` | core | Subject, tenant, module |
 | `RequestMetadataExtractor` | `src/Encina.Security.Audit/` | Becomes `AuditRequestConventions` |
 
 ### Event ID allocation
@@ -561,7 +561,7 @@ Range `SecurityABAC = (9000, 9099)` (`src/Encina/Diagnostics/EventIdRanges.cs:34
 | 9082 | Error | Audit of an already denied request failed |
 | 9083 | Error | Recorder threw (redacted exception) |
 | 9084 | Warning | BestEffort configured (startup) |
-| 9085 | Warning | Enforcement Disabled (once per request type) |
+| 9085 | Warning | Enforcement Disabled (once per request type); the method `ABACLogMessages.EnforcementDisabled` exists since #1705 Phase 4, which logs it once at startup; this plan adds the per-request-type call |
 | 9086 | Warning | Non-durable `InMemoryAuditStore` |
 | 9087 | Critical | Operation-audit store (`IAuditStore` today) not registered |
 | 9088 | Debug | Trace truncated at `MaxTraceEntries` |
@@ -618,6 +618,18 @@ Caching (8), transports, locks, validation providers, cloud: not applicable. The
 | Property | 15 | FsCheck invariants above |
 | Integration | provider round trips | 10 database providers + Marten, shared collections |
 | Load / Benchmark | implement (concurrent hot path) | Load: concurrent decisions; benchmark audit off/on (#924) |
+
+### What PR #1650 (#1634) changed in the PEP
+
+Read from `origin/fix/abac-require-policy-1634` at head `7c092bf2` (open PR, round 2) on 2026-10-03; re-check when it merges. The plan is written against this shape:
+
+- `[RequirePolicy]` evaluates only top-level policy sets and standalone policies by id through `IPolicyDecisionPoint.EvaluatePolicyAsync`, with AND/OR groups (`ABACRequirementEvaluator`, `ABACRequirementCombiner`); an unknown id is `abac.policy_not_found`.
+- `[RequireCondition]` is evaluated per request through the EEL compiler; a false condition is `abac.condition_not_met`.
+- `ABACOptions.DefaultNotApplicableEffect` and `ABACOptions.FailOnMissingObligationHandler` are removed at `7c092bf2`, so the NotApplicable-default rows of the earlier decision-path table are gone.
+- Indeterminate denies in every enforcement mode at `7c092bf2` (Warn relaxes only definite verdicts, including `abac.policy_not_found`); see the note under the decision-path table.
+- `ObligationExecutor` catches handler exceptions (`abac.obligation_handler_exception`); the PEP overrides a Permit to Deny when a mandatory obligation fails.
+- EventIds 9072-9078 are used; this plan's block moves to 9079-9090.
+- Resource attributes receive the request (the old `default!` is fixed).
 
 ---
 
@@ -698,7 +710,9 @@ Deferred items and adjacent issues, all opened (#1633-#1640, #1642, #1674, #1676
 
 ---
 
-## Risks
+## Prerequisites & Dependencies
+
+### Risks
 
 - **Availability and latency**: every protected request waits for one insert; with `FailClosed` an audit-store outage denies requests that would proceed. Mitigations: opt-in, `Outcomes` filter (for example Denied only), `WriteTimeout`, health check, benchmark under #924.
 - **Hard dependency on the Phase 0 bug and its sequence**: only EF Core and Marten register the operation-audit store today. Phase 0 (#1633) is a hard prerequisite that merges first, and #1633 itself waits for the audit-stores spike #1674, so the sequence is #1674 -> #1633 -> #751 and the integration tests on all 10 providers run in this PR. Risk: a delay in #1674 delays #751; the final store names (possible rename of `IAuditStore`, deletion of `IAnonymizationAuditStore`) must be applied to this plan's code and docs when #1633 merges.
@@ -717,17 +731,12 @@ Deferred items and adjacent issues, all opened (#1633-#1640, #1642, #1674, #1676
 
 ---
 
-## What PR #1650 (#1634) changed in the PEP
+## Next Steps
 
-Read from `origin/fix/abac-require-policy-1634` at head `7c092bf2` (open PR, round 2) on 2026-10-03; re-check when it merges. The plan is written against this shape:
-
-- `[RequirePolicy]` evaluates only top-level policy sets and standalone policies by id through `IPolicyDecisionPoint.EvaluatePolicyAsync`, with AND/OR groups (`ABACRequirementEvaluator`, `ABACRequirementCombiner`); an unknown id is `abac.policy_not_found`.
-- `[RequireCondition]` is evaluated per request through the EEL compiler; a false condition is `abac.condition_not_met`.
-- `ABACOptions.DefaultNotApplicableEffect` and `ABACOptions.FailOnMissingObligationHandler` are removed at `7c092bf2`, so the NotApplicable-default rows of the earlier decision-path table are gone.
-- Indeterminate denies in every enforcement mode at `7c092bf2` (Warn relaxes only definite verdicts, including `abac.policy_not_found`); see the note under the decision-path table.
-- `ObligationExecutor` catches handler exceptions (`abac.obligation_handler_exception`); the PEP overrides a Permit to Deny when a mandatory obligation fails.
-- EventIds 9072-9078 are used; this plan's block moves to 9079-9090.
-- Resource attributes receive the request (the old `default!` is fixed).
+1. Merge order: #1674 (spike) -> #1633 (Phase 0) -> #751, with the hard prerequisites #1634 (PR #1650), #1676, #1635 (PR #1781, which also covers the ABAC and Security subset) and #1705 Phase 4 (the PEP on `context.Identity`, 9085 allocated) merged before Phase 2 starts. #1677, #1591, #1685 and #1686 are related and not prerequisites.
+2. Done: the Phase 0 `[BUG]` (#1633), the deferred issues (#1634-#1640, #1642) and the issues of the maintainer's answers (#1674, #1676-#1678) are opened; the orchestrator links this plan from #751.
+3. When #1650 merges: confirm it still matches head `7c092bf2` (Indeterminate denies in every mode; `FailOnMissingObligationHandler` and `DefaultNotApplicableEffect` removed; `abac.policy_not_found` a definite denial) and re-read the PEP, `ABACLogMessages` and the DI tests this plan extends.
+4. Implement Phases 1-8 in one worktree, with `adversarial-reviewer` self-review and the local CRAP gate table before opening the PR.
 
 ---
 
@@ -745,12 +754,3 @@ The ten open questions of the first version of this plan were answered on 2026-1
 8. **Plan prompt typo** (`implementation-plan-prompt.md:113`, "section g)" should be f)): fixed in a separate docs PR; nothing to change in this plan.
 9. **Reader tenant gate** (changed from the plan): the reader always forces the ambient tenant; it denies with `tenant_required` only when multi-tenancy is enabled (core marker added by `Encina.Tenancy`) and no tenant is resolved; single-tenant applications query without configuration; `AllowCrossTenantQueries` stays only for operator tooling in multi-tenant applications. Applied: Design 5, Design 7, Phase 3 task 4, Phase 5 task 1, Phase 7 tests, cross-cutting matrix, Risks, file counts and public API.
 10. **Pipeline position**: document `AddEncinaSecurity` before `AddEncinaABAC` and add a startup warning (EventId 9090, Phase 4 task 5) when the opposite order is detected; the general fix is the spike #1678 (named pipeline stages). Applied: Design 3, Phase 4, Phase 7 DI test.
-
----
-
-## Next Steps
-
-1. Merge order: #1674 (spike) -> #1633 (Phase 0) -> #751, with the hard prerequisites #1634 (PR #1650), #1676 and #1635 merged before Phase 2 starts. #1677, #1591, #1685 and #1686 are related and not prerequisites.
-2. Done: the Phase 0 `[BUG]` (#1633), the deferred issues (#1634-#1640, #1642) and the issues of the maintainer's answers (#1674, #1676-#1678) are opened; the orchestrator links this plan from #751.
-3. When #1650 merges: confirm it still matches head `7c092bf2` (Indeterminate denies in every mode; `FailOnMissingObligationHandler` and `DefaultNotApplicableEffect` removed; `abac.policy_not_found` a definite denial) and re-read the PEP, `ABACLogMessages` and the DI tests this plan extends.
-4. Implement Phases 1-8 in one worktree, with `adversarial-reviewer` self-review and the local CRAP gate table before opening the PR.

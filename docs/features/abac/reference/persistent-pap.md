@@ -190,7 +190,7 @@ Constructor (`AddEncinaABAC` wires every argument):
 |-----------|------|---------|---------|
 | `scopeFactory` | `IServiceScopeFactory` | required | Opens one DI scope per operation; resolves `IPolicyStore` from it and, for a mutation, `IOperationAuditStore` from a separate scope (see [Lifetimes](#lifetimes)) |
 | `logger` | `ILogger<PersistentPolicyAdministrationPoint>` | required | Structured logging |
-| `requestContextAccessor` | `IRequestContextAccessor?` | `null` | Resolves the principal of each change |
+| `requestContextAccessor` | `IRequestContextAccessor` | required | Resolves the actor, `UserId`, `TenantId` and `CorrelationId` of each change from the ambient `IRequestContext` (the registration uses `GetRequiredService`) |
 | `timeProvider` | `TimeProvider?` | `TimeProvider.System` | Every timestamp and the audit write timeout |
 | `storeResolver` | `Func<IServiceProvider, IPolicyStore>?` | resolves the registered `IPolicyStore` | Returns the store of one operation from its scope; the registration uses it to apply the caching decorator |
 
@@ -209,9 +209,15 @@ Applies to `AddPolicySetAsync`, `UpdatePolicySetAsync`, `RemovePolicySetAsync`, 
 
 ### Principal
 
-- Each change is attributed to the principal of the ambient `IRequestContext`: `UserId`, plus `TenantId` and `CorrelationId` when present.
-- When no principal can be resolved (no accessor, no context, or an empty `UserId`), the change is refused with `abac.policy_change_principal_required` (`ABACErrors.PolicyChangePrincipalRequiredCode`). The PAP never attributes a change silently to a default actor.
-- The only exception is an internal system-actor scope that `ABACPolicySeedingHostedService` opens while it seeds `ABACOptions.SeedPolicySets` and `ABACOptions.SeedPolicies` at startup. Opening it is logged at `Information` level (EventId 9096). The audit entry then has `UserId` `"system"` and metadata `actor` = `system`; otherwise `actor` = `principal`.
+- The actor is the authenticated caller of the ambient `IRequestContext` (its `Identity`, read once): a user or a declared service identity. `UserId`, `TenantId` and `CorrelationId` come from that context; there is no generated correlation fallback.
+- An anonymous caller, or no context at all, is refused with `abac.policy_change_principal_required` (`ABACErrors.PolicyChangePrincipalRequiredCode`). The PAP never attributes a change silently to a default actor.
+- The PAP records the actor but does not authorize it: the application gates its own policy-administration path.
+- There is no system-actor scope. Startup seeding of `ABACOptions.SeedPolicySets` and `ABACOptions.SeedPolicies` by `ABACPolicySeedingHostedService` runs under the built-in service identity `service:encina.abac.policy-seeding`, which `AddEncinaABAC` declares when seeds exist. Applications cannot open or declare it: the `encina.` prefix is reserved.
+- The audit metadata `actor` is the identity kind in lowercase, `user` or `service`. Seeded entries have `UserId` `service:encina.abac.policy-seeding` and a `null` `TenantId`.
+
+### Runtime policy changes need a request context
+
+A runtime policy change (decision N8 of the [#1705 plan](../../../plans/security-context-population-implementation-plan-1705.md); resolves item 2 of #1704) needs a populated request context. In HTTP, register `app.UseEncinaContext()` after authentication. In a background job, open a declared service identity with `IRequestContextScopeFactory.RunAsServiceAsync` (declare it with `AddEncinaServiceIdentity("name")`). Without either, the change is refused with `abac.policy_change_principal_required`.
 
 ### Audit write (fail closed)
 
@@ -229,7 +235,7 @@ The first entry is a write-ahead entry: it records an authorized change that is 
 
 ### Startup seeding
 
-`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown by the PAP while applying a seed is wrapped in an `InvalidOperationException` whose message names the policy or set id and the exception type (never the exception message), with the original exception as `InnerException`. Cancellation of the `StartAsync` token still propagates as `OperationCanceledException`. The failing instance does not start; seeds applied before the failure stay persisted and the next start skips them as duplicates.
+`ABACPolicySeedingHostedService` applies every seed through the PAP, so each seed is audited. Only `abac.duplicate_policy` and `abac.duplicate_policy_set` are skipped, with a `Warning`. Any other `Left` result (audit failure or store failure) fails `StartAsync` with an `InvalidOperationException` that names the policy or set id and the error code, never `EncinaError.Message`. An exception thrown by the PAP while applying a seed is wrapped in an `InvalidOperationException` whose message names the policy or set id and the exception type (never the exception message), with the original exception as `InnerException`. If the seeding scope cannot be opened, a cancelled start throws `OperationCanceledException` and any other refusal throws `InvalidOperationException` carrying the error code only. When seeding completes, a summary (seeded and total policy sets and policies) is logged at `Information` level (EventId 9096). The failing instance does not start; seeds applied before the failure stay persisted and the next start skips them as duplicates.
 
 ### Audit entry
 
@@ -237,7 +243,7 @@ The first entry is a write-ahead entry: it records an authorized change that is 
 |-------|-------|
 | `Action` | `PolicySetCreated`, `PolicySetUpdated`, `PolicySetRemoved`, `PolicyCreated`, `PolicyUpdated`, `PolicyRemoved` |
 | `EntityType` / `EntityId` | `PolicySet` or `Policy`, and the identifier |
-| `UserId`, `TenantId`, `CorrelationId` | From the request context (`"system"` for the seeding scope) |
+| `UserId`, `TenantId`, `CorrelationId` | From the request context (`service:encina.abac.policy-seeding` and a `null` `TenantId` for seeded entries) |
 | `Outcome` / `ErrorMessage` | `Success`; or `Error` with the store error code on the second entry |
 | `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc` | From the injected `TimeProvider` |
 | `Metadata` | `source`, `actor`, `beforeState` (updates and removals), `afterState` (adds and updates), `parentPolicySetId` for a policy nested in a policy set, `writeAheadEntryId` on the `Error` entry |
@@ -343,7 +349,7 @@ All operations return `Either<EncinaError, T>`. Common errors:
 | `ABACErrors.PolicySetNotFound` | Updating/removing a non-existent policy set |
 | `ABACErrors.DuplicatePolicy` | Adding a policy with an existing ID (standalone or nested) |
 | `ABACErrors.PolicyNotFound` | Updating/removing a non-existent policy |
-| `ABACErrors.PolicyChangePrincipalRequired` | A mutation with no resolvable principal in the request context (`abac.policy_change_principal_required`) |
+| `ABACErrors.PolicyChangePrincipalRequired` | A mutation by an anonymous caller or with no request context (`abac.policy_change_principal_required`) |
 | `ABACErrors.PolicyChangeAuditFailed` | The audit write failed, threw or timed out; the change was not applied (`abac.policy_change_audit_failed`) |
 | Store infrastructure errors | Database connection failures, serialization errors |
 
