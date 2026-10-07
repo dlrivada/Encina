@@ -6,10 +6,10 @@
 > **Estimated Scope**: ~2,700-3,400 lines of production code changed or added (of which ~1,000 deleted, including the 31 repository constructor parameters in 30 files) + ~3,500-4,500 lines of tests (about 100 production files touched in total)
 > **ADR**: ADR-035 "One request identity model" (number reserved in the Reserved numbers table of `docs/architecture/adr/index.md` by the plan PR; file `docs/architecture/adr/035-one-request-identity-model.md` is written in Phase 7)
 > **Specifications**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-015 / DEC-011 (the originating actor is persisted with deferred messages and rebuilt at dispatch) and P-50 ([#1164](https://github.com/dlrivada/Encina/issues/1164)) own deferred dispatch; this plan only provides the identity API they need (Design 1, "Persisted form")
-> **Review status**: the 2026-10-04 adversarial review (63 findings) and the PR #1775 review are resolved in "Review resolution (2026-10-05)" at the end of this file. The "PR review amendments" table in the Summary is normative: where an older Design, Phase or Testing sentence conflicts with it, the amendments table wins.
-> **Phase 2 scope shape (2026-10-05)**: the design record is PR [#1849](https://github.com/dlrivada/Encina/pull/1849) (`docs/plans/request-identity-phase2-scope-shape-1705.md`, not edited after the decision). Its section 7, the maintainer decisions on #1705 (C1, Q1-Q4, the later "Decision update" winning) and both reviews of #1849 are applied here as amendment **M6 (scope shape)**; "Review log (Phase 2 scope shape)" at the end maps each finding to its change. Phase 1 (#1824, 13a1a493) is merged; the `src/` citations added or changed by this update (M6, Designs 1-3, Phases 2-3) were re-checked on `origin/main` 61d5dc3d. Older citations in the Summary, Phase 1 and Phases 4-7 describe the pre-Phase-1 code they were written against.
-> **Adversarial review of PR #1862 (2026-10-05)**: majors 1-5, minors 6-15 and the maintainer decisions D1-D4 are applied; the `src/` citations they touch were re-checked on `origin/main` ab4ec134. "Review log (PR #1862 adversarial review)" at the end maps each finding to its change.
-> **Final review of PR #1862 (2026-10-05)**: maintainer decisions E1-E3, minors 3 and 5-9 and two optional suggestions are applied; the `src/` citations they touch were re-checked on `origin/main` ab4ec134. "Review log (PR #1862 final review)" at the end maps each item to its change. Where an older sentence about the latch trigger, the SSE skip, the `RunRestoredAsync` tenant or the `InboundRequestInfo` bounds conflicts with it, the final-review log wins.
+> **Review status**: the 2026-10-04 adversarial review (63 findings) and the PR #1775 review are resolved in "Review resolution (2026-10-05)" in the [review log](reviews/security-context-population-1705-review-log.md). The "PR review amendments" table in the Summary is normative: where an older Design, Phase or Testing sentence conflicts with it, the amendments table wins.
+> **Phase 2 scope shape (2026-10-05)**: the design record is PR [#1849](https://github.com/dlrivada/Encina/pull/1849) (`docs/plans/request-identity-phase2-scope-shape-1705.md`, not edited after the decision). Its section 7, the maintainer decisions on #1705 (C1, Q1-Q4, the later "Decision update" winning) and both reviews of #1849 are applied here as amendment **M6 (scope shape)**; "Review log (Phase 2 scope shape)" in the review log file maps each finding to its change. Phase 1 (#1824, 13a1a493) is merged; the `src/` citations added or changed by this update (M6, Designs 1-3, Phases 2-3) were re-checked on `origin/main` 61d5dc3d. Older citations in the Summary, Phase 1 and Phases 4-7 describe the pre-Phase-1 code they were written against.
+> **Adversarial review of PR #1862 (2026-10-05)**: majors 1-5, minors 6-15 and the maintainer decisions D1-D4 are applied; the `src/` citations they touch were re-checked on `origin/main` ab4ec134. "Review log (PR #1862 adversarial review)" in the review log file maps each finding to its change.
+> **Final review of PR #1862 (2026-10-05)**: maintainer decisions E1-E3, minors 3 and 5-9 and two optional suggestions are applied; the `src/` citations they touch were re-checked on `origin/main` ab4ec134. "Review log (PR #1862 final review)" in the review log file maps each item to its change. Where an older sentence about the latch trigger, the SSE skip, the `RunRestoredAsync` tenant or the `InboundRequestInfo` bounds conflicts with it, the final-review log wins.
 
 ---
 
@@ -19,7 +19,7 @@ Today an application that follows the ABAC quick-start is denied on every `[Requ
 
 1. `AddEncinaABAC` does not register `ISecurityContextAccessor`, which `ABACPipelineBehavior` requires in its constructor (`src/Encina.Security.ABAC/ABACPipelineBehavior.cs:72,87-110`). `ValidateOnBuild` cannot see it (open generic), and the existing DI tests hide it with `Substitute.For<ISecurityContextAccessor>()` (`tests/Encina.UnitTests/Security/ABAC/ABACRegistrationTests.cs:27,59`).
 2. Nothing in `src/` ever assigns `ISecurityContextAccessor.SecurityContext`. The only population path is a README snippet that ignores `SecurityOptions` (`src/Encina.Security/README.md:57-65`).
-3. Since #1676 the PEP denies with `abac.missing_context` (renamed `abac.unauthenticated_caller` by this plan) when the context is missing or unauthenticated, in every enforcement mode.
+3. Since #1676 the PEP denies with `abac.missing_context` (replaced by the shared `encina.authorization.unauthenticated` by this plan) when the context is missing or unauthenticated, in every enforcement mode.
 
 Behind the symptom is a structural fault: Encina has **two ambient identity channels** with **three claim configurations**:
 
@@ -449,7 +449,7 @@ The implementation is one private `async` method: `Push` (visible to `work` and 
 - A shared internal helper `services.TryAddEncinaRequestIdentity()` in core (exposed through a public `AddEncinaRequestIdentity(Action<RequestIdentityOptions>?)`) registers: `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>`, `TryAddSingleton(TimeProvider.System)`, `AddOptions<RequestIdentityOptions>()` + validator + `ValidateOnStart`, `TryAddSingleton<IRequestIdentityFactory, ClaimsRequestIdentityFactory>`, `TryAddSingleton<IServiceIdentityCatalog, ServiceIdentityCatalog>`, `TryAddSingleton<IRequestContextScopeFactory, RequestContextScopeFactory>`, catalog options + validator, and (Phase 2, M6) the accessor-type startup validator that fails the host when the registered `IRequestContextAccessor` is not the default `RequestContextAccessor`.
 - Callers: `AddEncina`, `AddEncinaAspNetCore`, `AddEncinaABAC` (replaces its `TryAddSingleton<IRequestContextAccessor>` at `ServiceCollectionExtensions.cs:113`), `AddEncinaServiceIdentity`. An application's own registration wins in any order (TryAdd).
 - `AddEncinaSecurity` registers no accessor any more; `SecurityHealthCheck` drops its accessor check (`SecurityHealthCheck.cs:74-77`) and keeps the evaluator checks.
-- The runtime guarantee for a missing `UseEncinaContext()` is the PEP denial with `abac.unauthenticated_caller` (EventId 9091, renamed in Design 6); its log message and the error reference point to `UseEncinaContext()` after `UseAuthentication()`.
+- The runtime guarantee for a missing `UseEncinaContext()` is the PEP denial with `encina.authorization.unauthenticated` (EventId 9091, renamed in Design 6); its log message and the error reference point to `UseEncinaContext()` after `UseAuthentication()`.
 - `Encina.Security.ABAC.csproj` **keeps** its `Encina.Security` ProjectReference: `RequirePolicyAttribute.cs:57` and `RequireConditionAttribute.cs:54` derive from `SecurityAttribute`. Consequence: `SecurityPipelineBehavior` also discovers `[RequirePolicy]`/`[RequireCondition]` (`SecurityPipelineBehavior.cs:100-105`); see Design 6 for how it treats them.
 - `AddEncinaAuthorization` (AspNetCore) also registers `AuthorizationPipelineBehavior<,>` with `TryAddEnumerable` (it documented that it does and did not), proven by the same DI-test pattern.
 - **Registration order.** Documentation and READMEs state `AddEncinaSecurity` before `AddEncinaABAC` (maintainer decision of 2026-10-03 recorded in the #751 plan); because `TryAddEnumerable` keeps registration order as execution order, the DI tests of Phases 4-5 assert the resolved behavior order Security, then ABAC for that call order, and presence of both for the reverse order and with a behavior configured through `AddEncina`.
@@ -471,7 +471,7 @@ The implementation is one private `async` method: `Push` (visible to `work` and 
 ### Rationale
 
 - **Gates (deny on `!context.Identity.IsAuthenticated`)**:
-  - ABAC PEP: `abac.unauthenticated_caller` (EventId 9091) in every enforcement mode including Warn, before attribute collection.
+  - ABAC PEP: `encina.authorization.unauthenticated` with detail `gate=abac` (EventId 9091) in every enforcement mode including Warn, before attribute collection.
   - `SecurityPipelineBehavior`: **before evaluating any attribute**, if any `SecurityAttribute` other than `[AllowAnonymous]` is present (including attributes of unknown subclasses such as `[RequirePolicy]`/`[RequireCondition]`) and the identity is not authenticated, return `security.unauthenticated`. This closes the pass-through of empty `[RequireRole]`/`[RequirePermission]` (`SecurityPipelineBehavior.cs:226-229,245-248,265-268`) and unknown subclasses (`:164`) for anonymous callers. The attribute constructors also reject empty role/permission lists (`ArgumentException`). For authenticated callers the behavior keeps ignoring `SecurityAttribute` subclasses it does not own, because their owning gate enforces them (the ABAC PEP owns `[RequirePolicy]`/`[RequireCondition]`); a test with an ABAC-only request covers anonymous (denied by the Security gate pre-check) and user (passed on to the PEP). `[DenyAnonymous]` and `RequireAuthenticatedByDefault` → `security.unauthenticated`.
   - `AuthorizationPipelineBehavior`: `authorization.unauthenticated` (Design 2).
   - `PersistentPolicyAdministrationPoint`: `abac.policy_change_principal_required`.
@@ -481,7 +481,7 @@ The implementation is one private `async` method: `Push` (visible to `work` and 
 - **Explicit opt-outs (the only ones)**: a declared service identity opened through `RunAsServiceAsync` (Information log; Warning when it replaces another service identity or runs over an inbound request with `AllowOverInbound`); `RunAsPrincipalAsync`/`RunRestoredAsync` (Information); `[AllowAnonymous]` (existing `AllowAnonymousBypass` log 8003); ABAC `EnforcementMode.Disabled`, which **now logs** a one-time startup Warning (EventId 9085, #751's planned "Enforcement Disabled" id, allocated by #1705 because it lands first; emitted by the registration validator/hosted startup check), so every gate switch-off leaves a trace; not putting ABAC attributes on requests meant to run without a caller. Identity-binding paths (the scope factory's `RunInboundAsync`/`RunAsPrincipalAsync`/`RunAsServiceAsync`/`RunRestoredAsync` and the internal `RunAsBuiltInAsync` and `RunHostInboundAsync`, the latter reaching identity creation only through the factory; the setter only preserves the identity it finds, M6) and the `Encina.Testing` builders (build only, never bind) are listed in ADR-035 with how each is logged; there is no public factory, `ForUser` and `CreateAt` are internal, and the explicit-context rule logs and refuses the rest (Design 1).
 - No setting makes the default identity non-anonymous.
 - No `EncinaError.Message`, claim value, user id, token or role list reaches logs, tags or `ToString`; only codes, identity kind, service name and claim-type names.
-- **Error code renamed on the merits:** `abac.missing_context` becomes `abac.unauthenticated_caller` (the "security context" it named no longer exists; the meaning is "no authenticated caller in the request context"). `ABACErrors.MissingContext` → `UnauthenticatedCaller`, its XML docs and fixed message are rewritten around the caller, `ABACLogMessages.MissingSecurityContext` → `UnauthenticatedCaller`; docs and the #1676 knowledge record are updated (Phase 7).
+- **Error code replaced on the merits (decision N1):** `abac.missing_context` becomes the shared `EncinaErrorCodes.AuthorizationUnauthenticated` (`encina.authorization.unauthenticated`; the "security context" it named no longer exists; the meaning is "no authenticated caller in the request context"). `ABACErrors.MissingContext` → `UnauthenticatedCaller()` (the factory, which adds the detail `["gate"] = "abac"`), its XML docs and fixed message are rewritten around the caller, `ABACLogMessages.MissingSecurityContext` → `UnauthenticatedCaller`; docs and the #1676 knowledge record are updated (Phase 7).
 
 </details>
 
@@ -496,6 +496,8 @@ The implementation is one private `async` method: `Push` (visible to `work` and 
 | **B) Leave to #1635/#751** | Smaller PR | The quick-start this issue documents is fail-open whenever `AddEncina` configures a behavior or `AddEncinaSecurity` is called first |
 
 ### Chosen Option: **A**
+
+> 2026-10-07: no longer applies — done by #1635 (PR #1781); see Maintainer decisions, entry 7.
 
 ### Rationale
 
@@ -863,12 +865,12 @@ Auditing/AuditInterceptor.cs (:213, :267, :380, :498-506), Caching/QueryCacheInt
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina.Security.ABAC/ABACPipelineBehavior.cs`** — delete `_securityContextAccessor` field and constructor parameter (`:72,90`); `private static string? ResolveUserId(IRequestContext context) => context.Identity is { IsAuthenticated: true } identity ? identity.UserId : null;`; `Handle` passes `context`. Rename the missing-context path to `HandleUnauthenticatedCaller`; rewrite the XML docs and comments at `:28-30,148,360,376`.
+1. **`src/Encina.Security.ABAC/ABACPipelineBehavior.cs`** — delete `_securityContextAccessor` field and constructor parameter (`:72,90`); `private static string? ResolveUserId(IRequestContext context) => context.Identity is { IsAuthenticated: true } identity ? identity.UserId : null;`; `Handle` passes `context`; `IAttributeProvider.GetSubjectAttributesAsync` takes `RequestIdentity` instead of `string userId` and the PEP always adds the built-in attributes `subject-id` and `identity-kind` (decision N3). Rename the missing-context path to `HandleUnauthenticatedCaller`; rewrite the XML docs and comments at `:28-30,148,360,376`.
 2. **`src/Encina.Security.ABAC/ServiceCollectionExtensions.cs`** — `AddEncinaRequestIdentity()` replaces `TryAddSingleton<IRequestContextAccessor>` (`:113`); behavior registration → `TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(ABACPipelineBehavior<,>)))` (`:142`); when seeding is configured, the internal `AddBuiltInServiceIdentity("encina.abac.policy-seeding")` (idempotent); register the `Disabled`-mode startup warning with EventId 9085 (#751's planned "Enforcement Disabled" id; #1705 lands first and allocates it in `ABACLogMessages`, #751 reuses the method for its per-request-type call).
-3. **`src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs`** (line numbers after #1720, merged as 6ba311d6: `TryResolveActor` at `:627`, system branch `:630-638`, `SystemActorId` `:73`, `PolicyActor` `:91`, audit metadata `:818`) — `TryResolveActor` reads `RequestContext.Identity` (User or Service); delete the system-actor branch, `SystemActorId` and `PolicyActor.IsSystem`; audit metadata `["actor"] = identity.Kind` lowercase (`user`/`service`); update the XML docs at the old `:105-110`.
+3. **`src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs`** (line numbers after #1720, merged as 6ba311d6: `TryResolveActor` at `:627`, system branch `:630-638`, `SystemActorId` `:73`, `PolicyActor` `:91`, audit metadata `:818`) — `TryResolveActor` reads `RequestContext.Identity` (User or Service); delete the system-actor branch, `SystemActorId` and `PolicyActor.IsSystem`; audit metadata `["actor"] = identity.Kind` lowercase (`user`/`service`); update the XML docs at the old `:105-110`; `IRequestContextAccessor` becomes a required constructor parameter (registration with `GetRequiredService`) and the `Guid.NewGuid()` correlation fallback is removed (decision N4).
 4. **Delete** `src/Encina.Security.ABAC/Administration/PolicyChangeActorScope.cs` and update `docs/knowledge/issues/1677.md` in the same PR (decision at `:39-46` `current: no`, superseded by #1705; destination at `:46` and bullet at `:75` retargeted to the service identity), then run `dotnet run .github/scripts/knowledge-records.cs -- --check` (CI `knowledge-records` fails when a `done` target is missing).
-5. **`src/Encina.Security.ABAC/ABACPolicySeedingHostedService.cs`** — inject `IRequestContextScopeFactory`; seed under the internal built-in scope; a `Left` fails startup seeding with the existing seeding failure log (code only). EventId 9096 (`LogSystemActorScopeOpened`, `:65-66,172-176`) is **repurposed**, not deleted (ADR-021 forbids sparse ranges): `SeedingServiceIdentityStarted`, message "ABAC policy seeding started under service identity {ServiceName}".
-6. `ABACErrors.MissingContext` (`:54,369-377`) → `UnauthenticatedCaller` with code `abac.unauthenticated_caller`, fixed message and XML docs without "security context" or ids; `ABACLogMessages.MissingSecurityContext` (9091) → `UnauthenticatedCaller`. New EventId 9085 `ABACEnforcementDisabled` (Warning, once at startup; #751's planned id, allocated here because #1705 lands first, #751 reuses it); 9098-9099 stay free. Update the README/EventId note (`README.md:180`) and the allocation test expectations if any.
+5. **`src/Encina.Security.ABAC/ABACPolicySeedingHostedService.cs`** — inject `IRequestContextScopeFactory`; seed under the internal built-in scope; a `Left` fails startup seeding with the existing seeding failure log (code only). EventId 9096 (`LogSystemActorScopeOpened`, `:65-66,172-176`) is **repurposed**, not deleted (ADR-021 forbids sparse ranges), as the seeding summary (policy set and policy counts; decision N5), replacing both ad hoc `LogInformation` calls; core EventId 166 marks the start under the service identity.
+6. `ABACErrors.MissingContext` (`:54,369-377`) → `UnauthenticatedCaller()` with code `encina.authorization.unauthenticated` and detail `gate=abac`, fixed message and XML docs without "security context" or ids; `ABACLogMessages.MissingSecurityContext` (9091) → `UnauthenticatedCaller`. New EventId 9085 `ABACEnforcementDisabled` (Warning, once at startup; #751's planned id, allocated here because #1705 lands first, #751 reuses it); 9098-9099 stay free. Update the README/EventId note (`README.md:180`) and the allocation test expectations if any.
 7. **Keep** the `Encina.Security` ProjectReference (ABAC attributes derive from `SecurityAttribute`). No change to `Encina.Security.ABAC.csproj` except `InternalsVisibleTo` from core.
 8. `src/Encina.Security.ABAC/PublicAPI.Unshipped.txt:32` — replace the `ABACPipelineBehavior` constructor line (drops `ISecurityContextAccessor`); add the renamed/new symbols.
 9. Tests to rewrite (no `UserId.Returns`; build real contexts with `TestRequestContext.For(TestIdentity.User(...))`): **`tests/Encina.IntegrationTests/Security/ABAC/PersistentPapScopeScenario.cs`** (`:40` substitutes `ISecurityContextAccessor`; `:41-45` `UserId.Returns("scope-test-user")` on a substituted context; `:55-61` seeds through `ABACPolicySeedingHostedService` then `AddPolicyAsync`/`UpdatePolicyAsync`: register the accessor and open the actor through the scope factory instead) and its three SQL Server users (`ADO/PersistentPapAdoSqlServerRegistrationTests.cs:25`, `Dapper/PersistentPapDapperSqlServerRegistrationTests.cs:25`, `EFCore/PersistentPapEFCoreSqlServerRegistrationTests.cs:34`, `[Collection("EFCore-SqlServer")]`; the scenario is extended to assert the persisted policy and the `service` audit actor), **`UnitTests/Security/ABAC/Persistence/PersistentPolicyAdministrationPointScopeTests.cs`** (`:107-108,134,150,207`, same two patterns), `ABACRegistrationTests` (no substitute), `ABACPipelineBehaviorTests`, `ABACRequirementEnforcementTests`, `PersistentPolicyAdministrationPointFailClosedTests`, **`Persistence/PersistentPolicyAdministrationPointTests.cs`** (substitute at `:27-31`, 38 tests), **`Persistence/PersistentPolicyAdministrationPointAuditTests.cs`** (`:770-798` becomes a seeding-under-service-identity test asserting `UserId == "service:encina.abac.policy-seeding"` and `Metadata["actor"] == "service"`; a user change writes `"user"`), **`ABACPolicySeedingHostedServiceTests.cs`** (15 constructor calls take `IRequestContextScopeFactory`), guard and contract tests (`ABACPipelineBehaviorGuardTests`, `ABACPipelineBehaviorContractTests`, `PersistentPAPContractTests`). New: `PolicySeedingServiceIdentityTests`, `ABACIdentityProperties`, a registration test with `SeedPolicies` (`ValidateOnBuild`+`ValidateScopes`, then `Host.StartAsync` so `ValidateOnStart` runs, resolving the hosted service; a double `AddEncinaABAC` call; an application re-declaring the built-in name is rejected), a test that application code opening `encina.abac.policy-seeding` gets `Left`. Acceptance: `Get-ChildItem tests\Encina.UnitTests\Security\ABAC, tests\Encina.UnitTests\Security\Audit, tests\Encina.ContractTests\Security\ABAC, tests\Encina.GuardTests\Security\ABAC, tests\Encina.IntegrationTests\Security\ABAC -Recurse -Filter *.cs | Select-String -Pattern 'UserId\.Returns|ISecurityContextAccessor'` returns nothing (`Select-String` has no `-Recurse`).
@@ -885,8 +887,8 @@ and IRequestContextScopeFactory with declared service identities.
 
 TASK
 - ABACPipelineBehavior: drop ISecurityContextAccessor; ResolveUserId(IRequestContext) uses
-  `context.Identity is { IsAuthenticated: true } identity ? identity.UserId : null`; denial in every mode, code renamed abac.unauthenticated_caller.
-- Do every numbered task of the Phase 4 task list (error renamed to abac.unauthenticated_caller, EventId 9096 repurposed, 9085 Disabled
+  `context.Identity is { IsAuthenticated: true } identity ? identity.UserId : null`; denial in every mode, code encina.authorization.unauthenticated (ABACErrors.UnauthenticatedCaller(), detail gate=abac).
+- Do every numbered task of the Phase 4 task list (error code encina.authorization.unauthenticated via ABACErrors.UnauthenticatedCaller(), EventId 9096 repurposed as the seeding summary, 9085 Disabled
   warning, audit metadata actor = user|service, knowledge record 1677, PublicAPI line 32, the full test rewrite list).
 - AddEncinaABAC: AddEncinaRequestIdentity(); TryAddEnumerable for ABACPipelineBehavior<,>; declare built-in "encina.abac.policy-seeding" when seeding.
 - PersistentPolicyAdministrationPoint.TryResolveActor: any authenticated identity (User or Service); anonymous -> policy_change_principal_required.
@@ -898,7 +900,7 @@ TASK
   an unauthenticated identity. Update guard/contract tests for the new constructor.
 
 KEY RULES
-ABAC EventIds: only 9085 is new (Disabled warning, #751's id); 9096 is repurposed; 9098-9099 stay free. CRAP <= 10: keep Handle edits to one call site.
+ABAC EventIds: only 9085 is new (Disabled warning, #751's id); 9096 is repurposed as the seeding summary; 9098-9099 stay free. CRAP <= 10: keep Handle edits to one call site.
 PowerShell only; no commit/push/issues.
 
 REFERENCE FILES
@@ -996,6 +998,11 @@ Write the justification .md files (integration, load, benchmark) in the AGENTS.m
 
 KEY RULES
 Shared [Collection] fixtures only for database tests; outputs under artifacts/. PowerShell only; no commit/push/issues.
+
+REFERENCE FILES
+tests/Encina.UnitTests/AspNetCore/RequestContextPropagationTests.cs (TestServer pattern); .github/scripts/coverage-report.cs, crap-gate.cs,
+generate-coverage-manifest.cs, knowledge-records.cs, changelog-fragments.cs; .github/coverage-manifest/; docs/testing/coverage-measurement-methodology.md;
+the plan's Testing and Verification commands subsections.
 ```
 
 </details>
@@ -1015,7 +1022,7 @@ Shared [Collection] fixtures only for database tests; outputs under artifacts/. 
    move the 035 row from the Reserved table to the ADR table in `index.md`.
 3. Changelog fragments (below), written by `mechanical-fixer`; `dotnet run --file .github/scripts/changelog-fragments.cs -- --check` exits 0.
 4. `docs/plans/abac-decision-audit-implementation-plan-751.md` — edit `:194` (delete the "ISecurityContextAccessor is not registered" validator clause), `:217` (subject from `context.Identity`), `:322` (constructor list without `securityContextAccessor`), `:549` (table row), and the #1635 prerequisite statements at `:382`, `:394`, `:753` (ABAC and Security subset done by #1705); keep the order marker at `:385` consistent with `TryAddEnumerable`; note `IdentityKind` is available for the decision row.
-5. Knowledge records: `docs/knowledge/issues/1677.md` (Phase 4) and `docs/knowledge/issues/1676.md:18,65` (error renamed to `abac.unauthenticated_caller`, forward note to #1705); `dotnet run .github/scripts/knowledge-records.cs -- --check` passes.
+5. Knowledge records: `docs/knowledge/issues/1677.md` (Phase 4) and `docs/knowledge/issues/1676.md:18,65` (error replaced by `encina.authorization.unauthenticated`, forward note to #1705); `dotnet run .github/scripts/knowledge-records.cs -- --check` passes.
 6. Follow-up issue files F1, F2, F3, F5, F6 under the worktree's `artifacts/issues/` (orchestrator opens them), drafted by the local model per the worker protocol.
 7. XML docs review on every new public symbol; `docs/INVENTORY.md` updated unconditionally (`:3390`, `:5608-5617` and any entry for the new Identity folder).
 8. Acceptance sweep (same scope rule as Phase 5 task 13: `Get-ChildItem docs,src -Recurse -File | Select-String`, no `samples`, `AzureFunctions`/`AwsLambda` `UserIdClaimType` excluded until F3) for `ISecurityContext`, `SecurityContextAccessor`, `ThrowOnMissingSecurityContext`, `UserIdClaimType`, `WithUserId`, `IPrincipalResolver`, `security.missing_context`, `abac.missing_context` returns only historical release notes and plans.
@@ -1040,19 +1047,25 @@ acceptance sweep of Phase 7 task 8.
 
 KEY RULES
 English only; Diátaxis; no coverage figures by hand; no AI attribution. PowerShell only; no commit/push/issues.
+
+REFERENCE FILES
+.claude/skills/encina-docs/SKILL.md; docs/features/security-authorization.md; docs/features/abac/ (quick-start.md, reference/errors.md, reference/persistent-pap.md);
+src/Encina.Security/README.md; src/Encina.Security.ABAC/README.md; src/Encina.AspNetCore/README.md; src/Encina.AspNetCore.Blazor/README.md;
+docs/plans/abac-decision-audit-implementation-plan-751.md; docs/knowledge/issues/1676.md and 1677.md; docs/architecture/adr/index.md; docs/INVENTORY.md;
+the plan's Documentation subsection.
 ```
 
 </details>
 
 ---
 
-## Consumer changes
+### Consumer changes
 
 | Consumer | Change |
 |---|---|
-| `ABACPipelineBehavior` | Reads `context.Identity`; accessor dependency removed; error renamed `abac.unauthenticated_caller` |
+| `ABACPipelineBehavior` | Reads `context.Identity`; accessor dependency removed; error code `encina.authorization.unauthenticated` (detail `gate=abac`) |
 | `PersistentPolicyAdministrationPoint` | Actor = any authenticated identity; system-actor branch, `IsSystem`, `SystemActorId` and `PolicyChangeActorScope` deleted; audit `actor` = `user`/`service` |
-| `ABACPolicySeedingHostedService` | Runs under the built-in identity `encina.abac.policy-seeding` (internal API); log 9096 repurposed |
+| `ABACPolicySeedingHostedService` | Runs under the built-in identity `encina.abac.policy-seeding` (internal API); log 9096 repurposed as the seeding summary |
 | #751 decision audit plan | Subject from `context.Identity`; `IdentityKind` recorded; stale accessor references and #1635 prerequisites rewritten |
 | `SecurityPipelineBehavior`, `DefaultPermissionEvaluator`, `DefaultResourceOwnershipEvaluator` | Evaluate `RequestIdentity`; null-context branch deleted; anonymous pre-check; user id removed from tag and logs 8001/8002 |
 | `SecurityHealthCheck` | Accessor check removed |
@@ -1069,7 +1082,7 @@ English only; Diátaxis; no coverage figures by hand; no AI attribution. PowerSh
 
 ---
 
-## Testing
+### Testing
 
 Targets (`.github/coverage-manifest`, per flag, no project-wide percentage; AGENTS.md section 9 and the 2026-10-05 obligations rule #1762): Encina unit 70 / guard 20 / contract 15; Encina.Security unit 60 / guard 15 / contract 10; Encina.Security.ABAC unit 70 / guard 20 / contract 15 / property 15; Encina.AspNetCore unit 60 / guard 15; Encina.Security.Audit unit 70 / guard 20 / contract 15; Encina.Testing and Encina.Testing.FsCheck unit 60 / guard 15. For `Encina.AspNetCore.Blazor`, `Encina.EntityFrameworkCore`, `Encina.Compliance.DataSubjectRights`, `Encina.Compliance.Consent`, `Encina.Compliance.GDPR` and `Encina.Tenancy.AspNetCore` read the target in the package manifest before starting and treat it the same way. A line covered by one flag does not count for another.
 
@@ -1101,7 +1114,7 @@ Targets (`.github/coverage-manifest`, per flag, no project-wide percentage; AGEN
 |---|---|---|
 | Unit (core identity and catalog) | `Encina.UnitTests` | `Core/Identity/RequestIdentityTests` (invariant, cached anonymous, `ForUser` guards incl. `service:` prefix, case-insensitive sets); `Core/Identity/ClaimsRequestIdentityFactoryTests` (null/unauthenticated → anonymous, authenticated without subject → anonymous + 162, reserved subject → anonymous + 163, precedence sub > NameIdentifier > oid and custom order, `RoleClaimType` honoured, permission separator, tenant only when authenticated); `Core/Identity/RequestIdentityOptionsValidatorTests`; `Core/RequestContextIdentityTests` (`With*`, `ForNestedDispatch` keep identity, `CreateAt` timestamp); `Core/Identity/ServiceIdentityCatalogTests` + validator |
 | Unit (scope API, Phase 2) | `Encina.UnitTests` | `Core/Identity/RequestContextScopeFactoryTests` (caller restored by the frame, a `Run*Async` call not awaited leaves the caller's ambient unchanged, synchronous body restores the caller, refusal without invoking `work`, `Left` and exception pass-through after invalidation, cancelled token → `RequestCancelled` without `Push`, `unsupported_accessor`, outlived parent across flows logs 170, `Task.Run` isolation, refusal over a User and over an Inbound chain including ended holders and a set over an ended inbound chain (Q1), `AllowOverInbound` logged 174 with the declared service name, unknown name, service-over-service log, one identity per scope, correlation kept, FakeTimeProvider, FakeLogger 166-175 (172 for the host twin, 175 for the public `RunInboundAsync`), the External tenant rule (E2), the `InboundRequestInfo` bounds incl. the 255-character idempotency key, activity tag; the factory tests use FakeLogger 162-165); `Core/Identity/ScopeBoundaryTests` (a child forked inside a scope cannot change the owner's identity; no identity leaks across two `RunRestoredAsync` iterations; a stream **first enumerated after** `work` runs under the enumerating caller's context, a stream **started inside** `work` reads Anonymous after it; principal mutation after construction is not observed); `Core/Identity/ServiceIdentityDispatchTests`; `Core/Identity/IdentityRegistrationTests` (`AddEncina`, `AddEncinaServiceIdentity`, `ValidateOnBuild`+`ValidateScopes`, `ValidateOnStart` failures via `Host.StartAsync`) |
-| Unit (AspNetCore, end to end) | `Encina.UnitTests` | `AspNetCore/EncinaContextMiddlewareIdentityTests`; `AspNetCore/AspNetCoreIdentityRegistrationTests`; `AspNetCore/RequestIdentityEndToEndTests` (authenticated → handler sees Kind=User and same `UserId` in PAP/audit capture; anonymous → `abac.unauthenticated_caller`, handler not invoked; no-subject → denied + 162; custom `UserIdClaimTypes` honoured by ABAC and audit; `[DenyAnonymous]`/`[RequirePermission]` on the same identity; no leak between requests; hosted-service scenario) |
+| Unit (AspNetCore, end to end) | `Encina.UnitTests` | `AspNetCore/EncinaContextMiddlewareIdentityTests`; `AspNetCore/AspNetCoreIdentityRegistrationTests`; `AspNetCore/RequestIdentityEndToEndTests` (authenticated → handler sees Kind=User and same `UserId` in PAP/audit capture; anonymous → `encina.authorization.unauthenticated`, handler not invoked; no-subject → denied + 162; custom `UserIdClaimTypes` honoured by ABAC and audit; `[DenyAnonymous]`/`[RequirePermission]` on the same identity; no leak between requests; hosted-service scenario) |
 | Unit (Security, ABAC, Audit) | `Encina.UnitTests` | `Security/ABAC/ABACRegistrationTests` (ABAC alone, both orders with `AddEncina`); `Security/ABAC/ABACPipelineBehaviorTests`, `ABACRequirementEnforcementTests` (rebuilt on real contexts); `Security/ABAC/Persistence/PersistentPolicyAdministrationPointFailClosedTests`, `PolicySeedingServiceIdentityTests`; `Security/SecurityPipelineBehaviorTests`, `EvaluatorTests`, `ServiceCollectionExtensionsTests`, `ObservabilityTests`, `BehaviorRegistrationOrderTests`; `Security/Audit/AuditedRepositoryExcludeSystemAccessTests`; `Testing/Architecture/EncinaEventIdAllocationTests` (unchanged map, must pass) |
 | Unit (diagnostics, explicit contexts, setter, gates) | `Encina.UnitTests` | `Core/Identity/IdentityDiagnosticsTests` (`encina.identity.kind` on `Encina.Send` for anonymous, user, service); `Core/Identity/ExplicitContextConflictTests` (rewritten to the rule order of Design 1: explicit-context `Send` over an ambient user returns `Left(scope_conflict)` and logs 165; a stale explicit identity, including one wrapped in a foreign `IRequestContext`, and an issuer-less one outside an active scope of the same identity each return `scope_conflict`; an explicit context installed during dispatch reads Anonymous once its issuer ends; a different tenant under an ambient User returns `tenant_conflict`; per-token claim changes are the same identity, `amr`/`acr`/`auth_time` changes a different one); `Core/Identity/AccessorLifetimeTests` (dead-flow `Task.Run`, a child cannot end the owner's scope, parallel flows; setter contract: identity- and origin-preserving set accepted, a different identity, a downgrade, a clear, an origin change and a tenant change during dispatch throw with 165); `Core/Identity/TenantBindingTests`; `Core/Identity/RunRestoredAsyncTests`; `Core/Identity/ServiceIdentityGateTests` (Service branches of `ExcludeSystemAccess` and the `VaryByUser` bypass through a declared test service and `RunAsServiceAsync`); `Testing/Architecture` (identity minting only through `RequestContextScopeFactory`; production assemblies do not reference `Encina.Testing`); `AspNetCore/ConnectionFlowIdentityTests` (Phase 3, WebSocket TestServer, a fresh host per misordered case); `AspNetCore/ConnectionRequestPredicateTests` (Phase 3: `DefaultHttpContext` table without `IHttpWebSocketFeature`, run against the middleware and the `TenantResolutionMiddleware` copies, plus the Kestrel loopback WebSocket test); `Core/Identity/HolderFactInheritanceTests` (Phase 2: nested dispatch from a dead flow, successive sets) |
 | Unit (authorization, circuit, rewritten files) | `Encina.UnitTests` | `AspNetCore/AuthorizationIdentityTests`, `RequestIdentityCircuitHandlerTests`, `AspNetCoreIdentityRegistrationTests` (incl. `AddEncinaAuthorization` alone); existing files rewritten (named in Phases 3-5): `EncinaContextMiddlewareTests`, `EncinaAspNetCoreOptionsTests`, `AspNetCore/ServiceCollectionExtensionsTests`, `PersistentPolicyAdministrationPointTests`, `PersistentPolicyAdministrationPointAuditTests`, `ABACPolicySeedingHostedServiceTests`, `AuditedRepositoryTests`, `AuditedReadOnlyRepositoryTests`, `EncinaPropertiesTests`, `EncinaArbitrariesTests`; DSR/Consent/GDPR extractor and gate tests with Service and Anonymous identities; EF Core interceptor tests (accessor only). The end-to-end TestServer tests stay in UnitTests: they are the cheapest place for in-memory hosting and run in-process with no external service (location justified in the Integration row). |
@@ -1113,7 +1126,7 @@ Targets (`.github/coverage-manifest`, per flag, no project-wide percentage; AGEN
 
 ---
 
-## Verification commands
+### Verification commands
 
 Run from the worktree (`Set-Location` first). Every phase prompt refers to this block.
 
@@ -1146,7 +1159,7 @@ Select-String -Path (Get-ChildItem src -Recurse -Filter *.cs).FullName -Pattern 
 
 The integration test class of the Testing section runs through `dotnet run --file .github/scripts/run-integration-tests.cs` (Docker/Testcontainers).
 
-## Documentation
+### Documentation
 
 All pages follow the encina-docs skill and the 2026-10-05 visual rule (#1759): a diagram or table per concept, no walls of text; one Diátaxis quadrant per page; no hand-typed coverage. Pages that document removed API are **fully** revised, not patched by line number.
 
@@ -1155,7 +1168,7 @@ All pages follow the encina-docs skill and the 2026-10-05 visual rule (#1759): a
 - `changelog.d/1677-abac-pap-audit-fail-closed.security.md:1` ("startup seeding runs in an explicit, logged system-actor scope"): amend or state that #1705's `.changed.md` supersedes it.
 - `docs/features/abac/quick-start.md:21-50` — full registration (`AddEncina`, `AddEncinaAspNetCore`, `AddEncinaABAC`; `UseAuthentication` → `UseEncinaContext`), "Requests without a user" pointing to the how-to; remove the #1705 line.
 - `src/Encina.Security.ABAC/README.md:115,119,171` — identity from the request context; remove the #1705 sentence.
-- `docs/features/abac/reference/errors.md:35,138-153` — `abac.unauthenticated_caller` (renamed from `abac.missing_context`) resolution: `UseEncinaContext` after `UseAuthentication`; `RunAsServiceAsync` for jobs without a request; deferred messages carry the originating actor (SPEC-002, P-50); no ABAC attributes on caller-less requests; the entry-point table (SignalR/subscriptions deny until F2).
+- `docs/features/abac/reference/errors.md:35,138-153` — `encina.authorization.unauthenticated` (replaces `abac.missing_context`; ABAC adds detail `gate=abac`) resolution: `UseEncinaContext` after `UseAuthentication`; `RunAsServiceAsync` for jobs without a request; deferred messages carry the originating actor (SPEC-002, P-50); no ABAC attributes on caller-less requests; the entry-point table (SignalR/subscriptions deny until F2).
 - `docs/features/abac/xacml/architecture.md:138,149`, `docs/features/abac/advanced/advanced-topics.md:543`, `docs/features/abac/reference/persistent-pap.md` (service actors; #1704 item 2).
 - `src/Encina.Security/README.md` — replace "3. Set Security Context" and claim options; attributes evaluate `IRequestContext.Identity`.
 - `src/Encina.AspNetCore/README.md` and `src/Encina.AspNetCore.Blazor/README.md` — identity built by `UseEncinaContext` and the circuit handler, `RequestIdentityOptions` (the only customisation point; the identity factory is internal), ordering, removed options and `IPrincipalResolver`, interim SignalR behaviour; the `ServiceCollectionExtensions.cs:65` XML sample.
@@ -1164,7 +1177,7 @@ All pages follow the encina-docs skill and the 2026-10-05 visual rule (#1759): a
 - New reference: "Request identity and claim mapping" (`docs/features/request-identity.md`), with the entry-point table, the multi-identity rules and the Tenancy claim-type note.
 - `docs/plans/abac-decision-audit-implementation-plan-751.md` (see Phase 7); `docs/knowledge/issues/1676.md:18,65` and `docs/knowledge/issues/1677.md` (Phase 4).
 - ADR-035 (`docs/architecture/adr/035-one-request-identity-model.md`); `docs/architecture/adr/index.md` (the reservation row is added by the plan PR; Phase 7 moves it).
-- Changelog fragments (written by `mechanical-fixer`; `changelog-fragments.cs --check` exits 0): `changelog.d/1705-one-request-identity.security.md` (ABAC, Security and Authorization behaviors silently not registered whenever another behavior exists (#1635 subset, fail-open); anonymous substitution removed; external `service:` subjects rejected; service identities never turn compliance deny gates into allows; user id removed from Security tags and logs, from the authorization logs 200/201 and error details and from the EF Core interceptor logs 3000/3050; WebSocket upgrades detected before `UseWebSockets` runs; anonymous messages from external brokers fail closed for scope opening), `.fixed.md` (ABAC quick-start works; `AddEncinaAuthorization` registers its behavior), `.added.md` (`RequestIdentity`, `RequestIdentityOptions`, service identities, delegate-only scope API incl. `RunRestoredAsync`/`PersistedRequestIdentity`/`PersistedIdentitySource`, `InboundRequestInfo` and `HttpContext.CreateInboundRequestInfo()`, Blazor circuit handler, `TestIdentity`), `.changed.md` (claim precedence sub-first; authenticated-without-subject is anonymous; authenticated identities only; `ExcludeSystemAccess` semantics; `abac.missing_context` renamed `abac.unauthenticated_caller`; PAP audit `actor` is `user`/`service` and seeding records `service:encina.abac.policy-seeding` instead of `system`; `[Authorize]` evaluates the request identity; middleware timestamps from `TimeProvider`; `CreateForTest` is anonymous-only; the accessor setter preserves identity and origin and never clears; connection endpoints carry no request identity; `UseEncinaContext` must run after `UseRouting`), `.removed.md` (`ISecurityContext`, `ISecurityContextAccessor`, `SecurityContext`, `IPrincipalResolver`, claim options, `ThrowOnMissingSecurityContext`, `security.missing_context`, `WithUserId`, `IRequestContext.UserId` as an interface member, `RequestContext.Create(string)`, EF interceptor `IRequestContext` fallback, `EncinaContextMiddleware` as a public type).
+- Changelog fragments (written by `mechanical-fixer`; `changelog-fragments.cs --check` exits 0): `changelog.d/1705-one-request-identity.security.md` (ABAC, Security and Authorization behaviors silently not registered whenever another behavior exists (#1635 subset, fail-open); anonymous substitution removed; external `service:` subjects rejected; service identities never turn compliance deny gates into allows; user id removed from Security tags and logs, from the authorization logs 200/201 and error details and from the EF Core interceptor logs 3000/3050; WebSocket upgrades detected before `UseWebSockets` runs; anonymous messages from external brokers fail closed for scope opening), `.fixed.md` (ABAC quick-start works; `AddEncinaAuthorization` registers its behavior), `.added.md` (`RequestIdentity`, `RequestIdentityOptions`, service identities, delegate-only scope API incl. `RunRestoredAsync`/`PersistedRequestIdentity`/`PersistedIdentitySource`, `InboundRequestInfo` and `HttpContext.CreateInboundRequestInfo()`, Blazor circuit handler, `TestIdentity`), `.changed.md` (claim precedence sub-first; authenticated-without-subject is anonymous; authenticated identities only; `ExcludeSystemAccess` semantics; `abac.missing_context` replaced by `encina.authorization.unauthenticated`; PAP audit `actor` is `user`/`service` and seeding records `service:encina.abac.policy-seeding` instead of `system`; `[Authorize]` evaluates the request identity; middleware timestamps from `TimeProvider`; `CreateForTest` is anonymous-only; the accessor setter preserves identity and origin and never clears; connection endpoints carry no request identity; `UseEncinaContext` must run after `UseRouting`), `.removed.md` (`ISecurityContext`, `ISecurityContextAccessor`, `SecurityContext`, `IPrincipalResolver`, claim options, `ThrowOnMissingSecurityContext`, `security.missing_context`, `WithUserId`, `IRequestContext.UserId` as an interface member, `RequestContext.Create(string)`, EF interceptor `IRequestContext` fallback, `EncinaContextMiddleware` as a public type).
 
 ---
 
@@ -1199,7 +1212,7 @@ All pages follow the encina-docs skill and the 2026-10-05 visual rule (#1759): a
 | Encina (core) | `Core` 100-199 | 162-175 (new, packed: 162-165 Phase 1, merged; 166-175 Phase 2, of which 172-174 were added by the PR #1862 review and 175 `InboundScopeOpenedByApplication` by its final review) | 100-165 used on `origin/main` ab4ec134 (verified: 100-161 in `Encina.Stream.cs`, `Encina.cs` and the Sharding logs, 162-165 in `RequestIdentityLog.cs:14-26`; no `src/` EventId of 166-199 exists); 176-199 stay free; no new range, `AssemblyRanges` already maps `Encina` → `Core` |
 | Encina.AspNetCore | `AspNetCore` 200-249 | 202 `EncinaContextBeforeRouting` (Critical, Phase 3, M6), 203 `EncinaContextPathChanged` (Warning, Phase 3, E1) | 203-249 stay free (verified: no `src/` EventId of 202-249 exists on ab4ec134); 200-201 used by `AuthorizationPipelineBehavior.cs:88,94` (verified; their templates lose `{UserId}` in Phase 3); identity logs live in the core factory |
 | Encina.EntityFrameworkCore | `EntityFrameworkCore` 3000-3099, `EntityFrameworkCoreSoftDelete` 1500-1599 | none new | 3000 (`AuditInterceptor.cs:499`) and 3050 (`SoftDeleteInterceptor.cs:183`) keep their ids and lose `{UserId}` in Phase 3; 3050 sits in the `EntityFrameworkCore` range today, which the allocation test already accepts, so nothing moves |
-| Encina.Security.ABAC | `SecurityABAC` 9000-9099 | 9096 repurposed (`SeedingServiceIdentityStarted`), 9085 allocated early for the Disabled-mode warning (#751's planned id; #751 reuses it) | 9094, 9095, 9097 (PAP) unchanged; 9098-9099 remain free |
+| Encina.Security.ABAC | `SecurityABAC` 9000-9099 | 9096 repurposed (seeding summary), 9085 allocated early for the Disabled-mode warning (#751's planned id; #751 reuses it) | 9094, 9095, 9097 (PAP) unchanged; 9098-9099 remain free |
 | Encina.Security | `Security` 8000-8009 | 8004 removed; 8001/8002 templates lose the user id | 8004-8009 free afterwards |
 
 ### Estimated file count
@@ -1242,7 +1255,7 @@ IMPLEMENTATION OVERVIEW
    public CreateInboundRequestInfo() for SSE opt-in per event; user id out of authorization and EF interceptor logs;
    AuthorizationPipelineBehavior on Identity.Principal,
    IPrincipalResolver deleted, Blazor circuit handler, EF interceptor fallback removed, AddEncinaAuthorization registers its behavior.
-4. ABAC PEP/PAP/seeding read context.Identity; TryAddEnumerable; PolicyChangeActorScope deleted; abac.unauthenticated_caller; 9096/9085.
+4. ABAC PEP/PAP/seeding read context.Identity; TryAddEnumerable; PolicyChangeActorScope deleted; encina.authorization.unauthenticated (gate=abac); 9096 (seeding summary)/9085.
 5. Encina.Security deletes ISecurityContext/Accessor/SecurityContext/claim options; behaviors and evaluators on RequestIdentity;
    user id leaves tags/logs; DSR/Consent/GDPR extractors fall back only for Kind == User.
 6. End-to-end TestServer tests, contract/property tests, manifests, coverage per flag, CRAP and knowledge/changelog checks
@@ -1253,7 +1266,7 @@ KEY PATTERNS
 - Gates: `context.Identity is { IsAuthenticated: true } identity` (null denies). A service identity never turns a deny into an allow.
 - Every phase builds green with 0 warnings before the next starts.
 - EventIds: core 162-175 packed (175 InboundScopeOpenedByApplication); AspNetCore 202 (EncinaContextBeforeRouting, Critical) and 203
-  (EncinaContextPathChanged, Warning); ABAC 9096 repurposed and 9085 (Disabled warning) allocated.
+  (EncinaContextPathChanged, Warning); ABAC 9096 repurposed (seeding summary) and 9085 (Disabled warning) allocated.
 - Deferred dispatch is SPEC-002 REQ-015 / DEC-011 / P-50 (#1164): rebuild the originating actor, never a service identity.
 
 REFERENCE FILES
@@ -1273,7 +1286,7 @@ src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs; 
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Identity is built once per request/scope; nothing read benefits from a cache. #707's "cache SecurityContext per scope" item becomes moot (orchestrator comments on #707). |
 | 2 | OpenTelemetry | ✅ | Activity tag `encina.identity.kind` (anonymous/user/service) on the dispatch activity (`EncinaDiagnostics.SendStarted` receives the kind; core `ActivityTagNames` constant; unit test) and when a scope opens; the `security.user_id` tag is removed; never the user id. |
-| 3 | Structured Logging | ✅ | Core 162-175 (`[LoggerMessage]`), AspNetCore 200/201 and EF Core 3000/3050 without the user id, AspNetCore 202 `EncinaContextBeforeRouting` (Critical, Phase 3) and 203 `EncinaContextPathChanged` (Warning), Security 8004 removed and 8001/8002 without user id, ABAC 9091 renamed, 9096 repurposed, 9085 allocated (Disabled warning). |
+| 3 | Structured Logging | ✅ | Core 162-175 (`[LoggerMessage]`), AspNetCore 200/201 and EF Core 3000/3050 without the user id, AspNetCore 202 `EncinaContextBeforeRouting` (Critical, Phase 3) and 203 `EncinaContextPathChanged` (Warning), Security 8004 removed and 8001/8002 without user id, ABAC 9091 renamed, 9096 repurposed (seeding summary), 9085 allocated (Disabled warning). |
 | 4 | Health Checks | ✅ | `SecurityHealthCheck` drops the accessor check (no external dependency added). |
 | 5 | Validation | ✅ | `RequestIdentityOptionsValidator` and `ServiceIdentityCatalogOptionsValidator` with `ValidateOnStart`. |
 | 6 | Resilience | ❌ | No external calls. |
@@ -1286,14 +1299,16 @@ src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs; 
 
 ---
 
-## Dependencies on open issues
+## Prerequisites & Dependencies
+
+### Dependencies on open issues
 
 | Issue | Relation |
 |---|---|
 | #1635 (open-generic `TryAddTransient`) | ABAC, Security and AspNetCore authorization subset delivered here; orchestrator updates #1635 to say so. Remaining ~19 packages stay there. |
 | SPEC-002 REQ-015 / DEC-011, P-50 (#1164) | Owns deferred dispatch (outbox, inbox, scheduler); #1705 delivers `PersistedRequestIdentity`, `PersistedIdentitySource` and `RunRestoredAsync`; P-50 wires which dispatcher passes `External` (D3: an inbox fed by an external broker) and the per-inbox or per-endpoint `trustedTenantId` mapping that an External restore needs to carry a tenant at all (E2: the persisted tenant is ignored); the orchestrator comments the contract on #1164. |
 | #1855 (dead-flow scope refusal, Q1) | Closed as absorbed: the holder-origin refusal is Phase 2 (M6). |
-| #751 (ABAC decision audit, plan merged) | Should start after #1705. Its plan is updated in Phase 7 (lines :194, :217, :322, :382, :394, :549, :753). |
+| #751 (ABAC decision audit, plan merged) | Starts when Phase 4 merges (decision N9, 2026-10-07). Its plan is updated in Phase 7 (lines :194, :217, :322, :382, :394, :549, :753). |
 | #1678 (named pipeline stages) | Not blocking: ABAC and Security deny independently, order irrelevant for fail-closed. |
 | #1674 (audit store coherence spike) | Not blocking; `IdentityKind` becomes available for audit rows. |
 | #1704 (persistent PAP debt) | Item (2) resolved: jobs change policies under a declared service identity; persistent-pap.md updated. Orchestrator comments on #1704. |
@@ -1304,9 +1319,37 @@ src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs; 
 
 Open PRs checked on 2026-10-03 (#1718, #1713, #1527): none touches the files of this plan; #1720 has since merged (6ba311d6) and the plan is rebased on it.
 
+### Review logs
+
+The review resolution tables and review logs of this plan (review resolution of 2026-10-05, the Phase 2 scope-shape log, and the two PR #1862 reviews) live in [security-context-population-1705-review-log.md](reviews/security-context-population-1705-review-log.md). The "Maintainer decisions" section below stays in this plan.
+
+---
+
+## Next Steps
+
+1. After this plan PR merges, the orchestrator writes the Phase 4 brief (ABAC PEP, persistent PAP and seeding on the request identity), authoritative per "Maintainer decisions" item 14.
+2. #751 (ABAC decision audit) starts when Phase 4 merges (N9).
+3. The Phase 4 worker writes the issue files for N2 (the separate [BUG] for `abac.*` definite denials answered 500 and `abac.policy_not_found` answered 404 in the three host adapters), N10 (the in-memory PAP accepting anonymous changes) and N11 (the [FEATURE] with its own plan for a configurable, fail-closed permission check in the PAP); the orchestrator opens them.
+4. Phases 5, 6 and 7 follow, one PR per phase, with manifests and changelog per phase (item 14).
+
 ---
 
 ## Maintainer decisions
+
+### Decisions per Design Choice
+
+One dated entry per Design Choice, numbered like the choices; each maps the choice to the decisions of the maintainer recorded below in the decision log (items 1-14) and in the #1705 comments. Choices 1-6 and 8 keep their Chosen Option **A**; choice 7 no longer applies (done by #1635, PR #1781).
+
+1. (2026-10-03, confirmed 2026-10-05) Identity model: one identity model; a core `RequestIdentity` on `IRequestContext.Identity` with `UserId` as its projection (extension property); `ISecurityContext`, `ISecurityContextAccessor` and `SecurityContext` removed with no aliases; deferred dispatch rebuilds the originating actor (decision log items 1, 3, 5, 9, 10).
+2. (2026-10-05) HTTP integration: the existing `UseEncinaContext()` builds the identity through one claim mapping; connection requests, misordered routing and the SSE opt-in follow MQ-1, MQ-2 (item 11), D1, D2 (item 12), E1 and E3 (item 13).
+3. (2026-10-05) Non-HTTP identity: declared service identities and the delegate-only, `Either`-returning scope API (C1, Q1, Q3, Q4 in item 10; scope lifetime and tenant binding in item 6; D3 and E2 in items 12 and 13; the four implementation choices of the plan round accepted on 2026-10-05: required `PersistedIdentitySource`, `AllowOverInbound` logs 174, `InboundScopeOpened` 172 at Debug, input limits 128/512/16).
+4. (2026-10-05) Claim mapping: one ordered map in core (`RequestIdentityOptions`, sub then NameIdentifier then the Azure AD object id, decided 2026-10-03); per-token claim exclusion Q2 (item 10), principal cloning D4 (item 12), and no claim value or user id in logs, tags or `ToString` (item 4).
+5. (2026-10-07) Registration and startup validation: the maintainer chose **A** — every `AddEncina*` that needs the identity `TryAdd`s the core identity services, proven by DI tests with `ValidateOnBuild` and `ValidateScopes`; no "source" validator. Phase 4 applies it with N4 (the persistent PAP's `IRequestContextAccessor` is required, `GetRequiredService`) and N6 (a startup hosted check reads the final `IOptions<ABACOptions>` for the 9085 warning).
+6. (2026-10-05) Fail-closed rules and the only logged opt-outs: item 2 (a service identity never turns a deny gate into an allow; anonymous and unattributable identities deny), item 4, the 2026-10-06 decision to refuse explicit identity changes over an inbound chain (#1892), and N7 (2026-10-07: `RunAsBuiltInAsync` `Left` during seeding becomes an exception carrying the code only).
+7. (2026-10-07) Behavior registration: no longer applies — resolved by #1635 (PR #1781, merged 2026-10-05), which registers the ABAC and Security behaviors with `TryAddEnumerable`; #1705 drops that sub-task. Kept: the documented order `AddEncinaSecurity` before `AddEncinaABAC` (decision of 2026-10-03 in the #751 plan) and the full-stack DI test asserting both behaviors.
+8. (2026-10-07) Scope boundary: what #1705 does not do stays in F1-F3, F5 and F6 (F1 covers only jobs with no originating request, F4 is dropped, item 1; one PR per phase, 2026-10-05); the Phase 4 re-check adds N2, N8, N10, N11 and N12 (separate [BUG] and [FEATURE] issues, #1704 items, the PAP records but does not authorize the actor, the MongoDB scenario waits for #1719) and the per-phase manifests and changelog rule (item 14).
+
+### Decision log
 
 Taken (2026-10-05, not to be revisited):
 
@@ -1335,243 +1378,20 @@ Taken (2026-10-05, not to be revisited):
     - **E3 (SSE detection versus MCP Streamable HTTP).** The connection skip applies only to GET requests whose `Accept` lists `text/event-stream` (classic SSE and `EventSource`). A POST that streams its response keeps its request identity, like any other long request (Design 2 step 1, Phase 3 tasks 1, 5 and 9, entry-point table, docs note).
     - Minors 3 and 5-9 of the review are applied as written, and the two optional suggestions (the declared service name in log 174; Information when application code calls the public `RunInboundAsync`) are applied.
 
-Everything else follows from AGENTS.md (pre-1.0 best design, fail closed with explicit logged opt-outs, registration completeness, pay-for-what-you-use) and was ranked by three independent design reviews; the user-visible consequences (sub-first claim order, authenticated-without-subject becomes anonymous, `abac.unauthenticated_caller`, deferred dispatch anonymous until P-50, deleted `ISecurityContext`/`IPrincipalResolver` API) are recorded in ADR-035 and the changelog fragments.
+14. Phase 4 re-check, maintainer decisions on #1705 (2026-10-07, after `artifacts/plans/1705-phase4-recheck.md`). This block is authoritative over the Phase 4, 6 and 7 task lists, which are not rewritten:
+    - **N1.** The PEP's "no authenticated caller" error uses the shared `EncinaErrorCodes.AuthorizationUnauthenticated` (`encina.authorization.unauthenticated`); `ABACErrors.UnauthenticatedCaller()` stays as the factory and adds the detail `["gate"] = "abac"`. #1918 uses the same code.
+    - **N2.** `abac.*` definite denials answering 500 (and `abac.policy_not_found` answering 404) in the three host adapters are fixed by a separate [BUG] right after Phase 4; the Phase 4 worker writes the issue file.
+    - **N3.** `IAttributeProvider.GetSubjectAttributesAsync` takes `RequestIdentity` instead of `string userId`; the PEP always adds the built-in attributes `subject-id` and `identity-kind`; roles and permissions stay in follow-up F6.
+    - **N4.** The persistent PAP's `IRequestContextAccessor` becomes required (non-optional constructor parameter, registration with `GetRequiredService`) and the `Guid.NewGuid()` correlation fallback is removed.
+    - **N5.** EventId 9096 becomes the seeding summary (policy set and policy counts) and replaces both ad hoc `LogInformation` calls in `ABACPolicySeedingHostedService`; core EventId 166 marks the start.
+    - **N6.** EventId 9085 ("enforcement disabled") is emitted once at startup by a small hosted check that reads the final `IOptions<ABACOptions>`; #751 later reuses the method for its per-request-type warning.
+    - **N7.** When `RunAsBuiltInAsync` returns `Left` during seeding: `RequestCancelled` becomes `OperationCanceledException`; any other code becomes `InvalidOperationException` carrying the code only (never `EncinaError.Message`).
+    - **N8.** Phase 4 resolves #1704 item 2 in code and adds the `persistent-pap.md` note (HTTP: `UseEncinaContext`; jobs: `RunAsServiceAsync`). #1704 items 1 and 3 land after Phase 4 (same file).
+    - **N9.** #751 starts when Phase 4 merges; the Phase 7 task that updates the #751 plan pointers moves into Phase 4.
+    - **N10.** The in-memory PAP accepting anonymous changes is a separate issue (same actor rule as the persistent PAP); the Phase 4 worker writes the issue file.
+    - **N11.** The PAP records the actor but does not authorize it: (1) Phase 7 docs state that the application must gate its policy-administration path; (2) a separate [FEATURE] with its own plan adds a configurable permission check in the PAP that fails closed. No code in Phase 4.
+    - **N12.** The PAP integration scenario keeps the plan's scope (ADO.NET, Dapper and EF Core on SQL Server); the PR states the MongoDB gap; the MongoDB scenario is added when #1719 is fixed.
+    - **N13.** The lazily created cache connection capturing the seeding scope's ExecutionContext is accepted (the captured holder is invalidated and reads Anonymous); one-line note in the Phase 4 PR.
+    - **Manifests and changelog: per phase.** The Phase 4 PR carries the per-file coverage targets with justifications for the files it touches and its changelog fragment (the Phase 6 and Phase 7 placement in this plan is superseded).
 
----
-
-## Review resolution (2026-10-05)
-
-Source: `artifacts/plan-review-1705/findings.json` (63 findings: 1 blocker, 37 major, 25 minor as listed there). Every finding was re-verified against the plan text and the code (Select-String over the rebased worktree, origin/main 10ac10b4) because part of the refutation was cut by the usage limit. Result: 60 applied, 3 applied in part (rows 30, 38, 56; rejected parts stated). None rejected whole. The PR #1775 review then reopened rows 3, 45, 53 and tightened row 14; see the "PR review (2026-10-05)" sub-table below. "Where" names the plan section changed.
-
-| # | Sev | Finding | Result | Where |
-|---|---|---|---|---|
-| 1 | major | Deleting `PolicyChangeActorScope` breaks knowledge-records; record 1677 missing | Applied (verified `1677.md:46,75`) | Phase 4 task 4, Phase 7 task 5 |
-| 2 | major | Seeding system-actor leftovers (9096, `IsSystem`, docs, fragment) | Applied | Design 3 PAP bullet, Phase 4 tasks 3, 5, 6, Documentation |
-| 3 | major | Existing PAP and seeding unit suites missing; integration suites do not exist | Reopened by PR review M1: the first check was wrong (searched the class name); the PAP unit and integration suites are all listed now | Phase 4 task 9, Testing |
-| 4 | major | Existing Security.Audit `ExcludeSystemAccess` tests and `ReadAuditOptions` docs missing | Applied | Phase 5 tasks 9, 11 |
-| 5 | major | Phase 3 skips existing AspNetCore tests and the XML sample | Applied | Phase 3 tasks 2, 8 |
-| 6 | major | `security-authorization.md` has 9 affected sections | Applied | Documentation (full revision) |
-| 7 | major | EF interceptors keep a second channel | Applied (fallback removed, doc rewritten) | Summary, Phase 3 task 6, Consumer changes |
-| 8 | minor | ABAC attributes derive from `SecurityAttribute`; reference cannot go | Applied (task 7 inverted: reference stays) | Design 5, Design 6, Phase 4 task 7 |
-| 9 | minor | ABAC error message, XML docs and observability page still say "security context" | Applied | Design 6, Phase 4 tasks 1, 6, Documentation |
-| 10 | minor | FsCheck property `WithUserIdCreatesNewContext` and wrong references | Applied | Phase 1 task 9 |
-| 11 | minor | Other pages and the `IRequestPreProcessor` sample | Applied | Phase 1 task 5, Phase 7 task 7, Documentation |
-| 12 | minor | PublicAPI removals are in Unshipped; ABAC ctor line | Applied | Phase 1 task 11, Phase 3 task 7, Phase 4 task 8, Phase 5 prompt |
-| 13 | major | `UserId` independent interface member | Applied (extension property) | Design 1, Summary |
-| 14 | major | Public unlogged identity creation bypasses declarations | Applied, tightened by PR review M3 (identity only through the scope factory; factory and `CreateAt` internal; explicit-context rule logs 165) | Design 1, Design 6 |
-| 15 | major | `AuthorizationPipelineBehavior` keeps `IPrincipalResolver` | Applied (option a: deleted, Blazor handler pulled in) | Design 2, Phase 3 tasks 3-4 |
-| 16 | major | F1/F4 conflict with SPEC-002 REQ-015/DEC-011/P-50 | Applied (cited; F1 narrowed; F4 dropped; persisted form and `BeginRestored`) | Header, Design 1, Design 3, Design 8 |
-| 17 | major | #751 plan premise false; order decision ignored | Applied | Design 5, Design 7, Phase 7 task 4 |
-| 18 | major | Remnants of system actor and "security context" wording | Applied; `abac.missing_context` renamed `abac.unauthenticated_caller` on the merits | Design 6, Phase 4 |
-| 19 | minor | Documentation list misses pages | Applied | Documentation, Phase 7 task 8 |
-| 20 | minor | Stale references; ABAC to Security reference; missing test files | Applied (rebased on #1720; refs refreshed) | Phase 4, Dependencies |
-| 21 | blocker | Service identities turn the DSR restriction gate into an allow | Applied (fix pulled into #1705; F7 removed) | Design 6, Phase 5 task 12, Phase 6 task 2 |
-| 22 | major | Public unlogged ways to mint or swap identity | Applied (four rules a-d) | Design 1, Design 3, Design 6 |
-| 23 | major | Ambient identity outlives scope (plain AsyncLocal) | Applied (holder pattern, tests) | Design 2, Phase 2, Testing |
-| 24 | major | Out-of-order disposal resurrects an identity | Applied | Design 2, Design 3 rules, Phase 2 |
-| 25 | major | Any code can open the built-in seeding identity | Applied (`encina.` reserved, internal `BeginBuiltIn`, actor kind) | Design 3, Phase 4 |
-| 26 | major | Authorization authorizes principals mapped to Anonymous | Applied | Design 2, Design 6, Phase 3 task 9 |
-| 27 | major | Scopes open inside anonymous inbound requests | Applied (internal typed origin flag, refusal, opt-in) | Design 3 rules, Phase 2 |
-| 28 | major | Tenant binding unspecified | Applied (`tenant_conflict`, never inherit) | Design 3 rules |
-| 29 | major | Several `ClaimsIdentity` instances | Applied (authenticated only; conflict maps to Anonymous, EventId 164) | Design 4 |
-| 30 | major | Security gate "deny anonymous" not true for empty lists / unknown attributes | Applied in part: anonymous pre-check and constructor guards applied; "deny unknown attribute types" rejected for authenticated callers because ABAC attributes derive from `SecurityAttribute` and are enforced by the PEP (the pre-check already closes the anonymous hole) | Design 6, Phase 5 task 2 |
-| 31 | major | User id still reaches tags, logs, `ToString` | Applied | Design 4, Phase 1 task 6, Phase 5 task 2 |
-| 32 | major | `UserId` not enforced as projection | Applied (same change as 13) | Design 1 |
-| 33 | minor | Reserved `service:` check case and whitespace | Applied | Design 1, Design 4 |
-| 34 | minor | `Disabled` mode not logged | Applied (EventId 9085, reusing #751's planned id; 9098 dropped by the PR review) | Design 6, Phase 4 task 6 |
-| 35 | major | Security behavior keeps logging and tagging the user id | Applied | Phase 5 task 2 |
-| 36 | major | Dispatch-activity identity tag has no task or test | Applied | Phase 1 task 7, Testing, Matrix #2 |
-| 37 | major | Tenant and metadata behavior of scopes undefined | Applied | Design 3 rules, Testing |
-| 38 | major | Non-HTTP entry-point coverage incomplete (gRPC, GraphQL claim, dispatchers) | Applied in part: entry-point table, corrected GraphQL/gRPC classification and dispatcher list added; dedicated gRPC/GraphQL TestServer tests replaced by the stated justification (both call `IEncina.Send` inside the HTTP pipeline) | Summary entry-point table, Design 2 |
-| 39 | major | `IPrincipalResolver` remains a third channel; Blazor drift | Applied (same change as 15) | Design 2, Phase 3 |
-| 40 | major | `AddEncinaAuthorization` does not register the behavior | Applied (verified `ServiceCollectionExtensions.cs:164-196`) | Summary, Design 5, Phase 3 task 3 |
-| 41 | minor | PAP `actor` metadata and test | Applied | Phase 4 tasks 3, 9 |
-| 42 | minor | EventId 9096 stale | Applied (repurposed) | Phase 4 task 5, EventId table |
-| 43 | minor | Matrix #10 claims one tenant claim map | Applied | Matrix #10, Design 4, F5/F3 |
-| 44 | minor | DI tests do not cover seeding chain; uniqueness validator | Applied | Design 3, Phase 4 task 9 |
-| 45 | minor | Integration suites do not exist; Audit not in targets | Audit targets applied; the "no suite" premise was wrong (PR review M1): `PersistentPapScopeScenario` and its three SQL Server users exist and are rewritten | Summary, Phase 4 task 9, Testing |
-| 46 | minor | More `security-authorization.md` sections | Applied (same as 6) | Documentation |
-| 47 | minor | `RequestContext.Create(string)` reads `UtcNow` | Applied (deleted, `TenantResolutionMiddleware` on `TimeProvider`) | Summary, Phase 1 task 6, Phase 3 task 5 |
-| 48 | major | Consumer tests stubbing `UserId` missing | Applied (checkable `UserId.Returns` acceptance) | Phase 1 task 10, Phase 4 task 9, Phase 5 task 11, Testing |
-| 49 | major | Per-flag coverage skips packages; command gives no per-flag data | Applied | Testing, Verification commands |
-| 50 | major | Encina.Security contract flag has no planned test | Applied | Testing (Contract row) |
-| 51 | major | PAP `actor` metadata replacement unspecified | Applied | Design 3, Phase 4 task 9 |
-| 52 | major | No test proves ids and claims stay out of logs/tags | Applied (sentinel-value tests) | Testing rules |
-| 53 | major | Integration row relies on suites that do not exist | Corrected by PR review M1: the existing shared-fixture scenario is extended instead of a new class; justification file kept | Testing (Integration row) |
-| 54 | major | CRAP gate has no runnable command | Applied | Verification commands |
-| 55 | minor | Coverage-manifest upkeep | Applied | Phase 6 task 5 |
-| 56 | minor | PublicAPI steps point at wrong files | Applied in part: Unshipped targets and ABAC line applied; the claim that `Encina.Testing.FsCheck` is untracked is not fully accurate (it has `PublicAPI.Shipped.txt`), so the step is "verify the csproj, edit only if tracked" | Phase 1 task 11 |
-| 57 | minor | `.security` changelog fragment | Applied | Documentation |
-| 58 | minor | ADR-035 reservation row | Applied (row committed; branch rebased) | Header, Phase 7 task 2 |
-| 59 | minor | "Every implementation" contract test unreachable | Applied | Testing (Contract row) |
-| 60 | minor | Property domain vacuous; Arb cannot produce services | Applied | Testing (Property row) |
-| 61 | minor | Load justification ignores the static AsyncLocal | Applied | Testing (Load row), Phase 3 task 9 |
-| 62 | minor | No mutation coverage for `Identity/` | Applied as an orchestrator step (hot spot) | Design 8 |
-| 63 | minor | TimeProvider and production `CreateForTest` acceptances not checkable | Applied | Verification commands sweeps, Phase 1 task 6 |
-
-### PR review (2026-10-05)
-
-Source: `artifacts/pr-review/1775.md` (verdict merge after fixes; 5 major, 6 minor, 5 nit). Inventory greps were re-run after rebasing on 1deeaada: `UserId.Returns` 67 sites in 44 files, `ISecurityContextAccessor` in 11 test files, `Substitute.For<IRequestContext>` 397 calls in 176 files, `CreateForTest(... userId ...)` 55 of 344, `IRequestContext? requestContext = null` 31 in 30 files.
-
-| Id | Sev | Finding | Result | Where |
-|---|---|---|---|---|
-| M1 | major | Three PAP integration suites and `PersistentPolicyAdministrationPointScopeTests` exist and are missing | Applied; rows 3, 45, 53 corrected; the new parallel integration class is dropped, the existing scenario is extended | Summary, Phase 4 task 9, Testing (Integration row) |
-| M2 | major | Repositories take `IRequestContext` by constructor (second channel) | Applied (31 parameters removed, ambient accessor, `ExcludeSystemAccess` on ambient identity) | Phase 5 task 14, Consumer changes |
-| M3 | major | Public unlogged mint path (factory `Create` + `CreateAt` + explicit `Send`) | Applied (identity only through the scope factory; `IRequestIdentityFactory` internal; `CreateAt` internal; `BeginInbound`; logged explicit-context rule; architecture test) | Summary amendments, Design 1, 2, 4, Phases 1-3 |
-| M4 | major | `BeginRestored` trusts persisted roles and permissions | Applied (`PersistedRequestIdentity` = SPEC-002 REQ-015 fields with causation id; restored User has no roles or permissions; note for #1164) | Design 1 |
-| M5 | major | User id still in log 1702 and `SecurityErrors` details | Applied (tasks and sentinel tests) | Phase 5 task 15 |
-| m1 | minor | 9098 duplicates #751's 9085 | Applied (9085, #1705 lands first, #751 reuses) | Design 6, Phase 4, EventId table |
-| m2 | minor | Unrunnable `Select-String -Recurse`; `UserIdClaimType` sweep and nonexistent `samples` | Applied | Phase 4 task 9, Phase 5 task 13, Phase 7 task 8, Verification commands |
-| m3 | minor | Stale `abac.missing_context` text; Phase 3 prompt "restore in finally" | Applied | Testing, Phase 3 prompt |
-| m4 | minor | `InternalsVisibleTo` for `Encina.Testing.FsCheck`; unnecessary ContractTests reference | Applied | Summary amendments, Testing (Contract row) |
-| m5 | minor | Origin marker is a spoofable metadata string | Applied (internal typed `RequestOrigin`; SignalR note kept for F2 and the how-to) | Summary amendments, Design 3, Phase 1 task 6 |
-| m6 | minor | EventIds 164-167 left empty after Phase 1 | Applied (162-165 Phase 1, 166-171 Phase 2) | Phase 1 task 7, Phase 2 task 8, EventId table |
-| n1 | nit | "61 applied, 2 in part" | Applied (60 / 3) | Review resolution intro |
-| n2 | nit | Counts drifted | Applied (67 in 44; 11 files; 397 in 176) | Design 1, Phase 1 task 10 |
-| n3 | nit | Phase 1 breaks middleware callers before Phase 3 | Applied (minimal compile fix in Phase 1) | Phase 1 task 6 |
-| n4 | nit | `Resolve` signature change | Applied (`Either<EncinaError, IRequestContext>`, callers map the `Left`) | Design 1 |
-| n5 | nit | Plan file name still says "security-context" | Applied by decision: kept; ADR-035 cites it as its plan | Phase 7 task 2 |
-
----
-
-## Review log (Phase 2 scope shape)
-
-Sources, all from PR [#1849](https://github.com/dlrivada/Encina/pull/1849) (the design record, not edited): section 7 of `docs/plans/request-identity-phase2-scope-shape-1705.md` (25 plan edits, "S7-n"), the pr-reviewer review `artifacts/pr-review/1849.md` (F1-F11) and the adversarial review `artifacts/pr-review/1849-adversarial.md` (majors A-M1 to A-M4, minors A-m1 to A-m12), plus the maintainer decisions on #1705 of 2026-10-05. Every `src/` citation was re-checked on `origin/main` 61d5dc3d; the plan and the Phase 1 files are unchanged since `c3626ed`, so the section 7 line numbers held. The historical review tables above keep the `Begin*` names they were written with; M6 supersedes them.
-
-### Section 7 edits
-
-| Item | Edit | Where |
-|---|---|---|
-| S7-1 | M6 (scope shape) amendment row | Summary amendments |
-| S7-2 | M3: `RunInboundAsync`, issuer mechanism, no-issuer refusal, seam builds only | Summary amendments (M3) |
-| S7-3 | m5: connection flows start with no context (superseded in part by the decision on A-m6, confirmed by the maintainer as MQ-2 on 2026-10-05: the marker requires `AllowOverInbound`) | Summary amendments (m5) |
-| S7-4 | #1705 item (3) names the delegate API, "invalidate when the work completes" | Summary |
-| S7-5 | Entry-point rows: connection flows, `RunRestoredAsync` | Entry-point table |
-| S7-6 | Design 1: `RunRestoredAsync` signature, issuer, per-token claims, `tenant_conflict`, setter, builders | Design 1 |
-| S7-7 | Middleware flow: skip, `RunInboundAsync`, no `finally`, `Left` → 500, ordering | Design 2 |
-| S7-8 | Accessor lifetime: frame restore, LIFO by construction, 170, connection flows | Design 2 |
-| S7-9 | Blazor: per-activity `RunInboundAsync`, `Left`, refresh, outside-activity reads | Design 2 |
-| S7-10 | SignalR: mechanism cited, streaming hub methods in F2 | Design 2, Design 8 (F2) |
-| S7-11 | Option B row reworded | Design 3 |
-| S7-12 | API block replaced; `RequestContextScope` deleted; `IdentityScopeOptions` | Design 3 |
-| S7-13 | Rules renamed; ending = invalidate + 168; implementation constraint; `unsupported_accessor` | Design 3 |
-| S7-14 | Opt-outs name `RunAsServiceAsync` | Design 6 |
-| S7-15 | Task 5 files | Phase 2 task 5 |
-| S7-16 | Task 6 error codes | Phase 2 task 6 |
-| S7-17 | Task 8: 170 renamed, 168 from `finally` | Phase 2 task 8 |
-| S7-18 | Task 9: `Pop` → `End`, issuer, comparison, setter, validator, second architecture test | Phase 2 tasks 4, 9, 10 |
-| S7-19 | Task 10 tests | Phase 2 task 13, Testing (Unit row) |
-| S7-20 | Task 11 resolved; `TestIdentity.Service`/`Principal` builders | Phase 2 task 11 and closing note |
-| S7-21 | Phase 2 prompt rewritten | Phase 2 prompt |
-| S7-22 | Phase 3 tasks 1 and 4, prompt | Phase 3 tasks 0, 1, 4, prompt |
-| S7-23 | WebSocket TestServer tests | Phase 3 task 9 |
-| S7-24 | Unit and contract rows | Testing |
-| S7-25 | ADR-035 content; combined prompt | Phase 7 task 2, Combined prompt |
-
-### Review findings
-
-| Id | Sev | Finding | Result | Where |
-|---|---|---|---|---|
-| A-M1 | major | One-line downgrade (`RequestContext = null`, or an anonymous explicit context) bypasses the "over a User / over inbound" refusals | Applied (Q1 in Phase 2): immutable holder origin and kind surviving `Invalidate`; refusals walk the chain including ended holders; `Push`/`SetUnchecked` record the walked facts before dropping an ended parent; setter identity- and origin-preserving, no clear; #1855 absorbed | Design 1 (setter), Design 3 rule 4, Phase 2 task 9, M6 |
-| A-M2 | major | Blazor `Left` branch runs under the connection identity; misordered routing silently fail-open | Applied: `next(activity)` inside the internal anonymous masking scope; endpoint null before `next` and non-null after → Critical 202, once | Design 2, Phase 3 tasks 0, 1, 4, 9 |
-| A-M3 | major | `HubMetadata` skip misses GraphQL-over-WebSocket and raw WebSocket endpoints | Applied: every WebSocket upgrade request is skipped (`context.WebSockets.IsWebSocketRequest`, works before routing) | Entry-point table, Design 2, Phase 3 task 1 |
-| A-M4 | major | Issuer liveness only checked in `Resolve`; an accepted explicit context outlives its issuer | Applied: `ContextHolder.ReadContext()` returns null once the identity's issuer is not live | Design 1 (Issuer), Phase 2 task 9 |
-| A-m1 | minor | Event 170 must test `!IsValid()`, not `IsDisposed` | Applied | Design 3 (Ending), Phase 2 task 8 |
-| A-m2 | minor | Issuer under-specified; one identity per scope; rule order | Applied (rule order 1-7) | Design 1, Design 3 |
-| A-m3 | minor | Per-token list: keep `auth_time`, add `nonce`, `at_hash`, `c_hash`; options passed in; `HasClaim` comparison; validator | Applied (Q2) | Design 1, Design 4, Phase 2 task 4 |
-| A-m4 | minor | Tenant setter bypass until F5 | Applied: tenant change only while `!IsDispatchInFlight`; F5 acceptance criterion | Design 1 (setter), Design 8 (F5) |
-| A-m5 | minor | `TenantResolutionMiddleware` installs a connection-lifetime tenant | Applied: same skip | Design 2, Phase 3 task 5, Consumer changes |
-| A-m6 | minor | The skip removes the inbound guard from hub methods | Applied in Phase 3 (maintainer-confirmed, MQ-2, 2026-10-05): anonymous connection-origin marker; service/principal scopes need `AllowOverInbound`; `RunInboundAsync` permitted | M6, m5, Design 2, Design 3 rule 4, Phase 3 task 0 |
-| A-m7 | minor | Stream claim wrong: `Resolve` runs at the first `MoveNextAsync` | Applied (verified `Encina.Stream.cs:37-39`) | Design 3 (Streams), Testing (Unit row) |
-| A-m8 | minor | Section 7 misses `IEncina` XML docs, remarks, plan lines, extra test migrations | Applied for `IEncina.cs:53-64,86-90,137-141` (the remark is at `:61-64` on main), `TestIdentity`/`TestRequestContext` remarks, plan lines 145, 348, 505-508, 518, 552, 802 and every `JobContext()` use in `EncinaExplicitContextContractTests.cs` (the review listed `:27,35,57,196`; `:79,103,106,109` were added). **Not applied** for `EncryptionPipelineIntegrationTests.cs:72,373`: verified that they pass the context to `IEncryptionOrchestrator.EncryptAsync`, not to a dispatch, so they are builder use and stay | Phase 2 tasks 11, 12 |
-| A-m9 | minor | The seam-drop reason also fits public `RunAsPrincipalAsync` | Applied: ADR-035 statement (public, logged, refused over User/inbound chains, not a security boundary) | Phase 7 task 2 |
-| A-m10 | minor | `IsSameAs` compares frozen claims but gates evaluate the live mutable principal | Applied: clone at construction and per read | Design 1, Phase 2 task 4 |
-| A-m11 | minor | Encina-owned long-lived loops started inside a scope capture it | Applied: `SuppressFlow` sweep in core; how-to | Design 3, Phase 2 task 9, Documentation |
-| A-m12 | nit | Deferred-dispatch sample persists more than the code | Applied: error code only | Design 1 (Persisted form), Design 8, Documentation |
-| F1 | major | Identity-preserving setter breaks far more tests than budgeted | Applied: 86 setter lines in 11 files plus issuer-less explicit dispatches listed and budgeted in Phase 2, with what the rewritten setter tests assert | Phase 2 task 12 |
-| F2 | major | Routing-order fallback still fails open | Applied, as A-M2 and A-M3 plus MQ-1 (maintainer decision 2026-10-05): WebSockets are skipped before routing, circuits are masked, misordering logs Critical 202; the SSE hole is closed by skipping every `Accept: text/event-stream` request (MQ-1 (c)) and a detected misordering fails closed with 500 on every later request (MQ-1 (b)) | Design 2 steps 0, 1, 5 |
-| F3 | major | Blazor sample runs the activity under the connection identity | Applied as A-M2 | Design 2 |
-| F4 | minor | SSE mis-described: SSE keeps its GET open like WebSockets | Applied (`HttpConnectionDispatcher.cs:156-158` is the SSE branch; only long polling ends at the first poll) | Design 2 step 1 |
-| F5 | minor | Section 7 misses plan lines 76, 167, 192, 265-266, 382, 389, 399, 508, 765, 786, 809, 865, 890, 971, 982, 1000 | Applied: every `Begin*` name outside the historical review tables replaced; 192, 508, 765, 786 and 809 rewritten for meaning | M4, Design 1-3, Design 8, Phase 2 prompt, Consumer changes, Testing, Documentation, Research, Matrix, Dependencies, Decisions |
-| F6 | minor | `RequestIdentity.Issuer` construction cycle; identity per open | Applied: internal `IdentityIssuer` created first, passed to the identity, bound once to the holder | Design 1, Phase 2 task 4 |
-| F7 | minor | `RequestIdentity.ForService` presented as existing | Applied: "Phase 2 internal" (only `ForUser` exists, `RequestIdentity.cs:166`) | Design 1 model |
-| F8 | minor | Samples log the whole outcome; `GetCode()` is `Option<string>` | Applied: `error.GetCode().IfNone("unknown")` (`EncinaErrors.cs:100`); the factory logs 167 itself, so the Blazor handler logs nothing extra | Design 1, Design 2, Design 3 |
-| F9 | minor | Cancellation and exception semantics unspecified | Applied: a cancelled token returns `Left(EncinaErrorCodes.RequestCancelled)` before `Push`; exceptions from `work`, `OperationCanceledException` included, propagate after invalidation | Design 3 (rules 2, Results), Testing |
-| F10 | minor | Tenant interplay on hub endpoints; no opt-out for cross-tenant operator flows | Applied: tenant middleware skip (A-m5); `tenant_conflict` has no opt-out on purpose (rule 5) | Design 1, Design 2 |
-| F11 | minor | PR #1849 body stale | Not applied here: PR #1849 is the design record and is not edited (maintainer process decision); orchestrator item | — |
-| N1-N3 | nit | Source path prefixes, Mermaid diagram, second review line | N1 not applicable (the plan cites `aspnetcore` paths by file name); N2 and N3 left to the design record | — |
-| Plan | correction | `ExplicitContextConflictTests` row said "logs 169"; the explicit-context conflict is 165 | Applied | Testing (Unit row) |
-
-### Maintainer decisions on MQ-1 and MQ-2 (2026-10-05)
-
-| Id | Question | Decision | Where applied |
-|---|---|---|---|
-| MQ-1 | A pipeline with `UseEncinaContext` before `UseRouting` cannot see `HubMetadata`, so a SignalR connection over SSE (or the first long poll) keeps the connect-time identity. Log only, block after detection, or skip SSE requests? | **Decided: (b) and (c) together.** (c) `EncinaContextMiddleware` and `TenantResolutionMiddleware` also skip requests that send `Accept: text/event-stream`, under the connection-origin marker, so the SSE connect-time identity hole is closed whatever the pipeline order (an ordinary SSE endpoint also reads Anonymous until it opts in per invocation); (b) after the first detection (Critical 202) the middleware answers 500 to every later request without calling `next` | Entry-point table, M6 connection-flows row, Design 2 steps 0, 1, 5, Phase 3 tasks 1, 5, 9 and prompt, ADR-035 items, Combined prompt, Maintainer decisions item 11 |
-| MQ-2 | Does the connection-origin marker make `RunAsServiceAsync` inside a hub method need `AllowOverInbound`? | **Decided: confirmed.** Connection endpoints run under the connection-origin anonymous marker; `RunAsServiceAsync` and `RunAsPrincipalAsync` inside a hub method require `AllowOverInbound` (logged), `RunInboundAsync` per invocation and per activity is permitted (m5 consequence kept) | m5, Design 2, Design 3 rule 4, Phase 3 task 0, Maintainer decisions item 11 |
-
----
-
-## Review log (PR #1862 adversarial review)
-
-Source: `artifacts/pr-review/1862-adversarial.md` (verdict merge after fixes; 5 major, 10 minor, 4 maintainer decisions), reviewed at plan commit 54a89b73 against `origin/main` ab4ec134, and the maintainer decisions D1-D4 in the last #1705 comment of 2026-10-05. Every `src/` and `tests/` citation added or changed in this round was re-checked with `git show origin/main:<path>` on ab4ec134. The `dotnet/aspnetcore` `release/10.0` citations (`DefaultWebSocketManager.cs`, `WebSocketMiddleware.cs`, `ConnectionEndpointRouteBuilderExtensions.cs`, `WebSocketClient.cs`, `RewriteMiddleware.cs`, `StatusCodePagesExtensions.cs`) are taken from the review and were not re-read here.
-
-| Id | Sev | Finding | Result | Where |
-|---|---|---|---|---|
-| 1 | major | `context.WebSockets.IsWebSocketRequest` is false until `WebSocketMiddleware` runs; SignalR adds `UseWebSockets` inside its endpoint, so raw and GraphQL WebSockets after `UseEncinaContext` keep the connect-time user; TestServer hides it | Applied: the predicate also reads `IHttpUpgradeFeature.IsUpgradableRequest` + `Upgrade: websocket` and `IHttpExtendedConnectFeature.IsExtendedConnect` + `Protocol` `websocket`; `ConnectionRequestPredicateTests` without `IHttpWebSocketFeature` plus a Kestrel loopback test; the same predicate (private copy, same test table) in `TenantResolutionMiddleware` | Entry-point table, M6 connection-flows row, Design 2 step 1 and tenant bullet, Phase 3 tasks 1, 5, 9, prompt, Testing |
-| 2 | major | A benign re-route (`UseRewriter`, `UseStatusCodePagesWithReExecute`) or a 404 trips the 500 latch; a static latch breaks other hosts in the process | Applied as D1: trip only when the endpoint after `next` carries `HubMetadata`; instance field with `Interlocked.Exchange`; test that re-routing and 404 set no latch and that a second host is unaffected | Design 2 step 5, M6 connection-flows row, Phase 3 tasks 1, 9, prompt, ADR-035 item |
-| 3 | major | Nested dispatch from a dead flow loses the chain facts because `SetUnchecked` drops non-scope holders through `NearestScope` (`RequestContextAccessor.cs:94,128-129`) | Applied: every new holder inherits the facts of the holder current when it is created, before `LiveOrNull` or `NearestScope` drop anything; tests for nested dispatch and two successive sets | M6 holder-origin row, Design 3 rule 4, Phase 2 tasks 9, 13, prompt, Testing (`HolderFactInheritanceTests`) |
-| 4 | major | User ids still logged by `AuthorizationPipelineBehavior` 200/201 and the EF interceptors 3050/3000 | Applied: kind instead of user id (EventIds kept), `["userId"]` error details of the behavior become `["identityKind"]`; added to Phase 3 tasks 3 and 6 and the sentinel list | Design 2 (Authorization bullet), Design 4, Phase 3 tasks 3, 6, 9, prompt, Testing rules, Consumer changes, EventId table, changelog `.security` |
-| 5 | major | Ordinary SSE endpoints have no opt-in | Applied as D2: public `HttpContext.CreateInboundRequestInfo()`, `RunInboundAsync` per event or per dispatch, never the whole stream; `InboundRequestInfo` shape and visibility defined (public record, Phase 2) | Entry-point table, Design 2, Design 3 API block, Phase 2 task 5, Phase 3 tasks 9, 11, Documentation |
-| 6 | minor | CS0051: public `InvokeAsync`/constructor with an internal parameter type | Applied: `EncinaContextMiddleware` and `RequestIdentityCircuitHandler` become `internal sealed` (`UseMiddleware` activates internal types; resolving from `RequestServices` rejected: hidden from `ValidateOnBuild`, per-request service locator); PublicAPI lines `:24-26` removed; `InternalsVisibleTo` for `Encina.GuardTests` | Design 2, Phase 3 tasks 1, 4, 7, prompt, Consumer changes, changelog `.removed` |
-| 7 | minor | Test budget misses 38 + 2 `Push`/`Pop` calls and the issuer-less `WithIdentity` dispatch of `RequestContextPropagationTests.cs:232-242` | Applied: 40 calls budgeted (`AccessorLifetimeTests` 38, `RequestIdentityGuardTests.cs:65-66` 2); the re-list pattern covers `TestRequestContext.WithIdentity(` and names the propagation test | Phase 2 task 12, prompt |
-| 8 | minor | Two Phase 3 tests contradict the latch (negotiate trips it first) | Applied: fresh host per misordered case with the connection as first request, or `SkipNegotiation`; the WebSocket case asserts the latch on close (D1) | Phase 3 task 9 |
-| 9 | minor | Setter "same origin" undefined with no readable context; setter stores a foreign context without a snapshot | Applied: no readable context → reference Anonymous/`Unspecified`; the setter checks and stores `CopyOf(value)` | Design 1 (setter), Phase 2 tasks 9, 13, prompt |
-| 10 | minor | Principal cloning keeps unauthenticated identities; `WindowsIdentity` clone duplicates the handle | Applied as D4 | Design 1 (cloning), Phase 2 tasks 4, 13, prompt, ADR-035 item |
-| 11 | minor | Rule 5 skipped on rule 4's accept path; rule 3 reads the ambient, not the chain | Applied: the tenant rule runs on every accepted context; rule 3 reads the holder facts ("chain has a User"); identity rules renumbered 1-6 with a note for older references | Design 1 (rule order), Phase 2 tasks 9, 13, prompt |
-| 12 | minor | Missing EventIds; `RequestCancelled` in the middleware; `RunInboundAsync` must not return `Left` for client input | Applied: 172 `InboundScopeOpened`, 173 `ScopeTenantChanged`, 174 `ScopeOpenedOverInbound` (free in `EventIdRanges.Core` on ab4ec134); `RequestCancelled` → no response, no log; client-controlled `InboundRequestInfo` members normalized, never refused | m6 row, Design 2 steps 2 and 4, Design 3 (opening logs, inbound input), Phase 2 tasks 5, 8, 13, Phase 3 tasks 1, 9, EventId table |
-| 13 | minor | Per-token exclusion set has no path into identities built outside the factory | Applied: `perTokenClaimTypes` parameter on `ForUser`/`ForService` (null = `DefaultPerTokenClaimTypes`), `IsSameAs` removes the union of both sets | Design 1 model and comparison, Phase 2 tasks 4, 13 |
-| 14 | minor | `TenantResolutionMiddleware` skip location ambiguous; a skip at the start bypasses `RequireTenant` and validation | Applied: only the context write (`:117-121`) is skipped; test that the 400 still happens on a connection request | Design 2 (tenant bullet), Phase 3 tasks 5, 9, Consumer changes |
-| 15 | nit | Research rows; `:117-121` writes only when a tenant resolves; PR body lists MQ-1/MQ-2 open; `Accept` matching unspecified | Applied: Research rows rewritten (`Resolve :72`, `Enter :176`, `AsyncLocal :47`, no "restore pattern for scopes"); "whenever a tenant resolves"; `Accept` matching specified (parsed media types, wildcards excluded, raw fallback). **Not applied here:** the PR #1862 body is the orchestrator's (this worker does not edit PRs) | Research, Design 2 step 1 and tenant bullet, Phase 3 task 5 |
-| Plan | correction | Design 4 said `ConflictingAuthenticatedIdentities` is EventId 168; it is 164 (m6, `RequestIdentityLog.cs`) | Applied | Design 4 |
-| DR-1 | minor | docs-reviewer: the `IsSameAs` bullet still pointed at "rule 5" for the tenant | Applied ("the tenant rule") | Design 1 |
-| DR-2 | minor | docs-reviewer: wrong `WithIdentity` file list | Applied (verified with `git grep -l`: the five files and which ones dispatch) | Phase 2 task 12 |
-| DR-3 | minor | docs-reviewer: the benchmark cannot reach the now-internal middleware | Applied: `InternalsVisibleTo` for `Encina.AspNetCore.Benchmarks` | Design 2 (Visibility), Phase 3 task 4 |
-| DR-4 | nit | docs-reviewer: bound constants missing from the `InboundRequestInfo` sketch; `:164` passes `null`, not `userId` | Applied (`MaxIdLength`, `MaxUserAgentLength`, `MaxDataRegionLength`; call-site list corrected) | Design 3, Phase 3 task 3 |
-
-Maintainer decisions D1-D4 are recorded in "Maintainer decisions", item 12.
-
----
-
-## Review log (PR #1862 final review)
-
-Source: the final review of PR #1862 on plan commit de79c0b7 (minors 3 and 5-9, two optional suggestions) and the maintainer decisions E1-E3 in the last #1705 comment of 2026-10-05, recorded in "Maintainer decisions", item 13. Every `src/` citation added or changed in this round was re-checked with `git show origin/main:<path>` and `git grep` on `origin/main` ab4ec134 (unchanged since the previous round): `InboxMessageConfiguration.cs:20` (`HasMaxLength(255)` on `MessageId`), `HttpAuditContextExtensions.cs:54,101` and `HttpDataResidencyContextExtensions.cs:41` (the only three `cref="EncinaContextMiddleware"` outside the class itself), `ApplicationBuilderExtensions.cs:44`, `EventIdRanges.cs` (`Core` 100-199, `AspNetCore` 200-249), `RequestIdentityLog.cs` (162-165 only), and `EncinaEventIdAllocationTests.cs:46` (`Encina.AspNetCore` maps to `AspNetCore`). The `dotnet/aspnetcore` behaviour of the extended-CONNECT and rewrite paths is taken from the review and was not re-read here.
-
-| Id | Sev | Finding or decision | Result | Where |
-|---|---|---|---|---|
-| E1 | decision | The D1 latch is reachable through a rewrite that lands on a hub | Applied: the latch needs endpoint null before `next`, `HubMetadata` after, **and an unchanged `Request.Path`**; a changed path logs Warning and latches nothing. Documented order `UseRouting` → rewriter and error handlers → `UseEncinaContext`. Design 2 step 5 and Phase 3 task 9 rewritten; new test for a rewrite whose target is a hub. **Deviation from the brief: the Warning is EventId 203 in the `AspNetCore` range, not 175 in the core range.** The middleware logs from `Encina.AspNetCore`, and `EncinaEventIdAllocationTests` maps that assembly to `AspNetCore` 200-249 (AGENTS.md section 7: never an id outside the package's range); 175 stays in the core range and is used by optional suggestion 2 | Entry-point table, M6 connection-flows row, m6 row, Design 2 step 5, Phase 3 tasks 1 and 9, prompt, Consumer changes, Research EventId table, ADR-035 item, docs, Maintainer decisions 13 |
-| E2 | decision | A persisted tenant on an External restore is untrusted | Applied: for `External` the persisted tenant is ignored; the only accepted tenant is the new optional `trustedTenantId` argument that the dispatcher fills from trusted per-inbox or per-endpoint configuration, otherwise no tenant; an invalid configured value returns `Left`; `Internal` keeps the persisted tenant. API signature of `RunRestoredAsync` gains `string? trustedTenantId = null` (before the cancellation token); P-50 wires the mapping | Design 1 ("Persisted form", signature), Design 3 (signature, rule 3, tenant binding), Phase 2 tasks 5, 9, 13, prompt, Dependencies, ADR-035 item |
-| E3 | decision | `Accept: text/event-stream` also matches MCP Streamable HTTP POSTs | Applied: the connection skip applies only to **GET** requests whose `Accept` lists `text/event-stream`, in both middlewares; a POST that streams its response keeps its request identity; predicate table gains POST, PUT and HEAD rows; a POST-streaming test; docs note on MCP Streamable HTTP | Entry-point table (new row), m5 and M6 rows, Design 2 step 1, tenant bullet, SSE bullet, Phase 3 tasks 1, 5, 9, prompt, Consumer changes, Documentation |
-| 3 | minor | Only `Protocol == "websocket"` extended CONNECT counts as a connection | Applied: every `IsExtendedConnect` request is a connection request whatever its `Protocol`; the HTTP/1.1 detection stays on the `websocket` `Upgrade` token; predicate table gains `webtransport` and `null` rows and an `IsExtendedConnect = false` row | Design 2 step 1, M6 row, Phase 3 tasks 1, 5, 9, prompt |
-| 5 | minor | The idempotency key shares the 128 bound and the `Activity` id fallback is unbounded | Applied: `MaxIdempotencyKeyLength = 255` (the inbox `MessageId` column width, `InboxMessageConfiguration.cs:20`) separate from `MaxIdLength = 128`; the `Activity.Current?.Id` fallback is bounded (over-long or control characters → new GUID); tests keep a 200-character key and drop a 256-character one | Design 3 sketch and "Inbound input", Phase 2 tasks 5, 13, prompt, Phase 3 task 9 |
-| 6 | minor | The internal-visibility rationale is wrong: method-injected `InvokeAsync` parameters are invisible to `ValidateOnBuild` too | Applied: the rationale is the per-request service-locator lookup only; `AspNetCoreIdentityRegistrationTests` resolves `IRequestContextScopeFactory` and `IInternalRequestContextScopeFactory` explicitly under `ValidateOnBuild`+`ValidateScopes`; the three dangling crefs are added to Phase 3 task 7; `RequestIdentityCircuitHandler` keeps a public constructor (effective accessibility is internal, so no CS0051) | Design 2 (Visibility), Phase 3 tasks 4, 7, 9, prompt |
-| 7 | minor | The D2 SSE opt-in loses route and subdomain tenants | Applied: documented in the entry-point table, Design 2, Phase 3 task 11 and the how-to, and tied to F5 as a second acceptance criterion | Entry-point table, Design 2 (SSE bullet), F5 row, Phase 3 task 11, Documentation |
-| 8 | minor | D4 copy of an authenticated identity with an empty `AuthenticationType` becomes unauthenticated; Windows group-name roles stop matching | Applied: non-empty fallback type `encina-authenticated`; the Windows consequence documented (reference page, ADR-035); tests pin both | Design 1 (cloning), Phase 2 tasks 4, 13, prompt, ADR-035 item, Documentation |
-| 9 | minor | `UserAgent` keeps control characters; the how-to omits where loops start; pooled `HttpContext` hazard | Applied: control characters stripped before truncation (512); the how-to says to start loops at host start or under `SuppressFlow()`; the D2 builder docs state that `HttpContext` is pooled and must not be captured | Design 3 ("Inbound input", loops bullet), Design 2 (SSE bullet), Phase 3 task 11, Documentation |
-| O1 | optional | Log 174 carries the declared service name | Applied for `RunAsServiceAsync` (a declared name is not a secret) | Design 3 (opening logs), Phase 2 tasks 8, 13, prompt |
-| O2 | optional | Information when application code calls the public `RunInboundAsync` | Applied: the public member logs new core EventId **175** `InboundScopeOpenedByApplication` (Information); the middleware and the Blazor handler call the internal twin `IInternalRequestContextScopeFactory.RunHostInboundAsync`, which logs 172 at Debug as the accepted choice (3) of the previous round requires. The middleware's `InvokeAsync` therefore injects only the internal factory | M3 row, m6 row, Design 2 steps 2 and 4 and Visibility, Design 3 (API block, opening logs), Phase 2 tasks 5, 8, 13, Phase 3 tasks 0, 1, 4, 10, prompts, Consumer changes, Research EventId table |
-
-docs-reviewer pass on this round (verdict publish after fixes, no blocker; all findings verified and applied):
-
-| Id | Sev | Finding | Result | Where |
-|---|---|---|---|---|
-| DR-A | major | Rule 4 named only `RunInboundAsync` as permitted over a `Connection` holder, so read literally it refused the Blazor handler's `RunHostInboundAsync` | Applied: `RunHostInboundAsync` is covered wherever `RunInboundAsync` is permitted or has no opt-out; the ConnectionFlowIdentityTests circuit case asserts it | m5 row, Design 3 rule 4, Phase 3 tasks 0 and 9 |
-| DR-B | major | Several sentences still said the middleware or the Blazor handler uses the public `RunInboundAsync`, or left the new member out of the trusted-path lists | Applied: entry-point row, M6 row, Design 1 trusted-path sentence, API-block comment, opt-out list, ADR-035 item | Entry-point table, M6 row, Design 1, Design 3, Design 6, Phase 7 task 2 |
-| DR-C | minor | Stale EventId ranges 166-174 | Applied (166-175) | Phase 1 task 7, Testing |
-| DR-D | minor | E2 returned `Left` with an undefined code | Applied: `encina.identity.invalid_persisted_identity` defined once and reused | Design 1, Design 3 rule 3, Phase 2 tasks 6 and prompt |
-| DR-E | minor | Phase 2 prompt omitted the invalid `trustedTenantId` check; extension overloads omitted the parameter | Applied | Phase 2 prompt, Design 3 comment |
-| DR-F | minor | Maintainer decisions 11 and 12 read as the pre-E3 and pre-E1 rules | Applied: forward pointers to item 13 | Maintainer decisions 11 and 12 (D1) |
-| DR-G | minor | M3 row sentence garbled by the new parenthetical | Applied | M3 row |
-| DR-H | unverified | `UseStatusCodePagesWithReExecute` and `UseExceptionHandler` probably restore path and endpoint, so Warning 203 arises only from `UseRewriter` or custom middleware | Not applied as a rule change (the maintainer decision names all three): the caveat is stated in Design 2 step 5 and the Phase 3 worker verifies it before writing the test | Design 2 step 5 |
-| DR-I | not run | `lychee`/`markdownlint` on the page | See the report: run by the orchestrator in CI | n/a |
-
-Maintainer decisions E1-E3 are recorded in "Maintainer decisions", item 13.
+Everything else follows from AGENTS.md (pre-1.0 best design, fail closed with explicit logged opt-outs, registration completeness, pay-for-what-you-use) and was ranked by three independent design reviews; the user-visible consequences (sub-first claim order, authenticated-without-subject becomes anonymous, `encina.authorization.unauthenticated` for the PEP, deferred dispatch anonymous until P-50, deleted `ISecurityContext`/`IPrincipalResolver` API) are recorded in ADR-035 and the changelog fragments.
