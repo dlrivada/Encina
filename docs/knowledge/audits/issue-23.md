@@ -29,7 +29,7 @@
 
 ## Conclusion
 
-**Classification**: `moved` — Testing support was implemented as a family of 12 specialized packages (Encina.Testing.Fakes, Encina.Testing.Shouldly, Encina.Testing.WireMock, etc.), not as a single monolithic package. The issue was closed as "created in error" because the architecture evolved to separate testing concerns. No remediation required.
+**Classification**: `moved` — Testing support was implemented as a family of 12 specialized packages (Encina.Testing.Fakes, Encina.Testing.Shouldly, Encina.Testing.WireMock, etc.), not as a single monolithic package. The issue was closed as "created in error" because the architecture evolved to separate testing concerns. The shallow first pass required no remediation; the six-stage audit that followed opened #1689 (Encina.Testing has no README), so the verdict is **findings-tracked** (see the record [issues/23.md](../issues/23.md)).
 
 **No AUD items are applicable to this issue** — all marked N/A with reason: "Feature moved to Encina.Testing package family; detailed audits deferred to individual package audits."
 

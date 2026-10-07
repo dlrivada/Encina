@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-Self-test for knowledge-records.cs (#1735): schema 1 and schema 2 acceptance, unknown schema rejection,
-the audit.record existence rule and the audits-folder rule.
+Self-test for knowledge-records.cs (#1735, #1765): the one strict schema (acceptance, rejection of schema 2 and
+any other version, the REQ-002/REQ-005/done-target/audit-block rules), the audit.record existence rule and the
+audits-folder rule.
 
 .DESCRIPTION
 Builds small fixture trees under the temp folder (records in <root>/docs/knowledge/issues, results in
@@ -33,12 +34,7 @@ function Add-File([string]$Root, [string]$Relative, [string]$Content) {
 # A record with the given schema. $AuditBlock is the whole 'audit:' block text ('' for none).
 function Get-Record([int]$Schema, [int]$Issue, [string]$AuditBlock, [switch]$Flow) {
     $lists = if ($Flow) { "packages: [Encina, Encina.Messaging]`nprs: []`nlinked_prs: []`nremediation: []`n" } else { "packages:`nprs:`nlinked_prs:`nremediation:`n" }
-    $knowledge = if ($Schema -eq 2) {
-        "knowledge:`n  - kind: decision`n    statement: >-`n      A folded statement`n      over two lines.`n    current: `"yes`"`n    sources:`n      - plain source text without a marker`n    destinations:`n      - kind: adr`n        status: present`n        target: `"prose target that is not a path`"`n"
-    }
-    else {
-        "knowledge:`n  - kind: decision`n    statement: `"A statement.`"`n    current: yes`n    sources:`n      - `"quote: \`"x\`" (issue #1, 2025-12-22)`"`n    destinations:`n      - kind: backlog`n        status: planned`n        target: `"#1735`"`n"
-    }
+    $knowledge = "knowledge:`n  - kind: decision`n    statement: `"A statement.`"`n    current: yes`n    sources:`n      - `"quote: \`"x\`" (issue #1, 2025-12-22)`"`n    destinations:`n      - kind: backlog`n        status: planned`n        target: `"#1735`"`n"
     return "---`nschema: $Schema`nnav_exclude: true`nissue: $Issue`ntitle: `"[DEBT] Fixture`"`nclosed: 2025-12-22`nstate_reason: completed`noutcome: delivered`ntype: debt`narea: core`nreview: verified`n$lists$knowledge$AuditBlock---`n`n## Asked`n`nFixture.`n"
 }
 
@@ -61,29 +57,49 @@ function Assert-Case([string]$Name, $Result, [bool]$ExpectOk, [string]$ExpectTex
 }
 
 try {
-    $r = New-Fixture 'v2-ok'
-    Add-File $r 'docs\knowledge\issues\1.md' (Get-Record 2 1 '' -Flow)
-    Assert-Case 'schema 2 accepted (flow lists, block scalar, free-text destination status, no audit block)' (Invoke-Check $r) $true
-
     $r = New-Fixture 'v1-ok'
     Add-File $r 'docs\knowledge\issues\2.md' (Get-Record 1 2 (Get-AuditBlock 'not-audited' 'not written yet'))
-    Assert-Case 'schema 1 accepted' (Invoke-Check $r) $true
+    Assert-Case 'the strict schema is accepted' (Invoke-Check $r) $true
+
+    $r = New-Fixture 'v2-removed'
+    Add-File $r 'docs\knowledge\issues\1.md' (Get-Record 2 1 (Get-AuditBlock 'not-audited' 'not written yet'))
+    Assert-Case 'schema 2 is rejected (removed in #1765)' (Invoke-Check $r) $false "'schema' must be 1 (found '2')"
 
     $r = New-Fixture 'v3-unknown'
     Add-File $r 'docs\knowledge\issues\3.md' (Get-Record 3 3 '')
-    Assert-Case 'unknown schema 3 rejected' (Invoke-Check $r) $false "'schema' must be one of 1, 2 (found '3')"
+    Assert-Case 'unknown schema 3 rejected' (Invoke-Check $r) $false "'schema' must be 1 (found '3')"
 
     $r = New-Fixture 'v1-flow'
     Add-File $r 'docs\knowledge\issues\4.md' (Get-Record 1 4 (Get-AuditBlock 'not-audited' 'not written yet') -Flow)
-    Assert-Case 'schema 1 rejects flow lists' (Invoke-Check $r) $false 'only accepted by schema 2'
+    Assert-Case 'flow lists are rejected' (Invoke-Check $r) $false 'flow syntax'
+
+    $r = New-Fixture 'block-scalar'
+    Add-File $r 'docs\knowledge\issues\10.md' ((Get-Record 1 10 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'statement: "A statement\."', "statement: >-`n      A statement.")
+    Assert-Case 'a block scalar is rejected with a clear error' (Invoke-Check $r) $false 'block scalar'
+
+    $r = New-Fixture 'unknown-field'
+    Add-File $r 'docs\knowledge\issues\11.md' ((Get-Record 1 11 (Get-AuditBlock 'not-audited' 'not written yet')) -replace "`nreview: verified", "`nreview: verified`nunit: core")
+    Assert-Case 'an unknown top-level field is rejected' (Invoke-Check $r) $false "unknown field 'unit'"
+
+    $r = New-Fixture 'no-audit-block'
+    Add-File $r 'docs\knowledge\issues\6.md' (Get-Record 1 6 '')
+    Assert-Case 'a record without an audit block is rejected' (Invoke-Check $r) $false "missing required field 'audit'"
+
+    $r = New-Fixture 'source-without-marker'
+    Add-File $r 'docs\knowledge\issues\7.md' ((Get-Record 1 7 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'quote: \\"x\\" \(issue #1, 2025-12-22\)', 'plain text without a marker')
+    Assert-Case 'a source without a quote:/paraphrase: marker is rejected (REQ-002)' (Invoke-Check $r) $false 'must be marked'
+
+    $r = New-Fixture 'done-target-missing'
+    Add-File $r 'docs\knowledge\issues\8.md' ((Get-Record 1 8 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'status: planned', 'status: done' -replace 'target: "#1735"', 'target: "docs/missing.md"')
+    Assert-Case 'a done destination whose target is missing is rejected' (Invoke-Check $r) $false 'does not exist (status: done)'
+
+    $r = New-Fixture 'current-yes-none'
+    Add-File $r 'docs\knowledge\issues\9.md' ((Get-Record 1 9 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'kind: backlog', 'kind: none')
+    Assert-Case 'current: yes with only a none destination is rejected (REQ-005)' (Invoke-Check $r) $false 'REQ-005'
 
     $r = New-Fixture 'dangling'
     Add-File $r 'docs\knowledge\issues\5.md' (Get-Record 1 5 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-5.md'))
     Assert-Case 'dangling audit.record fails' (Invoke-Check $r) $false 'which does not exist'
-
-    $r = New-Fixture 'dangling-v2'
-    Add-File $r 'docs\knowledge\issues\6.md' (Get-Record 2 6 (Get-AuditBlock 'findings-tracked' 'docs/knowledge/audits/issue-6.md'))
-    Assert-Case 'dangling audit.record fails for schema 2' (Invoke-Check $r) $false 'which does not exist'
 
     $r = New-Fixture 'not-audited-path'
     Add-File $r 'docs\knowledge\issues\7.md' (Get-Record 1 7 (Get-AuditBlock 'not-audited' 'docs/knowledge/audits/issue-7.md'))
@@ -136,7 +152,7 @@ try {
 
     $r = New-Fixture 'v1-nested-flow'
     Add-File $r 'docs\knowledge\issues\19.md' ((Get-Record 1 19 (Get-AuditBlock 'not-audited' 'not written yet')) -replace 'destinations:\n      - kind: backlog\n        status: planned\n        target: "#1735"', 'destinations: []')
-    Assert-Case 'schema 1 rejects a nested flow list' (Invoke-Check $r) $false 'flow list'
+    Assert-Case 'a nested flow list is rejected' (Invoke-Check $r) $false 'flow list'
 
     $r = New-Fixture 'stage-link'
     Add-File $r 'docs\knowledge\issues\20.md' (Get-Record 1 20 (Get-AuditBlock 'conforms' 'docs/knowledge/audits/issue-20.md'))

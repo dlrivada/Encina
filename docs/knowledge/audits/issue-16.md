@@ -23,8 +23,8 @@
 
 ## Coverage
 
-No production code affected; verdict: **not-audited** (spike with documentation outcome).
+No production code affected by the shallow first pass (spike with documentation outcome). The six-stage audit that followed (stages in [16/stages/](16/stages/remediation.md)) found code, test and documentation defects and its verdict is **findings-tracked**.
 
 ## Remediation
 
-None found. Documentation created per issue deliverables. Decision is recorded and accessible.
+The first pass found none; the six-stage audit then opened 21 remediation issues, #1467 to #1487 (see the record [issues/16.md](../issues/16.md)). Documentation created per issue deliverables. Decision is recorded and accessible.
