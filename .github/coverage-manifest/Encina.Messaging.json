@@ -1043,7 +1043,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 30 },
+      "justifications": {
+        "unit": "Orchestration logic of schedule, cancel, process batch, save outcomes and retry; measured 94% from unit tests with a mocked store.",
+        "guard": "Guard tests cover only constructor and argument null checks; the processing logic is covered by the unit flag (measured 34%)."
+      }
     },
     "Scheduling/SchedulingOptions.cs": {
       "defaultTests": [
